@@ -142,7 +142,7 @@ describe("source-steps: the simple path", () => {
         assert.strictEqual(session.data.node("a")?.score, 3);
         assert.notInclude(session.data.sourcesOf("a"), "reader", "an edit never credits the reader");
         const { text } = await session.project.save();
-        assert.include(text, '{"id":"X-1","_source.loads":["reader"]}', "saved with its source");
+        assert.include(text, '{"id":"X-1","_source.loads":["reader"],"graphty.types":[]}', "saved with its source");
         const [added, edge] = session.data.edits();
         await session.data.removeEdit(edge.id);
         assert.strictEqual(session.data.store.getSnapshot().edgeCount, 1, "taking back the edge");

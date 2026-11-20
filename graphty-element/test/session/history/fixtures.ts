@@ -175,6 +175,7 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
         },
     }),
     actFixture("remove-step", { kind: "act", act: { act: "remove-step", index: 0 } }),
+    actFixture("set-step-off", { kind: "act", act: { act: "set-step-off", index: 0, off: true } }),
     actFixture("add-staged", { kind: "act", act: { act: "add-staged", source: "src_b" } }, stepsAndStaged),
     {
         name: "data.steps-set: a source added with join.add",
@@ -216,7 +217,7 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
                     steps: [{ op: "join.add", source: STEPS_SOURCE.id }],
                     types: [],
                     reader: [],
-                    build: 3,
+                    build: "01JZ0000000000000000000003",
                 },
             },
             copies: STEPS_COPIES,

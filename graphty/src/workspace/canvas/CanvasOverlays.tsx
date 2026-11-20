@@ -14,7 +14,6 @@ import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
 import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
-import { PreviewKey } from "./PreviewKey";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -398,11 +397,9 @@ export function CanvasOverlays(): React.JSX.Element | null {
     return (
         <>
             {/* Asked for over nothing, the card says nothing is styled yet. */}
-            {/* While a selection is picked, the key says the styles are suspended and names its groups. */}
-            {legendShown && !workspaceOpen ? (
-                <PreviewKey session={session}>
-                    {keyed || legendAsked ? <LegendCard blocks={blocks} session={session} /> : null}
-                </PreviewKey>
+            {/* While a selection is picked, the selection workspace draws its own key at its preview. */}
+            {legendShown && !workspaceOpen && (keyed || legendAsked) ? (
+                <LegendCard blocks={blocks} session={session} />
             ) : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
         </>

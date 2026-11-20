@@ -167,6 +167,26 @@ describe("edge keys (section 10 item 4)", () => {
         assert.isNotNull(resolveEdge(f.built(), t, `${part}/${copy}#0`));
     });
 
+    it("keys every row of a join.edges step with repeated both <part>/<copy id>#<row>, one edge per row", () => {
+        const f = new Fixture();
+        f.import({ nodes: csv("id\np1\np2\n") }, { key: "id", type: "person" });
+        const calls = f.import({ nodes: csv("call,a,b\nc1,p1,p2\nc2,p1,p2\n") }, { key: "call", type: "call" });
+        const part = f.mint(calls);
+        f.steps.push({
+            op: "join.edges",
+            source: calls,
+            part,
+            read: { table: "nodes", source: "a", sourceSpace: "person", target: "b", targetSpace: "person" },
+            repeated: "both",
+        });
+        const r = f.built();
+        const { copy } = f.sources[calls].origin;
+        assert.isNotNull(resolveEdge(r, calls, `${part}/${copy}#0`));
+        assert.isNotNull(resolveEdge(r, calls, `${part}/${copy}#1`));
+        assert.isNull(resolveEdge(r, calls, `${part}/p1|p2`), "no pair key: the step reduces nothing");
+        assert.equal(edgesOf(r).filter((e) => e.key.startsWith(`${part}/`)).length, 2);
+    });
+
     it("matches join.edge-values' read.edgeId against the full edge key, part prefix included", () => {
         const { f, t } = phase1([10000, 10001]);
         const part = f.extract(t, { column: "device_id", type: "device" });

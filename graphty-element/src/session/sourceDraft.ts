@@ -251,12 +251,15 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /**
-     * The part a source's newest `join.edges` step was minted with.
+     * The part of a source's newest `join.edges` step: minted above every other, so the highest.
      * @param source - The source.
-     * @returns The part.
+     * @returns The part, or 0 when the source has no such step.
      */
     private partOf(source: string): number {
-        return this.state.value.parts?.[source] ?? 0;
+        const parts = this.state.value.steps.flatMap((s) =>
+            s.op === "join.edges" && s.source === source ? [s.part] : [],
+        );
+        return Math.max(0, ...parts);
     }
 
     /** @inheritdoc */

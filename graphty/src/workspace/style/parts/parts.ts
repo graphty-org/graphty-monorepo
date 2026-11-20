@@ -399,6 +399,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         "edge.wavePeriod",
                         "edge.dashLength",
                         "edge.dashGap",
+                        "edge.dashArray",
                         "edge.taper",
                         "edge.taperSource",
                         "edge.lift",

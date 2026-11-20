@@ -15,7 +15,7 @@ import type { EdgeId, NodeId } from "../../../catalog/types";
 import { GraphtyError } from "../../../errors/GraphtyError";
 import type { JoinRecord } from "../../types";
 import { applyAct, type StepsAct } from "./acts";
-import { build, isStaged, nodeSpace, ownSpace, resolveNode, stepSources } from "./build";
+import { build, copyKey, isStaged, nodeSpace, ownSpace, resolveNode, stepSources } from "./build";
 import { RECORD_PATHS } from "./paths";
 import { conflictReport, readableRecord, type StepsOutcome } from "./provenance";
 import { applyRefreshEdit, editStates, missingColumns, type RefreshEdit, type RefreshIssue } from "./refresh";
@@ -99,13 +99,11 @@ export interface SourceSteps {
     readonly types: readonly TypeEntry[];
     /** The reader source's operations, in the order made. */
     readonly reader: readonly ReaderOp[];
-    /** The highest `join.edges` part minted per source, so a deleted step's part is never reused (3.3). */
-    readonly parts?: Readonly<Record<string, number>>;
     /**
-     * Counts the builds that changed the graph, so a run made over one build reads stale after a
-     * later one, even when a refresh brings the same rows back (8.6).
+     * The build stamp, a ULID minted by each build that changed the graph, so a run made over one
+     * build reads stale after a later one, even when a refresh brings the same rows back (8.6).
      */
-    readonly build?: number;
+    readonly build?: string;
 }
 
 /** The rows as read, by copy id. */
@@ -168,7 +166,7 @@ const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
  * A ULID: 48 bits of the time and 80 random bits, in Crockford base 32.
  * @returns The 26 characters.
  */
-function ulid(): string {
+export function mintUlid(): string {
     let time = Date.now();
     let head = "";
     for (let i = 0; i < 10; i++) {
@@ -183,19 +181,39 @@ function ulid(): string {
  * A new source id.
  * @returns `src_` and a ULID.
  */
-export const mintSourceId = (): string => `src_${ulid()}`;
+export const mintSourceId = (): string => `src_${mintUlid()}`;
 
 /**
- * A new copy id.
- * @returns `copy_` and a ULID.
+ * A new copy id for rows that are not bytes as read (version 2, 4.1.2 rule 1).
+ * @returns A ULID.
  */
-export const mintCopyId = (): string => `copy_${ulid()}`;
+export const mintCopyId = (): string => mintUlid();
+
+/**
+ * The copy id of a source's rows, and the key the session holds them under: `sha256:` and the
+ * digest of the bytes as read for a file, URL or downloaded sample, under a key of its own since
+ * two sources may read the same bytes; else a new ULID, which is its own key (4.1.2 rule 1).
+ * @param kind - How the source was obtained.
+ * @param digest - The lower-case hex SHA-256 of the bytes its rows were read from, when known.
+ * @returns The origin, and the key its rows go under in the copies.
+ */
+export function copyOrigin(
+    kind: StepsSourceKind,
+    digest: string | undefined,
+): { readonly origin: { readonly copy: string; readonly rows?: string }; readonly key: string } {
+    if (digest === undefined || (kind !== "file" && kind !== "url" && kind !== "sample")) {
+        const copy = mintCopyId();
+        return { origin: { copy }, key: copy };
+    }
+    const rows = mintUlid();
+    return { origin: { copy: `sha256:${digest}`, rows }, key: rows };
+}
 
 /**
  * A new reader operation id.
  * @returns `edit_` and a ULID.
  */
-export const mintEditId = (): string => `edit_${ulid()}`;
+export const mintEditId = (): string => `edit_${mintUlid()}`;
 
 /**
  * Refuse a space a caller may not name: `graph:` spaces are reserved (3.1).
@@ -249,14 +267,13 @@ export function buildOf(value: SourceSteps, copies: Copies): BuildResult {
 }
 
 /**
- * The value with its build count set, sharing its build: the count changes no element.
+ * The value with a new build stamp, sharing its build: the stamp changes no element.
  * @param value - The value, built over `copies`.
  * @param copies - Its copies.
- * @param count - The count.
- * @returns The counted value.
+ * @returns The stamped value.
  */
-export function counted(value: SourceSteps, copies: Copies, count: number): SourceSteps {
-    const next = { ...value, build: count };
+export function counted(value: SourceSteps, copies: Copies): SourceSteps {
+    const next = { ...value, build: mintUlid() };
     builds.set(next, { copies, result: buildOf(value, copies) });
     return next;
 }
@@ -310,7 +327,7 @@ export function declared(types: readonly TypeEntry[], entry: TypeEntry): readonl
  */
 function nodeKeys(src: StepsSource, copies: Copies): Set<string> {
     const key = src.mapping.nodes?.key;
-    const rows = copies[src.origin.copy]?.nodes ?? [];
+    const rows = copies[copyKey(src)]?.nodes ?? [];
     const out = new Set<string>();
     if (key === undefined) {
         return out;
@@ -539,7 +556,7 @@ function withoutSource(prior: SourceSteps, id: string): SourceSteps {
  * @returns The copies by id.
  */
 export function copiesOf(value: SourceSteps, copies: Copies): Copies {
-    const named = new Set(Object.values(value.sources).map((s) => s.origin.copy));
+    const named = new Set(Object.values(value.sources).map((s) => copyKey(s)));
     if (Object.keys(copies).every((id) => named.has(id))) {
         return copies;
     }
@@ -973,11 +990,11 @@ export interface StepRow {
     readonly spaces: readonly string[];
     /** The types its source's rules give what it builds. */
     readonly types: readonly string[];
-    /** Written by the element: kept but not built. */
+    /** The reader turned it off: kept but not built (7.13). */
     readonly off: boolean;
-    /** A source it depends on is held, so it is not built. */
+    /** A source it depends on is held, or it misses a column (`missing`), so it is not built (7.12). */
     readonly held: boolean;
-    /** The columns it reads that its sources' rows no longer hold; a step missing one is off (7.12). */
+    /** The columns it reads that its sources' rows no longer hold; a step missing one is held (7.12). */
     readonly missing: readonly RefreshIssue[];
     /** Its counts in the committed build; null when it was not built. */
     readonly buckets: StepStats | null;
@@ -1051,6 +1068,7 @@ export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies
                 ),
             )
             .map((t) => t.name);
+        const missing = missingColumns(value, copies, index);
         return Object.freeze({
             index,
             op: step.op,
@@ -1059,8 +1077,8 @@ export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies
             spaces: Object.freeze([...spaces]),
             types: Object.freeze(types),
             off: step.off === true,
-            held: stepSources(step, value).some((id) => value.sources[id]?.held === true),
-            missing: Object.freeze(missingColumns(value, copies, index)),
+            held: missing.length > 0 || stepSources(step, value).some((id) => value.sources[id]?.held === true),
+            missing: Object.freeze(missing),
             buckets: result.stats.find((s) => s.step === index) ?? null,
             valuesDiffer: Object.freeze(report.filter((each) => each.params.step === index)),
         });

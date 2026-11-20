@@ -7,10 +7,12 @@
  * saved as a copy).
  */
 
+import { createHash } from "node:crypto";
+
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, defineSource, type GraphSession, registerSource } from "../../../session";
-import { ACCOUNTS, BANK_B, edgeFile, full, KYC, phase2, phase6, refused, spaces } from "./scenario";
+import { ACCOUNTS, BANK_B, edgeFile, full, KYC, phase1, phase2, phase6, refused, spaces } from "./scenario";
 
 registerSource(
     defineSource({
@@ -33,6 +35,28 @@ registerSource(
             }),
     }),
 );
+
+/** A ULID. */
+const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/u;
+
+/** The members a version 2 source record may have (graphty-element/spec/README.md, 4.1.2). */
+const SOURCE_RECORD: ReadonlySet<string> = new Set([
+    "id",
+    "label",
+    "kind",
+    "format",
+    "options",
+    "origin",
+    "mapping",
+    "settings",
+    "annotations",
+    "metadata",
+    "license",
+    "citation",
+    "copy",
+    "columns",
+    "loaded",
+]);
 
 /** Saved text with its clock readings and session id blanked, so two saves compare. */
 function comparable(text: string): string {
@@ -103,6 +127,258 @@ describe("source-steps: save and reopen", () => {
         q.dispose();
     });
 
+    it("section 10: the member spells version 2's source records, reader source, steps, types and graph", async () => {
+        const { session } = await full();
+        await session.data.addNodes([{ id: "X-1", score: 1 }]);
+        await session.data.updateNodes([{ id: "A-1", values: { email: "ann@x" } }]);
+        const graph = graphOf(session);
+        const { q, text, problems } = await reopen(session);
+        const member = members(text)["graphty-sources"];
+        assert.notProperty(member, "parts", "the file keeps no part counter");
+        assert.match(member.build as string, ULID, "the build stamp is a ULID");
+        const sources = member.sources as Record<string, unknown>[];
+        const reader = sources.at(-1) ?? {};
+        for (const src of sources.slice(0, -1)) {
+            assert.deepStrictEqual(
+                Object.keys(src).filter((k) => !SOURCE_RECORD.has(k)),
+                [],
+                "only version 2's source record members",
+            );
+            assert.isString(src.label);
+            assert.include(["file", "url", "network", "sample", "derived"], src.kind);
+            const copy = src.copy as Record<string, Record<string, unknown[]>>;
+            for (const [table, columns] of Object.entries(copy)) {
+                assert.include(["nodes", "edges"], table);
+                assert.strictEqual(new Set(Object.values(columns).map((cells) => cells.length)).size, 1);
+                assert.hasAllKeys((src.columns as Record<string, object>)[table], Object.keys(columns));
+            }
+            const { nodes, edges } = src.mapping as {
+                nodes?: { key?: string; space?: string };
+                edges?: Record<string, unknown>;
+            };
+            assert.strictEqual(
+                nodes?.space !== undefined,
+                nodes?.key !== undefined,
+                "nodes.space exactly with nodes.key",
+            );
+            if (edges !== undefined) {
+                assert.isString(edges.sourceSpace);
+                assert.isString(edges.targetSpace);
+                assert.notProperty(edges, "latitude");
+            }
+        }
+        assert.deepStrictEqual(
+            Object.keys(reader).filter((k) => !["id", "label", "kind", "origin", "copy", "loaded"].includes(k)),
+            [],
+        );
+        assert.match((reader.origin as { copy: string }).copy, ULID);
+        const { operations } = reader.copy as { operations: Record<string, unknown>[] };
+        assert.deepStrictEqual(
+            operations.map((op) => [op.op, "id" in op, "dtypes" in op, "was" in op]),
+            [
+                ["add", false, true, false],
+                ["edit", false, false, true],
+            ],
+        );
+        for (const entry of member.types as { schema?: object; rules: { values?: unknown[] }[] }[]) {
+            assert.isObject(entry.schema);
+            assert.isTrue(entry.rules.every((r) => (r.values ?? []).every((v) => typeof v === "string")));
+        }
+        const saved = members(text)["graphty-data"].graph as {
+            nodes: Record<string, unknown>[];
+            links: Record<string, unknown>[];
+        };
+        for (const el of [...saved.nodes, ...saved.links]) {
+            assert.isAtMost((el["graphty.types"] as unknown[]).length, 1, "one type per element (row 24)");
+        }
+        const typesOf = (id: string): unknown => saved.nodes.find((n) => n.id === id)?.["graphty.types"];
+        assert.deepStrictEqual([typesOf("A-1"), typesOf("X-1")], [["account"], []]);
+        assert.deepStrictEqual(problems, []);
+        assert.strictEqual(graphOf(q), graph);
+        q.dispose();
+    });
+
+    it("rows 2 and 19: a step's own time unit and a mapping's unit, zone, spells and weight survive save and reopen", async () => {
+        const { session, t } = await phase2();
+        const n = await session.data.stage(
+            { type: "csv", config: { data: "id,when,w\nx,2020-01-01T00:00:00,3\n" }, name: "n.csv" },
+            { key: "id" },
+        );
+        await session.data.add(n);
+        const doc = JSON.parse((await session.project.save()).text) as { members: Record<string, unknown>[] };
+        session.dispose();
+        type Saved = { id: string; mapping: Record<string, Record<string, unknown>> };
+        const member = doc.members.find((m) => m.kind === "graphty-sources") as {
+            sources: Saved[];
+            joins: { op: string; source: string; read: Record<string, unknown> }[];
+        };
+        const src = (id: string): Saved => member.sources.find((s) => s.id === id) as Saved;
+        src(t).mapping.edges.time = "amount";
+        const step = member.joins.find((s) => s.op === "join.edges" && s.source === t);
+        assert.isDefined(step);
+        Object.assign(step?.read ?? {}, { time: "amount", timeUnit: "s" });
+        const roles = {
+            time: "when",
+            timeParseZone: "Europe/Oslo",
+            timeSpells: "when",
+            weight: "w",
+            weightMeaning: "strength",
+        };
+        Object.assign(src(n).mapping.nodes, roles);
+        const q = createGraphSession({ features: ["source-steps"] });
+        const report = await q.project.open(JSON.stringify(doc));
+        assert.deepStrictEqual(report.problems, []);
+        const times = (kind: "node" | "edge"): unknown[] =>
+            q.data
+                .valueCounts("graphty.time", { kind })
+                .values.map((v) => v.value)
+                .sort((a, b) => Number(a) - Number(b));
+        // The transactions' edges read `amount` in milliseconds, the extracted ones in seconds,
+        // each reduced edge from its earliest row.
+        assert.deepStrictEqual(times("edge"), [5, 7, 10, 20, 7000, 10_000]);
+        assert.deepStrictEqual(times("node"), [Date.UTC(2019, 11, 31, 23)], "read in Europe/Oslo");
+        const again = members((await q.project.save()).text)["graphty-sources"] as unknown as typeof member;
+        assert.strictEqual(again.joins.find((s) => s.op === "join.edges" && s.source === t)?.read.timeUnit, "s");
+        assert.deepInclude(again.sources.find((s) => s.id === n)?.mapping.nodes, roles);
+        q.dispose();
+    });
+
+    it("row 11: a type rule naming no part types an Extract's edges, and survives save and reopen", async () => {
+        const { session, t } = await phase1();
+        await session.data.extract(t, { column: "device_id", type: "device" });
+        const transfers = (s: GraphSession): number | undefined =>
+            s.data.valueCounts("graphty.type", { kind: "edge" }).values.find((v) => v.value === "transfer")?.count;
+        assert.strictEqual(transfers(session), 6, "four transactions and two extracted edges");
+        const graph = graphOf(session);
+        const { q, text, problems } = await reopen(session);
+        assert.deepStrictEqual(problems, []);
+        const { links } = members(text)["graphty-data"].graph as { links: Record<string, unknown>[] };
+        assert.isTrue(links.every((l) => JSON.stringify(l["graphty.types"]) === '["transfer"]'));
+        assert.strictEqual(transfers(q), 6);
+        assert.strictEqual(graphOf(q), graph);
+        q.dispose();
+    });
+
+    it("copy ids (4.1.2 rule 1): a file's is the SHA-256 of its bytes, shared by two sources reading them", async () => {
+        const text = "account_id,merchant_id\nA-1,M-1\nA-2,M-1\n";
+        const session = createGraphSession({ features: ["source-steps"] });
+        const t = await edgeFile(session, text, "t.csv");
+        // The same bytes staged again, read as nodes this time.
+        const a = await session.data.stage(
+            { type: "csv", config: { data: text }, name: "t-again.csv" },
+            { key: "account_id" },
+        );
+        await session.data.import({ source: "save-reopen-network", config: {} }, { mode: "merge" });
+        const [load] = session.data.loads().map((l) => l.key);
+        const network = session.data.sources().at(-1)?.key ?? "";
+        // The save writes each record's load under its source's key, as the member's loads entry is.
+        const graph = graphOf(session).replaceAll(`\\"${load}\\"`, `\\"${network}\\"`);
+        const { q, text: saved, problems } = await reopen(session);
+        const sources = members(saved)["graphty-sources"].sources as {
+            id: string;
+            kind: string;
+            origin: { copy: string };
+            copy: Record<string, unknown>;
+        }[];
+        const digest = `sha256:${createHash("sha256").update(text).digest("hex")}`;
+        const of = (id: string): (typeof sources)[number] | undefined => sources.find((s) => s.id === id);
+        assert.strictEqual(of(t)?.origin.copy, digest);
+        assert.strictEqual(of(a)?.origin.copy, digest, "two sources reading one file share its copy id");
+        assert.deepStrictEqual(Object.keys(of(t)?.copy ?? {}), ["edges"]);
+        assert.deepStrictEqual(Object.keys(of(a)?.copy ?? {}), ["nodes"], "each keeps its own rows");
+        assert.match(sources.find((s) => s.kind === "network")?.origin.copy ?? "", ULID);
+        assert.deepStrictEqual(problems, []);
+        assert.strictEqual(graphOf(q), graph);
+        // The staged source's own rows come back with it.
+        await q.data.add(a);
+        assert.strictEqual(q.data.sources().find((each) => each.key === a)?.counts.nodes, 2);
+        q.dispose();
+    });
+
+    it("a type left with no rules is not written (version 2 asks at least one)", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const t = await edgeFile(session, "txn_id,account_id,merchant_id\nT-1,A-1,M-1\n", "t.csv");
+        const b = await edgeFile(session, "txn_id,account_id,merchant_id\nX-1,A-2,M-2\n", "b.csv", "merge");
+        await session.data.declareType({ name: "chargeback", kind: "edge", rules: [{ source: b }] });
+        await session.data.declareType({ name: "transfer", kind: "edge", rules: [{ source: t }] });
+        await session.data.removeSource(b);
+        const { q, text } = await reopen(session);
+        const types = members(text)["graphty-sources"].types as { name: string }[];
+        assert.deepStrictEqual(
+            types.map((entry) => entry.name),
+            ["transfer"],
+        );
+        q.dispose();
+    });
+
+    it("a staged joined table is saved as its join's steps, off, and reopens as that proposal (row 16)", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import({ type: "csv", config: { data: "source,target\na,b\na,c\n" }, name: "one.csv" });
+        const draft = await session.data.prepare(
+            { type: "csv", config: { data: "id,score\na,1\nb,2\n" }, name: "values.csv" },
+            { onto: "graph" },
+        );
+        try {
+            await draft.load({ join: { keys: [{ file: "id", graph: "id" }] } });
+        } finally {
+            draft.dispose();
+        }
+        const joined = session.data.joins()[0]?.source ?? "";
+        await session.data.removeStep(session.data.steps().findIndex((s) => s.source === joined));
+        assert.strictEqual(session.data.sources().find((s) => s.key === joined)?.state, "staged");
+        const graph = graphOf(session);
+        const { q, text, problems } = await reopen(session);
+        type Saved = { op: string; source: string; off?: boolean; read?: Record<string, unknown> };
+        const joins = (saved: string): Saved[] =>
+            (members(saved)["graphty-sources"].joins as Saved[]).filter((s) => s.source === joined);
+        assert.deepStrictEqual(
+            joins(text).map((s) => [s.op, s.off, s.read?.key]),
+            [["join.node-values", true, "id"]],
+        );
+        assert.deepStrictEqual(problems, []);
+        assert.strictEqual(graphOf(q), graph, "an off step builds nothing");
+        assert.deepStrictEqual(
+            q.data
+                .steps()
+                .filter((s) => s.source === joined)
+                .map((s) => [s.op, s.off]),
+            [["join.node-values", true]],
+        );
+        assert.deepStrictEqual(joins((await q.project.save()).text), joins(text), "saved again the same");
+        q.dispose();
+    });
+
+    it("7.13: a staged joined table reopened as an off step builds as the committed join once turned on", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import({ type: "csv", config: { data: "source,target\na,b\na,c\n" }, name: "one.csv" });
+        const draft = await session.data.prepare(
+            { type: "csv", config: { data: "id,score\na,1\nb,2\n" }, name: "values.csv" },
+            { onto: "graph" },
+        );
+        try {
+            await draft.load({ join: { keys: [{ file: "id", graph: "id" }] } });
+        } finally {
+            draft.dispose();
+        }
+        const joined = session.data.joins()[0]?.source ?? "";
+        const committed = graphOf(session);
+        await session.data.removeStep(session.data.steps().findIndex((s) => s.source === joined));
+        const staged = graphOf(session);
+        const { q } = await reopen(session);
+        const state = (): string | undefined => q.data.sources().find((s) => s.key === joined)?.state;
+        assert.strictEqual(state(), "off");
+        const at = q.data.steps().findIndex((s) => s.source === joined);
+        await q.data.setStepOff(at, false);
+        assert.strictEqual(state(), "built");
+        assert.strictEqual(graphOf(q), committed, "the same graph as the join committed before the save");
+        await q.data.setStepOff(at, true);
+        assert.strictEqual(graphOf(q), staged, "off again, it builds nothing");
+        assert.strictEqual(state(), "off");
+        await q.undo();
+        assert.strictEqual(graphOf(q), committed, "undo turns it back on");
+        q.dispose();
+    });
+
     it("save, reopen, save is a fixed point", async () => {
         const { session, t } = await full();
         await session.data.addNodes([{ id: "X-1", score: 1 }]);
@@ -131,7 +407,7 @@ describe("source-steps: save and reopen", () => {
         q.dispose();
     });
 
-    it("part minting (3.3): save and reopen keep part 2's keys, and a deleted part is never minted again", async () => {
+    it("part minting (3.3): save and reopen keep part 2's keys; parts are minted from the parts present", async () => {
         const { session } = await phase6();
         const k = await session.data.stage(
             { type: "csv", config: { data: KYC }, name: "kyc.csv" },
@@ -152,10 +428,12 @@ describe("source-steps: save and reopen", () => {
         const { q } = await reopen(session);
         assert.deepStrictEqual(part2(q), [true, true]);
         await q.data.removeStep(q.data.steps().findIndex((s) => s.buckets?.part === 3 && s.source === k));
-        const { q: r } = await reopen(q);
+        const { q: r, text } = await reopen(q);
+        // The file keeps no counter (3.3): a part nothing names any more is minted again.
+        assert.notProperty(members(text)["graphty-sources"], "parts");
         assert.strictEqual(
             await r.data.connect({ from: { source: k, field: "account_id" }, into: { space: "account" } }),
-            4,
+            3,
         );
         r.dispose();
     });
@@ -361,9 +639,15 @@ describe("source-steps: save and reopen", () => {
         // The save writes each record's load under its source's key, as the member's loads entry is.
         const graph = graphOf(session).replaceAll(`\\"${load}\\"`, `\\"${key}\\"`);
         const steps = session.data.steps().map((s) => [s.op, s.source]);
-        const { q, problems } = await reopen(session);
+        const { q, problems, text } = await reopen(session);
         assert.deepStrictEqual(problems, []);
         assert.strictEqual(graphOf(q), graph);
+        // A network source's rows name its load, which is its id: derived on open, never saved.
+        const [saved] = members(text)["graphty-sources"].sources as { kind: string; copy: Record<string, object> }[];
+        assert.strictEqual(saved.kind, "network");
+        for (const table of Object.values(saved.copy)) {
+            assert.notProperty(table, "_source.loads");
+        }
         assert.lengthOf(steps, 1);
         assert.deepStrictEqual(
             q.data.steps().map((s) => [s.op, s.source]),

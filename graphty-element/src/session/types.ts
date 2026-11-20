@@ -1661,6 +1661,23 @@ export interface SessionDataApi {
      */
     removeStep(index: number): Promise<void>;
     /**
+     * Turn one step off or back on, as one undoable step. An off step is kept, listed (`off` on its
+     * `steps()` row) and saved, but builds nothing; turning it on builds it again, and a source
+     * whose only steps were off is then listed as built. A staged joined table reopens from a saved
+     * project as its join's steps, off: turning them on commits the join.
+     *
+     * ```ts
+     * const at = session.data.steps().findIndex((s) => s.off);
+     * await session.data.setStepOff(at, false); // build it
+     * ```
+     * @param index - The step's place, as `steps()` lists it.
+     * @param off - True to turn it off, false to turn it on.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when no step is at `index`.
+     * @experimental source-steps
+     */
+    setStepOff(index: number, off: boolean): Promise<void>;
+    /**
      * Add a staged source to the graph with its own `join.add`, as one undoable step. Keys that meet
      * nodes another source built in its space are reported on its `data.sources()` entry
      * (`W_SPACE_OVERLAP`) and kept in its own space unless `overlap` is `"merge"`.
@@ -4450,11 +4467,11 @@ export interface SourceStepRow {
     readonly spaces: readonly SourceSpaceName[];
     /** The types its source's rules give what it builds. */
     readonly types: readonly SourceTypeName[];
-    /** Kept but not built. */
+    /** The reader turned it off: kept but not built. */
     readonly off: boolean;
-    /** A source it depends on is held, so it is not built. */
+    /** A source it depends on is held, or it misses a column (`missing`), so it is not built. */
     readonly held: boolean;
-    /** The columns it reads that its sources' rows no longer hold; a step missing one is off. */
+    /** The columns it reads that its sources' rows no longer hold; a step missing one is held. */
     readonly missing: readonly SourceRefreshIssue[];
     /** Its counts in the committed build; null when it was not built. */
     readonly buckets: SourceStepCounts | null;

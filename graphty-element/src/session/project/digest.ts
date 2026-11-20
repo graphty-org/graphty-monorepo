@@ -168,7 +168,7 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
 }
 
 /**
- * Under the source-steps experiment, the build count and the copy ids the graph was built from
+ * Under the source-steps experiment, the build stamp and the copy ids the graph was built from
  * (8.6): a later build, or other rows read, make the data another one even when the graph comes
  * out the same. Empty with the experiment off.
  * @param graph - The `graph` slice.
@@ -180,7 +180,7 @@ function buildsOf(graph: ProjectState["graph"]): string {
         return "";
     }
     const copies = Object.keys((graph.values.get(SOURCE_COPIES_VALUE) as object | undefined) ?? {}).sort(); // eslint-disable-line sonarjs/no-alphabetical-sort -- code-unit order, stable in every locale
-    return `\nbuild=${String(steps.build ?? 0)}\ncopies=${copies.join(",")}`;
+    return `\nbuild=${steps.build ?? ""}\ncopies=${copies.join(",")}`;
 }
 
 /** The data digest of each graph slice. */

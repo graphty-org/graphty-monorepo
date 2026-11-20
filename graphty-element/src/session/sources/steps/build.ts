@@ -10,7 +10,8 @@
  */
 
 import { reduce } from "../../join";
-import type { JoinReduce } from "../../types";
+import { readTimeValue, type TimeUnit } from "../../time/parse";
+import type { JoinReduce, SourceRefreshIssue, SourceRoleName } from "../../types";
 import {
     type AddStep,
     type BuildInput,
@@ -41,6 +42,7 @@ import {
     type StepStats,
     type TableName,
     type TypeEntry,
+    type TypeRule,
     type Value,
 } from "./types";
 
@@ -66,6 +68,13 @@ const edgeId = (load: string, key: string): string => `${load}\u0001${key}`;
  * @returns `source:<id>`.
  */
 export const ownSpace = (sourceId: string): string => `source:${sourceId}`;
+
+/**
+ * The key a source's rows as read are held under in the copies.
+ * @param src - The source.
+ * @returns Its `origin.rows`, else its copy id.
+ */
+export const copyKey = (src: Source): string => src.origin.rows ?? src.origin.copy;
 
 /**
  * The space a source's node rows key into.
@@ -114,7 +123,7 @@ export function tableRows(
     copies: ReadonlyMap<string, CopyTables>,
     table: TableName,
 ): readonly Row[] | null {
-    const rows = copies.get(src.origin.copy)?.[table];
+    const rows = copies.get(copyKey(src))?.[table];
     if (!rows) {
         return null;
     }
@@ -169,6 +178,152 @@ export function stepSources(step: Step, input?: BuildInput): string[] {
     return out;
 }
 
+// ---------------------------------------------------------------- held steps (7.12)
+
+/** The roles a mapping or a step's read can name, beyond its keys and ends. */
+const ROLES = new Set([
+    "weight",
+    "time",
+    "timeEnd",
+    "latitude",
+    "longitude",
+    "coordinates",
+    "country",
+    "region",
+    "city",
+]);
+
+/** The keys and ends a mapping or a step's read names. */
+const KEYS = ["key", "source", "target", "edgeId"] as const;
+
+/** The column names each table's rows hold, as read, per rows array. */
+const rowColumns = new WeakMap<readonly Row[], ReadonlySet<string>>();
+
+/**
+ * The working names of a table's columns (4.4): every column a row holds, under its `renamed` name.
+ * @param rows - The rows as read.
+ * @param renamed - The source's renames for the table.
+ * @returns The names.
+ */
+function workingColumns(
+    rows: readonly Row[] | undefined,
+    renamed: Readonly<Record<string, string>> | undefined,
+): Set<string> {
+    let read = rowColumns.get(rows ?? []);
+    if (read === undefined) {
+        read = new Set((rows ?? []).flatMap((row) => Object.keys(row)));
+        rowColumns.set(rows ?? [], read);
+    }
+    return new Set([...read].map((k) => renamed?.[k] ?? k));
+}
+
+/**
+ * The working columns of each table of a source's copy.
+ * @param src - The source.
+ * @param tables - Its copy.
+ * @returns The names per table.
+ */
+export function columnsOf(src: Source, tables: CopyTables | undefined): Record<TableName, Set<string>> {
+    return {
+        nodes: workingColumns(tables?.nodes, src.mapping.nodes?.renamed),
+        edges: workingColumns(tables?.edges, src.mapping.edges?.renamed),
+    };
+}
+
+/** One column a step reads: its table, its name and the role it plays, if any. */
+type Need = readonly [TableName, string, string | undefined];
+
+/**
+ * The columns one step reads from one source it depends on (7.12): a `join.add` reads its
+ * mapping's keys and roles, any other step its own read and `columns`, and a step translating
+ * through the source its mapping table's columns.
+ * @param step - The step.
+ * @param src - The source.
+ * @returns The columns.
+ */
+function needs(step: Step, src: Source): Need[] {
+    const out = step.source === src.id ? ownNeeds(step, src) : [];
+    if ("mapping" in step && step.mapping !== undefined && (step.via === src.id || step.lookup === src.id)) {
+        const table = step.mapping.table ?? (src.mapping.nodes === undefined ? "edges" : "nodes");
+        for (const c of step.mapping.columns) {
+            out.push([table, c, undefined]);
+        }
+    }
+    return out;
+}
+
+/**
+ * The keys, ends, roles and `columns` a step reads from its own source.
+ * @param step - The step.
+ * @param src - Its source.
+ * @returns The columns.
+ */
+function ownNeeds(step: Step, src: Source): Need[] {
+    const out: Need[] = [];
+    const named = (table: TableName, read: object | undefined): void => {
+        for (const [k, v] of Object.entries(read ?? {})) {
+            if (typeof v === "string" && ((KEYS as readonly string[]).includes(k) || ROLES.has(k))) {
+                out.push([table, v, ROLES.has(k) ? k : undefined]);
+            }
+        }
+    };
+    if (step.op === "join.add") {
+        named("nodes", src.mapping.nodes);
+        named("edges", src.mapping.edges);
+        return out;
+    }
+    const edgeStep = step.op === "join.edges" || step.op === "join.edge-values";
+    const table = step.read.table ?? (edgeStep ? "edges" : "nodes");
+    named(table, step.read);
+    for (const c of step.columns ?? []) {
+        out.push([table, c, undefined]);
+    }
+    return out;
+}
+
+/**
+ * The columns a step reads that the rows of its sources no longer hold: such a step is held, kept
+ * and listed but not built, until a column takes the name or comes back (7.12). Only the reader
+ * turns a step off (7.13).
+ * @param value - The sources and steps.
+ * @param copyOf - The rows as read, by copy id.
+ * @param index - The step's place.
+ * @returns One `E_COLUMN_MISSING` or `E_READ_ROLE_MISSING` per missing column.
+ */
+export function missingColumns(
+    value: BuildInput,
+    copyOf: (copy: string) => CopyTables | undefined,
+    index: number,
+): SourceRefreshIssue[] {
+    const step = value.steps[index] as Step | undefined;
+    if (step === undefined) {
+        return [];
+    }
+    const out: SourceRefreshIssue[] = [];
+    for (const id of new Set(stepSources(step))) {
+        const src = value.sources[id] as Source | undefined;
+        const tables = src === undefined ? undefined : copyOf(copyKey(src));
+        if (src === undefined || tables === undefined) {
+            continue;
+        }
+        const have = columnsOf(src, tables);
+        for (const [table, column, role] of needs(step, src)) {
+            if (have[table].has(column)) {
+                continue;
+            }
+            out.push(
+                role === undefined
+                    ? { code: "E_COLUMN_MISSING", params: { step: index, source: id, column, table } }
+                    : {
+                          code: "E_READ_ROLE_MISSING",
+                          params: { step: index, source: id, column, role: role as SourceRoleName, table },
+                      },
+            );
+        }
+    }
+    return out;
+}
+
 /**
  * Whether a source is staged: held and saved, but read by no step, so never built (3.1).
  * @param input - The build input.
@@ -184,7 +339,7 @@ export const isStaged = (input: BuildInput, sourceId: string): boolean =>
 export interface PartFloor {
     /** Saved references to edges (notes, reader edits, run outputs, ...), keyed `{ load, key }`. */
     readonly refs?: readonly { readonly load: string; readonly key: string }[];
-    /** The highest part minted for the source this session, so a deleted step's part is never reused. */
+    /** A part to stay above besides what the input names. */
     readonly high?: number;
 }
 
@@ -192,8 +347,9 @@ export interface PartFloor {
  * The next `part` for a new `join.edges` step (3.3).
  * @param input - The build input.
  * @param sourceId - The source the step reads.
- * @param floor - Saved references and the session's highest minted part.
- * @returns One above every part a step of the source, a type rule or a reference names.
+ * @param floor - Saved references beyond the reader's edits, and a floor of the caller's own.
+ * @returns One above every part a step of the source, a type rule, a reader edit or a reference
+ *     names; the file keeps no counter, so a part nothing names any more may be minted again.
  */
 export function mintPart(input: BuildInput, sourceId: string, floor: PartFloor = {}): number {
     const parts = [floor.high ?? 0];
@@ -209,7 +365,10 @@ export function mintPart(input: BuildInput, sourceId: string, floor: PartFloor =
             }
         }
     }
-    for (const r of floor.refs ?? []) {
+    const readerRefs = (input.reader ?? []).flatMap((op) =>
+        (op.op === "remove" || op.op === "edit") && op.edge !== undefined ? [op.edge] : [],
+    );
+    for (const r of [...(floor.refs ?? []), ...readerRefs]) {
         const m = /^(\d+)\//.exec(r.key);
         if (r.load === sourceId && m) {
             parts.push(Number(m[1]));
@@ -226,43 +385,56 @@ interface TypeContext {
     readonly part?: number;
 }
 
-// The type rule that applies: a column-and-values rule beats a whole rule, then registry order.
+// The type rule that applies (3.7): a rule's `part` only narrows it to that step, so a rule with none
+// also types what a `join.edges` step makes. A column-and-values rule beats a whole rule; between two
+// of a kind a rule naming the step's part beats one naming none; then registry order.
 function typeOf(types: readonly TypeEntry[], kind: "node" | "edge", ctx: TypeContext, row: Row): string | null {
-    let whole: string | null = null;
-    for (const t of types) {
-        if (t.kind !== kind) {
-            continue;
-        }
+    let best: string | null = null;
+    let rank = -1;
+    for (const t of types.filter((each) => each.kind === kind)) {
         for (const r of t.rules) {
-            if (r.source !== ctx.source || r.end !== ctx.end || r.part !== ctx.part) {
-                continue;
-            }
-            if (r.column === undefined) {
-                whole ??= t.name;
-            } else if (r.values && listed({ column: r.column, values: r.values }, row)) {
-                return t.name;
+            const mine = ruleRank(r, ctx, row);
+            if (mine > rank) {
+                best = t.name;
+                rank = mine;
             }
         }
     }
-    return whole;
+    return best;
+}
+
+// How closely one rule names a row: -1 when it does not; 2 for a column-and-values rule, plus 1 for a part.
+function ruleRank(r: TypeRule, ctx: TypeContext, row: Row): number {
+    if (r.source !== ctx.source || r.end !== ctx.end || (r.part !== undefined && r.part !== ctx.part)) {
+        return -1;
+    }
+    const valued = r.column !== undefined;
+    if (valued && !(r.values && listed({ column: r.column, values: r.values }, row))) {
+        return -1;
+    }
+    return (valued ? 2 : 0) + (r.part === undefined ? 0 : 1);
 }
 
 /**
- * A time cell as epoch milliseconds.
- * @param v - The cell; a number is already milliseconds.
- * @param zone - The zone a stamp with none of its own is read in, such as `"+02:00"`; absent means UTC.
+ * A time cell as epoch milliseconds (or its ordinal value).
+ * @param v - The cell; a number is already milliseconds unless `unit` says otherwise.
+ * @param zone - The IANA zone a stamp with no offset of its own is read in; absent means UTC.
+ * @param unit - How a number reads (`"ms"`, `"s"`, `"year"`, `"ordinal"`); absent means milliseconds.
  * @returns The time, or null for an empty or unreadable cell.
  */
-function parseTime(v: CellValue | undefined, zone?: string): number | null {
+function parseTime(v: CellValue | undefined, zone?: string, unit?: TimeUnit): number | null {
     if (isEmpty(v)) {
         return null;
     }
-    if (typeof v === "number") {
+    if (typeof v === "number" && unit === undefined) {
         return v;
     }
-    const s = String(v);
-    const t = Date.parse(/(?:[zZ]|[+-]\d\d:\d\d)$/.test(s) ? s : s + (zone ?? "Z"));
-    return Number.isNaN(t) ? null : t;
+    if (zone === undefined && unit === undefined) {
+        const s = String(v);
+        const t = Date.parse(/(?:[zZ]|[+-]\d\d:\d\d)$/.test(s) ? s : `${s}Z`);
+        return Number.isNaN(t) ? null : t;
+    }
+    return readTimeValue(v, unit ?? "ms", zone);
 }
 
 // ---------------------------------------------------------------- conflict rules (3.10)
@@ -481,6 +653,7 @@ interface EdgeRole {
     readonly weight?: string | null;
     readonly weightMeaning?: string;
     readonly time?: string | null;
+    readonly timeUnit?: TimeUnit;
     readonly timeParseZone?: string;
 }
 
@@ -530,7 +703,13 @@ function span(e: BuiltEdge, a: EdgeArgs, timeCol: string | null): void {
     if (timeCol === null) {
         return;
     }
-    const t = parseTime(a.row[timeCol], a.roles.timeParseZone);
+    // the step's own time read takes its own unit, else the source's
+    const own = a.read && "time" in a.read && a.read.time !== undefined;
+    const t = parseTime(
+        a.row[timeCol],
+        a.roles.timeParseZone,
+        (own ? a.read?.timeUnit : undefined) ?? a.roles.timeUnit,
+    );
     if (t === null) {
         return;
     }
@@ -905,7 +1084,11 @@ class Builder {
 
     run(): BuildResult {
         this.input.steps.forEach((s, si) => {
-            if (s.off === true || stepSources(s, this.input).some((id) => this.unbuildable(id))) {
+            if (
+                s.off === true ||
+                stepSources(s, this.input).some((id) => this.unbuildable(id)) ||
+                missingColumns(this.input, (copy) => this.copies.get(copy), si).length > 0
+            ) {
                 return;
             }
             const st = newStats(s, si);
@@ -1091,7 +1274,11 @@ class Builder {
         const v = n.own[from]?.[col]?.v;
         const t = Array.isArray(v)
             ? null
-            : parseTime(v as CellValue | undefined, this.input.sources[from].mapping.nodes?.timeParseZone);
+            : parseTime(
+                  v as CellValue | undefined,
+                  this.input.sources[from].mapping.nodes?.timeParseZone,
+                  this.input.sources[from].mapping.nodes?.timeUnit,
+              );
         if (t !== null) {
             n.time = t;
             n.timeFrom = from;
@@ -1149,7 +1336,8 @@ class Builder {
         at.seen.add(n.id);
         this.touch(n, s, si, "nodes", r, i);
         supply(n, s.source);
-        if (repeat && (s.duplicateIds ?? src.settings?.duplicateIds ?? "first") === "first") {
+        // `refuse` never meets a repeat here (the load refused it), so it keeps the first as `first` does
+        if (repeat && (s.duplicateIds ?? src.settings?.duplicateIds ?? "first") !== "merge") {
             return;
         }
         const roles = new Set(Object.values(m).filter((v): v is string => typeof v === "string"));
@@ -1159,7 +1347,7 @@ class Builder {
             }
         }
         if (m.time !== undefined && n.time === null) {
-            n.time = parseTime(r[m.time], m.timeParseZone);
+            n.time = parseTime(r[m.time], m.timeParseZone, m.timeUnit);
             n.timeFrom = n.time === null ? null : s.source;
         }
     }
@@ -1812,7 +2000,8 @@ function edgeStepKey(s: EdgesStep, src: Source, r: Row, i: number, from: BuiltNo
         const v = r[s.read.edgeId];
         return isEmpty(v) ? keyless : `${s.part}/${text(v)}`;
     }
-    if (s.repeated !== undefined || s.aggregate !== undefined) {
+    // only a step that reduces its rows to one edge per end pair keys by the pair; `both` keeps every row
+    if ((s.repeated !== undefined && s.repeated !== "both") || s.aggregate !== undefined) {
         return `${s.part}/${escapeKey(from.key)}|${escapeKey(to.key)}`;
     }
     return keyless;

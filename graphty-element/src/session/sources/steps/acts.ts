@@ -8,7 +8,7 @@
 
 import type { GraphtyErrorCode } from "../../../errors/codes";
 import { GraphtyError } from "../../../errors/GraphtyError";
-import { isStaged, mintPart, nodeSpace, ownSpace } from "./build";
+import { copyKey, isStaged, mintPart, nodeSpace, ownSpace } from "./build";
 import { addSource, buildOf, type Copies, declared, type SourceSteps, type StepsSource } from "./project";
 import { checkClashRule, conflicts, isOutcome, pickEdit, type Rename, renameColumn } from "./provenance";
 import type { ClashRule, EdgesStep, ElementRef, MergeStep, NodeValuesStep, RowFilter, Step, TableName } from "./types";
@@ -84,6 +84,8 @@ export type StepsAct =
           readonly source: string;
       }
     | { readonly act: "remove-step"; readonly index: number }
+    /** Turn one step off (kept and listed, not built) or back on (7.13). */
+    | { readonly act: "set-step-off"; readonly index: number; readonly off: boolean }
     | { readonly act: "add-staged"; readonly source: string; readonly overlap?: "separate" | "merge" };
 
 /**
@@ -123,7 +125,7 @@ export function sourceOf(value: SourceSteps, id: string): StepsSource {
  */
 function nodeSource(value: SourceSteps, copies: Copies, id: string): StepsSource {
     const src = sourceOf(value, id);
-    if (src.mapping.nodes === undefined || (copies[src.origin.copy]?.nodes?.length ?? 0) === 0) {
+    if (src.mapping.nodes === undefined || (copies[copyKey(src)]?.nodes?.length ?? 0) === 0) {
         throw refused("E_STEP_NEEDS_NODES", `Source ${id} holds no node rows.`, { source: id });
     }
     return src;
@@ -284,14 +286,13 @@ function addStaged(
 }
 
 /**
- * A new part for a `join.edges` step of a source, recorded so a deleted step's part is never reused.
+ * A new part for a `join.edges` step of a source: one above every part present (3.3).
  * @param value - The value.
  * @param source - The source.
- * @returns The part and the value recording it.
+ * @returns The part and the value.
  */
 function minted(value: SourceSteps, source: string): { part: number; value: SourceSteps } {
-    const part = mintPart(value, source, { high: value.parts?.[source] });
-    return { part, value: { ...value, parts: { ...value.parts, [source]: part } } };
+    return { part: mintPart(value, source), value };
 }
 
 /**
@@ -549,6 +550,27 @@ function removeStep(value: SourceSteps, index: number): SourceSteps {
 }
 
 /**
+ * Turn one step off or back on (7.13): an off step is kept, listed and saved but not built; on, it
+ * builds again, and a source whose only steps were off is built with it.
+ * @param value - The value.
+ * @param index - The step's place.
+ * @param off - True to turn it off.
+ * @returns The next value; the same value when the step is already so.
+ */
+function setStepOff(value: SourceSteps, index: number, off: boolean): SourceSteps {
+    const step = value.steps[index] as Step | undefined;
+    if (step === undefined) {
+        throw refused("E_BAD_COMMAND", `No step at ${String(index)}.`, { reason: "no-step", index });
+    }
+    if ((step.off === true) === off) {
+        return value;
+    }
+    const { off: _off, ...on } = step;
+    const next: Step = off ? { ...step, off: true } : on;
+    return { ...value, steps: value.steps.map((s, i) => (i === index ? next : s)) };
+}
+
+/**
  * A pick or Use (3.10): a reader edit taking one source's value for a cell.
  * @param value - The value.
  * @param copies - The rows as read.
@@ -608,6 +630,8 @@ export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): Sou
             }
             return addSource(value, src, copies, act.overlap);
         }
+        case "set-step-off":
+            return setStepOff(value, act.index, act.off);
         default:
             return removeStep(value, act.index);
     }

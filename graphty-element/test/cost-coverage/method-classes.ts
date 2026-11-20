@@ -261,6 +261,7 @@ export const MUTATING: readonly string[] = [
     "SessionDataApi.removeNodes",
     "SessionDataApi.removeSource",
     "SessionDataApi.removeStep",
+    "SessionDataApi.setStepOff",
     "SessionDataApi.renameColumn",
     "SessionDataApi.renameSource",
     "SessionDataApi.refresh",

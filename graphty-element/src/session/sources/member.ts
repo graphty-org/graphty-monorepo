@@ -9,7 +9,7 @@
  * marks a credential.
  */
 
-import type { NodeId, SourceKey } from "../../catalog/types";
+import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import type { GraphtyErrorCode, GraphtyWarningCode } from "../../errors/codes";
 import type { CodedFact } from "../shared";
 import type { LoadedSource } from "../types";
@@ -276,6 +276,11 @@ export interface SourcesWrite {
     readonly idOf: (value: string) => string;
     /** Where an id sits in the member, for writing a record's loads oldest first; unknown ids last. */
     readonly rank: (id: string) => number;
+    /**
+     * Under the `source-steps` experiment, each element's type, written on its record as
+     * `graphty.types` (at most one item; `[]` for the default type). Absent with the experiment off.
+     */
+    readonly typeOf?: (kind: "node" | "edge", id: NodeId | EdgeId) => string | null;
 }
 
 /**

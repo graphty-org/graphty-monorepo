@@ -86,6 +86,29 @@ describe("type rules (3.7)", () => {
     });
 });
 
+describe("type rules naming no part (section 10 item 11)", () => {
+    it("types what a join.edges step makes by a rule with no part; a rule naming the part beats it", () => {
+        const f = new Fixture();
+        f.import({ nodes: csv("id\np1\np2\n") }, { key: "id", type: "person" });
+        const calls = f.import({ nodes: csv("call,a,b\nc1,p1,p2\n") }, { key: "call", type: "call" });
+        const part = f.mint(calls);
+        f.steps.push({
+            op: "join.edges",
+            source: calls,
+            part,
+            read: { table: "nodes", source: "a", sourceSpace: "person", target: "b", targetSpace: "person" },
+        });
+        f.rule("edge", "link", { source: calls });
+        const typeOf = (): (string | null)[] =>
+            edgesOf(f.built())
+                .filter((e) => e.key.startsWith(`${part}/`))
+                .map((e) => e.type);
+        assert.deepEqual(typeOf(), ["link"], "part is only a narrowing");
+        f.rule("edge", "made-by-part", { source: calls, part });
+        assert.deepEqual(typeOf(), ["made-by-part"]);
+    });
+});
+
 describe("readable paths (3.9)", () => {
     it("answers every readable path on nodes and edges", () => {
         const f = new Fixture();

@@ -93,6 +93,7 @@ function actSource(act: StepsAct): string | null {
         case "rename":
             return act.rename.source;
         case "remove-step":
+        case "set-step-off":
             return null;
         default:
             return act.source;
@@ -108,6 +109,7 @@ const ACT_LABELS: Readonly<Record<StepsAct["act"], string>> = {
     rename: "Renamed a column",
     pick: "Picked a value",
     "remove-step": "Deleted a step",
+    "set-step-off": "Turned a step off or on",
     "add-staged": "Added a staged source",
 };
 
@@ -471,6 +473,7 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         "rename",
         "pick",
         "remove-step",
+        "set-step-off",
         "add-staged",
         "replace-copy",
         "settle-edit",
@@ -501,9 +504,9 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
             edit.kind === "restore" ? openedAsBuilt(after, ctx.state.graph.nodes, ctx.state.graph.edges) : null;
         const before = opened?.before ?? projectBuild(buildOf(prior, priorCopies), prior, idPath);
         const diff = diffGraph(before, after, opened?.edgeIds ?? edgeIds);
-        // A build that changes the graph is counted, so a run made over an earlier one reads stale
-        // (8.6); a restore keeps the count the file saved.
-        const next = opened === null && changesGraph(diff) ? counted(edited, copies, (prior.build ?? 0) + 1) : edited;
+        // A build that changes the graph is stamped anew, so a run made over an earlier one reads stale
+        // (8.6); a restore keeps the stamp the file saved.
+        const next = opened === null && changesGraph(diff) ? counted(edited, copies) : edited;
         const apply = (mutation: Parameters<typeof service.apply>[0]): void => {
             service.apply(mutation, ctx.draft, ctx.after);
         };

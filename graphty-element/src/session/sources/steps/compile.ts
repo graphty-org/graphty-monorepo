@@ -11,16 +11,17 @@
 import type { EdgeId, NodeId } from "../../../catalog/types";
 import { GraphtyError } from "../../../errors/GraphtyError";
 import type { BatchCommand } from "../../commands";
-import { type DataImportCommand, type DataMutation, importFact } from "../../commands/data";
+import { type DataImportCommand, type DataMutation, type HeldRows, importFact } from "../../commands/data";
 import type { DataStepsSetCommand } from "../../commands/source-steps";
 import type { SessionCommand } from "../../planning";
 import type { ImportOptions, JoinChoices, JoinRecord, JoinShape, LoadChoices, TableMapping } from "../../types";
 import { applyAct } from "./acts";
-import { isStaged, mintPart, nodeSpace, ownSpace, resolveNode } from "./build";
+import { copyKey, isStaged, mintPart, nodeSpace, ownSpace, resolveEdge, resolveNode } from "./build";
 import {
     buildOf,
     checkSpace,
     type Copies,
+    copyOrigin,
     EMPTY_STEPS,
     mintCopyId,
     mintEditId,
@@ -45,6 +46,7 @@ import {
     type NodeRef,
     READER_SOURCE,
     READER_SPACE,
+    type ReaderEdit,
     type ReaderOp,
     type Row,
     type Step,
@@ -90,6 +92,28 @@ function kindOf(command: DataImportCommand): StepsSourceKind {
     }
     const url = command.source.config?.url;
     return typeof url === "string" && !url.startsWith("data:") ? "url" : "file";
+}
+
+/**
+ * The SHA-256 of the bytes each draft's rows were read from, under the source-steps experiment: what
+ * names a file, URL or downloaded sample's copy (version 2, 4.1.2 rule 1).
+ */
+export const heldDigests = new WeakMap<HeldRows, string>();
+
+/**
+ * A command with the digest of the bytes its rows were read from noted on each import's rows.
+ * @param command - An import, or a batch holding imports.
+ * @param digest - The lower-case hex SHA-256, or undefined when there are no bytes to name.
+ * @returns The command.
+ */
+export function withDigest<C extends DataImportCommand | BatchCommand>(command: C, digest: string | undefined): C {
+    const imports: readonly SessionCommand[] = command.op === "batch" ? command.steps : [command];
+    for (const step of imports) {
+        if (digest !== undefined && step.op === "data.import" && step.held !== undefined) {
+            heldDigests.set(step.held, digest);
+        }
+    }
+    return command;
 }
 
 /**
@@ -159,7 +183,7 @@ function sourceFacts(
 ): Omit<StepsSource, "id" | "origin" | "mapping"> {
     const endTypes = defined({ source: options.edges?.from.type, target: options.edges?.to.type });
     const settings = defined({
-        duplicateIds: command.duplicateIds === "merge" ? ("merge" as const) : undefined,
+        duplicateIds: command.duplicateIds === "first" ? undefined : command.duplicateIds,
         unmatched: command.unmatched === "leave-out" ? ("leave-out" as const) : undefined,
     });
     const { name, type } = importFact(command).params;
@@ -205,7 +229,8 @@ export function compileImport(
     checkSpace(options.edges?.from.space);
     checkSpace(options.edges?.to.space);
     const id = mintSourceId();
-    const copy = mintCopyId();
+    const kind = kindOf(command);
+    const { origin, key: copy } = copyOrigin(kind, heldDigests.get(held));
     // Node rows a draft made for an edge table's ends are not rows the source held.
     const ownNodes = command.tableRows === undefined || command.tableRows.includes("nodes");
     const nodes = (ownNodes ? held.nodes : []) as readonly Row[];
@@ -217,7 +242,7 @@ export function compileImport(
     const times = timeRoles((options as LoadChoices).mapping);
     const source: StepsSource = {
         id,
-        origin: { copy },
+        origin,
         mapping: {
             ...(nodes.length > 0
                 ? {
@@ -309,7 +334,7 @@ export function compileRecords(
     const value = (values.get(SOURCE_STEPS_VALUE) as SourceSteps | undefined) ?? EMPTY_STEPS;
     const copies = (values.get(SOURCE_COPIES_VALUE) as Copies | undefined) ?? {};
     const prior = Object.values(value.sources).find((each) => each.kind === "derived");
-    const held: CopyTables = prior === undefined ? {} : (copies[prior.origin.copy] ?? {});
+    const held: CopyTables = prior === undefined ? {} : (copies[copyKey(prior)] ?? {});
     const tables: CopyTables = {
         ...held,
         ...(records.nodes === undefined ? {} : { nodes: records.nodes as readonly Row[] }),
@@ -463,15 +488,28 @@ export function readerOps(
                             details: guarded.params,
                         });
                     }
-                    const at = "node" in target ? resolveNode(built, target.node.space, target.node.key) : null;
-                    const was = at?.values[column];
+                    const at =
+                        "node" in target
+                            ? resolveNode(built, target.node.space, target.node.key)
+                            : resolveEdge(built, target.edge.load, target.edge.key);
+                    // `was` is always written, null for an empty cell (version 2, 4.1.4); a cell the
+                    // reader edited before keeps the value the first edit replaced, as a pick does
+                    const prior = [...value.reader]
+                        .reverse()
+                        .find(
+                            (o): o is ReaderEdit =>
+                                o.op === "edit" &&
+                                o.column === column &&
+                                JSON.stringify(o.node ?? o.edge) ===
+                                    JSON.stringify("node" in target ? target.node : target.edge),
+                        );
                     return {
                         id: mintEditId(),
                         op: "edit" as const,
                         ...target,
                         column,
                         value: v as CellValue,
-                        ...(was === undefined ? {} : { was }),
+                        was: prior === undefined ? (at?.values[column] ?? null) : (prior.was ?? null),
                     };
                 });
             });
@@ -535,7 +573,7 @@ function translationOf(value: SourceSteps, copies: Copies, join: JoinAsSteps, id
         table === "edges" ? { source: edges?.source, target: edges?.target } : { id: nodes?.key };
     const field = src.join === undefined ? records : {};
     const [from, to] = join.mapping.map((c) => field[c] ?? c) as [string, string];
-    const rows = copies[src.origin.copy]?.[table] ?? [];
+    const rows = copies[copyKey(src)]?.[table] ?? [];
     const space = spaceOfKeys(
         value,
         copies,
@@ -598,7 +636,7 @@ function fieldSourceOf(
     let most = -1;
     for (const src of Object.values(value.sources)) {
         const key = src.mapping.nodes?.key;
-        const rows = copies[src.origin.copy]?.nodes;
+        const rows = copies[copyKey(src)]?.nodes;
         if (key === undefined || rows === undefined || isStaged(value, src.id) || !rows.some((r) => column in r)) {
             continue;
         }
@@ -691,8 +729,45 @@ export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsStep
               ...defined({ unmatchedRows: choices.unmatchedRows }),
               ...(through === null ? translation : fieldVia(through, space)),
           };
-    const parts = step.op === "join.edges" ? { parts: { ...next.parts, [id]: step.part } } : {};
-    return { ...next, ...parts, steps: [...next.steps, step] };
+    return { ...next, steps: [...next.steps, step] };
+}
+
+/**
+ * A staged joined table's join as the steps it would take, each `off` (version 2, 4.1.8 rules 1
+ * and 8): the join the reader is setting up, kept and listed but not built until a step is turned
+ * on. The record's other fields (`onto`, `matched`, `columns`, `before`, `made`, the table's
+ * `unreadRows`) are the session's report of a join that ran, and no step holds them.
+ * @param value - The value, the source staged in it.
+ * @param copies - The rows as read.
+ * @param src - The staged source.
+ * @returns The steps, or none when the source is not a staged joined table or its join no longer
+ *   compiles.
+ */
+export function stagedJoinSteps(value: SourceSteps, copies: Copies, src: StepsSource): Step[] {
+    const { join } = src;
+    if (join === undefined || !isStaged(value, src.id)) {
+        return [];
+    }
+    const held = copies[copyKey(src)] ?? {};
+    const rows = held.nodes ?? held.edges ?? [];
+    const base: SourceSteps = {
+        ...value,
+        sources: Object.fromEntries(Object.entries(value.sources).filter(([id]) => id !== src.id)),
+    };
+    try {
+        const next = compileJoin(base, copies, {
+            id: src.id,
+            copy: copyKey(src),
+            rows,
+            choices: join.choices,
+            shape: join.shape,
+            record: join,
+        });
+        return next.steps.slice(base.steps.length).map((step) => ({ ...step, off: true }));
+    } catch {
+        // A join the steps no longer express (its field source removed, say) stays session-only.
+        return [];
+    }
 }
 
 /**
@@ -856,7 +931,7 @@ function edgeLoadOf(
     let most = 0;
     for (const src of Object.values(value.sources)) {
         const edgeId = src.mapping.edges?.edgeId;
-        const rows = copies[src.origin.copy]?.edges;
+        const rows = copies[copyKey(src)]?.edges;
         if (edgeId === undefined || rows === undefined || isStaged(value, src.id)) {
             continue;
         }
@@ -890,7 +965,7 @@ function edgesStepOf(
     return {
         op: "join.edges",
         source: id,
-        part: mintPart(value, id, { high: value.parts?.[id] }),
+        part: mintPart(value, id),
         read: { table: "edges", source: files[0], sourceSpace: space, target: files[1], targetSpace: space },
         ...options,
     };

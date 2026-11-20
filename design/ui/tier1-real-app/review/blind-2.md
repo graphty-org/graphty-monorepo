@@ -96,12 +96,12 @@ found two real type errors:
   whether I should print `overflow.hidden` instead, whether both can be present at once, or
   whether `other.count` counts categories or elements.
 - **Two caps with two numbers.** The algorithms guide says the default palette keeps 8 groups and
-  paints the rest one grey labelled "other: K groups" (`docs/guide/algorithms.md:353-367`, the
+  paints the rest one gray labeled "other: K groups" (`docs/guide/algorithms.md:353-367`, the
   `overflow: "other"` binding option). Section 2 says the legend cap defaults to 12. So with the
   defaults the picture folds at 8 and the legend at 12. My `maxCategories: 8` was a guess to make
   them agree; the docs do not say whether `maxCategories` changes the painting or only the legend.
 - **The word "other" means three things**: `Binding.other` (a threshold and a fallback value,
-  `types.d.ts:322-325`), `overflow: "other"` (the grey policy), and the new `LegendBlock.other`.
+  `types.d.ts:322-325`), `overflow: "other"` (the gray policy), and the new `LegendBlock.other`.
 - **Size units contradict the guide.** Section 2 says a size binding with no range defaults to
   "2 to 12 px". The algorithms guide says node size is unitless with 1 as the default node size,
   and a run's size layer runs "from 1 ... to 3" (`docs/guide/algorithms.md:314-318`). A newcomer

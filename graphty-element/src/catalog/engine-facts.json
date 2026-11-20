@@ -1,5 +1,70 @@
 {
     "algorithms": {
+        "all-paths": {
+            "options": [
+                {
+                    "name": "source",
+                    "plainName": "Source Node",
+                    "technicalName": "source",
+                    "type": "node-id",
+                    "description": "Node every path starts at (uses first node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "target",
+                    "plainName": "Target Node",
+                    "technicalName": "target",
+                    "type": "node-id",
+                    "description": "Node every path ends at (uses last node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "maxLength",
+                    "plainName": "Max Length",
+                    "technicalName": "maxLength",
+                    "type": "integer",
+                    "description": "The longest path to find, in edges (optional - any length if not set)",
+                    "default": null,
+                    "min": 1
+                },
+                {
+                    "name": "maxPaths",
+                    "plainName": "Max Paths",
+                    "technicalName": "maxPaths",
+                    "type": "integer",
+                    "description": "The most paths to find; the search stops once it has this many",
+                    "default": 1000,
+                    "min": 1,
+                    "advanced": true
+                },
+                {
+                    "name": "direction",
+                    "plainName": "Follow Edges",
+                    "technicalName": "direction",
+                    "type": "enum",
+                    "description": "On a directed graph, which way a path may cross an edge: out (source to target), in (target to source) or all (either way). An undirected graph is always read either way",
+                    "default": "all",
+                    "values": [
+                        {
+                            "value": "out",
+                            "label": "Out"
+                        },
+                        {
+                            "value": "in",
+                            "label": "In"
+                        },
+                        {
+                            "value": "all",
+                            "label": "All"
+                        }
+                    ],
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
         "astar": {
             "options": [
                 {
@@ -121,6 +186,16 @@
                     "type": "node-id",
                     "description": "Target node for early termination (optional - searches all nodes if not set)",
                     "default": null,
+                    "advanced": true
+                },
+                {
+                    "name": "maxDepth",
+                    "plainName": "Max Depth",
+                    "technicalName": "maxDepth",
+                    "type": "integer",
+                    "description": "Stop the walk this many steps from the source (optional - walks everything reachable if not set)",
+                    "default": null,
+                    "min": 0,
                     "advanced": true
                 }
             ],
@@ -519,8 +594,8 @@
                     "plainName": "Alpha (Attenuation)",
                     "technicalName": "alpha",
                     "type": "number",
-                    "description": "Attenuation factor - must be less than 1/λmax",
-                    "default": 0.1,
+                    "description": "Attenuation factor - must be less than 1/lambda_max (empty = 0.1, or less wherever 0.1 could diverge on this graph)",
+                    "default": null,
                     "min": 0.01,
                     "max": 0.5,
                     "step": 0.01
@@ -973,6 +1048,37 @@
             ],
             "scopeInput": "subgraph",
             "weightMeaning": "distance",
+            "loadedWeightByDefault": true
+        },
+        "removal-impact": {
+            "options": [
+                {
+                    "name": "nodes",
+                    "plainName": "Nodes to remove",
+                    "technicalName": "nodes",
+                    "type": "unknown",
+                    "description": "The nodes to imagine removed, with their edges",
+                    "default": [],
+                    "unsupported": {
+                        "code": "option.array",
+                        "params": {}
+                    }
+                },
+                {
+                    "name": "edges",
+                    "plainName": "Edges to remove",
+                    "technicalName": "edges",
+                    "type": "unknown",
+                    "description": "The edges to imagine removed",
+                    "default": [],
+                    "unsupported": {
+                        "code": "option.array",
+                        "params": {}
+                    }
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
             "loadedWeightByDefault": true
         },
         "spectral-clustering": {

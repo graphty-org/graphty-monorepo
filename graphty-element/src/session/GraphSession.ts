@@ -2,8 +2,8 @@
  * @file The session: a graph with no view attached.
  *
  * This is the object the rest of the element's model hangs off. It holds the graph data, the
- * coordinates, the style layers, the status, the catalogue, the configuration and what the
- * machine can do, and it holds none of the things two synchronised views of one dataset would
+ * coordinates, the style layers, the status, the catalog, the configuration and what the
+ * machine can do, and it holds none of the things two synchronized views of one dataset would
  * disagree about -- no camera, no canvas, no scene.
  *
  * Nothing here, and nothing it imports, reaches Babylon.js, Lit or the DOM. That is checkable
@@ -11,19 +11,21 @@
  * entry point's import graph and fails if a renderer appears in it.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import { directedness, edgeIsDirected, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import {
     ACCELERATION_POLICY_DEFAULT,
     AccelerationController,
     type AccelerationPolicy,
+    type CalibrationRecord,
     type GraphAccelerator,
     type XrCapability,
 } from "../acceleration";
 import { sessionColumns } from "../algorithms/input/columns";
 import { shareInputs } from "../algorithms/input/ScopedInput";
+import type { Tour } from "../camera/tour";
 import type { CameraState } from "../camera/types";
-import { arrangedDimension, LAYOUT_CATALOG } from "../catalog/layouts";
+import { arrangedDimension, LAYOUT_CATALOG, LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
 import type {
     EdgeId,
@@ -58,24 +60,32 @@ import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
 import { type EnabledFeatures, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
+import { GRAPHVIZ_PACKAGE } from "../layout/graphviz/engines";
 import { GraphtyLogger } from "../logging/GraphtyLogger";
+import { eachAdjacentArc } from "./adjacency";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
 import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
-import { declarationKey, FILE_GRAPH_VALUE, type FileGraphValue } from "./commands/data";
+import { declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
-import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
+import { holdStartingCameras, writeStartingViews } from "./commands/view";
+import {
+    calibrateOnce,
+    type CostEstimate,
+    currentCalibration,
+    DEFAULT_COST_GATE_LIMITS,
+    type MachineCalibration,
+} from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
-import { dispatcherOf, registerDispatcher } from "./dispatchers";
-import { englishRunLabel } from "./english";
+import { dispatcherOf, registerDispatcher, registerSessionRuns } from "./dispatchers";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
-import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
+import { type LayoutRecommendation, recommendLayout } from "./layout";
 import { LayoutRunner } from "./layoutRunner";
-import { RenderLimits } from "./limits";
+import { type DefaultableLimits, RenderLimits } from "./limits";
 import { loadLineOf } from "./loadLine";
 import { createNetworkApi, type NetworkApiInternal } from "./network";
 import { createNoteFacts } from "./notes/countIndex";
@@ -93,7 +103,8 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
-export { dispatcherOf } from "./dispatchers";
+export { dispatcherOf, sessionRunsOf } from "./dispatchers";
+import { ANNOTATIONS_VALUE, type DrawnAnnotation, type DrawnAnnotations, drawnAnnotationsOf } from "./annotations";
 import { boundaryOf, projectBoundary } from "./project/boundary";
 import { dataDigest } from "./project/digest";
 import {
@@ -138,7 +149,8 @@ import {
     type RunsApi,
     type SessionRunsApi,
 } from "./runs";
-import { canonicalize, frozenSelection, type LiveKeyword } from "./runs/runId";
+import { canonicalize, freezeScope, frozenSelection, type LiveKeyword } from "./runs/runId";
+import type { RunLiveScope } from "./runs/types";
 import {
     type ComponentLabels,
     createScopeApi,
@@ -185,8 +197,6 @@ import {
 } from "./styles";
 import { placementLayers } from "./styles/autoApply";
 import { atStylePath, channelsFor } from "./styles/channels";
-import { fileStyleWords, isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
-import { asFileStyleStore, FILE_STYLES_VALUE, fileStyleColumn, type FileStyleStore } from "./styles/fileStyles/store";
 import { createHoverSource } from "./styles/hover";
 import { readsWholeColumn } from "./styles/labelTemplate";
 import type { CompiledLayer } from "./styles/Layer";
@@ -197,6 +207,7 @@ import {
     type ElementPaint,
     type ElementRemaps,
     type RepaintEngine,
+    type ResolvedStyle,
 } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
 import { selectorScope } from "./styles/selector";
@@ -234,6 +245,8 @@ import type {
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    SavedView,
+    SessionAnnotations,
     SessionCapabilities,
     SessionCatalogApi,
     SessionConfig,
@@ -248,8 +261,10 @@ import type {
     SessionRecordSource,
     SessionRunsOptions,
     SessionStatus,
+    SessionTours,
     SessionViews,
     SettingEffect,
+    StartingCamera,
     TransactionOptions,
     TransactionScope,
 } from "./types";
@@ -301,6 +316,8 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
      * @returns stops the delivery
      */
     readonly followRenumbering?: (follower: FreezeFollower) => () => void;
+    /** Let the builder go while nothing writes the graph; see `GraphStore.releaseIdle`. */
+    readonly releaseIdle?: () => void;
 }
 
 /**
@@ -402,8 +419,11 @@ const TX_PARTS = [
     "visibility",
     "styles",
     "shaders",
+    "assets",
     "time",
     "views",
+    "tours",
+    "annotations",
     "positions",
     "config",
 ] as const satisfies readonly (keyof GraphSession)[];
@@ -411,13 +431,13 @@ const TX_PARTS = [
 /**
  * What the factory hands the session, with the ownership question already answered.
  *
- * The `owned*` members are the same objects as their neighbours when the session built them and
+ * The `owned*` members are the same objects as their neighbors when the session built them and
  * null when a caller did, which is the whole of what `dispose()` needs to know.
  */
 interface SessionParts {
     /** The store to read, whoever built it. */
     readonly store: LaneStore;
-    /** The catalogue: the shared tables, plus the metric listing for this session's own graph. */
+    /** The catalog: the shared tables, plus the metric listing for this session's own graph. */
     readonly catalog: SessionCatalogApi;
     /** The experiments, settled on first read. */
     readonly features: () => EnabledFeatures;
@@ -431,6 +451,8 @@ interface SessionParts {
     readonly readProject: () => ProjectConfig;
     /** The renderer's graph-wide node size space, for `config.inEffect`; absent with no renderer. */
     readonly nodeSizeSpace: (() => string | undefined) | undefined;
+    /** Whether the renderer's color scheme is dark, for `config.backgroundColor`; absent with no renderer. */
+    readonly darkScheme: (() => boolean) | undefined;
     /** The controller whose capabilities and policy this session publishes. */
     readonly controller: AccelerationControllerLike;
     /** The controller when this session built it, so that disposal releases it. */
@@ -497,6 +519,8 @@ interface SessionInternals {
     readonly batched?: () => boolean;
     /** The renderer's graph-wide node size space (`layoutBehavior.node.sizeSpace`); absent with no renderer. */
     readonly nodeSizeSpace?: () => string | undefined;
+    /** Whether the renderer's color scheme is dark (`Graph.setColorScheme`); absent with no renderer. */
+    readonly darkScheme?: () => boolean;
 }
 
 /**
@@ -575,6 +599,8 @@ class Session implements ElementSession {
     readonly styles: SessionStylesApi;
     readonly shaders: SessionShaders;
     readonly views: SessionViews;
+    readonly tours: SessionTours;
+    readonly annotations: SessionAnnotations;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
     readonly project: ProjectApi;
@@ -618,6 +644,10 @@ class Session implements ElementSession {
     private readonly unwatchCeilings: () => void;
     /** The capability document last composed, kept while neither of its parts changes. */
     private composed: SessionCapabilities | null = null;
+    /** The page's calibration the record below was made from, so the record keeps its identity. */
+    private calibrationSource: MachineCalibration | undefined;
+    /** What `capabilities.calibration` reports: the page's calibration without its rates. */
+    private calibrationRecord: CalibrationRecord | null = null;
     /** Stops the controller subscription `capabilities:changed` is published from. */
     private readonly unwatchController: () => void;
     /** Stops the XR subscription `capabilities:changed` is also published from. */
@@ -697,6 +727,17 @@ class Session implements ElementSession {
         this.unwatchCeilings = this.ceilings.onChange(changed);
         let version = 0;
         this.dispatcher = parts.dispatcher;
+        // A model's own settings live in the project (undone and saved with it); its records show them.
+        const { assets } = this;
+        assets.bindDefaults({
+            read: (id) => this.dispatcher.state.modelDefaults.get(id),
+            dispatch: (command) => this.dispatcher.dispatch(command),
+        });
+        this.dispatcher.lane.register("modelDefaults", (rendered, target, dirty) => {
+            assets.refreshDefaults(
+                [...dirty].filter((id) => rendered.modelDefaults.get(id) !== target.modelDefaults.get(id)),
+            );
+        });
         // A collapse is worked out from the graph once the loads ahead of it have landed.
         // Inside a transaction or a command (`tx.groups`, a project opening) the steps join it at
         // once, as a door called through a routed facade does; on their own they are one step,
@@ -738,6 +779,10 @@ class Session implements ElementSession {
                 slices: change.slices as readonly ProjectSlice[],
                 cause: change.cause,
             });
+            // Quiet: no command runs and every pass has run, so the builder may go until the next write.
+            if (this.dispatcher.idle) {
+                this.store.releaseIdle?.();
+            }
         };
         // A command that replaces the project is announced before it runs (autosave keeps the
         // work it replaces); chained, because a test may spy here too.
@@ -770,9 +815,13 @@ class Session implements ElementSession {
         };
         registerDispatcher(this, this.dispatcher);
         LANES.set(this, this.store);
-        SESSION_RUNS.set(this, this.sessionRuns);
+        registerSessionRuns(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
-        this.views = viewsOf(this.dispatcher);
+        this.views = viewsOf(this.dispatcher, (names) => {
+            publish(this.watchers, "views:seeded", { names });
+        });
+        this.tours = toursOf(this.dispatcher);
+        this.annotations = annotationsOf(this.dispatcher);
         this.runner = new LayoutRunner({
             // The working graph, never the store: a hidden node is not laid out.
             working: () => (this.working.enabled ? this.working.filtered() : this.working.view("graph")),
@@ -796,12 +845,14 @@ class Session implements ElementSession {
             this.layoutDrive(),
         );
         // What an import asking for a recommended layout chooses, for the graph it loaded.
-        const fileGraph = (): FileGraphValue | undefined =>
-            this.dispatcher.state.graph.values.get(FILE_GRAPH_VALUE) as FileGraphValue | undefined;
+        const requested = (): RequestedLayoutValue | undefined =>
+            this.dispatcher.state.graph.values.get(REQUESTED_LAYOUT_VALUE) as RequestedLayoutValue | undefined;
         let graphviz: boolean | undefined;
         this.dispatcher.services.layoutPrepare = async () => {
-            const file = fileGraph();
-            if (graphviz === undefined && file !== undefined && graphvizEngineFor(file) !== null) {
+            // Probed only when the requested layout needs the Graphviz package.
+            const id = requested()?.layout;
+            const needs = LAYOUT_DESCRIPTORS.find((candidate) => candidate.id === id)?.requires?.package;
+            if (graphviz === undefined && needs === GRAPHVIZ_PACKAGE) {
                 graphviz = await graphvizAvailability().then(({ available }) => available);
             }
         };
@@ -811,7 +862,7 @@ class Session implements ElementSession {
             const groups = groupsOf(this.dispatcher.state.graph.values.get(GROUPS_VALUE));
             const advice = recommendLayout(this.data.statistics({ scope: "all" }), {
                 placedNodes: this.store.seededNodeCount + groups.length,
-                file: fileGraph(),
+                requested: requested(),
                 graphvizAvailable: graphviz === true,
             });
             if (advice === undefined) {
@@ -840,7 +891,13 @@ class Session implements ElementSession {
             const base = advice.layout.scoped ? advised : { id: DEFAULT_LAYOUT.id, engine: DEFAULT_LAYOUT.engine };
             return { ...base, unplaced, placed: partial.placed };
         };
-        this.config = configOf(this.dispatcher, parts.readProject, parts.controller, parts.nodeSizeSpace);
+        this.config = configOf(
+            this.dispatcher,
+            parts.readProject,
+            parts.controller,
+            parts.nodeSizeSpace,
+            parts.darkScheme,
+        );
         this.project = projectOf(this, this.dispatcher, parts.canned, {
             announce: (change) => {
                 publish(this.watchers, "project:status", change);
@@ -853,6 +910,11 @@ class Session implements ElementSession {
             projectChanged: () => {
                 this.network.projectChanged();
             },
+            scratch: () =>
+                createGraphSession({
+                    features: [...this.features.enabled],
+                    config: { acceleration: { policy: "off" } },
+                }),
             sources: {
                 restore: (read, autosave) => {
                     this.sessionData.restoreSourceMember(read, autosave);
@@ -1063,7 +1125,8 @@ class Session implements ElementSession {
             get: (_target, key) => {
                 const value: unknown = Reflect.get(part, key, part);
                 return typeof value === "function"
-                    ? (...args: unknown[]) => this.dispatcher.routed(via, () => Reflect.apply(value, part, args))
+                    ? (...args: unknown[]): unknown =>
+                          this.dispatcher.routed(via, (): unknown => Reflect.apply(value, part, args))
                     : value;
             },
             // A setter (`tx.visibility.showContext = true`) dispatches too: without this trap the
@@ -1165,15 +1228,59 @@ class Session implements ElementSession {
         const { acceleration } = this.controller.capabilities;
         const xr = this.xr.capability;
         const limits = this.ceilings.effective;
+        const measured = currentCalibration();
+        if (measured !== this.calibrationSource) {
+            this.calibrationSource = measured;
+            this.calibrationRecord =
+                measured === undefined
+                    ? null
+                    : Object.freeze({ at: measured.at, machine: measured.machine, basis: measured.basis });
+        }
+
+        const calibration = this.calibrationRecord;
         if (
             this.composed?.acceleration !== acceleration ||
             this.composed.xr !== xr ||
-            this.composed.limits !== limits
+            this.composed.limits !== limits ||
+            this.composed.calibration !== calibration
         ) {
-            this.composed = Object.freeze({ acceleration, xr, limits });
+            this.composed = Object.freeze({ acceleration, xr, calibration, limits });
         }
 
         return this.composed;
+    }
+
+    /**
+     * Measure this machine's throughput once per page, for the cost estimates.
+     * @param options - `signal` stops waiting; the shared measurement still finishes.
+     * @returns The limits in force.
+     */
+    async calibrate(options: Pick<RunOptions, "signal"> = {}): Promise<Readonly<DefaultableLimits>> {
+        const { signal } = options;
+        signal?.throwIfAborted();
+        const before = this.document();
+        const measuring = calibrateOnce();
+        if (signal !== undefined) {
+            await new Promise<void>((resolve, reject) => {
+                const stop = (): void => {
+                    reject(signal.reason as Error);
+                };
+                signal.addEventListener("abort", stop, { once: true });
+                void measuring.then(() => {
+                    signal.removeEventListener("abort", stop);
+                    resolve();
+                });
+            });
+        } else {
+            await measuring;
+        }
+
+        const after = this.document();
+        if (after !== before && !this.disposed) {
+            publish(this.watchers, "capabilities:changed", { capabilities: after });
+        }
+
+        return after.limits;
     }
 
     /**
@@ -1420,7 +1527,7 @@ class Session implements ElementSession {
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void {
         if (this.disposed) {
             // Nothing fires again; a host that asks too late to hear about the disposal still does.
-            // Cancelled by the returned function, so an effect cleanup that runs first is not told.
+            // Canceled by the returned function, so an effect cleanup that runs first is not told.
             let live = event === "session:disposed";
 
             if (live) {
@@ -1479,7 +1586,7 @@ class Session implements ElementSession {
         // Runs first: a run still in flight holds a reference to the data it is reading, and
         // disposing the store under it would have it finish against a graph that no longer exists.
         this.sessionRuns.dispose();
-        // Style edits are runs the runs list does not hold, so they are cancelled on their own.
+        // Style edits are runs the runs list does not hold, so they are canceled on their own.
         this.stopStyleEdits();
         this.shadersController.dispose();
         // The last event: a host drops the session here, before anything re-reads it.
@@ -1489,28 +1596,6 @@ class Session implements ElementSession {
         this.ownedAcceleration?.dispose();
         this.ownedStore?.dispose();
     }
-}
-
-/** Each session's runs API with the parts only the element reaches; see {@link sessionRunsOf}. */
-const SESSION_RUNS = new WeakMap<GraphSession, SessionRunsApi>();
-
-/**
- * The runs API behind a session, with `startVia`: how the renderer starts the on-load runs as
- * deferred members of the command that added the rows. Not published.
- * @param session - A session this module built.
- * @returns Its runs API.
- */
-export function sessionRunsOf(session: GraphSession): SessionRunsApi {
-    const runs = SESSION_RUNS.get(session);
-    if (runs === undefined) {
-        throw new GraphtyError({
-            code: "E_INTERNAL",
-            message: "This session was not built by createGraphSession, so it has no runs API of its own.",
-            source: "run",
-        });
-    }
-
-    return runs;
 }
 
 /** Each headless session's `graph` repaint hook, by dispatcher, to unregister. */
@@ -1808,12 +1893,6 @@ interface LayoutDrive {
 }
 
 /**
- * The saved camera views: the dispatcher's `views` slice, read as a map, with the two verbs that
- * write it.
- * @param dispatcher - The dispatcher.
- * @returns The views.
- */
-/**
  * The `layout` slice with its verbs.
  * @param dispatcher - The session's dispatcher, whose state is read.
  * @param dispatch - Where the verbs go: the session's dispatch, or a transaction's.
@@ -1923,8 +2002,53 @@ function layoutOf(
  */
 const IGNORED_IN_2D_OPTIONS: ReadonlyMap<string, string> = new Map([["location-map.mapDimension", "2d"]]);
 
-function viewsOf(dispatcher: Dispatcher): SessionViews {
-    const held = dispatcher.state.views;
+/**
+ * The annotations: the `annotations` graph value, read live, with the verbs that write it.
+ * @param dispatcher - The dispatcher.
+ * @returns The annotations surface.
+ */
+function annotationsOf(dispatcher: Dispatcher): SessionAnnotations {
+    const held = (): DrawnAnnotations | null =>
+        drawnAnnotationsOf(dispatcher.state.graph.values.get(ANNOTATIONS_VALUE));
+    return Object.freeze({
+        get scale() {
+            return held()?.scale ?? 1;
+        },
+        list: () => held()?.annotations ?? Object.freeze([]),
+        add: async (annotation: DrawnAnnotation) => {
+            await dispatcher.dispatch({ op: "annotations.patch", action: "add", annotation });
+        },
+        update: async (id: string, patch: Readonly<Record<string, unknown>>) => {
+            await dispatcher.dispatch({ op: "annotations.patch", action: "update", id, patch });
+        },
+        remove: async (id: string) => {
+            await dispatcher.dispatch({ op: "annotations.patch", action: "remove", id });
+        },
+        clear: async () => {
+            await dispatcher.dispatch({ op: "annotations.set", annotations: [], scale: held()?.scale ?? 1 });
+        },
+    });
+}
+
+/**
+ * The saved camera views: the dispatcher's `views` slice, read as a map in project order, with the
+ * verbs that write it.
+ * @param dispatcher - The dispatcher.
+ * @param seeded - Told the names the starting cameras wrote into the baseline.
+ * @returns The views.
+ */
+function viewsOf(dispatcher: Dispatcher, seeded: (names: readonly string[]) => void): SessionViews {
+    const { state } = dispatcher;
+    const held = state.views;
+    /**
+     * The views as entries, in project order.
+     * @returns The entries.
+     */
+    const ordered = (): [string, SavedView][] =>
+        state.viewOrder.flatMap((name) => {
+            const view = held.get(name);
+            return view === undefined ? [] : [[name, view] as [string, SavedView]];
+        });
     const views: SessionViews = Object.freeze({
         get size() {
             return held.size;
@@ -1932,26 +2056,142 @@ function viewsOf(dispatcher: Dispatcher): SessionViews {
         get: (name: string) => held.get(name),
         has: (name: string) => held.has(name),
         forEach: (
-            visit: (camera: CameraState, name: string, map: ReadonlyMap<string, CameraState>) => void,
+            visit: (view: SavedView, name: string, map: ReadonlyMap<string, SavedView>) => void,
             self?: unknown,
         ) => {
-            held.forEach((camera, name) => {
-                visit.call(self, camera, name, views);
-            });
+            for (const [name, view] of ordered()) {
+                visit.call(self, view, name, views);
+            }
         },
-        entries: () => held.entries(),
-        keys: () => held.keys(),
-        values: () => held.values(),
-        [Symbol.iterator]: () => held.entries(),
-        save: async (saved: readonly { readonly name: string; readonly camera: CameraState }[]) => {
-            await dispatcher.dispatch({ op: "view.save", views: saved });
+        entries: () => ordered()[Symbol.iterator](),
+        keys: () =>
+            ordered()
+                .map(([name]) => name)
+                .values(),
+        values: () =>
+            ordered()
+                .map(([, view]) => view)
+                .values(),
+        [Symbol.iterator]: () => ordered()[Symbol.iterator](),
+        save: async (
+            saved: readonly {
+                readonly name: string;
+                readonly camera?: CameraState;
+                readonly follows?: string;
+                readonly key?: string | null;
+            }[],
+        ) => {
+            // The camera is read once, here, so redo and replay never read the live camera again.
+            const resolved = saved.map((view) =>
+                view.camera === undefined && view.follows === undefined
+                    ? { ...view, camera: currentCamera(dispatcher) }
+                    : view,
+            );
+            await dispatcher.dispatch({ op: "view.save", views: resolved });
         },
         remove: async (names: readonly string[]) => {
             await dispatcher.dispatch({ op: "view.remove", names });
         },
+        rename: async (from: string, to: string) => {
+            await dispatcher.dispatch({ op: "view.rename", from, to });
+        },
+        move: async (name: string, index: number) => {
+            await dispatcher.dispatch({ op: "view.move", name, index });
+        },
+        setKey: async (name: string, key: string | null) => {
+            await dispatcher.dispatch({ op: "view.key", name, key });
+        },
+        setStartingCameras: async (list: readonly StartingCamera[] | null) => {
+            const starting = holdStartingCameras(dispatcher, list);
+            if (starting === null || state.config.get("startingCamerasWritten") === true) {
+                return;
+            }
+            // A project nobody has changed yet gets them as its starting state, never a step;
+            // after a change they are one step, so undo takes them out with their record.
+            if (dispatcher.seedable) {
+                let names: readonly string[] = [];
+                dispatcher.seed((draft) => {
+                    names = writeStartingViews(state, starting, draft);
+                });
+                seeded(names);
+                return;
+            }
+            await dispatcher.dispatch({ op: "view.starting", views: starting });
+        },
     });
 
     return views;
+}
+
+/**
+ * The saved camera tours: the dispatcher's `tours` slice, read as a map in project order, with the
+ * verbs that write it.
+ * @param dispatcher - The dispatcher.
+ * @returns The tours.
+ */
+function toursOf(dispatcher: Dispatcher): SessionTours {
+    const { state } = dispatcher;
+    /**
+     * The tours as entries, in project order.
+     * @returns The entries.
+     */
+    const entries = (): [string, Tour][] => state.tours.map((saved): [string, Tour] => [saved.name, saved.tour]);
+    const tours: SessionTours = Object.freeze({
+        get size() {
+            return state.tours.length;
+        },
+        get: (name: string) => state.tours.find((saved) => saved.name === name)?.tour,
+        has: (name: string) => state.tours.some((saved) => saved.name === name),
+        forEach: (visit: (tour: Tour, name: string, map: ReadonlyMap<string, Tour>) => void, self?: unknown) => {
+            for (const [name, tour] of entries()) {
+                visit.call(self, tour, name, tours);
+            }
+        },
+        entries: () => entries()[Symbol.iterator](),
+        keys: () =>
+            entries()
+                .map(([name]) => name)
+                .values(),
+        values: () =>
+            entries()
+                .map(([, tour]) => tour)
+                .values(),
+        [Symbol.iterator]: () => entries()[Symbol.iterator](),
+        save: async (saved: readonly { readonly name: string; readonly tour: Tour }[]) => {
+            await dispatcher.dispatch({ op: "tour.save", tours: saved });
+        },
+        remove: async (names: readonly string[]) => {
+            await dispatcher.dispatch({ op: "tour.remove", names });
+        },
+        rename: async (from: string, to: string) => {
+            await dispatcher.dispatch({ op: "tour.rename", from, to });
+        },
+        move: async (name: string, index: number) => {
+            await dispatcher.dispatch({ op: "tour.move", name, index });
+        },
+    });
+
+    return tours;
+}
+
+/**
+ * Where the renderer's camera stands now, for a view saved with no camera.
+ * @param dispatcher - The dispatcher, whose services hold the renderer's camera.
+ * @returns The state.
+ * @throws A `GraphtyError` with `E_UNSUPPORTED` when the session draws nothing, as `view.camera`
+ *     refuses, or `{ reason: "xr", mode }` while immersive.
+ */
+function currentCamera(dispatcher: Dispatcher): CameraState {
+    const { camera } = dispatcher.services;
+    if (camera === undefined) {
+        throw new GraphtyError({
+            code: "E_UNSUPPORTED",
+            message: "This session draws nothing, so it has no camera to save.",
+            source: "view",
+        });
+    }
+
+    return camera.current();
 }
 
 /**
@@ -1981,6 +2221,7 @@ function projectConfigReader(dispatcher: Dispatcher, base: () => SessionDataConf
  * @param read - Reads the project settings.
  * @param controller - The acceleration controller.
  * @param nodeSizeSpace - Reads the renderer's graph-wide node size space, for `inEffect`.
+ * @param darkScheme - Whether the renderer's color scheme is dark, for `backgroundColor`.
  * @returns The settings.
  */
 function configOf(
@@ -1988,6 +2229,7 @@ function configOf(
     read: () => ProjectConfig,
     controller: AccelerationControllerLike,
     nodeSizeSpace: (() => string | undefined) | undefined,
+    darkScheme?: () => boolean,
 ): SessionConfig {
     return Object.freeze({
         get data() {
@@ -2000,7 +2242,7 @@ function configOf(
             return read().background;
         },
         get backgroundColor() {
-            return backgroundColorOf(read().background);
+            return backgroundColorOf(read().background, darkScheme?.() ?? false);
         },
         get selectionStyle() {
             return read().selectionStyle;
@@ -2016,6 +2258,12 @@ function configOf(
         },
         get timelineHiddenLook() {
             return read().timelineHiddenLook;
+        },
+        get timelineHiddenAdded() {
+            return read().timelineHiddenAdded;
+        },
+        get startingCamerasWritten() {
+            return read().startingCamerasWritten;
         },
         get runPlacement() {
             return read().runPlacement;
@@ -2345,12 +2593,6 @@ function fieldKindsOf(
         return fieldKindsOf(end.node, data, fieldsOf).includes("node") ? ["edge"] : [];
     }
 
-    // The values graphty-element provides: a file's style value is on the kind its path names.
-    const style = parseFileStylePath(path);
-    if (style !== undefined) {
-        return [style.kind];
-    }
-
     if (noteFieldOf(path) !== undefined) {
         return ["node", "edge"];
     }
@@ -2420,7 +2662,7 @@ function componentLabelsOf(data: SessionData): () => ComponentLabels {
  * its value lands in a parsed style, so the element's base layer can be read straight out of
  * `defaultNodeStyle` and `defaultEdgeStyle` through that table. A hand-written list of channel
  * values would be a second copy of the defaults that nothing keeps in step: change the default
- * node colour and the base layer would go on painting the old one, with no test between the two
+ * node color and the base layer would go on painting the old one, with no test between the two
  * to notice.
  *
  * A path that holds an object -- a label's whole rich-text block, a gradient -- is skipped rather
@@ -2680,24 +2922,18 @@ function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, 
  * consumer can say why a layer paints nothing rather than showing a confident empty screen.
  * @param data - The session's data surface.
  * @param runs - The runs this session holds.
- * @param fileStyles - Reads the file-style store as it stands now.
  * @returns The directory.
  */
-function pathDirectoryOf(data: SessionData, runs: RunsApi, fileStyles: () => FileStyleStore): PathDirectory {
+function pathDirectoryOf(data: SessionData, runs: RunsApi): PathDirectory {
     return {
-        // A note value is always answerable: it reads nothing until a note names the element. A
-        // file-style column is answerable wherever a load holds it.
+        // A note value is always answerable: it reads nothing until a note names the element.
         answers: (path: Path, target: "node" | "edge"): boolean => {
             const end = edgeEndPathOf(path);
             if (end !== undefined) {
                 return target === "edge" && answersReadable(data, runs, end.node, "node");
             }
 
-            return (
-                noteFieldOf(path) !== undefined ||
-                answersFileStyle(fileStyles(), path, target) ||
-                answersReadable(data, runs, path, target)
-            );
+            return noteFieldOf(path) !== undefined || answersReadable(data, runs, path, target);
         },
         candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
     };
@@ -2715,18 +2951,6 @@ function searchedPaths(data: SessionData, kind: "node" | "edge"): readonly Path[
         .readableValues()
         .filter((value) => value.on === kind && value.from !== "element" && value.end === undefined)
         .map((value) => value.path);
-}
-
-/**
- * Whether a file-style path names a column some load holds, for the kind of element asking.
- * @param store - The file-style store.
- * @param path - The path.
- * @param target - Whether the asking layer paints nodes or edges.
- * @returns True when the store holds that column.
- */
-function answersFileStyle(store: FileStyleStore, path: Path, target: "node" | "edge"): boolean {
-    const parts = parseFileStylePath(path);
-    return parts?.kind === target && fileStyleColumn(store, parts.namespace, parts.kind, parts.key) !== undefined;
 }
 
 /**
@@ -2759,13 +2983,11 @@ function fieldWordsOf(
             }
         }
 
-        // The values graphty-element keeps itself: a node's degrees and a file's style columns.
+        // The values graphty-element keeps itself: a node's degrees.
         const structure = target === "node" ? STRUCTURE_VALUES.find((each) => each.path === path) : undefined;
-        if (structure !== undefined) {
-            return { plainName: structure.plainName, technicalName: structure.technicalName };
-        }
-
-        return parseFileStylePath(path)?.kind === target ? fileStyleWords(path) : undefined;
+        return structure === undefined
+            ? undefined
+            : { plainName: structure.plainName, technicalName: structure.technicalName };
     };
 }
 
@@ -2807,10 +3029,11 @@ function runIdOf(ref: RunRef): RunId {
  * @param runs - The runs this session holds.
  * @returns The source.
  */
-function encodingSourceOf(runs: RunsApi): EncodingSource {
+function encodingSourceOf(runs: SessionRunsApi): EncodingSource {
     return {
         run: (ref: RunRef): EncodingRun | undefined => runs.get(runIdOf(ref)),
         runIds: (): readonly RunId[] => runs.list().map((run) => run.id),
+        defaultLayerName: (id: RunId): string | undefined => runs.defaultLayerName(id),
     };
 }
 
@@ -2852,6 +3075,65 @@ function edgeIndexOf(readSnapshot: () => GraphSnapshot): (id: EdgeId) => number 
 
         return index === INVALID_INDEX ? undefined : index;
     };
+}
+
+/**
+ * The renderer's reads of edges, with `edge.colorFrom` resolved: an edge that takes its color from
+ * an end node is handed that node's painted `node.color` as its `edge.color`, and a pass that
+ * repaints a node repaints the edges that follow it, so the line keeps up with the node.
+ * @param engine - The repaint engine.
+ * @param indexedBy - The snapshot whose rows the engine's indices are, or null before the first pass.
+ * @returns The edge style and the edges the last pass painted.
+ */
+function edgeColorsFromNodes(
+    engine: RepaintEngine,
+    indexedBy: () => GraphSnapshot | null,
+): { styleOf: (index: number) => ResolvedStyle; lastPainted: () => ArrayLike<number> } {
+    // Set once any edge has been read with `edge.colorFrom`, so a graph that never uses it pays nothing per node pass.
+    // ponytail: never cleared, so a removed colorFrom layer keeps the O(degree) walk below; clear it when that shows.
+    let followed = false;
+
+    const styleOf = (index: number): ResolvedStyle => {
+        const style = engine.styleOf("edge", index);
+        const from = style["edge.colorFrom"];
+        const graph = indexedBy();
+        if (from === undefined || graph === null || index >= graph.edgeCount) {
+            return style;
+        }
+
+        followed = true;
+        const { src, dst } = graph.edgeList();
+        const node = from === "source" ? src[index] : dst[index];
+        const color = engine.styleOf("node", node)["node.color"];
+
+        return color === undefined ? style : { ...style, "edge.color": color };
+    };
+
+    const lastPainted = (): ArrayLike<number> => {
+        const edges = engine.lastPainted("edge");
+        const nodes = engine.lastPainted("node");
+        const graph = indexedBy();
+        if (!followed || nodes.length === 0 || graph === null) {
+            return edges;
+        }
+
+        const all = new Set<number>(Array.from(edges));
+        const { src, dst } = graph.edgeList();
+        for (let at = 0; at < nodes.length; at++) {
+            const node = nodes[at];
+            eachAdjacentArc(graph, node, "all", (_other, edge) => {
+                const from = engine.styleOf("edge", edge)["edge.colorFrom"];
+                const end = from === "source" ? src[edge] : dst[edge];
+                if (from !== undefined && end === node) {
+                    all.add(edge);
+                }
+            });
+        }
+
+        return all.size === edges.length ? edges : Array.from(all);
+    };
+
+    return { styleOf, lastPainted };
 }
 
 /**
@@ -2905,6 +3187,8 @@ function repaintAgainstCurrentData(
         }
     };
 
+    const edgeColors = edgeColorsFromNodes(engine, () => indexedBy);
+
     return {
         // The renderer's half: reads, plus the first draw. It carries neither `repaint` nor
         // `invalidate`, so a renderer cannot paint behind the stack's back.
@@ -2914,12 +3198,12 @@ function repaintAgainstCurrentData(
 
                 return engine.repaintAll(stack, context);
             },
-            styleOf: (target, index) => engine.styleOf(target, index),
+            styleOf: (target, index) => (target === "edge" ? edgeColors.styleOf(index) : engine.styleOf(target, index)),
             plainText: (target, index, channel) => engine.plainText(target, index, channel),
             meshKeyOf: (target, index) => engine.meshKeyOf(target, index),
             meshStyleOf: (target, key) => engine.meshStyleOf(target, key),
             meshCount: (target) => engine.meshCount(target),
-            lastPainted: (target) => engine.lastPainted(target),
+            lastPainted: (target) => (target === "edge" ? edgeColors.lastPainted() : engine.lastPainted(target)),
             lastPaintRowsOnly: () => engine.lastPaintRowsOnly(),
             onPainted: (listener) => engine.onPainted(listener),
             painting: () => engine.painting(),
@@ -3226,6 +3510,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // And the query engine, below that.
             search: (text, request) => requireQuery(query).search(text, request),
             textTest: (text, mode, target, only) => requireQuery(query).textTest(text, mode, target, only),
+            textMatch: (text, mode, target, only) => requireQuery(query).textMatch(text, mode, target, only),
             matchWhere: (where, target) =>
                 new Set<NodeId | EdgeId>(
                     target === "node" ? requireQuery(query).nodes(where) : requireQuery(query).edges(where),
@@ -3291,7 +3576,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // What status and "Used by" read of a run. Late-bound: the runs are built below.
     const statusRun = (run: Run): StatusRun => ({
         id: run.id,
-        label: englishRunLabel(run),
+        label: runs.defaultLayerName(run.id) ?? run.algorithm,
         algorithm: run.algorithm,
         registered: SESSION_CATALOG_TABLES.algorithms().some((descriptor) => descriptor.key === run.algorithm),
         execution: executionOf(run.id),
@@ -3302,7 +3587,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Offers and Memberships. Read through calls: the runs and the scope resolver are built below.
     const offerRun = (run: Run): { id: RunId; label: string; result: Run["result"] } => ({
         id: run.id,
-        label: englishRunLabel(run),
+        label: runs.defaultLayerName(run.id) ?? run.algorithm,
         result: run.result,
     });
     const offering = createOffering({
@@ -3420,7 +3705,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         return {
             execution: executionOf(run),
-            // With what the run's own fields carry from the catalogue (a field's unstable names).
+            // With what the run's own fields carry from the catalog (a field's unstable names).
             fields: result.fields.map((field) => ({
                 ...runs.get(run)?.fields.find((each) => each.name === field.name),
                 ...field,
@@ -3600,6 +3885,29 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const canned: CannedOutcomes = new Map();
     // What a run compares to tell "the data changed under me" from "my scope moved".
     const dataNow = (): string => dataDigest(dispatcher.state.graph, snapshot);
+    // What the live keywords a scope names stand for now, so a saved run can be resolved again
+    // under them on open.
+    const liveScopeOf = (spec: Scope): { live?: RunLiveScope } => {
+        const used = new Set<LiveKeyword>();
+        freezeScope(spec, (keyword) => used.add(keyword));
+        if (used.size === 0) {
+            return {};
+        }
+
+        const visible = used.has("visible")
+            ? {
+                  visible: {
+                      filter: visibility.filter,
+                      conditions: visibility.conditions,
+                      window: visibility.window,
+                  },
+              }
+            : {};
+        const selected = used.has("selection")
+            ? { selection: frozenSelection(requireSelection(selection).nodeMembers().ids()) }
+            : {};
+        return { live: { ...visible, ...selected } };
+    };
     const runs = createRunsApi({
         queue,
         // Finished runs are the `runs` slice, recorded in this session's history.
@@ -3632,9 +3940,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                                   : { ...bounds, nodes: inside.nodes, edges: inside.edges },
                       };
 
+            const live = liveScopeOf(spec);
             return kept === undefined
-                ? { reading, dataDigest: data, ...window }
-                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data, ...window };
+                ? { reading, dataDigest: data, ...window, ...live }
+                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data, ...window, ...live };
         },
         dataDigest: () => dataNow(),
         defaultWeight: () => data.weightKey(),
@@ -3738,7 +4047,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         onChange: (change) => {
             // The token is minted when the work starts, but the result it stamps is published
-            // later (and a re-run clears it when queued). A signature memoised under the tick in
+            // later (and a re-run clears it when queued). A signature memoized under the tick in
             // between would go on reading the result as it was, so the tick advances again
             // whenever the result a run holds is not the one it last held.
             // Read through the session's run, which a re-run replaces, not the announced object.
@@ -3825,7 +4134,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
     const results = createResultsApi({
         entry: (id) => runEntry(runs, id),
-        entries: () => runs.list().map((run) => toResultsEntry(run)),
+        entries: () => runs.list().map((run) => toResultsEntry(runs, run)),
     });
 
     // Notes, published as `session.notes`: a result a note names is known while its run is, and
@@ -3868,7 +4177,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The real columns, read per element and never captured: a compiled selector stays correct
     // across a freeze that renumbers the index space because every lookup starts from the
     // snapshot the session holds NOW.
-    const readFileStyles = (): FileStyleStore => asFileStyleStore(dispatcher.state.graph.values.get(FILE_STYLES_VALUE));
     const elements: SessionSelectorSource = createSelectorSource({
         snapshot,
         results: (runId) => runs.get(runId)?.result,
@@ -3878,13 +4186,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             () => dispatcher.lane.writes("notes"),
             snapshot,
         ),
-        // The file-style store, read from the project as it stands now: a load writes a new store
-        // object, so a reader never holds a stale one.
-        fileStyles: (namespace, kind, key) => fileStyleColumn(readFileStyles(), namespace, kind, key),
     });
     // ONE query engine, over the same source the style layers read, so a layer selector and a
     // scope, a selection or a filter with the same expression match the same elements.
-    const paths = pathDirectoryOf(data, runs, readFileStyles);
+    const paths = pathDirectoryOf(data, runs);
     query = createQueryEngine({
         snapshot,
         revision: () => inputs.tick.value,
@@ -4341,7 +4646,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         admitRule: (rule: unknown) => scope.canonicalUnions(rule),
         base: elementBaseLayers(),
         transient: () => peekLayers,
-        directed: () => snapshot().directed,
+        // Any edge directed: a file can mix directed and undirected edges (graph-format's role
+        // "directed" column), and a head no layer chose is drawn on each directed one.
+        directed: () => directedness(snapshot()) !== "undirected",
+        edgeDirected: (edge: number) => edgeIsDirected(snapshot(), edge),
         // `edge.lift` rises out of a flat layout's plane: drawn only for a flat layout in 3D.
         liftDrawn: () => {
             const layout = dispatcher.state.layout ?? DEFAULT_LAYOUT;
@@ -4477,7 +4785,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // ONLY THE READERS. Repainting every kept layer repainted the element's own "Edge defaults"
     // layer, which matches every edge, after every finished run: a community run over 36,906
     // airline routes rebuilt every edge's paint in one frame, about 5.8 seconds on a phone-class
-    // CPU, for a run that colours nodes alone.
+    // CPU, for a run that colors nodes alone.
     dispatcher.lane.register("runs", async (rendered, target, dirty) => {
         // By result: an entry that changed only around its columns (a rename) repaints nothing.
         const changed = new Set(
@@ -4650,13 +4958,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const recordsOnly = ![...dirty].some(
                 (key) => key === ROWS_MOVED || !(key.startsWith("n:") || namesEdges(key) || key.startsWith("v:")),
             );
-            // A load's style values moved: every layer reading a `graphty.style.` path repaints.
-            const stylesMoved = dirty.has(FILE_STYLES_KEY);
-            const readers = recordsOnly
-                ? stack.filter(
-                      (entry) => readsAnyField(entry, changed) || (stylesMoved && entry.reads.some(isFileStylePath)),
-                  )
-                : stack;
+            const readers = recordsOnly ? stack.filter((entry) => readsAnyField(entry, changed)) : stack;
             if (readers.length === 0) {
                 return;
             }
@@ -4750,6 +5052,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             SESSION_CATALOG_TABLES.algorithms()
                 .find((descriptor) => descriptor.key === algorithm)
                 ?.options.find((descriptor) => descriptor.name === option)?.type,
+        registered: (algorithm) =>
+            SESSION_CATALOG_TABLES.algorithms().some((descriptor) => descriptor.key === algorithm),
         options: () => scope.options,
         hovering: () => (selection?.hovered ?? null) !== null,
         moved: () => {
@@ -4875,6 +5179,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         features: settleFeatures,
         readProject,
         nodeSizeSpace: internals.nodeSizeSpace,
+        darkScheme: internals.darkScheme,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,
         xr: options.xr ?? HEADLESS_XR,
@@ -4950,17 +5255,13 @@ function changesRowsOnly(key: string): boolean {
     return (
         key.startsWith("n:") ||
         namesEdges(key) ||
-        // A graph value (the import report an add replaces) is read by no layer; the file-style
-        // store is, so a change to it repaints what reads it rather than only the rows.
-        (key.startsWith("v:") && key !== FILE_STYLES_KEY) ||
+        // A graph value (the import report an add replaces) is read by no layer.
+        key.startsWith("v:") ||
         key === ROWS_MOVED ||
         key === NODES_ADDED ||
         key === EDGES_ADDED
     );
 }
-
-/** The dirty key a write of the file-style store raises in the `graph` hook. */
-const FILE_STYLES_KEY = `v:${FILE_STYLES_VALUE}`;
 
 /**
  * Whether a layer paints each element from that element alone: fixed values only, selected by
@@ -5351,13 +5652,13 @@ function tellData(
 
 /**
  * One run, in the shape the results API looks runs up in.
+ * @param runs - The runs this session holds, which name it.
  * @param run - The run.
  * @returns The entry.
  */
-function toResultsEntry(run: Run): ResultsRunEntry {
+function toResultsEntry(runs: SessionRunsApi, run: Run): ResultsRunEntry {
     return {
         id: run.id,
-        label: englishRunLabel(run),
         distinguishedBy: run.distinguishedBy,
         siblingsDifferBy: run.siblingsDifferBy,
         shape: run.shape,
@@ -5372,10 +5673,10 @@ function toResultsEntry(run: Run): ResultsRunEntry {
  * @param id - The run id.
  * @returns The entry, or undefined when there is no such run.
  */
-function runEntry(runs: RunsApi, id: string): ResultsRunEntry | undefined {
+function runEntry(runs: SessionRunsApi, id: string): ResultsRunEntry | undefined {
     const run = runs.get(id);
 
-    return run === undefined ? undefined : toResultsEntry(run);
+    return run === undefined ? undefined : toResultsEntry(runs, run);
 }
 
 /**
@@ -5412,7 +5713,8 @@ function planningContext(
         // threshold at which the element bothers to use it, so an algorithm that needs one can run.
         acceleratorAvailable: () => ACCELERATOR_ATTACHED.has(acceleration.capabilities.acceleration.state),
         keptSets,
-        ...(runsOptions.calibration === undefined ? {} : { calibration: runsOptions.calibration }),
+        // The page's own calibration unless the host supplies its measured throughput.
+        calibration: runsOptions.calibration ?? currentCalibration,
         ...(runsOptions.measurements === undefined ? {} : { measurements: runsOptions.measurements }),
     };
 }

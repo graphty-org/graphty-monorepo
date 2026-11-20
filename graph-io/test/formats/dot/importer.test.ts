@@ -101,7 +101,7 @@ function dtypeOf(column: Column | null): string | null {
     return column === null ? null : column.dtype;
 }
 
-/** Container nodes the importer synthesises per corpus file, on top of the manifest's node count. */
+/** Container nodes the importer synthesizes per corpus file, on top of the manifest's node count. */
 const CONTAINERS: Record<string, string[]> = {
     "hello.gv": [],
     "cluster.gv": ["cluster_0", "cluster_1"],
@@ -270,6 +270,19 @@ describe("dot importer: malformed corpus", () => {
         "invalid-keyword.gv": { nodes: 3, edges: 1 },
         "missing-arrow.gv": { nodes: 4, edges: 0 },
     };
+
+    const FAILING = [
+        "empty-file.gv",
+        "garbage-content.gv",
+        "invalid-attributes.gv",
+        "nested-unclosed.gv",
+        "unclosed-brace.gv",
+        "unclosed-string.gv",
+    ];
+
+    it("covers every malformed file", () => {
+        expect([...malformedFiles("dot")]).toEqual([...FAILING, ...Object.keys(VALID_FOR_GRAPHVIZ)].sort());
+    });
 
     for (const name of malformedFiles("dot")) {
         const valid = VALID_FOR_GRAPHVIZ[name];

@@ -245,8 +245,8 @@ describe("what the load report says about the repeats it saw", () => {
 
 describe("re-adding data the graph already holds", () => {
     test("the expand path is still idempotent, because it asks for first", async () => {
-        // Under `keep`, an additive re-add of a node's neighbourhood would double every edge
-        // already present -- and the double-click expand handler fetches a neighbourhood and adds
+        // Under `keep`, an additive re-add of a node's neighborhood would double every edge
+        // already present -- and the double-click expand handler fetches a neighborhood and adds
         // it on every expand. The element knows that about its own call site, so it passes the
         // policy rather than leaving the consumer to discover the doubling.
         const graph = await makeGraph();
@@ -296,9 +296,9 @@ describe("an algorithm run over a multigraph", () => {
         const run = graph.getSession().runs.start("degree");
         await run;
 
-        const notes = run.caveats.notes.join(" ");
-        assert.include(notes, "parallel", "the merge is named on the result rather than only in a design document");
-        assert.include(notes, "1 parallel edge was merged", "and the count is the graph's repeat count");
+        const merged = run.caveats.facts.find((fact) => fact.code === "parallel-edges.merged");
+        assert.isDefined(merged, "the merge is named on the result rather than only in a design document");
+        assert.strictEqual(merged?.params.count, 1, "and the count is the graph's repeat count");
         graph.dispose();
     });
 
@@ -323,7 +323,7 @@ describe("an algorithm run over a multigraph", () => {
         const result = await run;
 
         assert.deepInclude(result.node("c"), { distance: 3 }, "1 then 2, not the group's sum of 5 then 2");
-        assert.include(run.caveats.notes.join(" "), "1 parallel edge was merged, keeping the lowest weight");
+        assert.deepInclude(run.caveats.facts, { code: "parallel-edges.merged", params: { count: 1, policy: "min" } });
         graph.dispose();
     });
 

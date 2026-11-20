@@ -251,10 +251,10 @@ describe("the two places a consumer can read what one load produced", () => {
 });
 
 /**
- * Count one node's neighbours by hand, the way a consumer has to.
+ * Count one node's neighbors by hand, the way a consumer has to.
  *
- * `SessionDataApi` has no neighbour verb and deliberately none -- neighbour pages are
- * asynchronous by construction -- so the only neighbour walk in this repository is the
+ * `SessionDataApi` has no neighbor verb and deliberately none -- neighbor pages are
+ * asynchronous by construction -- so the only neighbor walk in this repository is the
  * application's, which is the code the shipped bug was found in. Counting by hand here is the
  * point: it is the consumer's experience, reproduced.
  * @param graph - the loaded graph
@@ -305,7 +305,7 @@ describe("Karate Club node 34, which is the graph the shipped bug was found on",
 
 describe("the declarative load path, which is how a page without any script loads a file", () => {
     /**
-     * Wait until the element has connected and initialised its graph.
+     * Wait until the element has connected and initialized its graph.
      * @param element - The element.
      */
     async function untilReady(element: Graphty): Promise<void> {

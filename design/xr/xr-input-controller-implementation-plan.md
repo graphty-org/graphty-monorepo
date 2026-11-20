@@ -1,5 +1,11 @@
 # Implementation Plan for XR Unified Drag System
 
+Status: historical record (2025). The file names it gives as current code are out of
+date: there is no `src/xr-button.ts`, `XRCameraController.ts`, `XRInputController.ts` or
+`CameraPivotController.ts`. graphty-element's XR code is now `src/xr/XRSessionManager.ts`,
+`src/ui/XRUIManager.ts`, `src/cameras/XRPivotCameraController.ts`, `src/cameras/XRInputHandler.ts`
+and `src/cameras/PivotController.ts`.
+
 ## Overview
 
 This plan implements a unified drag interaction system that works seamlessly in both desktop and WebXR (VR/AR) modes. The implementation replaces BabylonJS's `SixDofDragBehavior` with a custom drag handler that solves critical VR Z-axis movement issues while maintaining a single code path for both desktop and XR modes.

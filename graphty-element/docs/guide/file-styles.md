@@ -104,30 +104,28 @@ Some of what a file says has no exact counterpart in a 3D graph, and another app
 reasonably choose differently. Those choices are `styleOptions`, beside `styles`:
 
 ```ts
-import { FILE_STYLE_SHAPES } from "@graphty/graphty-element/session";
-
 await element.loadFromUrl(url, {
     styles: "file",
     styleOptions: {
         lengths: "file",
         toolDefaults: false,
-        shapes: { ...FILE_STYLE_SHAPES, star: "box" },
     },
 });
 ```
 
-| Option         | Default             | What it decides                                                                                                                                                                                                                                                                                                |
-| -------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lengths`      | `"median"`          | `"median"` scales every length by one factor, so the file's median node size (each node by its larger side) is the element's default node size and node sizes, borders, edge widths, label sizes and a kept layout's positions keep the file's proportions; `"file"` keeps the file's numbers as they are      |
-| `labelSizes`   | `"proportional"`    | `"proportional"` scales label sizes by the factor `lengths` scales every other length by, so each label keeps its size against its node; `"file"` keeps the file's label sizes as they are                                                                                                                     |
-| `shapes`       | `FILE_STYLE_SHAPES` | The element shape each 2D shape of the file is drawn as (every 2D shape as the flat shape of the same name: `ellipse`, `rectangle`, `hexagon`, ...; a body-less `none` as an `ellipse`). A shape the table leaves out is not drawn from the file, and the load notes it                                        |
-| `labelLayers`  | none                | Deprecated, and ignored: every label position the file sets is drawn, element by element, by one layer (`node.labelLocation`)                                                                                                                                                                                  |
-| `toolDefaults` | `true`              | Whether a property the file leaves unset gets the default of the program that wrote it (below)                                                                                                                                                                                                                 |
-| `imageBaseUrl` | none                | The URL a picture the file names by a relative path (a node's image, a table cell's picture) is resolved against, usually the file's own URL; without it the path is loaded as written, which the browser resolves against the page. A file read from a `Blob` or from text has no URL, so only this gives one |
+| Option         | Default          | What it decides                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lengths`      | `"median"`       | `"median"` scales every length by one factor, so the file's median node size (each node by its larger side) is the element's default node size and node sizes, borders, edge widths, label sizes and a kept layout's positions keep the file's proportions; `"file"` keeps the file's numbers as they are; `"spacing"` scales by the node spacing the styles state for a file that stores no positions |
+| `labelSizes`   | `"proportional"` | `"proportional"` scales label sizes by the factor `lengths` scales every other length by, so each label keeps its size against its node; `"file"` keeps the file's label sizes as they are                                                                                                                                                                                                             |
+| `labelLayers`  | none             | Deprecated, and ignored: every label position the file sets is drawn, element by element, by one layer (`node.labelLocation`)                                                                                                                                                                                                                                                                          |
+| `toolDefaults` | `true`           | Passed to the file's reader: whether a property the file leaves unset gets the default the reader knows for it (below)                                                                                                                                                                                                                                                                                 |
+| `framing`      | `"element"`      | `"file"` frames a replacing load's node centers the padding the file states, when it states one; `"element"` leaves the project's framing as it is                                                                                                                                                                                                                                                     |
+| `imageBaseUrl` | none             | The URL a picture the file names by a relative path (a node's image, a table cell's picture) is resolved against, usually the file's own URL; without it the path is loaded as written, which the browser resolves against the page. A file read from a `Blob` or from text has no URL, so only this gives one                                                                                         |
 
-Copy `FILE_STYLE_SHAPES` and change the entries you want, as above.
+Every 2D node shape is drawn as the element's flat shape of the same name (`ellipse`, `rectangle`, `hexagon`,
+`database`, ...); to draw a shape another way, add a layer of your own over the file's.
 
-### The writing program's defaults
+### Defaults the file leaves unset
 
 A file rarely writes every property. A Cytoscape file that never mentions node color still draws
 its nodes in Cytoscape's default color; a DOT node with no `shape` is still an ellipse in Graphviz.
@@ -137,9 +135,9 @@ sessions, Cytoscape.js's for a Cytoscape.js document, Graphviz's for DOT, yEd's 
 file, Gephi's for GEXF, and so on. A format with no drawing program behind it adds none. Those
 defaults are the bottom layer the load makes, so the graph looks the same here as there.
 
-The draft of a load names that program before anything loads (`draft.styles.summary.tool`:
-`"cytoscape"`, `"graphviz"`, `"gephi"`, ...; null when it is not known). Pass
-`toolDefaults: false` to draw only what the file itself says, over the element's own defaults.
+The file's reader settles all of this before the layers are made: once loaded, the layers are drawn the same way
+whatever program wrote the file, and nothing in them names it. Pass `toolDefaults: false` to draw only what the file
+itself says, over the element's own defaults.
 
 ## What the layers look like
 
@@ -148,24 +146,22 @@ and sized by a `team` attribute gives:
 
 ```ts
 {
-    name: "node.by.team",
+    name: "By team",
     target: "node",
     kind: "encoding",
-    selector: { match: "has", path: "graphty.style.gexf.node.el.load" },
+    selector: { match: "has", path: "graphty.style.values.node.el.load" },
     encode: {
         "node.color": { by: "data.team", scale: "passthrough", map: { blue: "#0000ff", red: "#ff0000" }, unmapped: "skip" },
         "node.size": { by: "data.team", scale: "passthrough", map: { blue: 2, red: 1 }, unmapped: "skip" },
     },
-    source: { by: "template", templateId: "file:gexf" },
+    source: { by: "user" },
 }
 ```
 
-- **One layer per rule of the file**, in the file's order, named by the rule: the defaults
-  (`node.tool`, the writing program's; `node.defaults`, the file's own), a mapping from a column
-  (`node.by.team`), a group the file selects (`node.sheet.1` for a Cytoscape.js stylesheet rule),
-  and the exceptions on top. Values that follow no rule the load can name (a GEXF file's own
-  `viz:color` and `viz:size` on each node) are copied element by element into one layer,
-  `node.copy` (or `edge.copy`).
+- **One layer per rule of the file**, in the file's order, named by what the rule does: `Defaults`, a mapping from a
+  column (`By team`), a group the file selects, derived drawing values (`Arrows`, `Dashes`, `Corners`, `Draw order`)
+  and the exceptions on top. Values that follow no rule the load can name (a GEXF file's own `viz:color` and
+  `viz:size` on each node) are copied element by element into one layer. Rename any of them as you would your own.
 - **`kind`** is `"base"` for defaults, `"encoding"` for mappings and groups, and `"custom"` for
   values copied element by element.
 - **The selector** picks the elements of this load only, so a second file loaded beside the first
@@ -178,60 +174,34 @@ and sized by a `team` attribute gives:
   and fonts bind the label channels `node.labelColor`, `node.labelSize` and the rest.
 - **Where they sit**: directly above the element's base layers, under every layer you add, so
   your own layers always paint over the file's.
-- **`source`** files them under the template `file:<load>`, which is how a later load finds and
-  replaces them.
+- **`source`** is `{ by: "user" }`, as for a layer you add yourself: once loaded, nothing on a
+  layer says which file, format or program it came from. The load's report lists the layers it
+  added (`session.data.lastImport().styles.layers`), once.
 
 Elements the file hides are hidden through the visibility filter, and a background color the file
 sets becomes the graph's background. Neither is a layer.
-
-### What a layer came from: `fileStyleOf()`
-
-`fileStyleOf(layer)`, from `@graphty/graphty-element/session`, returns the facts of a layer made
-from a file, or null for any other layer. Your application writes its own words from them, such as
-"Colors from the file, by team (2 values)":
-
-```ts
-import { fileStyleOf } from "@graphty/graphty-element/session";
-
-for (const layer of element.session.styles.list()) {
-    const origin = fileStyleOf(layer);
-    if (origin === null) continue; // a layer of your own
-    console.log(origin.format, origin.ruleId, origin.role, origin.origin, origin.column, origin.entries);
-}
-```
-
-| Field                                   | What it says                                                                                                                        |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `format`                                | The format the file was read as: a format id (`gexf`, `dot`, `cx2`) or a JSON dialect (`cytoscape-js`, `graphology`, `vis`)         |
-| `importId`                              | The load the layer belongs to                                                                                                       |
-| `ruleId`                                | The file's rule (`node.by.team`)                                                                                                    |
-| `role`                                  | `"defaults"`, `"group"`, `"mapping"`, `"passthrough"` (values copied element by element) or `"exceptions"`                          |
-| `origin`                                | `"declared"` (the file wrote the rule), `"inferred"` (recovered from the file's values) or `"tool"` (the writing program's default) |
-| `column`                                | The path the layer reads                                                                                                            |
-| `mapping`, `entries`                    | How it maps the column (`"passthrough"`, `"discrete"`, `"continuous"`), and how many table entries                                  |
-| `meanings`                              | What each value of a value the load wrote means in the file's own words: `{ value: 3, name: "kinase" }`                             |
-| `elements`, `classes`, `distinctValues` | How many elements the rule applies to, how many classes it holds, how many distinct values a copied column holds                    |
-| `reason`                                | Why a layer copies values instead of explaining them, or how it was built; every reason is in `FILE_STYLE_REASONS`                  |
 
 ## Values the load writes
 
 Some of what a file says is not a column of its data: the class a Cytoscape.js rule selects, the
 color an exception gives one node, which load an element came from. The load keeps those values per
-element, beside the data and never in it, and its layers read them at
+element in the style value store, beside the data and never in it, and its layers read them at
 
 ```
-graphty.style.<format>.<node|edge>.<key>
+graphty.style.<set>.<node|edge>.<key>
 ```
 
-`<format>` is the format id or the JSON dialect of the load (`gexf`, `cytoscape-js`); a second load
-of the same format kept beside the first gets `gexf-2`, and so on. `<key>` may hold dots
-(`member.3`). Your own layers can read them too, in a selector or a binding:
+`<set>` is `values` for the first set, `values-2` for a second load kept beside the first, and so
+on; `<key>` may hold dots (`member.3`). The store is an ordinary graph feature: any caller writes it
+with the `data.setStyleValues` command, and `session.data.readableValues()` lists every column it
+holds, named by its key, so a style sidebar offers them beside the data's own columns. Your own
+layers can read them too, in a selector or a binding:
 
 ```ts
 await element.session.styles.add({
     name: "The second file's nodes",
     target: "node",
-    selector: { match: "has", path: "graphty.style.gexf-2.node.el.load" },
+    selector: { match: "has", path: "graphty.style.values-2.node.el.load" },
     set: { "node.glow": "#F59E0B" },
 });
 ```
@@ -248,17 +218,12 @@ graph stands now, so it follows later edits instead of freezing the degrees of t
 ## Editing and reloading
 
 The layers a file made are ordinary layers: reorder them, disable them, edit them, remove them.
-Edit a table entry by entry with `styles.update(id, { encode })`, turn a copied column into fixed
-values with `styles.resolveToStatic(id, channel)`, and drop every layer every file made in one step:
+Edit a table entry by entry with `styles.update(id, { encode })`, and turn a copied column into
+fixed values with `styles.resolveToStatic(id, channel)`.
 
-```ts
-await element.session.styles.removeBySource(
-    (source) => source.by === "template" && source.templateId.startsWith("file:"),
-);
-```
-
-Loading another file with `replace: true` sweeps every earlier file's layers in the same undoable
-step that replaces the data. A load that adds to the graph keeps the earlier file's layers and puts
+Loading another file with `replace: true` removes the layers the earlier loads added in the same
+undoable step that replaces the data, except a layer you edited since: that one is yours now and
+stays. A load that adds to the graph keeps the earlier file's layers and puts
 the new file's layers directly above them, each selecting only its own load's elements. Undo takes
 a load back, data and layers together, and redo puts it all back without reading the file again.
 

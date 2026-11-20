@@ -2,9 +2,10 @@ import { ControlSection, Popout } from "@graphty/compact-mantine";
 import type { ShaderParams as Params } from "@graphty/graphty-element/catalog";
 import type { GraphSession, TransactionScope } from "@graphty/graphty-element/session";
 import { Button, Group, Select, Stack, Text, UnstyledButton } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 
 import { SettingsPopout } from "../options/SettingsPopout";
+import { SHADER_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type PasteInit, ShaderEditorDialog } from "../style/ShaderEditorDialog";
 import { ShaderGallery } from "../style/ShaderGallery";
@@ -26,28 +27,6 @@ import { SHADER_MOTION, SHADER_QUALITY, useShaderSettings, writeShaderPreference
 
 /** The width of the pop-outs beside the panel, as a shader row's. */
 const POPOUT_WIDTH = 240;
-
-/**
- * Draws again when a project shader's status or the render quality changes.
- * @param session - the element's session.
- */
-function useShaderVersion(session: GraphSession | null): void {
-    const [, setVersion] = useState(0);
-    useEffect(() => {
-        if (session === null) {
-            return undefined;
-        }
-        const bump = (): void => {
-            setVersion((v) => v + 1);
-        };
-        const offs = [session.on("shader:status", bump), session.on("render:quality", bump)];
-        return () => {
-            offs.forEach((off) => {
-                off();
-            });
-        };
-    }, [session]);
-}
 
 /** Props for BackgroundShader. */
 interface BackgroundShaderProps {
@@ -315,7 +294,7 @@ function HeldShadersRow({ session }: Readonly<{ session: GraphSession }>): React
 export function ShaderSection(): React.JSX.Element | null {
     const { session, element } = useWorkspace();
     const settings = useShaderSettings();
-    useShaderVersion(session);
+    useSessionEvents(session, SHADER_EVENTS);
     if (session === null) {
         return null;
     }

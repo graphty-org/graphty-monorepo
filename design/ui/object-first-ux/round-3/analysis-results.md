@@ -44,7 +44,7 @@ Each is reversible (an edit to this document and the mocks), so each is decided 
 | **The Table dock's Findings tab is the one home for every result that is a table or a chart**: pair lists, sweeps, per-month series, community events. The Findings section on the Dataset (or on an object) holds the one-line row with "Open in table" | the 240 px inspector cannot show a table with more than three columns or a chart wider than 208 px; the dock is as wide as the canvas and already sits beside the tree. It settles the disagreement in round 2 about where the over-time chart lives: in the dock, never in the gear popover |
 | **The two-metric scatter plot is a floating panel over the canvas**, 480 x 360 px, movable, closed by Escape. It is the only new surface in this document | the plot needs a roughly square area for two axes; the dock is 240 px tall and a popover 240 px wide. It must float over the canvas, not replace it, because brushing the plot halos the same nodes on the canvas |
 | **"How groups connect" is a BETWEEN GROUPS section on the Grouping's Groups tab**, not a fifth tab | revision 2.6 rule 2 (never five tabs); the section is three to six rows and collapses |
-| **"Show the largest" lives only on the Groups tab**, drawn "Largest [8 v] rest as Other" | it decides which Group rows exist in the tree and the legend, which is what the Groups tab is about; the Style tab keeps only the Other colour |
+| **"Show the largest" lives only on the Groups tab**, drawn "Largest [8 v] rest as Other" | it decides which Group rows exist in the tree and the legend, which is what the Groups tab is about; the Style tab keeps only the Other color |
 | **Collapsing groups is a way of drawing**, stored on the Grouping and remembered by a View, never a data edit | the data stays whole, undo is one step, and a View called "How groups connect" can bring the summary back |
 | **Unusual nodes is a Measure under Rank**, not a Finding | it gives every node a score, so it paints and ranks like any Measure; its per-node reason shows on the node's About tab |
 | **"What breaks if removed" is a preview, not an object**, until the reader presses "Keep as set" | most readers look and move on; an object per look would litter the tree |
@@ -61,12 +61,12 @@ the numbers, the histogram, the top list or how to turn a ranking into a Set.
 
 | Row | Content |
 |---|---|
-| Field | a select, shown only when the run publishes several fields (Connections on directed data: total, in, out; Hubs and authorities: hub, authority); greyed with the one field otherwise |
+| Field | a select, shown only when the run publishes several fields (Connections on directed data: total, in, out; Hubs and authorities: hub, authority); grayed with the one field otherwise |
 | Min \| Max | two values |
 | Mean \| Median | two values |
 | Widest \| Narrowest | only for graph-level fields such as eccentricity's diameter and radius |
 | Histogram | 208 x 40, 12 bins, with a lin/log switch. Dragging across it selects the nodes in that band; the status bar shows "N selected"; release keeps the selection, Escape drops it |
-| TOP header | the count select [10 v] and a "+" menu: Top N set..., Above threshold set..., Bottom N set... Each makes a Set linked to this Measure: it re-runs when the Measure does and turns frozen (a grey snowflake, members kept) if the Measure is deleted (revision 4, step 14) |
+| TOP header | the count select [10 v] and a "+" menu: Top N set..., Above threshold set..., Bottom N set... Each makes a Set linked to this Measure: it re-runs when the Measure does and turns frozen (a gray snowflake, members kept) if the Measure is deleted (revision 4, step 14) |
 | Five ranked rows | rank, node label, value; a click selects and frames the node |
 | See all 34 in table | opens the Table dock on Nodes, sorted by this Measure |
 
@@ -92,9 +92,9 @@ other", the primary button of the several-objects inspector; or a Measure's "...
 against...". The floating panel (the one new surface, see Decisions) opens at the canvas's top
 left:
 
-- X and Y selects (every Measure and numeric column), Log X and Log Y, Swap, Colour by (any
+- X and Y selects (every Measure and numeric column), Log X and Log Y, Swap, Color by (any
   Grouping, or none);
-- the plot: one dot per node, axes with their end values, dots in the Grouping's colours;
+- the plot: one dot per node, axes with their end values, dots in the Grouping's colors;
 - a rank correlation readout with an (i) explaining it (1: same order, 0: unrelated);
 - a drag on the plot draws a rectangle (a **brush**); the nodes inside are selected, halo on
   the canvas, and the footer reads "38 nodes selected [Make a Set] [Combine into a score]".
@@ -124,7 +124,7 @@ log scale, with the brush as a dashed rectangle.
 |---|---|
 | Modularity | the value and a word: "a clear split" above 0.3, "a weak split" below; its tooltip defines modularity (how much more the groups are joined inside than chance would give: 0 is chance). Other Groupings show their own quality word: Parts, Levels, Shells |
 | Sizes | the group sizes, largest first, cut with "..." |
-| Largest [8 v] rest as Other | how many groups get their own tree row, colour and legend row; the rest fold into one "Other" row (see Decisions) |
+| Largest [8 v] rest as Other | how many groups get their own tree row, color and legend row; the rest fold into one "Other" row (see Decisions) |
 | Names from [none v] | none (Group 1, Group 2 ...), or any text column: each group takes the most common value among its members; a name that repeats gets a number ("Officer 2"). A popover previews every name with the share of the group that carries it. Double-click a Group row to type a name; a typed name survives a re-run when the group still matches its predecessor |
 | Sort groups by [Size v] | Size, Name, Found order |
 | BETWEEN GROUPS | "21 edges cross" and a door to section 4 below |
@@ -153,7 +153,7 @@ Officer 2, Mr. Hi 2); modularity 0.42 and the 21 crossing edges are computed.
    Table dock's Findings tab.
 2. **Collapse** (Grouping's "..." > Collapse groups, or Collapse all on the Groups tab; a Group
    row's "..." > Collapse this group): each collapsed group is drawn as one large node at the
-   centre of its members, sized by member count and labelled "Group 1  12"; its edges merge into
+   center of its members, sized by member count and labeled "Group 1  12"; its edges merge into
    one line per pair of groups, width by count. Double-click a collapsed node to expand it in
    place; the others stay collapsed. The legend gains "Collapsed groups" (size) and "Merged
    edges" (width) blocks. The status bar shows "3 groups collapsed (23 nodes) [Expand all]" in
@@ -171,7 +171,7 @@ work with no issue yet. Until it lands, BETWEEN GROUPS and the table work and Co
 absent from the menu.
 
 **Screen.** 72: Communities with three groups collapsed and Group 2 expanded. Each collapsed
-group is drawn at its members' centre, and every merged edge is drawn with its width.
+group is drawn at its members' center, and every merged edge is drawn with its width.
 
 ## 5. Record tab
 
@@ -255,7 +255,7 @@ dock's Findings tab showing an earlier resolution sweep (plausible values, not c
 **What was missing.** Absent: scope was fixed text in the secondary bar.
 
 **Design.** The scope words in every secondary bar ("on what is showing") are a select. Its list:
-Everything, What is showing, The selection (greyed when nothing is selected), then every Set
+Everything, What is showing, The selection (grayed when nothing is selected), then every Set
 and every Group in tree order with its size. The count and the cost in the bar update when the
 scope changes. The parameters popover's scope line is the same select. A run on a scope:
 
@@ -289,7 +289,7 @@ Dataset's FINDINGS section, had no drawn result.
   (computing ring, stale amber dot and "Re-run", failed red dot). Its "..." has Re-run, Export
   CSV and Delete. Up to three rows show, then "and N more".
 - "Open in table" opens the Table dock's Findings tab on that Finding. For a pair list: Node,
-  Node, Shared neighbours, Score, and two actions per row, "Select both" and "Make a path".
+  Node, Shared neighbors, Score, and two actions per row, "Select both" and "Make a path".
   Hovering a row halos both nodes and draws a dashed line between them on the canvas.
 - **Unusual nodes** is a Measure under Rank (see Decisions): its Values tab ranks nodes by
   score, and a node's About tab shows "Unusual 0.91  rank 2 of 34" with its reason ("links two
@@ -386,7 +386,7 @@ shaded, above the rows.
 
 **Design.** Entry: a Grouping's "..." > "Communities over time...", or the gear's OVER TIME "+"
 choosing a Grouping. Settings popover: Steps (from the window's unit), Match by [Largest
-overlap v], At least [30] % (below it a group counts as new), Colours [kept stable], the cost,
+overlap v], At least [30] % (below it a group counts as new), Colors [kept stable], the cost,
 Run. Results:
 
 - the Grouping's Groups tab gains OVER TIME: "12 steps" and "Events: 1 forms, 2 split, 1 merge,
@@ -394,8 +394,8 @@ Run. Results:
 - the Table dock's Findings tab draws a flow chart (an alluvial chart: one band per group per
   month, splits and merges as forks, bands' widths by members, the window's months shaded)
   above an events list (month, event, groups, members moved, "Make a Grouping");
-- the transport bar marks the event months; with Colours kept, a group keeps its colour across
-  months while playing, so a split shows as a new colour peeling off.
+- the transport bar marks the event months; with Colors kept, a group keeps its color across
+  months while playing, so a split shows as a new color peeling off.
 
 **Element API.** Named gap: group matching across runs (largest-overlap matching with a
 threshold, returning stable ids and events; medium, no issue yet). It is also what makes a typed
@@ -480,13 +480,13 @@ draws the transcript, the tool-call rows, the Made links, the privacy line and t
 | Notes anchored to ids (#145) and markers (#295) | small | 15 |
 
 The app computes nothing in any of these: every number on the fourteen screens comes from a
-session call or a catalogue.
+session call or a catalog.
 
 ## What the mocks draw
 
-All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, coloured status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `design/ui/object-first-ux/gen/README.md`, "Round 3 additions".
+All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, colored status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `design/ui/object-first-ux/gen/README.md`, "Round 3 additions".
 
-Screen 69 draws the dragged band and the TOP "+" menu; 70 the scatter plot in its 480 px panel; 72 the summary graph at the groups' centres; 73 and 76 dark menus with an inset each; 75 the scope select in the bar; 78 two panes with one camera; 79 and 80 the line and alluvial charts in the dock's Findings tab; 81 note markers, a callout and the note field; 82 the Assistant transcript and composer.
+Screen 69 draws the dragged band and the TOP "+" menu; 70 the scatter plot in its 480 px panel; 72 the summary graph at the groups' centers; 73 and 76 dark menus with an inset each; 75 the scope select in the bar; 78 two panes with one camera; 79 and 80 the line and alluvial charts in the dock's Findings tab; 81 note markers, a callout and the note field; 82 the Assistant transcript and composer.
 
 ## Rows elsewhere that now point here
 

@@ -5,14 +5,15 @@
  * their counts are graphty-element's; the app holds only a card not yet written (the draft).
  */
 
-import type {
-    CodedFact,
-    FilterCondition,
-    GraphSession,
-    HistoryCode,
-    NodeId,
-    RuleTree,
-    UnionLeaf,
+import {
+    type CodedFact,
+    type FilterCondition,
+    type GraphSession,
+    type HistoryCode,
+    type NodeId,
+    pathParts,
+    type RuleTree,
+    type UnionLeaf,
 } from "@graphty/graphty-element/session";
 
 import { valueWord } from "../inspector/words";
@@ -22,6 +23,16 @@ import { type Card, cardFields, cardOf, type Side } from "../style/cards";
 import { panelsInView } from "../time/timeActions";
 import { filterChangeWords, type Namer, ruleWords } from "./filterWords";
 import { filterFailureWords, sourceName } from "./words";
+
+/**
+ * A path's column name when it reads a data column, and the path itself otherwise.
+ * @param path - the path.
+ * @returns the name.
+ */
+function dataColumn(path: string): string {
+    const parts = pathParts(path);
+    return parts?.from === "data" ? parts.column : path;
+}
 
 /**
  * Reads attribute and node names from the session, as the card words show them.
@@ -36,7 +47,8 @@ function namerOf(session: GraphSession): Namer {
                 ? "Node id"
                 : (attributes.find((a) => a.path === path)?.plainName ??
                   session.data.structureValues().find((value) => value.path === path)?.plainName ??
-                  path.replace(/^data\./, "")),
+                  session.data.readableValues().find((value) => value.path === path)?.plainName ??
+                  dataColumn(path)),
         // A node is named by its id until graphty-element publishes its name (#895).
         node: String,
         value: (path, value) => valueWord(value, attributes.find((a) => a.path === path)?.type),

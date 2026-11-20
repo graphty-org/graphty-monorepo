@@ -1,9 +1,9 @@
 /**
  * @file What a group editor needs beyond `styles.groups` and `styles.setValueEntries`: folding the
  * small groups into Other in every property at once, a property bound later folding and hiding the
- * same groups, reading which group an element is in, and a colour that repeats past its palette
+ * same groups, reading which group an element is in, and a color that repeats past its palette
  * always differing in a second cue -- a node shape, an edge pattern -- even when the layer stores
- * only the colour.
+ * only the color.
  */
 
 import { assert, describe, it } from "vitest";
@@ -88,7 +88,7 @@ describe("a group editor's element side", () => {
                 [3, true],
             ],
         );
-        // Node 7 is in group 2: the Other grey, and the layer's one shape.
+        // Node 7 is in group 2: the Other gray, and the layer's one shape.
         const color = painted(session, 7, "node.color") as { hex?: string } | string;
         assert.strictEqual(
             (typeof color === "string" ? color : (color.hex ?? "")).slice(0, 7).toUpperCase(),

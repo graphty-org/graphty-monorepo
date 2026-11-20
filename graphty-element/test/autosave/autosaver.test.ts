@@ -4,7 +4,7 @@
  * assertion counts writes or reads the store back; none measures time.
  */
 
-import { afterAll, assert, describe, it, vi } from "vitest";
+import { afterAll, afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
 import { Autosaver, type AutosaverOptions, lockName } from "../../src/autosave/Autosaver";
@@ -56,6 +56,14 @@ interface Setup {
     readonly saver: Autosaver;
 }
 
+/** What {@link setup} made, stopped and disposed after each test. */
+const made: (() => void)[] = [];
+afterEach(() => {
+    for (const end of made.splice(0)) {
+        end();
+    }
+});
+
 /**
  * A writer over a small session.
  * @param options - Overrides.
@@ -67,6 +75,10 @@ async function setup(options: Partial<AutosaverOptions> = {}): Promise<Setup> {
     const clock = (options.clock as FakeClock | undefined) ?? new FakeClock();
     const locks = (options.locks as FakeLocks | undefined) ?? new FakeLocks();
     const saver = new Autosaver({ key: KEY, ...options, session, store, clock, locks });
+    made.push(() => saver.stop());
+    if (options.session === undefined) {
+        made.push(() => session.dispose());
+    }
     return { session, store, clock, locks, saver };
 }
 

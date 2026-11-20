@@ -24,7 +24,7 @@ Elena: "Whoa, why did everything move? ... OK, Mei Tanaka, volunteer. So that bu
 
 ## Step 5 -- Style tab
 Command: `--step <session> --click "role=tab:Style"`
-Screenshot 05.png: list Shape, Visibility, Text, Fill, Effects, Rendering, each with a plus. Small grey text at top I skimmed. "Why this look" says Everything: Color.
+Screenshot 05.png: list Shape, Visibility, Text, Fill, Effects, Rendering, each with a plus. Small gray text at top I skimmed. "Why this look" says Everything: Color.
 Elena: "Fill -- that's color, like in Slides. Plus button next to Fill."
 
 ## Step 6 -- plus next to Fill
@@ -68,7 +68,7 @@ Elena: "There we go! Orange volunteers, blue staff, green board. Huh -- the colo
 - Finished? Yes. Board members are GREEN (dark teal-green); staff light blue; volunteers orange.
 - Ease: 5 of 7.
 - What confused me:
-  - My first try colored only Mei Tanaka, because I had clicked her dot before going to Style. Nothing told me up front that the color would only go on the one I had clicked (there was small grey text, I did not read it). The "Made layer v22 for 1 node" message only told me after. I thought I had done it wrong. Now there is an extra "v22" thing in the left list I don't know what to do with, so I left it.
+  - My first try colored only Mei Tanaka, because I had clicked her dot before going to Style. Nothing told me up front that the color would only go on the one I had clicked (there was small gray text, I did not read it). The "Made layer v22 for 1 node" message only told me after. I thought I had done it wrong. Now there is an extra "v22" thing in the left list I don't know what to do with, so I left it.
   - The "color by" button is a tiny chain icon with no word on it; I only found it by hovering.
   - The whole picture jumped sideways when I clicked a dot and stayed half off the screen.
   - I guessed the three bunches were the three roles. They are not.

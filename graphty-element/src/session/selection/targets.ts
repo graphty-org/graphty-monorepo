@@ -2,19 +2,19 @@
  * @file Turning a selection target into the two sets of elements it names.
  *
  * A target is the WHAT of a selection; the set operation beside it is the HOW. Keeping them apart
- * is what makes "shift-click adds the neighbours" and "alt-click removes the top twenty" the same
+ * is what makes "shift-click adds the neighbors" and "alt-click removes the top twenty" the same
  * two lines of code as "click replaces this node": every target resolves to a pair of masks, and
  * every operation is set algebra between that pair and the pair the session already holds.
  *
  * EVERY TARGET RESOLVES TO A MASK, never to a list of ids. A target such as "invert" or "every
- * node the predicate matched" can name most of the graph, and materialising that as an array
+ * node the predicate matched" can name most of the graph, and materializing that as an array
  * would cost the size of the answer at a moment when the answer is about to be folded into a
  * structure that costs the size of the graph whatever happens. Ids are produced once, at the end,
  * by the caller that asked for them.
  *
  * A TARGET NAMES BOTH HALVES, and a target that names no edges names an EMPTY edge set rather
  * than "leave the edges alone". That is what keeps the operations honest: replacing the selection
- * with the neighbours of a node leaves no edges selected, and intersecting a selection with a set
+ * with the neighbors of a node leaves no edges selected, and intersecting a selection with a set
  * of nodes leaves no edges selected, because in both cases that is what the set algebra says. A
  * target that meant "only touch the half I mentioned" would make `replace` and `intersect` do
  * something no set operation does, and a consumer could not predict either of them.
@@ -52,10 +52,10 @@ import type { ScopeResolver } from "../scope/ScopeApi";
 import type { ResultRef } from "../shared";
 import { readInstant } from "../time/parse";
 
-/** How far a neighbourhood target reaches when it does not say. */
+/** How far a neighborhood target reaches when it does not say. */
 const DEFAULT_NEIGHBOR_DEPTH = 1;
 
-/** Which way a neighbourhood target walks when it does not say. */
+/** Which way a neighborhood target walks when it does not say. */
 const DEFAULT_DIRECTION = "all";
 
 /** The frozen empty list every arm that cannot produce unmatched ids answers with. */
@@ -94,7 +94,7 @@ export interface ElementIdTarget {
 /**
  * Everything within a few steps of some nodes.
  *
- * The seeds are IN the neighbourhood: a neighbourhood that excluded its own centre would hide the
+ * The seeds are IN the neighborhood: a neighborhood that excluded its own center would hide the
  * very nodes the reader is looking at, and "select around this node" would deselect it. With no
  * seeds named the current node selection is the seed set, which is what "grow the selection"
  * means.
@@ -117,7 +117,7 @@ export interface NeighborhoodTarget {
 }
 
 /**
- * A span of time an edge must fall inside to be followed by a neighbourhood walk.
+ * A span of time an edge must fall inside to be followed by a neighborhood walk.
  *
  * Each edge's time is read from `path` the way a time column reads it: a number as it is, a
  * `Date` as its time, text as an ISO 8601 date-time (UTC when it names no zone). An edge with no
@@ -143,7 +143,12 @@ export type SelectionTarget =
     | ElementIdTarget
     | NeighborhoodTarget
     /** Every element a predicate matches, narrowed to a scope when one is named. */
-    | { readonly where: Query; readonly scope?: ScopeInput }
+    | {
+          /** The predicate. */
+          readonly where: Query;
+          /** Narrows the target to this scope; absent, the whole graph. */
+          readonly scope?: ScopeInput;
+      }
     /**
      * Every node a text search finds, narrowed to a scope when one is named.
      *
@@ -152,46 +157,93 @@ export type SelectionTarget =
      * the node's id and its attribute values. See {@link SelectionTextMode}. A leading `=` makes
      * the rest an expression, exactly as `{ where }` reads it, which selects edges as well.
      */
-    | { readonly text: string; readonly mode?: SelectionTextMode; readonly scope?: ScopeInput }
+    | {
+          /** The text to search for. */
+          readonly text: string;
+          /** How the text is matched; absent, read from the text's prefix. */
+          readonly mode?: SelectionTextMode;
+          /** Narrows the target to this scope; absent, the whole graph. */
+          readonly scope?: ScopeInput;
+      }
     /**
      * A list of ids, which may name nodes, edges, or nothing at all: a pasted column of text, or
      * the ids the element handed out (a neighbor, a table record, a found element), numbers
      * included. An id that names nothing comes back on `unmatched`, as text.
      */
-    | { readonly ids: readonly NodeId[] }
+    | {
+          /** The ids. */
+          readonly ids: readonly NodeId[];
+      }
     /** Everything a scope covers. An inline `{ define }` may name edges by session edge id. */
-    | { readonly scope: ScopeInput }
+    | {
+          /** The scope. */
+          readonly scope: ScopeInput;
+      }
     /**
      * The highest-ranked elements of a finished run. A tie group is taken whole and only when it
      * fits inside `n`, so this can select fewer than `n` elements, or none. See `TopRanking` in the results types.
      * With no `field`, the run's primary field is ranked.
      */
-    | { readonly top: ResultRef & { readonly n: number } }
+    | {
+          /** The run, and how many elements to take. */
+          readonly top: ResultRef & {
+              /** The most elements to take. */
+              readonly n: number;
+          };
+      }
     /** Every element of a finished run above a threshold. With no `field`, the run's primary field is read. */
-    | { readonly above: ResultRef & { readonly threshold: number } }
+    | {
+          /** The run, and the value to pass. */
+          readonly above: ResultRef & {
+              /** The elements whose value is above this are taken. */
+              readonly threshold: number;
+          };
+      }
     /**
      * Every element of a finished run whose value lies from `min` to `max`, both inclusive, the
      * way a `range` filter reads them. A missing bound is open. A histogram brush passes the first
      * bar's `from` and the last bar's `to`: exact for a per-value or whole-number histogram; on a
      * banded continuous field a value exactly on the last bar's upper edge comes too.
      */
-    | { readonly range: ResultRef & { readonly min?: number; readonly max?: number } }
+    | {
+          /** The run, and the bounds. */
+          readonly range: ResultRef & {
+              /** The lowest value taken; absent, no lower bound. */
+              readonly min?: number;
+              /** The highest value taken; absent, no upper bound. */
+              readonly max?: number;
+          };
+      }
     /** The edges whose endpoints are both selected. Names no nodes. */
-    | { readonly edgesBetween: true }
+    | {
+          /** Always `true`. */
+          readonly edgesBetween: true;
+      }
     /** Everything that is not selected, in both halves. */
-    | { readonly invert: true }
+    | {
+          /** Always `true`. */
+          readonly invert: true;
+      }
     /**
      * What a note is about: its node, edge, set and item targets, or only the one at `target`.
      * A target not in the graph is skipped and counted in `SelectionDelta.skipped`; a `graph` or
      * `result` target names no elements.
      */
-    | { readonly note: NoteId; readonly target?: number }
+    | {
+          /** The note. */
+          readonly note: NoteId;
+          /** The index of the one note target to take; absent, all of them. */
+          readonly target?: number;
+      }
     /**
      * Every element a style layer's rule matches, whether or not the layer is shown: what
      * `styles.counts(layer).matched` counts. A layer paints one kind, so this names nodes or edges.
      * @since 3.26.0
      */
-    | { readonly layer: LayerId }
+    | {
+          /** The style layer. */
+          readonly layer: LayerId;
+      }
     /**
      * Every drawn node whose center lies inside a polygon on the canvas: what a rectangle or a
      * lasso drawn over the graph covers. The points are in CSS pixels from the canvas's top-left
@@ -201,7 +253,18 @@ export type SelectionTarget =
      * does. A session that draws nothing refuses it with `E_UNSUPPORTED`.
      * @since 3.48.0
      */
-    | { readonly region: { readonly polygon: readonly { readonly x: number; readonly y: number }[] } };
+    | {
+          /** The region on the canvas. */
+          readonly region: {
+              /** The polygon's corners, in order. */
+              readonly polygon: readonly {
+                  /** CSS pixels from the canvas's left side. */
+                  readonly x: number;
+                  /** CSS pixels from the canvas's top. */
+                  readonly y: number;
+              }[];
+          };
+      };
 
 /** A point on the canvas, in CSS pixels from its top-left corner. */
 type RegionPoint = Extract<SelectionTarget, { region: unknown }>["region"]["polygon"][number];
@@ -309,7 +372,7 @@ export interface TargetContext {
      */
     readonly region?: (polygon: readonly RegionPoint[]) => Iterable<NodeId>;
     /**
-     * The value an edge carries at a path. Absent refuses a neighbourhood `window`.
+     * The value an edge carries at a path. Absent refuses a neighborhood `window`.
      * @param edge - The edge's row.
      * @param path - The path, such as `"data.date"`.
      * @returns The value, or undefined when the edge carries none.
@@ -336,8 +399,8 @@ export interface TargetMembers {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The refusal a target this session cannot honour gets, naming what would honour it.
- * @param what - The target, in the words a caller would recognise.
+ * The refusal a target this session cannot honor gets, naming what would honor it.
+ * @param what - The target, in the words a caller would recognize.
  * @param needs - The capability whose absence is the reason.
  * @returns The error to throw.
  */
@@ -509,9 +572,9 @@ function emptyMasks(context: TargetContext): { nodes: ElementMask<NodeId>; edges
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Tell whether a target is the neighbourhood arm.
+ * Tell whether a target is the neighborhood arm.
  * @param target - The target to test.
- * @returns True when it names a neighbourhood.
+ * @returns True when it names a neighborhood.
  */
 function isNeighborhood(target: SelectionTarget): target is NeighborhoodTarget {
     return "neighborsOf" in target || "depth" in target || "direction" in target || "window" in target;
@@ -587,7 +650,7 @@ function addPastedId(raw: NodeId, nodes: ElementMask<NodeId>, edges: ElementMask
 }
 
 /**
- * Check a neighbourhood target's depth: a whole number of steps from 1.
+ * Check a neighborhood target's depth: a whole number of steps from 1.
  * @param depth - What was passed.
  * @returns The depth to walk.
  * @throws A `GraphtyError` coded `E_OPTION_RANGE` when it is not a whole number from 1.
@@ -644,7 +707,7 @@ function walkNeighborhood(
 }
 
 /**
- * One bound of a neighbourhood window as a number.
+ * One bound of a neighborhood window as a number.
  * @param name - `"from"` or `"to"`, for the refusal.
  * @param bound - The bound as given.
  * @returns The number.
@@ -661,7 +724,7 @@ function windowBound(name: "from" | "to", bound: unknown): number {
 }
 
 /**
- * Which edges a neighbourhood walk may follow.
+ * Which edges a neighborhood walk may follow.
  * @param window - The target's window, if any.
  * @param context - What the resolution reads.
  * @returns A test by edge row.
@@ -693,7 +756,7 @@ function edgeFilter(window: NeighborhoodWindow | undefined, context: TargetConte
 }
 
 /**
- * The elements a neighbourhood target names.
+ * The elements a neighborhood target names.
  * @param target - The target.
  * @param context - What the resolution reads.
  * @returns The two masks.

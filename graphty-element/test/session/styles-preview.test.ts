@@ -24,10 +24,10 @@ async function sessionOf(nodes: readonly NodeRecord[]): Promise<GraphSession> {
 }
 
 /**
- * The colour one node is painted, as `#rrggbb`.
+ * The color one node is painted, as `#rrggbb`.
  * @param session - The session.
  * @param id - The node.
- * @returns The colour, or undefined when nothing paints it.
+ * @returns The color, or undefined when nothing paints it.
  */
 function colorOf(session: GraphSession, id: NodeId): string | undefined {
     const color = session.styles.explain({ node: id }).merged["node.color"] as { hex: string } | undefined;
@@ -35,7 +35,7 @@ function colorOf(session: GraphSession, id: NodeId): string | undefined {
 }
 
 /**
- * The hex of a colour a preview reports.
+ * The hex of a color a preview reports.
  * @param value - What a bin paints.
  * @returns Its hex.
  */

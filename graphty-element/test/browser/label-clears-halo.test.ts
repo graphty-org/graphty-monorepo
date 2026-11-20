@@ -8,16 +8,16 @@
  *
  * Measured independently of the element's placement: the label plane's four corners after a
  * frame, projected through the scene's transform, times the share of the plane the words take;
- * the ring as its sphere's world radius projected at its centre.
+ * the ring as its sphere's world radius projected at its center.
  */
 
 import "../../src/graphty-element";
 
-import { type AbstractMesh, Matrix, Vector3 } from "@babylonjs/core";
+import { Matrix, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
-import type { Node } from "../../src/Node";
+import { type Node, nodeInternals } from "../../src/Node";
 import { nextFrame } from "../helpers/real-input";
 
 interface Rect {
@@ -47,7 +47,7 @@ async function draw(graph: Graph): Promise<void> {
 }
 
 /**
- * Three labelled nodes in a row, framed whole.
+ * Three labeled nodes in a row, framed whole.
  * @returns The graph.
  */
 async function labelled(
@@ -136,10 +136,10 @@ function words(graph: Graph, node: Node): Rect {
  * The ring around a node on screen, as a circle.
  * @param graph - The graph.
  * @param node - The node.
- * @returns Its centre and radius in pixels.
+ * @returns Its center and radius in pixels.
  */
 function ring(graph: Graph, node: Node): { x: number; y: number; r: number } {
-    const { halo } = node as unknown as { halo: AbstractMesh | null };
+    const { halo } = nodeInternals.drawn(node);
     assert.isOk(halo, "the node draws a ring");
     assert.isTrue(halo.isEnabled(), "the ring is on");
     halo.computeWorldMatrix(true);

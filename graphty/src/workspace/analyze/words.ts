@@ -33,6 +33,12 @@ export const HEADINGS: readonly Heading[] = [
     { id: "measure", title: "Measure the graph", shapes: ["fact", "temporal"] },
 ];
 
+/** The last entry under a heading: run every method under it as one batch, or cancel that batch. */
+export const RUN_ALL = {
+    run: "Run all",
+    cancel: "Cancel all",
+} as const;
+
 /** What the app says about one algorithm. */
 interface AlgorithmWords {
     /** Its name in the list, on its row and in the footer. */
@@ -145,6 +151,12 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "A route between two nodes, optionally steered by where they are drawn.",
         aliases: ["a*", "astar", "route", "path", "how are they connected"],
     },
+    "all-paths": {
+        name: "Every route",
+        answers:
+            "Every route between two nodes that visits no node twice, and how many run through each node and edge.",
+        aliases: ["all paths", "all routes", "simple paths", "alternatives", "redundancy"],
+    },
     "all-pairs-distance": {
         name: "All-pairs distance",
         answers: "How far each node is from all the others.",
@@ -200,13 +212,18 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "Which missing edges the shared neighbors suggest.",
         aliases: ["missing links", "recommend", "adamic-adar", "jaccard"],
     },
+    "removal-impact": {
+        name: "Removal impact",
+        answers: "What the selected nodes or edges hold together: the nodes cut off if they were removed.",
+        aliases: ["simulate removing", "what breaks", "what if", "cut off", "vulnerable", "resilience"],
+    },
 };
 
 /**
  * The line under an algorithm in the Find list, keyed by the element's `descriptionId`. An
  * algorithm a third party registered has no line here, so it shows none.
  */
-export const ALGORITHM_DESCRIPTIONS: Readonly<Record<string, string>> = {
+export const ALGORITHM_DESCRIPTIONS: Readonly<Partial<Record<string, string>>> = {
     "algorithm.degree": "Counts how many edges each node has, incoming, outgoing and in total.",
     "algorithm.betweenness":
         "Scores a node by how many of the shortest paths between other nodes run through it, which is what finds the bridges.",
@@ -240,6 +257,8 @@ export const ALGORITHM_DESCRIPTIONS: Readonly<Record<string, string>> = {
         "Finds the cheapest route from one node to another, and how far every reachable node is from the source.",
     "algorithm.astar":
         "Finds a route from one node to another, optionally steered by how far apart the nodes are drawn. Without that steering it finds the cheapest route.",
+    "algorithm.all-paths":
+        "Finds every route from one node to another that visits no node twice, up to a longest route and a number of routes, and how many of the routes run through each node and edge.",
     "algorithm.all-pairs-distance":
         "Measures the distance between every pair of nodes, and gives each node the distance to the furthest node it can reach.",
     "algorithm.bfs": "Walks outwards from one node a level at a time, recording how many steps away each node is.",
@@ -259,6 +278,8 @@ export const ALGORITHM_DESCRIPTIONS: Readonly<Record<string, string>> = {
         "Scores a node by how many of its neighbors are also neighbors of each other, and counts the triangles that makes.",
     "algorithm.link-prediction":
         "Scores the pairs of nodes that are not yet joined by the neighbors they share, and lists the pairs most likely to be joined next.",
+    "algorithm.removal-impact":
+        "Works out what removing some nodes or edges would cut off, without removing them: the separate pieces before and after, and the nodes left cut off from the rest of their piece.",
 };
 
 /**
@@ -406,7 +427,7 @@ const SAMPLE_SIZE: OptionWords = { label: "Sample size", empty: "Every node" };
  * `<algorithm key>.<option name>` (a test holds that every key option the element ships has
  * words here).
  */
-const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
+const OPTION_WORDS: Readonly<Partial<Record<string, OptionWords>>> = {
     "pagerank.dampingFactor": { label: "Damping factor" },
     "katz.alpha": { label: "Attenuation" },
     "louvain.resolution": { label: "Resolution" },
@@ -467,7 +488,7 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
  * The words for options that mean the same thing in every algorithm, by option name; an entry
  * in OPTION_WORDS wins over these.
  */
-const SHARED_OPTION_WORDS: Readonly<Record<string, string>> = {
+const SHARED_OPTION_WORDS: Readonly<Partial<Record<string, string>>> = {
     maxIterations: "Max iterations",
     tolerance: "Tolerance",
     k: "Sample size",

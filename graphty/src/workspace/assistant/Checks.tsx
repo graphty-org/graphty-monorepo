@@ -4,11 +4,11 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Text, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
 import { findTreeRow, rowName } from "../graph-place/rows";
 import { ariaKey, formatKey } from "../keys/keys";
 import { runName } from "../runWords";
+import { useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { changeLines, chipName, emptyWords, excludedLine, moreWords, openedWords, WORDS } from "./words";
@@ -25,7 +25,7 @@ type Live = { readonly nodes: number; readonly edges: number } | null | undefine
  */
 function useLiveCount(target: AiTarget): Live {
     const { session } = useWorkspace();
-    const version = useVisibilityVersion(session);
+    const version = useSessionEvents(session, VISIBILITY_EVENTS);
     const [live, setLive] = useState<Live>(undefined);
     const key = JSON.stringify(target);
     useEffect(() => {
@@ -359,7 +359,7 @@ export function ChangeRows({
     actions,
 }: Readonly<ChangeRowsProps>): React.JSX.Element {
     const { store, session, run } = useWorkspace();
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
     const next = session?.history.nextUndo;
     const newest = next?.kind === "undo" && provenance !== undefined && next.step.provenance.message === provenance;
     const lines = changeLines(session, changes);

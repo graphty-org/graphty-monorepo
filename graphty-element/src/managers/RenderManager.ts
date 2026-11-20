@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 import "./babylonEngineExtensions";
 
 import type { Camera } from "@babylonjs/core/Cameras/camera.js";
@@ -60,8 +61,8 @@ import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, Shader
  */
 interface RenderManagerConfig {
     /**
-     * The engine to draw with, already initialised. Left out, a WebGL engine is built on the
-     * canvas. A WebGPU engine has to be passed in: its initialisation is asynchronous and a scene
+     * The engine to draw with, already initialized. Left out, a WebGL engine is built on the
+     * canvas. A WebGPU engine has to be passed in: its initialization is asynchronous and a scene
      * cannot be built on it before that finishes -- see {@link openWebGPUEngine}.
      */
     engine?: Engine | WebGPUEngine;
@@ -73,10 +74,26 @@ interface RenderManagerConfig {
      */
     pictureIsFinal?: () => boolean;
     /**
-     * Whether drawing on demand is switched on. While it is not, the loop draws every tick and
-     * does none of the bookkeeping drawing on demand needs. Left out, it is off.
+     * Asked while drawing on demand or while `restsBetweenLandings` says so, when the picture is
+     * not final: true when the only thing
+     * changing it is a running layout that has published nothing new since the last frame drawn,
+     * so the tick runs its update but draws nothing, as it would on a final picture. Left out,
+     * such ticks draw.
+     */
+    awaitsLanding?: () => boolean;
+    /**
+     * Whether drawing on demand is switched on. While it is not (and `restsBetweenLandings` says
+     * false), the loop draws every tick and does none of the bookkeeping drawing on demand needs.
+     * Left out, it is off.
      */
     drawsOnDemand?: () => boolean;
+    /**
+     * Whether ticks between two landings of a running layout skip their frame even while drawing
+     * on demand is off, as `awaitsLanding` lets them when it is on; nothing else of drawing on
+     * demand comes with it. Asked each tick; the element answers true under renderPath "batched".
+     * Left out, never.
+     */
+    restsBetweenLandings?: () => boolean;
     /**
      * Whether to flush right after each frame's fence, so the GPU sees the fence at once rather
      * than at the browser's next flush (about every 18 ms in Chromium, which set an 18 ms floor
@@ -235,7 +252,7 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  * @param sharesDevice - Asked of the adapter, before the device exists, whether the layout's
  *     accelerator will run on it too: that needs every limit and feature the adapter has.
  * @param antialias - Whether the engine multisamples (4x); the element's `antialias`.
- * @returns The initialised engine, or the reason there is none.
+ * @returns The initialized engine, or the reason there is none.
  */
 export async function openWebGPUEngine(
     canvas: HTMLCanvasElement,
@@ -275,8 +292,8 @@ export async function openWebGPUEngine(
     });
     engine.sharesDevice = shared;
     try {
-        // glslang goes in as a promise: Babylon 8.43 calls `.then` on whatever `glslang` option it
-        // is given, though its type and its docs ask for the instance itself.
+        // glslang goes in as a promise: Babylon (8.43 to 9.37) calls `.then` on whatever `glslang`
+        // option it is given, though its type and its docs ask for the instance itself.
         await engine.initAsync({ glslang: Promise.resolve(compilers.glslang) }, { twgsl: compilers.twgsl });
         return engine;
     } catch (error) {
@@ -343,6 +360,14 @@ const GRAPH_ROOT_NAME = "graph-root";
 
 /** How often a disposed graph checks whether the GPU has finished its last frames. */
 const RELEASE_POLL_MS = 16;
+/**
+ * How many WebGL frames may be unfinished on the GPU before the loop skips a tick; see
+ * `RenderManager.gpuBehind`. Two, not one: a frame's commands reach the GPU only when its long
+ * update-and-draw task ends, so the next tick comes before the GPU can have finished them, and
+ * with one frame allowed in flight that tick was always skipped. At 10,000 nodes that cost one to
+ * two 16.7 ms ticks per frame on an otherwise idle RTX 4070 SUPER (issue #7945).
+ */
+const WEBGL_FRAMES_IN_FLIGHT = 2;
 
 /**
  * Lets a disposed scene be collected. Every `Scene.render` points Babylon's module-wide
@@ -368,7 +393,7 @@ function forgetDisposedScene(): void {
  * frame still queued for the context. On a software GPU a graph of 1000 labels that was drawn
  * faster than SwiftShader keeps up with leaves minutes of frames queued, and losing the context
  * at once blocked `dispose()` for that long. So a fence goes in after the last command, and the
- * context is lost only once the fence has signalled, which costs the page nothing.
+ * context is lost only once the fence has signaled, which costs the page nothing.
  * @param gl - The context of an engine that has just been disposed.
  */
 function releaseWhenIdle(gl: WebGLRenderingContext | WebGL2RenderingContext): void {
@@ -408,6 +433,9 @@ const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set([
     "stats-update",
     // Announced after a frame that moved the view or a node: that frame is already drawn.
     "overview-changed",
+    // A fit moves only the camera, which the loop compares itself (`sameAsDrawn`). A running layout
+    // fits on every pass, so owing a frame for it drew every tick between two landings (#8801).
+    "zoom-to-fit-complete",
 ]);
 
 /**
@@ -469,9 +497,13 @@ interface ShaderBackground {
     readonly dome: PhotoDome | null;
 }
 
-/** The session events after which the group outlines may draw other groups or members. */
+/**
+ * The session events after which the group outlines may draw other groups or members. A branches
+ * view starting or ending changes the painted stack without a `style:changed` (issue #8922).
+ */
 const OUTLINE_EVENTS = [
     "style:changed",
+    "style:branches-shown-changed",
     "history:changed",
     "project:changed",
     "run:changed",
@@ -797,10 +829,17 @@ export class RenderManager implements Manager {
     private contextLost = false;
     /** What ends each {@link frameDrawn} still waiting. */
     private readonly frameWaits = new Set<() => void>();
-    /** A fence after the last frame drawn, until the GPU has finished it; see {@link gpuBehind}. */
-    private lastFrameFence: WebGLSync | null = null;
     /**
-     * The WebGPU twin of {@link lastFrameFence}: a number for the last frame drawn while its
+     * A fence after each frame drawn that the GPU has not finished yet, oldest first, at most
+     * {@link WEBGL_FRAMES_IN_FLIGHT}; see {@link gpuBehind}.
+     */
+    private readonly frameFences: { sync: WebGLSync; frame: number }[] = [];
+    /** How many WebGL frames have been fenced, so a fence's number in {@link frameFences}. */
+    private framesFenced = 0;
+    /** The number of the newest fenced frame the GPU is known to have finished. */
+    private framesFinished = 0;
+    /**
+     * The WebGPU twin of {@link frameFences} (one frame in flight): a number for the last frame drawn while its
      * `onSubmittedWorkDone` is unresolved, null once the GPU has finished it.
      */
     private webGpuFrameInFlight: number | null = null;
@@ -848,7 +887,16 @@ export class RenderManager implements Manager {
      * demand, on a machine whose frame rate it does not control. A frame drawn at once for a
      * resize (`drawNow`) counts as drawn.
      */
-    readonly ticks = { drawn: 0, rested: 0, gpuBehind: 0, smooth: 0 };
+    readonly ticks = {
+        drawn: 0,
+        rested: 0,
+        gpuBehind: 0,
+        smooth: 0,
+        /** Ticks that drew nothing because a running GPU layout had landed no new positions since the last frame. */
+        awaitedLanding: 0,
+    };
+    /** Whether the tick {@link RenderManager.mayRest} last let rest rests on a final picture. */
+    private restsFinal = false;
     /** See `RenderManagerConfig.antialiasAtRest`. */
     private readonly antialiasAtRest: () => boolean;
     /** Whether the canvas shows the multisampled frame `"at-rest"` rests on. */
@@ -881,6 +929,11 @@ export class RenderManager implements Manager {
     private readonly pictureIsFinal: (() => boolean) | null;
     /** See `RenderManagerConfig.drawsOnDemand`. */
     private readonly drawsOnDemand: () => boolean;
+    /**
+     * Whether the loop keeps the record of the last frame drawn that resting needs: while drawing
+     * on demand, or while ticks between landings may rest (`restsBetweenLandings`).
+     */
+    private readonly tracksFrames: () => boolean;
     /** See `RenderManagerConfig.flushesFrameFence`. */
     private readonly flushesFrameFence: () => boolean;
     /** See `RenderManagerConfig.pacesWebGpuFrames`. */
@@ -936,7 +989,7 @@ export class RenderManager implements Manager {
                   this.inView = inView;
               });
     /**
-     * Forgets the last frame's fence when the GL context is lost or given back. A fence made by
+     * Forgets the frames' fences when the GL context is lost or given back. A fence made by
      * the lost context never signals in the restored one, so kept, it held every tick in
      * {@link gpuBehind} and the graph was never drawn again (iPad Safari takes the context from a
      * tab in the background). A restore also has the edge and arrow batches upload every slot
@@ -944,7 +997,8 @@ export class RenderManager implements Manager {
      * @param event - The canvas's `webglcontextlost` or `webglcontextrestored` event.
      */
     private readonly dropFence = (event: Event): void => {
-        this.lastFrameFence = null;
+        this.frameFences.length = 0;
+        this.framesFinished = this.framesFenced;
         this.drawOwed = true;
         this.smoothShown = false;
         this.shaderGuard.ignore();
@@ -974,7 +1028,7 @@ export class RenderManager implements Manager {
         }
     };
     private readonly resizeHandler: () => void;
-    /** The one skybox dome, and the image it shows; null while the background is a colour. */
+    /** The one skybox dome, and the image it shows; null while the background is a color. */
     private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
     /** The background shader asked for, kept until {@link bindShaderScene} gives it a graph. */
     private shaderBackground: ShaderBackground | null = null;
@@ -1001,6 +1055,19 @@ export class RenderManager implements Manager {
         this.canvas.focus({ preventScroll: true });
     };
 
+    /**
+     * A release focuses the canvas only when its press began on the canvas. A press that began on
+     * the host page and ends over the drawing -- a menu item or a segmented option that acts on
+     * mouse-down and closes the popover above the canvas -- is the host's gesture: taking focus on
+     * its release threw away the focus the host had just moved (issue #8920).
+     * @param event - the release
+     */
+    private readonly focusOnRelease = (event: PointerEvent): void => {
+        if (this.pointersHeld.has(event.pointerId)) {
+            this.focusOnPointer();
+        }
+    };
+
     /** The canvas lost focus, or took a key: from now on it shows the browser's ring. */
     private readonly restoreFocusRing = (): void => {
         this.canvas.style.outline = "";
@@ -1024,6 +1091,8 @@ export class RenderManager implements Manager {
         const onDemand = this.config.drawsOnDemand ?? ((): boolean => false);
         // "at-rest" holds its multisampled frame by not drawing another: drawing on demand.
         this.drawsOnDemand = (): boolean => this.antialiasAtRest() || onDemand();
+        const betweenLandings = this.config.restsBetweenLandings ?? ((): boolean => false);
+        this.tracksFrames = (): boolean => this.drawsOnDemand() || betweenLandings();
         this.flushesFrameFence = this.config.flushesFrameFence ?? ((): boolean => false);
         this.pacesWebGpuFrames = this.config.pacesWebGpuFrames ?? ((): boolean => false);
 
@@ -1038,12 +1107,12 @@ export class RenderManager implements Manager {
             this.scene = new Scene(this.engine);
         }
 
-        useBundledStandardShaders(this.scene);
+        useBundledStandardShaders();
         drawOnlyEnabledMeshes(this.scene);
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);
-        this.canvas.addEventListener("pointerup", this.focusOnPointer);
+        this.canvas.addEventListener("pointerup", this.focusOnRelease);
         this.canvas.addEventListener("blur", this.restoreFocusRing);
         this.canvas.addEventListener("keydown", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
@@ -1085,7 +1154,7 @@ export class RenderManager implements Manager {
         this.camera = new CameraManager(this.scene);
 
         // Store camera manager in scene metadata for access by other components
-        this.scene.metadata = this.scene.metadata ?? {};
+        this.scene.metadata ??= {};
         this.scene.metadata.cameraManager = this.camera;
 
         // Setup cameras
@@ -1157,7 +1226,7 @@ export class RenderManager implements Manager {
         globalThis.removeEventListener("pointerup", this.releasePointer);
         globalThis.removeEventListener("pointercancel", this.releasePointer);
         globalThis.removeEventListener("blur", this.releaseAllPointers);
-        this.canvas.removeEventListener("pointerup", this.focusOnPointer);
+        this.canvas.removeEventListener("pointerup", this.focusOnRelease);
         this.canvas.removeEventListener("blur", this.restoreFocusRing);
         this.canvas.removeEventListener("keydown", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
@@ -1252,6 +1321,12 @@ export class RenderManager implements Manager {
                 // Under "at-rest" the first tick that may rest draws the multisampled frame instead,
                 // and the ticks after it rest on it.
                 const rests = this.mayRest();
+                // Between two landings of a running layout: the same picture again, never the smooth one.
+                if (rests && !this.restsFinal) {
+                    this.ticks.awaitedLanding++;
+                    return;
+                }
+
                 if (rests && (this.smoothShown || !this.antialiasAtRest() || this.pointersHeld.size > 0)) {
                     this.ticks.rested++;
                     return;
@@ -1386,7 +1461,7 @@ export class RenderManager implements Manager {
         const drawnReady = this.readyToDrawChange();
         // What the frame begins with, so the frame can tell afterwards whether drawing it moved
         // anything; see noteDrawnFrom.
-        if (this.pictureIsFinal !== null && this.drawsOnDemand()) {
+        if (this.pictureIsFinal !== null && this.tracksFrames()) {
             this.recordView();
         }
 
@@ -1498,7 +1573,8 @@ export class RenderManager implements Manager {
         // change that keeps the render size are not. An XR session draws in its own frames, so
         // nothing is drawn outside them.
         const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
-        const xrState: WebXRState | undefined = this.scene.metadata?.xrHelper?.baseExperience?.state;
+        const xrState = (this.scene.metadata as { xrHelper?: { baseExperience?: { state?: WebXRState } } } | null)
+            ?.xrHelper?.baseExperience?.state;
         if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
             this.drawNow();
         }
@@ -1541,36 +1617,69 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Whether the GPU is still drawing the last frame, so drawing another now would only queue it.
+     * Whether the GPU is so far behind that drawing another frame now would only queue it.
      *
      * Nothing else stops the loop from issuing frames faster than the GPU finishes them, and the
      * browser lets about twenty pile up. On a software GPU (SwiftShader, as every CI runner has)
      * a frame of 331 nodes and 362 edges costs 40 ms, so a still graph kept the GPU some 850 ms
      * behind, and everything that waits for the GPU -- a screenshot, a readback, the page's own
      * compositor -- waited behind those frames too. Under load that was more than 30 seconds.
-     * Skipping a tick while the last frame is unfinished keeps the queue at one frame.
-     * On WebGPU the same holds through `queue.onSubmittedWorkDone()`, when `pacesWebGpuFrames`
-     * asks for it.
-     * @returns True while the last frame's fence is unsignalled.
+     * Skipping a tick while {@link WEBGL_FRAMES_IN_FLIGHT} frames are unfinished keeps the queue
+     * at that many frames. On WebGPU the same holds, at one frame, through
+     * `queue.onSubmittedWorkDone()`, when `pacesWebGpuFrames` asks for it.
+     * @returns True while the fences of {@link WEBGL_FRAMES_IN_FLIGHT} frames are unsignaled.
      */
     private gpuBehind(): boolean {
         if (this.webGpuFrameInFlight !== null) {
             return true;
         }
 
-        if (this.lastFrameFence === null || !(this.engine instanceof Engine)) {
-            return false;
+        this.forgetFinishedFences();
+        return this.frameFences.length >= WEBGL_FRAMES_IN_FLIGHT;
+    }
+
+    /**
+     * Drop the fences of the frames the GPU has finished. Fences signal in order, so the oldest
+     * unsignaled one means every newer one is too. A lost context answers null rather than a
+     * status; the fence is dropped as finished.
+     */
+    private forgetFinishedFences(): void {
+        if (this.frameFences.length === 0 || !(this.engine instanceof Engine)) {
+            return;
         }
 
         const gl = this.engine._gl;
-        // A lost context answers null rather than a status; drop the fence and draw.
-        if (gl.getSyncParameter(this.lastFrameFence, gl.SYNC_STATUS) === gl.UNSIGNALED) {
-            return true;
+        let oldest = this.frameFences.at(0);
+        while (oldest !== undefined && gl.getSyncParameter(oldest.sync, gl.SYNC_STATUS) !== gl.UNSIGNALED) {
+            gl.deleteSync(oldest.sync);
+            this.framesFinished = oldest.frame;
+            this.frameFences.shift();
+            oldest = this.frameFences.at(0);
         }
+    }
 
-        gl.deleteSync(this.lastFrameFence);
-        this.lastFrameFence = null;
-        return false;
+    /**
+     * How many WebGL frames have been fenced so far: the number the next fence follows. Taken
+     * before a frame is drawn, the frame's own fence, when it gets one, is this plus one.
+     * @returns The count; it stays 0 on WebGPU and Babylon's NullEngine, which fence nothing.
+     * @internal
+     */
+    fencedFrames(): number {
+        return this.framesFenced;
+    }
+
+    /**
+     * Whether the GPU has finished the fenced WebGL frame of this number and every one before it.
+     * With {@link WEBGL_FRAMES_IN_FLIGHT} frames allowed in flight, a frame can be drawn, and the
+     * picture called final, while an older frame is still on the GPU; a wait for the final picture
+     * asks this so it ends only once that frame is done (issues #8344, #8346).
+     * @param frame - The frame's number, from {@link fencedFrames}.
+     * @returns True once its fence, or a newer one, has signaled, or the context that made it is gone.
+     * @internal
+     */
+    gpuFinishedFrame(frame: number): boolean {
+        this.forgetFinishedFences();
+        return this.framesFinished >= frame;
     }
 
     /**
@@ -1589,13 +1698,18 @@ export class RenderManager implements Manager {
             return;
         }
 
-        // A frame drawn by drawNow while the GPU was behind replaces a fence still unsignalled; the
-        // newer one signals after it, so the older is no longer needed.
-        if (this.lastFrameFence !== null) {
-            gl.deleteSync(this.lastFrameFence);
+        // A frame drawn by drawNow while the GPU was behind pushes out the oldest fence still
+        // unsignaled; the newer ones signal after it, so it is no longer needed.
+        if (this.frameFences.length >= WEBGL_FRAMES_IN_FLIGHT) {
+            gl.deleteSync(this.frameFences.shift()?.sync ?? null);
         }
 
-        this.lastFrameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        if (fence !== null) {
+            this.framesFenced++;
+            this.frameFences.push({ sync: fence, frame: this.framesFenced });
+        }
+
         if (this.flushesFrameFence()) {
             gl.flush();
         }
@@ -1746,14 +1860,16 @@ export class RenderManager implements Manager {
      * one page (the app's real-element tests run their files side by side in one renderer) each
      * paid it on every frame, for a picture that was not changing (issue #1824).
      *
-     * Only when `pictureIsFinal` says so, and then only while nothing the
+     * Only when `pictureIsFinal` says so, or `awaitsLanding` says a running layout has landed
+     * nothing new since the last frame (the tick then rests without the smooth frame), and then
+     * only while nothing the
      * model does not track can change the next frame: a Babylon animation or a texture still
      * loading (both advance only inside a frame), a shader still being fetched or compiled (it
      * arrives unannounced), a mesh, material or texture added and not yet
      * ready to draw, an every-frame animation, the reader's input on
      * the canvas, an event the element announced, a new callback waiting for the next frame, or
      * anything the last frame drawn moved while it was drawn -- the camera, the canvas size, the
-     * background colour. The last is what keeps a camera gliding to rest when something moves it
+     * background color. The last is what keeps a camera gliding to rest when something moves it
      * only inside a frame (an onBeforeRender observer), so the loop draws until a frame leaves it
      * where it began.
      * @returns True when this tick draws nothing.
@@ -1761,11 +1877,16 @@ export class RenderManager implements Manager {
     private mayRest(): boolean {
         if (
             this.pictureIsFinal === null ||
-            !this.drawsOnDemand() ||
+            !this.tracksFrames() ||
             this.drawOwed ||
-            (this.lastFrameMoved && this.inView) ||
-            !this.pictureIsFinal()
+            (this.lastFrameMoved && this.inView)
         ) {
+            return false;
+        }
+
+        // With drawing on demand off, only a tick between two landings rests.
+        this.restsFinal = this.drawsOnDemand() && this.pictureIsFinal();
+        if (!this.restsFinal && this.config.awaitsLanding?.() !== true) {
             return false;
         }
 
@@ -1868,7 +1989,7 @@ export class RenderManager implements Manager {
      * @returns True when this frame draws a change to the scene's contents whole.
      */
     private readyToDrawChange(): boolean {
-        if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
+        if (this.pictureIsFinal === null || !this.tracksFrames()) {
             return false;
         }
 
@@ -1886,7 +2007,7 @@ export class RenderManager implements Manager {
      *     to draw; see {@link readyToDrawChange}.
      */
     private noteDrawnFrom(drawnReady = false): void {
-        if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
+        if (this.pictureIsFinal === null || !this.tracksFrames()) {
             // Switched on later, the first frame then is compared with nothing and draws again.
             this.lastFrameMoved = true;
             return;
@@ -2052,11 +2173,11 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Draw the graph against a background, bottom to top: the clear colour (its own, else the
+     * Draw the graph against a background, bottom to top: the clear color (its own, else the
      * default), a photo-dome skybox, and a background shader drawn over them once it compiled.
      * While the shader draws, the shader pass draws the skybox image beneath it and the dome hides.
      *
-     * The scene holds at most one dome. A colour disposes it; a different skybox replaces it; the
+     * The scene holds at most one dome. A color disposes it; a different skybox replaces it; the
      * skybox already shown is left alone, so drawing the same background again (a redo, a repeat)
      * builds nothing.
      * @param background - The background, parsed.
@@ -2064,7 +2185,8 @@ export class RenderManager implements Manager {
      *     (true) or failed to (false).
      */
     applyBackground(background: GraphBackgroundConfig, onSkybox: (url: string, loaded: boolean) => void): void {
-        const color = backgroundColorOf(background);
+        this.#applied = { background, onSkybox };
+        const color = backgroundColorOf(background, this.#darkScheme);
         this.setBackgroundColor(color);
         if (background.backgroundType === "skybox") {
             const url = background.data;
@@ -2188,16 +2310,38 @@ export class RenderManager implements Manager {
         this.requestFrame();
     }
 
-    /** The graph's own background colour, last applied. */
+    /** The background last applied, so a change of color scheme can draw it again. */
+    #applied: { background: GraphBackgroundConfig; onSkybox: (url: string, loaded: boolean) => void } | null = null;
+
+    /** See {@link darkScheme}. */
+    #darkScheme = false;
+
+    /**
+     * Draw the background's dark color (true) or its light one (false, the default).
+     * @param dark - Whether the color scheme is dark.
+     */
+    set darkScheme(dark: boolean) {
+        if (dark === this.#darkScheme) {
+            return;
+        }
+
+        this.#darkScheme = dark;
+        if (this.#applied !== null) {
+            this.applyBackground(this.#applied.background, this.#applied.onSkybox);
+            this.requestFrame();
+        }
+    }
+
+    /** The graph's own background color, last applied. */
     #backgroundColor = DEFAULT_BACKGROUND_COLOR;
 
-    /** A colour drawn in place of the graph's background (a globe's look), or null. */
+    /** A color drawn in place of the graph's background (a globe's look), or null. */
     #backgroundOverride: string | null = null;
 
     /**
-     * Clear the canvas to a colour in place of the graph's background colour, or null to draw the
+     * Clear the canvas to a color in place of the graph's background color, or null to draw the
      * graph's own again. A skybox, when the graph has one, still covers it.
-     * @param color - Hex colour string, or null.
+     * @param color - Hex color string, or null.
      */
     set backgroundOverride(color: string | null) {
         if (color === this.#backgroundOverride) {

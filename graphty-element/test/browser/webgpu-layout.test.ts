@@ -8,7 +8,7 @@
  * happens when an accelerator arrives, leaves or rejects a batch, and it does so without a
  * device, a driver or a frame rate in the answer. What a fake cannot tell anyone is whether the
  * real kernels, reached through the real `./webgpu` entry point, produce a graph a person would
- * recognise. That is this file, and it needs hardware.
+ * recognize. That is this file, and it needs hardware.
  *
  * So it runs only when the run asked for hardware. `GRAPHTY_BROWSER_GPU` selects a Chromium flag
  * set in `vitest.config.ts` -- `swiftshader` for a workstation or a plain CI runner, `nvidia` for
@@ -16,7 +16,7 @@
  * CI browser shards are unaffected by its existence.
  *
  * The policy is `required` on purpose. Under `auto` the element refuses a software adapter,
- * because a software rasteriser is slower than its own CPU path and attaching one would report
+ * because a software rasterizer is slower than its own CPU path and attaching one would report
  * "active" while making the graph worse. Under `required` the consumer has said "no CPU path",
  * and SwiftShader is a device -- which is what lets the same file run the real kernels on a
  * machine that has no graphics card.
@@ -589,7 +589,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         await settle(cpu, "forceatlas2");
 
         // The reference is only a reference if it really ran the CPU simulation. Without this the
-        // case would still pass if `acceleration="off"` stopped being honoured -- it would be
+        // case would still pass if `acceleration="off"` stopped being honored -- it would be
         // comparing the device against itself, which is the one comparison that proves nothing.
         assert.isFalse(
             (cpu.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine).isAccelerated,

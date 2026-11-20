@@ -140,14 +140,6 @@
             "issue": "#5905"
         },
         {
-            "file": "graphty/src/workspace/inspector/WhyThisLook.tsx",
-            "rule": "source-by",
-            "detail": "element",
-            "count": 1,
-            "reason": "treats a layer differently because its source is \"element\"",
-            "issue": "#5905"
-        },
-        {
             "file": "graphty/src/workspace/style/coverage.ts",
             "rule": "named",
             "detail": "startingRows",
@@ -255,22 +247,6 @@
             "file": "graphty-element/src/session/styles/autoApply.ts",
             "rule": "template-id",
             "detail": "graphty:starting-everything",
-            "count": 1,
-            "reason": "singles out a starting row by its template id",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/fileStyles/apply.ts",
-            "rule": "source-by",
-            "detail": "template",
-            "count": 1,
-            "reason": "treats a layer differently because its source is \"template\"",
-            "issue": "#5905"
-        },
-        {
-            "file": "graphty-element/src/session/styles/fileStyles/apply.ts",
-            "rule": "template-id",
-            "detail": "templateId",
             "count": 1,
             "reason": "singles out a starting row by its template id",
             "issue": "#5905"

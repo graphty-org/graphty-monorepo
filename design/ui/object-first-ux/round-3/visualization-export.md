@@ -31,12 +31,12 @@ The round-2 terms (`round-2/revision.md` section 0) apply; the ones this documen
   on the canvas.
 - **Mask** (what is **showing**): the one visibility filter; elements outside it are not drawn.
   **Focus** sets the mask to one object's members.
-- **Channel**: one visual property a Style can write (node colour, node size, edge width...).
+- **Channel**: one visual property a Style can write (node color, node size, edge width...).
   **Encoding**: a channel bound to values through a scale and a palette.
 - **Status bar**: the 24 px line at the bottom; its **computing chip** shows a running job with
   Cancel, its **layout chip** the state of the layout.
 - **Sheet**: a panel that takes the whole right panel's place for one job and gives it back when
-  the job is done or cancelled. This document adds one: the Export sheet (section 4.0).
+  the job is done or canceled. This document adds one: the Export sheet (section 4.0).
 
 ### How the mocks draw a menu and its result together
 
@@ -49,16 +49,16 @@ the menu closes on the choice.
 
 | Gap | Resolution in one line | Screen | Element work |
 |---|---|---|---|
-| Dataset Layout tab | Layout select listing the catalogue with the recommendation first; Pause, Step, Re-run with the same or a new seed; Apply to; Dimensions; where it runs | 83 | a public layout controller on the session (medium, #144) |
+| Dataset Layout tab | Layout select listing the catalog with the recommendation first; Pause, Step, Re-run with the same or a new seed; Apply to; Dimensions; where it runs | 83 | a public layout controller on the session (medium, #144) |
 | Layouts that need an input | the input's row appears under Layout (Root, Group by, Order by); the root is picked on the canvas or typed; cross-links counted | 84 | a direction option on Tree (tiny); radial served (per issue) |
 | Lay out only part of the graph | "Arrange only these..." on any Set, Group or selection; Layout tab's Apply to; Back to whole graph | 85 | layout over a scope, the rest fixed (medium, #144) |
 | Drag, pin, unpin | a drag pins; a pin marker; a system Set "Pinned"; Unpin all on the Layout tab and on the Set | 86 | pinned list, unpin all, a pins event, the marker (small) |
 | Dataset Canvas tab | eleven rows: background, look, labels, edge labels, tooltip, legend and minimap, note markers, show hidden faintly, default look | 87 | looks (medium, #331); background (#291); legend (#292); minimap (#293) |
 | Show hidden faintly | a switch on the Canvas tab; outside the mask at about 15 percent | 87 | exists (`visibility.showContext`) |
 | Label control | Labels row plus a Labels popover: which nodes, text from, text style, place, wrap, face the camera, fade, avoid overlaps; Edge labels row | 88 | top-N scope as a layer selector (small); wrap (#294); overlaps (#5) |
-| Hover tooltip and neighbours | tooltip with label and three values; neighbours lit, rest dimmed; tree rows in hover fill | 89 | the hover-highlight layer (small); `session.data.neighbours` (small) |
-| Diverging palette | the picker groups palettes by kind; a diverging palette adds Midpoint and Symmetric; missing values grey with a count | 90 | a symmetric flag (tiny); midpoint and diverging palettes exist |
-| Edge width or colour by an edge column | the column's menu on the Data tab and the table; an edge Measure with EDGES > Width | 91 | `encodeAttribute` on edges (small); a width block in the legend (small) |
+| Hover tooltip and neighbors | tooltip with label and three values; neighbors lit, rest dimmed; tree rows in hover fill | 89 | the hover-highlight layer (small); `session.data.neighbours` (small) |
+| Diverging palette | the picker groups palettes by kind; a diverging palette adds Midpoint and Symmetric; missing values gray with a count | 90 | a symmetric flag (tiny); midpoint and diverging palettes exist |
+| Edge width or color by an edge column | the column's menu on the Data tab and the table; an edge Measure with EDGES > Width | 91 | `encodeAttribute` on edges (small); a width block in the legend (small) |
 | Node shape and the channel menus | NODES "+" and EDGES "+" menus listing every channel; a Shape block per group | 92 | shape palette and legend shape column (small) |
 | Style one node | "Style this node..." makes a one-node Set at the top; its Style tab lists every inherited channel as a clickable row | 93 | exists over the objects API; `styles.explain` for the inherited rows |
 | Save, apply, import, export styles | a Saved style section on every Style tab; Import styles dialog; Export styles | 94 | saved style as a selector-free template (small); an "add" mode for templates (medium, #331) |
@@ -99,14 +99,14 @@ the element's reason under it ("34 nodes in one part: any layout is quick"); the
 layouts grouped by family with the current one tinted: Spread out, Spread out flat, Natural
 grouping, No crossings; Ring, Concentric rings, Spiral, Scattered; Tree, Two columns, Columns by
 group; Keep positions. A layout that needs an input says which ("needs a root", "needs groups",
-"needs a Set"). Keep positions is greyed with "file has none" when the data carried no
-coordinates. Radial and Grid appear when an engine serves them (the catalogue lists them as
-unserved today). A plugin layout appears by its catalogue entry.
+"needs a Set"). Keep positions is grayed with "file has none" when the data carried no
+coordinates. Radial and Grid appear when an engine serves them (the catalog lists them as
+unserved today). A plugin layout appears by its catalog entry.
 
 **The gear popover** (not drawn; its rows are all select or number rows): Engine [NGraph v]
 listing the engines that draw this layout (for Spread out: NGraph, D3, ForceAtlas2, Spring,
 Kamada-Kawai); the engine's own options from its option descriptors (repulsion, link distance,
-gravity...); Weights [switch] with "from [weight v]" when the engine honours weights, or the line
+gravity...); Weights [switch] with "from [weight v]" when the engine honors weights, or the line
 "This engine ignores weights"; Seed [42] [dice]; a Pace section: Pre-steps, Steps per frame,
 Stop when movement is below; [Reset to defaults].
 
@@ -126,7 +126,7 @@ exposes only `setLayout`. Medium; #144 (the positions and layout-event work).
 
 ### 1.2 Layouts that need an input (screen 84)
 
-The catalogue declares three kinds of input: a **node** (Tree; Radial once served), a
+The catalog declares three kinds of input: a **node** (Tree; Radial once served), a
 **partition** (Concentric rings, Two columns, Columns by group) and an **ordering** (Ring and
 Spiral, optional). Choosing such a layout inserts its input row directly under Layout:
 
@@ -161,7 +161,7 @@ a selection; and on the Layout tab, Apply to [Group 2 v]. The verb selects the D
 its Layout tab with Apply to set, and runs the layout the list suggests for a subset (Ring for
 a Group, Spread out for a selection).
 
-**Behaviour**: only the members move, placed in the chosen shape around where they were; every
+**Behavior**: only the members move, placed in the chosen shape around where they were; every
 other node keeps its place (it is held for this run, not pinned). It is one undo step. The rows:
 Apply to [Group 2], Layout [Ring], Order by, "Placed 11 of 34 [Re-run]", "The rest: Spread out,
 kept", [Back to whole graph] (re-runs the whole-graph layout, which moves everything). The
@@ -176,7 +176,7 @@ Group to its members.
 
 ### 1.4 Dragging and pinning (screen 86)
 
-**Behaviour**: with Select, dragging a node moves it and pins it (the element already pins on
+**Behavior**: with Select, dragging a node moves it and pins it (the element already pins on
 drag). Alt while dragging moves without pinning. A pinned node carries a small pin marker.
 The tree gains a system Set **"Pinned"** (created by the first pin, removed by the last unpin):
 its members are the pinned nodes and its Style is the marker, so its eye hides the markers,
@@ -202,7 +202,7 @@ The rows that change the whole picture, not one object's (11 at most):
 
 | Row | Control | Notes |
 |---|---|---|
-| Background | [chit] "Follow theme" | Follow theme first, then a colour, then "Image..." for a sky box (#291) |
+| Background | [chit] "Follow theme" | Follow theme first, then a color, then "Image..." for a sky box (#291) |
 | Look | [Default v] | the base looks (below) |
 | Labels | [Top 6 by Connections v] and a gear | section 2.3 |
 | Edge labels | [None v] | None, or any edge column |
@@ -214,7 +214,7 @@ The rows that change the whole picture, not one object's (11 at most):
 | DEFAULT LOOK | header with "+"; Node [chit] 6 px; Edge [chit] 1 px | the defaults under every object; "+" adds a whole-graph channel |
 
 **The Look list** (drawn open on screen 87): Default, Presentation (bigger nodes, labels and
-edges), Print (grey categorical palette, patterned edges), Colour-blind safe, High contrast,
+edges), Print (gray categorical palette, patterned edges), Color-blind safe, High contrast,
 Dark, and "Save current as look...", with the reminder "A look sets defaults, never an
 object's Style". A look changes the default look, the label style, the background and the
 default palette per kind; it never rewrites a row an object owns.
@@ -230,7 +230,7 @@ match-everything layers first, because `applyTemplate` replaces the whole style 
 ### 2.2 Show hidden faintly (screen 87)
 
 A switch on the Canvas tab. Off (the default), elements outside the mask are absent. On, they
-are drawn at about 15 percent opacity in their own colours and are not pickable, so a Focus or a
+are drawn at about 15 percent opacity in their own colors and are not pickable, so a Focus or a
 filter keeps its context. The status bar's mask text is unchanged. The element has it today as
 `session.visibility.showContext`; no work.
 
@@ -238,7 +238,7 @@ filter keeps its context. The status bar's mask text is unchanged. The element h
 
 **Entry**: the Canvas tab's Labels select (the quick choice) and its gear (the Labels popover).
 Any object's Style tab can also add a Label row, which wins on that object's members (a Path
-labelled by hop order).
+labeled by hop order).
 
 **The Labels popover**, drawn on screen 88:
 
@@ -247,8 +247,8 @@ labelled by hop order).
 | Show | [Top N by a value v]: None, All, Selected only, Top N by a value, Members of a Set |
 | By | [Bridges v] "top 6" (cond: Top N or Members of) |
 | Text from | [label v]: any node column, or the id |
-| TEXT | Size [11 px]; Colour [chit] Theme ink; Backing [chit] 4 px, 80% |
-| Place | [Right of node v]: right, below, centre |
+| TEXT | Size [11 px]; Color [chit] Theme ink; Backing [chit] 4 px, 80% |
+| Place | [Right of node v]: right, below, center |
 | Wrap at \| Lines | [20] characters \| [2]; longer text is cut with an ellipsis |
 | Face the camera | [switch] (billboarding, for 3D) |
 | Fade with distance | [switch] |
@@ -260,16 +260,16 @@ budget. If the Measure behind "Top N" is deleted, Labels falls back to None and 
 **Errors**: a Text-from column with gaps shows the id for those nodes and says "12 nodes have no
 label: showing the id".
 
-**Element**: the label style catalogue exists (`catalog/label-style.ts`). Missing: a top-N scope
+**Element**: the label style catalog exists (`catalog/label-style.ts`). Missing: a top-N scope
 usable as a layer selector (small); text from a column (`encodeAttribute`, small); wrap to a
 width (#294); overlap avoidance (#5).
 
 ### 2.4 Hovering a node (screen 89)
 
-**Behaviour**: resting the pointer on a node shows a tooltip at once with the node's label and
+**Behavior**: resting the pointer on a node shows a tooltip at once with the node's label and
 the values the Tooltip row chooses ("Label + 3 values": by default the first attribute and the
 first two objects covering the node, each with its rank where it has one). With "Highlight
-neighbours on hover" on (Settings > Canvas: Off, Neighbours, 2 steps), the node's neighbours and
+neighbors on hover" on (Settings > Canvas: Off, Neighbors, 2 steps), the node's neighbors and
 the edges to them stay at full strength with their labels, the rest dims to about 20 percent.
 The tree rows of the objects the node belongs to take the hover fill. Nothing is selected or
 written; moving off restores the picture. Keyboard focus on a node shows the same tooltip.
@@ -290,17 +290,17 @@ reader's setting and transient, not an algorithm's style.
 
 ### 3.1 A signed value on a diverging palette (screen 90)
 
-**Entry**: any Measure's Style tab, Colour block, Palette row. The picker (drawn open on screen
+**Entry**: any Measure's Style tab, Color block, Palette row. The picker (drawn open on screen
 90) groups palettes by kind: when the values cross zero, **Diverging** comes first (Red-blue,
 Purple-green, Blue-orange, the element's three), then Sequential, Categorical and Highlight
 folded; Categorical is not offered for numbers. A click applies at once and the picker stays
 open for comparison; arrow keys move, Enter applies, Esc closes. "Add palette..." takes a list of
 hex values.
 
-**Rows a diverging palette adds** to the Colour block: Midpoint [0] (any number; the value that
-gets the neutral centre colour) and Symmetric [checkbox]. Symmetric on: one scale for both sides,
+**Rows a diverging palette adds** to the Color block: Midpoint [0] (any number; the value that
+gets the neutral center color) and Symmetric [checkbox]. Symmetric on: one scale for both sides,
 so a side with smaller values is paler (honest magnitude). Off: each side stretches to its own
-end (full colour on both sides). Missing [chit] "12 nodes" counts elements with no value. The
+end (full color on both sides). Missing [chit] "12 nodes" counts elements with no value. The
 legend's ramp block notes "0 at the centre; grey: no value (12)".
 
 Screen 90 uses a formula Measure "Bridges per link" (the log2 of a node's share of betweenness
@@ -312,20 +312,20 @@ is empty"; a log scale is not offered for values that include zero or negatives.
 **Element**: the encoding's `midpoint` and the three diverging palettes exist, and palettes carry
 their kind. Missing: a symmetric flag (tiny) and the missing count in the legend block (tiny).
 
-### 3.2 Edge width or colour by an edge column (screen 91)
+### 3.2 Edge width or color by an edge column (screen 91)
 
 **Entry**: the column's menu, which is the same menu in two places: the "..." on the column's row
 of the Dataset's Data tab, and the column header of the table dock's Edges tab (drawn open on
-screen 91). For an edge column it lists: Width by, Colour by, Opacity by, Label by, Filter by...,
-then Set as weight, Set as time (greyed with the reason for a non-date column), then Sort and Hide
-column. A node column's menu keeps its node verbs (Colour by, Size by, Shape by...).
+screen 91). For an edge column it lists: Width by, Color by, Opacity by, Label by, Filter by...,
+then Set as weight, Set as time (grayed with the reason for a non-date column), then Sort and Hide
+column. A node column's menu keeps its node verbs (Color by, Size by, Shape by...).
 
 **Result**: an edge Measure named after the column, a line chip in the tree and in the table's
 column header, and its Style tab's EDGES section with the Width block open: Scale [By order of
 magnitude v], Values from 1 to 2,400 (KB), Widths from 0.4 to 4 px, Missing 1 px, and a
 three-step width legend. The legend card gets a width block (three lines and their values).
 
-**Errors**: Width by and Opacity by are greyed on a text column ("not a number"); Colour by on a
+**Errors**: Width by and Opacity by are grayed on a text column ("not a number"); Color by on a
 text column makes a categorical encoding instead.
 
 **Element**: encoding an edge column directly (`encodeAttribute` with an edge target, small);
@@ -333,9 +333,9 @@ the legend block carrying widths (small; also needed for Paths).
 
 ### 3.3 The channel menus and a Shape block (screen 92)
 
-**The NODES "+" menu** on any Style tab (drawn open): Colour, Opacity, Size, Shape, Outline,
+**The NODES "+" menu** on any Style tab (drawn open): Color, Opacity, Size, Shape, Outline,
 Glow, Label, Tooltip, Marker, Animation, More... (wireframe, flat, glow strength). A channel this
-object already writes is greyed ("in use"). **The EDGES "+" menu**: Colour, Opacity, Width,
+object already writes is grayed ("in use"). **The EDGES "+" menu**: Color, Opacity, Width,
 Pattern, Curve, Arrows, Animation, Label (named in the drawn menu's footnote).
 
 **A Shape block** on a Grouping: one row per group with its mesh [Sphere v] (the element's 25
@@ -355,7 +355,7 @@ row), and the node's right-click menu. It creates a one-node Set named after the
 **top** of the tree (so it paints above everything), selects it and opens its Style tab.
 
 **The Style tab of the one-node Set** lists the node's whole look channel by channel: the
-overrides the reader has made (Colour, magenta, with eye and minus) above the channels it
+overrides the reader has made (Color, magenta, with eye and minus) above the channels it
 inherits, as locked rows naming their source ("Colour From Conference", "Size From Bridges",
 "Outline From Top 10"). Clicking an inherited chit creates the override. The Set's legend block
 is one row. Deleting the Set, or removing its last override, returns the node to its objects'
@@ -371,7 +371,7 @@ They move onto the tab: **every Style tab ends with a SAVED STYLE section** of t
 fits the 14-row budget on every kind:
 
 - Apply [Orange outline v] "3 fit": the saved styles that fit this kind of object, each with a
-  preview chip; one that does not fit is listed greyed with what it fits ("fits edge Sets").
+  preview chip; one that does not fit is listed grayed with what it fits ("fits edge Sets").
 - [Save this style...] (asks for a name, stored in the project file) and [Reset] (returns the
   object to its default look).
 
@@ -453,14 +453,14 @@ counts and the size ("11 nodes  23 edges, about 6 KB").
 **Element**: every format descriptor says `canExport: false` today: the element registers seven
 importers and no exporter, while graph-io has the exporters. Missing: graph-io's exporters wired
 into `catalog.formats()`, and one call that writes a scope with positions and chosen object
-columns (`session.data.export`). Medium. The app never serialises a graph itself.
+columns (`session.data.export`). Medium. The app never serializes a graph itself.
 
 ### 4.3 Export a report or an evidence bundle (screen 97)
 
 **The Report tab**: OBJECTS, one tick per tree row in tree order (each becomes a section with its
 reading, its values or members, and its Record: method, parameters, scope, engine, time);
 SECTIONS: Statistics (the Dataset's Overview facts), Image, Legend, Methods (the methods text of
-every ticked object), Notes (greyed "none yet" when there are none); Format [HTML v] (drawn open:
+every ticked object), Notes (grayed "none yet" when there are none); Format [HTML v] (drawn open:
 HTML one file, Markdown a ZIP with images, PDF for print, Evidence bundle a ZIP); Image [As Export
 image v] (reuses the Image tab's settings); [Export].
 
@@ -468,8 +468,8 @@ image v] (reuses the Image tab's settings); [Export].
 images; choosing it replaces the Image row with two switches: "Include the original data file"
 (on) and "Images at print size" (off).
 
-**Errors**: PDF is greyed where the browser cannot print to PDF headlessly, with the reason; the
-bundle is greyed until the project file exists (#301).
+**Errors**: PDF is grayed where the browser cannot print to PDF headlessly, with the reason; the
+bundle is grayed until the project file exists (#301).
 
 **Element**: the readings, the records and the methods text are the element's, so the report is
 built by the element from the chosen objects (#187, medium); the bundle adds the project file
@@ -479,8 +479,8 @@ built by the element from the chosen objects (#187, medium); the bundle adds the
 
 **The Video tab**: Camera [Along views v] (Hold still, Orbit, Along views); with Along views, a
 table of the saved Views in the Views list's order with seconds each, so the Views list is the
-storyboard; Duration | Rate (fps); Format [WebM | MP4] (MP4 greyed where the browser cannot record
-it); While the layout settles; While the time window plays (greyed with the reason on data with
+storyboard; Duration | Rate (fps); Format [WebM | MP4] (MP4 grayed where the browser cannot record
+it); While the layout settles; While the time window plays (grayed with the reason on data with
 no time column); Transparent background; [Export]. The summary row has the size estimate. While
 writing, the tab's last row is a progress bar with Cancel, mirrored by the status bar's
 "Exporting video 30% [Cancel]", so the sheet can be closed.
@@ -500,7 +500,7 @@ in the capture capabilities (tiny).
 **Entry**: File menu > Present (Shift+\), and the Views header's "..." > "Present from here".
 
 **The state**: both panels, the toolbar, the status bar and the dock are hidden; the canvas fills
-the window. The one control is a dark pill at the bottom centre: "Group 2 close-up -- 2 of 5
+the window. The one control is a dark pill at the bottom center: "Group 2 close-up -- 2 of 5
 [Previous] [Next] [Exit (Esc)]". The legend and the time transport bar stay, because they are part
 of the picture. Left and Right arrows, Page Up and Page Down step through the saved Views in the
 list's order (each applies with its animation, mode and mask); Home returns to the first; Esc
@@ -515,10 +515,10 @@ mask (small; already on the round-2 list). Hiding the chrome is the app's own pr
 **Entry**: a plain click on the VR (or AR) segment of the mode switch takes what is showing into
 the headset. A right-click or long press on the segment opens "Enter VR showing" (drawn open):
 Everything with its count, then every Set and Group with theirs; choosing one focuses it and
-enters. Above the headset's node limit (10,000 today) Everything is greyed with the limit in its
+enters. Above the headset's node limit (10,000 today) Everything is grayed with the limit in its
 tooltip, and so is any Set above it.
 
-**During the session**: both panels minimise; the status bar reads "Focused on Group 2: 11 of 34
+**During the session**: both panels minimize; the status bar reads "Focused on Group 2: 11 of 34
 [Exit]  VR [Exit]"; Esc or either Exit ends it. What the reader does in the headset (grab a node,
 which pins it; ask by voice) lands in the tree.
 
@@ -551,7 +551,7 @@ here.
   Import styles dialog.
 - `round-2/revision.md` 6.3 and 6.8: each export with settings is a tab of the Export sheet
   (4.0), not a popover.
-- `round-2/revision.md` 6.4: Everything is greyed above the headset's limit; the return marks new
+- `round-2/revision.md` 6.4: Everything is grayed above the headset's limit; the return marks new
   rows.
 - `round-2/revision.md` 6.9: the Labels popover holds which nodes and the text source as well as
   the style.
@@ -595,18 +595,18 @@ here.
 | A public layout controller on the session (set with options and inputs, pause, resume, step, re-run with a seed, progress, backend) | medium, #144 | 1.1 |
 | Layout over a scope with the rest fixed | medium, #144 | 1.3 |
 | Looks and an "add" import mode (templates restricted to match-everything layers) | medium, #331 | 2.1, 3.5 |
-| graph-io's exporters wired into the format catalogue; `session.data.export` | medium | 4.2 |
+| graph-io's exporters wired into the format catalog; `session.data.export` | medium | 4.2 |
 | A report built from chosen objects | medium, #187 | 4.3 |
 | Layout settling and time playing as capture sources | medium, #144, #300 | 4.4 |
 | The legend drawn by the element and in captures | medium, #292 | 2.1, 4.1 |
 | Background follow theme (#291), minimap (#293), note markers (#295), label wrap (#294), overlap avoidance (#5), a Radial engine | per issue | 2.1, 2.3, 1.2 |
 
-Nothing here asks the app to compute over nodes and edges, serialise a graph, build a report from
-results or detect a capability: every list a row draws is a catalogue or a session call, and every
+Nothing here asks the app to compute over nodes and edges, serialize a graph, build a report from
+results or detect a capability: every list a row draws is a catalog or a session call, and every
 paint is a layer on an object the element owns.
 
 ## What the mocks draw
 
-All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, coloured status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `design/ui/object-first-ux/gen/README.md`, "Round 3 additions".
+All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, colored status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `design/ui/object-first-ux/gen/README.md`, "Round 3 additions".
 
 Menus are dark menus anchored to their control; a menu that leads to the state drawn beside it carries a "A moment before" tag. Screens 84 to 86 move nodes with `canvas.positions`; 86 draws pin marks; 89 the dark tooltip; 91 the legend's width block; 92 node shapes and the legend's shape column; 90 the midpoint mark on the ramp; 95 and 98 the dashed export frame; 95 to 98 the Export sheet's footer; 99 Present mode without panels; 100 the "new" badge and the return notice.

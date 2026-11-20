@@ -18,8 +18,8 @@ export function builtInIdsForTesting(): { kind: string; ids: readonly string[] }
             ...startingRows({
                 selection: { color: "", scale: 0, edgeColor: "", edgeScale: 0 },
                 pinned: { color: "", scale: 0, opacity: 0 },
-                timelineHidden: "hidden",
             }).map((row) => row.templateId),
+            ...startingRows({ timelineHidden: "hidden" }).map((row) => row.templateId),
             LEGACY_GHOST_ROW_ID,
         ],
     };

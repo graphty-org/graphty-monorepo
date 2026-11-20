@@ -1,5 +1,5 @@
 /**
- * @file `node.unlit` draws a 3D node in its own colour with no light, as 2D draws every node.
+ * @file `node.unlit` draws a 3D node in its own color with no light, as 2D draws every node.
  *
  * Paints one sphere unlit and one lit through style layers and reads the material of the source
  * mesh each node is drawn through.

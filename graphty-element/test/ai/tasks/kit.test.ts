@@ -1,11 +1,11 @@
 /**
  * @file The task suite's answer checks: only the model's final words count, numbers match as
- * whole tokens, and a yes/no fact is not affirmed by its negation.
+ * whole tokens, a yes/no fact is not affirmed by its negation, and a color word is graded by hue.
  */
 
 import { assert, describe, it } from "vitest";
 
-import { answered, assertAffirmed, type MessageRecord } from "./kit";
+import { answered, assertAffirmed, isColorNamed, type MessageRecord } from "./kit";
 
 /**
  * One message with a final text and a tool result.
@@ -63,5 +63,39 @@ describe("assertAffirmed", () => {
 
         assert.throws(() => assertAffirmed(said("The edges are unweighted."), "weighted"));
         assert.throws(() => assertAffirmed(said("No, they are not weighted."), "weighted"));
+    });
+});
+
+describe("isColorNamed", () => {
+    it("takes any blue a model may pick, in any spelling, and nothing else (#8836)", () => {
+        for (const blue of [
+            "#0000ff",
+            "#2563EB",
+            "#00f",
+            "blue",
+            "royalblue",
+            "dodgerblue",
+            "navy",
+            { hex: "#2563eb" },
+        ]) {
+            assert.isTrue(isColorNamed(blue, "blue"), JSON.stringify(blue));
+        }
+
+        for (const other of ["#ff0000", "#808080", "#ffffff", "#000000", "#e0e8ff", "purple", "teal", undefined, 3]) {
+            assert.isFalse(isColorNamed(other, "blue"), JSON.stringify(other));
+        }
+    });
+
+    it("grades the other words the tasks ask for", () => {
+        assert.isTrue(isColorNamed("#dc2626", "red"));
+        assert.isTrue(isColorNamed("crimson", "red"));
+        assert.isFalse(isColorNamed("#ffa500", "red"));
+        assert.isTrue(isColorNamed("#f97316", "orange"));
+        assert.isTrue(isColorNamed("gold", "gold"));
+        assert.isTrue(isColorNamed("#eab308", "gold"));
+        assert.isFalse(isColorNamed("#0000ff", "gold"));
+        assert.isTrue(isColorNamed("#111111", "black"));
+        assert.isTrue(isColorNamed("black", "black"));
+        assert.isFalse(isColorNamed("#333333", "black"));
     });
 });

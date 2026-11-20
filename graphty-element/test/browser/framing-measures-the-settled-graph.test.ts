@@ -16,7 +16,7 @@
  * on a snapshot reads as the layout having settled somewhere else.
  *
  * Both halves are pinned here, because either one alone leaves the other broken: the box a framing
- * reports must match the graph it framed, and a request to frame the graph must be honoured after
+ * reports must match the graph it framed, and a request to frame the graph must be honored after
  * the layout has stopped -- which is precisely when `zoomToFit()` is documented to be called.
  *
  * Measured against the LAYOUT ENGINE's own coordinates rather than against the meshes, because the

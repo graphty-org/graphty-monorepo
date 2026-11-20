@@ -22,9 +22,6 @@ import { ModelDetection } from 'babylonjs-models/detect';
 import { ModelDetectionInput } from 'babylonjs-models/detect';
 import { ModelFormat } from 'babylonjs-models/detect';
 import { SourceInfo } from '@graphty/graph-io';
-import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
-import type { StyleRuleReason } from '@graphty/graph-io/styles';
-import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import { z } from 'zod';
 
 // @public
@@ -603,7 +600,7 @@ export type CatalogKind = (typeof CATALOG_KINDS)[number];
 export function changeShaderParamType(param: ShaderParamDraft, type: ShaderParamDescriptor["type"], labels?: readonly string[]): ShaderParamDraft;
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.sizeSpace" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.labelShiftOf" | "node.labelGapOf" | "node.labelBox" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.outlineWidth" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.relativeExtents" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.outerBorderCount" | "node.raisedBorderWidth" | "node.raisedBorderLightColor" | "node.raisedBorderDarkColor" | "node.shadowColor" | "node.shadowOpacity" | "node.shadowBlur" | "node.shadowOffsetX" | "node.shadowOffsetY" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.cornerFraction" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeRotation" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.labelTable" | "node.shapeLineWidth" | "node.shapeLineHaloColor" | "node.shapeLineHaloWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.labelFitQuantum" | "node.labelFitImage" | "node.labelFitImagePadding" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.gradientCenterX" | "node.gradientCenterY" | "node.gradientRadius" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.stripeFrame" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartWidth" | "node.chartHeight" | "node.chartOffsetX" | "node.chartOffsetY" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.chartBackgroundColor" | "node.chartBackgroundOpacity" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelDoubleSided" | "node.modelAnimation" | "node.modelAnimationSpeed" | "node.modelAnimationOffset" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.fadeStart" | "edge.fadeEnd" | "edge.fadeOpacity" | "edge.blending" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.dashLength" | "edge.dashGap" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.supportScale" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadOutlineWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadStack" | "edge.arrowHeadColor" | "edge.arrowHeadFillColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailOutlineWidth" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailStack" | "edge.arrowTailColor" | "edge.arrowTailFillColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadOutlineWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadFillColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailOutlineWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailFillColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelTable" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY" | "edge.labelShiftOf" | "edge.labelGapOf" | "edge.labelBox" | "node.xlabel" | "node.xlabelStyle" | "node.xlabelLocation" | "node.xlabelOffsetX" | "node.xlabelOffsetY" | "edge.xlabel" | "edge.xlabelStyle" | "edge.xlabelLocation" | "edge.xlabelOffsetX" | "edge.xlabelOffsetY";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.sizeSpace" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapSkipEndSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelMaxLines" | "node.labelMaxLinesEllipsis" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelLineBox" | "node.labelBorderAlign" | "node.labelBorderStyle" | "node.labelBackgroundShape" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.labelShiftOf" | "node.labelGapOf" | "node.labelBox" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.outlineWidth" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.relativeExtents" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.outerBorderCount" | "node.raisedBorderWidth" | "node.raisedBorderLightColor" | "node.raisedBorderDarkColor" | "node.shadowColor" | "node.shadowOpacity" | "node.shadowBlur" | "node.shadowOffsetX" | "node.shadowOffsetY" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.cornerFraction" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeRotation" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.labelTable" | "node.shapeLineWidth" | "node.shapeLineHaloColor" | "node.shapeLineHaloWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.labelFitQuantum" | "node.labelFitImage" | "node.labelFitImagePadding" | "node.imageAspect" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.gradientCenterX" | "node.gradientCenterY" | "node.gradientRadius" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.stripeFrame" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartWidth" | "node.chartHeight" | "node.chartOffsetX" | "node.chartOffsetY" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.chartBackgroundColor" | "node.chartBackgroundOpacity" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelDoubleSided" | "node.modelAnimation" | "node.modelAnimationSpeed" | "node.modelAnimationOffset" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.colorFrom" | "edge.width" | "edge.minScreenWidth" | "edge.fadeStart" | "edge.fadeEnd" | "edge.fadeOpacity" | "edge.blending" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.dashLength" | "edge.dashGap" | "edge.dashArray" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.supportScale" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadOutlineWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadStack" | "edge.arrowHeadColor" | "edge.arrowHeadFillColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailOutlineWidth" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailStack" | "edge.arrowTailColor" | "edge.arrowTailFillColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadOutlineWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadFillColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailOutlineWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailFillColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.taperSource" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapSkipEndSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelMaxLines" | "edge.labelMaxLinesEllipsis" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelTable" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelLineBox" | "edge.labelBorderAlign" | "edge.labelBorderStyle" | "edge.labelBackgroundShape" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY" | "edge.labelShiftOf" | "edge.labelGapOf" | "edge.labelBox" | "node.xlabel" | "node.xlabelStyle" | "node.xlabelLocation" | "node.xlabelOffsetX" | "node.xlabelOffsetY" | "node.xlabelTextAlign" | "edge.xlabel" | "edge.xlabelStyle" | "edge.xlabelLocation" | "edge.xlabelOffsetX" | "edge.xlabelOffsetY";
 
 // @public
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>>;
@@ -622,6 +619,7 @@ export interface ChannelDescriptor {
     readonly feature?: "file-styles";
     readonly follows?: Channel;
     readonly group: ChannelGroup;
+    readonly integer?: boolean;
     readonly listOf?: "color" | "number";
     readonly max?: number;
     readonly min?: number;
@@ -678,7 +676,7 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
 // @public
 export interface CodedFact<Code extends string = string> {
     readonly code: Code;
-    readonly params: Readonly<Record<string, CodedFactParam>>;
+    readonly params: Readonly<Partial<Record<string, CodedFactParam>>>;
 }
 
 // @public
@@ -710,13 +708,7 @@ export interface DefectWaiver {
 }
 
 // @public
-export const DEPRECATED_ALGORITHMS: readonly ["all-paths"];
-
-// @public
 export const DEPRECATED_LAYOUT_IDS: readonly ["force-2d"];
-
-// @public
-export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 // @public
 export type DeprecatedCatalogMethod = "themes" | "functions" | "applicable";
@@ -795,7 +787,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "save-files-v2";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];
@@ -961,7 +953,10 @@ export { GraphListing }
 export type GraphtyErrorCode =
 /**
 * A command or a call is malformed: a missing required field, or two fields that may not be
-* set together (the `src` and `sample` attributes, for instance). `details` name the fields.
+* set together. `details` name the fields.
+* For saved views, `details` are `{ reason: "empty-name" }` for an empty name,
+* `{ reason: "name-taken", name }` for a rename onto a name in use, and
+* `{ missing, available }` for a rename, move or removal of a name that is not saved.
 * The caller fixes the call; retrying the same call always fails the same way.
 */
 "E_BAD_COMMAND"
@@ -1002,7 +997,7 @@ export type GraphtyErrorCode =
 * missing result (`missing: { value }`), which would ask the element to paint elements the run
 * never measured. Without `missing`, such a layer is accepted: an element with no result is
 * not painted. The caller scopes the layer to the
-* elements that carry the run's result.
+* elements that carry the run's result: the problem's `scope` is that selector.
 */
 | "E_UNSCOPED_RUN_ENCODING"
 /**
@@ -1053,7 +1048,7 @@ export type GraphtyErrorCode =
 | "E_NO_TIME_FIELD"
 /**
 * An algorithm key is not registered. `details.available` lists the registered keys. The
-* caller picks a key from the catalogue or registers a plugin that provides it.
+* caller picks a key from the catalog or registers a plugin that provides it.
 */
 | "E_UNKNOWN_ALGORITHM"
 /**
@@ -1071,7 +1066,7 @@ export type GraphtyErrorCode =
 /**
 * A binding, an `encode` call or a saved document names a palette nothing registered.
 * `details.available` lists the known palette ids and `details.candidates` the nearest few.
-* The caller picks a palette from the catalogue or registers its own first.
+* The caller picks a palette from the catalog or registers its own first.
 */
 | "E_UNKNOWN_PALETTE"
 /**
@@ -1094,17 +1089,19 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_SHADER_PARAM"
 /**
-* A camera view name is not one the element knows. `details.available` lists the registered
-* view ids. The caller picks one of those or registers its own view first.
+* A camera view name is not one the element knows. `details` are `{ name, available, stop? }`:
+* `available` lists the camera view ids and then the saved view names, and `stop` is the
+* 0-based tour stop that named it. The caller picks one of those or registers or saves its
+* own view first.
 */
 | "E_UNKNOWN_CAMERA"
 /**
-* `data.generate` names a generator the catalogue does not list. `details.available` lists
+* `data.generate` names a generator the catalog does not list. `details.available` lists
 * the generator names. The caller picks one from `catalog.generators()`.
 */
 | "E_UNKNOWN_GENERATOR"
 /**
-* `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+* `data.loadDataset` names a dataset the catalog does not list. `details.available` lists
 * the dataset names. The caller picks one from `catalog.datasets()`.
 */
 | "E_UNKNOWN_DATASET"
@@ -1183,7 +1180,7 @@ export type GraphtyErrorCode =
 */
 | "E_AUTOSAVE_STALLED"
 /**
-* A document being serialised refers to a run whose id was derived rather than author
+* A document being serialized refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
 * explicit `as:` id and saves again.
 */
@@ -1191,7 +1188,7 @@ export type GraphtyErrorCode =
 /**
 * An id that must be unique is already taken -- a node or edge id arriving twice under a
 * plan that does not merge, or a saved scope, layer or run name that already exists.
-* `details.id` names it. The caller chooses another id or asks for merge behaviour.
+* `details.id` names it. The caller chooses another id or asks for merge behavior.
 */
 | "E_DUPLICATE_ID"
 /**
@@ -1202,14 +1199,16 @@ export type GraphtyErrorCode =
 | "E_DUPLICATE_EDGE"
 /**
 * A plugin is registered twice under one kind and name with a different implementation, and
-* the registration asked for strict behaviour. `details` name the kind and the name. The
+* the registration asked for strict behavior. `details` name the kind and the name. The
 * caller removes one registration, or registers into its own `createRegistry()` instance.
 */
 | "E_DUPLICATE_PLUGIN"
 /**
 * The target is owned by the element and may not be removed or edited: the base and
 * selection style layers carry `locked: true` and exist by construction. `details` name the
-* target. The caller adds its own layer above instead of editing the protected one.
+* target. The caller adds its own layer above instead of editing the protected one. Also what
+* saving a view under a camera view's id refuses with, and a saved view that a camera view's
+* id shadows; `details` are then `{ name }`, and the caller picks another name.
 */
 | "E_PROTECTED"
 /**
@@ -1384,9 +1383,10 @@ export type GraphtyErrorCode =
 */
 | "E_NO_ACCELERATOR"
 /**
-* No accelerator factory is registered, so the element never looked for a GPU. Usually
-* `import "@graphty/graphty-element/webgpu"` was never evaluated -- not written, or its module
-* failed to load (a network error, a blocked request, a stale dev-server cache). Reported
+* No accelerator factory is registered, so the element never looked for a GPU. The root entry
+* point registers one for `@graphty/webgpu-graph-algorithms` by itself, so this means the
+* element was used only through an entry point that does not (`./session` and the other
+* Node-safe entries) and nothing called `import "@graphty/graphty-element/webgpu"`. Reported
 * through `capabilities.acceleration`; a registration that arrives later switches
 * acceleration on without the consumer doing anything.
 */
@@ -1395,9 +1395,20 @@ export type GraphtyErrorCode =
 * A registered accelerator factory threw while setting up, with an error that is not one of
 * the other acceleration codes -- a module of the backend that failed to load, or a defect in
 * the backend. `reason` carries what it threw. Reported through `capabilities.acceleration`;
-* the CPU path runs.
+* the CPU path runs. Also what an installed `@graphty/webgpu-graph-algorithms` reports when
+* it is present and fails to load (a syntax error, a throw while its module evaluates, an
+* import-map URL that does not answer); `params.package` names it.
 */
 | "E_ACCELERATOR_FAILED"
+/**
+* The installed accelerator package loaded but lacks what this graphty-element needs: an
+* export it calls is missing, usually because the installed version is older or newer than
+* the range graphty-element declares as its peer, or because a bundler alias replaced it with
+* an empty module. Reported through `capabilities.acceleration` with `params.package` and
+* `params.missing` (the export names); the CPU path runs. The caller installs a version in
+* the declared peer range.
+*/
+| "E_ACCELERATOR_INCOMPATIBLE"
 /**
 * The runtime exposes no WebGPU at all: no `navigator.gpu`, usually because the page is not
 * in a secure context or the browser does not implement it. Reported through
@@ -1410,7 +1421,7 @@ export type GraphtyErrorCode =
 */
 | "E_NO_ADAPTER"
 /**
-* An adapter was found but it is a software rasteriser, which is slower than the element's
+* An adapter was found but it is a software rasterizer, which is slower than the element's
 * own CPU path. Acceleration stays off and says why, rather than making the graph slower in
 * silence.
 */
@@ -1435,6 +1446,16 @@ export type GraphtyErrorCode =
 * the CPU in silence.
 */
 | "E_DEVICE_LOST"
+/**
+* An accelerated run got no answer from the GPU within its time limit, and the device never
+* reported itself lost either. WebGPU has no event for a device that stops answering without
+* being lost, so the element waits for a limit it scales from the run's size, then fails the
+* run rather than wait forever. `details` carry `capability`, `nodeCount`, `edgeCount`,
+* `elapsedMs` and `limitMs`. The element releases the device as suspect and tries a fresh one
+* for the next run; it never finishes the stuck run on the CPU. Change the limit with
+* `getAcceleration().setRunTimeout(ms)`.
+*/
+| "E_GPU_TIMEOUT"
 /**
 * The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
 * device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
@@ -1466,8 +1487,10 @@ export type GraphtyErrorCode =
 /**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
-* needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
-* picks a feature that does not need it.
+* needs it (for the in-browser AI provider, `"webllm"`; for acceleration, `"webgpu"`). The
+* caller installs the package, or picks a feature that does not need it. Also reported, not
+* thrown, on `capabilities.acceleration` when `@graphty/webgpu-graph-algorithms` is not
+* installed, with `params.package`; nothing is printed then, because nothing asked for a GPU.
 */
 | "E_MISSING_PACKAGE"
 /**
@@ -1477,7 +1500,10 @@ export type GraphtyErrorCode =
 * uses the stated alternative; retrying does not help. Also what `styles.encode({ column })`
 * and `styles.proposeEncoding` refuse a column with when it has no default drawing on that
 * channel (groups on a size, a time column); `details` then carry `kind`, `name`, `channel`
-* and `measurement`, and naming a `scale` draws it anyway.
+* and `measurement`, and naming a `scale` draws it anyway. A camera view, saved view or tour
+* stop that does not fit the drawing mode is refused with
+* `{ reason: "mode", name?, stop?, modes, mode }` (`modes` are the modes it works in, `name` is
+* absent for a raw camera state), and any of them while immersive with `{ reason: "xr", mode }`.
 */
 | "E_UNSUPPORTED"
 /**
@@ -1612,11 +1638,11 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_TOO_LARGE"
 /**
-* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
+* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; `fbx`, `usd` and `usdz` for a damaged file of that format; a reader's damaged-file refusals `ply`, `babylon`, `delayLoad` for a `.babylon` whose meshes load from other files, and `empty` for a USD stage that defines nothing to draw).
 */
 | "E_MODEL_STRUCTURE"
 /**
-* A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
+* A recognized 3D format graphty-element does not load (DAE, .blend, 3MF, BVH, and Gaussian splats: `.splat`, `.spz`, `.sog` and `splat-ply`, a PLY holding splats; a glTF or GLB that uses `KHR_gaussian_splatting`, required or not, names it in `params.extension`). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read, or uses Gaussian splatting; `params.kind` is `"splat"` for every Gaussian splat refusal, whatever its format.
 * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
 */
 | "E_MODEL_FORMAT_UNSUPPORTED"
@@ -1694,7 +1720,10 @@ export type GraphtyErrorCode =
 * A screenshot, a video or a clipboard copy was started and could not be finished: the
 * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
 * no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
-* `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
+* `"clipboard"` for a failed copy, and `cause` carries the original failure. A recording that
+* stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
+* background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
+* it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
 * @since 3.40.0
 */
 | "E_CAPTURE_FAILED"
@@ -1704,7 +1733,13 @@ export type GraphtyErrorCode =
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
 * @since 3.40.0
 */
-| "E_NOT_SETTLED" | "E_INTERNAL";
+| "E_NOT_SETTLED"
+/**
+* A recording (`captureAnimation`) was canceled: its `signal` aborted, or
+* `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
+* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+*/
+| "E_CANCELED" | "E_INTERNAL";
 
 // @public
 export type GroupMatchCode = "group.new" | "group.gone";
@@ -1742,10 +1777,23 @@ export type ItemKey = {
 };
 
 // @public
-export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "pagerank", "eigenvector", "katz", "hits", "louvain", "leiden", "label-propagation", "components", "shortest-path", "all-pairs-distance", "all-paths", "max-flow", "min-cut", "k-core", "clustering-coefficient", "girvan-newman", "bfs", "dfs", "kruskal", "prim", "bipartite-matching", "link-prediction", "markov-clustering", "spectral-clustering", "hierarchical-clustering", "astar", "edge-betweenness"];
+export const KEYMAP_DESCRIPTORS: readonly KeymapDescriptor[];
 
 // @public
-export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
+export type KeymapAction = "deselect" | "undo" | "redo";
+
+// @public
+export interface KeymapDescriptor {
+    readonly action: KeymapAction;
+    readonly keys: readonly string[];
+    readonly plainName: string;
+}
+
+// @public
+export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "pagerank", "eigenvector", "katz", "hits", "louvain", "leiden", "label-propagation", "components", "shortest-path", "all-pairs-distance", "max-flow", "min-cut", "k-core", "clustering-coefficient", "girvan-newman", "bfs", "dfs", "kruskal", "prim", "bipartite-matching", "link-prediction", "markov-clustering", "spectral-clustering", "hierarchical-clustering", "astar", "all-paths", "edge-betweenness", "removal-impact"];
+
+// @public
+export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric", "bottomView"];
 
 // @public
 export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "graphty"];
@@ -1827,9 +1875,12 @@ export interface LabelStyle {
     attachOffset?: number;
     background?: string;
     backgroundOpacity?: number;
+    backgroundShape?: "rectangle" | "circle";
     badge?: LabelBadge;
+    borderAlign?: "outside" | "center";
     borderColor?: string;
     borderOpacity?: number;
+    borderStyle?: "solid" | "double";
     borderWidth?: number;
     box?: "words" | "words-at-side" | "target-width";
     boxPadding?: number;
@@ -1853,6 +1904,7 @@ export interface LabelStyle {
     keepBlankLines?: boolean;
     keepInView?: boolean;
     letterSize?: number;
+    lineBox?: "font" | "size" | "glyphs";
     lineHeight?: number;
     location?: LabelLocation;
     look?: LabelLookId;
@@ -1861,6 +1913,7 @@ export interface LabelStyle {
     marginRight?: number;
     marginTop?: number;
     maxLines?: number;
+    maxLinesEllipsis?: boolean;
     maxNumber?: number;
     minNodeScreenSize?: number;
     minScreenSize?: number;
@@ -1904,6 +1957,7 @@ export interface LabelStyle {
     weight?: number | "normal" | "bold";
     wrapAnywhere?: boolean;
     wrapEllipsis?: boolean;
+    wrapSkipEndSpace?: boolean;
     wrapSpaceCount?: number;
     wrapTrailingSpace?: boolean;
     wrapWidth?: number;
@@ -1956,7 +2010,6 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
-    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)
@@ -2005,6 +2058,8 @@ export interface LayoutDescriptor {
     engine: string;
     // (undocumented)
     family: string;
+    honorsWeights: boolean;
+    // @deprecated
     honoursWeights: boolean;
     // (undocumented)
     id: LayoutId;
@@ -2045,6 +2100,8 @@ export interface LayoutImplementation {
     descriptionId?: string;
     engine: string;
     fact: CodedFact<LayoutImplementationCode>;
+    honorsWeights: boolean;
+    // @deprecated
     honoursWeights: boolean;
     isDefault: boolean;
     // (undocumented)
@@ -2163,7 +2220,7 @@ export interface MetricAvailability {
     key: AlgorithmKey;
     // (undocumented)
     plainName: string;
-    reason?: string;
+    refusal?: CodedFact<EstimateRefusalCode>;
     // (undocumented)
     runIds: readonly RunId[];
     // (undocumented)
@@ -2224,7 +2281,7 @@ export interface NonemptyLeaf {
 export const OPTION_BOUND_SOURCES: readonly ["graph.nodeCount", "graph.edgeCount", "graph.maxDegree", "graph.maxCore", "graph.componentCount"];
 
 // @public
-export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "color", "unknown"];
+export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "color", "edge-set", "unknown"];
 
 // @public
 export interface OptionBound {
@@ -2234,9 +2291,12 @@ export interface OptionBound {
 
 // @public
 export interface OptionChoice {
-    // (undocumented)
     label: string;
     refusal?: OptionChoiceRefusal;
+    runField?: {
+        readonly runId: RunId;
+        readonly field: string;
+    };
     // (undocumented)
     value: string;
 }
@@ -2358,6 +2418,18 @@ export type Path = string;
 
 // @public
 export type PathKind = "simple" | "trail" | "walk" | "cycle";
+
+// @public
+export const PRIMARY_CHANNELS: Readonly<{
+    readonly node: Readonly<{
+        color: "node.color";
+        size: "node.size";
+    }>;
+    readonly edge: Readonly<{
+        color: "edge.color";
+        size: "edge.width";
+    }>;
+}>;
 
 // @public
 export type Query = string;
@@ -2873,9 +2945,7 @@ export interface ShaderDescriptor {
 
 // @public
 export interface ShaderGlyph {
-    // (undocumented)
     readonly outline?: boolean;
-    // (undocumented)
     readonly path: string;
 }
 
@@ -3010,7 +3080,6 @@ export type ShaderText = string;
 export interface ShaderTextDraft {
     // (undocumented)
     readonly [key: string]: unknown;
-    // (undocumented)
     readonly params?: readonly ShaderParamDraft[];
 }
 
@@ -3104,9 +3173,9 @@ export interface StructureValue {
 
 // @public
 export interface StyleDocument {
+    labelLooks?: readonly LabelLookDescriptor[];
     // (undocumented)
     layers: readonly LayerSpec[];
-    // (undocumented)
     palettes?: readonly PaletteDescriptor[];
     problems?: readonly ShaderProblem[];
     shaders?: readonly {

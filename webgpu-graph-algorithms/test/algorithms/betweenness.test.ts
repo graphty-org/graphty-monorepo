@@ -21,7 +21,6 @@ import {
     PathCountOverflowError,
 } from "@graphty/algorithms";
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
 import { createAccelerator } from "../../src/accelerator.js";
 import {
@@ -64,7 +63,7 @@ import {
 } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { brandesOracle } from "../oracle/betweenness.js";
-import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
+import { gpuScale, sharedContext } from "../setup/gpu.js";
 
 /** Design 9.7's betweenness tolerance; the f32 reference sits 2.6e-6 from the f64 one on the random 2k fixture. */
 const TOLERANCE = 1e-4;
@@ -120,14 +119,7 @@ describe("betweenness batch planner (design 8.4, 10.1)", () => {
 });
 
 describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "betweenness" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "betweenness" });
 
     /** A run that also collects every batch's report (and its arrays when asked). */
     async function collect(
@@ -537,6 +529,6 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
     });
 
     afterAll(() => {
-        shared?.dispose();
+        context.dispose();
     });
 });

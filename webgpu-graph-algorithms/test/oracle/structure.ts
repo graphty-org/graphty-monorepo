@@ -1,6 +1,6 @@
 /**
  * The CPU reference of triangle counting (design 8.5, 9.7; the P11 plan's P11-T2): for every vertex, every pair of
- * its neighbours is tested for adjacency with a Set per row -- the slow and obviously correct form, written apart
+ * its neighbors is tested for adjacency with a Set per row -- the slow and obviously correct form, written apart
  * from the kernel's oriented sorted merge so a bug shared by both is unlikely. It works on the simple symmetric graph
  * (`simpleSymmetricOracle`), counts every triangle three times (once per corner) and returns the coefficient and the
  * transitivity in f64.

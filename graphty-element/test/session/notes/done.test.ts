@@ -46,7 +46,7 @@ describe("a note's done state", () => {
         const done = session.notes.get(id);
         assert.isString(done?.done);
         assert.strictEqual(done?.edited, done?.done, "marking done is an edit, stamped once");
-        assert.strictEqual(session.history.steps.at(-1)?.label, "Edited note");
+        assert.deepEqual(session.history.steps.at(-1)?.fact, { code: "note.update", params: {} });
 
         const steps = session.history.steps.length;
         session.notes.update(id, { done: true });

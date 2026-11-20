@@ -5,6 +5,7 @@
  * runs it.
  */
 
+export { caveat } from "../../session/runs/caveatFacts";
 export { DeclaredAlgorithm } from "./DeclaredAlgorithm";
 export {
     communityFieldSpecs,

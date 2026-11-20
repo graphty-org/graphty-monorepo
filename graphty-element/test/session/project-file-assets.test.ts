@@ -12,7 +12,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { buildParts, reassemble } from "../../src/autosave/parts";
 import { isGraphtyError } from "../../src/errors";
 import type { AssetsApiInternal } from "../../src/session/assets/AssetsApi";
-import { MAX_DOCUMENT_ASSET_BYTES } from "../../src/session/assets/projectMember";
 import type { GraphSession } from "../../src/session/types";
 import { PNG_1X1, sphereGlb, texturedGltfSet } from "../fixtures/models/fixtures";
 import { baseSession, sessionWithRuns } from "../helpers/project-session";
@@ -125,6 +124,21 @@ describe("graphty-assets: saving", () => {
         assert.equal(notEmbedded?.params.ref, "asset:not-held");
     });
 
+    it("leaves a model out of the file past the page's documentBytes limit", async () => {
+        const { session, glbId, gltfId } = await sessionWithModels();
+        const glbBytes = session.assets.get(glbId as `asset:${string}`)?.byteLength ?? 0;
+        session.assets.setLimits({ documentBytes: glbBytes });
+        const saved = await session.project.save();
+        assert.deepEqual(
+            memberOf(saved.text).member.assets.map((entry) => entry.id),
+            [glbId],
+        );
+        const left = saved.report.leftOut.find((problem) => problem.code === "E_MODEL_TOO_LARGE");
+        assert.equal(left?.params.what, "documentBytes");
+        assert.equal(left?.params.id, gltfId);
+        assert.equal(left?.params.limit, glbBytes);
+    });
+
     it("writes one copy of the files per digest", async () => {
         const session = await baseSession();
         const bytes = sphereGlb(8, 4);
@@ -193,7 +207,7 @@ describe("graphty-assets: opening", () => {
         const { session } = await sessionWithModels();
         const document = JSON.parse((await session.project.save()).text) as { members: Member[] };
         const member = document.members.find((each) => each.kind === "graphty-assets") as Member;
-        const huge = Math.ceil((MAX_DOCUMENT_ASSET_BYTES + 3) / 3) * 3;
+        const huge = 3 * 1024;
         member.assets[0].files?.push({
             path: "padding.bin",
             mediaType: "application/octet-stream",
@@ -201,6 +215,7 @@ describe("graphty-assets: opening", () => {
             data: "A".repeat((huge / 3) * 4),
         });
         const target = sessionWithRuns();
+        target.assets.setLimits({ documentBytes: 1024 });
         const error = await target.project.open(JSON.stringify(document)).catch((caught: unknown) => caught);
         assert.isTrue(isGraphtyError(error));
         assert.equal((error as { code: string }).code, "E_MODEL_TOO_LARGE");

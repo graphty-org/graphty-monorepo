@@ -1,5 +1,5 @@
 /**
- * @file The built-in algorithm catalogue: one plain-JSON descriptor per algorithm the element
+ * @file The built-in algorithm catalog: one plain-JSON descriptor per algorithm the element
  * actually registers.
  *
  * A descriptor says what an algorithm is called in words a non-expert reads, what it computes,
@@ -16,13 +16,10 @@
  *   component strength -- and they are authored as Zod schemas and emitted through the same
  *   walk, not typed out as descriptors.
  * - **Nothing in the table is a function or a class.** `AlgorithmDescriptor.cost` is optional
- *   and is deliberately left unset on every entry: the catalogue has to survive
+ *   and is deliberately left unset on every entry: the catalog has to survive
  *   `JSON.stringify`, a `postMessage` to a worker and a write to a saved document, and a
  *   closure survives none of those. A cost estimate that needs code belongs to
  *   `session.estimate()`, which runs where the code is.
- * - **The table only lists what ships.** One member of `KNOWN_ALGORITHMS` -- `all-paths`, listed
- *   in `DEPRECATED_ALGORITHMS` -- is not implemented and therefore has no descriptor here. A
- *   catalogue that advertised it would be lying about what the element can run.
  *
  * Two conventions worth stating once:
  *
@@ -68,7 +65,7 @@ import type {
 export interface LegacyAlgorithmKey {
     /** The `static type` the class carried in 1.10, without the "graphty:" namespace. */
     readonly key: string;
-    /** The 2.0 parameters that reproduce the 1.10 behaviour. Absent when only the key changed. */
+    /** The 2.0 parameters that reproduce the 1.10 behavior. Absent when only the key changed. */
     readonly params?: Readonly<Record<string, unknown>>;
 }
 
@@ -78,7 +75,7 @@ export interface LegacyAlgorithmKey {
  *
  * `key` is narrowed to {@link KnownAlgorithm} rather than left as the open `AlgorithmKey`, so a
  * built-in whose key is not in the published list fails to compile here instead of appearing in
- * a catalogue nothing else knows about.
+ * a catalog nothing else knows about.
  */
 export interface BuiltInAlgorithmDescriptor extends AlgorithmDescriptor {
     readonly key: KnownAlgorithm;
@@ -134,7 +131,7 @@ interface MetricValue {
  * Build the fields every node-metric and edge-metric result publishes.
  *
  * The per-element trio and the graph-level statistics are fixed by the shape, which is what lets
- * a consumer read `results.<run>.value` for any metric without opening the catalogue.
+ * a consumer read `results.<run>.value` for any metric without opening the catalog.
  * @param kind - Whether the metric is measured per node or per edge.
  * @param value - What this metric's primary value is called.
  * @returns The uniform field list for a metric shape.
@@ -209,6 +206,33 @@ const MODULARITY_INTERPRETATION: FieldInterpretation = {
             id: "barely",
             plainName: "Barely separated",
             description: "The groups are hardly denser inside than a random split; the grouping may not be meaningful.",
+        },
+    ],
+};
+
+/**
+ * How severe a removal is, by the share of the surviving nodes it cuts off from their piece.
+ */
+const REMOVAL_SEVERITY: FieldInterpretation = {
+    summary: "The share of the remaining nodes cut off from the rest of their piece. Above 0.1 counts as severe.",
+    source: "graphty-element's convention: a tenth of the graph cut off is severe, any node cut off is minor.",
+    bands: [
+        {
+            id: "severe",
+            plainName: "Severe",
+            description: "More than a tenth of the remaining nodes are cut off.",
+            above: 0.1,
+        },
+        {
+            id: "minor",
+            plainName: "Minor",
+            description: "Some nodes are cut off, but no more than a tenth.",
+            above: 0,
+        },
+        {
+            id: "none",
+            plainName: "None",
+            description: "Every remaining node stays connected to the rest of its piece.",
         },
     ],
 };
@@ -338,7 +362,7 @@ function mergeOptions(...lists: readonly (readonly OptionDescriptor[])[]): reado
  * The parameter that replaces the two single-source 1.10 shortest-path keys.
  *
  * The third 1.10 key, floyd-warshall, is NOT an engine choice here: it answers a different
- * question and publishes a different result shape, so it has its own catalogue key.
+ * question and publishes a different result shape, so it has its own catalog key.
  *
  * It is authored as a Zod schema rather than as a descriptor so it goes through the same emitter
  * as every other option, and so the session has a schema to validate a caller's params against
@@ -785,13 +809,72 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         legacyKeys: [{ key: "astar" }],
     },
     {
+        key: "all-paths",
+        plainName: "Every route",
+        technicalName: "All simple paths",
+        description:
+            "Finds every route from one node to another that visits no node twice, up to a longest route and a number of routes, and how many of the routes run through each node and edge.",
+        category: "path",
+        keywords: ["all routes", "every path", "simple paths", "alternatives", "redundancy"],
+        shape: "node-set",
+        fields: [
+            ...setFields("node", "On a route", {
+                name: "found",
+                plainName: "Routes found",
+                technicalName: "found",
+                type: "integer",
+            }),
+            field({
+                name: "pathCount",
+                plainName: "Routes through it",
+                technicalName: "pathCount",
+                kind: "node",
+                type: "integer",
+            }),
+            field({ name: "in", plainName: "On a route", technicalName: "in", kind: "edge", type: "boolean" }),
+            field({
+                name: "pathCount",
+                plainName: "Routes through it",
+                technicalName: "pathCount",
+                kind: "edge",
+                type: "integer",
+            }),
+            field({
+                name: "complete",
+                plainName: "Every route found",
+                technicalName: "complete",
+                kind: "graph",
+                type: "boolean",
+            }),
+            field({
+                name: "shortest",
+                plainName: "Edges on the shortest route",
+                technicalName: "shortest",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "longest",
+                plainName: "Edges on the longest route",
+                technicalName: "longest",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({ name: "paths", plainName: "Routes", technicalName: "paths", kind: "graph", type: "table" }),
+        ],
+        options: optionsOf("all-paths"),
+        costClass: "instant",
+        complexity: "O(min(paths * length, 1,000,000 steps))",
+        legacyKeys: [{ key: "all-paths" }],
+    },
+    {
         /* ONE KEY, ONE RESULT SHAPE. The all-pairs sweep used to be a PARAMETER on shortest-path
-           -- `allPairs: true`, engine floyd-warshall -- which made one catalogue key claim two
+           -- `allPairs: true`, engine floyd-warshall -- which made one catalog key claim two
            different result shapes: a route for the single-source engines, and a measurement of
            every node for this one. A run takes its shape from its descriptor once, at creation,
            so the all-pairs run reported "path", found no `onPath` to paint from, and suggested
            nothing; `styles.encode` refused a hand-written encoding for the same reason. Its own
-           key is what makes the shape true, and every consumer that reads the catalogue up front
+           key is what makes the shape true, and every consumer that reads the catalog up front
            right about what a run of it will publish. */
         key: "all-pairs-distance",
         plainName: "How far from everything else",
@@ -1090,12 +1173,78 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         complexity: "O(n^2 * d)",
         legacyKeys: [{ key: "link-prediction" }],
     },
+    {
+        key: "removal-impact",
+        plainName: "What breaks if removed",
+        technicalName: "Removal impact",
+        description:
+            "Works out what removing some nodes or edges would cut off, without removing them: the separate pieces before and after, and the nodes left cut off from the rest of their piece.",
+        category: "structure",
+        keywords: ["simulate removing", "what if", "cut off", "resilience", "vulnerability"],
+        shape: "node-set",
+        fields: [
+            ...setFields("node", "Cut off", {
+                name: "componentsAfter",
+                plainName: "Pieces after",
+                technicalName: "componentsAfter",
+                type: "integer",
+            }),
+            field({
+                name: "componentsBefore",
+                plainName: "Pieces before",
+                technicalName: "componentsBefore",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "largestBefore",
+                plainName: "Largest piece before",
+                technicalName: "largestBefore",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "largestAfter",
+                plainName: "Largest piece after",
+                technicalName: "largestAfter",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "removedNodes",
+                plainName: "Nodes removed",
+                technicalName: "removedNodes",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "removedEdges",
+                plainName: "Edges removed",
+                technicalName: "removedEdges",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "cutOffShare",
+                plainName: "Share cut off",
+                technicalName: "cutOffShare",
+                kind: "graph",
+                type: "number",
+                domain: { min: 0, max: 1 },
+                interpretation: REMOVAL_SEVERITY,
+            }),
+        ],
+        options: optionsOf("removal-impact", { nodes: { type: "node-set" }, edges: { type: "edge-set" } }),
+        costClass: "instant",
+        complexity: "O(n + m)",
+        legacyKeys: [{ key: "removal-impact" }],
+    },
 ];
 
 /**
  * Every algorithm this package registers, as a plain-JSON descriptor.
  *
- * Twenty-nine descriptors for thirty-one registered algorithms: the two single-source
+ * Thirty-one descriptors for thirty-three registered algorithms: the two single-source
  * shortest-path engines are one key with a `method` parameter, and the two component algorithms
  * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
  * replaces and the parameters that reproduce them.
@@ -1177,7 +1326,7 @@ export function calledAlgorithm(
 /** Where a 1.10 key ended up: the descriptor that replaced it, and the parameters it needs. */
 export interface LegacyAlgorithmMapping {
     descriptor: BuiltInAlgorithmDescriptor;
-    /** The parameters that reproduce the 1.10 behaviour. Empty when only the key changed. */
+    /** The parameters that reproduce the 1.10 behavior. Empty when only the key changed. */
     params: Readonly<Record<string, unknown>>;
 }
 

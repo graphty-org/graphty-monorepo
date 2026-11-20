@@ -75,6 +75,18 @@ export function refuse(code: string, params: Record<string, ModelFactParam>): ne
     throw new ModelError(code, params);
 }
 
+/**
+ * Refuse a count over its cap (`E_MODEL_TOO_LARGE`, `what: "count"`).
+ * @param item - What is counted.
+ * @param found - How many.
+ * @param limit - The cap.
+ */
+export function cap(item: string, found: number, limit: number): void {
+    if (found > limit) {
+        refuse("E_MODEL_TOO_LARGE", { what: "count", item, found, limit });
+    }
+}
+
 /** What a reference resolved to: a file in the set, or the bytes of a `data:` URL. */
 export type Resolved = {
     readonly path: string;
@@ -157,13 +169,16 @@ export function setKeyOf(joined: string): string | undefined {
  * @param ref - The reference as the file wrote it.
  * @param from - The path of the file that wrote it.
  * @param base - The main file's web address, for a model fetched by URL.
+ * @param fromUrl - The address of the file that wrote it, when it is itself outside the folder.
  * @returns The address without its fragment, or undefined when none is known.
  */
-function outsideUrl(ref: string, from: string, base: string | undefined): string | undefined {
+function outsideUrl(ref: string, from: string, base: string | undefined, fromUrl?: string): string | undefined {
     try {
         let url: URL;
         if (WEB_ADDRESS.test(ref)) {
-            url = new URL(ref, base ?? "https://host.invalid/");
+            url = new URL(ref, fromUrl ?? base ?? "https://host.invalid/");
+        } else if (fromUrl !== undefined) {
+            url = new URL(ref, fromUrl);
         } else if (base === undefined) {
             return undefined;
         } else {
@@ -307,6 +322,12 @@ export interface Findings {
     readonly found?: { readonly name: string; readonly role: PartRole; readonly file: string }[];
     /** The main file's web address, for a model fetched by URL: what a climbing path resolves against. */
     readonly base?: string;
+    /**
+     * The address of each file found outside the main file's folder, by its key: what the
+     * references that file makes resolve against (a layer reached through `../../wheels/w.usda`
+     * names its own parts from its own folder, which its clamped key no longer says).
+     */
+    readonly outside?: Map<string, string>;
 }
 
 /**
@@ -327,7 +348,7 @@ export function findReference(
     findings: Findings,
 ): Resolved | undefined {
     try {
-        const resolved = resolveReference(ref, from, files, findings.base);
+        const resolved = resolveReference(ref, from, files, findings.base, findings.outside);
         const used = resolved.substituted;
         if (used !== undefined && !findings.warnings.some((w) => w.params.name === used.params.name)) {
             findings.warnings.push(used);
@@ -381,6 +402,9 @@ function resolveDataUrl(ref: string): Resolved {
  * @param from - The path of the file that wrote it.
  * @param files - The file set.
  * @param base - The main file's web address, for a model fetched by URL.
+ * @param outside - The addresses of files found outside the folder, by key ({@link Findings}): a
+ *     reference from one of them is outside too, resolved against its address, and one found
+ *     outside is added.
  * @returns The file or the data URL's bytes.
  * @throws ModelError `E_MODEL_EXTERNAL_URL` for a scheme other than `http(s):` and `data:`,
  *     `E_MODEL_MISSING_FILE` for a file the set does not hold (with `url` for one outside the
@@ -391,6 +415,7 @@ export function resolveReference(
     from: string,
     files: ReadonlyMap<string, Uint8Array>,
     base?: string,
+    outside?: Map<string, string>,
 ): Resolved {
     if (/^data:/i.test(ref)) {
         return resolveDataUrl(ref);
@@ -418,8 +443,11 @@ export function resolveReference(
         inside = normalizePath(joined);
     }
 
-    if (inside === undefined) {
-        return resolveOutside(ref, from, files, setKeyOf(joined), base);
+    // A file outside the folder is held under a key that drops its climb: what it names is
+    // outside too, from its own address, never matched tolerantly against the main file's folder.
+    const fromUrl = outside?.get(from);
+    if (inside === undefined || (fromUrl !== undefined && !local)) {
+        return resolveOutside(ref, from, files, setKeyOf(joined), { base, fromUrl, outside });
     }
 
     const match = matchInSet(inside, files, local);
@@ -457,7 +485,10 @@ export function resolveReference(
  * @param from - The path of the file that wrote it.
  * @param files - The file set.
  * @param key - Its key in the set.
- * @param base - The main file's web address, for a model fetched by URL.
+ * @param where - Where it is.
+ * @param where.base - The main file's web address, for a model fetched by URL.
+ * @param where.fromUrl - The address of the file that wrote it, when that is outside the folder too.
+ * @param where.outside - Where the address of a file found is recorded.
  * @returns The file.
  */
 function resolveOutside(
@@ -465,18 +496,22 @@ function resolveOutside(
     from: string,
     files: ReadonlyMap<string, Uint8Array>,
     key: string | undefined,
-    base: string | undefined,
+    where: { base?: string; fromUrl?: string; outside?: Map<string, string> },
 ): Resolved {
     if (key === undefined) {
         refuse("E_MODEL_EXTERNAL_URL", { url: cut(ref) });
     }
 
+    const url = outsideUrl(ref, from, where.base, where.fromUrl);
     const bytes = files.get(key);
     if (bytes !== undefined) {
+        if (url !== undefined && where.outside?.has(key) === false) {
+            where.outside.set(key, url);
+        }
+
         return { path: key, bytes };
     }
 
-    const url = outsideUrl(ref, from, base);
     return refuse("E_MODEL_MISSING_FILE", {
         name: cut(key),
         referencedBy: cut(from),
@@ -567,7 +602,8 @@ export function imageSize(bytes: Uint8Array): ImageSize | undefined {
 const KTX2_MAGIC = [0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a];
 
 /**
- * The size of a picture a model may name beyond PNG, JPEG and WebP: KTX2, AVIF, BMP, GIF, DDS, TGA.
+ * The size of a picture a model may name beyond PNG, JPEG and WebP: KTX2, AVIF, BMP, GIF, DDS,
+ * OpenEXR, Radiance HDR, TGA.
  * @param bytes - The picture.
  * @param view - A view of it.
  * @returns The size, or undefined.
@@ -596,6 +632,14 @@ function otherImageSize(bytes: Uint8Array, view: DataView): ImageSize | undefine
         return { width: view.getUint32(16, true), height: view.getUint32(12, true) };
     }
 
+    if (isExr(bytes)) {
+        return exrSize(bytes, view);
+    }
+
+    if (ascii(0, "#?")) {
+        return hdrSize(bytes);
+    }
+
     return tgaSize(bytes, view);
 }
 
@@ -614,6 +658,71 @@ function avifSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
     }
 
     return undefined;
+}
+
+/**
+ * Whether a picture is OpenEXR, by its magic number.
+ * @param bytes - The picture.
+ * @returns True for OpenEXR.
+ */
+function isExr(bytes: Uint8Array): boolean {
+    return bytes.length >= 8 && bytes[0] === 0x76 && bytes[1] === 0x2f && bytes[2] === 0x31 && bytes[3] === 0x01;
+}
+
+/**
+ * An OpenEXR's size, from the `dataWindow` attribute of its (first) header: after the magic and
+ * version, attributes run as `name\0 type\0 size value` until an empty name.
+ * @param bytes - The picture, known to start with the OpenEXR magic.
+ * @param view - A view of it.
+ * @returns The size, or undefined when no data window is found.
+ */
+function exrSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
+    // An attribute may be large (an embedded history); each one moves `at` forward, so the walk ends.
+    const end = bytes.length;
+    const text = (from: number): { value: string; next: number } | undefined => {
+        const zero = bytes.indexOf(0, from);
+        return zero < 0 || zero >= end
+            ? undefined
+            : { value: String.fromCodePoint(...bytes.subarray(from, zero)), next: zero + 1 };
+    };
+    let at = 8;
+    for (;;) {
+        const name = text(at);
+        if (name === undefined || name.value === "") {
+            return undefined;
+        }
+        const type = text(name.next);
+        if (type === undefined || type.next + 4 > end) {
+            return undefined;
+        }
+        const size = view.getInt32(type.next, true);
+        const value = type.next + 4;
+        if (name.value === "dataWindow" && type.value === "box2i" && size === 16 && value + 16 <= end) {
+            const width = view.getInt32(value + 8, true) - view.getInt32(value, true) + 1;
+            const height = view.getInt32(value + 12, true) - view.getInt32(value + 4, true) + 1;
+            return width > 0 && height > 0 ? { width, height } : undefined;
+        }
+        if (size < 0) {
+            return undefined;
+        }
+        at = value + size;
+    }
+}
+
+/**
+ * A Radiance HDR's size, from the resolution line after its text header, such as `-Y 512 +X 1024`.
+ * @param bytes - The picture, known to start with `#?`.
+ * @returns The size, or undefined when no resolution line is found.
+ */
+function hdrSize(bytes: Uint8Array): ImageSize | undefined {
+    const head = String.fromCodePoint(...bytes.subarray(0, Math.min(bytes.length, 4096)));
+    const line = /\n\n([-+])([XY]) (\d+) ([-+])([XY]) (\d+)\n/.exec(head);
+    if (line === null || line[2] === line[5]) {
+        return undefined;
+    }
+    const first = Number(line[3]);
+    const second = Number(line[6]);
+    return line[2] === "Y" ? { width: second, height: first } : { width: first, height: second };
 }
 
 /**
@@ -638,7 +747,8 @@ function tgaSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
  * @param bytes - The image file.
  * @param name - What to call it in a refusal.
  * @returns `width x height x 4 x 4/3` (RGBA with mipmaps); a KTX2 picture stays compressed on the
- *     GPU, so it counts 1 byte a pixel, `width x height x 4/3`.
+ *     GPU, so it counts 1 byte a pixel, `width x height x 4/3`; OpenEXR and Radiance HDR are
+ *     drawn as floats, 16 bytes a pixel (RGBA, 32-bit).
  */
 export function textureBytesOf(bytes: Uint8Array, name: string): number {
     const size = imageSize(bytes);
@@ -651,6 +761,11 @@ export function textureBytesOf(bytes: Uint8Array, name: string): number {
         refuse("E_MODEL_TOO_LARGE", { what: "textureSize", found: side, limit: MAX_IMAGE_SIDE, name: cut(name) });
     }
 
-    const perPixel = KTX2_MAGIC.every((b, i) => bytes[i] === b) ? 1 : 4;
+    let perPixel = 4;
+    if (KTX2_MAGIC.every((b, i) => bytes[i] === b)) {
+        perPixel = 1;
+    } else if (isExr(bytes) || (bytes[0] === 0x23 && bytes[1] === 0x3f)) {
+        perPixel = 16;
+    }
     return Math.ceil((size.width * size.height * perPixel * 4) / 3);
 }

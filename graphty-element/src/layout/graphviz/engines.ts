@@ -1,13 +1,13 @@
 /**
  * @file The eight Graphviz engines graphty-element offers as layouts, and their budgets.
  *
- * Node-safe: no Worker and no import of the Graphviz package, so the catalogue can read it.
+ * Node-safe: no Worker and no import of the Graphviz package, so the catalog can read it.
  */
 
 /** A Graphviz layout engine, as Graphviz names it. */
 export type GraphvizEngine = "dot" | "neato" | "fdp" | "sfdp" | "circo" | "twopi" | "osage" | "patchwork";
 
-/** Every engine, in the order the catalogue lists them. */
+/** Every engine, in the order the catalog lists them. */
 export const GRAPHVIZ_ENGINES: readonly GraphvizEngine[] = Object.freeze([
     "dot",
     "neato",
@@ -48,13 +48,4 @@ export const GRAPHVIZ_TIME_BUDGET_MS = 60_000;
  */
 export function graphvizLayoutId(engine: GraphvizEngine): string {
     return `graphviz-${engine}`;
-}
-
-/**
- * Whether a value names a Graphviz engine.
- * @param value - a graph value, such as the DOT attribute `layout`
- * @returns true for one of the eight engine names
- */
-export function isGraphvizEngine(value: unknown): value is GraphvizEngine {
-    return typeof value === "string" && (GRAPHVIZ_ENGINES as readonly string[]).includes(value);
 }

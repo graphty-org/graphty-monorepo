@@ -1,8 +1,8 @@
 /**
- * The `run-flags` kernel body (design 6 row 10; the simple symmetric graph build): over arcs sorted by the pair
+ * The `run-flags` kernel body (the simple symmetric graph build): over arcs sorted by the pair
  * (`keysA`, `keysB`), `flags[i]` is 1 exactly when arc `i` opens a run of equal pairs -- the first arc, or one whose
  * pair differs from its predecessor's -- and is not a dropped arc (`keysA[i] == INVALID_INDEX`). An exclusive scan
- * of the flags numbers the runs, which is how parallel arcs merge into one. Body only (spec 3.5, D9); normative text.
+ * of the flags numbers the runs, which is how parallel arcs merge into one. Body only; normative text.
  */
 export const runFlagsWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)

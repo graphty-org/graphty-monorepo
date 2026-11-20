@@ -13,16 +13,19 @@ import { assert, describe, it } from "vitest";
 import {
     type Baseline,
     citedIssues,
+    floorsFileText,
     gateMessages,
     gateReportText,
     judgeKey,
     type Judgement,
     type KnownRecords,
+    knownText,
     oracleFileSha256,
     oracleSlice,
     raiseFloors,
     ratchetDrops,
     ratchetKnown,
+    reciteKnown,
     recordableScores,
     sourceOf,
     untrackedKnown,
@@ -241,6 +244,41 @@ describe("style fidelity gate", () => {
         );
     });
 
+    it("re-cites listed known failures under a new reason, leaving the list and the other elements as they were", () => {
+        const listed: KnownRecords = {
+            about: "",
+            known: { s: { "edge.route": ["loop", "other"] }, t: { "edge.route": ["loop"] } },
+            reasons: [
+                { date: "", reason: "tracked (#1)", added: { s: { "edge.route": ["loop", "other"] } }, sources: {} },
+                { date: "", reason: "tracked (#2)", added: { t: { "edge.route": ["loop"] } }, sources: {} },
+            ],
+        };
+        assert.throws(
+            () => reciteKnown(listed, { reason: "a reason that names no issue", date: "", keys: ["s"], ids: ["loop"] }),
+            /names the issue/,
+        );
+        const reason = "accepted: the oracle's export mirrors the loop (#3)";
+        const out = reciteKnown(listed, { reason, date: "2026-11-19", keys: ["s", "t"], ids: ["loop"] });
+        assert.strictEqual(out.moved, 2);
+        assert.deepEqual(out.records.known, listed.known);
+        assert.deepEqual(out.records.reasons, [
+            { date: "", reason: "tracked (#1)", added: { s: { "edge.route": ["other"] } }, sources: {} },
+            {
+                date: "2026-11-19",
+                reason,
+                added: { s: { "edge.route": ["loop"] }, t: { "edge.route": ["loop"] } },
+                sources: { unclassified: 2 },
+            },
+        ]);
+        assert.deepEqual(untrackedKnown(out.records, new Set([3])), [
+            { key: "s", property: "edge.route", id: "other", cited: [1] },
+        ]);
+        const text = knownText(out.records);
+        assert.strictEqual(text, knownText(JSON.parse(text) as KnownRecords));
+        const none = reciteKnown(listed, { reason, date: "", keys: ["s"], ids: ["missing"] });
+        assert.deepEqual([none.moved, none.records], [0, listed]);
+    });
+
     it("finds the known failures no open issue tracks: no reason, a reason citing none, or only closed issues", () => {
         const listed: KnownRecords = {
             about: "",
@@ -266,6 +304,37 @@ describe("style fidelity gate", () => {
             const untracked = untrackedKnown(records, cited).map((u) => `${u.key} ${u.property} ${u.id}`);
             assert.deepEqual(untracked.slice(0, 20), [], `${path}: ${String(untracked.length)} cite no issue`);
         }
+    });
+
+    // Sorted entries let two branches that add different known failures or floors merge without a conflict (#8729)
+    it("keeps the committed record files in their writers' order", () => {
+        const dir = "test/fidelity";
+        for (const name of ["oracle-known-failures.json", "baseline-scores.json"]) {
+            const text = readFileSync(`${dir}/${name}`, "utf8");
+            const file = JSON.parse(text) as KnownRecords & { floors?: Record<string, Record<string, number>> };
+            assert.strictEqual(text, knownText(file, file.floors), `${name} is out of order: npm run fidelity:ratchet`);
+        }
+        for (const name of ["oracle-floors.json", "requested-floors.json", "drawn-floors.json"]) {
+            const text = readFileSync(`${dir}/${name}`, "utf8");
+            assert.strictEqual(text, floorsFileText(JSON.parse(text) as object), `${name} is out of order`);
+        }
+    });
+
+    it("writes known failures, floors and reasons sorted, whatever order they came in", () => {
+        const text = knownText({
+            about: "",
+            known: { b: { "node.fill": ["x"] }, a: { "node.fill": ["y"] } },
+            reasons: [
+                { date: "2026-01-02", reason: "tracked by #2", added: {}, sources: {} },
+                { date: "2026-01-01", reason: "tracked by #1", added: {}, sources: {} },
+            ],
+        });
+        assert.isBelow(text.indexOf('"a"'), text.indexOf('"b"'));
+        assert.isBelow(text.indexOf("#1"), text.indexOf("#2"));
+        assert.strictEqual(
+            floorsFileText({ about: "", floors: { b: {}, a: {} } }),
+            floorsFileText({ about: "", floors: { a: {}, b: {} } }),
+        );
     });
 
     it("adds only the properties named, so a drop is accepted without the key's other failures", () => {

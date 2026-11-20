@@ -15,7 +15,7 @@ Next: I'll click the "installed" heading to put them in order and see if the new
 ## Step 2
 Command: --step <folder> --click-at 1125,509   (the "installed" heading)
 Screenshot: 03.png
-What happened: sorted. Small grey line says "Sorted by installed, A to Z". 1995 at top. "A to Z" is what you say for words, not days, so I'm not sure it treats them as days -- though for these year-first dates it comes out the same either way. The bottom rows are cut off.
+What happened: sorted. Small gray line says "Sorted by installed, A to Z". 1995 at top. "A to Z" is what you say for words, not days, so I'm not sure it treats them as days -- though for these year-first dates it comes out the same either way. The bottom rows are cut off.
 Next: click the heading again to get the newest on top.
 
 ## Step 3

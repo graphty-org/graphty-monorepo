@@ -10,6 +10,8 @@
 
 // The algorithms, their options and their results.
 export * from "./indexed/index.js";
+// The alpha a Katz run without one uses, for a caller that reports it.
+export { katzAlpha } from "./indexed/katz.js";
 
 // Id-keyed views of results, for a caller holding its own node ids.
 export { groupsById, type Partition, pathIds, scoresById } from "./indexed/by-id.js";

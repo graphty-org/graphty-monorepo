@@ -117,8 +117,8 @@ observed at the assertion.
 `GRAPHTY_GPU_REQUIRE` (D19, the ONE policy variable): unset = skip with the printed `E_NO_ADAPTER` reason (local
 only); `any` = an adapter must exist (default lane); `hardware` = also not software; `nvidia` (any vendor string) =
 also that vendor and, in the browser, `isFallbackAdapter === false` (GPU lane). A missing required adapter fails once
-in `globalSetup`. Only `test/setup/gpu.ts`, `vitest.config.ts` and `scripts/` read environment variables; `src/`
-never does. The other variables' per-lane values and the Chromium flag sets are in the reference file. Run `scripts/probe-browser-flags.mjs` before guessing a Chromium flag.
+in `globalSetup`. Only `test/setup/` (`env.ts` holds the switches helpers and tests share), `vitest.config.ts` and
+`scripts/` read environment variables; `src/` never does. The other variables' per-lane values and the Chromium flag sets are in the reference file. Run `scripts/probe-browser-flags.mjs` before guessing a Chromium flag.
 
 ```bash
 GRAPHTY_GPU_REQUIRE=hardware pnpm exec vitest run --project=node --project=node-gpu-alone   # NVIDIA

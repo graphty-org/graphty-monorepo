@@ -13,7 +13,7 @@
  * PRESENCE IS SUPPLIED RATHER THAN DERIVED. `{match:"has", path}` compiles to `nodeHas`, and so
  * does ``<path> != `null` `` -- they are the two spellings of one question, and an element that
  * answered them differently would paint two different sets from one intent. A column answers
- * presence from its validity bitmap without materialising the value, which is the whole reason
+ * presence from its validity bitmap without materializing the value, which is the whole reason
  * the interface offers the member; leaving it out would throw that away and read the value anyway.
  * Present means NEITHER ABSENT NOR NULL, exactly as the contract states it, so an unset row of a
  * column that declares a default is PRESENT: that row reads the default, and a reader who gets a
@@ -35,7 +35,7 @@
  *
  * NOTHING IS ALLOCATED PER ELEMENT. These readers run once per element per layer inside the
  * repaint, where the compiled selector costs single-digit nanoseconds, so one object per read
- * would cost more than everything it was measuring. A path is parsed once and memoised; a column
+ * would cost more than everything it was measuring. A path is parsed once and memoized; a column
  * is resolved once per freeze; an edge id is minted once per row per freeze and then read from an
  * array; and the snapshot check that keeps all of it honest is one call and one identity compare.
  *
@@ -49,8 +49,6 @@ import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/path
 import { RESULT_ROOT, type RunResult } from "../results";
 import { edgeSpaceOf } from "../scope/spaces";
 import type { SessionRecordSource } from "../types";
-import { parseFileStylePath } from "./fileStyles/path";
-import type { FileStyleScalar } from "./fileStyles/store";
 import type { SelectorSource, SelectorTarget } from "./predicate";
 
 // ---------------------------------------------------------------------------------------------
@@ -94,19 +92,6 @@ export interface SelectorSourceParts {
      * paths read nothing, as they do on an element no note names.
      */
     readonly notes?: NoteFactsReader;
-    /**
-     * One column of a file's style values, by element id, for the `graphty.style.*` paths. Absent,
-     * or answering undefined, those paths read nothing.
-     * @param namespace - The load's namespace.
-     * @param kind - Nodes or edges.
-     * @param key - The column's key.
-     * @returns The values by element id, or undefined when no load holds that column.
-     */
-    readonly fileStyles?: (
-        namespace: string,
-        kind: SelectorTarget,
-        key: string,
-    ) => ReadonlyMap<NodeId | EdgeId, FileStyleScalar> | undefined;
 }
 
 /**
@@ -281,8 +266,6 @@ type PathKind =
     | "note"
     /** A node's structural value, one of {@link STRUCTURE_PATHS}. */
     | "structure"
-    /** One column of a file's style values, under `graphty.style.`. */
-    | "style"
     /** Nothing this session can answer, so every read of it is absent. */
     | "none"
     /** One per-element field of one run's result. */
@@ -312,7 +295,7 @@ const NOTHING: PathEntry = Object.freeze({ kind: "none", key: "", runId: "", fie
 /**
  * Work out what a path names.
  *
- * Called once per path and memoised, because the alternative is splitting a string per element.
+ * Called once per path and memoized, because the alternative is splitting a string per element.
  *
  * A `results.*` path that is not exactly `results.<run>.<field>` is refused into
  * {@link NOTHING} rather than guessed at. `results.<run>` on its own addresses the run's whole
@@ -365,11 +348,6 @@ function parseElementPath(path: Path): PathEntry {
     const note = noteFieldOf(path);
     if (note !== undefined) {
         return { kind: "note", key: "", runId: "", field: note };
-    }
-
-    const style = parseFileStylePath(path);
-    if (style !== undefined) {
-        return { kind: "style", key: style.key, runId: style.namespace, field: style.kind };
     }
 
     return NOTHING;
@@ -491,7 +469,7 @@ function cellValue(reader: ColumnReader, index: number): unknown {
 /**
  * Whether one cell of a column holds a value.
  *
- * The validity bit answers it without materialising anything, which is the reason a source
+ * The validity bit answers it without materializing anything, which is the reason a source
  * supplies presence rather than letting it be derived. A set row never holds null -- writing null
  * unsets the row -- so a set bit IS a present value.
  * @param reader - The column.
@@ -540,7 +518,7 @@ function isPresent(value: unknown): boolean {
  * ```
  */
 export function createSelectorSource(parts: SelectorSourceParts): SessionSelectorSource {
-    const { snapshot: readSnapshot, records, notes, fileStyles } = parts;
+    const { snapshot: readSnapshot, records, notes } = parts;
     const readResult = parts.results;
     const paths = new Map<Path, PathEntry>();
     let frame: Frame | null = null;
@@ -699,32 +677,6 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
     };
 
     /**
-     * One element's file-style value: the column's value under the element's id.
-     * @param target - Whether the asking layer paints nodes or edges.
-     * @param index - The element's dense index.
-     * @param entry - The parsed style path.
-     * @returns The value, or undefined when the element holds none.
-     */
-    const styleOf = (target: SelectorTarget, index: number, entry: PathEntry): unknown => {
-        // A node path read by an edge layer, or the reverse, names nothing that element holds.
-        if (entry.field !== target) {
-            return undefined;
-        }
-
-        const column = fileStyles?.(entry.runId, target, entry.key);
-        if (column === undefined) {
-            return undefined;
-        }
-
-        const held = current();
-        if (target === "node") {
-            return index >= 0 && index < held.nodeCount ? column.get(held.graph.ids.idOf(index)) : undefined;
-        }
-
-        return index >= 0 && index < held.edgeCount ? column.get(edgeIdAt(held, index)) : undefined;
-    };
-
-    /**
      * One element's value for a path.
      * @param target - Whether the asking layer paints nodes or edges.
      * @param index - The element's dense index.
@@ -740,10 +692,6 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
 
         if (entry.kind === "note") {
             return notes?.(target, index)?.[entry.field as keyof NoteFacts];
-        }
-
-        if (entry.kind === "style") {
-            return styleOf(target, index, entry);
         }
 
         const held = current();
@@ -787,10 +735,6 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
 
         if (entry.kind === "note") {
             return notes?.(target, index) !== undefined;
-        }
-
-        if (entry.kind === "style") {
-            return isPresent(styleOf(target, index, entry));
         }
 
         const held = current();

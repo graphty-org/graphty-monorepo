@@ -296,6 +296,9 @@ export default defineConfig(({ mode, command }) => {
             ),
         },
         build: {
+            // The browsers README.md "Browser Support" promises; Vite 8's default, pinned so a Vite major
+            // cannot move it without the README.
+            target: ["chrome111", "edge111", "firefox114", "safari16.4", "ios16.4"],
             lib: {
                 entry: entries,
                 fileName: (_format, entryName): string => `${entryName}.js`,

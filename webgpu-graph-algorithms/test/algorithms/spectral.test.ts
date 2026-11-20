@@ -8,7 +8,6 @@
  */
 
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
 import { coreOf, reverseOf, runPowerIteration } from "../../src/algorithms/power-iteration.js";
 import { eigenvectorCentrality, hits, katzCentrality } from "../../src/algorithms/spectral.js";
@@ -21,7 +20,7 @@ import { fixture, FIXTURE_NAMES, KARATE_EDGES, randomEdges, snapshotOf } from ".
 import { LeakCounter } from "../helpers/leak-counter.js";
 import { expectAllClose, expectBitwiseEqual, maxRelError } from "../helpers/matchers.js";
 import { eigenvectorOracle, hitsOracle, katzOracle, type SpectralOracleOptions } from "../oracle/spectral.js";
-import { acquire, acquireRaw, gpuScale, requireGpu } from "../setup/gpu.js";
+import { acquireRaw, gpuScale, requireGpu, sharedContext } from "../setup/gpu.js";
 
 /** The defaults of the three entry points, spelled for the oracles. */
 const OPTS: SpectralOracleOptions = { maxIterations: 100, tolerance: 1e-6, weighted: true };
@@ -127,7 +126,7 @@ describe("spectral oracles (pure)", () => {
         const result = eigenvectorOracle(s, OPTS);
         expect(result.converged).toBe(true);
         expect(spearman(result.scores, densePowerIteration())).toBeGreaterThan(0.999);
-        // and the vector itself: the oracle's final L2 normalisation makes them comparable directly
+        // and the vector itself: the oracle's final L2 normalization makes them comparable directly
         expectAllClose(result.scores, densePowerIteration(), { rel: 1e-4, abs: 1e-6 }, "eigenvector");
     });
 
@@ -186,14 +185,7 @@ describe("spectral oracles (pure)", () => {
 });
 
 describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "spectral" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "spectral" });
 
     for (const leg of LEGS) {
         for (const name of FIXTURE_NAMES) {

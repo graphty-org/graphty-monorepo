@@ -24,6 +24,7 @@ import type { LocationMapFrame } from "./layout/locationMap/place";
 import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
+import type { RowRenumbering } from "./managers/RowRenumbering";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
@@ -512,16 +513,18 @@ function shaded(batch: EdgeLineBatch | null): ShadedEdgeBatch | null {
 const liftRule = new WeakMap<object, { frame: number; draws: boolean }>();
 
 /** Writes an edge's row; see {@link placeEdgeRow}. */
-let writeEdgeRow: (edge: Edge, row: number) => void;
+let writeEdgeRow: (edge: Edge, row: number, renumbering: RowRenumbering | null) => void;
 
 /**
  * Move an edge to a row of the current snapshot. Only the data manager calls it, as an edge is
  * added, removed or renumbered by a compacting freeze.
  * @param edge - The edge.
  * @param row - Its logical edge index, or INVALID_INDEX.
+ * @param renumbering - The renumberings of the graph's edge rows, which bring the row forward when
+ *     it is next read; null for a row nothing renumbers.
  */
-export function placeEdgeRow(edge: Edge, row: number): void {
-    writeEdgeRow(edge, row);
+export function placeEdgeRow(edge: Edge, row: number, renumbering: RowRenumbering | null = null): void {
+    writeEdgeRow(edge, row, renumbering);
 }
 
 /** Writes an edge's record; see {@link adoptEdgeRecord}. */
@@ -703,18 +706,30 @@ export class Edge {
      * @returns The row.
      */
     get index(): number {
-        return this.row;
-    }
+        // A freeze that renumbered the rows since this edge last read its row is applied now, not
+        // to every edge of the graph at the freeze (issue #9164).
+        const { renumbering } = this;
+        if (renumbering !== null && this.readAt !== renumbering.epoch) {
+            this.row = renumbering.resolve(this.row, this.readAt);
+            this.readAt = renumbering.epoch;
+        }
 
-    private set index(row: number) {
-        this.row = row;
+        return this.row;
     }
 
     private row: number = INVALID_INDEX;
 
+    /** The renumberings the row follows; see {@link placeEdgeRow}. */
+    private renumbering: RowRenumbering | null = null;
+
+    /** The renumbering epoch {@link Edge.row} was read at. */
+    private readAt = 0;
+
     static {
-        writeEdgeRow = (edge, row) => {
-            edge.index = row;
+        writeEdgeRow = (edge, row, renumbering) => {
+            edge.row = row;
+            edge.renumbering = renumbering;
+            edge.readAt = renumbering?.epoch ?? 0;
         };
         edgeInternals.drawn = (edge) => ({
             lineBatch: edge.lineBatch,

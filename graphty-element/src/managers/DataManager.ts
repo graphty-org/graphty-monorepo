@@ -63,6 +63,7 @@ import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
+import { RowRenumbering } from "./RowRenumbering";
 import { bootstrapEdgePaint, bootstrapNodePaint, type NodePaint } from "./StylePainter";
 
 /** The graph value a plugin algorithm's graph-level results are kept under. */
@@ -761,7 +762,13 @@ export class DataManager implements Manager {
         ids: () => [...this.unbuiltEdgeIds.keys()],
         build: (id) => this.buildEdgeRow(this.unbuiltEdgeIds.get(id) ?? INVALID_INDEX),
     });
-    private readonly edgeRows: (Edge | undefined)[] = [];
+    private edgeRows: (Edge | undefined)[] = [];
+
+    /** The built `Edge`s at each node, filed under both ends; see {@link DataManager.dropRenderNodes}. */
+    private readonly builtEdgesAt = new Map<NodeIdType, Set<Edge>>();
+
+    /** The renumberings of the edge rows each `Edge` brings its row forward through; see {@link walkEdgeRemap}. */
+    private readonly edgeRenumbering = new RowRenumbering();
     /** Who else holds rows by index (the session's selection), told after the render objects. */
     private readonly renumberFollowers = new Set<FreezeFollower>();
     /** See `dataManagerInternals.nodesBuilt`. */
@@ -868,7 +875,10 @@ export class DataManager implements Manager {
         };
         dataManagerInternals.adoptEdge = (manager, edge) => {
             manager.noteBuilt(edge);
+            // On its row as it is, following the renumberings of the edge rows from now on.
+            placeEdgeRow(edge, edge.index, manager.edgeRenumbering);
             manager.edgeMap.set(edge.id, edge);
+            manager.indexBuiltEdge(edge);
             manager.edgeSetChanged(edge.srcId, edge.dstId);
             if (edge.index !== INVALID_INDEX) {
                 manager.edgeRows[edge.index] = edge;
@@ -1813,7 +1823,7 @@ export class DataManager implements Manager {
             placeNodeRow(element, row);
             this.nodeVersion++;
         } else {
-            placeEdgeRow(element, row);
+            placeEdgeRow(element, row, this.edgeRenumbering);
             if (row !== INVALID_INDEX) {
                 this.edgeRows[row] = element;
             }
@@ -1833,7 +1843,9 @@ export class DataManager implements Manager {
         // An edge stored with no `Edge` goes the same way, with nothing to tear down: reading it
         // would build one.
         const removed = this.dropUnbuiltEdgesOf(ids, slice);
-        const edges = [...this.edgeMap.built()];
+        // The built edges of the nodes going, from the index by end: a scan of every built edge was a
+        // walk of a million edges on each redo of a removal (issue #9164).
+        const edges = [...new Set([...ids].flatMap((id) => [...(this.builtEdgesAt.get(id) ?? [])]))];
         disposeReleased(
             // Built ones only: a row removed with no `Node` has none to release, and is not given one.
             [...ids].flatMap((id) => this.nodeMap.builtOf(id) ?? []),
@@ -2005,6 +2017,7 @@ export class DataManager implements Manager {
         this.disposeNodesAndEdges();
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.builtEdgesAt.clear();
         this.nodeVersion++;
         this.edgeVersion++;
         this.nodeCache.clear();
@@ -2299,13 +2312,19 @@ export class DataManager implements Manager {
             }
         }
 
-        this.edgeRows.length = 0;
-        for (const edge of this.edgeMap.built()) {
-            const moved = remap[edge.index] ?? INVALID_INDEX;
-            placeEdgeRow(edge, moved);
-            if (moved !== INVALID_INDEX) {
-                this.edgeRows[moved] = edge;
-            }
+        // An order-keeping renumbering -- every removal -- is kept as runs, and each `Edge` brings its
+        // row forward when it is next read: a removal from a million edges places none of them
+        // (issue #9164). Only the row-indexed list is renumbered here, in one pass with no `Edge` read.
+        const renumbering = this.edgeRenumbering;
+        if (renumbering.full) {
+            // Every `Edge` is brought forward once in so many renumberings, so the kept runs stay few.
+            this.restampEdges(null);
+        }
+
+        if (renumbering.record(remap)) {
+            this.edgeRows = RowRenumbering.remapRows(this.edgeRows, remap);
+        } else {
+            this.restampEdges(remap);
         }
 
         const survivors: PendingEdge[] = [];
@@ -2323,6 +2342,24 @@ export class DataManager implements Manager {
         }
 
         this.pendingEdges = survivors;
+    }
+
+    /**
+     * Place every `Edge` on its row again, through a renumbering that cannot be kept as runs, and
+     * let go of the runs kept: a walk of every edge, once in many renumberings.
+     * @param remap - The renumbering, or null to bring each forward to the rows it has now.
+     */
+    private restampEdges(remap: U32 | null): void {
+        const before = Array.from(this.edgeMap.built(), (edge) => [edge, edge.index] as const);
+        this.edgeRenumbering.restart();
+        this.edgeRows = [];
+        for (const [edge, row] of before) {
+            const moved = remap === null ? row : (remap[row] ?? INVALID_INDEX);
+            placeEdgeRow(edge, moved, this.edgeRenumbering);
+            if (moved !== INVALID_INDEX) {
+                this.edgeRows[moved] = edge;
+            }
+        }
     }
 
     /**
@@ -2487,6 +2524,7 @@ export class DataManager implements Manager {
         // Clear all collections
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.builtEdgesAt.clear();
         // Rows stored under "batched" with no `Node`: the node map counts them, so a disposed graph held them.
         this.unbuilt.clear();
         this.unbuiltIds.clear();
@@ -3018,11 +3056,41 @@ export class DataManager implements Manager {
      */
     private registerEdge(edge: Edge, edgeIndex: number): void {
         this.builtEdges++;
-        placeEdgeRow(edge, edgeIndex);
+        placeEdgeRow(edge, edgeIndex, this.edgeRenumbering);
         this.edgeRows[edgeIndex] = edge;
         this.noteBuilt(edge);
         this.edgeMap.set(edge.id, edge);
+        this.indexBuiltEdge(edge);
         this.edgeSetChanged(edge.srcId, edge.dstId);
+    }
+
+    /**
+     * File a built `Edge` under each of its ends, once.
+     * @param edge - The edge.
+     */
+    private indexBuiltEdge(edge: Edge): void {
+        for (const end of [edge.srcId, edge.dstId]) {
+            let at = this.builtEdgesAt.get(end);
+            if (at === undefined) {
+                at = new Set();
+                this.builtEdgesAt.set(end, at);
+            }
+
+            at.add(edge);
+        }
+    }
+
+    /**
+     * Take a built `Edge` out of {@link builtEdgesAt}.
+     * @param edge - The edge.
+     */
+    private unindexBuiltEdge(edge: Edge): void {
+        for (const end of [edge.srcId, edge.dstId]) {
+            const at = this.builtEdgesAt.get(end);
+            if (at?.delete(edge) === true && at.size === 0) {
+                this.builtEdgesAt.delete(end);
+            }
+        }
     }
 
     /**
@@ -3178,6 +3246,7 @@ export class DataManager implements Manager {
      */
     private teardownEdge(edge: Edge, edgeIndex: number): void {
         this.edgeMap.delete(edge.id);
+        this.unindexBuiltEdge(edge);
         // Its bundle's other members are worked out again from the pair; this one has no answer left.
         this.bundles?.byEdge.delete(edge);
         this.edgeSetChanged(edge.srcId, edge.dstId);

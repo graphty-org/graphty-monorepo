@@ -78,6 +78,13 @@ interface Counted {
     readonly repainted: number;
     /** Entries written into any `Map`: an index rebuilt over every edge or node writes one per row. */
     readonly hashed: number;
+    /** Built `Edge`s visited by a walk of every built edge: a renumbering told to each edge visits them all. */
+    readonly walked: number;
+}
+
+/** The data manager's built edges, which a walk of every edge iterates. */
+interface BuiltEdges {
+    built(): Iterator<Edge>;
 }
 
 /**
@@ -87,6 +94,16 @@ interface Counted {
  * @returns The counts.
  */
 async function countedWork(element: Graphty, edit: () => Promise<unknown>): Promise<Counted> {
+    const { edgeMap } = element.graph.getDataManager() as unknown as { edgeMap: BuiltEdges };
+    const { built } = edgeMap;
+    let walked = 0;
+    edgeMap.built = function* (this: BuiltEdges) {
+        const each = built.call(this);
+        for (let next = each.next(); next.done !== true; next = each.next()) {
+            walked++;
+            yield next.value;
+        }
+    } as BuiltEdges["built"];
     const placed = vi.spyOn(Edge.prototype, "update");
     const nodes = vi.spyOn(Node.prototype, "applySessionPaint");
     const rows = vi.spyOn(NodeBatches.prototype, "paintRow");
@@ -102,6 +119,7 @@ async function countedWork(element: Graphty, edit: () => Promise<unknown>): Prom
         await settle(element);
     } finally {
         Map.prototype.set = set;
+        edgeMap.built = built;
     }
 
     const counted = {
@@ -111,6 +129,7 @@ async function countedWork(element: Graphty, edit: () => Promise<unknown>): Prom
             rows.mock.results.filter(({ value }) => value === true).length +
             edges.mock.calls.length,
         hashed,
+        walked,
     };
     placed.mockRestore();
     nodes.mockRestore();
@@ -148,6 +167,19 @@ async function editsOn(size: number): Promise<Record<string, Counted>> {
     work.undo = await countedWork(element, () => element.session.undo());
     work.redo = await countedWork(element, () => element.session.redo());
     work.removeNode = await countedWork(element, () => data.removeNodes(["n11"]));
+    // Undo puts the node and its edges back between the others, and redo takes them out again.
+    work.undoRemoveNode = await countedWork(element, () => element.session.undo());
+    work.redoRemoveNode = await countedWork(element, () => element.session.redo());
+    work.removeEdgeAgain = await countedWork(element, () => data.removeEdges([firstEdge()]));
+    work.undoRemoveEdge = await countedWork(element, () => element.session.undo());
+    work.redoRemoveEdge = await countedWork(element, () => element.session.redo());
+    // Undo and redo of edits that change only values.
+    work.updateNodeAgain = await countedWork(element, () => data.updateNodes([{ id: "n8", values: { group: 7 } }]));
+    work.undoUpdateNode = await countedWork(element, () => element.session.undo());
+    work.redoUpdateNode = await countedWork(element, () => element.session.redo());
+    work.updateEdgeAgain = await countedWork(element, () => data.updateEdges([{ id: firstEdge(), values: { w: 3 } }]));
+    work.undoUpdateEdge = await countedWork(element, () => element.session.undo());
+    work.redoUpdateEdge = await countedWork(element, () => element.session.redo());
     document.body.replaceChildren();
     return work;
 }
@@ -169,11 +201,22 @@ describe("one data edit on a large graph", () => {
                 `${edit} repaints the same at four times the graph`,
             );
             assert.strictEqual(counted.placed, before.placed, `${edit} places the same at four times the graph`);
-            assert.isAtMost(counted.placed, 2 * SPAN, `${edit} places only the edges of its own pairs`);
-            assert.isAtMost(counted.repainted, 2, `${edit} repaints only the elements it changed`);
-            if (edit === "removeNode") {
-                // Taking a node out renumbers the rows after it: the builder's id map, and under "batched"
-                // the rows waiting for a `Node`, hold an entry per node -- never one per edge (1,500 more).
+            // Putting a node back brings back its node and its ten edges, each placed on the frames that build it.
+            const restores = /^(undo|redo)Remove/.test(edit);
+            assert.isAtMost(
+                counted.placed,
+                (restores ? 6 : 2) * SPAN,
+                `${edit} places only the edges of its own pairs`,
+            );
+            assert.isAtMost(
+                counted.repainted,
+                restores ? 2 * SPAN + 2 : 2,
+                `${edit} repaints only the elements it changed`,
+            );
+            assert.strictEqual(counted.walked, 0, `${edit} walks no built edge`);
+            if (/remove/i.test(edit)) {
+                // A removal, its undo and its redo renumber the rows after it: the builder's id map, and under
+                // "batched" the rows waiting for a `Node`, hold an entry per node -- never one per edge (1,500 more).
                 assert.isAtMost(counted.hashed - before.hashed, 2 * (400 - 100), `${edit} indexes no edge again`);
             } else {
                 assert.strictEqual(counted.hashed, before.hashed, `${edit} indexes nothing again`);

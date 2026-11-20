@@ -167,9 +167,11 @@ describe("one data edit on a large graph", () => {
                     "change a node value": await measure(element, () =>
                         data.updateNodes([{ id: 7, values: { group: 99 } }]),
                     ),
+                    "undo the node value": await measure(element, () => element.session.undo()),
                     "change an edge value": await measure(element, () =>
                         data.updateEdges([{ id: third, values: { w: 7 } }]),
                     ),
+                    "undo the edge value": await measure(element, () => element.session.undo()),
                     "add a node": await measure(element, () =>
                         data.addNodes([{ id: "extra", group: 1, position: { x: 1, y: 2, z: 0 } }]),
                     ),
@@ -177,6 +179,8 @@ describe("one data edit on a large graph", () => {
                     "undo the added edge": await measure(element, () => element.session.undo()),
                     "redo it": await measure(element, () => element.session.redo()),
                     "remove a node": await measure(element, () => data.removeNodes([11])),
+                    "undo the removed node": await measure(element, () => element.session.undo()),
+                    "redo the removal": await measure(element, () => element.session.redo()),
                 };
 
                 const ms = (value: number): string => `${value.toFixed(0)} ms`;

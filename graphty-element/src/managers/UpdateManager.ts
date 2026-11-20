@@ -12,9 +12,10 @@ import type { CameraManager } from "../cameras/CameraManager";
 import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraController";
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
-import { writableLane } from "../data/lane";
+import { WRITABLE_LANE, writableLane } from "../data/lane";
 import { Edge, pulledLines } from "../Edge";
 import { drawnCurveInWorld } from "../edgeWorldCurve";
+import { StaticLayoutEngine } from "../layout/LayoutEngine";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
@@ -1858,7 +1859,11 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        const { members } = this.dataManager.drawnBundle(edge);
+        // The pair's edges off the snapshot: the first repaint of an edge after a load would otherwise work out the
+        // bundle of every pair in the graph to find one fan (issue #9164).
+        const members =
+            this.dataManager.builtEdgesOfPairs([[edge.srcId, edge.dstId]], false)?.[0]?.edges ??
+            this.dataManager.drawnBundle(edge).members;
         if (members.length > 1) {
             for (const member of members) {
                 if (member !== edge) {
@@ -3807,7 +3812,13 @@ export class UpdateManager implements Manager {
         this.layoutManager.placeGroups();
 
         // A transition places every row on its way, so it walks them all.
-        const roster = !published || transitionsOf(this.layoutManager)?.active === true ? null : this.roster();
+        const transition = transitionsOf(this.layoutManager)?.active === true;
+        if (!published && !transition && this.updateMovedNodes()) {
+            this.statsManager.nodeUpdate.endMonitoring();
+            return;
+        }
+
+        const roster = !published || transition ? null : this.roster();
         if (roster === null) {
             for (const node of this.layoutManager.nodes) {
                 // The mesh position is updated by node.update()
@@ -3826,8 +3837,56 @@ export class UpdateManager implements Manager {
 
         // The rows drawn with no Node, which no walk above reaches, move by their rows.
         transitionsOf(this.layoutManager)?.placeRows();
+        if (roster === null) {
+            this.nodesFollowed = this.dataManager[WRITABLE_LANE].changes;
+        }
 
         this.statsManager.nodeUpdate.endMonitoring();
+    }
+
+    /** The lane's `changes` every `Node` was last brought up to, or -1; see {@link updateMovedNodes}. */
+    private nodesFollowed = -1;
+
+    /**
+     * Update only the nodes whose rows a static layout's re-run moved. Every edit re-runs a static
+     * layout, which publishes each row and changes few or none of them, and a walk of every node
+     * for that was the most of an edit to a 100,000-node graph (issue #9164).
+     * @returns False when every node has to be walked: another engine, or rows the lane cannot name.
+     */
+    private updateMovedNodes(): boolean {
+        const engine = this.layoutManager.layoutEngine;
+        if (!(engine instanceof StaticLayoutEngine)) {
+            return false;
+        }
+
+        // The re-run a node's read would start, started here, so its writes are in the lane's log.
+        if (engine.stale) {
+            engine.publishPositions();
+        }
+
+        const lane = this.dataManager[WRITABLE_LANE];
+        const rows = lane.rowsChangedSince(this.nodesFollowed);
+        if (rows === null) {
+            return false;
+        }
+
+        for (const row of rows) {
+            if (row !== INVALID_INDEX) {
+                dataManagerInternals.builtNodeAtRow(this.dataManager, row)?.update();
+            }
+        }
+
+        // A group follows its members' box, which a moved member moves.
+        for (const { group } of this.dataManager.groups) {
+            this.dataManager.nodes.get(group)?.update();
+        }
+
+        if (this.dataManager.renderLimits?.batched() === true) {
+            this.graphContext.getRowTable?.()?.flush();
+        }
+
+        this.nodesFollowed = lane.changes;
+        return true;
     }
 
     /**
@@ -4435,8 +4494,13 @@ export class UpdateManager implements Manager {
      * @internal
      */
     nodeRowsMoved(remap: ArrayLike<number>): void {
-        // The rows a repaint under way noted name other nodes now: it ends with a walk of every edge.
-        this.paintedRows = null;
+        // The rows a repaint under way noted take their new numbers, so an undo that puts a node back
+        // between others places that node's edges and not every edge (issue #9164).
+        this.paintedRows =
+            this.paintedRows?.flatMap((row) => {
+                const to = row < remap.length ? remap[row] : INVALID_INDEX;
+                return to === INVALID_INDEX ? [] : [to];
+            }) ?? null;
         const last = this.lastNodePositions;
         const moved = new Float64Array(last.length);
         moved.fill(Number.NaN);
@@ -4525,7 +4589,9 @@ export class UpdateManager implements Manager {
         this.lastLaneRelocations = relocations;
         this.unbuiltRowsMoved =
             rowsMoved && laneMoved && total === undefined && nodeCount < this.dataManager.nodes.size;
-        nodeCount = total ?? nodeCount;
+        // A share of the graph's nodes, not of the `Node`s walked: under "batched" one built `Node` that moved
+        // was every `Node`, and walked every edge (issue #9164).
+        nodeCount = total ?? Math.max(nodeCount, this.dataManager.nodes.size);
         if (unseen) {
             this.noteEveryNode(highest);
             return true;

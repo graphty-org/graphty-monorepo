@@ -40,6 +40,9 @@ export function isStorableCoordinate(value: number): boolean {
     return Number.isFinite(Math.fround(value));
 }
 
+/** The fewest changed rows {@link ElementPositions.rowsChangedSince} keeps before it lets them go. */
+const MOST_LOGGED = 4096;
+
 /**
  * The element-owned node position array (graph-format design 14.4 rule 4).
  *
@@ -127,6 +130,13 @@ export class ElementPositions {
     private changeCount = 0;
     /** See {@link ElementPositions.relocations}. */
     private relocationCount = 0;
+    /**
+     * The row of each change since `changedFrom`, one entry per {@link ElementPositions.changes},
+     * or null when a write since did not say its rows; see {@link ElementPositions.rowsChangedSince}.
+     */
+    private changedRows: number[] | null = [];
+    /** The {@link ElementPositions.changes} count `changedRows` starts from. */
+    private changedFrom = 0;
     /** A publish a layout owes the rows: see {@link ElementPositions.owe}. */
     private owed: (() => void) | null = null;
 
@@ -192,11 +202,55 @@ export class ElementPositions {
      * Say that coordinates were written straight into the lent array.
      * @param written - how many rows were written
      * @param changed - how many of them now hold something else
+     * @param rows - the rows that changed, one per change, when the writer listed them
      */
-    moved(written = 1, changed = written): void {
+    moved(written = 1, changed = written, rows?: readonly number[]): void {
         this.moves += written;
         this.changeCount += changed;
         this.relocationCount += changed;
+        if (rows?.length === changed) {
+            this.noteChanged(rows);
+        } else if (changed > 0) {
+            this.changedRows = null;
+            this.changedFrom = this.changeCount;
+        }
+    }
+
+    /**
+     * The rows whose coordinates changed since a {@link ElementPositions.changes} count, one entry
+     * per change and a renumbered row under its new number (INVALID_INDEX for one removed since),
+     * so a frame that follows the lane updates those nodes and not every node (issue #9164).
+     * @param changes - The count the reader last followed.
+     * @returns The rows, or null when a write since did not say which rows it changed, or too many
+     *     did, and the reader has to read every row.
+     */
+    rowsChangedSince(changes: number): readonly number[] | null {
+        if (changes === this.changeCount) {
+            return [];
+        }
+
+        if (this.changedRows === null || changes < this.changedFrom || changes > this.changeCount) {
+            return null;
+        }
+
+        return this.changedRows.slice(changes - this.changedFrom);
+    }
+
+    /**
+     * Log the rows a write changed, letting the log go once it is long enough that a reader reads
+     * every row anyway.
+     * @param rows - The rows.
+     */
+    private noteChanged(rows: readonly number[]): void {
+        const log = this.changedRows;
+        if (log !== null && log.length + rows.length <= Math.max(MOST_LOGGED, this.rows >>> 4)) {
+            log.push(...rows);
+            return;
+        }
+
+        // Too many to follow one by one: a reader from before reads every row, and the log starts again.
+        this.changedRows = [];
+        this.changedFrom = this.changeCount;
     }
 
     /**
@@ -398,6 +452,9 @@ export class ElementPositions {
         // a pin that stayed on the old row number would hold whichever node inherited that row.
         this.pins = remapArray(this.pins, nodeRemap, nodeCount, 0, 1);
         this.rows = nodeCount;
+        if (this.changedRows !== null) {
+            this.changedRows = this.changedRows.map((row) => (row < nodeRemap.length ? nodeRemap[row] : INVALID_INDEX));
+        }
     }
 
     /**
@@ -559,6 +616,7 @@ export class ElementPositions {
         ) {
             this.changeCount++;
             this.relocationCount += this.hasStorableX(base) ? 1 : 0;
+            this.noteChanged([index]);
         }
 
         array[base] = x;

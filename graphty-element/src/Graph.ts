@@ -1510,7 +1510,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = false;
             },
             loadArrangement: (restoring, wrote, byReader) => {
-                this.layoutManager.loadArrangement(restoring, wrote, byReader);
+                const loaded = this.layoutManager.loadArrangement(restoring, wrote, byReader);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }
@@ -1518,8 +1518,11 @@ export class Graph implements GraphContext {
                 // The edges are redrawn only when coordinates were written: a redraw re-fits
                 // every edge's arrowheads, and a graph step undone with nothing to place -- a
                 // removal, whose rows come back where they were -- would pay for all of them to
-                // move none.
-                this.updateManager.redrawArrangement(wrote);
+                // move none. The nodes are redrawn only when the engine took the lane again: with
+                // nothing moved, an undo of one value would walk every node (issue #9164).
+                if (loaded || wrote) {
+                    this.updateManager.redrawArrangement(wrote);
+                }
             },
             pin: (id, pinned) => {
                 const node = this.getNode(id);

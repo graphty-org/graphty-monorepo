@@ -1266,6 +1266,10 @@ export class LayoutManager implements Manager {
      * @param event - The freeze, carrying the snapshot every consumer must switch to.
      */
     private onSnapshotReplaced(event: GraphSnapshotReplacedEvent): void {
+        if (event.report.nodeRemap !== null || event.next.nodeCount !== event.previous?.nodeCount) {
+            this.#rowSets++;
+        }
+
         // A FREEZE IS WHERE THE GRAPH GETS ITS SIZE. The element's default layout is set before any
         // data arrives, over an empty graph, so this -- not `setLayout` -- is where a graph crosses
         // the size at which the default force arrangement is worth accelerating, in either
@@ -2393,8 +2397,9 @@ export class LayoutManager implements Manager {
      * @param byReader - Whether the reader asked for the restore (undo, redo, a history jump);
      *     false for a rollback of another command's writes, after which a driver rebuild the
      *     restore landed on resumes the layout. Defaults to `restoring`.
+     * @returns False when the engine already held the lane as it is, and nothing was handed over.
      */
-    loadArrangement(restoring: boolean, wrote = false, byReader = restoring): void {
+    loadArrangement(restoring: boolean, wrote = false, byReader = restoring): boolean {
         if (restoring) {
             this.#generation++;
             this.#restoredByReader = byReader;
@@ -2407,12 +2412,32 @@ export class LayoutManager implements Manager {
 
         const engine = this.layoutEngine;
         if (engine === undefined) {
-            return;
+            return false;
+        }
+
+        // An undo of a value edit writes no coordinate: the engine took the lane when nothing in it has
+        // moved since, and handing every node over again was a walk of a 100,000-node graph (issue #9164).
+        const lane = this.dataManager[WRITABLE_LANE];
+        const agreed = this.#agreed;
+        if (!wrote && agreed?.engine === engine && agreed.changes === lane.changes && agreed.rows === this.#rowSets) {
+            if (engine instanceof StaticLayoutEngine) {
+                engine.keepArrangement();
+            }
+
+            return false;
         }
 
         engine.loadArrangement();
         this.putOnPlane(engine);
+        this.#agreed = { engine, changes: lane.changes, rows: this.#rowSets };
+        return true;
     }
+
+    /** The engine, the lane's `changes` and the row set when the engine last took the lane; see {@link loadArrangement}. */
+    #agreed: { engine: LayoutEngine; changes: number; rows: number } | null = null;
+
+    /** Moves whenever a freeze adds, removes or renumbers node rows, which the engine takes again on a restore. */
+    #rowSets = 0;
 
     /**
      * Under a 2D engine, move every placed node with a Z onto the Z = 0 plane, keeping its X and Y.

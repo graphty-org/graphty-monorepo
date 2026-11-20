@@ -3600,6 +3600,7 @@ export interface JournalEntry {
     readonly id: JournalId;
     readonly kind: "data" | "run" | "style" | "filter" | "window" | "layout" | "view" | "selection" | "config" | "note" | "set";
     readonly runId?: RunId;
+    readonly step?: HistoryStepId;
     readonly trigger?: "suggestion" | "project" | "load";
 }
 

@@ -34,6 +34,16 @@ const COUNTED = new Set([
     "layout_changed",
     "algorithm_run",
     "export_done",
+    "style_changed",
+    "assistant_used",
+    "view_mode",
+    "xr_entered",
+    "camera_used",
+    "camera_saved",
+    "project_saved",
+    "project_reopened",
+    "load_failed",
+    "timeline_played",
 ]);
 
 let network: PostHogTestNetwork;
@@ -128,10 +138,11 @@ describe("the anonymous mode on the real posthog-js chunk", () => {
         count("sample_loaded", { sample: "karate" });
         count("sample_loaded", { sample: "les-miserables" });
         count("algorithm_run", { algorithm: "degree", outcome: "succeeded" });
+        count("style_changed", { op: "style.patch", action: "add", SECRET_KEY: "SECRET_VALUE" });
 
         await vi.waitFor(() => {
             const names = events().map((event) => event.event);
-            for (const name of ["$pageview", "sample_loaded", "algorithm_run"]) {
+            for (const name of ["$pageview", "sample_loaded", "algorithm_run", "style_changed"]) {
                 assert.include(names, name);
             }
         });
@@ -155,6 +166,10 @@ describe("the anonymous mode on the real posthog-js chunk", () => {
             events().filter((event) => event.event === "sample_loaded"),
             1,
         );
+        // A style edit, with its own allowlisted keys and nothing else of its own.
+        const style = events().find((event) => event.event === "style_changed");
+        assert.include(style?.properties, { op: "style.patch", action: "add", first_on_page: true });
+        assert.notInclude(network.bodies.join("\n"), "SECRET_VALUE");
         for (const name of ["$autocapture", "$$heatmap", "$dead_click", "$rageclick", "$web_vitals", "$pageleave"]) {
             assert.notInclude(seen, name, "the extensions did not run");
         }

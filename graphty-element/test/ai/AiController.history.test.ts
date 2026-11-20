@@ -209,6 +209,27 @@ describe("AiController history", () => {
         assert.include(JSON.stringify(sent?.messages[1]), result.code ?? "?");
     });
 
+    it("emits ai-command-error once a failed spoken message is saved", async () => {
+        const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory" });
+        assistant.engine.push(() => {
+            throw new Error("the provider is down");
+        });
+        const atError: (string | undefined)[][] = [];
+        const record = assistant.events.push.bind(assistant.events);
+        assistant.events.push = (...events) => {
+            if (events.some((event) => event.type === "ai-command-error")) {
+                const messages = assistant.controller.getConversation()?.messages ?? [];
+                atError.push(messages.map((message) => (message.role === "reader" ? message.via : message.role)));
+            }
+            return record(...events);
+        };
+
+        const result = await assistant.controller.execute("color the servers red", { via: "voice" });
+
+        assert.isFalse(result.success);
+        assert.deepStrictEqual(atError, [["voice", "assistant"]]);
+    });
+
     it('records a spoken message as via "voice", and a typed one as "text"', async () => {
         const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory" });
         assistant.engine.push(textTurn("ok"), textTurn("ok"));

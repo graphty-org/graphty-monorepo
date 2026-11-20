@@ -257,6 +257,8 @@ export const STYLE_PROPERTIES: {
         ["gradientColors", "text"],
         ["gradientStops", "text"],
         ["gradientKind", "text"],
+        ["strandColors", "text"],
+        ["strandSpacing", "number"],
         ["labelSize", "number"],
         ["arrowSize", "number"],
         ["sourceArrowSize", "number"],

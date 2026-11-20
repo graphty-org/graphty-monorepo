@@ -84,8 +84,20 @@ await element.session.config.set({ framing: { extent: "centers", padding: 30 } }
 await element.session.config.set({ framing: undefined }); // back to framing every node whole
 ```
 
+`box` frames a fixed area instead of the nodes, given by its smallest and largest x and y in the
+units node positions are drawn in: the canvas shows that area whatever the nodes' extent. It frames
+stored positions, so it applies only while the `"fixed"` layout draws them; under any other layout
+the nodes are framed. A replacing load that does not set it from its file drops it.
+
+```typescript
+await element.session.config.set({
+    framing: { extent: "centers", padding: 0, box: { min: [0, -500], max: [500, 0] } },
+});
+```
+
 A file load can set it to how the file's own program frames it, with the file style option
-`framing: "file"`: a sigma.js (graphology) file is then framed as sigma.js draws it.
+`framing: "file"`: a sigma.js (graphology) file is then framed as sigma.js draws it, and a Pajek
+file shows the whole 0..1 square Pajek fits to its Draw window.
 
 ```typescript
 await element.session.data.import(source, { styles: "file", styleOptions: { framing: "file" } });
@@ -484,6 +496,30 @@ graph.on("camera-state-changed", ({ state }) => {
     console.log("Camera moved:", state);
 });
 ```
+
+`camera-state-changed` fires for every move, the element's own included. To hear the reader's own
+camera gestures once each, listen on the session for `camera:gesture-end`:
+
+```typescript
+element.session.on("camera:gesture-end", ({ kind }) => {
+    console.log("the reader finished a camera gesture:", kind); // "orbit" | "pan" | "zoom"
+});
+```
+
+It fires once per gesture, never per frame, and the input decides when a gesture ends, never a
+timer:
+
+- A drag or a pinch ends at the pointer up that ends it. A click that moved nothing is no gesture.
+- A run of wheel events ends at the first frame with no new wheel event since the frame before.
+  Wheel events that arrive together, before a frame runs, are always one gesture.
+- A camera key ends when the last camera key held is released and the camera has come to rest
+  (in 2D, once its inertia has damped away). A key pressed before then continues the gesture.
+
+`kind` is `"orbit"` for a turn (a 3D drag, the arrow keys in 3D, a roll), `"pan"` for a sideways
+move and `"zoom"` for the wheel, a pinch or the zoom keys. Moves the element makes itself (a fit,
+a glide, `camera.autoRotate`) and calls such as `setCameraState` publish nothing. More kinds may
+be added. The type is `CameraGestureKind`, and `CAMERA_GESTURE_KINDS` lists every kind this
+version reports; both are exported from `@graphty/graphty-element/session`.
 
 ## Minimap
 

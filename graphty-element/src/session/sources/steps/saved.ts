@@ -21,7 +21,7 @@
  */
 
 import type { JoinRecord } from "../../types";
-import { copyKey, ownSpace } from "./build";
+import { copyKey, ownSpace, stepSources } from "./build";
 import { stagedJoinSteps } from "./compile";
 import { type Copies, mintEditId, mintUlid, type SourceSteps, type StepsSource, type StepsSourceKind } from "./project";
 import {
@@ -471,12 +471,14 @@ function copyIn(copy: Record<string, unknown>, columns: unknown, network: string
  * @param raw - The source as saved.
  * @param facts - What its `loads` entry records.
  * @param types - The registry, which says the type it was staged with.
+ * @param staged - Whether no step uses it: a staged source's saved space is only a proposal (5.1).
  * @returns The source and its rows, or null when it is not shaped like one.
  */
 function sourceIn(
     raw: Record<string, unknown>,
     facts: LoadFacts | undefined,
     types: readonly TypeEntry[],
+    staged: boolean,
 ): { source: StepsSource; copy: CopyTables } | null {
     const { id, label, kind, format, options, origin, mapping, settings, metadata, copy, columns } = raw;
     if (
@@ -521,7 +523,11 @@ function sourceIn(
             stagedType,
             endTypes: endTypesIn(types, id),
             spacePicked:
-                nodes?.key !== undefined && space !== undefined && space !== ownSpace(id) && space !== stagedType
+                !staged &&
+                nodes?.key !== undefined &&
+                space !== undefined &&
+                space !== ownSpace(id) &&
+                space !== stagedType
                     ? true
                     : undefined,
             declared,
@@ -659,7 +665,12 @@ export function readStepsMember(member: Readonly<Record<string, unknown>>): Step
             reader = operations;
             continue;
         }
-        const read = sourceIn(raw, facts.get(raw.id as string), types);
+        const read = sourceIn(
+            raw,
+            facts.get(raw.id as string),
+            types,
+            !(member.joins as Step[]).some((step) => stepSources(step).includes(raw.id as string)),
+        );
         if (read === null || read.source.id in sources) {
             return { pointer: `/sources/${String(at)}` };
         }

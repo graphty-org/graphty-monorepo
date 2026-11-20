@@ -166,6 +166,39 @@ describe("a second source arrives staged (source-steps)", () => {
         assert.isNotNull(within(section).getByRole("button", { name: /^Add/ }));
     });
 
+    it("asks again after a save and reopen: a picked Space comes back as a proposal, and Add holds Commit for an answer", async () => {
+        const { session } = await withPeopleDropped();
+        const section = await stage("visitors.csv", VISITORS);
+        await userEvent.click(within(section).getByRole("combobox", { name: "Space" }));
+        await userEvent.keyboard("{Control>}{ArrowDown}{/Control}");
+        await userEvent.click(await screen.findByRole("option", { name: "people.csv" }));
+        await waitFor(() => {
+            const key = session.data.staged()[0]?.key ?? "";
+            assert.isDefined(session.data.sourceTable(key).summary().mapping.space, "the Space is picked");
+        });
+
+        const { text } = await session.project.save();
+        await session.project.open(text, { discard: true });
+        const reopened = await screen.findByRole("region", { name: "visitors.csv" });
+        assert.strictEqual(
+            within(reopened).getByRole<HTMLInputElement>("combobox", { name: "Space" }).value,
+            "",
+            "the saved Space is only a proposal",
+        );
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("{Shift>}D{/Shift}");
+        const card = await within(reopened).findByRole("form", { name: "Add" });
+        assert.include(card.textContent, "Same people.csv?");
+        assert.include(card.textContent, "1 of 2");
+        assert.isTrue(
+            within(card)
+                .getByRole("button", { name: /^Commit/ })
+                .hasAttribute("disabled"),
+            "Commit waits for an answer",
+        );
+        assert.strictEqual(session.data.nodes().length, 3, "nothing is added before the answer");
+    });
+
     it("lists a staged source nowhere outside its section: the inspector's graph header names one file", async () => {
         await withPeopleDropped();
         await stage("buildings.csv", BUILDINGS);

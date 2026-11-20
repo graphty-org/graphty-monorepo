@@ -246,6 +246,36 @@ describe("source-steps drafts: the key-overlap question", () => {
             }
         });
 
+        it(`settled (5.1), by ${way}: a picked space is the reader's answer only until save; after reopen it is a proposal and Add asks`, async () => {
+            for (const reopen of [false, true]) {
+                const { session: first } = await phase6();
+                const b = await first.data.stage(BANK_B_PAIR, { space: "account" });
+                const session = reopen ? await reopened(first) : first;
+                const table = session.data.sourceTable(b).summary().mapping;
+                assert.strictEqual(
+                    table.space,
+                    reopen ? undefined : "account",
+                    `reopened=${String(reopen)}: the space reads as picked only before save`,
+                );
+                const asked = await addAs(session, b, way);
+                const issues = session.data.sources({ staged: true }).find((s) => s.key === b)?.issues ?? [];
+                assert.strictEqual(
+                    issues.some((i) => i.code === "W_SPACE_OVERLAP"),
+                    reopen,
+                    `reopened=${String(reopen)}: the question is asked only after reopen`,
+                );
+                if (way === "asking draft") {
+                    assert.lengthOf(asked, reopen ? 1 : 0, `reopened=${String(reopen)}: the draft asks`);
+                }
+                assert.strictEqual(
+                    suppliedIn(session, "account", b),
+                    reopen ? 0 : 4,
+                    `reopened=${String(reopen)}: picked merges, the reopened proposal keeps separate by default`,
+                );
+                session.dispose();
+            }
+        });
+
         it(`settled (5.1), by ${way}: a staged source's Type survives save and reopen`, async () => {
             const { session, b } = await stagedBankB();
             const q = await reopened(session);

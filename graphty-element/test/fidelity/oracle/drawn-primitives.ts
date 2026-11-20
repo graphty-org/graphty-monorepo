@@ -10,6 +10,7 @@ import type { Scene, SceneNode, ShapeClass } from "../../../../graph-io/test/fid
 import type { DrawnEdge, DrawnGraph, DrawnLabel, DrawnNode } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
 import { extendToTip, measureArrow, mergeTexts, stackedOn, withinShape } from "./associate";
+import { legiblePx } from "./compare-oracle";
 import {
     type ArrowShape,
     boxOfPoints,
@@ -966,6 +967,8 @@ export function drawnPrimitives(
                     dash: dashed(e.style, d.pattern, d.dashPx ?? null),
                     dashClass,
                     gradient,
+                    // a line drawn as strands, side by side in the order drawn
+                    ...(d.strands !== undefined && d.strands.length >= 2 ? { strands: d.strands } : {}),
                 },
                 arrows,
                 outline: outlineOf(d.outline),
@@ -977,7 +980,7 @@ export function drawnPrimitives(
                 // the texts at its ends belong to it too, as the oracle reads every text beside an edge
                 label: mergeTexts(
                     [e.label !== null ? d.label : null, ...d.endLabels]
-                        .filter((l): l is DrawnLabel => l !== null && l.enabled && l.fontPx >= 1 && l.text !== "")
+                        .filter((l): l is DrawnLabel => l !== null && l.enabled && legiblePx(l.fontPx) && l.text !== "")
                         .map(textOf),
                 ),
             },

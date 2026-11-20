@@ -70,7 +70,7 @@ import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
-import { bootstrapEdgePaint, bootstrapNodePaint, type NodePaint } from "./StylePainter";
+import { bootstrapEdgePaint, bootstrapNodePaint, type EdgePaint, type NodePaint } from "./StylePainter";
 
 /** The graph value a plugin algorithm's graph-level results are kept under. */
 const GRAPH_RESULTS = "graphResults";
@@ -1337,6 +1337,7 @@ export class DataManager implements Manager {
         this.graph = dispatcher.graph;
         dispatcher.services.data = {
             loading: () => this.ingest.settling,
+            edgeMeaning: (counter) => this.ingest.meaningAt(counter),
             apply: (mutation, draft, after) => {
                 if (mutation.kind === "remove-nodes") {
                     hooks.removing(mutation.ids, []);
@@ -3354,9 +3355,11 @@ export class DataManager implements Manager {
      * @param announce - False for an edge stored earlier with no `Edge`, whose key a pass may have painted
      *   already, so only its paint is queued (as `buildNode` does for a row with no `Node`).
      * @param queue - With `announce` false: false when the caller paints it now, so it is not painted twice.
+     * @param paint - What to build it from, when the caller already holds the paint it is about to draw; the
+     *   placeholder ({@link bootstrapEdgePaint}) otherwise.
      * @returns The `Edge`.
      */
-    private makeEdge(stored: StoredEdge, announce = true, queue = true): Edge {
+    private makeEdge(stored: StoredEdge, announce = true, queue = true, paint: EdgePaint | null = null): Edge {
         const { record: edge, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId } = stored;
         const opts = {};
         if (!this.graphContext) {
@@ -3368,7 +3371,7 @@ export class DataManager implements Manager {
             srcNodeId,
             dstNodeId,
             edgeId,
-            bootstrapEdgePaint(this.store.directed),
+            paint ?? bootstrapEdgePaint(this.store.directed),
             edge as AdHocData,
             opts,
         );
@@ -3410,10 +3413,14 @@ export class DataManager implements Manager {
             stored.record === IN_SLICE
                 ? (this.graph.slice.edges.get(edgeIdOf(stored.edgeId)) ?? IN_SLICE)
                 : stored.record;
-        const edge = this.makeEdge({ ...stored, record }, false, queue);
-        const paint = queue ? (this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null) : null;
+        const paint = this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null;
+        // Painted in this pass (`queue` false): built from that paint, not from the placeholder the paint would
+        // replace at once. Built from the placeholder, each such edge took a cap and a line slot and gave them
+        // straight back, and a batch whose last slot leaves is disposed: on "batched", where edges are built one
+        // at a time as they are painted, every edge built and disposed whole batches (issue #9181).
+        const edge = this.makeEdge({ ...stored, record }, false, queue, queue ? null : paint);
         // A row a style hides draws no line to pull, but its `Edge` must not read as drawn until the next frame.
-        if (paint !== null && (lined || paint.style.visible === false)) {
+        if (queue && paint !== null && (lined || paint.style.visible === false)) {
             edge.applySessionPaint(paint);
         }
 

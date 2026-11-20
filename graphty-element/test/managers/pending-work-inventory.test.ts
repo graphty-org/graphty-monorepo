@@ -67,6 +67,24 @@ const INVENTORY: Record<string, Covered> = {
             "test, list, preview, read and check read a source and draw nothing",
     },
     "src/data/DataSource.ts": { count: 2, kind: "load", reason: "a data source's download, inside a load" },
+    "src/session/projectFile.ts": {
+        count: 5,
+        kind: "load",
+        reason:
+            "a version 2 open's modules, loaded after the open took its place in the load line; " +
+            "save, describe and inspect read the session or a file and draw nothing",
+    },
+    "src/session/GraphSession.ts": {
+        count: 1,
+        kind: "load",
+        reason: "data.refresh of a source a version 2 open held reads its module, as a network refresh does in data.ts",
+    },
+    "src/session/sources/references.ts": {
+        count: 1,
+        reason:
+            "a network reference's address for the network gate, read from the load module; it computes a URL " +
+            "and draws nothing (the read that follows goes through data.import, held in the load line)",
+    },
     "src/data/source-bytes.ts": {
         count: 1,
         kind: "load",
@@ -94,11 +112,18 @@ const INVENTORY: Record<string, Covered> = {
             "a model's chunk and babylonjs-models, inside its load; babylonjs-models' container load, readers, " +
             "unzipping and decoders all run inside that load",
     },
+    "src/meshes/FlatBackdrop.ts": {
+        count: 1,
+        kind: "picture",
+        reason: "a flat background picture, held from its creation until its image loads, fails or is disposed",
+    },
     "src/models/TextureCache.ts": { count: 1, kind: "picture", reason: "a node's picture decoded into a texture" },
     "src/meshes/pictureSize.ts": {
-        count: 2,
+        count: 4,
         kind: "picture",
-        reason: "a picture read for its own size, which a node or a table cell is sized by, until the node is refitted",
+        reason:
+            "a picture read for its own size, which a node or a table cell is sized by, until the node is refitted; " +
+            "and a picture a label draws, until it has loaded and the label is painted again",
     },
     "src/meshes/AnnotationMeshes.ts": {
         count: 3,
@@ -111,9 +136,11 @@ const INVENTORY: Record<string, Covered> = {
         reason: "a line pattern texture; a mesh whose texture is loading is not ready, which holds the frame",
     },
     "src/meshes/NodeDecorationMesh.ts": {
-        count: 1,
+        count: 3,
         kind: "shader",
-        reason: "a decoration's texture; a mesh whose texture is loading is not ready, which holds the frame",
+        reason:
+            "a decoration's texture; a mesh whose texture is loading is not ready, which holds the frame; a picture " +
+            "the engine could not decode, redrawn through an image, is held as a picture token until its texture starts",
     },
     "src/managers/BasemapManager.ts": {
         count: 3,

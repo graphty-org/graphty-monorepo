@@ -262,6 +262,12 @@ export type GraphtyErrorCode =
      */
     | "E_DUPLICATE_ID"
     /**
+     * A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
+     * incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
+     * `details.column` and `details.rule` name them. The caller picks another rule for that column.
+     */
+    | "E_CLASH_RULE_TYPE"
+    /**
      * Two edges run between the same ordered pair of nodes and `data.knownFields.repeatedEdges`
      * is `"error"`. `details` name both endpoints and the index of the edge already present. The
      * caller sets the policy to `keep`, `first`, `last`, `sum`, `min` or `max`.
@@ -1039,6 +1045,25 @@ export type GraphtyWarningCode =
      */
     | "W_SOURCE_URL_REDACTED"
     /**
+     * A load cannot be saved as a reference: there is nothing to read it from again. It stays a
+     * copy. `params.source` is the load's key and `params.reason` why (`file`, `inline`, `join`,
+     * `secret-url`, `relative-url`, `no-seed`; OPEN UNION).
+     */
+    | "W_SOURCE_NO_PATH"
+    /**
+     * A load saved as a reference could not be read again: the project opened with its rows held
+     * bare in their places (node ids and edge ends, with no values; a save writes them and the
+     * reference back as they were), or a save kept it as a copy. `params.source` is the load's key
+     * and `params.reason` is `not-found`, `denied` or `unreadable`. On an open, `params.name` (its
+     * name, when it has one) and `params.url` (its address, for a URL load) say which it was.
+     */
+    | "W_SOURCE_UNAVAILABLE"
+    /**
+     * A load saved as a reference was read again and is no longer what the project was saved
+     * with: its rows hold the new values. `params.source` is the load's key.
+     */
+    | "W_SOURCE_CHANGED"
+    /**
      * A `graphty-sources` entry of an opened project names a network source this release has not
      * registered: its elements are there and the entry is written back, but it is not offered to
      * run. `params.id` is the entry's id and `params.source` the source id.
@@ -1128,6 +1153,7 @@ const CODE_TABLE = {
     E_AUTOSAVE_STALLED: "E_AUTOSAVE_STALLED",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
+    E_CLASH_RULE_TYPE: "E_CLASH_RULE_TYPE",
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",
     E_DUPLICATE_PLUGIN: "E_DUPLICATE_PLUGIN",
     E_PROTECTED: "E_PROTECTED",

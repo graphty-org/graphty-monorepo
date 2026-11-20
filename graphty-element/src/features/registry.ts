@@ -10,7 +10,13 @@
 
 /** The id of an experiment, as `features="..."` and `createGraphSession({ features })` take it. */
 export type FeatureId =
-    "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "save-files-v2";
+    | "assistant"
+    | "data-management"
+    | "location-map"
+    | "cosmograph"
+    | "file-styles"
+    | "source-references"
+    | "save-files-v2";
 
 /** One experiment this build can switch on. */
 export interface FeatureDescriptor {
@@ -37,6 +43,9 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // version 2 full or section file. Off, `format: 2` is refused and version 2 files are read as
     // before (refused as a newer version); version 1 files are written and read exactly as before.
     { id: "save-files-v2", plainName: "Save files version 2", issue: 8029, since: "2026-11-14" },
+    // `session.data.setCopy`: saving a URL or sample load as a reference that an open reads again.
+    // Opening a file that holds references works with it off; only choosing one is gated.
+    { id: "source-references", plainName: "Source references", issue: 8813, since: "2026-11-17" },
 ]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */

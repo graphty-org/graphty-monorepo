@@ -5566,7 +5566,7 @@ export class LayoutManager implements Manager {
     get isSettled(): boolean;
     get layoutEngine(): LayoutEngine | undefined;
     get layoutType(): string | undefined;
-    loadArrangement(restoring: boolean, wrote?: boolean, byReader?: boolean): void;
+    loadArrangement(restoring: boolean, wrote?: boolean, byReader?: boolean): boolean;
     get motion(): LayoutMotion;
     get nodes(): Iterable<Node_2>;
     onMotion: ((motion: LayoutMotion) => void) | null;

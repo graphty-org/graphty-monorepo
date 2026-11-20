@@ -33,6 +33,17 @@ const ENTRIES: readonly Entry[] = [
     { name: "BFS", directed: false, run: (s) => algorithms.breadthFirstSearch(s, 0).visitedCount },
     { name: "DFS", directed: false, run: (s) => algorithms.depthFirstSearch(s, 0).visitedCount },
     { name: "Dijkstra", directed: false, run: (s) => algorithms.dijkstra(s, 0).dist },
+    {
+        name: "Count Shortest Paths",
+        directed: false,
+        run: (s) => algorithms.countShortestPaths(s, algorithms.dijkstra(s, 0).dist, 0),
+    },
+    {
+        name: "Time-Ordered Paths",
+        directed: false,
+        run: (s) =>
+            algorithms.timeOrderedPaths(s, 0, { times: Float64Array.from({ length: s.arcCount }, (_, a) => a) }).dist,
+    },
     { name: "Bellman-Ford", directed: true, run: (s) => algorithms.bellmanFord(s, 0).dist },
     {
         name: "All Simple Paths",
@@ -51,6 +62,8 @@ const ENTRIES: readonly Entry[] = [
     { name: "Strongly Connected Components", directed: true, run: (s) => algorithms.stronglyConnectedComponents(s) },
     { name: "Kruskal", directed: false, run: (s) => algorithms.kruskalMST(s).totalWeight },
     { name: "Prim", directed: false, run: (s) => algorithms.primMST(s, { forest: true }).totalWeight },
+    { name: "Articulation Points", directed: false, run: (s) => algorithms.articulationPoints(s).nodes.length },
+    { name: "Bridges", directed: false, run: (s) => algorithms.bridges(s).edges.length },
     { name: "K-Core", directed: false, run: (s) => algorithms.kCoreDecomposition(s).maxCore },
     { name: "Louvain", directed: false, run: (s) => algorithms.louvain(s).modularity },
     { name: "Leiden", directed: false, run: (s) => algorithms.leiden(s).modularity },

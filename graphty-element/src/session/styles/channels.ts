@@ -15,10 +15,12 @@
  * every entry below names the field of the parsed style it lands on. Several entries narrow that
  * claim, and every one of them says so in `caveat` rather than pretending:
  *
- * - `node.marker` draws nothing at all. `NodeStyle.texture.icon` is declared in the schema and
- *   no renderer reads it, and the badge vocabulary that does exist belongs to a label, not to a
- *   node. It is marked `renderable: false` and its value type is `never`, so writing it is a
- *   compile error rather than a silent no-op.
+ * - `node.marker` draws nothing at all: it is reserved for markers the element draws itself (a
+ *   note's marker), and `NodeStyle.texture.icon`, the field it names, has no renderer. A picture
+ *   or an icon on a node is `node.image` (a URL or data: URL over the node's face), `node.glyph`
+ *   (an icon-font character) or `node.texture` (a picture as the shape's surface). It is marked
+ *   `renderable: false` and its value type is `never`, so writing it is a compile error rather
+ *   than a silent no-op.
  * - `edge.curvature` is a switch, not an amount. The edge renderer offsets its control points by
  *   a fixed fraction of the edge length, so "curve this edge" is the only thing it can be told.
  * - `edge.patternCount` counts the elements of a PATTERNED line. A solid line has none to count,
@@ -415,6 +417,11 @@ export interface ChannelValues {
     "node.labelBorderAlign": LabelBorderAlignValue;
     "node.labelBorderStyle": LabelBorderStyleValue;
     "node.labelBackgroundShape": LabelBackgroundShapeValue;
+    "node.labelImage": string;
+    "node.labelImageWidth": number;
+    "node.labelImageHeight": number;
+    "node.labelImageOffsetX": number;
+    "node.labelImageOffsetY": number;
     "node.labelOffsetX": number;
     "node.labelOffsetY": number;
     "node.labelShiftX": number;
@@ -749,6 +756,11 @@ export interface ChannelValues {
     "edge.labelBorderAlign": LabelBorderAlignValue;
     "edge.labelBorderStyle": LabelBorderStyleValue;
     "edge.labelBackgroundShape": LabelBackgroundShapeValue;
+    "edge.labelImage": string;
+    "edge.labelImageWidth": number;
+    "edge.labelImageHeight": number;
+    "edge.labelImageOffsetX": number;
+    "edge.labelImageOffsetY": number;
     "edge.labelOffsetX": number;
     "edge.labelOffsetY": number;
     "edge.labelShiftX": number;
@@ -1587,7 +1599,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BorderStyle" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BorderStyle" | "BackgroundShape" | "Image" | "ImageWidth" | "ImageHeight" | "ImageOffsetX" | "ImageOffsetY" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1625,6 +1637,11 @@ const LABEL_FIELD_OF_SUFFIX = {
     BorderAlign: "borderAlign",
     BorderStyle: "borderStyle",
     BackgroundShape: "backgroundShape",
+    Image: "image",
+    ImageWidth: "imageWidth",
+    ImageHeight: "imageHeight",
+    ImageOffsetX: "imageOffsetX",
+    ImageOffsetY: "imageOffsetY",
     OffsetX: "offsetX",
     OffsetY: "offsetY",
     ShiftX: "shiftX",
@@ -1928,6 +1945,30 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 'Radius), or "circle", a disc as wide as the panel is tall, or as tall as it is wide, whichever is ' +
                 'less, centered on it. Unset, "rectangle".',
         }),
+        row("Image", "Image", {
+            accepts: "text",
+            caveat:
+                "The URL of a picture drawn in the label beside or behind its words (yEd's label icon), centered on " +
+                "the words' middle unless Image Offset X and Y move it. Unset, none.",
+        }),
+        row("ImageWidth", "Image Width", {
+            accepts: "number",
+            min: 0,
+            caveat: "How wide the label's picture is drawn, in the label's units (its font size's). Unset, its font size.",
+        }),
+        row("ImageHeight", "Image Height", {
+            accepts: "number",
+            min: 0,
+            caveat: "How tall the label's picture is drawn, in the label's units. Unset, its font size.",
+        }),
+        row("ImageOffsetX", "Image Offset X", {
+            accepts: "number",
+            caveat: "How far right of the words' middle the label's picture's middle is, in the label's units.",
+        }),
+        row("ImageOffsetY", "Image Offset Y", {
+            accepts: "number",
+            caveat: "How far below the words' middle the label's picture's middle is, in the label's units.",
+        }),
         row("OffsetX", "Offset X", {
             accepts: "number",
             caveat: "How far the label is moved to the right of where its location puts it, in the scene's units.",
@@ -2072,7 +2113,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BorderStyle|BackgroundShape|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BorderStyle|BackgroundShape|Image|ImageWidth|ImageHeight|ImageOffsetX|ImageOffsetY|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 
@@ -2730,8 +2771,9 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "texture.icon",
         renderable: false,
         caveat:
-            "The element draws no marker. texture.icon is in the node schema and no renderer " +
-            "reads it, and the badge vocabulary belongs to a label rather than to a node.",
+            "Reserved for markers the element draws itself; a layer cannot write it. A picture or an " +
+            "icon on a node is `node.image` (a URL or data: URL over the node's face), `node.glyph` " +
+            "(an icon-font character) or `node.texture` (a picture as the shape's surface).",
     },
     "node.width": extentChannel("width", "x"),
     "node.height": extentChannel("height", "y"),
@@ -2781,7 +2823,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "Drawing order in a 2D view, from -1000 to 0. A node below 0 is drawn " +
             "behind every edge and every node with a higher z-index, so a group (compound) node " +
-            "drawn at -1 never hides its members. 3D views draw by real depth and ignore it.",
+            "drawn at -1 never hides its members. A 3D view moves a flat shape back the same way and " +
+            "draws a solid one by real depth.",
     },
     "node.drawOrder": {
         channel: "node.drawOrder",

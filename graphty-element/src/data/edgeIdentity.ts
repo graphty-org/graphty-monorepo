@@ -209,6 +209,44 @@ export function pairKey(source: unknown, target: unknown): string {
     return `${String(source)}\u0000${String(target)}`;
 }
 
+/**
+ * The type a record's `kind` column gives a node or edge: the only types a load makes itself, and
+ * what a version 2 file declares them as (spec 4.1.5).
+ * @param record - the record, if any
+ * @returns the type name, or undefined
+ */
+export function recordType(record: Readonly<Record<string | number, unknown>> | undefined): string | undefined {
+    const kind = record?.kind;
+    return typeof kind === "string" && kind.length > 0 && kind.length <= 256 && !kind.includes(":") ? kind : undefined;
+}
+
+/** The repeat policies that combine weights, and so reduce only repeats of one weight meaning. */
+const COMBINING_POLICIES: ReadonlySet<DuplicatePolicy> = new Set(["sum", "min", "max"]);
+
+/** What decides whether a repeat reduces into an edge between the same pair: its type and weight meaning. */
+export interface RepeatGroup {
+    /** The edge's type (its `kind`), or undefined for none. */
+    readonly type: string | undefined;
+    /** The weight meaning it was stored under; undefined when unknown, which matches any. */
+    readonly meaning: string | null | undefined;
+}
+
+/**
+ * Whether a repeat reduces into an edge between the same pair (design/data/multiple-data-sources-design.md
+ * 3.8): never into an edge of another type, and under a policy that combines weights never into
+ * one of another weight meaning. One rule for a load and for a draft's report of it.
+ * @param held - the edge the graph holds
+ * @param repeat - the repeating record's type and its load's weight meaning
+ * @param policy - the repeat policy
+ * @returns true when it reduces into it
+ */
+export function reducesInto(held: RepeatGroup, repeat: RepeatGroup, policy: DuplicatePolicy): boolean {
+    return (
+        held.type === repeat.type &&
+        (!COMBINING_POLICIES.has(policy) || held.meaning === undefined || held.meaning === repeat.meaning)
+    );
+}
+
 /** What becomes of a record repeating an edge the graph already holds. */
 type RepeatDecision =
     /** `keep`: the repeat is an edge of its own. */

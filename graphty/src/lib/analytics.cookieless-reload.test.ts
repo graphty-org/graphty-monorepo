@@ -47,7 +47,7 @@ describe("a sharing reader's reload", () => {
         const site = {
             site: "production",
             features: ["usage-analytics"],
-            analytics: { posthogKey: KEY, posthogHost: "https://eu.i.posthog.com" },
+            analytics: { posthogKey: KEY, posthogHost: "https://us.i.posthog.com" },
         };
         const config = await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
         // What an earlier visit by a reader who shares leaves behind.

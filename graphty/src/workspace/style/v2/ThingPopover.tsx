@@ -201,7 +201,8 @@ export function ThingPopover({
                     store.set({ notice: { message: failureWords(group.name, "removed", error), error: true } });
                 });
             }}
-            main={rubric.main.map((line) => (
+            // The row's common lines lead Main: under the row only once set, here always (design 2.5).
+            main={[...(rubric.common ?? []), ...rubric.main].map((line) => (
                 <RubricLine key={`main-${line.channel}-${line.name ?? ""}`} ctx={ctx} line={line} />
             ))}
             others={others}

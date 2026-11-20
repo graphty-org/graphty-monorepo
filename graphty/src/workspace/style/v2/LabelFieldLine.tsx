@@ -424,15 +424,19 @@ function flatHeld(label: LabelLineContext, line: LabelLineSpec): ChannelDescript
  * @param props - Component props
  * @param props.label - the label it belongs to
  * @param props.line - the line
+ * @param props.named - always draws its name (a line under a row in the sidebar): an unnamed color is "Color"
  * @returns The line, or nothing for a field the element does not describe
  */
 export function LabelFieldLine({
     label,
     line,
-}: Readonly<{ label: LabelLineContext; line: LabelLineSpec }>): React.JSX.Element | null {
+    named: alwaysNamed = false,
+}: Readonly<{ label: LabelLineContext; line: LabelLineSpec; named?: boolean }>): React.JSX.Element | null {
     const flat = flatHeld(label, line);
     if (flat !== undefined) {
-        return <Field ctx={label.ctx} descriptor={flat} word={line.name ?? undefined} />;
+        const word =
+            line.name ?? (alwaysNamed ? (labelFieldDescriptor(line.field)?.plainName ?? undefined) : undefined);
+        return <Field ctx={label.ctx} descriptor={flat} word={word} />;
     }
     const { style, write, title } = label;
     const field = [line.field, ...(line.units ?? [])].find((each) => valueOf(style, each) !== undefined) ?? line.field;
@@ -462,7 +466,7 @@ export function LabelFieldLine({
                 }}
             />
         );
-    const named = rule !== "R7" && rule !== "R8f" && rule !== "R2" && line.name !== null;
+    const named = rule !== "R7" && (alwaysNamed || (rule !== "R8f" && rule !== "R2" && line.name !== null));
     return (
         <LineFrame
             line={`${label.kind.style}.${line.unit === undefined ? field : "unit"}`}

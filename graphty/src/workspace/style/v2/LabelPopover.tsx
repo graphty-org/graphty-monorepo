@@ -68,7 +68,8 @@ export function LabelPopover({
                 write(Object.fromEntries(labelGroupFields(group).map((field) => [field, undefined])), drop);
             }}
             main={[
-                ...LABEL_RUBRIC.main.map((line) => (
+                // The common lines lead Main: under the row only once set, here always (design 2.5).
+                ...[...LABEL_RUBRIC.common, ...LABEL_RUBRIC.main].map((line) => (
                     <LabelFieldLine key={`main-${line.field}-${line.name ?? ""}`} label={label} line={line} />
                 )),
                 ...loose.map((field) => <LabelFieldLine key={`loose-${field}`} label={label} line={{ field }} />),

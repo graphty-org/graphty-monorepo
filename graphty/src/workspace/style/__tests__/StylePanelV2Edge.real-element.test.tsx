@@ -123,6 +123,19 @@ function rowNames(list: HTMLElement): string[] {
         .map((option) => option.textContent ?? "");
 }
 
+/**
+ * Opens a row's settings pop-over and waits for one of its lines: an unset line shows only there (design 2.5).
+ * @param row - the row.
+ * @param title - the thing's name with its kind ("Edge target end").
+ * @param selector - the line.
+ * @returns the line.
+ */
+async function settingsLine(row: HTMLElement, title: string, selector: string): Promise<HTMLElement> {
+    await userEvent.click(within(row).getByRole("button", { name: new RegExp(`^${title} settings`) }));
+    const pop = await found(document, "[data-thing-popover]");
+    return found(pop, selector);
+}
+
 describe("Style panel v2's edge things", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
@@ -150,11 +163,16 @@ describe("Style panel v2's edge things", () => {
             assert.equal(written(session, id, "edge.arrowHead"), "crow");
         });
 
-        const size = await found(row, '.ws-row[data-line="edge.arrowHeadSize"]');
+        const size = await settingsLine(row, "Edge target end", '.ws-row[data-line="edge.arrowHeadSize"]');
         await typeInto(size, "3");
         await waitFor(() => {
             assert.equal(written(session, id, "edge.arrowHeadSize"), 3);
+            assert.isNotNull(
+                row.querySelector('.ws-row[data-line="edge.arrowHeadSize"]'),
+                "set, Size shows under the row",
+            );
         });
+        await userEvent.keyboard("{Escape}");
         await userEvent.click(within(sectionOf(tab, "edge-ends")).getByRole("button", { name: /^Add/ }));
         await screen.findByRole("menuitem", { name: "Source end" });
         assert.isNull(screen.queryByRole("menuitem", { name: "Target end" }), "each end is added once");
@@ -169,17 +187,18 @@ describe("Style panel v2's edge things", () => {
         const { session, id, tab } = await openEdges();
         const line = sectionOf(tab, "edge-line");
         const row = await found(line, '[data-thing="line"]');
-        const width = await found(row, '.ws-row[data-line="edge.width"]');
+        const width = await settingsLine(row, "Edge line", '.ws-row[data-line="edge.width"]');
         await typeInto(width, "2");
         await waitFor(() => {
             assert.equal(written(session, id, "edge.width"), 2);
         });
+        await userEvent.keyboard("{Escape}");
         await undo();
         await waitFor(() => {
             assert.isUndefined(written(session, id, "edge.width"), "one Undo takes the width off");
         });
 
-        await userEvent.click(within(row).getByRole("button", { name: "Edge line settings" }));
+        await userEvent.click(within(row).getByRole("button", { name: /^Edge line settings/ }));
         const pop = await found(document, "[data-thing-popover]");
         await userEvent.click(within(pop).getByRole("button", { name: "Add to edge line settings" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Pattern" }));
@@ -210,12 +229,13 @@ describe("Style panel v2's edge things", () => {
         const { session, id, tab } = await openEdges();
         const row = await addFromTitle(tab, "edge-text", "Target caption", "targetCaption");
         await userEvent.keyboard("{Escape}");
-        await typeInto(await found(row, '.ws-row[data-line="edge.arrowHeadTextStyle.size"]'), "12");
+        await typeInto(
+            await settingsLine(row, "Edge target caption", '.ws-row[data-line="edge.arrowHeadTextStyle.size"]'),
+            "12",
+        );
         await waitFor(() => {
             assert.deepEqual(written(session, id, "edge.arrowHeadTextStyle"), { size: 12 });
         });
-
-        await userEvent.click(within(row).getByRole("button", { name: "Edge target caption settings" }));
         const pop = await found(document, "[data-thing-popover]");
         await userEvent.click(within(pop).getByRole("button", { name: "Add to edge target caption settings" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Position" }));

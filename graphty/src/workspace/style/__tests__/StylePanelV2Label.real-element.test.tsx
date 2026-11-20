@@ -45,6 +45,20 @@ async function lineOf(root: ParentNode, line: string): Promise<HTMLElement> {
 }
 
 /**
+ * Opens a row's settings pop-over: an unset line shows only there (design 2.5).
+ * @param row - the row.
+ * @returns the pop-over.
+ */
+async function popoverOf(row: HTMLElement): Promise<HTMLElement> {
+    await userEvent.click(within(row).getByRole("button", { name: /^Node label settings/ }));
+    return waitFor(() => {
+        const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+        assert.isNotNull(found);
+        return found;
+    });
+}
+
+/**
  * Types into a line's first field and commits it with Enter.
  * @param line - the line.
  * @param text - what to type.
@@ -89,11 +103,12 @@ describe("Style panel v2's Text section", () => {
             assert.isNotNull(within(row).queryByRole("button", { name: "Node label source, Node id" }));
         });
 
-        await typeInto(await lineOf(row, "node.labelStyle.size"), "2");
+        const pop = await popoverOf(row);
+        await typeInto(await lineOf(pop, "node.labelStyle.size"), "2");
         await waitFor(() => {
             assert.equal(labelStyle(session, id).size, 2, "Size writes the style's size");
         });
-        const color = await lineOf(row, "node.labelStyle.color");
+        const color = await lineOf(pop, "node.labelStyle.color");
         await userEvent.click(within(color).getByRole("textbox"));
         await userEvent.keyboard("{Control>}a{/Control}FF0000{Enter}");
         await waitFor(() => {
@@ -103,7 +118,10 @@ describe("Style panel v2's Text section", () => {
                 "color writes the style's color",
             );
             assert.equal(labelStyle(session, id).size, 2, "and keeps its size");
+            const under = row.querySelector('.ws-row[data-line="node.labelStyle.color"] .ws-field-name');
+            assert.equal(under?.textContent, "Color", "set, the color shows under the row, named");
         });
+        await userEvent.keyboard("{Escape}");
 
         // Label stays in "+", disabled, while set: one label a node until list-valued labels.
         const text = sectionOf(tab, "node-text");
@@ -120,7 +138,7 @@ describe("Style panel v2's Text section", () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const row = await addLabel(tab);
-        await userEvent.click(await within(row).findByRole("button", { name: "Node label settings" }));
+        await userEvent.click(await within(row).findByRole("button", { name: /^Node label settings/ }));
         const pop = await waitFor(() => {
             const found = document.querySelector<HTMLElement>("[data-thing-popover]");
             assert.isNotNull(found);
@@ -147,7 +165,7 @@ describe("Style panel v2's Text section", () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const row = await addLabel(tab);
-        await userEvent.click(await within(row).findByRole("button", { name: "Node label settings" }));
+        await userEvent.click(await within(row).findByRole("button", { name: /^Node label settings/ }));
         const pop = await waitFor(() => {
             const found = document.querySelector<HTMLElement>("[data-thing-popover]");
             assert.isNotNull(found);
@@ -207,7 +225,7 @@ describe("Style panel v2's Text section", () => {
             assert.isNotNull(found);
             return found;
         });
-        const color = await lineOf(row, "node.labelStyle.color");
+        const color = await lineOf(await popoverOf(row), "node.labelStyle.color");
         await userEvent.click(within(color).getByRole("textbox"));
         await userEvent.keyboard("{Control>}a{/Control}FF0000{Enter}");
         await waitFor(() => {

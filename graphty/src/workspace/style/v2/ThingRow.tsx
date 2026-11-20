@@ -34,7 +34,14 @@ import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
 import { firstItemWords, ITEM_LISTS, LISTS } from "./lists";
 import { MemberMenu, ReplaceGallery } from "./MemberMenu";
-import { type LineSpec, rubricChannels, rubricOf, SHAPE_REPLACE_RUBRIC } from "./rubric";
+import {
+    lineChannels,
+    type LineSpec,
+    rubricChannels,
+    rubricOf,
+    SHAPE_REPLACE_RUBRIC,
+    type ThingRubric,
+} from "./rubric";
 import { LineFrame, type RowSlots, RubricLine } from "./RubricLine";
 import { RowSettings, ThingLine } from "./ThingLine";
 import { FirstLines, ThingPopover } from "./ThingPopover";
@@ -131,6 +138,35 @@ function ReplacePreset({ ctx, shader }: Readonly<{ ctx: RowContext; shader: stri
                 />
             ) : null}
         </div>
+    );
+}
+
+/**
+ * The rubric's lines the layer sets, but the row's own, in the pop-over's order, each once: the lines a
+ * row draws under it in the sidebar (design 2.5).
+ * @param ctx - the row.
+ * @param rubric - the thing's rubric, if any.
+ * @param main - the row's main channel.
+ * @returns the lines.
+ */
+function setLinesOf(ctx: RowContext, rubric: ThingRubric | undefined, main: Channel): readonly LineSpec[] {
+    if (rubric === undefined) {
+        return [];
+    }
+    const seen = new Set<Channel>([main, ...(rubric.row === undefined ? [] : lineChannels(rubric.row))]);
+    return [...(rubric.common ?? []), ...rubric.main, ...(rubric.groups ?? []).flatMap((group) => group.lines)].filter(
+        (line) => {
+            const channels = lineChannels(line);
+            if (
+                line.unit !== undefined ||
+                channels.some((channel) => seen.has(channel)) ||
+                !channels.some((channel) => setOn(ctx, channel))
+            ) {
+                return false;
+            }
+            channels.forEach((channel) => seen.add(channel));
+            return true;
+        },
     );
 }
 
@@ -336,6 +372,7 @@ export function ThingRow({
         return descriptor?.renderable === true ? [descriptor] : [];
     });
     const common = rubric?.common ?? [];
+    const setLines = setLinesOf(ctx, rubric, main.channel);
     const commonChannels = new Set(common.flatMap((line) => [line.channel, ...(line.units ?? [])]));
     const changed =
         others.length > 0 ||
@@ -440,8 +477,12 @@ export function ThingRow({
                     slots={slots}
                 />
             </ThingLine>
-            {common.map((line) => (
-                <RubricLine key={line.channel} ctx={ctx} line={line} />
+            {/* Every line of the thing the layer sets, in the pop-over's order, named, each with its minus (design 2.5). */}
+            {setLines.map((line) => (
+                <RubricLine key={line.channel} ctx={ctx} line={line} named />
+            ))}
+            {others.map((descriptor) => (
+                <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />
             ))}
         </div>
     );

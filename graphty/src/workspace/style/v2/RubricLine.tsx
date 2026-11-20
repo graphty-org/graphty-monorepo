@@ -658,6 +658,8 @@ interface RubricLineProps {
     readonly line: LineSpec;
     /** Drawn as a thing's row: its settings button and minus in place of the line's. */
     readonly row?: RowSlots;
+    /** Always draws its name (a line under a row in the sidebar, design 2.5): an unnamed color is "Color". */
+    readonly named?: boolean;
 }
 
 /**
@@ -666,9 +668,10 @@ interface RubricLineProps {
  * @param props.ctx - the row
  * @param props.line - the line
  * @param props.row - drawn as a thing's row
+ * @param props.named - always draws its name
  * @returns The line, or nothing where the element offers none of its channels
  */
-export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Element | null {
+export function RubricLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps): React.JSX.Element | null {
     const { store } = useWorkspace();
     const { session, side } = ctx;
     // A line standing for several units edits whichever the row sets.
@@ -720,7 +723,6 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
             ? (line.name ?? channelWord(channel))
             : `${channelWord(channel)} and ${channelWord(line.pair)}`;
     const removeName = row?.removeLabel ?? `Remove ${removeWords.toLowerCase()}`;
-    const named = rule !== "R7" && rule !== "R8f" && line.name !== null;
     const onRemove =
         row?.onRemove ??
         ((): void => {
@@ -729,7 +731,7 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
     return (
         <LineFrame
             line={channel}
-            name={named ? (line.name ?? channelWord(channel)) : null}
+            name={lineName(line, descriptor, rule, alwaysNamed)}
             set={set}
             rule={rule}
             control={control}
@@ -739,6 +741,22 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
             dimmed={dimmed}
         />
     );
+}
+
+/**
+ * The name a line draws in its name column, or null for none: a checkbox carries its own; a full-width
+ * segment line and a line the rubric leaves unnamed draw none, unless it must ("Color" for a color).
+ * @param line - the line.
+ * @param descriptor - its channel.
+ * @param rule - its rule.
+ * @param always - whether it must draw a name (a line under a row in the sidebar).
+ * @returns the name, or null.
+ */
+function lineName(line: LineSpec, descriptor: ChannelDescriptor, rule: Rule, always: boolean): string | null {
+    if (rule === "R7" || (!always && (rule === "R8f" || line.name === null))) {
+        return null;
+    }
+    return line.name ?? (descriptor.accepts === "color" ? "Color" : channelWord(descriptor.channel));
 }
 
 /**

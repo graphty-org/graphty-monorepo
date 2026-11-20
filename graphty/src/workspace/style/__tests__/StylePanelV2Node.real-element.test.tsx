@@ -117,7 +117,7 @@ describe("Style panel v2's node things", () => {
             assert.equal(written(session, id, "node.borderWidth"), 2);
         });
 
-        await userEvent.click(within(row).getByRole("button", { name: "Node border settings" }));
+        await userEvent.click(within(row).getByRole("button", { name: /^Node border settings/ }));
         await clickSegment("Inside");
         await waitFor(() => {
             assert.equal(written(session, id, "node.borderPosition"), "inside");
@@ -142,14 +142,15 @@ describe("Style panel v2's node things", () => {
         const shape = sectionOf(tab, "node-shape");
         await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
         const row = await rowOf(shape, "shape");
-        assert.isNotNull(await lineOf(row, "node.size"), "Size is Shape's common line");
+        assert.isNull(row.querySelector('.ws-row[data-line="node.size"]'), "an unset Size is not under the row");
 
-        await userEvent.click(within(row).getByRole("button", { name: "Node shape settings" }));
+        await userEvent.click(within(row).getByRole("button", { name: /^Node shape settings/ }));
         const pop = await waitFor(() => {
             const found = document.querySelector<HTMLElement>("[data-thing-popover]");
             assert.isNotNull(found);
             return found;
         });
+        assert.isNotNull(await lineOf(pop, "node.size"), "Size leads the pop-over's Main");
         assert.isNull(within(pop).queryByRole("group", { name: "Corners" }), "Corners waits for its '+'");
         await userEvent.click(within(pop).getByRole("button", { name: "Add to node shape settings" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Corners" }));

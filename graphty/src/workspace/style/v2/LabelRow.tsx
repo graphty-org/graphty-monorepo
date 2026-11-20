@@ -21,7 +21,7 @@ import { ValueField } from "../ValueField";
 import { failureWords } from "../words";
 import { LabelFieldLine, type LabelLineContext, type LabelPatch } from "./LabelFieldLine";
 import { LabelPopover } from "./LabelPopover";
-import { flatOf, LABEL_COVERED, LABEL_RUBRIC, labelLineFields, type TextThing } from "./labelRubric";
+import { flatOf, LABEL_COVERED, LABEL_RUBRIC, type LabelField, labelLineFields, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
 import { LineFrame } from "./RubricLine";
 import { RowSettings } from "./ThingLine";
@@ -243,6 +243,31 @@ export function LabelRow({
         others.length > 0 ||
         Object.keys(style).some((field) => !common.has(field as keyof LabelStyle)) ||
         [...flats].some((flat) => !commonFlats.has(flat) && setOn(ctx, flat));
+    // A field set in the style or through its own channel; each field once, the unit lines left to the pop-over.
+    const fieldSet = (field: LabelField): boolean => {
+        const flat = flatOf(ctx.side, kind.style, field);
+        return (
+            (style as Readonly<Record<string, unknown>>)[field] !== undefined ||
+            (flat !== undefined && setOn(ctx, flat))
+        );
+    };
+    const seen = new Set<LabelField>();
+    const setLines = [
+        ...LABEL_RUBRIC.common,
+        ...LABEL_RUBRIC.main,
+        ...LABEL_RUBRIC.groups.flatMap((group) => group.lines),
+    ].filter((line) => {
+        const fields = labelLineFields(line);
+        if (
+            line.unit !== undefined ||
+            fields.some((field) => seen.has(field)) ||
+            !fields.some((field) => fieldSet(field))
+        ) {
+            return false;
+        }
+        fields.forEach((field) => seen.add(field));
+        return true;
+    });
     const settings = (
         <RowSettings label={`${title} settings`} title={title} changed={changed}>
             <LabelPopover label={label} others={others} />
@@ -267,8 +292,9 @@ export function LabelRow({
                 removeName={removeLabel}
                 onRemove={onRemove}
             />
-            {LABEL_RUBRIC.common.map((line) => (
-                <LabelFieldLine key={line.field} label={label} line={line} />
+            {/* Every line of the label the layer sets, in the pop-over's order, named (design 2.5). */}
+            {setLines.map((line) => (
+                <LabelFieldLine key={`${line.field}-${line.name ?? ""}`} label={label} line={line} named />
             ))}
         </>
     );

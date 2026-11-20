@@ -20,10 +20,9 @@
  *   out; a shard it runs whole stays as it is.
  *   --pull-request leaves out the shards marked "full-run-only" (and their bins): they run in the 6-hour full run
  *   (graphty-element-lifecycle, the fidelity slices), unless --only names them. A shard marked
- *   "pull-request": "selected" (the features-on twins, FEATURES_ON_SHARDS, and the forced-batched shards) runs on a
+ *   "pull-request": "selected" (the features-on twins, FEATURES_ON_SHARDS) runs on a
  *   pull request only as the bins of the files the change selected, never whole and never as a whole family packed
- *   into bins; a "pull-request-when" list of path patterns (BATCHED_PATH_CHANGES) further limits that to a change
- *   touching one of them (tools/test-select.mjs onlyWhenChanged()).
+ *   into bins.
  * Prints three GITHUB_OUTPUT lines:
  *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
@@ -81,19 +80,6 @@ const ELEMENT_BROWSER_PARTS = 12;
  * p90 in full runs to 2026-11-14 (#7849); two bring the p90 to about 620 s.
  */
 const ELEMENT_DEFAULT_PARTS = 2;
-
-/**
- * The changed paths that make a pull request run the forced-batched variant of its selected test files: a
- * graphty-element browser or interaction test (or the variant's own setup and skip list), and the render path --
- * the meshes (EdgeMesh, the batches, edge trim), Edge.ts and Node.ts, src/render, and the managers that place
- * rows and paint them. Regular expressions over repository paths.
- */
-export const BATCHED_PATH_CHANGES = [
-    "^graphty-element/test/(browser|interactions|forced-batched)/",
-    "^graphty-element/src/(meshes|render)/",
-    String.raw`^graphty-element/src/(Edge|Node)\.ts$`,
-    String.raw`^graphty-element/src/managers/(UpdateManager|RenderManager|StylePainter)\.ts$`,
-];
 
 /**
  * How many parts graphty's tests (graphty-N) and their experiments-on twins (graphty-features-on-N) split into. A
@@ -478,21 +464,52 @@ const OFF_SHARDS = [
     // ubuntu-24.04 without a GPU (run 42466940961, 2026-11-08, 542 files; 629 by 2026-11-16), about 6,300 s of tests
     // now: split like the browser shards, about 525 s a part against the 900 s shard budget. No coverage (the browser
     // shards measure it). Its oracle-scorecard.test.ts decodes oracle pictures, Git LFS objects.
-    // On a pull request it runs only as the bins of the files the change selected ("pull-request": "selected", as the
-    // features-on twins), and only when the change touches a browser or interaction test or the render path
-    // ("pull-request-when", tools/test-select.mjs onlyWhenChanged()): twice on 2026-11-18 a batched-path break
-    // passed its pull request and first failed here in the full run (#8826).
+    // On a pull request it runs whenever the browser shards do: the bins of the files the change selected, or, when
+    // the change runs graphty-element whole (a test/data file, package.json, a vitest config, a dependency's build),
+    // these twelve shards whole ("pack-whole": false: packed into bins of a few minutes each, its 629 files planned
+    // 64 jobs, each paying a job's setup). It used to run only as selected files, and only for a change to a browser
+    // test or the render path: a whole-package change then ran no batched test at all, which is how #9069 (a
+    // GraphStore.ts change) and the Babylon 9 upgrade (#8958) merged with no batched coverage (#9165).
     ...Array.from({ length: ELEMENT_BROWSER_PARTS }, (_, i) => i + 1).map((n) => ({
         shard: `graphty-element-forced-batched-${n}`,
         package: "graphty-element",
         "test-command": `cd graphty-element && pnpm exec vitest run --project=forced-batched --shard=${n}/${ELEMENT_BROWSER_PARTS} ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
-        "pull-request": "selected",
-        "pull-request-when": BATCHED_PATH_CHANGES,
+        "pack-whole": false,
         // every oracle's rasterized PNG (about 48 MB, the fidelity slices' cached pull), since a glob of the
         // scorecard's 28 would mean reading its sample list when this file is imported
         lfs: "graph-io/test/fidelity/oracles/*.png",
         // An hour and a half of browser in all; tools/run-tests.sh graphty-element-forced-batched-<n> by hand.
+        local: "never",
+    })),
+    // The batched render path on WebGPU and in WebKit, which no other shard draws it on: the forced-batched shards
+    // launch Chromium with no WebGPU, and the browser shards draw objects (#9165). Full run only, like the fidelity
+    // slices. "batched-webgpu" runs the forced-batched project's files that run only where the run asked for a GPU
+    // (they read GRAPHTY_BROWSER_GPU or navigator.gpu; listed when the job runs, so a new one joins by itself), but
+    // webgpu-layout.test.ts, which tests the layout on the device rather than drawing, and whose 3D "force" case
+    // fails on a device spread twice the CPU's that differs between runs (#9174): put it back when that is fixed.
+    // "render-parity-<engine>" draws every captured story under "objects" twice and "batched" once and fails on a
+    // pixel that differs (test/render-parity/stories.test.ts, design/rendering/row-renderer.md 7): on WebGL and on
+    // WebGPU in Chromium (SwiftShader), and in WebKit's WebGL2, the engine an iPad draws with.
+    {
+        shard: "graphty-element-batched-webgpu",
+        package: "graphty-element",
+        "test-command": String.raw`cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader-unthrottled pnpm exec vitest run --project=forced-batched $(grep -rlE 'GRAPHTY_BROWSER_GPU|navigator\.gpu' test/browser test/interactions --include='*.test.ts' | grep -v -e '\.bench\.' -e webgpu-layout) ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        "full-run-only": true,
+        local: "never",
+    },
+    ...[
+        { engine: "webgl", env: "GRAPHTY_BROWSER_GPU=swiftshader VITE_PARITY_RENDERER=webgl" },
+        { engine: "webgpu", env: "GRAPHTY_BROWSER_GPU=swiftshader VITE_PARITY_RENDERER=webgpu" },
+        { engine: "webkit", env: "GRAPHTY_PARITY_BROWSER=webkit", browsers: "chromium webkit" },
+    ].map(({ engine, env, browsers }) => ({
+        shard: `graphty-element-render-parity-${engine}`,
+        package: "graphty-element",
+        "test-command": `cd graphty-element && ${env} pnpm exec vitest run --project=render-parity ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        ...(browsers ? { browsers } : {}),
+        "full-run-only": true,
         local: "never",
     })),
     // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows

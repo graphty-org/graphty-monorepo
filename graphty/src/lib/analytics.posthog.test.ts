@@ -100,7 +100,7 @@ beforeEach(async () => {
     const site = {
         site: "production",
         features: ["usage-analytics"],
-        analytics: { posthogKey: KEY, posthogHost: "https://eu.i.posthog.com" },
+        analytics: { posthogKey: KEY, posthogHost: "https://us.i.posthog.com" },
     };
     await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
     setAnalyticsCallsForTests({ hostname: () => "graphty.app", posthogHost: PREFIX });

@@ -461,6 +461,7 @@ describe("view codec: writing", () => {
             namespace: "card_testing",
             as: "links",
             algorithm: "degree",
+            params: { direction: "total" },
             scope: "graph",
         });
     });

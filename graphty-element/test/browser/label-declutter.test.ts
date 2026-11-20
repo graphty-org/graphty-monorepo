@@ -81,7 +81,7 @@ describe("node labels do not overlap", () => {
 
         await g.addNodes(nodes);
         await g.addEdges(EDGES);
-        await g.setLayout("fixed", { dim: 3 });
+        await g.setLayout("fixed", { dim: 3, spacing: 0 });
         await operationQueueOf(g).waitForCompletion();
         await g.getSession().styles.add({
             name: "labels",
@@ -422,7 +422,7 @@ describe("nodeLabelCounts counts the labels drawn and why the rest are not", () 
         g.setLayoutBehavior({ labels: { declutter } });
         await g.addNodes(PILED);
         await g.addEdges(EDGES);
-        await g.setLayout("fixed", { dim: 3 });
+        await g.setLayout("fixed", { dim: 3, spacing: 0 });
         await operationQueueOf(g).waitForCompletion();
         await g.getSession().styles.add({
             name: "labels",
@@ -554,7 +554,7 @@ describe("the labels guide's example (docs/guide/labels.md)", () => {
             await operationQueueOf(g).waitForCompletion();
             await g.addNodes(PILED);
             await g.addEdges(EDGES);
-            await g.setLayout("fixed", { dim: 3 });
+            await g.setLayout("fixed", { dim: 3, spacing: 0 });
             await operationQueueOf(g).waitForCompletion();
             await tag.session.styles.add({
                 name: "labels",
@@ -615,7 +615,7 @@ describe("waitForStableFrame waits for the label counts to be announced", () => 
             await operationQueueOf(g).waitForCompletion();
             await g.addNodes(PILED);
             await g.addEdges(EDGES);
-            await g.setLayout("fixed", { dim: 3 });
+            await g.setLayout("fixed", { dim: 3, spacing: 0 });
             tag.layoutBehavior = { labels: { declutter: true } };
             await tag.session.styles.add({
                 name: "labels",
@@ -666,7 +666,7 @@ describe("the label counts are published once the labels have settled, not after
             g.setLayoutBehavior({ labels: { declutter: true } });
             await g.addNodes(PILED);
             await g.addEdges(EDGES);
-            await g.setLayout("fixed", { dim: 3 });
+            await g.setLayout("fixed", { dim: 3, spacing: 0 });
             await g.getSession().styles.add({
                 name: "labels",
                 target: "node",

@@ -80,6 +80,6 @@ export async function locateFile(): Promise<{ file: File; handle?: FileSystemFil
         }
     }
     // compact-mantine's picker keeps its input alive while Safari's file panel is open.
-    const [file] = await pickFiles({ accept: ".json,application/json" });
+    const file = (await pickFiles({ accept: ".json,application/json" })).at(0);
     return file === undefined ? undefined : { file };
 }

@@ -88,11 +88,13 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
         "style.lock-row",
         "style.hide-row",
         "style.delete-row",
+        "style.duplicate-row",
         "style.add-default-rows",
     ],
     "style.encode": ["style.encode"],
     "style.template": ["style.template"],
     "shader.set": ["shader.add", "shader.replace", "shader.remove"],
+    "asset.defaults": ["asset.defaults"],
     "visibility.set": ["visibility.filter", "visibility.clear-filter"],
     "visibility.window": ["visibility.window", "visibility.clear-window"],
     "visibility.context": ["visibility.show-context", "visibility.hide-context"],
@@ -126,6 +128,14 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "note.merge": ["note.merge"],
     "view.save": ["view.save"],
     "view.remove": ["view.remove"],
+    "view.rename": ["view.rename"],
+    "view.move": ["view.move"],
+    "view.key": ["view.key"],
+    "view.starting": ["view.starting"],
+    "tour.save": ["tour.save"],
+    "tour.remove": ["tour.remove"],
+    "tour.rename": ["tour.rename"],
+    "tour.move": ["tour.move"],
     "config.set": ["config.set"],
     "positions.set": ["positions.set"],
     "positions.pin": ["positions.pin", "positions.release"],
@@ -180,26 +190,28 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.derive": ["column", "kind"],
     "annotations.set": ["count"],
     "annotations.patch": ["action", "id"],
-    "style.add-layer": ["layer"],
-    "style.update-layer": ["channels", "layer"],
-    "style.remove-layer": ["layer"],
-    "style.move-layer": ["layer"],
+    "style.add-layer": ["layer", "layerId"],
+    "style.update-layer": ["channels", "layer", "layerId"],
+    "style.remove-layer": ["layer", "layerId"],
+    "style.move-layer": ["layer", "layerId"],
     "style.remove-layers": ["count"],
     "style.highlight": ["run"],
-    "style.fix-channel": ["channel", "layer"],
+    "style.fix-channel": ["channel", "layer", "layerId"],
     "style.encode": ["channel", "run"],
     "style.template": [],
     "shader.add": ["id", "layer"],
+    "asset.defaults": ["id"],
     "shader.replace": ["id"],
     "shader.remove": ["id"],
     "style.suggested": ["algorithms"],
-    "style.add-folder": ["name"],
-    "style.rename-row": ["name", "row"],
-    "style.move-row": ["row"],
-    "style.pin-row": ["pin", "row"],
-    "style.lock-row": ["locked", "row"],
-    "style.hide-row": ["hidden", "row"],
-    "style.delete-row": ["row"],
+    "style.add-folder": ["name", "rowId"],
+    "style.rename-row": ["name", "row", "rowId"],
+    "style.move-row": ["row", "rowId"],
+    "style.pin-row": ["pin", "row", "rowId"],
+    "style.lock-row": ["locked", "row", "rowId"],
+    "style.hide-row": ["hidden", "row", "rowId"],
+    "style.delete-row": ["row", "rowId"],
+    "style.duplicate-row": ["copyId", "row", "rowId"],
     "style.add-default-rows": [],
     "visibility.filter": ["kind"],
     "visibility.clear-filter": [],
@@ -235,6 +247,14 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "note.merge": ["source"],
     "view.save": ["names"],
     "view.remove": ["names"],
+    "view.rename": ["from", "to", "tours"],
+    "view.move": ["name", "index"],
+    "view.key": ["name", "key", "from"],
+    "view.starting": ["names"],
+    "tour.save": ["names"],
+    "tour.remove": ["names"],
+    "tour.rename": ["from", "to"],
+    "tour.move": ["name", "index"],
     "view.dimension": ["dimension"],
     "view.immersive": ["mode"],
     "config.set": ["keys"],
@@ -364,8 +384,14 @@ describe("history step facts", () => {
         await session.styles.update(layer.id, { name: "Renamed" });
         const renamed = topOf(session.history.steps, session.history.position).fact;
 
-        assert.deepEqual(sized, { code: "style.update-layer", params: { layer: "Mine", channels: ["node.size"] } });
-        assert.deepEqual(renamed, { code: "style.update-layer", params: { layer: "Mine", channels: [] } });
+        assert.deepEqual(sized, {
+            code: "style.update-layer",
+            params: { layer: "Mine", layerId: "mine_1", channels: ["node.size"] },
+        });
+        assert.deepEqual(renamed, {
+            code: "style.update-layer",
+            params: { layer: "Mine", layerId: "mine_1", channels: [] },
+        });
         session.dispose();
     });
 
@@ -384,7 +410,7 @@ describe("history step facts", () => {
         assert.equal(session.history.steps.length, before + 1);
         assert.deepEqual(topOf(session.history.steps, session.history.position).fact, {
             code: "style.update-layer",
-            params: { layer: "Mine", channels: ["node.color", "node.size"] },
+            params: { layer: "Mine", layerId: "mine_1", channels: ["node.color", "node.size"] },
         });
         session.dispose();
     });

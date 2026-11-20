@@ -16,7 +16,7 @@ and parsers for the common ways of writing a location.
 npm install babylonjs-map @babylonjs/core
 ```
 
-`@babylonjs/core` 8 is an optional peer dependency: the main `babylonjs-map` entry needs it, and you
+`@babylonjs/core` 9 is an optional peer dependency: the main `babylonjs-map` entry needs it, and you
 install it yourself. `babylonjs-map/location` and `babylonjs-map/projection` never load Babylon.js,
 so they work in Node, a Web Worker or a page without a 3D scene, with only:
 
@@ -166,7 +166,8 @@ aboutCredits.textContent = map.attribution.join(" | ");
   `beyond`, `radius`, `sun` or `atmosphere` change the map. If your scene renders only on demand,
   render a frame then.
 - Options: `lodScale` (default 1: a finer tile once a tile covers more than its own pixel size on
-  screen), `maxTiles` (256 per source), `maxCachedTiles` (256), `maxConcurrentLoads` (6),
+  screen), `maxTiles` (256 tiles chosen per source and world copy; loaded
+  stand-ins for a tile still loading are drawn in addition), `maxCachedTiles` (256), `maxConcurrentLoads` (6),
   `renderingGroupId` (0) and `loadTexture` (your own loader).
 - `map.root` is the parent of every map mesh: move, rotate or scale it to place the map. Map meshes
   are not pickable.

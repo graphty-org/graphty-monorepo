@@ -30,13 +30,16 @@ import type {
 // different EdgeId types -- graph-format's `string | number` on EdgeRecord and the catalog's
 // `string` everywhere else -- so assigning one to the other was an error on the element's own
 // published surface.
+import type { Tour } from "../camera/tour";
 import type { CameraState } from "../camera/types";
+import type { CameraGestureKind } from "../cameras/gestureEnd";
 import type {
     AlgorithmKey,
     AttributeDescriptor,
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
+    FormatId,
     LayerId,
     LayoutId,
     MeasurementDeclaration,
@@ -65,6 +68,8 @@ import type { EnabledFeatures } from "../features/resolve";
 import type { DrawnAnnotation } from "./annotations";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { FilesApi } from "./files/kindOf";
+import type { SessionGraphs } from "./graphs/GraphsApi";
 import type { GroupsApi } from "./groups";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
@@ -75,6 +80,7 @@ import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
 import type { RecipeDocument } from "./recipe";
+import type { RecipesApi } from "./recipes/RecipesApi";
 import type { ResultsApi, RunRef } from "./results";
 import type { Histogram, HistogramOptions } from "./results/types";
 import type {
@@ -344,6 +350,19 @@ export interface RecordPageOptions {
          * @beta
          */
         readonly names?: boolean;
+        /**
+         * Rank the matches: the records whose matched value is the text come first, then those
+         * whose value starts with it, then those that hold it elsewhere; within each rank, `sort`
+         * (or the graph's order) as without it. The page then carries {@link RecordPage.matches}:
+         * for each record, the field it matched and how. `total` counts every match. Default
+         * false, which leaves the page as it was.
+         *
+         * ```ts
+         * const page = session.data.nodePage({ matching: { text: "jav", rank: true }, limit: 10 });
+         * page.matches?.[0]; // { field: "data.name", rank: "starts-with" }
+         * ```
+         */
+        readonly rank?: boolean;
     };
     /**
      * Only the records an expression matches, read the way a style layer's selector reads it: a
@@ -379,10 +398,36 @@ export interface RecordPageOptions {
     readonly markIssues?: boolean;
 }
 
+/**
+ * How well a record's value matched a page's text: equal to it (`"exact"`, ignoring case unless
+ * the mode reads case), starting with it, or holding it elsewhere. A regular expression's match
+ * is always `"contains"`. An open set: later releases may add ranks.
+ */
+export type RecordMatchRank = "exact" | "starts-with" | "contains";
+
+/** Where and how a page's text matched one record: its best-ranked field. */
+export interface RecordMatch {
+    /**
+     * The field that matched: `"id"`, for an edge also `"source"` or `"target"` (an endpoint's id),
+     * or the value path read (`"data.name"`).
+     */
+    readonly field: Path;
+    /** How well it matched. */
+    readonly rank: RecordMatchRank;
+}
+
 /** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */
 export interface EdgePageOptions extends RecordPageOptions {
     /** Only the edges with this node at one end or both. */
     readonly touching?: NodeId;
+}
+
+/** How a caller follows and stops {@link SessionDataApi.preparePage}. */
+export interface PreparePageControl {
+    /** Stops the work: the call rejects with the signal's reason, and no order is kept. */
+    readonly signal?: AbortSignal;
+    /** Told how far the work has got, from 0 to 1, between two slices and once more at the end. */
+    readonly onProgress?: (fraction: number) => void;
 }
 
 /** One window onto an ordered list of records. */
@@ -416,6 +461,11 @@ export interface RecordPage<TRecord> {
      * @since 3.37.0
      */
     readonly issues?: readonly (readonly IssueId[])[];
+    /**
+     * Where the page's text matched each record, aligned with `records`. Present exactly when the
+     * page was asked with `matching.rank`.
+     */
+    readonly matches?: readonly RecordMatch[];
 }
 
 /** What {@link GraphSession.find} lists. An open set: later releases add kinds. */
@@ -1430,6 +1480,29 @@ export interface SessionDataApi {
      */
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     /**
+     * Compute the order a {@link nodePage} or {@link edgePage} read with the same options needs,
+     * a slice at a time, handing the thread back between slices so the page stays responsive. Once
+     * it settles, that page read returns at once; until then the orders already computed still
+     * read at once, so a table can keep showing its old order while the new one is prepared. The
+     * order is the one the page read would compute. An edit while it works starts it again.
+     *
+     * ```ts
+     * const stop = new AbortController();
+     * await session.data.preparePage("node", { sort: { key: "name" } }, {
+     *     signal: stop.signal,
+     *     onProgress: (fraction) => console.log(fraction),
+     * });
+     * const page = session.data.nodePage({ sort: { key: "name" }, limit: 30 }); // at once
+     * ```
+     * @param kind - `"node"` for {@link nodePage}, `"edge"` for {@link edgePage}
+     * @param options - the scope, the order, the filters and the node; the window is ignored
+     * @param control - a signal to stop it and a progress callback
+     * @returns settles once the order is ready
+     * @throws The signal's reason once it aborts; `E_UNKNOWN_RUN`, `E_UNKNOWN_ATTRIBUTE` or
+     *     `E_BAD_COMMAND` as the page read would; `E_DISPOSED` once the session is disposed.
+     */
+    preparePage(kind: "node" | "edge", options?: EdgePageOptions, control?: PreparePageControl): Promise<void>;
+    /**
      * The runs whose result a node or an edge page can show as a column with no field named: every
      * run, in the session's order, whose primary field holds one value per record of that kind.
      * Exactly the runs `nodePage({ columns: [run] })` or `edgePage(...)` accepts, so a table
@@ -1623,6 +1696,11 @@ export interface SessionDataApi {
      * joins, the column settings and the load's key all stay; the load moves to the end of
      * `sources()`, as the newest. One undo brings the earlier data back.
      *
+     * Once it is in, it publishes `source:loaded` for the load, under its key, with `mode: "merge"`,
+     * `replaced: "replaceSource"` and the `callerKey` given in `choices`; the journal entries of the
+     * commands it ran carry `trigger: "load"` and that key, and its returned report says what
+     * changed.
+     *
      * ```ts
      * const key = await session.data.matchesSource({ config: { file } });
      * if (key !== null) {
@@ -1651,7 +1729,8 @@ export interface SessionDataApi {
      * keeps everything else, as {@link SessionDataApi.replaceSource} does. The choices are laid
      * over the ones the load was read with (`LoadedSource.choices`); a mapping key set to `null`
      * goes back to the element's own reading. Only a load this session read itself can be read
-     * again (`LoadedSource.reloadable`): what a file was is never saved in a project.
+     * again (`LoadedSource.reloadable`): what a file was is never saved in a project. Once it is
+     * in, it publishes `source:loaded` with `replaced: "reloadSource"`, as `remap` does.
      *
      * ```ts
      * const [log] = session.data.sources();
@@ -2307,10 +2386,18 @@ export interface SessionDataApi {
      * values, and what it added arrives. A source that has not changed dispatches nothing and
      * reports zeros. Expansions of the load are not fetched again. Experimental.
      *
+     * With the `save-files-v2` experiment, it also takes the id of a source a version 2 open held
+     * (`W_SOURCE_UNAVAILABLE`: its copy changed, it needed permission, or it was not found): the
+     * call is the permission, so it fetches the source from where the open would have, reads its
+     * new bytes with its saved roles, and builds it into the graph with the reader's edits on it
+     * applied, as one undoable step. The data gets a new build, so runs on the old data go stale
+     * (`W_DATA_CHANGED` when saved and reopened). It rejects with `E_FETCH_FAILED`, `E_TOO_LARGE` or
+     * `E_PARSE_FAILED` (`details.source`, `details.reason`) and the source stays held.
+     *
      * ```ts
      * const { added, removed, updated } = await session.data.refresh(session.data.loads()[0].key);
      * ```
-     * @param load - The load's key, from `sources()` or `loads()`.
+     * @param load - The load's key, from `sources()` or `loads()`, or a held source's id.
      * @param options - The credential and the endpoint.
      * @returns The node and edge counts added, removed and updated; rejects with
      *     `E_LOAD_UNKNOWN` for an unknown key, `E_SOURCE_PENDING` for a load of an opened project
@@ -2376,11 +2463,19 @@ export interface SessionDataApi {
      *     edge's ends (`bait` and `prey`), else a single file's nearly unique text column is its
      *     nodes' key (`account`). Pass the draft's `mapping` to `load` to keep the guess when the
      *     load is read again.
+     * @param options.onProgress - Called with each change of the read, as `progress:changed`
+     *     publishes it (`task: "prepare"`): the rows read so far and, when the size is known, the
+     *     share read (`fraction`). @since 3.40.0
      * @returns The draft.
      */
     prepare(
         source: DataSourceInput,
-        options?: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" },
+        options?: {
+            readonly signal?: AbortSignal;
+            readonly onto?: "graph";
+            readonly guess?: "names" | "values";
+            readonly onProgress?: (change: ProgressChange) => void;
+        },
     ): Promise<LoadDraft>;
     /**
      * Every table joined onto the graph and still loaded, oldest first: the join each was made
@@ -2808,13 +2903,38 @@ export interface Endpoint {
     readonly column: string;
 }
 
-/** A bare `TableMapping` applies to a source with one table; otherwise each table is named by id. */
-export type LoadMapping =
+/**
+ * A bare `TableMapping` applies to a source with one table; otherwise each table is named by id
+ * (`{ tables }`) or by what its rows are (`{ nodes, edges }`, see {@link SideMapping}).
+ */
+export type LoadMapping = ByTableMapping | SideMapping;
+
+/**
+ * A load mapping bare (a source with one table) or naming each table by id: the shape a load
+ * keeps its mapping in, never by side.
+ * @since 3.40.0
+ */
+export type ByTableMapping =
     | TableMapping
     | {
           /** Each table's roles, by table id. */
           readonly tables: Readonly<Record<string, TableMapping>>;
       };
+
+/**
+ * Each table's roles named by what its rows are, so a caller need not look up table ids: `nodes`
+ * applies to the table read as nodes and `edges` to the table read as edges, with one table or
+ * two; a side no table is read as is refused (`E_BAD_COMMAND`). The side picks the table and never
+ * changes what its rows are: to read the table read as nodes as edges, say so in its roles
+ * (`{ nodes: { rowsAre: "edges", source: "from", target: "to" } }`).
+ * @since 3.40.0
+ */
+export interface SideMapping {
+    /** The node table's roles. */
+    readonly nodes?: TableMapping;
+    /** The edge table's roles. */
+    readonly edges?: TableMapping;
+}
 
 /** One table's roles as the element reads them: `rowsAre` always set, endpoints always objects. */
 export interface TableMappingRead extends TableMapping {
@@ -2827,6 +2947,16 @@ export interface TableMappingRead extends TableMapping {
 export interface LoadMappingRead {
     /** Each table's roles, by table id. */
     readonly tables: Readonly<Record<string, TableMappingRead>>;
+}
+
+/**
+ * The choices a load was read with, as `data.sources()` hands them back: its mapping is bare or by
+ * table id, never by side, so it can be read without the source's tables.
+ * @since 3.40.0
+ */
+export interface LoadedChoices extends LoadChoices {
+    /** The column roles, bare or by table id. */
+    readonly mapping?: ByTableMapping;
 }
 
 /** What `import` and `LoadDraft.load` take. */
@@ -2981,6 +3111,13 @@ export interface LoadedSource extends DataSourceDescriptor {
      * name, and in a project saved before it was kept.
      */
     readonly tableRows?: readonly ("nodes" | "edges")[];
+    /**
+     * How a CSV load's file was split into columns, as {@link DraftTable.delimiter} says while
+     * drafting: the separator and whether the element detected it. For a pair of files, the node
+     * file's. Absent for any other format and in a project reopened from a save.
+     * @since 3.40.0
+     */
+    readonly delimiter?: DraftTable["delimiter"];
     /** How many nodes and edges the load added to the graph. */
     readonly added: {
         /** Nodes added. */
@@ -3038,7 +3175,7 @@ export interface LoadedSource extends DataSourceDescriptor {
      * element's own reading.
      * @since 3.30.0
      */
-    readonly choices?: LoadChoices;
+    readonly choices?: LoadedChoices;
     /**
      * The roles each table of the load was read with, by table id: the element's own reading
      * with the choices laid over it (`draft.mapping` as loaded). Absent for a graph file, whose
@@ -3220,6 +3357,17 @@ export interface JoinSuggestion {
 }
 
 /**
+ * A clash rule: what a join shows for a column the element already holds a value in. `"keep"`
+ * (the default) the held value, `"overwrite"` the incoming one, `"both"` the held one with the
+ * incoming one beside it as `<column> (<table name>)`, `"min"` or `"max"` the smaller or larger
+ * (numbers, or dates written as ISO 8601 text), `"mean"` their mean (numbers), `"vote"` the value
+ * most sources hold, the held one on a tie. A cell a number rule cannot read keeps the held value.
+ * OPEN UNION: later releases may add rules.
+ * @since 3.40.0
+ */
+export type JoinClashRule = "keep" | "overwrite" | "both" | "min" | "max" | "mean" | "vote";
+
+/**
  * How a table joins onto the graph: what `draft.joinReport` and `draft.load({ join })` take.
  * @since 3.30.0
  */
@@ -3235,10 +3383,16 @@ export interface JoinChoices {
     /** The incoming columns to bring; every column but the keys when absent. */
     readonly columns?: readonly string[];
     /**
-     * A column the graph already has: `"keep"` the graph's value where it has one, `"overwrite"`
-     * it, or keep `"both"` (the default), the incoming one as `<column> (<table name>)`.
+     * What to do with a column the graph already has, by column name, `"*"` for every column not
+     * named: see {@link JoinClashRule}. A column with no rule keeps the graph's value (`"keep"`).
+     * A number rule (`min`, `max`, `mean`) named for a column holding another value is refused with
+     * `E_CLASH_RULE_TYPE` (`details.column`, `details.rule`); under `"*"` such a cell keeps its value.
+     *
+     * ```ts
+     * draft.load({ join: { keys, clash: { "*": "both", amount: "max" } } });
+     * ```
      */
-    readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
+    readonly clash?: Readonly<Record<string, JoinClashRule>>;
     /**
      * Several rows with one key: `"first"` (the default) takes the first row, `"last"` the last
      * one; `"both"` keeps every row, as a list of values for values, as one edge each for edges.
@@ -3603,6 +3757,15 @@ export interface ImportOptions {
      * was pending is kept as its own steps.
      */
     readonly history?: "step" | "start";
+    /**
+     * An opaque value the caller chooses. The load does nothing with it but echo it as
+     * {@link SourceLoaded.callerKey} on the `source:loaded` event, and as `JournalEntry.callerKey`
+     * on the journal entries of the commands the load ran, so a caller can tell its own loads
+     * apart. It is never saved with the project. `replaceSource` and `reloadSource` echo it too,
+     * on the `source:loaded` they publish with {@link SourceLoaded.replaced} set.
+     * @since 3.40.0
+     */
+    readonly callerKey?: string;
 }
 
 /** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */
@@ -3758,6 +3921,14 @@ export interface ProjectConfig {
      */
     readonly timelineHiddenAdded: boolean;
     /**
+     * Whether this project has had the session's starting cameras
+     * (`session.views.setStartingCameras`) written into it. False by default and saved with the
+     * project; the element sets it when it writes them. Setting it true stops them being written
+     * into this project; setting it false lets the next writing point write them again.
+     * @since 3.58.0
+     */
+    readonly startingCamerasWritten: boolean;
+    /**
      * Where the layer a finished run paints lands: `"beneath"` (the default), under the lowest
      * layer somebody wrote that drives the same property, and not at all when such a layer covers
      * every element; or `"top"`, on top of the unpinned rows, never held back by a layer somebody
@@ -3844,6 +4015,20 @@ export interface GraphFraming {
     readonly extent: "drawn" | "centers";
     /** CSS pixels kept clear at each end of the canvas's shorter side, 0 or more; absent, a small margin. */
     readonly padding?: number;
+    /**
+     * A fixed box to frame in place of the nodes, in the units node positions are drawn in (`min` its smallest x and
+     * y, `max` its largest): the canvas shows this box whatever the nodes' extent, so a node outside it runs past the
+     * edge and `extent` is not read. Read only while the `"fixed"` layout draws stored positions; under any other
+     * layout, or absent, the nodes are framed. A replacing load that does not set it from its file drops it. A Pajek file's 0..1 square is framed so on import
+     * with file style option `framing: "file"`, as Pajek fits it to its Draw window.
+     * @since 3.40.0
+     */
+    readonly box?: {
+        /** The smallest x and y. */
+        readonly min: readonly [number, number];
+        /** The largest x and y. */
+        readonly max: readonly [number, number];
+    };
 }
 
 /** Where a finished run's layer lands: see {@link ProjectConfig.runPlacement}. */
@@ -3880,6 +4065,8 @@ export interface ProjectConfigPatch {
     readonly timelineHiddenLook?: "hidden" | "ghost";
     /** See {@link ProjectConfig.timelineHiddenAdded}. */
     readonly timelineHiddenAdded?: boolean;
+    /** See {@link ProjectConfig.startingCamerasWritten}. */
+    readonly startingCamerasWritten?: boolean;
     /** See {@link ProjectConfig.runPlacement}. */
     readonly runPlacement?: RunPlacement;
     /** See {@link ProjectConfig.layoutBehavior}; merged key by key. */
@@ -3913,8 +4100,9 @@ export interface SessionConfig extends ProjectConfig {
     set(values: ProjectConfigPatch): Promise<void>;
     /**
      * The color the element draws the background in, beneath any image or shader, as hex: the
-     * background's own `color`, else `DEFAULT_BACKGROUND_COLOR`. A settings panel shows it when
-     * the background sets no color of its own.
+     * background's own `color`, else `DEFAULT_BACKGROUND_COLOR`; under a dark color scheme
+     * (`colorScheme` on the element) its `darkColor`, else `DEFAULT_DARK_BACKGROUND_COLOR`. A
+     * settings panel shows it when the background sets no color of its own.
      * @since 3.36.0
      */
     readonly backgroundColor: string;
@@ -4278,6 +4466,15 @@ export interface SessionEventMap {
         readonly cause: HistoryCause;
     };
     /**
+     * `session.views.setStartingCameras` wrote its views into the project's starting state: no
+     * step and no `project:changed`, so a list of saved views re-reads `session.views` on this.
+     * @since 3.58.0
+     */
+    "views:seeded": {
+        /** The names of the views written. */
+        readonly names: readonly string[];
+    };
+    /**
      * The picture has caught up with every project change made so far: published once nothing is
      * left to derive or repaint -- after the per-domain events, and after any repaint the element
      * put off or started on its own -- with every slice changed or derived since the last one
@@ -4340,6 +4537,40 @@ export interface SessionEventMap {
     "source:refreshed": {
         /** The key of the load that was read again. */
         readonly load: string;
+    };
+    /**
+     * A load added a source to the graph: one event per source added, published by every load
+     * method (`import`, `LoadDraft.load`, `loadExample`, `loadDataset`, `generate`, and the
+     * element's `data-source` attribute, `loadFromFile`, `loadFromUrl` and `addDataFromSource`)
+     * once its load commits. Not published by opening a project, by undo, redo or restore, or by
+     * `runPendingSourceLoad`, which fills a source a project already listed. It carries no
+     * contents: no file name, URL or parameters.
+     *
+     * Unlike the graph event `data-loaded`, which fires whenever data arrives for any cause
+     * (undo and redo included), this fires only for a load a caller asked for.
+     * Mirrored on the element as `graphty-source-loaded`.
+     * @since 3.40.0
+     */
+    "source:loaded": SourceLoaded;
+    /**
+     * A reader's camera gesture on the canvas ended: once per gesture, never per frame. `kind` is
+     * what the gesture did: `"orbit"` turned the view, `"pan"` moved it sideways, `"zoom"` moved
+     * it nearer or farther (a wheel, a pinch, the zoom keys).
+     *
+     * A gesture's end is defined by the input, never by a timer: a drag or a pinch ends at the
+     * pointer up that ends it; a run of wheel events ends at the first frame in which the camera
+     * comes to rest with no new wheel event since the frame before (wheel events dispatched in one
+     * task are always one gesture); a key gesture ends once the last camera key held is released
+     * and the camera's own inertia has come to rest, and a key pressed before then continues it.
+     * Moves the element makes itself (a fit, a glide, `camera.autoRotate`) and calls such as
+     * `setCameraState` publish nothing.
+     *
+     * OPEN UNION: kinds may be added in a minor release; handle one you do not know.
+     * @since 3.40.0
+     */
+    "camera:gesture-end": {
+        /** What the gesture did. */
+        readonly kind: CameraGestureKind;
     };
     /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
@@ -4407,6 +4638,56 @@ export interface SessionEventMap {
 }
 
 /**
+ * What `source:loaded` carries: which source a load added (or replaced in place, see
+ * {@link SourceLoaded.replaced}), where it came from and how it was loaded, never what it holds.
+ *
+ * ```ts
+ * session.on("source:loaded", (loaded) => {
+ *     if (loaded.callerKey === "my-sample") console.log("my sample is in", loaded.source);
+ * });
+ * await session.data.import({ type: "csv", config: { data: text } }, { callerKey: "my-sample" });
+ * ```
+ * @since 3.40.0
+ */
+export interface SourceLoaded {
+    /** The source's key in `session.data.sources()`. */
+    readonly source: SourceKey;
+    /** The source's `LoadedSource.kind`, exactly as `session.data.sources()` records it. */
+    readonly kind: LoadedSourceKind;
+    /** For kinds `"file"` and `"url"`: the format read, named or detected; absent when none was settled. */
+    readonly format?: FormatId;
+    /** For kind `"server"`, and for a sample read from a network source: the source id. */
+    readonly sourceId?: string;
+    /** Whether the load replaced the graph or merged into it. */
+    readonly mode: "replace" | "merge";
+    /**
+     * Present when the load was a catalog sample: a dataset (`loadDataset`), a generator
+     * (`generate`) or a network source's example (`loadExample`, whose kind stays `"server"`).
+     */
+    readonly sample?:
+        | {
+              /** The graph-samples dataset's id, as `loadDataset` took it. */
+              readonly datasetId: string;
+          }
+        | {
+              /** The generator's id, as `generate` took it. */
+              readonly generatorId: string;
+          }
+        | {
+              /** The network source's example id, as `loadExample` took it. */
+              readonly exampleId: string;
+          };
+    /** The caller's own {@link ImportOptions.callerKey}, echoed unchanged. */
+    readonly callerKey?: string;
+    /**
+     * Present when the source was not added but replaced in place, under the same key, with
+     * `mode: "merge"`: `"replaceSource"` for a newer copy (`session.data.replaceSource`),
+     * `"reloadSource"` for the same input read again with other choices (`reloadSource`, `remap`).
+     */
+    readonly replaced?: "replaceSource" | "reloadSource";
+}
+
+/**
  * What happened to one model a style layer names (`node.model`), or to a node's picture
  * (`node.image`) that could not be loaded, for `model:changed` and the element's
  * `graphty-model-change`.
@@ -4449,10 +4730,12 @@ export type ProjectSlice =
     | "visibility"
     | "sets"
     | "views"
+    | "tours"
     | "notes"
     | "attributes"
     | "valueLabels"
-    | "shaders";
+    | "shaders"
+    | "modelDefaults";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
@@ -4540,20 +4823,22 @@ export type PendingId = string & {
  * | `data.columns` | none: the column settings a project file restored |
  * | `data.derive` | `kind`: `"node"` or `"edge"`, or null; `column`: the computed column added or changed, or null when its values were only brought up to date |
  * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
- * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
- * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
+ * | `style.add-layer` | `layer`: its name; `layerId`: the id it gets (a two-part row's id), or null when the step adds none |
+ * | `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id; `layerId`: its id |
+ * | `style.update-layer` | `layer`: its name, or its id; `layerId`: its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
  * | `style.remove-layers` | `count` |
  * | `style.highlight` | `run`: the run highlighted |
- * | `style.fix-channel` | `channel`; `layer`: its name, or its id |
+ * | `style.fix-channel` | `channel`; `layer`: its name, or its id; `layerId`: its id |
  * | `style.encode` | `channel`; `run` |
  * | `style.template` | none |
  * | `style.suggested` | `algorithms`: the algorithms whose suggested styles were applied |
- * | `style.add-folder` | `name`: the folder's name |
- * | `style.rename-row` | `row`: its name before, or its id; `name`: the new name |
- * | `style.move-row`, `style.delete-row` | `row`: its name, or its id |
- * | `style.pin-row` | `row`: its name, or its id; `pin`: `"top"`, `"bottom"` or `"none"` |
- * | `style.lock-row` | `row`: its name, or its id; `locked` |
- * | `style.hide-row` | `row`: its name, or its id; `hidden` |
+ * | `style.add-folder` | `name`: the folder's name; `rowId`: the id it gets |
+ * | `style.rename-row` | `row`: its name before, or its id; `rowId`: its id; `name`: the new name |
+ * | `style.move-row`, `style.delete-row` | `row`: its name, or its id; `rowId`: its id |
+ * | `style.duplicate-row` | `row`: the source row's name, or its id; `rowId`: the source's id; `copyId`: the copy's id |
+ * | `style.pin-row` | `row`: its name, or its id; `rowId`: its id; `pin`: `"top"`, `"bottom"` or `"none"` |
+ * | `style.lock-row` | `row`: its name, or its id; `rowId`: its id; `locked` |
+ * | `style.hide-row` | `row`: its name, or its id; `rowId`: its id; `hidden` |
  * | `style.add-default-rows` | none |
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
@@ -4572,6 +4857,8 @@ export type PendingId = string & {
  * | `note.add`, `note.update`, `note.remove` | none |
  * | `note.merge` | `source`: the merged document's name, or null |
  * | `view.save`, `view.remove` | `names`: the views |
+ * | `view.rename` | `from`: the view's name before; `to`: its new name |
+ * | `view.move` | `name`: the view moved; `index`: its new 0-based place |
  * | `annotations.set` | `count`: how many annotations are kept |
  * | `annotations.patch` | `action`: `"add"`, `"update"` or `"remove"`; `id`: the annotation's id, or null |
  * | `view.dimension` | `dimension`: `"2d"` or `"3d"` |
@@ -4652,10 +4939,12 @@ export type HistoryCode =
     | "style.lock-row"
     | "style.hide-row"
     | "style.delete-row"
+    | "style.duplicate-row"
     | "style.add-default-rows"
     | "shader.add"
     | "shader.replace"
     | "shader.remove"
+    | "asset.defaults"
     | "visibility.filter"
     | "visibility.clear-filter"
     | "visibility.window"
@@ -4690,6 +4979,14 @@ export type HistoryCode =
     | "note.merge"
     | "view.save"
     | "view.remove"
+    | "view.rename"
+    | "view.move"
+    | "view.key"
+    | "view.starting"
+    | "tour.save"
+    | "tour.remove"
+    | "tour.rename"
+    | "tour.move"
     | "view.dimension"
     | "view.immersive"
     | "config.set"
@@ -4860,6 +5157,13 @@ export interface TransactionOptions {
      * cancels it rather than undoing the step it continues.
      */
     readonly after?: HistoryStepId;
+    /**
+     * The caller's own key for this work, echoed unchanged as `JournalEntry.callerKey` on the
+     * journal entry of every command the transaction runs. Lets a caller tell the commands its
+     * own setup ran (naming a new project, say) from the ones a reader asked for.
+     * @since 3.40.0
+     */
+    readonly callerKey?: string;
 }
 
 /**
@@ -4917,6 +5221,8 @@ export interface CommandOutcomeMap {
     "style.template": Promise<void>;
     /** Settles once the shader's text is recorded. */
     "shader.set": Promise<void>;
+    /** Settles once the model's settings are recorded and the pass that repaints its nodes has run. */
+    "asset.defaults": Promise<void>;
     /** Settles once the filter is recorded and the pass that evaluates the masks has run. */
     "visibility.set": Promise<void>;
     /** Settles once the window is recorded and the pass that evaluates the masks has run. */
@@ -4963,6 +5269,22 @@ export interface CommandOutcomeMap {
     "annotations.patch": Promise<void>;
     /** Settles once the removal is recorded. */
     "view.remove": Promise<void>;
+    /** Settles once the rename is recorded. */
+    "view.rename": Promise<void>;
+    /** Settles once the new order is recorded. */
+    "view.move": Promise<void>;
+    /** Settles once the key is recorded. */
+    "view.key": Promise<void>;
+    /** Settles once the starting cameras are recorded. */
+    "view.starting": Promise<void>;
+    /** Settles once the tours are recorded. */
+    "tour.save": Promise<void>;
+    /** Settles once the removal is recorded. */
+    "tour.remove": Promise<void>;
+    /** Settles once the rename is recorded. */
+    "tour.rename": Promise<void>;
+    /** Settles once the new order is recorded. */
+    "tour.move": Promise<void>;
     /** Settles once the camera has arrived. */
     "view.camera": Promise<void>;
     /** Settles once the settings are recorded and the picture has caught up. */
@@ -5433,20 +5755,113 @@ export interface SessionAnnotations {
 }
 
 /**
- * The saved camera views, read as a map from name to camera state.
- *
- * A saved view is a fixed position, not a rule: it does not recompute itself for a different
- * graph the way a camera view does, which is why a name a camera view answers to is refused.
+ * One saved view: a fixed camera, or a camera view it follows, and the key a consumer binds to it.
+ * @since 3.58.0
  */
-export interface SessionViews extends ReadonlyMap<string, CameraState> {
+export interface SavedView {
+    /** A fixed camera. Absent for a following view. */
+    readonly camera?: CameraState;
     /**
-     * Keep camera states under names, replacing any view already saved under one. One step.
-     * @param views - The names and the camera states.
-     * @returns Settles once the step is recorded.
-     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` when a camera view answers to
-     *     a name, or `E_BAD_COMMAND` for an empty name; nothing is saved then.
+     * A camera view id (`catalog.cameras()`) this view is recomputed from each time it is applied,
+     * for whatever is drawn then. Absent for a fixed view.
      */
-    save(views: readonly { readonly name: string; readonly camera: CameraState }[]): Promise<void>;
+    readonly follows?: string;
+    /**
+     * An opaque key chord the consumer binds; unique among the saved views. The element stores it
+     * and never listens for it.
+     */
+    readonly key?: string;
+}
+
+/**
+ * One view `session.views.setStartingCameras` writes into a project that never had them.
+ * @since 3.58.0
+ */
+export interface StartingCamera {
+    /** The saved view's name. */
+    readonly name: string;
+    /** The camera view id it follows. */
+    readonly follows: string;
+    /** The key chord it carries, dropped when another saved view holds it. */
+    readonly key?: string;
+}
+
+/**
+ * The saved camera views, read as a map from name to saved view, iterated in project order.
+ *
+ * A saved view is either a fixed position or a camera view it follows (`follows`), recomputed for
+ * whatever is drawn when it is applied. A name a camera view answers to is refused, so a saved view
+ * never shadows one. A new view goes at the end of the order; `move` changes it.
+ */
+export interface SessionViews extends ReadonlyMap<string, SavedView> {
+    /**
+     * Keep views under names, replacing the camera or the followed view of any view already saved
+     * under one; that view keeps its place, and its key unless `key` is given. One step.
+     * @param views - The names, each with a `camera`, a camera view it `follows`, or neither: then
+     *     it keeps where the camera stands now, read once, so redo puts back the same state. `key`
+     *     sets its key chord, taking it from any other view that holds it; null clears it.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` `{ name }` when a camera view
+     *     answers to a name, `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name,
+     *     `E_BAD_COMMAND` `{ reason: "conflict", options: ["camera", "follows"] }` for both,
+     *     `E_UNKNOWN_CAMERA` `{ name }` when `follows` names no camera view, `E_BAD_COMMAND`
+     *     `{ reason: "empty-key" }` for an empty key, and, for a view with neither, `E_UNSUPPORTED`
+     *     when the session draws nothing or `{ reason: "xr", mode }` while immersive; nothing is
+     *     saved then.
+     */
+    save(
+        views: readonly {
+            readonly name: string;
+            readonly camera?: CameraState;
+            readonly follows?: string;
+            readonly key?: string | null;
+        }[],
+    ): Promise<void>;
+    /**
+     * Give a saved view a key chord, taking it from any other view that holds it, in one step; null
+     * clears it. The element stores the key and never listens for it.
+     * @param name - The view.
+     * @param key - The key chord, or null.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `name`, or `E_BAD_COMMAND` `{ reason: "empty-key" }` for an empty key.
+     * @since 3.58.0
+     */
+    setKey(name: string, key: string | null): Promise<void>;
+    /**
+     * The saved views to write once into every project that never had them; null (the default)
+     * writes none. A session option, never saved: it lasts for the session's life. Each project
+     * records that it got them in `config.startingCamerasWritten`, so a project is written once:
+     * the list is appended after the project's own views now (no undo step on a fresh session,
+     * one step after edits) and when a project that never had them is opened. A name already
+     * saved is skipped, a key another view holds is dropped, and a `follows` no longer registered
+     * is skipped.
+     * @param list - The views, or null.
+     * @returns Settles once the current project is written.
+     * @throws A `GraphtyError` (as a rejection) with `E_UNKNOWN_CAMERA` `{ name }` when a `follows`
+     *     names no camera view.
+     * @since 3.58.0
+     */
+    setStartingCameras(list: readonly StartingCamera[] | null): Promise<void>;
+    /**
+     * Give a saved view a new name, keeping its place in the order. One step.
+     * @param from - Its name now.
+     * @param to - The new name.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `from`, `E_BAD_COMMAND` `{ reason: "name-taken", name }` when `to`
+     *     is saved already, or `E_PROTECTED` `{ name }` when a camera view answers to `to`.
+     */
+    rename(from: string, to: string): Promise<void>;
+    /**
+     * Put a saved view at a place in the order. One step.
+     * @param name - The view.
+     * @param index - Its new 0-based place, clamped to the order.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `name`.
+     */
+    move(name: string, index: number): Promise<void>;
     /**
      * Forget saved views. One step.
      * @param names - The names.
@@ -5455,6 +5870,60 @@ export interface SessionViews extends ReadonlyMap<string, CameraState> {
      *     nothing is removed then.
      */
     remove(names: readonly string[]): Promise<void>;
+}
+
+/**
+ * The saved camera tours, by name, in project order: each a list of stops that name views (see
+ * `session.views`). Every change is one undoable step and a project file saves them; playing one
+ * (`playTour`) is not a change. An empty tour, and a stop naming a view nothing is saved under,
+ * are allowed, so drafts exist and a view's removal never fails; `planTour` reports them.
+ * @since 3.58.0
+ * @example
+ * ```typescript
+ * await session.tours.save([
+ *     { name: "intro", tour: { stops: [{ view: "overview", hold: 2000 }, { view: "hub", duration: 1500 }] } },
+ * ]);
+ * ```
+ */
+export interface SessionTours extends ReadonlyMap<string, Tour> {
+    /**
+     * Keep tours under names, replacing a tour already saved under one in its place; a new name
+     * goes at the end. One step.
+     * @param tours - The names and tours.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ reason: "empty-name" }`
+     *     for an empty name, or `E_OPTION_RANGE` `{ option, stop }` for a negative or non-finite
+     *     flight (`duration`) or `hold`, a stop whose `view` is not a name, or an unknown easing
+     *     (`{ option: "easing" }`); nothing is saved then.
+     */
+    save(tours: readonly { readonly name: string; readonly tour: Tour }[]): Promise<void>;
+    /**
+     * Forget saved tours. One step.
+     * @param names - The names.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     a name is not saved; nothing is removed then.
+     */
+    remove(names: readonly string[]): Promise<void>;
+    /**
+     * Give a saved tour a new name, keeping its place. One step.
+     * @param from - Its name now.
+     * @param to - The new name.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `from`, `{ reason: "name-taken", name }` when `to` is saved already,
+     *     or `{ reason: "empty-name" }` for an empty `to`.
+     */
+    rename(from: string, to: string): Promise<void>;
+    /**
+     * Put a saved tour at a place in the order. One step.
+     * @param name - The tour.
+     * @param index - Its new 0-based place, clamped to the order.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `name`.
+     */
+    move(name: string, index: number): Promise<void>;
 }
 
 /** What `execute` returns for one command. */
@@ -5583,6 +6052,16 @@ export interface GraphSession {
      * choosing. Saving and removing one are undoable steps; moving the camera to one is not.
      */
     readonly views: SessionViews;
+    /**
+     * The saved camera tours, by name, in project order; every change is one undoable step.
+     * @since 3.58.0
+     */
+    readonly tours: SessionTours;
+    /**
+     * The session's graphs, one shown at a time: copy the graph shown, or a selection of it, into a
+     * new graph, and switch between them. Each keeps its own attributes, results and styles.
+     */
+    readonly graphs: SessionGraphs;
     /** The annotations drawn beside the graph; every change is a step, and a project file saves them. */
     readonly annotations: SessionAnnotations;
     /** Which layout draws the graph, and in how many dimensions; choosing either is a step. */
@@ -5759,6 +6238,20 @@ export interface GraphSession {
     /** Saving the whole session to one project file and opening one again. */
     readonly project: ProjectApi;
     /**
+     * A session's analysis and style layers as one recipe file, applied to other data. Needs the
+     * `save-files-v2` experiment.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly recipes: RecipesApi;
+    /**
+     * What a file is, read from its contents: a project, a recipe, a style file or graph data.
+     * @since 3.40.0
+     * @beta
+     */
+    readonly files: FilesApi;
+    /**
      * What was done to the data and how it is drawn, as a document that names columns by name
      * and role and never names a node or an edge: the sources, the columns (roles, types,
      * declarations, hidden), the joins, the ignored issues, the filter and the style layers. A
@@ -5870,6 +6363,11 @@ export interface ElementSession extends GraphSession {
      * @param target - What the click landed on.
      */
     elementClick(target: { readonly node: NodeId } | { readonly edge: EdgeId }): void;
+    /**
+     * Publishes `camera:gesture-end`; the renderer calls it when a reader's camera gesture ends.
+     * @param kind - What the gesture did.
+     */
+    cameraGestureEnd(kind: CameraGestureKind): void;
     /**
      * Publishes `canvas:group-outline-click`; the renderer calls it for a click on a group outline.
      * @param target - The outline's layer, shader and group.

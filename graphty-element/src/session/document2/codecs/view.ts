@@ -12,7 +12,7 @@
  */
 
 import type { CameraState } from "../../../camera/types";
-import type { AlgorithmKey, FilterCondition, LayerSpec, NodeId, RuleTree, ScopeInput } from "../../../catalog/types";
+import type { AlgorithmKey, LayerSpec, NodeId, RuleTree, ScopeInput } from "../../../catalog/types";
 import { isGraphtyError } from "../../../errors/GraphtyError";
 import { dispatcherOf } from "../../dispatchers";
 import { expandedGraph, type GroupValue, type SavedCollapse } from "../../groups";
@@ -35,7 +35,7 @@ import type {
 import { addedValues } from "./data";
 import { addedColumns, edgeRefOf, elementRefsOf, READER, rememberReaderEdge, savedEdgeId, typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
-import { filterRule } from "./recipeCommands";
+import { filterRule, unansweredPath } from "./recipeCommands";
 import { markRecipeRun, recipeRunName, restoredPositions } from "./results";
 import { heldTypeSelector } from "./style";
 import {
@@ -525,8 +525,12 @@ function freshBody(w: Writer): JsonObject {
     const layers = layersJson(w);
     return compact({
         camera: liveCamera(session),
-        views: [...session.views].flatMap(([name, state]) => {
-            const camera = cameraJson(state);
+        // A following view is written as the pose it gives now; version 2 does not keep `follows`
+        // or `key` yet.
+        views: [...session.views].flatMap(([name, view]) => {
+            const state =
+                view.follows === undefined ? view.camera : dispatcherOf(session).services.camera?.pose?.(view.follows);
+            const camera = state === undefined ? undefined : cameraJson(state);
             return camera === undefined ? [] : [{ name, camera }];
         }),
         selection: compact(selection as JsonObject),
@@ -574,6 +578,37 @@ function withNotRun(runs: unknown, memory: ViewMemory): unknown[] | undefined {
 }
 
 /**
+ * The layers member with the view layers an open kept put back, each after the layer it followed.
+ * @param layers - The layers the session holds.
+ * @param memory - The view memory.
+ * @returns The layers to write.
+ */
+function withKeptLayers(layers: unknown, memory: ViewMemory): unknown[] | undefined {
+    const merged: unknown[] = Array.isArray(layers) ? [...(layers as unknown[])] : [];
+    for (const { layer, after } of memory.keptLayers) {
+        const at = merged.findIndex((each) => isObject(each) && each.id === after);
+        merged.splice(at + 1, 0, layer);
+    }
+
+    return merged.length === 0 ? undefined : merged;
+}
+
+/**
+ * A member as the session holds it, with what the open kept rather than applied put back.
+ * @param name - The member.
+ * @param fresh - The fresh body.
+ * @param memory - The view memory.
+ * @returns The member.
+ */
+function withHeld(name: string, fresh: JsonObject, memory: ViewMemory): unknown {
+    if (name === "runs") {
+        return withNotRun(fresh.runs, memory);
+    }
+
+    return name === "layers" ? withKeptLayers(fresh.layers, memory) : fresh[name];
+}
+
+/**
  * The body to write: the fresh body, with each member the session gave back unchanged written as
  * the open read it, and the camera and playhead the session has none of now written back as read.
  * @param fresh - The fresh body.
@@ -583,7 +618,7 @@ function withNotRun(runs: unknown, memory: ViewMemory): unknown[] | undefined {
 function keptBody(fresh: JsonObject, memory: ViewMemory): JsonObject {
     const out: JsonObject = {};
     for (const name of MEMBERS) {
-        const now = name === "runs" ? withNotRun(fresh.runs, memory) : fresh[name];
+        const now = withHeld(name, fresh, memory);
         const kept = memory.kept.get(name);
         let value = kept?.applied === canonical(now) ? kept.original : now;
         if (value === undefined && HELD_ONLY.has(name)) {
@@ -829,19 +864,38 @@ function filterIn(filter: unknown): RuleTree | null {
 async function readVisibility(r: Reader, visibility: JsonObject): Promise<void> {
     const { tx } = r.context;
     const api = tx.visibility as SessionVisibilityApi;
-    const read = mapRefs(visibility, r.mapper, `${r.section.pointer}/visibility`) as JsonObject;
+    // A filter, window or condition reading a readable path this release does not compute, or the
+    // reserved `graphty.types`, is not applied (spec 4.7 rule 4); the rest of the member is. The
+    // member is written back as read while the session holds what was applied (rememberRead).
+    const at = `${r.section.pointer}/visibility`;
+    const answered = (value: unknown, pointer: string): boolean => {
+        if (unansweredPath(value) === undefined) {
+            return true;
+        }
+
+        r.context.problems.push({
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: SECTION, pointer, reason: "E_UNKNOWN_ATTRIBUTE" },
+        });
+        return false;
+    };
+    const read = mapRefs(visibility, r.mapper, at) as JsonObject;
+    const conditions = Array.isArray(read.conditions)
+        ? read.conditions.filter((condition, n) => isObject(condition) && answered(condition, `${at}/conditions/${n}`))
+        : undefined;
+    const filter = "filter" in read && answered(visibility.filter, `${at}/filter`);
+    const window = isObject(read.window) && answered(visibility.window, `${at}/window`);
     await attempt(r, "visibility", async () => {
-        if ("filter" in read) {
+        if (filter) {
             await tx.visibility.set(filterIn(read.filter));
         }
 
-        if (isObject(read.window)) {
-            const window = read.window as unknown as TimeWindow;
-            await api.restoreWindow(window);
+        if (window) {
+            await api.restoreWindow(read.window as TimeWindow);
         }
 
-        if (Array.isArray(read.conditions)) {
-            await api.restoreConditions(read.conditions.filter(isObject) as unknown as FilterCondition[]);
+        if (conditions !== undefined) {
+            await api.restoreConditions(conditions);
         }
 
         if (typeof read.showContext === "boolean") {
@@ -1025,7 +1079,9 @@ async function readRun(r: Reader, record: unknown, at: number): Promise<void> {
     );
     const scope = scopeIn(r, record.scope, `${pointer}/scope`);
     const reruns = rerunsOnOpen(context, id, record);
-    if (!bound || scope === undefined || (!reruns && !context.canned.has(id))) {
+    // A run reading a path this release cannot answer is kept, not run (spec 4.7 rule 5).
+    const answered = unansweredPath({ params: record.params, scope: record.scope }) === undefined;
+    if (!bound || !answered || scope === undefined || (!reruns && !context.canned.has(id))) {
         notRun();
         return;
     }
@@ -1207,6 +1263,34 @@ async function readGroups(r: Reader, groups: readonly unknown[]): Promise<void> 
 }
 
 /**
+ * Keep a view layer that reads a readable path this release does not compute, or the reserved
+ * `graphty.types`: it would paint nothing, so it is kept as read and written back in its place
+ * (spec 4.2 rule 4), reported `W_UNKNOWN_MEMBER`.
+ * @param r - The reader.
+ * @param layers - The layers, bottom first.
+ * @param n - The layer's place.
+ * @param pointer - The layer's pointer.
+ * @returns True when the layer is kept rather than applied.
+ */
+function keptLayer(r: Reader, layers: readonly unknown[], n: number, pointer: string): boolean {
+    const entry = layers[n];
+    if (!isObject(entry) || unansweredPath({ selector: entry.selector, encode: entry.encode }) === undefined) {
+        return false;
+    }
+
+    r.context.problems.push({
+        code: "W_UNKNOWN_MEMBER",
+        params: { section: SECTION, pointer, reason: "E_UNKNOWN_ATTRIBUTE" },
+    });
+    const previous = n === 0 ? undefined : layers[n - 1];
+    r.memory.keptLayers.push({
+        layer: entry,
+        after: isObject(previous) && typeof previous.id === "string" ? previous.id : null,
+    });
+    return true;
+}
+
+/**
  * Add the view layers on top of the stack, remembering their file ids.
  * @param r - The reader.
  * @param layers - The layers, bottom first.
@@ -1221,6 +1305,10 @@ async function readLayers(r: Reader, layers: readonly unknown[]): Promise<string
         }
 
         const pointer = `${r.section.pointer}/layers/${n}`;
+        if (keptLayer(r, layers, n, pointer)) {
+            continue;
+        }
+
         const { id, source, ...rest } = entry;
         const spec = mapRefs(rest, r.mapper, pointer) as LayerSpec;
         const readSource =
@@ -1323,7 +1411,7 @@ function rememberRead(r: Reader, body: Readonly<JsonObject>): void {
             memory.heldOnly.set(name, original);
         }
 
-        const now = name === "runs" ? withNotRun(fresh.runs, memory) : fresh[name];
+        const now = withHeld(name, fresh, memory);
         memory.kept.set(name, { applied: canonical(now), original });
     }
 }

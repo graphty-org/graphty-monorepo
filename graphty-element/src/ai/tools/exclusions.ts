@@ -155,6 +155,30 @@ function coveredBy(root: string, byAction: Readonly<Record<string, readonly stri
     }));
 }
 
+/** The session's namespaces (`session.data`, `session.views`, ...): each has its own members. */
+const SESSION_NAMESPACES = [
+    "data",
+    "runs",
+    "results",
+    "scope",
+    "sets",
+    "notes",
+    "journal",
+    "selection",
+    "visibility",
+    "styles",
+    "views",
+    "tours",
+    "graphs",
+    "layout",
+    "positions",
+    "hidden",
+    "config",
+    "capabilities",
+    "history",
+    "project",
+];
+
 /**
  * What the assistant does not reach. The graph's and the element's own members are the session's
  * capabilities a second time, so most of their rows say which tool covers the same op.
@@ -165,6 +189,19 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { op: "style.template", reason: "whole-document", kind: BY_DESIGN },
     { op: "note.merge", reason: "whole-document", kind: BY_DESIGN },
     { op: "layout.transport", reason: "in-flight", kind: BY_DESIGN },
+    // Where a saved view sits in the list is how a panel arranges them; nothing a reader asks for.
+    { op: "view.move", reason: "panel-state", kind: BY_DESIGN },
+    // A saved view's key chord is what the application binds; save sets one with the view.
+    { op: "view.key", reason: "panel-state", kind: BY_DESIGN },
+    // The starting cameras are the application's option, written once per project by the element.
+    { op: "view.starting", reason: "mechanism", kind: BY_DESIGN },
+    { root: "SessionViews", members: ["move", "setKey", "setStartingCameras"], reason: "panel-state", kind: BY_DESIGN },
+    // Where a saved tour sits in the list, and what it is called or whether it is kept, is how the
+    // tour editor arranges them; the assistant lists, plays and writes tours, it does not manage the list.
+    { op: "tour.move", reason: "panel-state", kind: BY_DESIGN },
+    { op: "tour.remove", reason: "panel-state", kind: BY_DESIGN },
+    { op: "tour.rename", reason: "panel-state", kind: BY_DESIGN },
+    { root: "SessionTours", members: ["move", "remove", "rename"], reason: "panel-state", kind: BY_DESIGN },
 
     // What the door list already calls render bookkeeping: a decision made once, in `doors.ts`.
     ...DOOR_ROOTS.flatMap((root): Exclusion[] =>
@@ -209,7 +246,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ...(["GraphSession", "ElementSession"] as const).flatMap((root): Exclusion[] => [
         {
             root,
-            members: ["assets", "network", "time", "shaders", "features", "groups", "annotations"],
+            members: ["assets", "network", "time", "shaders", "features", "groups", "annotations", "recipes", "files"],
             reason: "namespace",
             kind: BY_DESIGN,
         },
@@ -218,16 +255,23 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ]),
     {
         root: "ElementSession",
-        members: ["publishModelChange", "emptyClick", "elementClick", "groupOutlineClick", "layoutMotion"],
+        members: [
+            "publishModelChange",
+            "emptyClick",
+            "elementClick",
+            "cameraGestureEnd",
+            "groupOutlineClick",
+            "layoutMotion",
+        ],
         reason: "lifecycle",
         kind: BY_DESIGN,
     },
     ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
         { root, members: ["nodeThumbnail", "modelThumbnail", "modelPreview"], reason: "raw-data", kind: BY_DESIGN },
         { root, members: ["cancelCameraAnimation"], reason: "in-flight", kind: BY_DESIGN },
-        // A tour is a run of camera moves; the assistant makes each with view.camera.
-        { root, members: ["playTour"], reason: "covered-by", by: "view.camera", kind: BY_DESIGN },
     ]),
+    // How a capture's camera ends a tour and is put back: the capture's own machinery.
+    { root: "Graph", members: ["replaceTour", "applyCaptureCamera"], reason: "internal-handle", kind: BY_DESIGN },
     // A figure is a file for the reader to save; its SVG text is nothing the assistant reads or acts on.
     { root: "Graphty", members: ["exportFigure"], reason: "raw-data", kind: BY_DESIGN },
     // The live handle modelPreview returns: it draws in a canvas of its own, which no tool can show.
@@ -237,6 +281,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         members: [
             "setCameraTransitionDuration",
             "setReducedMotion",
+            "setColorScheme",
             "setPixelRatio",
             "setZoomToPointer",
             "setLighting",
@@ -256,6 +301,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "globeLook",
             "cameraTransitionDuration",
             "reducedMotion",
+            "colorScheme",
             "zoomToPointer",
             "viewInsets",
             "autosave",
@@ -308,7 +354,33 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "LayoutManager", members: ["placeGroups"], reason: "in-flight", kind: BY_DESIGN },
     { root: "LayoutManager", members: ["reducedMotion"], reason: "internal-handle", kind: BY_DESIGN },
     { root: "CredentialStore", reason: "assistant-config", kind: BY_DESIGN },
-    { root: "AssetsApi", reason: "needs-host", kind: BY_DESIGN },
+    {
+        root: "AssetsApi",
+        members: [
+            "accept",
+            "add",
+            "addEach",
+            "allowHosts",
+            "copy",
+            "dropPart",
+            "files",
+            "offer",
+            "ready",
+            "remove",
+            "rename",
+            "setLimits",
+            "supply",
+            "find",
+            "get",
+            "inspect",
+            "list",
+            "states",
+            "usedBy",
+            "waiting",
+        ],
+        reason: "needs-host",
+        kind: BY_DESIGN,
+    },
     { root: "NetworkApi", reason: "reader-trust", kind: BY_DESIGN },
     {
         root: "AutosaveApi",
@@ -472,7 +544,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "BasemapManager", members: ["dispose"], reason: "lifecycle", kind: BY_DESIGN },
     ...(["StylesApi", "SessionStylesApi"] as const).flatMap((root): Exclusion[] => [
         ...coveredBy(root, {
-            "style.add": ["addRow"],
+            "style.add": ["addRow", "duplicateRow"],
             "style.update": [
                 "writeRow",
                 "updateMany",
@@ -515,31 +587,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionStylesApi", members: ["modelUrlFromCode"], reason: "reader-trust", kind: BY_DESIGN },
 
     // The session.
-    {
-        root: "GraphSession",
-        members: [
-            "data",
-            "runs",
-            "results",
-            "scope",
-            "sets",
-            "notes",
-            "journal",
-            "selection",
-            "visibility",
-            "styles",
-            "views",
-            "layout",
-            "positions",
-            "hidden",
-            "config",
-            "capabilities",
-            "history",
-            "project",
-        ],
-        reason: "namespace",
-        kind: BY_DESIGN,
-    },
+    { root: "GraphSession", members: SESSION_NAMESPACES, reason: "namespace", kind: BY_DESIGN },
     {
         root: "GraphSession",
         members: ["acceleration", "setAccelerator", "calibrate"],
@@ -551,31 +599,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "GraphSession", members: ["execute", "transaction", "plan"], reason: "mechanism", kind: BY_DESIGN },
     { root: "GraphSession", members: ["on", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
     { root: "ElementSession", members: ["paint"], reason: "internal-handle", kind: BY_DESIGN },
-    {
-        root: "ElementSession",
-        members: [
-            "data",
-            "runs",
-            "results",
-            "scope",
-            "sets",
-            "notes",
-            "journal",
-            "selection",
-            "visibility",
-            "styles",
-            "views",
-            "layout",
-            "positions",
-            "hidden",
-            "config",
-            "capabilities",
-            "history",
-            "project",
-        ],
-        reason: "namespace",
-        kind: BY_DESIGN,
-    },
+    { root: "ElementSession", members: SESSION_NAMESPACES, reason: "namespace", kind: BY_DESIGN },
     {
         root: "ElementSession",
         members: ["acceleration", "setAccelerator", "calibrate"],
@@ -594,7 +618,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
-    { root: "RunsApi", members: ["batch", "sweep"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
+    {
+        root: "RunsApi",
+        members: ["batch", "stability", "sweep"],
+        reason: "covered-by",
+        by: "run_algorithm.run",
+        kind: BY_DESIGN,
+    },
     { root: "RunsApi", members: ["bindings", "painting"], reason: "covered-by", by: "style.list", kind: BY_DESIGN },
     { root: "ScopeApi", members: ["resolve"], reason: "covered-by", by: "query.count", kind: BY_DESIGN },
     { root: "ScopeApi", members: ["remove"], reason: "covered-by", by: "sets.remove", kind: BY_DESIGN },
@@ -616,8 +646,22 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "StepsReading", reason: "panel-state", kind: BY_DESIGN },
     { root: "SetsApi", members: ["pathKind"], reason: "covered-by", by: "sets.get", kind: BY_DESIGN },
     { root: "NotesApi", members: ["toDocument", "mergeDocument"], reason: "whole-document", kind: BY_DESIGN },
-    { root: "ProjectApi", members: ["save", "markSaved", "assetChoices"], reason: "needs-host", kind: BY_DESIGN },
+    {
+        root: "ProjectApi",
+        members: ["save", "markSaved", "assetChoices", "describe", "inspect"],
+        reason: "needs-host",
+        kind: BY_DESIGN,
+    },
     { root: "ProjectApi", members: ["open"], reason: "replaces-project", kind: BY_DESIGN },
+    { root: "RecipesApi", members: ["export", "apply"], reason: "needs-host", kind: BY_DESIGN },
+    { root: "FilesApi", members: ["kindOf"], reason: "needs-host", kind: BY_DESIGN },
+    // Showing another graph replaces the session's graph and starts its history afresh, as an open does.
+    {
+        root: "SessionGraphs",
+        members: ["currentId", "list", "create", "switch"],
+        reason: "replaces-project",
+        kind: BY_DESIGN,
+    },
     { root: "SessionConfig", members: ["acceleration"], reason: "machine-preference", kind: BY_DESIGN },
     {
         root: "SessionDataApi",
@@ -627,6 +671,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     { root: "SessionDataApi", members: ["nodes"], reason: "covered-by", by: "query.nodes", kind: BY_DESIGN },
     { root: "SessionDataApi", members: ["edges"], reason: "covered-by", by: "query.edges", kind: BY_DESIGN },
+    {
+        root: "SessionDataApi",
+        members: ["preparePage"],
+        reason: "covered-by",
+        by: "query.nodes",
+        kind: BY_DESIGN,
+    },
     { root: "SessionDataApi", members: ["count"], reason: "covered-by", by: "query.statistics", kind: BY_DESIGN },
     // A node's name, and an edge's as its two ends' names: `query.node` returns each node's name.
     {
@@ -713,7 +764,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "SelectionOwner",
-        members: ["applyNow", "applyAtNextRead", "nodeMembers", "edgeMembers", "remapNodes", "remapEdges"],
+        members: ["applyNow", "applyAtNextRead", "nodeMembers", "edgeMembers", "remapNodes", "remapEdges", "byInput"],
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
@@ -940,7 +991,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
-    { root: "Graph", members: ["fetchNodes", "fetchEdges"], reason: "needs-host", kind: BY_DESIGN },
+    {
+        root: "Graph",
+        members: ["fetchNodes", "fetchEdges", "fetchNeighborEdges"],
+        reason: "needs-host",
+        kind: BY_DESIGN,
+    },
     {
         root: "Graph",
         members: [

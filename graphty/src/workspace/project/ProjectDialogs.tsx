@@ -1,9 +1,10 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, ProjectAssetChoice } from "@graphty/graphty-element/session";
-import { Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import { Button, Group, Modal, Stack, Text } from "@mantine/core";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import { modelName, pictureName } from "../canvas/models";
+import { saveFilesV2On } from "../features";
 import { megabytes } from "../start/library";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { chipLine, middleCut } from "../style/modelWords";
@@ -16,8 +17,13 @@ import {
     openPending,
     SAVE_AS_DIALOG,
     saveProjectAs,
+    saveProjectAsV2,
 } from "./actions";
+import { NameField } from "./NameField";
 import { NetworkPrompt } from "./NetworkPrompt";
+
+// The version 2 dialogs load only when the save-files-v2 experiment is on.
+const SaveFilesV2Dialogs = lazy(async () => ({ default: (await import("./saveV2Lazy")).SaveFilesV2Dialogs }));
 
 /**
  * Save as... (`#/project-menu/save-as`): titled with the project's name, the name a field with
@@ -34,6 +40,9 @@ function SaveAsDialog(): React.JSX.Element {
     // Whether another dialog took the slot during a save (the question about files from the web,
     // or Save as pressed again over it): the save then leaves the slot to that dialog.
     const left = useRef(false);
+    // Read through a call: the effect sets it while the save awaits, which TypeScript's narrowing
+    // after `left.current = false` cannot see.
+    const hasLeft = (): boolean => left.current;
     useEffect(() => {
         if (opened) {
             setName(current);
@@ -54,7 +63,7 @@ function SaveAsDialog(): React.JSX.Element {
         left.current = false;
         try {
             await saveProjectAs(workspace, trimmed);
-            if (!left.current) {
+            if (!hasLeft()) {
                 close();
             }
         } finally {
@@ -70,17 +79,7 @@ function SaveAsDialog(): React.JSX.Element {
                     void save();
                 }}
             >
-                <TextInput
-                    data-autofocus
-                    label="Name"
-                    value={name}
-                    onChange={(event) => {
-                        setName(event.currentTarget.value);
-                    }}
-                    onFocus={(event) => {
-                        event.currentTarget.select();
-                    }}
-                />
+                <NameField value={name} onChange={setName} />
                 <ModalFooter mt="md">
                     <Button variant="default" onClick={close}>
                         Cancel
@@ -222,7 +221,7 @@ function KeepAssetRow({
 
 /**
  * How to keep each model or picture a layer names by web address, asked before a save that holds
- * any (the node models experiment): embed it, so the project opens offline, or keep only its
+ * any: embed it, so the project opens offline, or keep only its
  * address, so the file is fetched again when the project opens.
  * @returns The dialog
  */
@@ -299,7 +298,7 @@ function KeepAssetsDialog(): React.JSX.Element {
 
 /**
  * The Project package's dialogs (tier1-design.md section T14): Save as..., the unsaved-changes
- * question and, with the node models experiment, how to keep files from the web. It also opens a file waiting for a just-opened project's element, and keeps the
+ * question and how to keep files from the web. It also opens a file waiting for a just-opened project's element, and keeps the
  * header's name in step with the name graphty-element holds (an Undo of a rename, a reopened file).
  * @returns The dialogs
  */
@@ -339,7 +338,13 @@ export function ProjectDialogs(): React.JSX.Element {
 
     return (
         <>
-            <SaveAsDialog />
+            {saveFilesV2On(session) ? (
+                <Suspense fallback={null}>
+                    <SaveFilesV2Dialogs saveAsDialog={SAVE_AS_DIALOG} save={saveProjectAsV2} />
+                </Suspense>
+            ) : (
+                <SaveAsDialog />
+            )}
             <DiscardDialog />
             <KeepAssetsDialog />
             <NetworkPrompt />

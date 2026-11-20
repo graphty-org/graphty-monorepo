@@ -307,3 +307,26 @@ export async function inBrowserZone(zone: string, run: () => Promise<void>): Pro
         await session.send("Emulation.setTimezoneOverride", { timezoneId: "" });
     }
 }
+
+/**
+ * Puts a finger down on the middle of an element, moves it down in steps, and lets the browser
+ * cancel the touch there (`touchCancel`, so the page gets `pointercancel`), as when the system
+ * takes the gesture away mid-drag.
+ * @param element - Where the finger goes down.
+ * @param distance - How far the finger moves down before the cancel, in CSS pixels.
+ */
+export async function touchDragCancelled(element: Element, distance: number): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const { x, y } = middleOf(element);
+    const steps = 10;
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    for (let step = 1; step <= steps; step++) {
+        await session.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: [{ x, y: y + (distance * step) / steps }],
+        });
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+}

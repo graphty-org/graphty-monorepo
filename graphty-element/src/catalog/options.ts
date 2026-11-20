@@ -76,7 +76,9 @@ export function englishDescription(entry: { readonly description?: string }): st
 
 /** Which extension point is being configured, which is what a failure message names. */
 export interface OptionContext {
+    /** The kind of extension point. */
     readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink" | "transition";
+    /** The id it is registered under. */
     readonly id: string;
 }
 

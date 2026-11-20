@@ -68,7 +68,13 @@ const DECLARED = [
     "node.labelLineHeight",
     "node.labelLineBox",
     "node.labelBorderAlign",
+    "node.labelBorderStyle",
     "node.labelBackgroundShape",
+    "node.labelImage",
+    "node.labelImageWidth",
+    "node.labelImageHeight",
+    "node.labelImageOffsetX",
+    "node.labelImageOffsetY",
     "node.labelOffsetX",
     "node.labelOffsetY",
     "node.labelShiftX",
@@ -237,6 +243,7 @@ const DECLARED = [
     "node.modelCenter",
     "node.texture",
     "edge.color",
+    "edge.colorFrom",
     "edge.width",
     "edge.minScreenWidth",
     "edge.opacity",
@@ -266,6 +273,7 @@ const DECLARED = [
     "edge.wavePeriod",
     "edge.dashLength",
     "edge.dashGap",
+    "edge.dashArray",
     "edge.curvature",
     "edge.bends",
     "edge.fanSpacing",
@@ -398,7 +406,13 @@ const DECLARED = [
     "edge.labelLineHeight",
     "edge.labelLineBox",
     "edge.labelBorderAlign",
+    "edge.labelBorderStyle",
     "edge.labelBackgroundShape",
+    "edge.labelImage",
+    "edge.labelImageWidth",
+    "edge.labelImageHeight",
+    "edge.labelImageOffsetX",
+    "edge.labelImageOffsetY",
     "edge.labelOffsetX",
     "edge.labelOffsetY",
     "edge.labelShiftX",
@@ -409,12 +423,14 @@ const DECLARED = [
     "node.shaders",
     "edge.shaders",
     "edge.taper",
+    "edge.taperSource",
     "edge.lift",
     "node.xlabel",
     "node.xlabelStyle",
     "node.xlabelLocation",
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
+    "node.xlabelTextAlign",
     "edge.labelTable",
     "edge.xlabel",
     "edge.xlabelStyle",
@@ -447,9 +463,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and seventeen node channels and one hundred and seventy-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 217);
-        assert.strictEqual(channelsFor("edge").length, 175);
+    it("splits into two hundred and twenty-four node channels and one hundred and eighty-four edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 224);
+        assert.strictEqual(channelsFor("edge").length, 184);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -673,6 +689,8 @@ describe("what a style editor needs to draw a row", () => {
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
         "edge.fadeEnd",
+        // Unset, the line is drawn in its own `edge.color`.
+        "edge.colorFrom",
         // Unset, a group reaches its largest member's radius past its members.
         "node.groupPadding",
         "node.groupPaddingRatio",
@@ -695,6 +713,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.xlabelLocation",
         "node.xlabelOffsetX",
         "node.xlabelOffsetY",
+        "node.xlabelTextAlign",
         // Unset, an edge has no external label, and one that has sits beside its middle or where the layout put it.
         "edge.xlabel",
         "edge.xlabelStyle",
@@ -762,6 +781,8 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, a dash is three widths long and the elements spread from end to end.
         "edge.dashLength",
         "edge.dashGap",
+        // Unset, a line draws its own elements.
+        "edge.dashArray",
         "node.borderWaveAmplitude",
         "node.borderWavePeriod",
         // Unset, an underlay's or an overlay's shape is the node's own, its corners the node's.
@@ -878,7 +899,13 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelLineHeight",
         "node.labelLineBox",
         "node.labelBorderAlign",
+        "node.labelBorderStyle",
         "node.labelBackgroundShape",
+        "node.labelImage",
+        "node.labelImageWidth",
+        "node.labelImageHeight",
+        "node.labelImageOffsetX",
+        "node.labelImageOffsetY",
         "node.labelOffsetX",
         "node.labelOffsetY",
         "node.labelShiftX",
@@ -914,7 +941,13 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelLineHeight",
         "edge.labelLineBox",
         "edge.labelBorderAlign",
+        "edge.labelBorderStyle",
         "edge.labelBackgroundShape",
+        "edge.labelImage",
+        "edge.labelImageWidth",
+        "edge.labelImageHeight",
+        "edge.labelImageOffsetX",
+        "edge.labelImageOffsetY",
         "edge.labelOffsetX",
         "edge.labelOffsetY",
         "edge.labelShiftX",

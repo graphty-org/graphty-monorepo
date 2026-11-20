@@ -1,4 +1,4 @@
-import type { AbstractEngine, EffectLayer, Nullable, Observer, Plane } from "@babylonjs/core";
+import type { AbstractEngine, EffectLayer, Matrix, Nullable, Observer, Plane } from "@babylonjs/core";
 import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Frustum } from "@babylonjs/core/Maths/math.frustum.js";
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
@@ -110,6 +110,36 @@ export function nodeFramingBox(
     // The centers of one node, or of nodes all in one place, enclose nothing to fit: their drawn box is framed instead.
     if (extent === "centers" && min.x === max.x && min.y === max.y) {
         return nodeFramingBox(nodes, "drawn", columns);
+    }
+
+    return { min, max, spots };
+}
+
+/**
+ * A box given by two corners, taken into world space: its eight corners are its spots, which a "turning" fit
+ * (`camera.fitBounds`) keeps in view as the camera turns.
+ * @param lo - The smallest corner, in the graph's own space.
+ * @param hi - The largest corner.
+ * @param world - The transform the graph is drawn in (`graph-root`), if any.
+ * @returns The box in world space.
+ */
+function cornerBox(lo: Vector3, hi: Vector3, world: Matrix | undefined): FramingBox {
+    const min = new Vector3(Infinity, Infinity, Infinity);
+    const max = new Vector3(-Infinity, -Infinity, -Infinity);
+    const spots: FramingSpot[] = [];
+    for (let i = 0; i < 8; i++) {
+        const corner = new Vector3(
+            (i & 1) === 0 ? lo.x : hi.x,
+            (i & 2) === 0 ? lo.y : hi.y,
+            (i & 4) === 0 ? lo.z : hi.z,
+        );
+        if (world !== undefined) {
+            Vector3.TransformCoordinatesToRef(corner, world, corner);
+        }
+
+        min.minimizeInPlace(corner);
+        max.maximizeInPlace(corner);
+        spots.push({ pos: corner, half: 0 });
     }
 
     return { min, max, spots };
@@ -551,6 +581,11 @@ export class UpdateManager implements Manager {
     autoTurning = false;
     /** Whether motion is reduced, which keeps `camera.autoRotate` from turning; set by the graph. */
     reducedMotion = false;
+    /**
+     * Whether a tour holds the camera: `camera.autoRotate` and the glide to the selection wait
+     * until it ends, so a hold stands still. Set by the graph while a tour plays or records.
+     */
+    cameraHeld = false;
     /** The longest frame the auto-rotation turns for, so a tab coming back does not jump. */
     private static readonly MAX_TURN_MS = 100;
     /** `camera.autoRotate` and `camera.autoRotateResume` as the last pass read them; a change ends the reader's pause. */
@@ -2385,6 +2420,21 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Remember whether the element frames the graph on its own and what it still owes, for a
+     * camera a tour places only for its own length.
+     * @returns Puts the framing back as it was.
+     */
+    saveFraming(): () => void {
+        const { needsZoomToFit, forceZoomToFit, explicitZoomToFit } = this;
+        return () => {
+            this.needsZoomToFit = needsZoomToFit;
+            this.forceZoomToFit = forceZoomToFit;
+            this.explicitZoomToFit = explicitZoomToFit;
+            this.fitRead = null;
+        };
+    }
+
+    /**
      * Get current zoom to fit state
      * @returns True if zoom to fit is enabled
      */
@@ -2813,6 +2863,12 @@ export class UpdateManager implements Manager {
      * @returns True when every part of the mesh is ready to be drawn into the layer.
      */
     private static layerIsReadyFor(layer: EffectLayer, mesh: AbstractMesh, instanced: boolean): boolean {
+        // A mesh with no geometry draws nothing and has no subMeshes at all (a batched node's
+        // anchor): asking for them threw in the render loop on every frame.
+        if (mesh.getTotalVertices() === 0) {
+            return true;
+        }
+
         const engine = mesh.getEngine();
         const pass = engine.currentRenderPassId;
 
@@ -2837,6 +2893,16 @@ export class UpdateManager implements Manager {
      */
     private noteFrameDrawn(): void {
         this.noteNodesDrawn();
+        const engine = this.layoutManager.layoutEngine;
+        this.drawnLanding =
+            engine instanceof SimulationLayoutEngine
+                ? {
+                      engine,
+                      landed: engine.landedBatchesPublished,
+                      released: this.pending.released,
+                      quiet: this.pending.pendingOnly(UpdateManager.BETWEEN_LANDINGS),
+                  }
+                : null;
         if (!this.stateIsFinished || this.drawnFrameIsFinished) {
             return;
         }
@@ -2879,6 +2945,51 @@ export class UpdateManager implements Manager {
         this.nodesDrawn = true;
         this.eventManager.emit("graph-first-frame", { frames: this.frameCount });
     }
+
+    /**
+     * When the last frame was drawn: the accelerated layout, its landed batch count, how many
+     * pending-work tokens had been released, and whether nothing but the layout and framing was
+     * pending then.
+     */
+    private drawnLanding: {
+        engine: SimulationLayoutEngine;
+        landed: number;
+        released: number;
+        quiet: boolean;
+    } | null = null;
+
+    /**
+     * Whether the only thing still changing the picture is a running accelerated layout that has
+     * published no new landing since the last frame drawn (issue #8801). Its batches land frames
+     * apart, and a frame drawn in between shows the same positions again while taking GPU time
+     * from the batches still computing. Pending work of any other kind (a style repaint, sizing, a
+     * transition, a model loading) says false, as does a layout that can land nothing more (a
+     * failed batch), and so does work that ended since that frame
+     * without owing an event -- a token released (the last batch of a repaint applied over several
+     * passes), or work of another kind that was pending when it was drawn -- since the frame
+     * drawn does not show it yet. Framing is left to the render loop, which draws whenever the
+     * camera moved.
+     * @returns True when the frame about to be drawn would show no new layout positions.
+     */
+    get awaitsLanding(): boolean {
+        const drawn = this.drawnLanding;
+        const engine = drawn?.engine;
+        return (
+            engine !== undefined &&
+            engine === this.layoutManager.layoutEngine &&
+            engine.isAccelerated &&
+            engine.canLand &&
+            engine.landedBatchesPublished === drawn?.landed &&
+            drawn.quiet &&
+            this.pending.released === drawn.released &&
+            this.layoutIsMoving() &&
+            transitionsOf(this.layoutManager)?.active !== true &&
+            this.pending.pendingOnly(UpdateManager.BETWEEN_LANDINGS)
+        );
+    }
+
+    /** The kinds of pending work {@link UpdateManager.awaitsLanding} allows. */
+    private static readonly BETWEEN_LANDINGS: ReadonlySet<string> = new Set(["layout", "framing"]);
 
     /**
      * Whether a frame showing the graph's nodes has been drawn since the graph last held none.
@@ -3020,7 +3131,7 @@ export class UpdateManager implements Manager {
      */
     private followSelection(frameMs: number): void {
         this.followingSelection = false;
-        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
+        if (this.cameraHeld || !this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
             return;
         }
 
@@ -3046,8 +3157,10 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        // A camera still gliding to the selection is a picture that is not final yet.
-        const frames = Math.min(MAX_CATCH_UP_ROUNDS, frameMs / NOMINAL_FRAME_MS);
+        // A camera still gliding to the selection is a picture that is not final yet. Not capped as
+        // the layout's catch-up is: a glide round is one multiplication, so a slow frame covers all
+        // the time it took. Capped, a page drawing a frame a second glided for seven (issue #9032).
+        const frames = frameMs / NOMINAL_FRAME_MS;
         this.followingSelection = this.camera.followPoint(selectionCenter(nodes), frames);
     }
 
@@ -3111,7 +3224,7 @@ export class UpdateManager implements Manager {
         }
 
         // Reduced motion keeps the camera still.
-        const turnSpeed = this.reducedMotion ? 0 : camera.autoRotate;
+        const turnSpeed = this.reducedMotion || this.cameraHeld ? 0 : camera.autoRotate;
         this.autoTurning = this.camera.autoTurn(
             (turnSpeed * Math.min(frameMs, UpdateManager.MAX_TURN_MS)) / 1000,
             frameMs,
@@ -3513,9 +3626,26 @@ export class UpdateManager implements Manager {
      */
     private measure(): FramingBox | undefined {
         return (
+            this.fixedFraming() ??
             this.envelopeFraming() ??
             framingBox(this.layoutManager.nodes, this.layoutManager.edges, this.framing?.extent, this.columnFraming())
         );
+    }
+
+    /**
+     * The box the project setting `framing.box` fixes, in world space: framed whatever the nodes' extent, while the
+     * fixed layout draws the stored positions it frames.
+     * @returns The box, or undefined when the setting fixes none or another layout runs.
+     */
+    private fixedFraming(): FramingBox | undefined {
+        const fixed = this.framing?.box;
+        // The box is the file's frame for its own stored positions: any other layout draws the nodes elsewhere.
+        if (fixed === undefined || this.layoutManager.layoutType !== "fixed") {
+            return undefined;
+        }
+
+        const world = this.graphContext.getScene().getTransformNodeByName("graph-root")?.computeWorldMatrix(true);
+        return cornerBox(new Vector3(fixed.min[0], fixed.min[1], 0), new Vector3(fixed.max[0], fixed.max[1], 0), world);
     }
 
     /**
@@ -3562,28 +3692,14 @@ export class UpdateManager implements Manager {
         const pad = this.framing?.extent === "centers" ? 0 : table.widestHalf;
         const root = scene.getTransformNodeByName("graph-root");
         const world = root?.computeWorldMatrix(true);
-        const min = new Vector3(Infinity, Infinity, Infinity);
-        const max = new Vector3(-Infinity, -Infinity, -Infinity);
-        // The box's corners are the spots a "turning" fit fits (`camera.fitBounds`).
-        const spots: FramingSpot[] = [];
         // The batches draw a row flat in 2D, wherever the layout put its z.
         const near = flat ? 0 : bounds[2] - pad;
         const far = flat ? 0 : bounds[5] + pad;
-        for (let i = 0; i < 8; i++) {
-            const corner = new Vector3(
-                (i & 1) === 0 ? bounds[0] - pad : bounds[3] + pad,
-                (i & 2) === 0 ? bounds[1] - pad : bounds[4] + pad,
-                (i & 4) === 0 ? near : far,
-            );
-            if (world !== undefined) {
-                Vector3.TransformCoordinatesToRef(corner, world, corner);
-            }
-
-            min.minimizeInPlace(corner);
-            max.maximizeInPlace(corner);
-            spots.push({ pos: corner, half: 0 });
-        }
-
+        const { min, max, spots } = cornerBox(
+            new Vector3(bounds[0] - pad, bounds[1] - pad, near),
+            new Vector3(bounds[3] + pad, bounds[4] + pad, far),
+            world,
+        );
         return min.x < max.x || min.y < max.y ? { min, max, spots } : undefined;
     }
 

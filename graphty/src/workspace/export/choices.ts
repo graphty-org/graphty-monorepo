@@ -5,13 +5,25 @@
  * No React, so the rules are tested on their own.
  */
 
-import type { AnimationOptions, ExportResult, ExportScope, ScreenshotOptions } from "@graphty/graphty-element";
+import type {
+    AnimationOptions,
+    CaptureEstimate,
+    ExportResult,
+    ExportScope,
+    ScreenshotLegendPosition,
+    ScreenshotOptions,
+} from "@graphty/graphty-element";
 import {
     type FormatDescriptor,
     type OptionDescriptor,
     SCREENSHOT_PRESET_DESCRIPTORS,
 } from "@graphty/graphty-element/catalog";
-import type { GraphtyErrorCode, ScreenshotPreset } from "@graphty/graphty-element/session";
+import {
+    type CodedFact,
+    type GraphtyErrorCode,
+    isGraphtyError,
+    type ScreenshotPreset,
+} from "@graphty/graphty-element/session";
 
 /** An image format `captureScreenshot` writes. */
 export type ImageFormat = NonNullable<ScreenshotOptions["format"]>;
@@ -22,13 +34,24 @@ export type ImageSize = "1x" | "2x" | "4x" | "400x300";
 /** What the image is drawn against. */
 type ImageBackground = "canvas" | "transparent";
 
-/** The Image output's choices. */
-export interface ImageChoices {
+/** What a screenshot preset sets: the image's format, size and background. */
+interface ImageLook {
     readonly format: ImageFormat;
     readonly size: ImageSize;
     readonly background: ImageBackground;
-    /** "current" for the reader's camera, else a camera id from `session.catalog.cameras()`. */
-    readonly view: string;
+}
+
+/** The Image output's choices: a camera's Export image... */
+export interface CameraImageChoices {
+    readonly format: ImageFormat;
+    readonly size: ImageSize;
+    readonly background: ImageBackground;
+    /** Null for the reader's camera, else a view name: a camera view's id or a saved view's name. */
+    readonly view: string | null;
+    /** Whether the image carries the key; undefined follows whether the canvas shows the legend. */
+    readonly legend?: boolean;
+    /** The corner the key sits in. */
+    readonly corner: ScreenshotLegendPosition;
 }
 
 /**
@@ -237,7 +260,16 @@ const FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode | `${GraphtyErrorC
     E_DISPOSED: "The graph was closed.",
     E_UNKNOWN_CAMERA: "This view is not available.",
     "E_UNSUPPORTED/format": "This browser cannot write this image format.",
+    "E_UNSUPPORTED/mode": "A view does not fit this drawing mode.",
+    "E_UNSUPPORTED/xr": "Not while in VR or AR.",
+    "E_BAD_COMMAND/name-taken": "That name is taken.",
+    "E_BAD_COMMAND/no-stops": "The tour has no stops.",
     E_CAPTURE_FAILED: "The drawing could not be captured.",
+    "E_CAPTURE_FAILED/hidden": "The tab was hidden, so the recording stopped.",
+    "E_CAPTURE_FAILED/resized": "The canvas changed size, so the recording stopped.",
+    "E_CAPTURE_FAILED/interrupted": "The camera was moved, so the recording stopped.",
+    "E_CAPTURE_FAILED/replaced": "Another camera move took over, so the recording stopped.",
+    "E_CAPTURE_FAILED/mode-changed": "The drawing mode changed, so the recording stopped.",
 };
 
 /** The words for the codes a screenshot shares with other failures but means something else by. */
@@ -245,43 +277,55 @@ const IMAGE_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
     E_TOO_LARGE: "The image is too large for this browser.",
     E_OUT_OF_MEMORY: "The browser ran out of memory for an image this size.",
     E_OPTION_RANGE: "The image size is not valid.",
-    E_BAD_COMMAND: "Only PNG keeps a transparent background.",
+    E_BAD_COMMAND: "Only PNG and WebP keep a transparent background.",
 };
 
 /**
- * What went wrong, worded by the error's code (and its `details.reason`); a code the app has no
- * words for shows as itself.
+ * The words for a code and its `reason`; a code the app has no words for shows as itself.
+ * @param code - the code.
+ * @param reason - its `reason` detail or param, when it has one.
+ * @param image - whether it came from a screenshot, which words some codes as being about the image.
+ * @returns the sentence.
+ */
+function codeWords(code: string, reason: unknown, image: boolean): string {
+    const words: Readonly<Record<string, string | undefined>> = FAILURE_WORDS;
+    const imageWords: Readonly<Record<string, string | undefined>> = image ? IMAGE_WORDS : {};
+    const byReason = typeof reason === "string" ? words[`${code}/${reason}`] : undefined;
+    return byReason ?? imageWords[code] ?? words[code] ?? `Something went wrong (${code}).`;
+}
+
+/**
+ * What went wrong, worded by the error's code (and its `details.reason`); anything that is not a
+ * GraphtyError has no code to word.
  * @param error - what the element threw.
  * @param image - whether it came from a screenshot, which words some codes as being about the image.
  * @returns the sentence.
  */
 export function failureWords(error: unknown, image = false): string {
-    const { code, details } =
-        typeof error === "object" && error !== null
-            ? (error as { code?: unknown; details?: { reason?: unknown } })
-            : {};
-    if (typeof code !== "string") {
-        return "Something went wrong.";
-    }
-    const words: Readonly<Record<string, string | undefined>> = FAILURE_WORDS;
-    const imageWords: Readonly<Record<string, string | undefined>> = image ? IMAGE_WORDS : {};
-    const reason = typeof details?.reason === "string" ? words[`${code}/${details.reason}`] : undefined;
-    return reason ?? imageWords[code] ?? words[code] ?? `Something went wrong (${code}).`;
+    return isGraphtyError(error) ? codeWords(error.code, error.details.reason, image) : "Something went wrong.";
+}
+
+/**
+ * Why a screenshot with some options would fail, worded by `canCaptureScreenshot`'s coded reason
+ * (and its `params.reason`).
+ * @param fact - the coded reason.
+ * @returns the sentence.
+ */
+export function factWords(fact: CodedFact): string {
+    return codeWords(fact.code, fact.params.reason, true);
 }
 
 /**
  * Why a size cannot be captured, in a phrase that follows the size: the browser's limit on an
  * image, or the capture's own failure words.
  * @param reason - `canCaptureScreenshot`'s coded reason.
- * @param reason.code - the code a capture with those options would fail with.
- * @param reason.params - that failure's details.
  * @returns the phrase.
  */
-export function refusalWords(reason: { code: string; params: Readonly<Record<string, unknown>> }): string {
+export function refusalWords(reason: CodedFact): string {
     if (reason.code === "E_TOO_LARGE") {
         return "this browser cannot make an image this size";
     }
-    const words = failureWords({ code: reason.code, details: reason.params }, true).replace(/\.$/, "");
+    const words = factWords(reason).replace(/\.$/, "");
     return words.charAt(0).toLowerCase() + words.slice(1);
 }
 
@@ -301,7 +345,7 @@ export const PRESET_LABELS: Readonly<Record<PresetId, string>> = {
  * @param preset - one of `SCREENSHOT_PRESET_DESCRIPTORS`.
  * @returns its format, size and background.
  */
-export function presetChoices(preset: ScreenshotPreset): Omit<ImageChoices, "view"> {
+export function presetChoices(preset: ScreenshotPreset): ImageLook {
     return {
         format: preset.format,
         size: (preset.multiplier === undefined
@@ -314,9 +358,10 @@ export function presetChoices(preset: ScreenshotPreset): Omit<ImageChoices, "vie
 /** The label of the preset list's entry after any edit. */
 export const CUSTOM = "Custom";
 
-export const DEFAULT_IMAGE: ImageChoices = {
+export const DEFAULT_CAMERA_IMAGE: CameraImageChoices = {
     ...presetChoices(SCREENSHOT_PRESET_DESCRIPTORS[0]),
-    view: "current",
+    view: null,
+    corner: "bottom-right",
 };
 
 /**
@@ -324,7 +369,7 @@ export const DEFAULT_IMAGE: ImageChoices = {
  * @param choices - the image choices.
  * @returns the preset, or undefined for Custom.
  */
-export function presetOf(choices: ImageChoices): ScreenshotPreset | undefined {
+export function presetOf(choices: ImageLook): ScreenshotPreset | undefined {
     return SCREENSHOT_PRESET_DESCRIPTORS.find((entry) => {
         const preset = presetChoices(entry);
         return (
@@ -344,24 +389,26 @@ export function backgroundRefusal(format: ImageFormat, background: ImageBackgrou
 }
 
 /**
- * The camera a view choice asks for. "Whole graph" frames every node from the angle on screen,
- * not from the element's fixed diagonal, so the picture is the drawing the reader turned.
- * @param view - a camera id from `session.catalog.cameras()`.
+ * The camera a view choice asks for. Fit frames every node from the angle on screen, not from the
+ * element's fixed diagonal, so the picture is the drawing the reader turned.
+ * @param view - a camera view's id or a saved view's name.
  * @returns the screenshot's camera option.
  */
 function cameraOf(view: string): NonNullable<ScreenshotOptions["camera"]> {
-    return view === "fitToGraph" ? { preset: view, params: { keepAngle: true } } : { preset: view };
+    return view === "fitToGraph" ? { view, params: { keepAngle: true } } : { view };
 }
 
 /**
- * The options for one capture.
+ * The options for one capture from a camera, or from the reader's camera.
  * @param choices - the image choices.
+ * @param view - the view to capture from; null for the reader's camera.
  * @param destination - where the element sends the image.
  * @param downloadFilename - the file name, for a download.
  * @returns the screenshot options.
  */
-export function screenshotOptions(
-    choices: ImageChoices,
+function captureOptions(
+    choices: ImageLook,
+    view: string | null,
     destination: NonNullable<ScreenshotOptions["destination"]>,
     downloadFilename?: string,
 ): ScreenshotOptions {
@@ -374,10 +421,25 @@ export function screenshotOptions(
         showSelection: false,
         ...(preset?.enhanceQuality === true ? { enhanceQuality: true } : {}),
         ...(preset?.quality === undefined ? {} : { quality: preset.quality }),
-        ...(choices.view === "current" ? {} : { camera: cameraOf(choices.view) }),
+        ...(view === null ? {} : { camera: cameraOf(view) }),
         destination,
         ...(downloadFilename === undefined ? {} : { downloadFilename }),
     };
+}
+
+/**
+ * The options for one capture from the Image output.
+ * @param choices - the image choices.
+ * @param destination - where the element sends the image.
+ * @param downloadFilename - the file name, for a download.
+ * @returns the screenshot options.
+ */
+export function cameraScreenshotOptions(
+    choices: CameraImageChoices,
+    destination: NonNullable<ScreenshotOptions["destination"]>,
+    downloadFilename?: string,
+): ScreenshotOptions {
+    return captureOptions(choices, choices.view, destination, downloadFilename);
 }
 
 /**
@@ -407,33 +469,58 @@ export function fileName(project: string, what: string, extension: string): stri
 /** The extension of each image format. */
 export const IMAGE_EXTENSIONS: Readonly<Record<ImageFormat, string>> = { png: "png", jpeg: "jpg", webp: "webp" };
 
-/** The Video output's choices. */
-export interface VideoChoices {
-    /** Still: the reader's camera; tour: the camera flies through `stops`. */
+/** The Video output's choices: a tour's Export video... */
+export interface TourVideoChoices {
+    /** Still: the camera holds on `view`; tour: the element plays the saved tour `tour`. */
     readonly camera: "still" | "tour";
-    /** The views a tour visits, in order: camera view ids or saved view names. */
-    readonly stops: readonly string[];
-    /** Length in seconds. */
+    /** The saved tour a tour recording plays; null for the project's first. */
+    readonly tour: string | null;
+    /** The view a still recording holds: null for the reader's camera, else a view name. */
+    readonly view: string | null;
+    /** A still recording's length in seconds; a tour's length is the tour's own. */
     readonly seconds: number;
     readonly fps: 30 | 60;
 }
 
-export const DEFAULT_VIDEO: VideoChoices = { camera: "tour", stops: [], seconds: 5, fps: 30 };
+export const DEFAULT_TOUR_VIDEO: TourVideoChoices = { camera: "tour", tour: null, view: null, seconds: 5, fps: 30 };
 
 /**
- * The options for one recording.
- * @param choices - the video choices.
+ * The options for one recording. A tour is named and its length is the element's plan of it, each
+ * flight recorded as authored (the app covers the canvas when motion is reduced); a still holds a
+ * view for its seconds.
+ * @param choices - the video choices; a tour recording needs its tour named.
  * @param downloadFilename - the file name, for a download; none keeps the video as a blob.
  * @returns the `captureAnimation` options.
  */
-export function animationOptions(choices: VideoChoices, downloadFilename?: string): AnimationOptions {
+export function tourAnimationOptions(choices: TourVideoChoices, downloadFilename?: string): AnimationOptions {
+    const destination =
+        downloadFilename === undefined ? {} : { destination: { download: true, filename: downloadFilename } };
+    if (choices.camera === "tour" && choices.tour !== null) {
+        return { tour: choices.tour, motion: "authored", fps: choices.fps, format: "auto", ...destination };
+    }
     return {
+        cameraMode: "stationary",
         duration: choices.seconds * 1000,
         fps: choices.fps,
         format: "auto",
-        ...(choices.camera === "tour" ? { cameraMode: "animated", tour: choices.stops } : { cameraMode: "stationary" }),
-        ...(downloadFilename === undefined ? {} : { download: true, downloadFilename }),
+        ...(choices.view === null ? {} : { camera: { view: choices.view } }),
+        ...destination,
     };
+}
+
+/**
+ * The element's frame estimate in the app's words: the frame count, and when the element expects
+ * frames to drop, the warning that says so.
+ * @param estimate - `estimateAnimationCapture`'s answer.
+ * @returns the value and the warning, null when no frames are expected to drop.
+ */
+export function framesWords(estimate: CaptureEstimate): { value: string; warning: string | null } {
+    const value = `${String(estimate.totalFrames)} frames`;
+    if (!estimate.likelyToDropFrames) {
+        return { value, warning: null };
+    }
+    const fps = estimate.recommendedFps === undefined ? "" : ` ${String(estimate.recommendedFps)} fps is recommended.`;
+    return { value, warning: `This browser may drop frames at this rate.${fps}` };
 }
 
 /**
@@ -457,15 +544,17 @@ export type OutputId = "image" | "video" | "data" | "report" | "styles" | "recip
 export interface RecentExport {
     readonly output: OutputId;
     readonly name: string;
-    readonly choices?: ImageChoices | VideoChoices | DataChoices;
+    readonly choices?: CameraImageChoices | TourVideoChoices | DataChoices;
 }
 
 /** A section the reader can put in the report or leave out. */
-export type ReportSection = "notes" | "validation" | "changes" | "methods" | "tables";
+export type ReportSection = "image" | "notes" | "pinned" | "validation" | "changes" | "methods" | "tables";
 
 /** The sections, in the report's order, with the checklist's names. */
 export const REPORT_SECTIONS: readonly { readonly id: ReportSection; readonly name: string }[] = [
+    { id: "image", name: "Image" },
     { id: "notes", name: "Notes" },
+    { id: "pinned", name: "Pinned items" },
     { id: "validation", name: "Validation report" },
     { id: "changes", name: "Data changes" },
     { id: "methods", name: "Methods" },

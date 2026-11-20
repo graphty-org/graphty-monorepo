@@ -58,6 +58,7 @@ const GRID_INSPECT_TEST = "test/layouts/grid-inspect.test.ts";
 const COMPACT_TEST = "test/primitives/compact.test.ts";
 const CLUSTER_TEST = "test/layouts/clusters.test.ts";
 const COLLIDE_TEST = "test/layouts/collision.test.ts";
+const ENVELOPE_TEST = "test/layouts/envelope.test.ts";
 const FRONTIER_TEST = "test/primitives/frontier.test.ts";
 const ADVANCE_TEST = "test/primitives/advance.test.ts";
 const BFS_TEST = "test/algorithms/bfs.test.ts";
@@ -836,6 +837,29 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "pos[i] = vec4f(p.xyz + moves[i].xyz, 1.0);",
             minFactor: 10,
             test: COLLIDE_TEST,
+        },
+    ]),
+    envelope: Object.freeze([
+        {
+            name: "count-dropped",
+            find: "sum = sum + vec4f(p, 1.0);",
+            replace: "sum = sum + vec4f(p, 0.0);",
+            minFactor: 10,
+            test: ENVELOPE_TEST,
+        },
+        {
+            name: "min-is-max",
+            find: "lo = min(lo, vec4f(p, 0.0));",
+            replace: "lo = max(lo, vec4f(p, 0.0));",
+            minFactor: 10,
+            test: ENVELOPE_TEST,
+        },
+        {
+            name: "furthest-from-origin",
+            find: "let c = total.xyz / max(total.w, 1.0);",
+            replace: "let c = vec3f(0.0);",
+            minFactor: 10,
+            test: ENVELOPE_TEST,
         },
     ]),
     "grid-cell-key": Object.freeze([

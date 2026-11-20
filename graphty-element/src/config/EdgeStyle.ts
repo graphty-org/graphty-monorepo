@@ -245,7 +245,22 @@ const LineStyle = z.strictObject({
      * @experimental file-styles
      */
     dashGap: z.number().nonnegative().optional(),
+    /**
+     * A pattern of several dash lengths: dashes and gaps alternating from the line's start, in the line's own width
+     * units, separated by spaces or commas ("8 1 2 1" draws a dash 8 widths long, a gap of 1, a dash of 2 and a gap of
+     * 1, then repeats). An odd count is repeated once, as an SVG dash array is; up to 8 numbers are drawn. Set on a
+     * "dash", "dot" or "dash-dot" line, the line is drawn as these square-ended dashes in place of its own elements,
+     * `dashLength`, `dashGap` and `patternCount`; unset, or on any other line type, it changes nothing.
+     * @experimental file-styles
+     */
+    dashArray: z.string().optional(),
     color: ColorStyle.optional(),
+    /**
+     * Draw the line in the color the style layers painted one of its nodes: "source" its source node's, "target" its
+     * target node's, in place of `color`. Kept current: a later layer that recolors the node recolors the line. An end
+     * node no layer colored leaves the line its own `color`. Unset, the line is drawn in `color`.
+     */
+    colorFrom: z.enum(["source", "target"]).optional(),
     opacity: z.number().min(0).max(1).optional(),
     /**
      * Fade the line with its length on screen, in CSS pixels (cosmos.gl's
@@ -333,6 +348,11 @@ const LineStyle = z.strictObject({
     bends: z.string().optional(),
     /** The width at the target as a multiple of the width at the source; 1 draws no taper. */
     taper: z.number().min(0).max(4).optional(),
+    /**
+     * The width at the source as a multiple of the line's width; 1 draws no taper there. When it and `taper` are both
+     * below 1, the line is its full width at the middle and narrows straight to each end.
+     */
+    taperSource: z.number().min(0).max(4).optional(),
     /** How far the route's middle rises out of a flat layout's plane in the 3D view, world units. */
     lift: z.number().optional(),
     /**

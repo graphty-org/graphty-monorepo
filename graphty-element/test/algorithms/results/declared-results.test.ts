@@ -13,6 +13,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { AllPathsAlgorithm } from "../../../src/algorithms/AllPathsAlgorithm";
 import { AStarAlgorithm } from "../../../src/algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
 import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
@@ -204,6 +205,13 @@ const CASES: readonly Case[] = [
         shape: "path",
         method: "astar",
         make: (g) => new AStarAlgorithm(g, { source: "A", target: "F" }),
+    },
+    {
+        name: "all paths",
+        key: "all-paths",
+        shape: "node-set",
+        method: "all-paths",
+        make: (g) => new AllPathsAlgorithm(g, { source: "A", target: "F" }),
     },
     {
         name: "edge betweenness",

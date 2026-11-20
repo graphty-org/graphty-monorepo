@@ -147,6 +147,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     // only by the consumer, never words graphty-element shows
     "mode",
     "key",
+    // the camera view id a saved view follows (SavedView.follows)
+    "follows",
     "nodeId",
     "edgeId",
     "runId",
@@ -331,7 +333,26 @@ const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
  * too much: the column a comparing join writes regions to (JoinChoices.membership) and the kind a
  * link join gives the nodes and edges it adds (JoinLink.kind).
  */
-const PLAIN_STRING_MEMBERS = new Set(["JoinChoices.membership", "JoinLink.kind"]);
+// TourStop.view: the name of the view a tour stop flies to, a camera view's id or the consumer's
+// saved view name, never words the element shows. TourRenameCommand.from and .to: the consumer's
+// own names for a saved tour, before and after.
+const PLAIN_STRING_MEMBERS = new Set([
+    "JoinChoices.membership",
+    "JoinLink.kind",
+    // what a save file's section says of itself, as its author wrote it: the reader's data, shown
+    // as given, never graphty-element's words (spec 3 of graphty-element/spec/README.md)
+    "DocumentSectionAbout.description",
+    "DocumentSectionAbout.created",
+    "DocumentSectionAbout.modified",
+    "DocumentSectionAbout.license",
+    "DocumentSectionAbout.from",
+    "DocumentSectionAbout.uri",
+    // a catalog id: the algorithm or layout a saved run names
+    "ProjectFileRun.algorithm",
+    "TourStop.view",
+    "TourRenameCommand.from",
+    "TourRenameCommand.to",
+]);
 
 /**
  * Whether a result type may hold a plain string under this property name.

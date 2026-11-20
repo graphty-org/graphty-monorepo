@@ -44,7 +44,6 @@ import type { PickSection } from "./values";
  * @param props.onEmptyCancel - the value picker closed with nothing chosen on a card with no step
  * @param props.onDraft - takes a new card's selection while it has no step yet, so the host keeps it
  * @param props.onDone - the workspace closed, or Escape with no row selected
- * @param props.onTitleToggle - Space on the title row: switches the card's on box
  * @param props.titleOff - the card's on box is off
  * @param props.name - the name the reader gave the card, written with it
  * @param props.onRename - renames the card from the workspace's title bar
@@ -69,7 +68,6 @@ export function FilterSelection({
     onDraft,
     onEmptyCancel,
     onDone,
-    onTitleToggle,
     titleOff,
     name,
     onRename,
@@ -92,7 +90,6 @@ export function FilterSelection({
     onDraft?: (rule: UnionLeaf) => void;
     onEmptyCancel?: () => void;
     onDone: () => void;
-    onTitleToggle?: () => void;
     titleOff?: boolean;
     name?: string;
     onRename?: (name: string | undefined) => void;
@@ -188,7 +185,6 @@ export function FilterSelection({
                           onEmptyCancel();
                       }
             }
-            onTitleToggle={onTitleToggle}
             titleOff={titleOff}
             onRename={onRename}
             onChange={(next) => {

@@ -86,6 +86,9 @@ export const COMMANDS: Readonly<{
     readonly "shader.set": {
         readonly undo: "undoable";
     };
+    readonly "asset.defaults": {
+        readonly undo: "undoable";
+    };
     readonly "visibility.set": {
         readonly undo: "undoable";
     };
@@ -149,6 +152,30 @@ export const COMMANDS: Readonly<{
     readonly "view.remove": {
         readonly undo: "undoable";
     };
+    readonly "view.rename": {
+        readonly undo: "undoable";
+    };
+    readonly "view.move": {
+        readonly undo: "undoable";
+    };
+    readonly "view.key": {
+        readonly undo: "undoable";
+    };
+    readonly "view.starting": {
+        readonly undo: "undoable";
+    };
+    readonly "tour.save": {
+        readonly undo: "undoable";
+    };
+    readonly "tour.remove": {
+        readonly undo: "undoable";
+    };
+    readonly "tour.rename": {
+        readonly undo: "undoable";
+    };
+    readonly "tour.move": {
+        readonly undo: "undoable";
+    };
     readonly "view.camera": {
         readonly undo: "exempt";
         readonly reason: "Where the camera is looking is view state, not saved in a project file.";
@@ -188,7 +215,7 @@ export const COMMANDS: Readonly<{
 export function isSessionCommand(value: unknown): value is SessionCommand;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | AssetCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | TourCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // (No @packageDocumentation comment for this package)
 

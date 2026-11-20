@@ -3267,7 +3267,7 @@ describe("apt in the workflows", () => {
             "visual-review template",
             readFileSync(new URL("../visual-review/templates/visual-review.yml", import.meta.url), "utf8"),
         ]);
-        const APT = /--with-deps|install-deps|install-browser|apt-get|playwright-system-deps/;
+        const APT = /--with-deps|install-deps|install-browser|apt-get|playwright-system-deps|mesa-lavapipe/;
         let checked = 0;
         for (const [file, text] of files) {
             const code = text.replace(/^\s*#.*$/gm, "");
@@ -3290,6 +3290,102 @@ describe("apt in the workflows", () => {
         );
         assert.match(action, /tee \/etc\/apt\/apt\.conf\.d\/99-ci-timeouts/);
         assert.match(action, /Acquire::http::Timeout "20";.*Acquire::https::Timeout "20";.*Acquire::Retries "5";/);
+    });
+
+    // Mesa lavapipe comes only from the cached action: full run 44519887010 failed when a new runner image
+    // missed the ImageVersion-keyed cache during an Ubuntu mirror outage (#9043).
+    const lavapipe = parseYaml(
+        readFileSync(new URL("../.github/actions/mesa-lavapipe/action.yml", import.meta.url), "utf8"),
+    ).runs.steps;
+
+    it("installs Mesa lavapipe in every workflow only through the cached mesa-lavapipe action", () => {
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        let users = 0;
+        for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {
+            const code = readFileSync(new URL(file, dir), "utf8").replace(/^\s*#.*$/gm, "");
+            assert.doesNotMatch(code, /apt-get install[^\n]*mesa-vulkan-drivers/, `${file} runs apt for Mesa itself`);
+            users += code.match(/uses: \.\/\.github\/actions\/mesa-lavapipe\n/g)?.length ?? 0;
+        }
+        assert.ok(users >= 4, `found the lavapipe jobs (${users})`);
+        assert.match(
+            job(workflow("ci.yml"), "test"),
+            /uses: \.\/\.github\/actions\/mesa-lavapipe\n\s+with:\n\s+save: \$\{\{ env\.SAVE_CACHES \}\}\n/,
+        );
+    });
+
+    // Runs one of the action's steps against a fake apt-get, dpkg and sudo, with HOME in a temporary directory.
+    const runLavapipe = (index, { env = {}, apt = 'echo "apt-get $*" >> "$ROOT/calls"', cached = [] } = {}) => {
+        const root = mkdtempSync(join(TMP, "lavapipe-"));
+        const bin = join(root, "bin");
+        const debs = join(root, ".cache", "lavapipe-debs");
+        mkdirSync(bin);
+        mkdirSync(debs, { recursive: true });
+        for (const d of cached) writeFileSync(join(debs, d), "");
+        const stub = (name, body) => writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
+        stub("sudo", '"$@"');
+        stub("apt-get", apt);
+        stub("dpkg", 'echo "dpkg $*" >> "$ROOT/calls"');
+        stub("dpkg-query", 'for p in "${@:3}"; do echo "ii  $p"; done');
+        const step = lavapipe[index];
+        const out = join(root, "output");
+        writeFileSync(out, "");
+        const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", step.run], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                ...step.env,
+                ...env,
+                HOME: root,
+                ROOT: root,
+                ImageOS: "ubuntu24",
+                GITHUB_OUTPUT: out,
+                PATH: `${bin}:${process.env.PATH}`,
+            },
+        });
+        const calls = existsSync(join(root, "calls")) ? readFileSync(join(root, "calls"), "utf8") : "";
+        return { ...r, calls, output: readFileSync(out, "utf8"), debs };
+    };
+
+    it("mesa-lavapipe keys the cache on the .deb files the image's index resolves, not the mirror or the image version", () => {
+        const uris = (mirror) =>
+            `echo "'http://${mirror}/pool/m/mesa-vulkan-drivers_25.2.8_amd64.deb' mesa-vulkan-drivers_25.2.8_amd64.deb 1 SHA512:x"`;
+        const a = runLavapipe(0, { apt: uris("azure.archive.ubuntu.com"), env: { ImageVersion: "1" } });
+        const b = runLavapipe(0, { apt: uris("archive.ubuntu.com"), env: { ImageVersion: "2" } });
+        assert.equal(a.status, 0, a.stderr);
+        assert.equal(a.output, b.output);
+        assert.match(a.output, /^key=lavapipe-debs-ubuntu24-[0-9a-f]{32}\nneeded=true\n$/);
+        assert.doesNotMatch(lavapipe[0].run, /apt-get update/, "the key never touches the network");
+        const none = runLavapipe(0, { apt: "true" });
+        assert.match(none.output, /needed=false\n$/);
+    });
+
+    it("mesa-lavapipe: a hit installs with dpkg alone and never runs apt", () => {
+        const r = runLavapipe(2, { env: { HIT: "true", NEEDED: "true" }, cached: ["a.deb", "b.deb"] });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n$/);
+    });
+
+    it("mesa-lavapipe: a miss installs from the image's index, and updates the index only when that fails", () => {
+        const miss = runLavapipe(2, { env: { HIT: "", NEEDED: "true" } });
+        assert.equal(miss.status, 0, miss.stdout + miss.stderr);
+        assert.ok(
+            miss.calls.startsWith(`apt-get install -y --no-install-recommends -o Dir::Cache::Archives=${miss.debs} `),
+        );
+        assert.doesNotMatch(miss.calls, /update/);
+        // the first install fails (a stale index points at a file the mirror dropped), the second succeeds
+        const apt =
+            'echo "apt-get $*" >> "$ROOT/calls"; [ "$1" = update ] && touch "$ROOT/updated"; [ -e "$ROOT/updated" ]';
+        const stale = runLavapipe(2, { env: { HIT: "", NEEDED: "true" }, apt });
+        assert.equal(stale.status, 0, stale.stdout + stale.stderr);
+        assert.match(stale.calls, /^apt-get install [^\n]*\napt-get update\napt-get install [^\n]*\n$/);
+    });
+
+    it("mesa-lavapipe: an image that already has the packages runs neither apt nor dpkg", () => {
+        const r = runLavapipe(2, { env: { HIT: "", NEEDED: "false" } });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.equal(r.calls, "");
+        assert.equal(lavapipe[1].if, "steps.key.outputs.needed == 'true'");
+        assert.match(lavapipe[3].if, /^steps\.key\.outputs\.needed == 'true' && /);
     });
 });
 
@@ -3635,12 +3731,19 @@ describe("gpu.yml", () => {
         // bare host gets E_NO_WEBGPU at its adapter report (issue #2313: the weekly failed that way every week).
         const dir = new URL("../.github/workflows/", import.meta.url);
         let checked = 0;
+        const images = new Set();
         for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {
             const code = readFileSync(new URL(file, dir), "utf8").replace(/^\s*#.*$/gm, "");
             for (const body of code.split(/\n(?= {4}[a-z][\w-]*:\n)/)) {
                 if (!/\n {8}runs-on: .*gpu=t4/.test(body)) continue;
                 const where = `${file}: ${body.trim().split("\n")[0]}`;
-                assert.match(body, /\n {8}container:\n {12}image: ubuntu:24\.04\n {12}options: --gpus all\b/, where);
+                assert.match(
+                    body,
+                    /\n {8}container:\n {12}image: ubuntu:24\.04@sha256:[0-9a-f]{64}\n {12}options: --gpus all\b/,
+                    where,
+                );
+                // pinned by digest: a new build changes the cached .deb key, and its first run needs archive.ubuntu.com (#9035)
+                images.add(body.match(/image: (\S+)/)[1]);
                 assert.match(body, /NVIDIA_DRIVER_CAPABILITIES: all\n/, where);
                 // the bootstrap's package list, which the cached .deb set is keyed on and checked against (#6390)
                 const install = body.match(/\n {18}PACKAGES: [^\n]*/)?.[0] ?? "";
@@ -3663,6 +3766,7 @@ describe("gpu.yml", () => {
             }
         }
         assert.ok(checked >= 2, `found the T4 jobs (${checked})`);
+        assert.equal(images.size, 1, `every T4 job pins the same image, so they share one .deb set: ${[...images]}`);
     });
 
     it("builds nx's project graph from graphty-element, where the T4's element step runs nx", () => {

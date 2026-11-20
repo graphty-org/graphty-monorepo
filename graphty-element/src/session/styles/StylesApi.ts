@@ -80,7 +80,7 @@
 
 import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 
-import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
+import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
 import { isShaderId, type ShaderProblem, type ShaderUse } from "../../catalog/shaders";
 import type {
     AttributeDescriptor,
@@ -95,7 +95,6 @@ import type {
     LayerSpec,
     MeasurementDeclaration,
     NodeId,
-    PaletteDescriptor,
     Path,
     RunId,
     Scope,
@@ -108,7 +107,6 @@ import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
 import { GraphtyLogger } from "../../logging/GraphtyLogger";
-import { quoteEach } from "../../utils/quote-each";
 import { resolveColumn } from "../columns";
 import {
     dropUnusedShaderCopies,
@@ -153,6 +151,7 @@ import { valueLabelsAt } from "../valueLabels";
 import { inertReason } from "../visibility/union";
 import { type HiddenNotDrawn, hiddenNotDrawn } from "../visibility/VisibilityApi";
 import { beneathAuthored, placementLayers } from "./autoApply";
+import { carriedFor, checkCarried, holdCarried } from "./carried";
 import {
     channelDescriptor,
     isChannel,
@@ -1407,6 +1406,17 @@ export interface StylesApi {
      */
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     /**
+     * Copy a layer row whole, just above itself in the same folder, as one undo step: every part
+     * (both parts of a row that paints nodes and edges), with its selector, values, bindings,
+     * source and `userData`, and the row's pin, lock and eye. The copy gets new ids.
+     * @param id - The layer row; a folder is refused.
+     * @param name - The copy's name; the source's when absent.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the copy, and rejects with `E_UNKNOWN_LAYER` for a row the
+     *     tree does not hold and `E_BAD_COMMAND` for a folder.
+     */
+    duplicateRow(id: StyleRowId, name?: string, options?: RunOptions): Run<RowParts>;
+    /**
      * The stack as a style file: {@link StylesApi.toDocument} marked `kind: "graphty-style"`, the
      * same member a project file holds. It carries the layers (and the palettes they name) and
      * nothing else -- no data, no ids, no runs -- so it styles another dataset that has the same
@@ -2252,14 +2262,12 @@ function checkDocumentShaders(shaders: StyleDocument["shaders"]): void {
 /**
  * Check a style document is one this element can read at all.
  *
- * A DOCUMENT MAY CARRY PALETTES AND THEY ARE NOT AN ERROR. The refusal here used to say that
- * "palettes travel with the element, not with a document", which stopped being true the moment a
- * palette could be registered: a document naming a registered palette is applied, and only one
- * naming a palette nothing registered is refused -- with the code that tells a consumer to
- * register it first rather than one that says the element does not support the idea.
+ * A document carries every palette and label look its layers name, built-ins included, and its
+ * layers resolve them there before this build's catalog (`carried.ts`), so a carried entry is
+ * checked for its shape and never refused for being unknown here.
  * @param document - The document.
- * @throws A `GraphtyError` with code `E_BAD_COMMAND` for a version this element does not read,
- *   and `E_UNKNOWN_PALETTE` for a palette nothing on this page has registered.
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND` for a version this element does not read, or a
+ *   carried palette or label look that is not well formed.
  */
 function checkDocument(document: StyleDocument): void {
     // Read as a number rather than as the literal the type declares: a document is data off a
@@ -2275,65 +2283,7 @@ function checkDocument(document: StyleDocument): void {
     }
 
     checkDocumentShaders(document.shaders);
-
-    const missing = (document.palettes ?? [])
-        .filter((palette) => paletteDescriptor(palette.id) === undefined)
-        .map((palette) => palette.id);
-
-    if (missing.length > 0) {
-        const available = knownPaletteIds();
-
-        throw new GraphtyError({
-            code: "E_UNKNOWN_PALETTE",
-            message:
-                `Nothing has registered the palette ${quoteEach(missing, ", ")}. ` +
-                "Register it with `registerPalette` before applying this document; applying it now would " +
-                "paint colours nobody chose.",
-            source: "style",
-            details: { palettes: missing, available, candidates: available },
-        });
-    }
-}
-
-/**
- * The descriptors of every palette these layers name that the element does not itself ship.
- *
- * WHY A SAVED LOOK CARRIES THEM. A document records the palette a layer paints through by NAME,
- * and a name is only meaningful on a page that registered it. Writing the descriptor beside the
- * name makes the document self-describing: the consumer opening it can see exactly which palettes
- * it needs, show them, and register them -- rather than getting a refusal naming a palette they
- * have no way to reconstruct. The element's own palettes are left out on purpose, because they
- * are the same everywhere and copying eighteen descriptors into every saved file would make a
- * document larger than the look it records.
- * @param specs - The layers being written out.
- * @returns The descriptors, in the order the palettes were first named.
- */
-function carriedPalettes(specs: readonly LayerSpec[]): readonly PaletteDescriptor[] {
-    const named = new Set<string>();
-
-    for (const spec of specs) {
-        for (const binding of Object.values(spec.encode ?? {})) {
-            if (binding !== undefined && "by" in binding && binding.palette !== undefined) {
-                named.add(String(binding.palette));
-            }
-        }
-    }
-
-    const carried: PaletteDescriptor[] = [];
-
-    for (const id of named) {
-        if (PALETTE_DESCRIPTORS.some((descriptor) => descriptor.id === id)) {
-            continue;
-        }
-
-        const descriptor = paletteDescriptor(id);
-
-        if (descriptor !== undefined) {
-            carried.push(descriptor);
-        }
-    }
-
-    return carried;
+    checkCarried(document);
 }
 
 /**
@@ -3539,6 +3489,34 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * Name, in a specification being saved, the palette each color binding that names none was
+     * painted through, so a file never depends on the reading build's default (issue #6514). Only
+     * this version's own paint answers, never the last paint of an earlier version that a held
+     * repaint stands in with, and only for a binding reading the same path through the same scale;
+     * a layer not painted yet keeps its bindings as written.
+     * @param spec - The specification.
+     * @param id - The layer it was read from.
+     * @returns The specification with every painted default named.
+     */
+    const withResolvedPalettes = (spec: LayerSpec, id: LayerId): LayerSpec => {
+        const own = byId().get(id);
+        const fresh = own === undefined || sources.encoding === undefined ? NO_BINDINGS : sources.encoding(own);
+        let encode: Record<string, Binding> | undefined;
+        for (const { channel, binding } of unnamedPalettes(spec)) {
+            const by = "by" in binding ? binding.by : undefined;
+            const scale = ("scale" in binding ? binding.scale : undefined) ?? "linear";
+            const palette = fresh.find((each) => each.channel === channel && each.path === by && each.scale === scale)
+                ?.palette?.id;
+            if (palette !== undefined) {
+                encode ??= { ...(spec.encode as Record<string, Binding>) };
+                encode[channel] = { ...binding, palette };
+            }
+        }
+
+        return encode === undefined ? spec : { ...spec, encode };
+    };
+
+    /**
      * The refusal of a specification, told to whoever watches as well: a run nobody awaited
      * rejects with no trace, so a layer refused for its shaders went unseen (issue #5972).
      * @param name - What the layer was called.
@@ -4637,6 +4615,106 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             stack.find((entry) => entry.layer.id === key)?.layer.name ?? key;
 
     /**
+     * A layer row's parts, and the ids their copies get, minted in stack order.
+     * @param id - The layer row.
+     * @param name - The copy's name, when it has a new one.
+     * @returns The source row, its parts and each part's new id.
+     */
+    const copyIds = (
+        id: StyleRowId,
+        name: string | undefined,
+    ): {
+        readonly row: RowNode;
+        readonly parts: readonly CompiledLayer[];
+        readonly ids: ReadonlyMap<LayerId, LayerId>;
+    } => {
+        const row = requireRow(id);
+        if (row.kind === "folder") {
+            throw badCommand("Only a layer row can be duplicated.", { id });
+        }
+
+        const parts = current().filter((entry) => !entry.layer.locked && rowKeyOf(entry) === id);
+        const fresh = minter();
+        const ids = new Map(parts.map((entry) => [entry.layer.id, fresh(name ?? entry.layer.name)]));
+        return { row, parts, ids };
+    };
+
+    /**
+     * The plan for a copy of a layer row, just above it in its folder.
+     * @param id - The layer row.
+     * @param name - The copy's name; the source's when absent.
+     * @returns The plan.
+     */
+    const planDuplicateRow = (id: StyleRowId, name: string | undefined): EditPlan<RowParts> => {
+        const { row, parts, ids } = copyIds(id, name);
+        const copyKey = ids.get(id) ?? id;
+        const added = parts.map((entry) => {
+            const spec: LayerSpec = {
+                ...specOf(entry.layer),
+                ...(name === undefined ? {} : { name }),
+                ...(entry.layer.row === undefined ? {} : { row: copyKey }),
+            };
+            const checked = check(spec, ids.get(entry.layer.id) ?? entry.layer.id, true, true);
+            if (checked.layer === null) {
+                throw refused(spec.name, checked.result);
+            }
+
+            return checked.layer;
+        });
+
+        const stack = [...current()];
+        const above = Math.max(...parts.map((entry) => stack.indexOf(entry))) + 1;
+        stack.splice(above, 0, ...added);
+
+        const rows = rowsOf(current());
+        const found = findRow(rows, id);
+        const parent = found?.ancestors.at(-1)?.id ?? null;
+        const copy: RowNode = Object.freeze({ ...row, id: copyKey });
+
+        return {
+            stack,
+            rows: normalize(insertRow(rows, parent, (found?.index ?? rows.length) + 1, copy)),
+            result: rowOf(added) as RowParts,
+            layers: added.map((entry) => entry.layer.id),
+            unresolvedPaths: NO_PATHS,
+            reason: "add",
+        };
+    };
+
+    /**
+     * The id a command that adds a layer or a folder will give it, minted as its plan mints it.
+     * @param command - The command.
+     * @returns The id, or undefined for a command that adds none or that its plan will refuse.
+     */
+    const mintedId = (command: StylePatchCommand): string | undefined => {
+        try {
+            switch (command.action) {
+                case "add":
+                    return mint(command.spec.name);
+                case "addRow": {
+                    // A row of two parts is known by its node part's id, minted second.
+                    const fresh = minter();
+                    const first = fresh(command.spec.name);
+                    return command.spec.target === "both" ? fresh(command.spec.name) : first;
+                }
+                case "mark": {
+                    const runs = requireRuns("mark");
+                    const run = requireRun(command.spec.run, runs);
+                    return mint(command.spec.name ?? runs.defaultLayerName(run.id) ?? run.algorithm);
+                }
+                case "addFolder":
+                    return folderMinter(rowsOf(current()))(command.name);
+                case "duplicateRow":
+                    return copyIds(command.id, command.name).ids.get(command.id);
+                default:
+                    return undefined;
+            }
+        } catch {
+            return undefined;
+        }
+    };
+
+    /**
      * The plan for a change to the tree alone, which leaves every layer as it is.
      * @param rows - The tree it leaves.
      * @param id - The row it changed, which the run resolves with.
@@ -4805,6 +4883,33 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * {@link planTemplate}, with the document's palettes and label looks held before its layers are
+     * checked, and let go again when the apply is refused.
+     * @param document - The document.
+     * @param templateId - What to record as the template.
+     * @param at - Where the layers go.
+     * @returns The plan.
+     */
+    const planCarrying = (
+        document: StyleDocument,
+        templateId: string | undefined,
+        at: TemplatePosition | undefined,
+    ): EditPlan<TemplateReport> => {
+        checkCarried(document);
+        const restore = holdCarried(
+            scales.carried,
+            document,
+            current().map((entry) => specOf(entry.layer)),
+        );
+        try {
+            return planTemplate(document, templateId, at);
+        } catch (error) {
+            restore();
+            throw error;
+        }
+    };
+
+    /**
      * The plan a style command asks for, against the stack as it stands now.
      * @param command - The command.
      * @returns The plan. Throws a `GraphtyError` to refuse it.
@@ -4836,7 +4941,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
             document = layers.every((spec, at) => spec === document.layers[at]) ? document : { ...document, layers };
 
-            const plan = planTemplate(document, command.templateId, command.at);
+            const plan = planCarrying(document, command.templateId, command.at);
             const unknown = dropped.flatMap((uses, at) =>
                 uses.map((use): CodedFact<"shader.unknown"> => ({
                     code: "shader.unknown",
@@ -4877,6 +4982,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 return planUpdate(command.id, command.patch, current(), command.keepEmpty === true);
             case "addRow":
                 return planAddRow(command.spec, command.at);
+            case "duplicateRow":
+                return planDuplicateRow(command.id, command.name);
             case "addDefaultRows":
                 return planDefaultRows(command.timelineHidden === true);
             case "addFolder":
@@ -5026,6 +5133,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return { result: planned.result, painted } satisfies EditOutcome<unknown>;
         },
         validate: (spec) => check(spec, mint(spec.name)).result,
+        mintedId,
     };
 
     // What one pass told, closed by a single `onBatch`.
@@ -5354,6 +5462,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 "remove",
                 `Delete row ${id}`,
                 { op: "style.patch", action: "deleteRow", id },
+                options,
+            );
+        },
+
+        duplicateRow(id: StyleRowId, name?: string, options: RunOptions = {}): Run<RowParts> {
+            return edit<RowParts>(
+                "add",
+                `Duplicate row ${id}`,
+                { op: "style.patch", action: "duplicateRow", id, ...(name === undefined ? {} : { name }) },
                 options,
             );
         },
@@ -6161,8 +6278,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         toDocument(): StyleDocument {
             const mine = current().filter((entry) => !entry.layer.locked);
-            const layers = mine.map((entry) => specOf(entry.layer));
-            const carried = carriedPalettes(layers);
+            const layers = mine.map((entry) => withResolvedPalettes(specOf(entry.layer), entry.layer.id));
+            const carried = carriedFor(layers, scales.carried);
             // The project's shaders travel with its look, verbatim, beside the palettes. A write
             // that names a catalog shader copies it into the project, so this is every shader used.
             const shaders = [...dispatcher.state.shaders].map(([id, entry]) => Object.freeze({ id, text: entry.text }));
@@ -6183,9 +6300,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return Object.freeze({
                 version: DOCUMENT_VERSION,
                 layers: Object.freeze(layers),
-                // Written only when there is something to write, so a look that uses nothing but
-                // the element's own palettes saves byte for byte what it saved before.
-                ...(carried.length === 0 ? {} : { palettes: Object.freeze(carried) }),
+                // Every palette and label look a layer names, built-ins included, so a later build
+                // that no longer ships one, or ships it changed, paints what this one did.
+                ...(carried.palettes.length === 0 ? {} : { palettes: Object.freeze(carried.palettes) }),
+                ...(carried.labelLooks.length === 0 ? {} : { labelLooks: Object.freeze(carried.labelLooks) }),
                 ...(shaders.length === 0 ? {} : { shaders: Object.freeze(shaders) }),
                 ...(tree === undefined ? {} : { tree }),
                 ...(problems.length === 0 ? {} : { problems: Object.freeze(problems) }),

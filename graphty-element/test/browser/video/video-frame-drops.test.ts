@@ -55,14 +55,23 @@ test("estimateAnimationCapture considers HD @ 30fps safe", () => {
     assert.equal(estimate.totalFrames, 150);
 });
 
-test("estimateAnimationCapture uses defaults for missing params", () => {
+test("estimateAnimationCapture recommends the same aspect at about 1920x1080's pixel count", () => {
+    const estimate = estimateAnimationCapture({ width: 4000, height: 1000, fps: 60, duration: 1000 });
+
+    assert.deepEqual(estimate.recommendedResolution, { width: 2880, height: 720 });
+});
+
+test("estimateAnimationCapture sizes the file from the bitrate", () => {
     const estimate = estimateAnimationCapture({
+        width: 800,
+        height: 600,
         duration: 2000,
+        videoBitrate: 1_000_000,
     });
 
-    // Should use default 30fps and 1920x1080
-    assert.equal(estimate.totalFrames, 60); // 2s * 30fps
-    assert.ok(!estimate.likelyToDropFrames);
+    // Default 30fps; 1 Mbps for 2 s is 250,000 bytes.
+    assert.equal(estimate.totalFrames, 60);
+    assert.equal(estimate.estimatedFileSize, 250_000);
 });
 
 test("estimateAnimationCapture warns about high resolution at moderate fps", () => {

@@ -7,6 +7,7 @@
 
 import "../../../src/graphty-element";
 
+import { Vector3 } from "@babylonjs/core";
 import { afterAll, afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import {
@@ -18,7 +19,9 @@ import {
     type SnapshotLayoutInput,
 } from "../../../extend";
 import type { Graphty } from "../../../index.js";
+import { type Edge, edgeInternals } from "../../../src/Edge";
 import { operationQueueOf } from "../../../src/Graph";
+import type { RenderPath } from "../../../src/meshes/NodeBatch";
 import type { Node } from "../../../src/Node";
 import { transitionsOf } from "../../../src/transitions/LayoutTransitionRunner";
 import { drawnFrames } from "../../helpers/drawn-frames";
@@ -89,12 +92,30 @@ afterEach(() => {
     }
 });
 
+/** How a test's one edge is drawn, and where. */
+interface Setup {
+    /** The render path. */
+    path?: RenderPath;
+    /** 2D or 3D. */
+    view?: "2d" | "3d";
+    /**
+     * The edge: directed with its default arrowhead, directed with the head turned off by a layer,
+     * or undirected (which draws no head).
+     */
+    edge?: "arrow" | "no-head" | "undirected";
+}
+
 /**
- * A mounted element drawing two joined nodes in 2D at fixed places, with labels.
+ * A mounted element drawing two joined nodes at fixed places, with labels.
+ * @param setup - How the edge is drawn, and where; 2D, the objects path and an arrowhead by default.
  * @returns The element.
  */
-async function mounted(): Promise<Graphty> {
+async function mounted(setup: Setup = {}): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    if (setup.path !== undefined) {
+        element.renderPath = setup.path;
+    }
+
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
     element.style.height = `${String(HEIGHT)}px`;
@@ -109,9 +130,20 @@ async function mounted(): Promise<Graphty> {
         { id: "a", position: { x: -4, y: -1, z: 0 } },
         { id: "b", position: { x: 4, y: -1, z: 0 } },
     ]);
-    await element.session.data.addEdges([{ source: "a", target: "b" }]);
+    await element.session.data.addEdges([
+        setup.edge === "undirected" ? { source: "a", target: "b", directed: false } : { source: "a", target: "b" },
+    ]);
     await element.graph.setLayout("fixed", { dim: 3 });
-    await element.setViewMode("2d");
+    await element.setViewMode(setup.view ?? "2d");
+    if (setup.edge === "no-head") {
+        await element.session.styles.add({
+            name: "No head",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        });
+    }
+
     await element.session.styles.add({
         name: "Labels",
         target: "node",
@@ -160,6 +192,42 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
     }
 
     assert.isTrue(holds(), what);
+}
+
+/**
+ * Where an edge's line is drawn from and to: the row centers a line pulled from the row table is
+ * drawn between, or the first and last points of its run of slots.
+ * @param element - The element.
+ * @param edge - The edge.
+ * @returns Its two ends, source first.
+ */
+function drawnEnds(element: Graphty, edge: Edge): [Vector3, Vector3] {
+    const { lineBatch, lineSlots, pulled } = edgeInternals.drawn(edge);
+    if (pulled !== null) {
+        const table = element.graph.getRowTable();
+        assert.isNotNull(table, "a pulled line is drawn from the row table");
+        return [table.centerOf(pulled.source), table.centerOf(pulled.target)];
+    }
+
+    const last = lineSlots.at(-1);
+    assert(lineBatch !== null && last !== undefined, "the line is drawn");
+    return [lineBatch.endsOf(lineSlots[0])[0], lineBatch.endsOf(last)[1]];
+}
+
+/**
+ * How far an edge's drawn end is off its node as drawn: its distance from the line between the two
+ * nodes' drawn centers, and from its own node's center.
+ * @param end - The drawn end.
+ * @param node - Its node.
+ * @param other - The other end's node.
+ * @returns The two distances.
+ */
+function offNode(end: Vector3, node: Node, other: Node): { off: number; from: number } {
+    const centre = node.drawnPosition;
+    const along = other.drawnPosition.subtract(centre).normalize();
+    const rel = end.subtract(centre);
+    const off = rel.subtract(along.scale(Vector3.Dot(rel, along))).length();
+    return { off, from: rel.length() };
 }
 
 describe("layout transitions", () => {
@@ -215,6 +283,63 @@ describe("layout transitions", () => {
         const placed = layoutPlace(element, "a");
         assert.closeTo(a.mesh.position.x, placed.x, 1e-6, "no transition: drawn at the new place");
         assert.closeTo(a.mesh.position.y, placed.y, 1e-6);
+    });
+
+    // Issue #9222: an edge with no arrowhead was laid between the layout's final answer, so it jumped
+    // there on the first frame and its nodes glided in to meet it. An arrowhead casts its ends from the
+    // drawn node meshes, which hid it from the test above. Every frame of the move is checked.
+    describe.each([
+        { path: "objects", view: "2d", edge: "arrow" },
+        { path: "objects", view: "2d", edge: "no-head" },
+        { path: "objects", view: "2d", edge: "undirected" },
+        { path: "objects", view: "3d", edge: "no-head" },
+        { path: "objects", view: "3d", edge: "undirected" },
+        { path: "batched", view: "2d", edge: "arrow" },
+        { path: "batched", view: "2d", edge: "no-head" },
+        { path: "batched", view: "2d", edge: "undirected" },
+        { path: "batched", view: "3d", edge: "no-head" },
+        { path: "batched", view: "3d", edge: "undirected" },
+    ] as const)("an edge ($edge) on the $path path in $view", (setup) => {
+        it("keeps both ends on its nodes as drawn on every frame of the move", async () => {
+            const element = await mounted(setup);
+            const scene = element.graph.getScene();
+            const a = nodeOf(element, "a");
+            const b = nodeOf(element, "b");
+            const edge = [...element.graph.getDataManager().edges.values()][0];
+            await element.session.config.set({ layoutTransition: { transition: "e7/linear", seconds: 0.6 } });
+            const runner = (): ReturnType<typeof transitionsOf> => transitionsOf(element.graph.getLayoutManager());
+            const misses: string[] = [];
+            let moving = 0;
+            const watch = scene.onAfterRenderObservable.add(() => {
+                if (runner()?.active !== true) {
+                    return;
+                }
+
+                const { y } = a.drawnPosition;
+                if (y <= -1 + 0.01 || y >= 1 - 0.01) {
+                    return;
+                }
+
+                moving++;
+                const [src, dst] = drawnEnds(element, edge);
+                for (const [end, node, other] of [
+                    [src, a, b],
+                    [dst, b, a],
+                ] as const) {
+                    const { off, from } = offNode(end, node, other);
+                    // on the line between the drawn centers, and no further from its own than its outline and cap
+                    if (off > 0.02 || from > 1.5) {
+                        misses.push(`frame ${String(moving)}: ${node.id} end ${end.toString()} off ${String(off)}`);
+                    }
+                }
+            });
+            cleanups.push(() => scene.onAfterRenderObservable.remove(watch));
+
+            await element.graph.setLayout("e7-row");
+            await until(element, "the move ends", () => runner()?.active === false);
+            assert.isAbove(moving, 1, "the move was drawn over several frames part way");
+            assert.deepEqual(misses.slice(0, 3), [], "each end sits on its node as drawn on every frame");
+        });
     });
 
     it("lands exactly on the layout's answer when the duration ends", async () => {

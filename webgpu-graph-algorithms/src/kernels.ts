@@ -56,6 +56,7 @@ import { countingScatterWgsl } from "./wgsl/counting-scatter.wgsl.js";
 import { dedupeClaimWgsl } from "./wgsl/dedupe-claim.wgsl.js";
 import { dedupeFilterWgsl } from "./wgsl/dedupe-filter.wgsl.js";
 import { degreeWgsl } from "./wgsl/degree.wgsl.js";
+import { envelopeWgsl } from "./wgsl/envelope.wgsl.js";
 import { fa2AttractionWgsl } from "./wgsl/fa2-attraction.wgsl.js";
 import { fa2IntegrateWgsl } from "./wgsl/fa2-integrate.wgsl.js";
 import { fa2RepulsionExactWgsl } from "./wgsl/fa2-repulsion-exact.wgsl.js";
@@ -134,6 +135,7 @@ export type KernelId =
     | "collide-gather"
     | "collide-apply"
     | "to-drawn"
+    | "envelope"
     | "compact-scatter"
     | "dedupe-claim"
     | "dedupe-filter"
@@ -229,6 +231,14 @@ export const DRAWN_PARAMS: UniformBlock = UniformBlock.define("DrawnParams", [
     ["ty", "f32"],
     ["tz", "f32"],
     ["pad2", "u32"],
+]);
+
+/** `EnvelopeParams` (uniform, 16 B; the fit-to-view measure, issue #8801): `n` @0 rows, `mode` @4 (0-3, see the body), `groups` @8 (the grid-stride workgroups of modes 0 and 2, so the partials they write), `pad0` @12. */
+export const ENVELOPE_PARAMS: UniformBlock = UniformBlock.define("EnvelopeParams", [
+    ["n", "u32"],
+    ["mode", "u32"],
+    ["groups", "u32"],
+    ["pad0", "u32"],
 ]);
 
 /** `CollideParams` (uniform, 32 B; the collision force, issue #3256): `n` @0, `dim` @4 (2 for a flat collision), `hashMask` @8 (the bucket count less one), `cellMax` @12 (how far a bucket is read), `invCell` @16 (one over the cell width in layout units), `radiusScale` @20 (what turns a radius into layout units). */
@@ -1245,6 +1255,24 @@ const TO_DRAWN: KernelEntry = {
     phase: "P4",
 };
 
+/** `envelope` (issue #8801): the count, sum, box and furthest squared distance from the mean of the scene array's finite rows, in four modes (see the body). */
+const ENVELOPE: KernelEntry = {
+    id: "envelope",
+    body: envelopeWgsl,
+    entryPoint: "envelope",
+    bindings: [
+        decl(1, 0, "scene", "storage-ro", "array<f32>"),
+        decl(1, 1, "partials", "storage", "array<vec4f>"),
+        decl(1, 2, "env", "storage", "array<vec4f>"),
+        decl(2, 0, "P", "uniform", "EnvelopeParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [ENVELOPE_PARAMS],
+    needs: ["subgroups"],
+    snippetSlots: [],
+    phase: "P4",
+};
+
 /** `grid-centroid` (grid pass G4): thread per finest cell (the 2^dim orthant pseudo-cells included), the serial mass-weighted sum in sorted order into level 0, the occupancy max into `hubCounters[1]`, hub cells (> GRID_HUB_CELL) appended to `hubList`; 6 storage bindings. */
 const GRID_CENTROID: KernelEntry = {
     id: "grid-centroid",
@@ -2061,6 +2089,7 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "collide-gather": COLLIDE_GATHER,
     "collide-apply": COLLIDE_APPLY,
     "to-drawn": TO_DRAWN,
+    envelope: ENVELOPE,
     "compact-scatter": COMPACT_SCATTER,
     "dedupe-claim": DEDUPE_CLAIM,
     "dedupe-filter": DEDUPE_FILTER,

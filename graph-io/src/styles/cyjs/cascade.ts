@@ -1352,6 +1352,7 @@ function evaluateTarget(
         taperTriangles(curves, drawn);
         if (input.toolDefaults !== false) {
             noArrowsOnHaystacks(curves, drawn);
+            noHaystackLoops(graph, read.order, curves, drawn);
             if (env.nodes !== null) {
                 edgeRoutes(graph, read, curves, env.nodes, drawn);
             }
@@ -1964,6 +1965,7 @@ function combineParts(
         }
     }
     if (kind === "node") {
+        combineDrawOrder(n, words.get("_zIndex"), values);
         combineFace(n, words, values);
         combineBackgroundGradient(n, words, values, notes);
     } else {
@@ -1974,6 +1976,36 @@ function combineParts(
     combineLabelText(kind, n, words, values);
     combineLabelDress(kind, n, words, values, notes, whole);
     combineVisibility(kind, n, words, values);
+}
+
+/**
+ * Each node's draw order, 0 to 100, as Cytoscape.js stacks nodes: by `z-index`, higher on top, and in element order
+ * among equal ones, a later node on top (cytoscape.js 3.34.3 `zIndexSort`). Left unset when every node has the same
+ * z-index, as the element order alone is then the order.
+ * ponytail: `z-compound-depth` (a compound parent beneath its children) is left out
+ * @param n - the element count
+ * @param zIndex - each node's `z-index`, or undefined when no rule sets one
+ * @param values - the values; changed in place
+ */
+function combineDrawOrder(
+    n: number,
+    zIndex: readonly (string | null)[] | undefined,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+): void {
+    const z = Array.from({ length: n }, (_, i) => {
+        const v = Number(zIndex?.[i] ?? 0);
+        return Number.isFinite(v) ? v : 0;
+    });
+    if (n < 2 || z.every((v) => v === z[0])) {
+        return;
+    }
+    const order = new Array<StyleValue | null>(n).fill(null);
+    Array.from({ length: n }, (_, i) => i)
+        .sort((a, b) => z[a] - z[b] || a - b)
+        .forEach((node, rank) => {
+            order[node] = Math.round((rank * 100) / (n - 1));
+        });
+    values.drawOrder = order;
 }
 
 /**
@@ -2414,8 +2446,8 @@ function labelBoxShape(
 /**
  * The line Cytoscape.js draws round a label's box: only with a `text-border-width` and a `text-border-opacity` above
  * 0 (both default to 0), in `text-border-color` (black unset), at its opacity times the element's. A double one is
- * one line a quarter of the width, where `drawText` strokes two such lines half the width apart (cytoscape.js 3.34.3),
- * noted; dotted and dashed are drawn solid, noted.
+ * two lines a quarter of the width, half the width apart (cytoscape.js 3.34.3 `drawText`): a quarter-wide line drawn
+ * `double`, the second one line's width inside the first; dotted and dashed are drawn solid, noted.
  * @param kind - the target
  * @param i - the element
  * @param words - the parts by internal name
@@ -2442,9 +2474,12 @@ function labelBorder(
     col("labelBorderWidth")[i] = style === "double" ? width / 4 : width;
     // stroked centered on the box's edge
     col("labelBorderAlign")[i] = "center";
+    if (style === "double") {
+        col("labelBorderStyle")[i] = "double";
+    }
     const drawn = Math.round(opacity * whole * 1e6) / 1e6;
     col("labelBorderOpacity")[i] = drawn < 1 ? drawn : null;
-    if (style === "dotted" || style === "dashed" || style === "double") {
+    if (style === "dotted" || style === "dashed") {
         notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBorderColor", { sample: style, element: i });
     }
     return true;
@@ -3165,6 +3200,30 @@ function noArrowsOnHaystacks(
             if ((curves[i] ?? "haystack") === "haystack" && col[i] !== null) {
                 col[i] = "none";
             }
+        }
+    }
+}
+
+/**
+ * A `haystack` loop is drawn between two points `haystack-radius` of the way from its node's center to its outline
+ * (cytoscape.js 3.34.3 `findHaystackPoints`), so its line stays inside the node it is drawn under: at the default
+ * radius of 0, a line of no length at the center. graphty would draw it as a loop outside the node, so its line is
+ * drawn at opacity 0.
+ * @param graph - the core's elements
+ * @param order - each output edge's core index, -1 for none
+ * @param curves - each edge's curve style, in output order, null where no rule sets it
+ * @param values - the values; changed in place
+ */
+function noHaystackLoops(
+    graph: CyjsGraph,
+    order: ArrayLike<number>,
+    curves: readonly (StyleValue | null | undefined)[],
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+): void {
+    for (let k = 0; k < order.length; k++) {
+        const e = order[k];
+        if (e >= 0 && graph.source[e] === graph.target[e] && (curves[k] ?? "haystack") === "haystack") {
+            columnOf(values, "opacity", order.length)[k] = 0;
         }
     }
 }

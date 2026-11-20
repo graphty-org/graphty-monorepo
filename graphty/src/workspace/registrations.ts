@@ -26,6 +26,7 @@ import { registration as style } from "./style/commands";
 import { registration as table } from "./table/commands";
 import { registration as time } from "./time/commands";
 import { registration as toolbar } from "./toolbar/commands";
+import { registration as viewsPlace } from "./views-place/commands";
 
 export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
     frame,
@@ -39,6 +40,7 @@ export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
     layout,
     graphPlace,
     dataPlace,
+    viewsPlace,
     inspector,
     style,
     table,

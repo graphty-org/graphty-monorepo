@@ -17,6 +17,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { ArrowCap } from "./ArrowCapBatch";
+import { routeMiddle } from "./edgeRoute";
 import {
     PATTERN_DEFINITIONS,
     type PatternDefinition,
@@ -884,12 +885,14 @@ export class PatternedLineMesh {
     }
 
     /**
-     * The middle of the route this line was last laid along, halfway along its length.
+     * The middle of the route this line was last laid along: the middle of its middle segment, or the joint between
+     * its two middle ones, where a solid line drawn along the same route hangs its label ({@link routeMiddle}).
      * @returns The point.
      * @internal
      */
     routeMiddle(): Vector3 {
-        return this.onRoute((this.laid?.along.at(-1) ?? 0) / 2).point;
+        const points = this.laid?.points ?? [Vector3.Zero()];
+        return Vector3.FromArray(routeMiddle(points.flatMap((p) => [p.x, p.y, p.z])));
     }
 
     /**

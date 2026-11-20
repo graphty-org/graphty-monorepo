@@ -88,7 +88,8 @@ export const WIDENED_FLOATS_PER_PIECE = 21;
 /**
  * The static attributes of a widened batch, each a vec4, in their buffer's order: the line color
  * at the source and at the target (alpha the opacity), the shader's varying parameters, then
- * (seed, parameter-set row, state bits, taper) and the (entered, exited, changed) stamps.
+ * (seed, parameter-set row, state bits, taper) and the (entered, exited, changed) stamps with the
+ * source taper.
  */
 export const EDGE_STATIC_ATTRIBUTES = ["edgeColorA", "edgeColorB", "edgeParams", "edgeMeta", "edgeTimes"] as const;
 
@@ -536,12 +537,27 @@ float drawnHalfWidth(float hw) {
     return hw > 0.0 && hw < 0.5 ? 0.5 : hw;
 }
 
+#ifdef EDGE_WIDENED
+// The line's width along the whole edge (0 to 1) as a multiple of its width: straight from the
+// source's taper (edgeTimes.w) to the target's (edgeMeta.w), or, when both narrow the line, full
+// width at the middle and straight down to each end.
+float taperAt(float along) {
+    float t = clamp(along, 0.0, 1.0);
+    float s = edgeTimes.w;
+    float e = edgeMeta.w;
+    if (s < 1.0 && e < 1.0) {
+        return t < 0.5 ? mix(s, 1.0, t * 2.0) : mix(1.0, e, t * 2.0 - 1.0);
+    }
+    return mix(s, e, t);
+}
+#endif
+
 // Half the line's drawn width at a point's clip position, along the whole edge (0 to 1) for a
 // taper: the width the piece ending there draws it at.
 float drawnHalfWidthAt(vec4 c, float along) {
     float raw = halfWidthAt(c);
 #ifdef EDGE_WIDENED
-    raw *= mix(1.0, edgeMeta.w, clamp(along, 0.0, 1.0)) * edgeReach;
+    raw *= taperAt(along) * edgeReach;
 #endif
     return drawnHalfWidth(raw);
 }
@@ -664,8 +680,8 @@ void main() {
     float total = runTotal;
     float alongA = total > 0.0 ? clamp(run.x / total, 0.0, 1.0) : 0.0;
     float alongB = total > 0.0 ? clamp((run.x + length(pB - pA)) / total, 0.0, 1.0) : 1.0;
-    rawA *= mix(1.0, edgeMeta.w, alongA) * edgeReach;
-    rawB *= mix(1.0, edgeMeta.w, alongB) * edgeReach;
+    rawA *= taperAt(alongA) * edgeReach;
+    rawB *= taperAt(alongB) * edgeReach;
     vEdgeColorA = edgeColorA;
     vEdgeColorB = edgeColorB;
     vEdgeParams = edgeParams;
@@ -836,7 +852,8 @@ void main() {
 
 /**
  * The fragment shader. `pattern` is (element length along the line, kind, half the line's width),
- * all in world units; kind 0 is solid, 1 dash or box, 2 dot, 3 diamond, 4 star.
+ * all in world units; kind 0 is solid, 1 dash or box, 2 dot, 3 diamond, 4 star, 5 a dash array (`dashA` then `dashB`,
+ * dashes and gaps alternating, in world units).
  */
 export const EDGE_JOIN_FRAGMENT_SHADER = `
 precision highp float;
@@ -844,6 +861,8 @@ precision highp float;
 uniform vec3 color;
 uniform float opacity;
 uniform vec3 pattern;
+uniform vec4 dashA;
+uniform vec4 dashB;
 uniform vec2 resolution;
 uniform float miterLimit;
 // The viewport's size in the pixels being drawn (the canvas's, or a capture's); 0 when unknown.
@@ -931,6 +950,23 @@ bool inJoin(vec2 u, vec2 dIn, vec2 dOut, float lenIn, float lenOut, float hw, fl
 bool patternOn(float dist, float across, float spacing) {
     if (pattern.y < 0.5 || spacing <= 0.0) {
         return true;
+    }
+    if (pattern.y > 4.5) {
+        // a dash array, repeating every spacing from the line's start: which dash or gap the point is in
+        float t = mod(max(dist, 0.0), spacing);
+        float s = dashA.x;
+        if (t < s) { return true; }
+        s += dashA.y;
+        if (t < s) { return false; }
+        s += dashA.z;
+        if (t < s) { return true; }
+        s += dashA.w;
+        if (t < s) { return false; }
+        s += dashB.x;
+        if (t < s) { return true; }
+        s += dashB.y;
+        if (t < s) { return false; }
+        return t < s + dashB.z;
     }
     float r = pattern.x * 0.5;
     float k = max(0.0, floor((dist - r) / spacing + 0.5));

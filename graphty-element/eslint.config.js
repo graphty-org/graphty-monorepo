@@ -145,9 +145,12 @@ export default tseslint.config(
         rules: { "local/node-mesh-funnel": ["error", { allow: ["Graph.getNodeMesh"] }] },
     },
     {
-        // Stories and shared test helpers: a read of Node.mesh holds that node off the batch, so a
-        // play function or helper that read it would quietly turn a batched run into an objects one.
-        files: ["stories/**/*.ts", "test/helpers/*.ts"],
+        // Stories, shared test helpers and the fidelity harness: a read of Node.mesh holds that node
+        // off the batch, so a play function, helper or fidelity reading that read it would quietly
+        // turn a batched run into an objects one (#9180). fidelity.test.ts plants renderer defects by
+        // writing to meshes on purpose, which is what a held mesh is for.
+        files: ["stories/**/*.ts", "test/helpers/*.ts", "test/fidelity/**/*.ts"],
+        ignores: ["test/fidelity/fidelity.test.ts"],
         // Not "local": the root config already names its test-timing plugin that for test files.
         plugins: { element: local },
         rules: { "element/node-mesh-funnel": "error" },

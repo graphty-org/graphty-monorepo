@@ -35,8 +35,9 @@
  * - On read: only `join.add` builds (by key in the mapping's spaces), with its own `duplicateIds`;
  *   every other step that is not `off` (`join.merge`, `join.node-values`, `join.edge-values`,
  *   `join.edges`), a `join.add` with `columns`, and a second `join.add` of one source hold the
- *   section. A referenced source parsed again with a `pointer`, `sheet` or `missing` option holds
- *   it too: no parser here reads them. `repeatedEdges` reduces repeats of one pair and one type
+ *   section. A referenced source parsed again with a parse option its format does not read holds
+ *   it too: `pointer` is read by `json`, `missing` by `csv` and `json`, and `sheet` by none yet (no
+ *   workbook reader), and a malformed value of either holds it as well. `repeatedEdges` reduces repeats of one pair and one type
  *   (spec 6.1), and becomes the session's setting; the writer writes the session's setting back. A
  *   node only edges name is supplied by their sources, not a row of their copies. A referenced `file` or `url` source is built from the rows an open read again
  *   (dataFetch.ts); one it could not read supplies nothing, is reported `W_SOURCE_UNAVAILABLE` with
@@ -154,8 +155,21 @@ const READ_SPACES = [
     ["target", "targetSpace"],
 ] as const;
 const DUPLICATE_IDS = new Set(["first", "merge", "refuse"]);
-/** Parse options this reader's parsers do not read (spec 4.1.2 rule 9): a source parsed again with one is held. */
-const UNREAD_OPTIONS = ["pointer", "sheet", "missing"];
+/**
+ * The parse options of spec 4.1.2 rule 9, the formats whose parser reads each, and the values it
+ * takes: a source parsed again with one its format does not read, or a malformed value, is held.
+ */
+const PARSE_OPTIONS: Readonly<Record<string, { formats: readonly string[]; valid: (value: unknown) => boolean }>> = {
+    pointer: {
+        formats: ["json"],
+        valid: (value) => typeof value === "string" && /^(?:\/(?:[^~/]|~[01])*)*$/.test(value),
+    },
+    sheet: { formats: [], valid: () => false },
+    missing: {
+        formats: ["csv", "json"],
+        valid: (value) => Array.isArray(value) && value.every((text) => typeof text === "string"),
+    },
+};
 const SOURCE_MEMBERS = new Set([
     "id",
     "label",
@@ -868,8 +882,11 @@ function checked(body: Readonly<JsonObject>): Checked {
         const options = isPlainObject(record.options) ? record.options : {};
         // Parsed again with an option its parser does not read, it would build another graph.
         if (record.copy === undefined) {
-            for (const name of UNREAD_OPTIONS) {
-                need(!(name in options), `${pointer}/options/${name}`);
+            for (const [name, { formats, valid }] of Object.entries(PARSE_OPTIONS)) {
+                need(
+                    !(name in options) || (formats.includes(String(record.format)) && valid(options[name])),
+                    `${pointer}/options/${name}`,
+                );
             }
         }
     }

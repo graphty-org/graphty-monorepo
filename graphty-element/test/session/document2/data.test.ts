@@ -1849,6 +1849,8 @@ describe("the join history: steps that read sources (spec 4.1.8)", () => {
 
     it("holds the section for a referenced source whose parse options its parser does not read", async () => {
         const { body, first } = await stagedBody();
+        // A CSV source: no parser reads sheet, the CSV parser no pointer, and missing takes a list.
+        assert.strictEqual(recordOf(body, first)?.format, "csv");
         for (const name of ["pointer", "sheet", "missing"]) {
             const copy = structuredClone(body);
             const record = recordOf(copy, first) as JsonObject;
@@ -1987,6 +1989,78 @@ describe("a source saved by reference, read again", () => {
 
             reopened.dispose();
         }
+    });
+
+    it("reads two collections of one JSON file by their pointers, fetched once and refreshed together", async () => {
+        const json = JSON.stringify({
+            graph: {
+                people: [{ id: "ava" }, { id: "ben", team: "N/A" }],
+                knows: [{ source: "ava", target: "ben" }],
+            },
+        });
+        const fetched = vi.fn((_url: string) => Promise.resolve(new Response(json)));
+        vi.stubGlobal("fetch", fetched);
+        const session = createGraphSession(ON);
+        const config = { data: json, missing: ["N/A"] };
+        await session.data.import({ type: "json", config: { ...config, pointer: "/graph/people" }, name: "org.json" });
+        await session.data.import(
+            { type: "json", config: { ...config, pointer: "/graph/knows" }, name: "org.json" },
+            { mode: "merge" },
+        );
+        const { body } = await writeBody(session);
+        session.dispose();
+        const files = (body.sources as JsonObject[]).filter((source) => source.kind === "file");
+        assert.deepStrictEqual(
+            files.map((record) => (record.options as JsonObject).pointer),
+            ["/graph/people", "/graph/knows"],
+        );
+        assert.deepStrictEqual((files[0].options as JsonObject).missing, ["N/A"]);
+        assert.strictEqual((files[0].origin as JsonObject).copy, (files[1].origin as JsonObject).copy, "one copy id");
+        for (const record of files) {
+            delete record.copy;
+            (record.origin as JsonObject).path = "org.json";
+        }
+
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        await refetchSources(body, { location: LOCATION, ...how });
+        assert.strictEqual(fetched.mock.calls.length, 1, "the shared bytes are fetched once");
+        const reopened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(reopened, body), []);
+        assert.deepStrictEqual(
+            reopened.data.nodes().map((node) => node.id),
+            ["ava", "ben"],
+        );
+        assert.strictEqual(reopened.data.edges().length, 1);
+        assert.isUndefined(reopened.data.node("ben")?.team, "missing is read again");
+        const saved = (await writeBody(reopened)).body;
+        assert.deepStrictEqual(
+            (saved.sources as JsonObject[]).flatMap((record) =>
+                record.kind === "file" ? [(record.options as JsonObject).pointer] : [],
+            ),
+            ["/graph/people", "/graph/knows"],
+            "kept on a second save",
+        );
+        reopened.dispose();
+    });
+
+    it("reads a referenced CSV again with its missing option", async () => {
+        const csv = "id,team\nava,core\nben,N/A\n";
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(csv)));
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { data: csv, missing: ["N/A"] }, name: "team.csv" });
+        assert.isUndefined(session.data.node("ben")?.team);
+        const { body } = await writeBody(session);
+        session.dispose();
+        const record = (body.sources as JsonObject[]).find((source) => source.kind === "file") as JsonObject;
+        assert.deepStrictEqual((record.options as JsonObject).missing, ["N/A"]);
+        delete record.copy;
+        (record.origin as JsonObject).path = "team.csv";
+        await refetchSources(body, { location: LOCATION, ...how });
+        const reopened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(reopened, body), []);
+        assert.strictEqual(reopened.data.node("ava")?.team, "core");
+        assert.isUndefined(reopened.data.node("ben")?.team);
+        reopened.dispose();
     });
 
     it("embeds a source another load also supplied rows to, and says why", async () => {

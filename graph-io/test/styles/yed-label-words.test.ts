@@ -88,8 +88,29 @@ describe("a yEd node label with an icon", () => {
         ).toEqual([2, 10]);
     });
 
+    it("draws its icon in the label, its middle from the words' middle", async () => {
+        const below = await valuesOf(file('iconTextGap="4"'), [
+            "labelImage",
+            "labelImageWidth",
+            "labelImageHeight",
+            "labelImageOffsetX",
+            "labelImageOffsetY",
+        ]);
+        expect(String(below[0]).startsWith("data:image/png;base64,")).toBe(true);
+        // the words 10 below the label's middle, the icon (16 + 4) / 2 + 11.64 / 2 above them
+        expect(below.slice(1)).toEqual([16, 16, null, -17.82]);
+        // the words 10 left and 2.18 down, the icon (16 + 4) / 2 right of the middle, level with it
+        expect(
+            await valuesOf(file('horizontalTextPosition="left"'), ["labelImageOffsetX", "labelImageOffsetY"]),
+        ).toEqual([20, -2.18]);
+        expect(await valuesOf(file('iconTextGap="4"', "2.0"), ["labelImageWidth", "labelImageHeight"])).toEqual([
+            32, 32,
+        ]);
+    });
+
     it("is left where its model puts it with no icon resource", async () => {
         expect(await offsetOf(file("").replace('iconData="3"', 'iconData="9"'))).toEqual([null, null]);
+        expect(await valuesOf(file("").replace('iconData="3"', 'iconData="9"'), ["labelImage"])).toEqual([null]);
     });
 });
 

@@ -255,7 +255,14 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ]),
     {
         root: "ElementSession",
-        members: ["publishModelChange", "emptyClick", "elementClick", "groupOutlineClick", "layoutMotion"],
+        members: [
+            "publishModelChange",
+            "emptyClick",
+            "elementClick",
+            "cameraGestureEnd",
+            "groupOutlineClick",
+            "layoutMotion",
+        ],
         reason: "lifecycle",
         kind: BY_DESIGN,
     },
@@ -633,7 +640,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "StepsReading", reason: "panel-state", kind: BY_DESIGN },
     { root: "SetsApi", members: ["pathKind"], reason: "covered-by", by: "sets.get", kind: BY_DESIGN },
     { root: "NotesApi", members: ["toDocument", "mergeDocument"], reason: "whole-document", kind: BY_DESIGN },
-    { root: "ProjectApi", members: ["save", "markSaved", "assetChoices"], reason: "needs-host", kind: BY_DESIGN },
+    {
+        root: "ProjectApi",
+        members: ["save", "markSaved", "assetChoices", "describe", "inspect"],
+        reason: "needs-host",
+        kind: BY_DESIGN,
+    },
     { root: "ProjectApi", members: ["open"], reason: "replaces-project", kind: BY_DESIGN },
     // Showing another graph replaces the session's graph and starts its history afresh, as an open does.
     {
@@ -744,7 +756,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "SelectionOwner",
-        members: ["applyNow", "applyAtNextRead", "nodeMembers", "edgeMembers", "remapNodes", "remapEdges"],
+        members: ["applyNow", "applyAtNextRead", "nodeMembers", "edgeMembers", "remapNodes", "remapEdges", "byInput"],
         reason: "internal-handle",
         kind: BY_DESIGN,
     },

@@ -5,6 +5,7 @@ import { type GraphSession, isGraphtyError, projectFileName } from "@graphty/gra
 import { Alert, Badge, Button, Group, Input, Menu, Select, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { allowlisted, count } from "../../lib/analytics";
 import { sourceName } from "../data-place/words";
 import { fileStylesOn } from "../features";
 import { useAsyncValue } from "../inspector/hooks";
@@ -517,6 +518,11 @@ export function DataOutput({
             }
             setStyleLosses(null);
             await element.downloadGraph(choices.format, { ...options, fileName: name });
+            count("export_done", {
+                kind: "graph",
+                format: allowlisted(choices.format, new Set(formats.map((entry) => entry.id))),
+                destination: "download",
+            });
             onDone(`Exported ${name}`, name);
         } catch (error) {
             setFailure(failureOf(error, losses));

@@ -1279,6 +1279,7 @@ export class DataManager implements Manager {
         this.graph = dispatcher.graph;
         dispatcher.services.data = {
             loading: () => this.ingest.settling,
+            edgeMeaning: (counter) => this.ingest.meaningAt(counter),
             apply: (mutation, draft, after) => {
                 if (mutation.kind === "remove-nodes") {
                     hooks.removing(mutation.ids, []);
@@ -3650,7 +3651,8 @@ export class DataManager implements Manager {
         signal?.addEventListener("abort", cancel, { once: true });
         this.inFlight.add(load);
         try {
-            await this.dispatcher.dispatch(command, { signal: load.controller.signal });
+            // A load's own step, not a reader's: its journal entry says so (`JournalEntry.trigger`).
+            await this.dispatcher.dispatch(command, { signal: load.controller.signal, trigger: "load" });
         } catch (error) {
             // Withdrawn because a newer load took the graph: that, not the abort, is the answer.
             this.throwIfSuperseded(generation, type);

@@ -582,6 +582,49 @@ describe("a version 1 document of one kind, migrated", () => {
     });
 });
 
+describe("version 1 weight, time and location settings", () => {
+    it("become the migrated source's roles where its rows carry the column, unreported", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", year: 1990, until: 2000, lat: 1, lon: 2 },
+            { id: "b", year: 1995, until: 2001, lat: 3, lon: 4 },
+        ]);
+        await session.data.addEdges([{ source: "a", target: "b", cost: 3 }]);
+        const v1 = JSON.parse((await session.project.save()).text) as JsonObject;
+        const state = (v1.members as JsonObject[]).find((each) => each.kind === "graphty-session") as JsonObject;
+        ((state.config as JsonObject).data as JsonObject).knownFields = {
+            nodeTimePath: "year",
+            nodeTimeUnit: "year",
+            nodeTimeEndPath: "until",
+            nodeLatitudePath: "lat",
+            nodeLongitudePath: "lon",
+            edgeWeightPath: "cost",
+            edgeWeightMeaning: "distance",
+            edgeTimePath: "missing",
+        };
+        const problems: DocumentProblem[] = [];
+        const migrated = migrateDocument1(v1, problems);
+        assert.isDefined(migrated);
+        const { data } = migrated.sections as Record<string, JsonObject>;
+        const source = (data.sources as JsonObject[]).find((each) => each.kind !== "reader") as JsonObject;
+        const mapping = source.mapping as JsonObject;
+        assert.deepInclude(mapping.nodes as JsonObject, {
+            time: "year",
+            timeUnit: "year",
+            timeEnd: "until",
+            latitude: "lat",
+            longitude: "lon",
+        });
+        assert.deepInclude(mapping.edges as JsonObject, { weight: "cost", weightMeaning: "distance" });
+        assert.notProperty(mapping.edges as JsonObject, "time", "no column, no role");
+        const leftOut = problems.map((problem) => String(problem.params.pointer));
+        assert.include(leftOut, "/config/data/knownFields/edgeTimePath");
+        assert.notInclude(leftOut, "/config/data/knownFields/nodeTimePath");
+        assert.notInclude(leftOut, "/config/data/knownFields/edgeWeightMeaning");
+        session.dispose();
+    });
+});
+
 describe("a timed version 1 file saved before what lies outside the window had a state", () => {
     it("draws what lies outside as the playback said, through layers selecting the state", async () => {
         const session = createGraphSession({ features: ["save-files-v2"] });

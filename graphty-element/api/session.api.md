@@ -1497,6 +1497,15 @@ export const FILE_STYLE_TRANSLATION_ISSUE: Readonly<{
     NOT_UNDERSTOOD: "W_STYLE_NOT_UNDERSTOOD";
 }>;
 
+// @beta
+export type FileKind = "project" | "recipe" | "style" | "document" | "graph";
+
+// @public
+export interface FilesApi {
+    // @beta
+    kindOf(source: ProjectSource): Promise<FileKind>;
+}
+
 // @public
 export type FileStyleCode = (typeof FILE_STYLE_ISSUE)[keyof typeof FILE_STYLE_ISSUE];
 
@@ -1791,6 +1800,8 @@ export interface GraphSession {
     estimate(command: SessionCommand): CostEstimate;
     execute<C extends SessionCommand>(command: C): CommandOutcome<C>;
     readonly features: EnabledFeatures;
+    // @beta
+    readonly files: FilesApi;
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
     readonly graphs: SessionGraphs;
@@ -1807,6 +1818,8 @@ export interface GraphSession {
     readonly positions: SessionPositions;
     readonly project: ProjectApi;
     recipe(): RecipeDocument;
+    // @beta
+    readonly recipes: RecipesApi;
     recommendLayout(): LayoutRecommendation | undefined;
     redo(): Promise<HistoryOutcome>;
     readonly results: ResultsApi;
@@ -3163,7 +3176,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "asset.defaults" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.rename" | "view.move" | "view.key" | "view.starting" | "tour.save" | "tour.remove" | "tour.rename" | "tour.move" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.duplicate-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "asset.defaults" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.rename" | "view.move" | "view.key" | "view.starting" | "tour.save" | "tour.remove" | "tour.rename" | "tour.move" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -4501,6 +4514,7 @@ export type PartialCode = "partial.iteration-cap" | "partial.time-box" | "partia
 
 // @public
 export interface PartitionComparison extends ComparisonBase {
+    readonly adjustedMutualInformation: number | undefined;
     readonly agreement: number | undefined;
     readonly groups: {
         readonly a: number;
@@ -4847,6 +4861,8 @@ export interface ProjectFileSource {
 // @public
 export interface ProjectOpenOptions {
     // @beta
+    readonly applyRecipe?: boolean;
+    // @beta
     readonly bindOtherData?: boolean;
     // @beta
     readonly columns?: {
@@ -4925,6 +4941,8 @@ export interface ProjectSaveOptions {
     readonly paths?: Readonly<Record<string, string>>;
     // @beta
     readonly results?: boolean;
+    // @beta
+    readonly rewriteRecipe?: boolean;
     // @beta
     readonly sections?: readonly DocumentSection[];
 }
@@ -5150,6 +5168,12 @@ export interface RecipeJoin {
 
 // @public
 export type RecipeLeftOutCode = "names-elements";
+
+// @beta
+export interface RecipesApi {
+    apply(recipe: ProjectSource): Promise<ProjectOpenReport>;
+    export(): Promise<SavedProject>;
+}
 
 // @public
 export interface RecipeSource {
@@ -5935,6 +5959,7 @@ export interface RunsApi {
     readers(id: RunId): readonly RunReader[];
     remove(id: RunId): RunRemoval;
     rename(id: RunId, name: string | null): Promise<void>;
+    stability(algorithm: AlgorithmKey, seeds: readonly number[], options?: StabilityOptions): Run<StabilityResult>;
     start(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
     sweep(algorithm: AlgorithmKey, option: OptionDescriptor["name"], values: readonly unknown[], options?: SweepOptions): Run<SweepResult>;
 }
@@ -7500,6 +7525,20 @@ export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too
 export { SourceValidators }
 
 // @public
+export interface StabilityOptions extends Omit<SweepOptions, "seed"> {
+    readonly field?: string;
+}
+
+// @public
+export interface StabilityResult extends BatchResult {
+    readonly adjustedMutualInformation: number | undefined;
+    readonly agreement: number | undefined;
+    readonly correlation: number | undefined;
+    readonly pairs: readonly ResultComparison[];
+    readonly rows: readonly SweepRow[];
+}
+
+// @public
 export interface StaleNote {
     readonly nowVisible: number;
     readonly ranOn: number;
@@ -7807,6 +7846,7 @@ export interface StylesApi {
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     drawnCount(id: LayerId): number;
     drawnValues(channel: Channel): readonly DrawnValue[];
+    duplicateRow(id: StyleRowId, name?: string, options?: RunOptions): Run<RowParts>;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;

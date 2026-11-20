@@ -619,6 +619,18 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     }
 
     /**
+     * The element's `data.knownFields.positionScale`, which `dataPositions` multiplies by.
+     * @returns The scale, 1 before the element is attached.
+     */
+    protected positionScale(): number {
+        return (
+            this.#host?.positionScale?.() ??
+            this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ??
+            1
+        );
+    }
+
+    /**
      * The data manager's rank subgraphs: from the element, so a graph whose rows have no `Node` (the batched path)
      * still reads them; else through the first `Node`, for an engine the element did not connect.
      * @returns The rank sets; none before the element is attached.

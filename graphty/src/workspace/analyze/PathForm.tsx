@@ -282,6 +282,9 @@ interface PathFormProps {
     onRun: (params: Record<string, unknown>) => void;
 }
 
+/** Shortest-route options the Path popover does not offer yet. */
+const NOT_YET_SHOWN: ReadonlySet<string> = new Set(["invertStrength", "timeOrder"]);
+
 /**
  * The Path popover's body (tier2-design.md section 2), titled "Shortest path": From and To, the
  * algorithm's other options (the Weight line, the advanced ones folded) and Find path. It opens
@@ -316,9 +319,14 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
     const followLabel = useId();
 
     // The ends are the form's own fields; every other option goes through the shared form.
-    // Follow is the form's own row too, shown only where edges have a direction.
+    // Follow is the form's own row too, shown only where edges have a direction. The strength and
+    // time-order choices wait for the Path popover's design (#806), so the form does not show them.
     const options = descriptor.options.filter(
-        (o) => o.name !== "source" && o.name !== "target" && !isPathFollow(descriptor.key, o.name),
+        (o) =>
+            o.name !== "source" &&
+            o.name !== "target" &&
+            !NOT_YET_SHOWN.has(o.name) &&
+            !isPathFollow(descriptor.key, o.name),
     );
     const followOption = descriptor.options.find((o) => isPathFollow(descriptor.key, o.name));
     const directed = session.status.directed && followOption !== undefined;

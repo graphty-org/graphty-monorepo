@@ -212,6 +212,31 @@ describe("a file's fixed framing box", () => {
         assertFramesNodes(await fittedCenters(element));
     });
 
+    it("frames the square drawn at the file's scale, and the same file loaded unstyled spreads (issue #1171)", async () => {
+        // Each square side is 0.6 file units. Styled, the load gives the fixed layout the file's scale, so the
+        // spacing spread stays off and the nodes sit inside the box framed at that scale.
+        const element = await mounted();
+        await loadPajek(element);
+        const gap = (): number => {
+            const a = element.graph.getNode("1")?.getPosition();
+            const b = element.graph.getNode("2")?.getPosition();
+            assert.isDefined(a, "node 1 is drawn");
+            assert.isDefined(b, "node 2 is drawn");
+            return Math.abs(b.x - a.x);
+        };
+        const box = element.session.config.framing?.box;
+        assert.isDefined(box, "the load framed Pajek's square");
+        assert.closeTo(gap(), 0.6 * (box.max[0] - box.min[0]), 1e-3, "the nodes are drawn at the box's scale");
+
+        // Unstyled, nothing sets a scale or a box: the spacing spread draws the 0.6 side three node widths long.
+        await element.loadFromFile(new File([PAJEK], "square.net"), { replace: true, layout: "recommended" });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.isUndefined(element.session.config.framing?.box, "no box frames the unstyled load");
+        assert.closeTo(gap(), 3, 1e-3, "the unit-spaced square is spread to the spacing");
+        assertFramesNodes(await fittedCenters(element));
+    });
+
     it("is dropped by a load that does not frame as its file does", async () => {
         const element = await mounted();
         await loadPajek(element);

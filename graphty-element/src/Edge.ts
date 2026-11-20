@@ -79,6 +79,7 @@ import { edgeDrawChanges } from "./render/EdgeIdTarget";
 import type { RowMeasure } from "./render/RowTable";
 import { frozenRecord } from "./session/project/draft";
 import { placeOfUse } from "./session/styles/channels";
+import { transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 interface InterceptPoint {
     srcPoint: Vector3 | null;
@@ -1705,8 +1706,9 @@ export class Edge {
             return;
         }
 
-        const src = new Vector3(lnk.src.x, lnk.src.y, lnk.src.z ?? 0);
-        const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
+        const gliding = transitionsOf(this.context.getLayoutManager())?.active === true;
+        const src = this.laidEnd("source", lnk.src, srcPos, gliding);
+        const dst = this.laidEnd("target", lnk.dst, dstPos, gliding);
         const lift = this.liftDrawn();
         const bentBefore = this.bundled || this.lifted;
         this.bentMiddle = null;
@@ -1742,6 +1744,30 @@ export class Edge {
         this._lastSrcPos = srcPos.clone();
         this._lastDstPos = dstPos.clone();
         this.endsMoving = false;
+    }
+
+    /**
+     * Where to lay one end of the line: the layout's answer, or while a layout transition moves the nodes, where the
+     * end is drawn this frame. The answer is where the node is going, so a line laid there would be drawn at the new
+     * layout on the move's first frame while its nodes glide in to meet it (issue #9222). A group is drawn set back
+     * behind its members, so its end keeps the answer.
+     * @param end - Which end.
+     * @param laid - The layout's answer.
+     * @param drawn - Where the end is drawn this frame.
+     * @param gliding - Whether a layout transition is under way.
+     * @returns The point.
+     */
+    private laidEnd(
+        end: "source" | "target",
+        laid: EdgePosition["src"],
+        drawn: Readonly<Vector3>,
+        gliding: boolean,
+    ): Vector3 {
+        const group =
+            gliding &&
+            this.columnEnd(end) === undefined &&
+            this.context.getLayoutManager().groupBox((end === "source" ? this.srcNode : this.dstNode).id) !== undefined;
+        return gliding && !group ? drawn.clone() : new Vector3(laid.x, laid.y, laid.z ?? 0);
     }
 
     /**

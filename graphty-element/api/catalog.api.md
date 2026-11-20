@@ -1797,7 +1797,7 @@ export interface KeymapDescriptor {
 }
 
 // @public
-export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "pagerank", "eigenvector", "katz", "hits", "louvain", "leiden", "label-propagation", "components", "shortest-path", "all-pairs-distance", "max-flow", "min-cut", "k-core", "clustering-coefficient", "girvan-newman", "bfs", "dfs", "kruskal", "prim", "bipartite-matching", "link-prediction", "markov-clustering", "spectral-clustering", "hierarchical-clustering", "astar", "all-paths", "edge-betweenness", "removal-impact"];
+export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "pagerank", "eigenvector", "katz", "hits", "louvain", "leiden", "label-propagation", "components", "shortest-path", "all-pairs-distance", "max-flow", "min-cut", "k-core", "clustering-coefficient", "girvan-newman", "bfs", "dfs", "kruskal", "prim", "bipartite-matching", "link-prediction", "markov-clustering", "spectral-clustering", "hierarchical-clustering", "astar", "all-paths", "edge-betweenness", "removal-impact", "articulation-points", "bridges"];
 
 // @public
 export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric", "bottomView"];

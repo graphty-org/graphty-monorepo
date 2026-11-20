@@ -68,6 +68,7 @@ import type { EnabledFeatures } from "../features/resolve";
 import type { DrawnAnnotation } from "./annotations";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { FilesApi } from "./files/kindOf";
 import type { SessionGraphs } from "./graphs/GraphsApi";
 import type { GroupsApi } from "./groups";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
@@ -79,6 +80,7 @@ import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
 import type { RecipeDocument } from "./recipe";
+import type { RecipesApi } from "./recipes/RecipesApi";
 import type { ResultsApi, RunRef } from "./results";
 import type { Histogram, HistogramOptions } from "./results/types";
 import type {
@@ -4821,20 +4823,22 @@ export type PendingId = string & {
  * | `data.columns` | none: the column settings a project file restored |
  * | `data.derive` | `kind`: `"node"` or `"edge"`, or null; `column`: the computed column added or changed, or null when its values were only brought up to date |
  * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
- * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
- * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
+ * | `style.add-layer` | `layer`: its name; `layerId`: the id it gets (a two-part row's id), or null when the step adds none |
+ * | `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id; `layerId`: its id |
+ * | `style.update-layer` | `layer`: its name, or its id; `layerId`: its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
  * | `style.remove-layers` | `count` |
  * | `style.highlight` | `run`: the run highlighted |
- * | `style.fix-channel` | `channel`; `layer`: its name, or its id |
+ * | `style.fix-channel` | `channel`; `layer`: its name, or its id; `layerId`: its id |
  * | `style.encode` | `channel`; `run` |
  * | `style.template` | none |
  * | `style.suggested` | `algorithms`: the algorithms whose suggested styles were applied |
- * | `style.add-folder` | `name`: the folder's name |
- * | `style.rename-row` | `row`: its name before, or its id; `name`: the new name |
- * | `style.move-row`, `style.delete-row` | `row`: its name, or its id |
- * | `style.pin-row` | `row`: its name, or its id; `pin`: `"top"`, `"bottom"` or `"none"` |
- * | `style.lock-row` | `row`: its name, or its id; `locked` |
- * | `style.hide-row` | `row`: its name, or its id; `hidden` |
+ * | `style.add-folder` | `name`: the folder's name; `rowId`: the id it gets |
+ * | `style.rename-row` | `row`: its name before, or its id; `rowId`: its id; `name`: the new name |
+ * | `style.move-row`, `style.delete-row` | `row`: its name, or its id; `rowId`: its id |
+ * | `style.duplicate-row` | `row`: the source row's name, or its id; `rowId`: the source's id; `copyId`: the copy's id |
+ * | `style.pin-row` | `row`: its name, or its id; `rowId`: its id; `pin`: `"top"`, `"bottom"` or `"none"` |
+ * | `style.lock-row` | `row`: its name, or its id; `rowId`: its id; `locked` |
+ * | `style.hide-row` | `row`: its name, or its id; `rowId`: its id; `hidden` |
  * | `style.add-default-rows` | none |
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
@@ -4935,6 +4939,7 @@ export type HistoryCode =
     | "style.lock-row"
     | "style.hide-row"
     | "style.delete-row"
+    | "style.duplicate-row"
     | "style.add-default-rows"
     | "shader.add"
     | "shader.replace"
@@ -6232,6 +6237,20 @@ export interface GraphSession {
     readonly history: SessionHistory;
     /** Saving the whole session to one project file and opening one again. */
     readonly project: ProjectApi;
+    /**
+     * A session's analysis and style layers as one recipe file, applied to other data. Needs the
+     * `save-files-v2` experiment.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly recipes: RecipesApi;
+    /**
+     * What a file is, read from its contents: a project, a recipe, a style file or graph data.
+     * @since 3.40.0
+     * @beta
+     */
+    readonly files: FilesApi;
     /**
      * What was done to the data and how it is drawn, as a document that names columns by name
      * and role and never names a node or an edge: the sources, the columns (roles, types,

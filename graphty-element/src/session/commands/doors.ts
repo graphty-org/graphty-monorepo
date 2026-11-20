@@ -1023,6 +1023,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     canRedo: READ,
     history: READ,
     project: READ,
+    recipes: READ,
+    files: READ,
     transaction: HISTORY,
     estimate: READ,
     // Measures this machine for cost estimates; changes nothing a project file saves.
@@ -1503,6 +1505,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     lockRow: calls(["no-such-row", true], [{ op: "style.patch", action: "lockRow", id: "no-such-row", locked: true }]),
     hideRow: calls(["no-such-row", true], [{ op: "style.patch", action: "hideRow", id: "no-such-row", hidden: true }]),
     deleteRow: calls(["no-such-row"], [{ op: "style.patch", action: "deleteRow", id: "no-such-row" }]),
+    duplicateRow: calls(["no-such-row"], [{ op: "style.patch", action: "duplicateRow", id: "no-such-row" }]),
     toFile: READ,
     setDefaultPalettes: PALETTE_DEFAULTS,
     setHighlightColor: HIGHLIGHT_DEFAULT,
@@ -3524,6 +3527,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 ],
             ),
+            stability: calls(["degree", [1]], [{ op: "algo.run", algorithm: "degree", as: "degree_seed_1", seed: 1 }]),
             get: READ,
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
@@ -3775,6 +3779,24 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     "which have rows of their own.",
             ),
         },
+    },
+    {
+        name: "RecipesApi",
+        file: "src/session/recipes/RecipesApi.ts",
+        half: "session",
+        doors: {
+            export: exempt("Writes the session's recipe and style out as text; it changes nothing a project saves."),
+            apply: exempt(
+                "Opens the recipe through project.open, one transaction whose writes go through the " +
+                    "session's own doors, which have rows of their own.",
+            ),
+        },
+    },
+    {
+        name: "FilesApi",
+        file: "src/session/files/kindOf.ts",
+        half: "session",
+        doors: { kindOf: READ },
     },
     {
         name: "NotesApi",

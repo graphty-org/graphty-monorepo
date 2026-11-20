@@ -151,6 +151,67 @@ describe("the dock's Preview tab (source-steps)", () => {
         assert.isNull(within(card).queryByRole("group", { name: "Excluded" }));
     });
 
+    it("entries in the graph, people staged: excluding and restoring a row redraws After as the card counts it", async () => {
+        await page.viewport(1440, 900);
+        const { session } = await emptyProject();
+        await session.data.import(
+            { type: "csv", config: { data: ENTRIES }, name: "entries.csv" },
+            { key: "entry", type: "entry" },
+        );
+        drop("people.csv", PEOPLE);
+        await screen.findByRole("region", { name: "people.csv" });
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("j");
+        const card = await screen.findByRole("form", { name: "Join" });
+        await choose(card, "Field 1 type", "entry");
+        await choose(card, "Field 1 field", "badge");
+        await choose(card, "Field 2 field", "badge");
+        const section = await preview(card, "Make an edge");
+        // What the inspector's Overview counts: the graph drawn, After while the card previews.
+        const drawnNodes = (): string => {
+            const row = screen
+                .getAllByRole("group", { name: "Nodes" })
+                .find((each) => each.classList.contains("cm-data-row"));
+            return row?.querySelector("[data-testid=data-row-value]")?.textContent ?? "";
+        };
+        const after = (): string => within(section).getByLabelText("Nodes after").textContent?.split(" -> ")[1] ?? "";
+        assert.strictEqual(after(), "10", "six entries and four people");
+        await waitFor(() => {
+            assert.strictEqual(drawnNodes(), "10");
+        });
+
+        await userEvent.click(within(section).getByRole("button", { name: "Show new edges rows" }));
+        const grid = await screen.findByRole("grid", { name: "Rows" });
+        await select(rowWith(grid, "E7"));
+        await userEvent.click(await within(card).findByRole("button", { name: "Exclude selected (1)" }));
+        const excluded = await within(card).findByRole("group", { name: "Excluded" });
+        await waitFor(() => {
+            assert.strictEqual(draftOf(session).preview().steps.at(-1)?.buckets?.newEdges, 4);
+        });
+        // Settles once the graph draws the draft's After as it stands now.
+        await draftOf(session).show("after");
+        assert.strictEqual(String(session.data.statistics().nodeCount), after(), "After draws the card's nodes");
+        await waitFor(() => {
+            assert.strictEqual(drawnNodes(), after(), "the inspector counts the nodes the card says After has");
+        });
+        assert.strictEqual(
+            session.data.nodes().find((node) => node.id === "B1")?.name,
+            "Ann",
+            "a person keeps its values",
+        );
+
+        await userEvent.click(within(excluded).getByRole("button", { name: "Remove E7" }));
+        await waitFor(() => {
+            assert.strictEqual(draftOf(session).preview().steps.at(-1)?.buckets?.newEdges, 5);
+        });
+        await draftOf(session).show("after");
+        assert.strictEqual(String(session.data.statistics().nodeCount), after());
+        await waitFor(() => {
+            assert.strictEqual(drawnNodes(), after());
+        });
+        assert.strictEqual(session.data.nodes().find((node) => node.id === "B1")?.name, "Ann");
+    });
+
     it("HR dept: Pick 2 on one cell marks it R and Decided lists it; Pick 1 on every open cell decides them all", async () => {
         const { session, card } = await joinOn("hr.csv", HR);
         const section = await preview(card, "Merge 2 into 1");

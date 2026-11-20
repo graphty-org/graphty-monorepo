@@ -46,6 +46,9 @@ const HR_REPEATS = "badge,dept\nB1,Operations\nB1,Research\nB2,Lab";
 async function withStaged(name: string, text: string): Promise<{ store: WorkspaceStore; session: GraphSession }> {
     await page.viewport(1440, 900);
     const project = await emptyProject();
+    // The app's starting rows, which a test's own project leaves to the test: the Draft row keys a
+    // drawn draft in the legend.
+    await project.session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
     await project.session.data.import(
         { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
         { key: "badge", type: "person" },
@@ -172,7 +175,9 @@ describe("the Join card's Preview (source-steps)", () => {
         });
         // The legend keys the draft in words, not the layer's border widths.
         const keyed = await legendText();
-        assert.include(keyed, "Draft");
+        // Titled by the path the Draft row reads, as its technical name: a legend field carries no
+        // plain name, and the element names graphty.draft nowhere the app reads one.
+        assert.include(keyed, "Halo: draft");
         assert.include(keyed, "new");
         assert.notInclude(keyed, "graphty.draft");
         assert.notInclude(keyed, "Border width");
@@ -342,7 +347,9 @@ describe("the Join card's Preview (source-steps)", () => {
             assert.include(keyed, "merged");
             assert.notInclude(keyed, "graphty.draft");
         });
-        await userEvent.click(within(card).getByRole("radio", { name: "Drop" }));
+        // Only 2 is a segmented control: its radio is hidden, a reader clicks the label.
+        const drop = within(card).getByRole<HTMLInputElement>("radio", { name: "Drop" });
+        await userEvent.click(drop.labels?.[0] ?? drop);
         await waitFor(() => {
             assert.strictEqual(added(), 0);
         });
@@ -438,6 +445,10 @@ describe("the Join card's Preview (source-steps)", () => {
 
     it("Redo's key during the preview asks first, as its button does, and Cancel keeps the draft", async () => {
         const { session } = await withStaged("hr.csv", HR);
+        // Something to redo: a node moved and the move undone.
+        await session.positions.set([{ id: "B1", x: 5, y: 5, z: 0 }]);
+        await session.undo();
+        assert.isTrue(session.canRedo, "a step to redo");
         await previewMerge(session);
         const draft = draftOf(session);
         (document.activeElement as HTMLElement | null)?.blur();

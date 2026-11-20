@@ -10,7 +10,6 @@ import {
 import { Menu } from "@mantine/core";
 import React from "react";
 
-import { remap } from "../data-place/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import {
     failWords,
@@ -76,7 +75,7 @@ async function assignRole(
             throw new Error("the load cannot be read again");
         }
         const side = kind === "node" ? "nodes" : "edges";
-        await session.data.reloadSource(load.key, { mapping: remap(load, side, { [role]: ref.name }) });
+        await session.data.reloadSource(load.key, { mapping: { [side]: { [role]: ref.name } } });
         return;
     }
     await session.data.setRole(ref, role);

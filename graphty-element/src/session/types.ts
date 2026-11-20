@@ -2897,13 +2897,19 @@ export interface Endpoint {
  * A bare `TableMapping` applies to a source with one table; otherwise each table is named by id
  * (`{ tables }`) or by what its rows are (`{ nodes, edges }`, see {@link SideMapping}).
  */
-export type LoadMapping =
+export type LoadMapping = ByTableMapping | SideMapping;
+
+/**
+ * A load mapping bare (a source with one table) or naming each table by id: the shape a load
+ * keeps its mapping in, never by side.
+ * @since 3.40.0
+ */
+export type ByTableMapping =
     | TableMapping
     | {
           /** Each table's roles, by table id. */
           readonly tables: Readonly<Record<string, TableMapping>>;
-      }
-    | SideMapping;
+      };
 
 /**
  * Each table's roles named by what its rows are, so a caller need not look up table ids: `nodes`
@@ -2929,6 +2935,16 @@ export interface TableMappingRead extends TableMapping {
 export interface LoadMappingRead {
     /** Each table's roles, by table id. */
     readonly tables: Readonly<Record<string, TableMappingRead>>;
+}
+
+/**
+ * The choices a load was read with, as `data.sources()` hands them back: its mapping is bare or by
+ * table id, never by side, so it can be read without the source's tables.
+ * @since 3.40.0
+ */
+export interface LoadedChoices extends LoadChoices {
+    /** The column roles, bare or by table id. */
+    readonly mapping?: ByTableMapping;
 }
 
 /** What `import` and `LoadDraft.load` take. */
@@ -3147,7 +3163,7 @@ export interface LoadedSource extends DataSourceDescriptor {
      * element's own reading.
      * @since 3.30.0
      */
-    readonly choices?: LoadChoices;
+    readonly choices?: LoadedChoices;
     /**
      * The roles each table of the load was read with, by table id: the element's own reading
      * with the choices laid over it (`draft.mapping` as loaded). Absent for a graph file, whose

@@ -614,4 +614,29 @@ describe("Data > Fields' settings rows on the real element", () => {
         // a, b and c, then the groups x and y as the edges' other ends.
         assert.equal(session.data.statistics().nodeCount, 5);
     });
+
+    it("a load of a node file and an edge file reads its edge table again when an edge row changes", async () => {
+        const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+        render(<Workspace store={store} />);
+        const { session } = await openElement();
+        const draft = await session.data.prepare({
+            config: {
+                nodeFile: new File(["id,name\na,Ann\nb,Bo\nc,Cy\n"], "people.csv"),
+                edgeFile: new File(["from,to,group\na,b,x\nb,c,y\n"], "links.csv"),
+            },
+        });
+        await draft.load();
+        const section = await fields();
+        await waitFor(() => {
+            assert.equal(shown(section, "Target"), "to");
+        });
+
+        await choose(section, "Target", "group");
+        await waitFor(() => {
+            assert.equal(shown(section, "Target"), "group");
+        });
+        // a, b and c from the node file, then the groups x and y as the edges' other ends.
+        assert.equal(session.data.statistics().nodeCount, 5);
+        assert.equal(session.data.node("a")?.name, "Ann");
+    });
 });

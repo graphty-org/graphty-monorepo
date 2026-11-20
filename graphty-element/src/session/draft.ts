@@ -29,6 +29,7 @@ import { looksLikeTime } from "./time/parse";
 import { columnSpan } from "./time/timeIndex";
 import { isTimeZone, UTC_ZONE } from "./time/zone";
 import type {
+    ByTableMapping,
     ColumnRole,
     DraftColumn,
     DraftRow,
@@ -44,6 +45,7 @@ import type {
     JoinSuggestion,
     LoadChoices,
     LoadDraft,
+    LoadedChoices,
     LoadMapping,
     LoadMappingRead,
     ProjectConfigPatch,
@@ -149,7 +151,7 @@ const KEPT_CHOICES = ["mapping", "unmatched", "duplicateIds", "kindIds", "direct
  * @param choices - What the load was given.
  * @returns `{ choices }` or `{}`.
  */
-function keptChoices(choices: LoadChoices): { choices?: LoadChoices } {
+function keptChoices(choices: LoadedChoices): { choices?: LoadedChoices } {
     const kept: Record<string, unknown> = {};
     for (const name of KEPT_CHOICES) {
         if (choices[name] !== undefined) {
@@ -188,9 +190,6 @@ const ROW_ID = "id";
 function badCommand(message: string, details: Record<string, unknown>): GraphtyError {
     return new GraphtyError({ code: "E_BAD_COMMAND", source: "data", message, details });
 }
-
-/** A load mapping that is bare or names its tables by id, as the element reads one. */
-export type ByTableMapping = TableMapping | { readonly tables: Readonly<Record<string, TableMapping>> };
 
 /**
  * Whether a mapping names its tables by side.
@@ -1209,8 +1208,9 @@ export class Draft implements LoadDraft {
     async loadVia(send: DraftSend, given: LoadChoices = {}): Promise<void> {
         const read = this.live("load");
         // Kept with the load by table id, so `data.sources()` never hands back a mapping by side.
-        const choices =
-            given.mapping === undefined ? given : { ...given, mapping: byTableId(given.mapping, this.mapping) };
+        const { mapping, ...rest } = given;
+        const choices: LoadedChoices =
+            mapping === undefined ? rest : { ...rest, mapping: byTableId(mapping, this.mapping) };
         const plan = this.plan(read, choices);
         // One entry per table name, the first table of a name giving what it held.
         const named = new Map<string, "nodes" | "edges">();

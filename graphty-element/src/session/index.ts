@@ -59,6 +59,7 @@ export {
 } from "./styles/fileStyles/codes";
 export type { FileStyleNote, FileStyleOptions } from "./styles/fileStyles/translate";
 export type {
+    ByTableMapping,
     ColumnHistogram,
     ColumnRole,
     CommandOutcome,
@@ -131,6 +132,7 @@ export type {
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
+    LoadedChoices,
     LoadedSource,
     LoadedSourceKind,
     LoadedWeight,

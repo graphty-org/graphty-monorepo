@@ -2102,13 +2102,15 @@ export class UpdateManager implements Manager {
      * @returns The batch size.
      */
     private nodeBatchSize(budgetMs: number, nodes: number): number {
-        if (minimumWorkPerFrame()) {
-            return MINIMUM_PAINT_BATCH;
-        }
-
-        // An unbounded frame (no budget given) takes everything at once.
+        // An unbounded frame (no budget given) takes everything at once, in the minimum-work mode too: a layout that
+        // reads the sizes asks for the whole repaint (`drawArrivedPaint`), and under "batched" a row no batch has
+        // painted has no size to read.
         if (budgetMs === Number.POSITIVE_INFINITY) {
             return budgetMs;
+        }
+
+        if (minimumWorkPerFrame()) {
+            return MINIMUM_PAINT_BATCH;
         }
 
         return Math.max(NODE_PAINT_BATCH, Math.ceil(nodes / REPAINT_FRAMES), Math.floor(this.nodePaintRate * budgetMs));

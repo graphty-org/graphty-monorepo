@@ -16,11 +16,14 @@ import type { Graphty } from "../../index.js";
 import { type Edge, edgeInternals } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
-import { setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
+import { minimumWorkPerFrame, setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import { pixelsOverBar, readCanvas } from "../helpers/whole-canvas";
 
+/** The mode the project runs in ("minimum-work" switches it on for every test), put back after each test. */
+const projectMode = minimumWorkPerFrame();
+
 afterEach(() => {
-    setMinimumWorkPerFrame(false);
+    setMinimumWorkPerFrame(projectMode);
     document.body.replaceChildren();
 });
 
@@ -151,7 +154,7 @@ describe("edges joining the same two nodes, under batched", () => {
         it(`are built, and take their slots, in row order (${name})`, async () => {
             // Four edges a frame (src/managers/minimumWork.ts): a bundle member is placed before the rows of the
             // bundle's other members are painted.
-            setMinimumWorkPerFrame(split);
+            setMinimumWorkPerFrame(split || projectMode);
             const objects = slotsOf(await loaded("objects", data));
             const batched = await loaded("batched", data);
             const rows = builtEdges(batched).map((edge) => edge.index);
@@ -177,9 +180,9 @@ describe("edges joining the same two nodes, under batched", () => {
     ] as const) {
         it(`are placed on the curves the objects path places them on, however the paint is split (${name})`, async () => {
             const curves = async (path: Path, split: boolean): Promise<[number, number[][]][]> => {
-                setMinimumWorkPerFrame(split);
+                setMinimumWorkPerFrame(split || projectMode);
                 const element = await loaded(path, data);
-                setMinimumWorkPerFrame(false);
+                setMinimumWorkPerFrame(projectMode);
                 return builtEdges(element)
                     .map((edge): [number, number[][]] => [
                         edge.index,

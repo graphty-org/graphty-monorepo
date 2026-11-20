@@ -77,6 +77,8 @@ const SHARD_CACHE_DIR = shardCacheDir();
  * counts a slow frame's layout catch-up rounds, which this mode turns off by design.
  */
 const MINIMUM_WORK_TESTS = [
+    "test/browser/bundle-build-order.test.ts",
+    "test/browser/batched-layout-node-sizes.test.ts",
     "test/browser/pending-work-split-across-frames.test.ts",
     "test/browser/stable-frame-waits-for-framing.test.ts",
     "test/browser/stable-frame-waits-for-work-that-came-late.test.ts",

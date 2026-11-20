@@ -597,11 +597,12 @@ describe("with the experiment off", () => {
         assert.notProperty(request.preview, "target");
     });
 
-    it("refuses a scope with E_FEATURE_OFF, substituting nothing", async () => {
+    it("refuses a scope and a peek with E_FEATURE_OFF, substituting nothing", async () => {
         const session = await assistantSession(ring(8));
         const assistant = new ScriptedAssistant(session);
 
         await refusedOff(() => assistant.controller.execute("hello", { scope: "selection" }), "scope");
+        await refusedOff(() => session.selection.peek({ ids: ["n0"] }), "selection.peek");
         assert.lengthOf(assistant.engine.requests, 0, "nothing was sent");
     });
 });

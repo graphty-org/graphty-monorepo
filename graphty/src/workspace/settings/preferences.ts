@@ -83,16 +83,6 @@ export const STYLE_EMPTY_SECTIONS = {
 } as const;
 
 /**
- * Highlight on hover (Settings > General, Style panel v2 only): on, the pointer over a Style row shows on the
- * canvas, for a moment, the nodes or edges its layer styles; off, a row's hover changes nothing.
- */
-export const STYLE_HOVER_HIGHLIGHT = {
-    key: "graphty.styleHoverHighlight.v1",
-    values: ["on", "off"],
-    fallback: "on",
-} as const;
-
-/**
  * Whether one Style panel v2 section is collapsed, by kind and section id: the reader's own, kept in this browser
  * and never in a project, so it holds across layers and reloads.
  * @param kind - nodes or edges.

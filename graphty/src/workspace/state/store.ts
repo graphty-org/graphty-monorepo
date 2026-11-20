@@ -27,12 +27,7 @@ import { type ReactNode, useSyncExternalStore } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { InspectedKind } from "../commands/registry";
-import {
-    MAP_DEPTH_INDEPENDENT_SIZE,
-    readPreference,
-    STYLE_EMPTY_SECTIONS,
-    STYLE_HOVER_HIGHLIGHT,
-} from "../settings/preferences";
+import { MAP_DEPTH_INDEPENDENT_SIZE, readPreference, STYLE_EMPTY_SECTIONS } from "../settings/preferences";
 
 /**
  * How the open project was opened, when opening it again gives the same project: one of the app's
@@ -326,11 +321,6 @@ export interface WorkspaceState {
      * default; kept in this browser.
      */
     readonly styleEmptySections: boolean;
-    /**
-     * Settings, General (Style panel v2): whether the pointer over a Style row highlights what its layer styles
-     * on the canvas. On by default; kept in this browser.
-     */
-    readonly styleHoverHighlight: boolean;
     /** Graph settings, Lighting: how the 3D nodes are lit. A view preference, never saved. */
     readonly lighting: Lighting;
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
@@ -489,7 +479,6 @@ export const ON_RELOAD = {
     singleKeyShortcuts: "fresh: read from this browser's settings at start",
     mapDepthIndependentSize: "fresh: read from this browser's settings at start",
     styleEmptySections: "fresh: read from this browser's settings at start",
-    styleHoverHighlight: "fresh: read from this browser's settings at start",
     notice: "fresh: a notice",
     noteDraft: "fresh: its edge targets are this page's ids, which a reload gives anew",
     authorWarningClosed: "fresh: closed for this page view only",
@@ -594,7 +583,6 @@ const INITIAL: WorkspaceState = {
     sameSizeAtAnyDepth: null,
     mapDepthIndependentSize: true,
     styleEmptySections: true,
-    styleHoverHighlight: true,
     lighting: "studio",
     autoRotate: false,
     recording: false,
@@ -705,7 +693,6 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
         ...INITIAL,
         mapDepthIndependentSize: readPreference(MAP_DEPTH_INDEPENDENT_SIZE) === "on",
         styleEmptySections: readPreference(STYLE_EMPTY_SECTIONS) === "on",
-        styleHoverHighlight: readPreference(STYLE_HOVER_HIGHLIGHT) === "on",
         ...initial,
     };
     const listeners = new Set<() => void>();

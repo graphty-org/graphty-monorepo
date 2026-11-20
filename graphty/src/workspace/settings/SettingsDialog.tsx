@@ -34,7 +34,6 @@ import {
     readPreference,
     SINGLE_KEY_SHORTCUTS,
     STYLE_EMPTY_SECTIONS,
-    STYLE_HOVER_HIGHLIGHT,
     TIMELINE_STYLE,
     writeAuthor,
     writeFileStylesChoice,
@@ -100,7 +99,6 @@ function General(): React.JSX.Element {
     const [timelineStyle, setTimelineStyle] = useState(() => readPreference(TIMELINE_STYLE));
     const mapAuto = useWorkspaceState((state) => state.mapDepthIndependentSize);
     const emptySections = useWorkspaceState((state) => state.styleEmptySections);
-    const hoverHighlight = useWorkspaceState((state) => state.styleHoverHighlight);
     return (
         <Stack gap="md">
             <YourName />
@@ -188,18 +186,6 @@ function General(): React.JSX.Element {
                         const next = event.currentTarget.checked;
                         store.set({ styleEmptySections: next });
                         writePreference(STYLE_EMPTY_SECTIONS, next ? "on" : "off");
-                    }}
-                />
-            ) : null}
-            {stylePanelV2On(session) ? (
-                <Switch
-                    label="Highlight on hover"
-                    description="On, pointing at a Style row shows on the graph what its layer styles."
-                    checked={hoverHighlight}
-                    onChange={(event) => {
-                        const next = event.currentTarget.checked;
-                        store.set({ styleHoverHighlight: next });
-                        writePreference(STYLE_HOVER_HIGHLIGHT, next ? "on" : "off");
                     }}
                 />
             ) : null}

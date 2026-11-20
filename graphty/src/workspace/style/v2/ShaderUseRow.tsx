@@ -30,7 +30,6 @@ import { LineFrame, SegmentsLine } from "./RubricLine";
 import { RowSettings } from "./ThingLine";
 import { PopoverShell } from "./ThingPopover";
 import { UseParams } from "./ThingRow";
-import { useRowPeek } from "./useRowPeek";
 import { ValueButton } from "./ValueButton";
 
 /** graphty-element's Group outline family: its members (Bubble, Hull) and the use fields they share. */
@@ -164,7 +163,6 @@ export function ShaderUseRow({
     const [open, setOpen] = useState(false);
     const [gallery, setGallery] = useState(false);
     const box = useRef<HTMLDivElement>(null);
-    const peek = useRowPeek(ctx);
     const { descriptor, use } = entry;
     const name = descriptor?.plainName ?? use.shader;
     const kind = ctx.side === "node" ? "Node" : "Edge";
@@ -252,7 +250,7 @@ export function ShaderUseRow({
     });
     const removeName = `Remove ${title.toLowerCase()}`;
     return (
-        <div ref={box} data-thing={outline ? "groupOutline" : "shader"} data-shader={use.shader} {...peek}>
+        <div ref={box} data-thing={outline ? "groupOutline" : "shader"} data-shader={use.shader}>
             <LineFrame
                 line={entry.key}
                 name={outline ? name : null}

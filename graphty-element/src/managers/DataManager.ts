@@ -2738,9 +2738,19 @@ export class DataManager implements Manager {
             this.paintUndrawn = true;
         }
 
-        const n = new Node(this.graphContext, nodeId, look?.sourcePaint ?? bootstrapNodePaint(), node as AdHocData, {
-            pinOnDrag: this.graphContext.getConfig().pinOnDrag,
-        });
+        // A row stored earlier is built from the paint it is about to take, so that paint keeps the
+        // mesh: built from the defaults, a fallback style (a border, a glow) rebuilt it at once, and
+        // a mesh rebuilt outside a bulk teardown costs a pass over every scene list.
+        const rowPaint = announce ? null : (this.graphContext.getStylePainter?.()?.nodePaint(index) ?? null);
+        const n = new Node(
+            this.graphContext,
+            nodeId,
+            look?.sourcePaint ?? rowPaint ?? bootstrapNodePaint(),
+            node as AdHocData,
+            {
+                pinOnDrag: this.graphContext.getConfig().pinOnDrag,
+            },
+        );
         if (look !== null) {
             n.takeDrawnPaint(look.paint);
         }
@@ -2756,8 +2766,8 @@ export class DataManager implements Manager {
         }
 
         // after the engine has it: drawing reads its place from the engine
-        if (!announce) {
-            this.paintBuiltRow(n, index);
+        if (rowPaint !== null) {
+            this.paintBuiltRow(n, rowPaint);
         }
 
         // Emit node added event
@@ -2775,14 +2785,9 @@ export class DataManager implements Manager {
      * Draw a `Node` built for a row a batch drew with no `Node` as that row was drawn, at once: a
      * caller that asked for the `Node` reads its mesh and place before the next frame paints it.
      * @param node - The new `Node`.
-     * @param index - Its row.
+     * @param paint - Its row's paint.
      */
-    private paintBuiltRow(node: Node, index: number): void {
-        const paint = this.graphContext?.getStylePainter?.()?.nodePaint(index) ?? null;
-        if (paint === null) {
-            return;
-        }
-
+    private paintBuiltRow(node: Node, paint: NodePaint): void {
         if (this.builtToPaint === null) {
             paintBuilt([[node, paint]]);
         } else {

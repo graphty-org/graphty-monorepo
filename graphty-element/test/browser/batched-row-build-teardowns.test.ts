@@ -9,8 +9,11 @@
  * or a restyle grow with the square of the node count: bordering 20,000 nodes took 29-49 s on batched
  * against 1-2 s on objects.
  *
- * Each paint batch now makes one teardown, as on the objects path, and a repaint is never split into
- * more than `REPAINT_FRAMES` batches, so the count is bounded whatever the graph's size.
+ * Now a row's `Node` is built from the paint it is about to take, so that paint rebuilds nothing, and
+ * rows built together are painted together: a paint batch makes at most one teardown, as on the
+ * objects path, and a repaint is never split into more than `REPAINT_FRAMES` batches, so the count is
+ * bounded whatever the graph's size. That holds too for a caller that walks `getNodes()` before the
+ * paint, which builds the rows one element at a time.
  *
  * A teardown is counted by what it does to the scene's mesh list: it empties it (`splice(0)`) to set
  * the survivors aside, and empties it again to put them back.
@@ -93,7 +96,6 @@ describe("batched rows a style sends to the object path", () => {
         });
 
         assert.equal(graph.rowCounts.objectNodes, COUNT, "every bordered row is drawn by its own Node");
-        assert.isAtLeast(teardowns, 1, "the paint rebuilt meshes");
         assert.isAtMost(teardowns, REPAINT_FRAMES, `one teardown per paint batch, not per row (${String(COUNT)} rows)`);
     });
 
@@ -107,7 +109,25 @@ describe("batched rows a style sends to the object path", () => {
         });
 
         assert.equal(graph.rowCounts.objectNodes, COUNT, "every bordered row is drawn by its own Node");
-        assert.isAtLeast(teardowns, 1, "the paint rebuilt meshes");
         assert.isAtMost(teardowns, REPAINT_FRAMES, `one teardown per paint batch, not per row (${String(COUNT)} rows)`);
+    });
+    it("are not torn down one by one when getNodes() is walked before the paint", async () => {
+        await graph.getSession().styles.add(BORDER);
+        await graph.waitForStableFrame();
+
+        const teardowns = await teardownsDuring(graph, async () => {
+            await graph.addNodes(NODES);
+            // each element read builds its row's Node on its own, outside any batch
+            let walked = 0;
+            for (const node of graph.getNodes()) {
+                walked += node.id === undefined ? 0 : 1;
+            }
+
+            assert.equal(walked, COUNT);
+            await graph.waitForPainted();
+        });
+
+        assert.equal(graph.rowCounts.objectNodes, COUNT, "every bordered row is drawn by its own Node");
+        assert.isAtMost(teardowns, REPAINT_FRAMES, `not one teardown per row (${String(COUNT)} rows)`);
     });
 });

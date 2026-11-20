@@ -1,0 +1,3 @@
+{
+    "../../stories/Screenshot.stories.ts Video": "Fails on objects in WebKit: Playwright's WebKit has no MediaRecorder"
+}

@@ -37,6 +37,8 @@ const ops = session.journal.entries.map((each) => each.command.op); // ["data.ap
 | `durationMs`  | How long the command took                                                                                           |
 | `runId`       | For an algorithm run, the run it finished                                                                           |
 | `engine`      | The graphty-element, algorithms and layout versions that ran it                                                     |
+| `trigger`     | Why the session ran the command when no caller asked for it directly; absent for a direct call (see below)          |
+| `callerKey`   | The `callerKey` you gave the load or the transaction that ran the command, unchanged; absent when you gave none     |
 
 ## What is recorded
 
@@ -51,6 +53,37 @@ const ops = session.journal.entries.map((each) => each.command.op); // ["data.ap
   or stopping a layout's motion write no entry.
 - **A run points at its newest entry.** `run.journalId` is `null` until the run's command has
   finished; running it again points it at the newer entry.
+
+- **Work the session did on its own account says so.** `trigger: "suggestion"` marks the style
+  entries of an algorithm's suggested styles applied as entries of their own: those a
+  `session.runs.batch` paints once at its end, and those `graph.applySuggestedStyles()` writes.
+  `trigger: "project"` marks every entry that opening a project ran. `trigger: "load"` marks every
+  entry a load ran (`import`, a network source's included, `loadExample`, `loadDataset`,
+  `generate`, a draft's `load`, `replaceSource`, `reloadSource`, and the graph's own
+  `addDataFromSource`, `loadFromFile`, `loadFromUrl` and `data-source` loads), including the settings it chose beside the import, such as the label path a
+  graph file names its nodes by. A single run that paints its
+  suggestions paints inside its own `algo.run` entry, so it writes no style entry. More triggers
+  may be added; treat one you do not know as work the reader did not ask for directly.
+
+```ts
+session.on("journal:appended", ({ entry }) => {
+    if (entry.trigger === undefined) countReaderAction(entry.command.op);
+});
+```
+
+- **Your own setup work can say so too.** Pass a `callerKey` to a load (`import`, `loadDataset`,
+  `generate` and the rest) or to `session.transaction(label, fn, { callerKey })`, and every entry
+  that work writes carries it, so you can tell what your page did on its own from what the reader
+  asked for:
+
+```ts
+await session.transaction("Name the project", (tx) => tx.config.set({ name: "Untitled" }), {
+    callerKey: "setup",
+});
+session.on("journal:appended", ({ entry }) => {
+    if (entry.trigger === undefined && entry.callerKey === undefined) countReaderAction(entry.command.op);
+});
+```
 
 The journal keeps the newest 1000 entries. Change that with `session.journal.cap = 5000`;
 `session.journal.clear()` forgets every entry. Neither changes the graph.

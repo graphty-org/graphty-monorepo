@@ -368,11 +368,11 @@ export function findReference(
         }
 
         if (!findings.missing.some((m) => m.params.name === error.fact.params.name)) {
-            findings.missing.push(
-                error.fact.code === "E_MODEL_MISSING_FILE"
-                    ? { code: error.fact.code, params: { ...error.fact.params, role, optional: role !== "geometry" } }
-                    : error.fact,
-            );
+            // A picture or material several files match may be left out, as a missing one may.
+            findings.missing.push({
+                code: error.fact.code,
+                params: { ...error.fact.params, role, optional: role !== "geometry" },
+            });
         }
 
         return undefined;

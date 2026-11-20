@@ -980,6 +980,7 @@ export abstract class DataSource {
         const positions = filePositionsOf(imported);
         const pxPerUnit = positions?.pxPerUnit;
         const padding = positions?.viewerFit?.padding;
+        const frame = positions?.viewerFrame;
         const annotations = imported.importer.annotations?.(imported.snapshot) ?? [];
         return {
             extracted,
@@ -989,6 +990,7 @@ export abstract class DataSource {
             ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
             positionsStored: positions?.usable === true,
             ...(padding === undefined ? {} : { framingPadding: padding }),
+            ...(frame === undefined ? {} : { framingBox: frame }),
         };
     }
 

@@ -14,6 +14,7 @@
 import "@babylonjs/core/Culling/ray.js";
 
 import type { PickingInfo } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Ray } from "@babylonjs/core/Culling/ray.core.js";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
@@ -378,8 +379,9 @@ export class RowScan {
         const root = this.rootMatrix();
         // Root, then view (for the depth) and view and projection (for the screen), as
         // `screenProjector` and `pickEdgeAt` take them.
-        const view = root.multiply(this.scene.getViewMatrix()).m;
-        const clip = root.multiply(this.scene.getViewMatrix().multiply(this.scene.getProjectionMatrix())).m;
+        // The camera's matrices, not the scene's: the scene's are unset until its first frame.
+        const view = root.multiply(camera.getViewMatrix()).m;
+        const clip = root.multiply(camera.getViewMatrix().multiply(camera.getProjectionMatrix())).m;
         const engine = this.scene.getEngine();
         const css = engine.getHardwareScalingLevel();
         const halfWidth = 0.5 * engine.getRenderWidth() * css;
@@ -815,13 +817,16 @@ function distanceToSegment(x: number, y: number, a: { x: number; y: number }, b:
  * canvas's top-left corner. `Graph.worldToScreen` is this; a walk takes it once so each point costs
  * no matrix product.
  * @param scene - The scene.
+ * @param camera - The camera it is seen through (the scene's active camera). Its matrices are
+ *   read, not the scene's, which are unset until the scene's first frame.
  * @returns The projection.
  */
 export function screenProjector(
     scene: Scene,
+    camera: Camera,
 ): (point: { x: number; y: number; z: number }) => { x: number; y: number } {
     const engine = scene.getEngine();
-    const viewProjection = scene.getViewMatrix().multiply(scene.getProjectionMatrix());
+    const viewProjection = camera.getViewMatrix().multiply(camera.getProjectionMatrix());
     // The canvas may be drawn at a higher pixel ratio (`pixelRatio`), which the hardware scaling level undoes.
     const css = engine.getHardwareScalingLevel();
     const width = engine.getRenderWidth();
@@ -887,7 +892,7 @@ export function pickEdgeAt(
             found = id;
         }
     };
-    const project = rowEnds === undefined ? toScreen : screenProjector(scene);
+    const project = rowEnds === undefined ? toScreen : screenProjector(scene, camera);
 
     // ponytail: a linear walk over every edge per pick; a spatial index if picking huge graphs on hover.
     for (const edge of edges) {

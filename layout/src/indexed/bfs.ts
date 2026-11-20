@@ -14,7 +14,7 @@ export interface BfsLayoutOptions extends CommonLayoutOptions {
 }
 
 /**
- * The breadth-first layers from `start`: layer k holds the nodes k hops away, each node's neighbours visited in
+ * The breadth-first layers from `start`: layer k holds the nodes k hops away, each node's neighbors visited in
  * ascending node index. Edges are taken as undirected.
  * @param g - an undirected snapshot
  * @param start - the start index
@@ -63,9 +63,9 @@ function bfsLayers(g: GraphSnapshot, start: number): number[][] {
 /**
  * Nodes in layers by hop distance from `start`, laid out as the multipartite layout lays out its layers: with
  * `vertical` alignment layer k is a column, its nodes in the order the search reached them. In 3D the layout lies in
- * the plane of the centre's z.
+ * the plane of the center's z.
  * @param s - the snapshot; a directed one is read as its undirected derived graph
- * @param options - `scale` is the distance of the farthest node from the centre; `start` the first layer
+ * @param options - `scale` is the distance of the farthest node from the center; `start` the first layer
  * @returns the layout
  * @throws an Error when the graph is not connected, with `code` `E_NOT_CONNECTED` and `params`
  * `{ nodeCount, reached }` (the nodes the search from `start` reached); with `code` `E_BAD_NODE` and `params`

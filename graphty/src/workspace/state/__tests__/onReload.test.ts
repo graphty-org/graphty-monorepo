@@ -96,3 +96,16 @@ describe("what a reload of this tab puts back", () => {
         stop();
     });
 });
+
+describe("the results pinned to the report", () => {
+    it("start empty when another project opens, and come back with a write that puts them back", () => {
+        const pins = [{ run: "run-1", note: "leads" }];
+        const store = createWorkspaceStore({ project: { name: "A", id: 1 }, reportPins: pins });
+        store.set({ project: { name: "B", id: 1 } });
+        assert.deepEqual(store.get().reportPins, pins, "a rename keeps them");
+        store.set({ project: { name: "C", id: 2 } });
+        assert.deepEqual(store.get().reportPins, []);
+        store.set({ project: { name: "C", id: 3 }, reportPins: pins });
+        assert.deepEqual(store.get().reportPins, pins, "a reload's kept pins are put back");
+    });
+});

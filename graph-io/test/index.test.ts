@@ -73,6 +73,7 @@ const VALUE_EXPORTS = [
     "dotImporter",
     "graphvizFont",
     "graphvizPosBends",
+    "graphvizPosCurve",
     "RANK_COLUMN",
     "RANK_SET_COLUMN",
     "GEXF_1_2_CAPABILITIES",
@@ -125,6 +126,12 @@ const VALUE_EXPORTS = [
     "PAJEK_STYLE_COMMENT",
     "pajekExporter",
     "pajekImporter",
+    "INTERACTION_COLUMN",
+    "SIF_CAPABILITIES",
+    "SIF_ISSUE",
+    "SIF_LOSS",
+    "sifExporter",
+    "sifImporter",
     "XGMML_ISSUE",
     "XGMML_LOSS",
     "xgmmlExporter",
@@ -134,6 +141,7 @@ const VALUE_EXPORTS = [
     "CYS_LOSS",
     "cysExporter",
     "cysImporter",
+    "readCytoscapeStyleFile",
     // shared helpers for plugin authors
     "BAD_DEFAULT_CODE",
     "BAD_OPTIONS_CODE",
@@ -360,6 +368,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             ["xgmml", graphIo.xgmmlImporter, graphIo.xgmmlExporter],
             ["obo", graphIo.oboImporter, graphIo.oboExporter],
             ["cys", graphIo.cysImporter, graphIo.cysExporter],
+            ["sif", graphIo.sifImporter, graphIo.sifExporter],
         ];
         for (const [format, importer, exporter] of pairs) {
             expect(importer.format).toBe(format);

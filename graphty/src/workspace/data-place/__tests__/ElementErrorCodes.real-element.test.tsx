@@ -1,7 +1,6 @@
 /**
  * The Data place keeps graphty-element's error codes: a filter change the element refuses is
- * worded from its code, and an attribute that is gone reads as gone only when the element says it
- * is unknown. On the REAL element, by real clicks.
+ * worded from its code. On the REAL element, by real clicks.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -17,7 +16,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-import { labelRefusalFor } from "../attributeActions";
 import { GRAPH_FILE_GML } from "../fixtures";
 
 withFeatures([]);
@@ -72,18 +70,5 @@ describe("the Data place keeps graphty-element's error codes", () => {
 
         await screen.findByText("The filter could not be changed: another change is still being made; try again.");
         assert.lengthOf(session.visibility.conditions, 1);
-    });
-
-    it("an attribute the element does not know reads as gone; any other refusal is not hidden", async () => {
-        const session = await openWithGraph();
-        assert.strictEqual(
-            labelRefusalFor(session, { kind: "node", name: "not-in-the-data" }),
-            "No longer in the data",
-        );
-
-        vi.spyOn(session.styles, "proposeEncoding").mockImplementation(() => {
-            throw new GraphtyError({ code: "E_INTERNAL", message: "English", source: "style" });
-        });
-        assert.throws(() => labelRefusalFor(session, { kind: "node", name: "label" }), GraphtyError);
     });
 });

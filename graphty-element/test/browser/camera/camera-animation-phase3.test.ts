@@ -39,7 +39,7 @@ test("rapid successive camera animations - last one wins", async () => {
             { animate: true, duration: 500 },
         )
         .catch(() => {
-            /* Expected to be cancelled */
+            /* Expected to be canceled */
         });
 
     void graph
@@ -48,7 +48,7 @@ test("rapid successive camera animations - last one wins", async () => {
             { animate: true, duration: 500 },
         )
         .catch(() => {
-            /* Expected to be cancelled */
+            /* Expected to be canceled */
         });
 
     void graph
@@ -57,7 +57,7 @@ test("rapid successive camera animations - last one wins", async () => {
             { animate: true, duration: 500 },
         )
         .catch(() => {
-            /* Expected to be cancelled */
+            /* Expected to be canceled */
         });
 
     // Final animation should win
@@ -89,7 +89,7 @@ test("disposal during animation does not throw", async () => {
             { animate: true, duration: 2000 },
         )
         .catch(() => {
-            /* Expected to be cancelled on disposal */
+            /* Expected to be canceled on disposal */
         });
 
     // Wait until the animation is running
@@ -153,14 +153,14 @@ test("operation queue allows sequential animations", async () => {
         }
     });
 
-    // Queue two animations - because of obsolescence, first will be cancelled by second
+    // Queue two animations - because of obsolescence, first will be canceled by second
     const promise1 = graph
         .setCameraState(
             { position: { x: 50, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
             { animate: true, duration: 300 },
         )
         .catch(() => {
-            /* Expected to be cancelled */
+            /* Expected to be canceled */
         });
 
     const promise2 = graph.setCameraState(
@@ -168,13 +168,13 @@ test("operation queue allows sequential animations", async () => {
         { animate: true, duration: 300 },
     );
 
-    // Wait for both to complete (first will be cancelled, second will succeed)
+    // Wait for both to complete (first will be canceled, second will succeed)
     await Promise.all([promise1, promise2]);
 
     graph.eventManager.removeListener(listenerId);
 
     // Because of obsolescence, only the second animation should complete
-    // (first gets cancelled by second)
+    // (first gets canceled by second)
     const finalState = graph.getCameraState();
     if (!finalState.position) {
         throw new Error("finalState.position is undefined");
@@ -183,7 +183,7 @@ test("operation queue allows sequential animations", async () => {
     // Should be at second target (y=50)
     assert.ok(Math.abs(finalState.position.y - 50) < 10, `Final Y is ${finalState.position.y}, expected ~50`);
 
-    // The cancelled first animation reported no state; only the second one did
+    // The canceled first animation reported no state; only the second one did
     const toFirst = positions.filter((p) => Math.abs(p.x - 50) < 1 && Math.abs(p.y) < 1);
     assert.deepEqual(toFirst, [], "no camera state toward the cancelled first target");
     assert.deepEqual(positions, [{ x: 0, y: 50, z: 0 }], "only the second animation reported its state");
@@ -217,7 +217,7 @@ test("multiple rapid interruptions complete gracefully", async () => {
                 { animate: true, duration: 300 },
             )
             .catch(() => {
-                /* Expected to be cancelled */
+                /* Expected to be canceled */
             });
     }
 

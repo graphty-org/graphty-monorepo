@@ -13,7 +13,7 @@ page (a 1440 x 900 frame plus the 60 px caption strip), using `getBoundingClient
 `getComputedStyle`, not estimated from the screenshots. The scripts and the raw dump are in
 `tmp/object-first/audit/`:
 
-- `measure.mjs` walks each screen and records boxes, computed styles, fonts, colours, text and
+- `measure.mjs` walks each screen and records boxes, computed styles, fonts, colors, text and
   count strings into `measure.json`;
 - `report.mjs` prints the cross-screen comparisons from that dump (`node report.mjs shared`,
   `toolbar`, `overlays`, `tree`, `rows`, `controls`, `fonts`, `colors`, `brand`, `counts`,
@@ -48,14 +48,14 @@ below describe the mocks as they were when measured; re-run the scripts for the 
   white button on the dark secondary bar.
 - **Tint**: the pale blue #e5f4ff that marks a selected row; **child tint**: the paler #f2f9ff on
   rows inside a selected parent.
-- **Chit**: a 14 x 14 colour swatch (radius 2) inside a paint row. **Chip**: the 14 x 14 style
+- **Chit**: a 14 x 14 color swatch (radius 2) inside a paint row. **Chip**: the 14 x 14 style
   preview at the right of a tree row (a swatch, a ring, a ramp, a strip, a size or line glyph).
 - **Panel grid**: Figma's right-panel column layout, `16 | 88 | 8 | 88 | 8 | 24 | 8` = 240.
   Column A starts at x 1216 and column B at x 1312 on these mocks.
 - **Header block**: the fixed 144 px block at the top of the inspector: the kind line and the
   name (48), the summary row (32), the reading row (32) and the tab strip (32).
 - **Pill tab**: one of a short row of labels that swap a panel's contents; the selected one sits
-  on a grey pill.
+  on a gray pill.
 - **Shared element**: a part that appears on more than one screen in the same state (the file
   header, the section headers, the framing pill, Export, the toolbar, the dock handle, the
   status bar, the "?" button). The rule for a shared element is that its box and its styles
@@ -106,7 +106,7 @@ screen, so each fix lands on all twelve screens at once:
    changes the row budget the specification reasons about).
 
 Everything else is either a pass or a deliberate, consistent departure from Figma that
-`revision.md` argues for (the 56 px labelled toolbar, the dark secondary bar, the 32 px flyout
+`revision.md` argues for (the 56 px labeled toolbar, the dark secondary bar, the 32 px flyout
 rows, the weight-550 tabs). Those are listed in section 9 so the owner can see each one and
 decide once.
 
@@ -132,10 +132,10 @@ frame). Box is [x, y, width, height].
 | Tree top | y 161 | y 129 | as above |
 | Right header | [1199, 0, 241, 48] + 1 px line | same | pass |
 | Framing pill | [1208, 11.5, w, 24], borderless, 11/450 | same, disabled #0000004d | position pass; text fails (section 2.3) |
-| Export | [1381.75, 11.5, 50.25, 24], #0d99ff | same, #d9d9d9 disabled | position pass; text colour fails (finding 1) |
+| Export | [1381.75, 11.5, 50.25, 24], #0d99ff | same, #d9d9d9 disabled | position pass; text color fails (finding 1) |
 | Header block | title [1200, 49, 240, 48]; summary [1200, 96, 240, 32]; reading [1200, 128, 240, 32]; tabs [1200, 160, 240, 32]; 1 px line | one 32 px row "Nothing loaded" at y 48 | pass |
 | First inspector row | y 193 | - | pass |
-| Toolbar | [357, 784, 725, 56]; centre x 719.5 (canvas centre 719.5, window centre 720) | same | pass; screen 9 at y 488 and screen 10 at y 744 because the dock and the transport bar sit under the stage, which is the spec's "12 px above whatever is under the canvas" |
+| Toolbar | [357, 784, 725, 56]; center x 719.5 (canvas center 719.5, window center 720) | same | pass; screen 9 at y 488 and screen 10 at y 744 because the dock and the transport bar sit under the stage, which is the spec's "12 px above whatever is under the canvas" |
 | Gap from toolbar bottom to the stage bottom | 12 px | 12 | pass on all |
 | Dock handle | [240, 852, 959, 24], 1 px top line | same, tabs at 30 percent | pass |
 | Status "?" | [1412, 878.5, 20, 20] | same | pass |
@@ -163,7 +163,7 @@ Measured on every tree row of screens 2 to 10 and 12 (55 rows):
 | Chip | 14 x 14, radius 2, at x 223 | 14 x 14 at x 223 on every row; radius 2 for swatches, 0 for the svg size and line glyphs | pass |
 | Selected row | #e5f4ff pill, weight 550 | #e5f4ff (dark #394360), 550 | pass |
 | Child of a selected parent | #f2f9ff full-width band | #f2f9ff on screens 7 and 9 | pass |
-| Icon colour | tertiary; primary on the root and the selected row | #0000004d; #000000e5 on root and selected | pass |
+| Icon color | tertiary; primary on the root and the selected row | #0000004d; #000000e5 on root and selected | pass |
 | Eye and lock | on hover and when set only | none drawn (no row is hidden or locked except the root's chip) | pass |
 
 The failure is the count format. The kit's tree row yields its parts in a fixed order when the
@@ -206,14 +206,14 @@ Position and size are identical on every screen. Two things are not:
   per screen. On screens 2, 4, 5 and 6 the header says "Fit" while the status bar says "100%"
   of the same camera. Fail (major): decide the rule (the pill shows the framing name until
   the reader zooms, then the zoom; the status bar mirrors the pill) and apply it once.
-- **Export text colour.** Finding 1. On screens 2 to 10 the computed `color` and
+- **Export text color.** Finding 1. On screens 2 to 10 the computed `color` and
   `-webkit-text-fill-color` of the Export button are `rgba(0, 0, 0, 0.898)`; a pixel count in
   its 50 x 24 box on `screen-3.png` finds 76 dark pixels and 12 white; the 4x crop in
   `tmp/object-first/audit/crop-export-s3.png` shows black lettering on the blue. Screen 1's
   "Choose a file" is the same (134 dark, 10 white). Screen 12 renders white because in the
   dark theme `inherit` resolves to white. The contrast of near-black on #0d99ff is about 6:1,
   so this is not an accessibility failure; it is the primary button rendered in the wrong
-  colour on eleven of twelve screens, and the two themes disagreeing about it. Figma section 7:
+  color on eleven of twelve screens, and the two themes disagreeing about it. Figma section 7:
   primary text `--color-text-onbrand` #fff.
 
 ### 2.4 The inspector header block (pass, two notes)
@@ -245,7 +245,7 @@ starts depends on the row type, and one tab mixes them:
 
 | Row type (kit class) | Label width | Control x | Where |
 |---|---|---|---|
-| Paint row (`k-paint-row`) | 52 | 1272 | Colour, Outline, Missing, Other, Size on screens 3, 6, 7, 8, 12 |
+| Paint row (`k-paint-row`) | 52 | 1272 | Color, Outline, Missing, Other, Size on screens 3, 6, 7, 8, 12 |
 | Property row (`k-prop`) | 68 | 1292 | Scale, Palette, Overflow, Width, Pattern, Exact, Time, Method |
 | Wide-label property row (`k-prop k-label-wide`) | 96 | 1320 | Show the largest (screen 7) |
 | Captioned two-column row (`k-row-2`) | 88 + 88 | 1216 and 1312 | Weights / Direction, Values from / to |
@@ -274,7 +274,7 @@ Section headers: 40 tall, title 11/32 550 at x 1216, "+" at x 1408, 17 of 17. Em
 | Input | 88 x 24, #f5f5f5, radius 5 | 88 x 24 on all 9 (the dock's search 156 x 24, as Figma's Find) | pass |
 | Switch | 32 x 16 track, off #f5f5f5, on #0d99ff | 32 x 16 on all 7 | pass |
 | Checkbox | 16 x 16, radius 2, #f5f5f5 | 16 x 16 on all 3 | pass |
-| Segmented control | 24 tall, #f5f5f5 track, checked face white with a 1 px inset line | 140 x 24 (screen 10), 120 x 24 in the flyout with its own dark colours (screen 11) | pass |
+| Segmented control | 24 tall, #f5f5f5 track, checked face white with a 1 px inset line | 140 x 24 (screen 10), 120 x 24 in the flyout with its own dark colors (screen 11) | pass |
 | Icon button | 24 x 24 | 24 x 24 on all 110; the status "?" is 20 x 20 | pass; the "?" is a kit choice (Figma's help is a 32 px floating circle) |
 | Chit / chip | 14 x 14, radius 2 | 14 x 14 on all 121 (radius 0 on the 24 svg glyphs) | pass |
 | Pill tab | 24 tall, padding 0 8, 450 unselected | three variants, see below | fail |
@@ -283,7 +283,7 @@ Section headers: 40 tall, title 11/32 550 at x 1216, "+" at x 1408, 17 of 17. Em
 
 The three pill-tab variants, all on kit classes:
 
-| Where | Height | Padding | Weight (unselected) | Colour (unselected) | Screens |
+| Where | Height | Padding | Weight (unselected) | Color (unselected) | Screens |
 |---|---|---|---|---|---|
 | Inspector tab strip (`.k-insp-tabs .k-tab`) | 24 | 4 | 550 | primary | 2 to 10, 12 |
 | Dock header (`.k-dock-head .k-tab`) | 24 | 8 | 450 | primary | 9 |
@@ -301,24 +301,24 @@ tabs should match the inspector's in any case.
 Identical on every screen: [357, 784, 725, 56] (or the same x at y 488 and y 744 where a dock
 or the transport bar sits under the stage), white (#2c2c2c dark), radius 13, the 200-level
 shadow, padding 8, gap 8; Select 32 x 32 at x 365 with a 16 x 32 chevron; Hand 32 x 32; a 1 x
-56 divider at x 461; Filter, Neighbours, Path, Groups, Rank, Structure 40 x 40 at x 470 / 534
+56 divider at x 461; Filter, Neighbors, Path, Groups, Rank, Structure 40 x 40 at x 470 / 534
 / 582 / 646 / 710 / 774 with 16 x 40 chevrons after five of them; a divider at 838; Note and
 Ask at 847 and 895; a divider at 943; the mode switch [952, 796, 122, 32] with four 28 x 28
 options, the selected one on a white thumb with the 100-level shadow and brand text. Every
-labelled tool has a 16 x 16 icon over an 8/10 weight-500 label. The armed tool (Select on ten
+labeled tool has a 16 x 16 icon over an 8/10 weight-500 label. The armed tool (Select on ten
 screens, Rank on screen 4) is the only brand fill in the bar. On screen 1 every tool but Select
 and Hand is at 30 percent, chevrons and labels included. The width is 725, as `revision.md`
 section 3.1 computes.
 
-Departures from Figma, all deliberate and consistent: 56 tall (Figma 48), 40 px labelled tools
+Departures from Figma, all deliberate and consistent: 56 tall (Figma 48), 40 px labeled tools
 (32), an 8 px label (Figma has none; 8/10 500 is off the type scale), and unselected mode
 options in primary text (Figma: secondary). Screen 11 draws the same bar at 1:1 and again in a
 1280 px band; both measure 725 x 56.
 
 ### 3.2 The secondary bar (screens 4 and 11)
 
-[446, 736, 547, 40], #1e1e1e, radius 13, 8 px above the toolbar, centred on the toolbar's
-centre (719.5), padding 16 / 8, white 11/450 text; the select is transparent with a
+[446, 736, 547, 40], #1e1e1e, radius 13, 8 px above the toolbar, centered on the toolbar's
+center (719.5), padding 16 / 8, white 11/450 text; the select is transparent with a
 #ffffff4d inset line; Options is a ghost button, Run the one light button (white, 37 x 24),
 Cancel a ghost in #ffffffb2. Screen 11's three strips measure the same. Pass vs `revision.md`
 section 3.5. It departs from Figma section 42 (a 40 px bar on the same light surface as the
@@ -400,12 +400,12 @@ with notes; the two squeezed line heights in the header block are the only ones 
 see beside their on-scale twins (the 11/16 secondary summary text sits 32 px under the 11/14
 kind line).
 
-## 5. Colour
+## 5. Color
 
-Distinct colours in use per screen, chrome only (the canvas svg, data swatches, ramps and strips
+Distinct colors in use per screen, chrome only (the canvas svg, data swatches, ramps and strips
 excluded):
 
-| Screen | Text colours | Background fills | Border, outline and shadow colours |
+| Screen | Text colors | Background fills | Border, outline and shadow colors |
 |---|---|---|---|
 | 1 | 4 | 6 | 9 |
 | 2, 3, 5, 6, 7, 8 | 3 | 5 | 9 to 10 |
@@ -415,7 +415,7 @@ excluded):
 | 11 (reference sheet) | 6 | 8 | 16 |
 | 12 (dark) | 3 | 5 | 12 |
 
-Every text colour is a token: #000000e5, #00000080, #0000004d (disabled, screen 1), #007be5
+Every text color is a token: #000000e5, #00000080, #0000004d (disabled, screen 1), #007be5
 (links and the selected mode option), white and #ffffffb2 on dark surfaces, and #1e1e1e on the
 light button. Every fill is a token: white, #f5f5f5, #e6e6e6, #e5f4ff (the selected dock row),
 #0d99ff, #d9d9d9 (the disabled Export), #1e1e1e (menus and the secondary bar); dark #2c2c2c,
@@ -515,8 +515,8 @@ deliberate or not. "Decided" means `revision.md` argues for it; "drift" means no
 |---|---|---|---|
 | Window | 1600 x 1000 study; `screens.md` asks 1600 x 1000 | 1440 x 900 | drift (the row budget in `revision.md` 2.4 assumes 1600) |
 | Primary button text | #fff (section 7) | #000000e5 in light, #fff in dark | drift (finding 1) |
-| Floating toolbar | 48 tall, 32 px tools, no labels, centred on the window (40, 41) | 56 tall, 40 px labelled tools, 8 px labels, centred on the canvas | decided (3.1) |
-| Mode switch unselected option | secondary icon colour (18) | primary text | drift (minor) |
+| Floating toolbar | 48 tall, 32 px tools, no labels, centered on the window (40, 41) | 56 tall, 40 px labeled tools, 8 px labels, centered on the canvas | decided (3.1) |
+| Mode switch unselected option | secondary icon color (18) | primary text | drift (minor) |
 | Secondary bar | 40 tall on the light toolbar surface, 200 shadow (42) | 40 tall, #1e1e1e, 300 shadow; the light version sits unused in the kit | decided (3.5); the shadow is drift |
 | Flyout rows | 24 tall, label at x+60 (32, 41) | 32 tall, kind icon, technical name, cost, "..." | decided (3.4) |
 | Flyout left edge | on the chevron (32) | 8 px right of it | drift (minor) |
@@ -529,8 +529,8 @@ deliberate or not. "Decided" means `revision.md` argues for it; "drift" means no
 | Legend card | no Figma part; the nearest is the 240 promo card (55) | 160 wide, radius 5, 20 px items | new, consistent |
 | Help | 32 px floating circle, 200 shadow (15) | 20 x 20 ghost "?" in the status bar | decided (1.6) |
 | Status bar | none in Figma | 24 tall, 11 px secondary | new, consistent |
-| Canvas colour | #f5f5f5 | #f0f0f0 | drift (minor) |
-| Menu, tooltip, popover, dialog, switch, checkbox, select, input, icon button, chit, section header, tree row geometry, page row, elevation, radii, text colours, dark tokens | as measured | as measured | pass |
+| Canvas color | #f5f5f5 | #f0f0f0 | drift (minor) |
+| Menu, tooltip, popover, dialog, switch, checkbox, select, input, icon button, chit, section header, tree row geometry, page row, elevation, radii, text colors, dark tokens | as measured | as measured | pass |
 
 ## 10. Rules scorecard
 
@@ -552,15 +552,15 @@ deliberate or not. "Decided" means `revision.md` argues for it; "drift" means no
 | 14 | Rows 32 / 40 / 50 only | pass (one 64 px note on screen 8) |
 | 15 | One label column per panel; controls start at one x per row type | fail: five control x-positions on one tab |
 | 16 | Controls 24 tall; inputs 88; switch 32 x 16; checkbox 16; chit 14 | pass |
-| 17 | Toolbar 725 x 56, radius 13, 200 shadow, 12 px above the strip below, centred, four groups, one brand fill | pass |
-| 18 | Secondary bar 40, 8 px above the toolbar, centred | pass (dark by decision; its shadow token is the tooltip's) |
+| 17 | Toolbar 725 x 56, radius 13, 200 shadow, 12 px above the strip below, centered, four groups, one brand fill | pass |
+| 18 | Secondary bar 40, 8 px above the toolbar, centered | pass (dark by decision; its shadow token is the tooltip's) |
 | 19 | Flyout 32 px rows with icon, plain name, technical name, cost; left edge on its chevron | pass on rows; 8 px off on the edge |
 | 20 | Popover 240, header 40, rows 32 / 50, controls at x+92 | pass |
 | 21 | Legend 160 wide, 12 above the toolbar, 12 from the panel, one implementation | pass |
 | 22 | Status bar 24, 11 px secondary, items in priority order, "?" at the right | pass |
 | 23 | Inter loaded on every screen | pass |
 | 24 | Type roles on the Figma scale | pass with four off-scale roles, all consistent (8/10 labels, 11/14 kind, 13/20 name, 9 px end labels) |
-| 25 | Every colour a token; one accent meaning | pass (canvas #f0f0f0 is a token but not the specified #f5f5f5) |
+| 25 | Every color a token; one accent meaning | pass (canvas #f0f0f0 is a token but not the specified #f5f5f5) |
 | 26 | Screen 12 is screen 3 in dark with nothing moved | pass |
 | 27 | No text said twice on one screen | pass with four spec-driven repeats (section 7) |
 | 28 | No open overlay without a cause on screen | pass |

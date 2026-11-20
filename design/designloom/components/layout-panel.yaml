@@ -2,7 +2,8 @@ id: layout-panel
 name: Layout Panel
 category: display
 description: Panel for selecting graph layout algorithm and configuring layout parameters. Shows layout preview thumbnails.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/layout/LayoutPopover.tsx."
 implements_capabilities:
     - layout-force-directed
     - layout-hierarchical

@@ -11,7 +11,7 @@ package layout or the conformance suite's fixtures, oracles and generative layer
 formats (`src/formats/`: JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO
 and Cytoscape sessions `cys`) into a `GraphSink` (`GraphBuilder` or a caller's sink) and writes
 them back out from a `GraphSnapshot`. The core format stays zero-dependency and so does this
-package at runtime: every format is parsed by a hand-written streaming tokeniser (one shared XML
+package at runtime: every format is parsed by a hand-written streaming tokenizer (one shared XML
 tokenizer, `src/common/xml.ts`, for GEXF, GraphML, XGMML and Cytoscape sessions; one shared RFC
 4180 record reader for CSV and Neo4j; line and token readers for Pajek, GML and DOT). It also owns
 the io contract types that need the DOM lib (`ReadableStream`, `AbortSignal`).

@@ -16,7 +16,7 @@ export interface BarabasiAlbertOptions extends WeightOptions {
     m: number;
     /**
      * Holme-Kim: after each preferential edge, the probability that the next of the node's m edges
-     * closes a triangle with a neighbour of that edge's target instead. 0 (the default) is plain
+     * closes a triangle with a neighbor of that edge's target instead. 0 (the default) is plain
      * Barabasi-Albert.
      */
     triadProbability?: number | undefined;
@@ -32,7 +32,7 @@ interface Growth {
     readonly repeated: Uint32Array;
     /** The filled length of `repeated`. */
     length: number;
-    /** Neighbour lists, only for the triad step. */
+    /** Neighbor lists, only for the triad step. */
     readonly adjacency: number[][] | null;
 }
 
@@ -73,13 +73,13 @@ function drawTargets(g: Growth, stream: RandomStream, m: number, targets: number
 }
 
 /**
- * The triad step: join s to a uniformly chosen neighbour of `target` that s is not yet joined to.
- * @param adjacency - the neighbour lists
+ * The triad step: join s to a uniformly chosen neighbor of `target` that s is not yet joined to.
+ * @param adjacency - the neighbor lists
  * @param g - the growing graph
  * @param stream - the stream
  * @param s - the new node
  * @param target - the previous target
- * @returns false when no such neighbour exists (nothing drawn, nothing joined)
+ * @returns false when no such neighbor exists (nothing drawn, nothing joined)
  */
 function triadLink(adjacency: number[][], g: Growth, stream: RandomStream, s: number, target: number): boolean {
     const mine = adjacency[s];
@@ -134,7 +134,7 @@ function attachNode(g: Growth, stream: RandomStream, s: number, triad: number, t
  * triad probability is 0: start from m isolated nodes 0 .. m - 1 whose repeated list holds each
  * once; each new node s = m .. n - 1 draws m distinct targets uniformly from the repeated list
  * (in draw order), then adds m edges (s, t): the first to the first target; each further one, with
- * probability `triadProbability`, to a uniformly chosen neighbour of the previous target that s is
+ * probability `triadProbability`, to a uniformly chosen neighbor of the previous target that s is
  * not yet joined to, otherwise to the next unused target. Every endpoint is appended to the
  * repeated list, s itself m times. All draws come from the single stream (seed,
  * "barabasi-albert", 0): the process is sequential. Edges are listed by new node, in the order
@@ -157,7 +157,7 @@ export function barabasiAlbertGraph(options: BarabasiAlbertOptions): SampleGraph
     for (let i = 0; i < m; i++) {
         repeated[i] = i;
     }
-    // neighbour lists, only for the triad step
+    // neighbor lists, only for the triad step
     // ponytail: number[][] per node; a CSR-like growable adjacency if HK at 1M+ nodes matters
     const adjacency: number[][] | null = triad > 0 ? Array.from({ length: n }, () => []) : null;
     const growth: Growth = { out, repeated, length: m, adjacency };
@@ -176,7 +176,7 @@ export function barabasiAlbertGraph(options: BarabasiAlbertOptions): SampleGraph
 export interface WattsStrogatzOptions extends WeightOptions {
     /** The node count, > k. */
     n: number;
-    /** Each node's ring neighbours before rewiring, even, >= 2. */
+    /** Each node's ring neighbors before rewiring, even, >= 2. */
     k: number;
     /** The rewiring probability of each edge, in [0, 1]. */
     beta: number;
@@ -192,7 +192,7 @@ export interface WattsStrogatzOptions extends WeightOptions {
  * Start from the ring lattice: edge slot u k/2 + (j - 1) holds (u, (u + j) mod n) for j = 1 .. k/2.
  * Then for j = 1 .. k/2 and u = 0 .. n - 1 in that order: draw a float; if it is below beta and u is
  * not already joined to every other node, redraw w = nextBelow(n) until w is neither u nor a
- * neighbour of u, and rewire the slot to (u, w). All draws come from the single stream (seed,
+ * neighbor of u, and rewire the slot to (u, w). All draws come from the single stream (seed,
  * "watts-strogatz", 0). Edges are listed in slot order.
  * @param options - n, k, beta and seed
  * @returns the undirected graph

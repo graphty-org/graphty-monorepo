@@ -20,7 +20,7 @@ import {
     NO_ID_COLUMN_CODE,
     POSSIBLE_HEADER_CODE,
     ROLE_TAKEN_CODE,
-    splitNeighbour,
+    splitNeighbor,
 } from "../../../src/formats/csv/importer.js";
 import { BAD_QUOTE_CODE, UNCLOSED_QUOTE_CODE } from "../../../src/formats/csv/records.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../../src/types.js";
@@ -849,6 +849,19 @@ describe("csvImporter: node tables", () => {
         expect(report.counts.skippedNodes).toBe(1);
     });
 
+    it("keeps blank-id rows under blankIdPrefix, numbered by row", async () => {
+        const { snapshot, report } = await load("id,age\na,30\n,5\nb,7\n,6\n", {
+            table: "nodes",
+            blankIdPrefix: "~",
+        });
+        expect(snapshot.ids.toArray()).toEqual(["a", "~1", "b", "~3"]);
+        expect(column(snapshot, "nodes", "age")).toEqual([30, 5, 7, 6]);
+        expect(report.issues).toEqual([]);
+        await expect(load("id\na\n", { table: "nodes", blankIdPrefix: 1 as unknown as string })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
+    });
+
     it("resolves the id column by candidates or by option, and fails without one", async () => {
         const named = await load("source,target\n1,2\n", { nodes: "name,x\n1,a\n2,b\n" });
         expect(column(named.snapshot, "nodes", "x")).toEqual(["a", "b"]);
@@ -1130,15 +1143,15 @@ describe("csvImporter: adjacency tables", () => {
     });
 
     it("splits a neighbour cell at its last colon", () => {
-        expect(splitNeighbour("b")).toEqual({ id: "b", weight: undefined });
-        expect(splitNeighbour("b:1.5")).toEqual({ id: "b", weight: 1.5 });
-        expect(splitNeighbour("b:")).toEqual({ id: "b", weight: undefined });
-        expect(splitNeighbour("h:80:")).toEqual({ id: "h:80", weight: undefined });
-        expect(splitNeighbour("h:80:2")).toEqual({ id: "h:80", weight: 2 });
-        expect(splitNeighbour("x:-0").weight).toBe(-0);
-        expect(splitNeighbour("x:Infinity").weight).toBe(Infinity);
-        expect(splitNeighbour("x:NaN")).toEqual({ id: "x:NaN", weight: undefined });
-        expect(splitNeighbour(":3")).toEqual({ id: "", weight: 3 });
+        expect(splitNeighbor("b")).toEqual({ id: "b", weight: undefined });
+        expect(splitNeighbor("b:1.5")).toEqual({ id: "b", weight: 1.5 });
+        expect(splitNeighbor("b:")).toEqual({ id: "b", weight: undefined });
+        expect(splitNeighbor("h:80:")).toEqual({ id: "h:80", weight: undefined });
+        expect(splitNeighbor("h:80:2")).toEqual({ id: "h:80", weight: 2 });
+        expect(splitNeighbor("x:-0").weight).toBe(-0);
+        expect(splitNeighbor("x:Infinity").weight).toBe(Infinity);
+        expect(splitNeighbor("x:NaN")).toEqual({ id: "x:NaN", weight: undefined });
+        expect(splitNeighbor(":3")).toEqual({ id: "", weight: 3 });
     });
 });
 

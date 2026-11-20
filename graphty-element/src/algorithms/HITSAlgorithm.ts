@@ -105,7 +105,7 @@ const PUBLISHED_HALF: Readonly<Record<HITSOptions["mode"], (hub: number, authori
  *
  * An authority is a node that good hubs point at; a hub is a node that points at good
  * authorities. The published `value` is the average of the two by default -- the authority score
- * for `mode: "in"`, the hub score for `mode: "out"` -- because one number is what a colour ramp or
+ * for `mode: "in"`, the hub score for `mode: "out"` -- because one number is what a color ramp or
  * a size can be bound to; `hub` and `authority` are published beside it, because the two halves
  * are the reason to run HITS rather than PageRank.
  */

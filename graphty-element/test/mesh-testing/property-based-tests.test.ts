@@ -2,7 +2,7 @@
  * Property-Based Random Tests
  *
  * The golden masters in this directory pin named cases. These generate the parameter space instead
- * -- every shape at a random size in a random colour, every line type at a random width, random
+ * -- every shape at a random size in a random color, every line type at a random width, random
  * text at a random size -- and assert the invariant that has to hold across all of it.
  *
  * This is the file that changes most by being re-pointed. It used to feed random input into a mock

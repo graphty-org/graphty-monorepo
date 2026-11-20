@@ -78,6 +78,6 @@ Session ended (exit 0).
 - The picture itself was no help. None of the balls had names on them, so I couldn't just look and trace it with my finger. I did the whole thing from the search box on the left, one family at a time, writing down who's married to whom. Like working it out from an Excel sheet.
 - The search list is good: you type a family and it shows its marriages as "Medici -- Salviati" lines. That's plain. But nothing told me whether I had the shortest way. I had to work it out myself by checking the families at both ends, and if I'd missed one I'd never know. I'd be nervous saying it out loud in lab meeting.
 - When I typed a family, nothing lit up on the picture, so I still don't know which ball is the Strozzi or the Pazzi.
-- The colours and sizes say "PageRank" with numbers like 0.03066 to 0.1458. I don't know what that is and it didn't matter for this question, so I ignored it.
+- The colors and sizes say "PageRank" with numbers like 0.03066 to 0.1458. I don't know what that is and it didn't matter for this question, so I ignored it.
 - "Local only" up top -- I took that to mean nothing went anywhere. Fine.
 - I didn't change anything: only typed in the search box and cleared it.

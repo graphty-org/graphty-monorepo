@@ -12,7 +12,7 @@
  * - `gridOracleNearField`: G7's 9 (27) finest cells with the K3 pair law (the 0.01 floor, the coincident kick through
  *   kickDir), and above `nearMax` entries the SAME `nearMax` independent draws with replacement, draw `k` at slot
  *   `lowbias32(((c ^ (iteration * 0x9E3779B9)) ^ seed) ^ (k * 0x85EBCA6B)) % count` (JS `Math.imul` / `>>>` on
- *   hash words, the kickDir precedent), the node itself skipped and not replaced, with the realised-sample scale
+ *   hash words, the kickDir precedent), the node itself skipped and not replaced, with the realized-sample scale
  *   `others / sampled` of PD-15, so the oracle sums exactly the pairs the GPU sums and the two differ by f32 rounding
  *   alone;
  * - `gridOracleGravity` and `gridOracleAttraction`: the paper-mode gravity (spec 7.9, the centroid form) and the
@@ -256,7 +256,7 @@ function addPairForce(
 
 /**
  * G7's cell_sum: every entry of a cell below `nearMax`, else the `nearMax` independent hashed draws of PD-15 (with
- * replacement; the node itself skipped, not replaced) scaled by `others / sampled` over the realised sample
+ * replacement; the node itself skipped, not replaced) scaled by `others / sampled` over the realized sample
  * (DEP-P4-K).
  * @param input - the positions
  * @param build - the T8 oracle's build (sortedIdx, cellStart)

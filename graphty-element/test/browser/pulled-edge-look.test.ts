@@ -61,7 +61,7 @@ function widthOf(i: number): number {
 
 /**
  * The restyled edge: nodes 0 and 12 sit opposite on the outer ring, so it crosses the middle of the
- * canvas, where the edges show between the node spheres (a neighbour's edge, 0 to 1, lies inside the
+ * canvas, where the edges show between the node spheres (a neighbor's edge, 0 to 1, lies inside the
  * two spheres and shows no pixel).
  */
 const RESTYLED = { src: 0, dst: 12 };

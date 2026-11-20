@@ -37,10 +37,11 @@ function assertRefused(error: Error | undefined, reason: string): void {
 test("a capture without the clipboard as a destination reports not-requested", async () => {
     graph = await createTestGraphWithData();
 
-    const result = await graph.captureScreenshot({ destination: { blob: true } });
+    const result = await graph.captureScreenshot();
 
     assert.equal(result.clipboardStatus, "not-requested");
     assert.equal(result.clipboardError, undefined);
+    assert.deepEqual(result.errors, []);
 });
 
 test("a successful clipboard write reports success with no error", async () => {
@@ -52,6 +53,7 @@ test("a successful clipboard write reports success with no error", async () => {
 
     assert.equal(result.clipboardStatus, "success");
     assert.equal(result.clipboardError, undefined);
+    assert.deepEqual(result.errors, []);
     assert.equal(write.mock.calls.length, 1);
     assert.ok(result.blob instanceof Blob);
 });
@@ -64,6 +66,7 @@ test("a browser without a clipboard reports not-supported and still returns the 
 
     assert.equal(result.clipboardStatus, "not-supported");
     assertRefused(result.clipboardError, "clipboard");
+    assert.deepEqual(result.errors, [result.clipboardError], "the refusal is among the result's errors");
     assert.ok(result.blob instanceof Blob);
 });
 
@@ -110,5 +113,6 @@ test("a write that fails for another reason reports failed", async () => {
     assert.ok(result.clipboardError instanceof GraphtyError);
     assert.equal(result.clipboardError.code, "E_CAPTURE_FAILED");
     assert.deepEqual(result.clipboardError.details, { media: "image", destination: "clipboard" });
+    assert.deepEqual(result.errors, [result.clipboardError]);
     assert.ok(result.blob instanceof Blob);
 });

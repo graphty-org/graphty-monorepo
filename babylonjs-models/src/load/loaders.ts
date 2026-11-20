@@ -3,13 +3,28 @@
  * into an asset container.
  *
  * What it registers, and only this:
- * - the glTF 2.0 loader (`.gltf`, `.glb`) with the extensions that change how a model looks or is
- *   stored. The decoder extensions (Draco, meshopt, KTX2) are in src/decoders/, each its own
- *   module, imported only for a model that uses it; none fetches anything from a CDN;
+ * - the glTF 2.0 loader (`.gltf`, `.glb`) with the extensions that change how a model looks, moves
+ *   or is stored. The decoder extensions (Draco, meshopt, KTX2) are in src/decoders/, each its own
+ *   module, imported only for a model that uses it; none fetches anything from a CDN. The
+ *   extensions Babylon.js ships that are not registered, each for a reason
+ *   (test/gltf-extensions.test.ts lists them, so a new one is a decision): Gaussian splatting
+ *   (splats are refused); the transmission family (drawn without: src/files/gltfChecks.ts);
+ *   `EXT_lights_area` (Babylon fetches its lookup table from assets.babylonjs.com and keeps it on
+ *   the scene); `EXT_lights_image_based` (it replaces the scene's environment, which is the
+ *   page's); `KHR_interactivity`, `KHR_node_hoverability` and `KHR_node_selectability` (a file's
+ *   own behavior graph and pointer handling: what input does is the page's); `MSFT_audio_emitter`
+ *   (sound the page did not ask for); `MSFT_lod` (it goes on loading finer levels after the load
+ *   has settled). A glTF that requires one of them is refused; one that only uses it draws
+ *   without it;
  * - the OBJ loader (with its MTL reader), with a fix that keeps an OBJ's vertex colors;
- * - the TGA and DDS texture loaders, which Babylon would otherwise import lazily.
+ * - the TGA and DDS texture loaders, which Babylon would otherwise import lazily;
+ * - the FBX loader (`.fbx`, binary and ASCII) and the OpenUSD loader (`.usd`, `.usda`, `.usdc`,
+ *   `.usdz`), each registered by name and imported the first time a model of its format loads. The USD loader
+ *   runs OpenUSD in a worker whose files this package ships (src/decoders/usd.ts);
+ *   ./loadModel.ts hands it the model's files itself. Every USD load shares one loader, one load
+ *   at a time, so loads that follow one another start OpenUSD once ({@link usdTurn}).
  *
- * STL, PLY, Gaussian splats (`.splat`, `.spz`, `.sog`) and `.babylon` are read by this package's
+ * STL, PLY and `.babylon` are read by this package's
  * own readers (src/files/readers/), which build the container themselves ({@link loadOwnModel}).
  *
  * Babylon.js lazily imports several modules the first time they are needed: the PBR material and
@@ -30,6 +45,8 @@ import "@babylonjs/loaders/glTF/2.0/glTFLoader.js";
 import "@babylonjs/loaders/OBJ/objFileLoader.js";
 // The glTF extensions a model may use for its look or its storage. Importing one registers it.
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_transform.js";
+// A material's glTF `extras` on its metadata: how a material says it lost its color picture.
+import "@babylonjs/loaders/glTF/2.0/Extensions/ExtrasAsMetadata.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_mesh_quantization.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_unlit.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_pbrSpecularGlossiness.js";
@@ -52,6 +69,12 @@ import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_xmp_json_ld.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/MSFT_sRGBFactors.js";
 // Read as thin instances of the mesh they copy.
 import "@babylonjs/loaders/glTF/2.0/Extensions/EXT_mesh_gpu_instancing.js";
+// Animations of any property a JSON pointer names, subsurface scattering, IES light profiles (a
+// light's own file, a part of the model, or a buffer view) and Minecraft exports' materials.
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_animation_pointer.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_scatter.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/EXT_lights_ies.js";
+import "@babylonjs/loaders/glTF/2.0/Extensions/MSFT_minecraftMesh.js";
 // What the glTF loader would otherwise import lazily.
 import "@babylonjs/core/Materials/PBR/pbrMaterial.js";
 import "@babylonjs/loaders/glTF/2.0/pbrMaterialLoadingAdapter.js";
@@ -67,24 +90,207 @@ import "@babylonjs/core/Materials/Textures/Loaders/tgaTextureLoader.js";
 import "@babylonjs/core/Materials/Textures/Loaders/ddsTextureLoader.js";
 
 import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
-import { LoadAssetContainerAsync, type PluginOptions } from "@babylonjs/core/Loading/sceneLoader.js";
+import {
+    LoadAssetContainerAsync,
+    type PluginOptions,
+    RegisterSceneLoaderPlugin,
+} from "@babylonjs/core/Loading/sceneLoader.js";
 import { SceneLoaderFlags } from "@babylonjs/core/Loading/sceneLoaderFlags.js";
 import { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
 import { Tools } from "@babylonjs/core/Misc/tools.js";
 import type { Scene } from "@babylonjs/core/scene.js";
+import { FBXFileLoaderMetadata } from "@babylonjs/loaders/FBX/fbxFileLoader.metadata.js";
 import { GLTFValidation } from "@babylonjs/loaders/glTF/glTFValidation.js";
 import { SolidParser } from "@babylonjs/loaders/OBJ/solidParser.js";
+import { USDFileLoaderMetadata } from "@babylonjs/loaders/USD/usdFileLoader.metadata.js";
+import type { USDFileLoader } from "@babylonjs/loaders/USD/usdFileLoader.pure.js";
 
-import { readBabylon } from "../files/readers/babylon.js";
+import { babylonTextureNames, embeddedPictureName, readBabylon } from "../files/readers/babylon.js";
 import { type Geometry, ModelReadError } from "../files/readers/geometry.js";
 import { readPly } from "../files/readers/ply.js";
 import { readStl } from "../files/readers/stl.js";
 import { buildContainer, type Part, type PartMaterial } from "../readers/container.js";
-import { readSplat } from "../readers/splat.js";
 
 /** The file extensions Babylon's own loaders read. */
-export type ModelExtension = ".glb" | ".gltf" | ".obj";
+export type ModelExtension = ".glb" | ".gltf" | ".obj" | ".fbx" | ".usd" | ".usdz";
+
+// The FBX and USD loaders, by name and extensions: each one's code is imported when a model of
+// its format first loads, as each decoder is (Babylon's own loaders/dynamic.js registers them the
+// same way), so a page that draws only glTF never downloads them. The USD loader's worker and
+// WebAssembly are fetched from this package's own files (src/decoders/usd.ts).
+RegisterSceneLoaderPlugin({
+    ...FBXFileLoaderMetadata,
+    createPlugin: async (options) => {
+        const { FBXFileLoader } = await import("@babylonjs/loaders/FBX/fbxFileLoader.pure.js");
+        return new FBXFileLoader(options[FBXFileLoaderMetadata.name]);
+    },
+});
+RegisterSceneLoaderPlugin({
+    ...USDFileLoaderMetadata,
+    createPlugin: async (options) => {
+        const { USDFileLoader, _RegisterUSDLoaderDependencies } =
+            await import("@babylonjs/loaders/USD/usdFileLoader.pure.js");
+        _RegisterUSDLoaderDependencies();
+        const given = (options[USDFileLoaderMetadata.name] ?? {}) as UsdLoadOptions &
+            ConstructorParameters<typeof USDFileLoader>[0];
+        usdShared ??= keepWorker(new USDFileLoader());
+        const shared = usdShared;
+        // This load's options, as Babylon's constructor completes them.
+        const own = (new USDFileLoader(given) as unknown as UsdLoaderInternals)._options;
+        type Loader = USDFileLoader;
+        return Object.assign(Object.create(shared) as Loader, {
+            loadAssetContainerAsync: (...args: Parameters<Loader["loadAssetContainerAsync"]>) =>
+                usdTurn(shared, own, given.signal, args[0], () => shared.loadAssetContainerAsync(...args)),
+            importMeshAsync: (...args: Parameters<Loader["importMeshAsync"]>) =>
+                usdTurn(shared, own, given.signal, args[1], () => shared.importMeshAsync(...args)),
+            loadAsync: (...args: Parameters<Loader["loadAsync"]>) =>
+                usdTurn(shared, own, given.signal, args[0], () => shared.loadAsync(...args)),
+        });
+    },
+});
+
+/** The USD loader's options, and the signal that stops a load ({@link usdTurn}). */
+interface UsdLoadOptions {
+    readonly signal?: AbortSignal;
+}
+
+/** What babylonjs-models reaches inside Babylon's USD loader (9.37): its options and its worker. */
+interface UsdLoaderInternals {
+    _options: object;
+    readonly _pending: ReadonlyMap<number, unknown>;
+    _terminateWorker: () => void;
+}
+
+/** The USD loader every USD load shares. */
+let usdShared: USDFileLoader | undefined;
+/** Settles when the last USD load queued has finished. */
+let usdQueue: Promise<unknown> = Promise.resolve();
+/** USD loads waiting for their turn. */
+let usdWaiting = 0;
+/** Ends the shared loader's worker, whatever is waiting (set by {@link keepWorker}). */
+let endWorker: (() => void) | undefined;
+/** The scenes a USD model was loaded into that are not disposed yet: the worker is kept for them. */
+const usdScenes = new Set<Scene>();
+
+/**
+ * Keep the worker for a scene until it is disposed; then end it, unless another scene still holds
+ * it or a USD load is waiting or running.
+ * @param scene - The scene a USD model loads into.
+ */
+function holdForScene(scene: Scene): void {
+    if (usdScenes.has(scene)) {
+        return;
+    }
+    usdScenes.add(scene);
+    scene.onDisposeObservable.addOnce(() => {
+        usdScenes.delete(scene);
+        const pending = (usdShared as unknown as UsdLoaderInternals | undefined)?._pending.size ?? 0;
+        if (usdScenes.size === 0 && usdWaiting === 0 && pending === 0) {
+            endWorker?.();
+        }
+    });
+}
+
+/**
+ * Keep a USD loader's worker for the next load. Babylon's loader ends its worker (OpenUSD, about
+ * 10 MB of WebAssembly, downloaded and compiled again by the next worker) as soon as no load is in
+ * it; here it is kept while another USD load waits or a scene a USD model was loaded into is not
+ * disposed, and ended when neither holds, so a graph's models, loaded together or one after another,
+ * start OpenUSD once, and a page whose scenes are gone holds none of its memory. A worker that
+ * failed is ended as before.
+ * @param loader - The shared loader.
+ * @returns The loader.
+ */
+function keepWorker(loader: USDFileLoader): USDFileLoader {
+    const internals = loader as unknown as UsdLoaderInternals;
+    const terminate = internals._terminateWorker.bind(loader);
+    endWorker = terminate;
+    internals._terminateWorker = () => {
+        if (internals._pending.size > 0 || (usdWaiting === 0 && usdScenes.size === 0)) {
+            terminate();
+        }
+    };
+    return loader;
+}
+
+/**
+ * Run one USD load in its turn on the shared loader, with its own options. OpenUSD reads one stage
+ * at a time in its worker, so a turn costs nothing. A load stopped by its signal while it waits
+ * never starts; one stopped while it runs ends the worker, which is all that stops OpenUSD.
+ * @param shared - The shared loader.
+ * @param options - This load's options.
+ * @param signal - Stops the load.
+ * @param scene - The scene it loads into: the worker is kept until it is disposed.
+ * @param load - The load.
+ * @returns What the load returns.
+ */
+async function usdTurn<T>(
+    shared: USDFileLoader,
+    options: object,
+    signal: AbortSignal | undefined,
+    scene: Scene,
+    load: () => Promise<T>,
+): Promise<T> {
+    signal?.throwIfAborted();
+    const before = usdQueue;
+    let done = (): void => undefined;
+    usdQueue = Promise.all([
+        before,
+        new Promise<void>((resolve) => {
+            done = resolve;
+        }),
+    ]);
+    usdWaiting++;
+    let waiting = true;
+    let stop = (): void => undefined;
+    try {
+        await new Promise<void>((resolve, reject) => {
+            stop = () => {
+                reject(new Error("stopped"));
+            };
+            signal?.addEventListener("abort", stop, { once: true });
+            void before.then(() => {
+                resolve();
+            });
+        });
+        signal?.removeEventListener("abort", stop);
+        usdWaiting--;
+        waiting = false;
+        signal?.throwIfAborted();
+        holdForScene(scene);
+        // Read when the load starts, before its first await: the files, the root and the worker's URLs.
+        (shared as unknown as UsdLoaderInternals)._options = options;
+        // Ending the worker and the loader's requests rejects the load; the race also answers a
+        // stop that comes before the loader has a worker to end.
+        return await Promise.race([
+            load(),
+            new Promise<never>((_resolve, reject) => {
+                stop = () => {
+                    endWorker?.();
+                    shared.dispose();
+                    reject(new Error("stopped"));
+                };
+                signal?.addEventListener("abort", stop, { once: true });
+            }),
+        ]);
+    } catch (error) {
+        signal?.throwIfAborted();
+        throw error;
+    } finally {
+        // Stopped while it waited: a worker kept for it is ended unless another load or a scene needs it.
+        if (
+            waiting &&
+            --usdWaiting === 0 &&
+            usdScenes.size === 0 &&
+            (shared as unknown as UsdLoaderInternals)._pending.size === 0
+        ) {
+            endWorker?.();
+        }
+        signal?.removeEventListener("abort", stop);
+        done();
+    }
+}
 
 // The glTF validator is a script on cdn.babylonjs.com. Loads never ask for validation; should
 // anything ask, the script it gets is a local one that fails.
@@ -93,18 +299,16 @@ GLTFValidation.Configuration = {
 };
 
 /**
- * Babylon 8.56's OBJ parser drops vertex colors in two places: faces written `v/vt/vn` never look
- * their colors up (`_setDataForCurrentFaceWithPattern3`), and an object after an `o` or `g` line
- * loses them in `_unwrapData`, which copies them only when the array it fills is already
- * non-empty. Each face corner gets its color here, and the colors are put where `_unwrapData`
- * should have put them. It also gives a vertex the file wrote no color for a shared gray
- * (`_grayColor`), so an object with no colors at all would draw gray and state a color it never
- * had; such an object keeps no colors. Delete when Babylon fixes `SolidParser`.
+ * Babylon's OBJ parser (still in 9.37) never looks up vertex colors for faces written `v/vt/vn`
+ * (`_setDataForCurrentFaceWithPattern3`): each face corner gets its color here. It also gives a
+ * vertex the file wrote no color for a shared gray (`_grayColor`), so an object with no colors at
+ * all would draw gray and state a color it never had; such an object keeps no colors. Delete when
+ * Babylon fixes `SolidParser`. (The colors an object after an `o` or `g` line lost in
+ * `_unwrapData`, also worked around here before, are kept by Babylon itself since 9.2.2.)
  */
 interface ObjParser {
     _grayColor: unknown;
-    _wrappedColorsForBabylon: { r: number; g: number; b: number; a: number }[];
-    _unwrappedColorsForBabylon: number[];
+    _wrappedColorsForBabylon: unknown[];
     _unwrapData: (this: ObjParser) => void;
     _setData: (this: ObjParser, data: { indicePositionFromObj: number; positionColorsFromOBJ?: unknown }) => void;
     _getColor: (this: ObjParser, index: number) => unknown;
@@ -116,11 +320,7 @@ parser._unwrapData = function (this: ObjParser): void {
         this._wrappedColorsForBabylon.length = 0;
     }
 
-    const colors = this._wrappedColorsForBabylon.flatMap((c) => [c.r, c.g, c.b, c.a]);
     unwrapData.call(this);
-    if (colors.length > 0 && this._unwrappedColorsForBabylon.length === 0) {
-        this._unwrappedColorsForBabylon.push(...colors);
-    }
 };
 parser._setData = function (this: ObjParser, data): void {
     data.positionColorsFromOBJ ??= this._getColor(data.indicePositionFromObj);
@@ -247,11 +447,12 @@ export async function loadBabylonModel(
 ): Promise<AssetContainer> {
     const end = startLoad();
     try {
-        const { gltf, ...others } = options.pluginOptions ?? {};
+        const { gltf, fbx, ...others } = options.pluginOptions ?? {};
         const container = await LoadAssetContainerAsync(fileName, scene, {
             rootUrl,
             pluginExtension: extension,
-            pluginOptions: { ...others, gltf: { validate: false, ...gltf } },
+            // An FBX file's curves are drawn as lines: a file of NURBS curves has nothing else.
+            pluginOptions: { ...others, gltf: { validate: false, ...gltf }, fbx: { curves: "lines", ...fbx } },
         });
         return await settle(scene, container, options.keepCamerasAndLights ?? true);
     } finally {
@@ -288,25 +489,25 @@ async function settle(scene: Scene, container: AssetContainer, keepCamerasAndLig
 }
 
 /** The formats babylonjs-models' own readers draw. */
-export type OwnFormat = "stl" | "ply" | "splat" | "spz" | "sog" | "babylon";
+export type OwnFormat = "stl" | "ply" | "babylon";
 
 /**
  * The parts and materials one of this package's own readers makes of a file.
- * @param scene - The scene.
  * @param files - The file set.
  * @param main - The main file's path.
  * @param format - Its format.
  * @param rootUrl - The guarded root the main file's folder is named under.
+ * @param hidden - Embedded pictures to leave out, by their summary names.
  * @returns The parts and their materials.
  * @throws {ModelReadError} For a damaged file.
  */
-async function readOwn(
-    scene: Scene,
+function readOwn(
     files: ReadonlyMap<string, Uint8Array>,
     main: string,
     format: OwnFormat,
     rootUrl: string,
-): Promise<{ parts: Part[]; materials: PartMaterial[] }> {
+    hidden: ReadonlySet<string>,
+): { parts: Part[]; materials: PartMaterial[] } {
     const bytes = files.get(main) as Uint8Array;
     // A part the file gives no look has no material, as an OBJ without an .mtl.
     const one = (geometry: Geometry, material?: PartMaterial): { parts: Part[]; materials: PartMaterial[] } => ({
@@ -321,7 +522,7 @@ async function readOwn(
             const texture = read.textureFile === undefined ? undefined : rootUrl + read.textureFile;
             return one(read.geometry, texture === undefined ? undefined : { texture });
         }
-        case "babylon": {
+        default: {
             let json: unknown;
             try {
                 json = JSON.parse(new TextDecoder().decode(bytes));
@@ -330,21 +531,28 @@ async function readOwn(
             }
 
             const babylon = readBabylon(json as Record<string, unknown>);
+            const names = babylonTextureNames(json as Record<string, unknown>);
             return {
                 parts: babylon.meshes,
-                materials: babylon.materials.map((m) =>
-                    m.texture === undefined ? m : { ...m, texture: rootUrl + m.texture },
-                ),
+                materials: babylon.materials.map((m) => {
+                    if (m.texture === undefined) {
+                        return m;
+                    }
+                    // An embedded picture is its own URL; one left out is dropped here, as nothing
+                    // under the load's root names it to take off afterwards.
+                    const embedded = embeddedPictureName(m.texture, names);
+                    if (embedded !== undefined && hidden.has(embedded)) {
+                        return { ...m, texture: undefined, withoutPicture: true };
+                    }
+                    return { ...m, texture: embedded === undefined ? rootUrl + m.texture : m.texture };
+                }),
             };
-        }
-        default: {
-            return one((await readSplat(scene, files, main, format)).geometry);
         }
     }
 }
 
 /**
- * Load a model one of this package's own readers draws (STL, PLY, splats, `.babylon`) into a
+ * Load a model one of this package's own readers draws (STL, PLY, `.babylon`) into a
  * container that is not in the scene. Its pictures are named under `rootUrl`, which the caller's
  * request guard resolves to the set's own files.
  * @param scene - The scene.
@@ -352,6 +560,8 @@ async function readOwn(
  * @param main - The main file's path.
  * @param format - Its format.
  * @param rootUrl - The guarded root the main file's folder is named under.
+ * @param hidden - Embedded pictures to leave out, by their summary names (`image<index>`); a
+ *   picture in a file of its own is taken off once loaded (`markWithoutPictures`).
  * @returns The container.
  * @throws {ModelReadError} For a damaged file.
  */
@@ -361,10 +571,11 @@ export async function loadOwnModel(
     main: string,
     format: OwnFormat,
     rootUrl: string,
+    hidden: ReadonlySet<string> = new Set(),
 ): Promise<AssetContainer> {
     const end = startLoad();
     try {
-        const read = await readOwn(scene, files, main, format, rootUrl);
+        const read = readOwn(files, main, format, rootUrl, hidden);
         return await settle(scene, buildContainer(scene, read.parts, read.materials), false);
     } finally {
         end();

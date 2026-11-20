@@ -44,6 +44,7 @@ import {
 } from "../layout/locationMap/source";
 import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand, AlgoRenameCommand } from "./commands/algo";
 import type { AnnotationsCommand } from "./commands/annotations";
+import type { AssetCommand } from "./commands/assets";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { DataDeriveCommand } from "./commands/derive";
@@ -55,6 +56,7 @@ import type { SetCommand } from "./commands/sets";
 import type { ShaderCommand } from "./commands/shaders";
 import type { SourceExpandOpCommand } from "./commands/source-expand";
 import type { StyleCommand } from "./commands/style";
+import type { TourCommand } from "./commands/tour";
 import type { ViewCommand } from "./commands/view";
 import type { VisibilityCommand } from "./commands/visibility";
 import {
@@ -100,7 +102,7 @@ export interface AlgorithmRunCommand {
     readonly params?: Readonly<Record<string, unknown>>;
     /** What it may look at. Defaults to the visible graph. */
     readonly scope?: Scope;
-    /** The seed for a randomised or sampled method. */
+    /** The seed for a randomized or sampled method. */
     readonly seed?: number;
     /** Ask for the approximate method at a chosen sample size. */
     readonly sample?: number;
@@ -138,10 +140,12 @@ export type SessionCommand =
     | SourceExpandOpCommand
     | StyleCommand
     | ShaderCommand
+    | AssetCommand
     | VisibilityCommand
     | SetCommand
     | NoteCommand
     | ViewCommand
+    | TourCommand
     | AnnotationsCommand
     | ConfigSetCommand
     | PositionsCommand
@@ -381,7 +385,7 @@ const DERIVATION_PER_KEPT_EDGE_SECONDS = 1.7e-7;
  * Build the cost model's inputs from a command and the session's own maintained facts.
  * @param context - What planning reads.
  * @param command - The command.
- * @param descriptor - The algorithm's catalogue entry, when it has one.
+ * @param descriptor - The algorithm's catalog entry, when it has one.
  * @returns The inputs, or why the scope could not be resolved.
  */
 function costInput(
@@ -490,7 +494,7 @@ export function keptSetScopes(context: PlanningContext): ScopeCandidate[] {
  *
  * Unavailable rather than computed over the whole graph: a number produced for a scope the run
  * would refuse is a confident answer to a question nobody asked, and it would gate a button on it.
- * @param descriptor - The algorithm's catalogue entry, when it has one.
+ * @param descriptor - The algorithm's catalog entry, when it has one.
  * @param refusal - Why the scope could not be resolved.
  * @param refusal.refusal - The coded fact.
  * @returns The estimate.
@@ -593,7 +597,7 @@ function planSteps(
  * What one command would do, what it would cost, and whether it would be allowed.
  *
  * The gate is asked the same question here that it is asked when the run starts, from the same
- * inputs, so the sentence on the confirmation dialog and the behaviour after the click cannot
+ * inputs, so the sentence on the confirmation dialog and the behavior after the click cannot
  * disagree: one policy, consulted twice.
  * @param context - What planning reads.
  * @param command - The command.
@@ -741,7 +745,7 @@ function planAlgorithmRun(context: PlanningContext, command: AlgorithmRunCommand
             effect,
             caveats: Object.freeze({
                 ...weighed,
-                method: descriptor?.technicalName ?? context.defaultCaveats.method,
+                method: descriptor?.key ?? context.defaultCaveats.method,
                 ...(command.seed === undefined ? {} : { seed: command.seed }),
             }),
         });
@@ -867,7 +871,7 @@ function layoutRefusal(
         return missingNode(graph, id, "start", options.start);
     }
 
-    // Radial centres on the best-connected node when no root is named, so only a named one can be missing.
+    // Radial centers on the best-connected node when no root is named, so only a named one can be missing.
     if (engine === "radial" && options.root !== undefined && options.root !== null) {
         return missingNode(graph, id, "root", options.root);
     }

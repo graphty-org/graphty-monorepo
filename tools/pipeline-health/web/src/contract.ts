@@ -210,6 +210,12 @@ export const MEMBER_IDS = [
     "pull-requests.oldest_open",
     "pull-requests.merge_ratio",
     "pull-requests.caused_failures",
+    "pull-requests.issues_per_merge",
+    "pull-requests.multi_issue_share",
+    "pull-requests.runner_minutes_per_issue",
+    "pull-requests.group_released_share",
+    "pull-requests.groups_ready",
+    "pull-requests.groups_combinable",
     "pull-requests.automerge_green_stuck",
     "pull-requests.automerge_armed_long",
     "pull-requests.screenshot_backlog",
@@ -410,7 +416,7 @@ export type ChannelId = "canary" | "nightly" | "production";
 
 /**
  * How one release attempt ended: deployed or promoted (`ok`), failed (`bad`), passed but not promoted (`held`, a
- * nightly candidate waiting for screenshot approval), or cancelled.
+ * nightly candidate waiting for screenshot approval), or canceled.
  */
 export type ChannelOutcome = "ok" | "bad" | "held" | "cancelled";
 

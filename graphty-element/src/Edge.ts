@@ -636,6 +636,16 @@ function unparkCap(cap: ArrowCap): boolean {
 }
 
 /**
+ * What a style asks of the force-directed bundles (`line.route` "bundled" and its two settings), as one key.
+ * @param style - The style.
+ * @returns The key; empty for an edge drawn another way.
+ */
+function bundleKeyOf(style: EdgeStyleConfig | null): string {
+    const line = style?.line;
+    return line?.route === "bundled" ? `${String(line.bundleStrength)}|${String(line.bundleIterations)}` : "";
+}
+
+/**
  * Represents a directed edge between two nodes in the graph visualization.
  * Handles rendering of edge lines, arrow heads/tails, and labels with support for various styles.
  */
@@ -1526,7 +1536,9 @@ export class Edge {
         this._lastSrcPos = null;
         this._lastDstPos = null;
         // a restyle or a resize may take this edge into or out of the force-directed bundles
-        this.context.getDataManager().forceBundles.touch();
+        if (this.drawnStyle?.line?.route === "bundled" || this._lastForceBundles !== -1) {
+            this.context.getDataManager().forceBundles.touch();
+        }
     }
 
     /**
@@ -1555,6 +1567,7 @@ export class Edge {
      */
     private forceBundleBends(src: Vector3, dst: Vector3): readonly number[] | undefined {
         if (this.drawnStyle?.line?.route !== "bundled") {
+            this._lastForceBundles = -1;
             return undefined;
         }
         const data = this.context.getDataManager();
@@ -2244,9 +2257,14 @@ export class Edge {
         const sameGeometry = sameRoute && sameFlavor && (meshKey === this.meshKey || sameStyle(style, this.drawnStyle));
 
         if (!meshDisposed && (sameGeometry || (sameRoute && sameFlavor && this.restyleInPlace(meshKey, style)))) {
+            // the same line, through other points when it joins, leaves or reshapes a force-directed bundle
+            const rebundles = bundleKeyOf(style) !== bundleKeyOf(this.drawnStyle);
             this.meshKey = meshKey;
             this.drawnStyle = style;
             this.syncContent(style, false);
+            if (rebundles) {
+                this.invalidatePositionCache();
+            }
             return;
         }
 

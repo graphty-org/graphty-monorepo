@@ -81,6 +81,23 @@ export const EDGES = [
     { src: "alpha", dst: "omega" },
 ];
 
+/**
+ * The channels measured on the bundle scene ({@link mountProbeGraph}): edge bundling gathers edges that run beside
+ * each other between different nodes, which the probe scene's two edges on one line never do.
+ */
+export const BUNDLE_CHANNELS: ReadonlySet<string> = new Set([
+    "edge.route",
+    "edge.bundleStrength",
+    "edge.bundleIterations",
+]);
+
+/** The bundle scene: six near-parallel edges, each between nodes of its own, clear of the origin. */
+const BUNDLE_NODES = Array.from({ length: 6 }, (_, i) => [
+    { id: `s${String(i)}`, position: { x: 4, y: 4 + i * 2, z: 0 } },
+    { id: `t${String(i)}`, position: { x: 34, y: 5 + i * 2, z: 0 } },
+]).flat();
+const BUNDLE_EDGES = Array.from({ length: 6 }, (_, i) => ({ src: `s${String(i)}`, dst: `t${String(i)}` }));
+
 /** A picture that loads at once, twice as wide as tall, red on the left and blue on the right. */
 const PICTURE = `data:image/svg+xml;utf8,${encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20">' +
@@ -300,8 +317,8 @@ const PROBE_VALUES: Readonly<Partial<Record<string, unknown>>> = {
     // the clip of the model ENUM_SETUP-style base below loads
     "node.modelAnimation": "spin",
     "edge.fadeStart": 1999,
-    // a raised arc: "bundled", the list's last value, draws two edges on one line as they are
-    "edge.route": "arc",
+    // a first cycle of one step gathers next to nothing, against the default's fifty
+    "edge.bundleIterations": 1,
     ...Object.fromEntries(
         ["Head", "Tail", "MiddleHead", "MiddleTail"].map((end) => [`edge.arrow${end}Stack`, "dot normal"]),
     ),
@@ -493,11 +510,13 @@ export function pixelsChanged(one: Reading, other: Reading): number {
  * every channel of the target needs (words, a border, caps, captions, a band).
  * @param view - The view.
  * @param renderPath - How nodes are drawn.
+ * @param bundle - Mount the bundle scene ({@link BUNDLE_CHANNELS}) in place of the two nodes.
  * @returns The container, the graph and its session.
  */
 export async function mountProbeGraph(
     view: "2d" | "3d",
     renderPath: "objects" | "batched" = "objects",
+    bundle = false,
 ): Promise<{ container: HTMLElement; graph: Graph; session: GraphSession }> {
     const container = document.createElement("div");
     container.style.width = `${String(WIDTH)}px`;
@@ -510,8 +529,8 @@ export async function mountProbeGraph(
     // Placed rather than laid out by physics: a scene fingerprint taken while nodes are still drifting differs from
     // one frame to the next for reasons that have nothing to do with a channel. About 32 units apart (see the
     // support unit above), and not on opposite sides of the origin, where a great-circle route is a straight line.
-    await graph.addNodes(NODES.map((node, i) => ({ ...node, position: PLACES[i] })));
-    await graph.addEdges(EDGES);
+    await graph.addNodes(bundle ? BUNDLE_NODES : NODES.map((node, i) => ({ ...node, position: PLACES[i] })));
+    await graph.addEdges(bundle ? BUNDLE_EDGES : EDGES);
     // A flat layout in the element's opening 3D view: an edge's lift is drawn only for a flat layout in the 3D
     // view, and asking for the 3D view again lays the graph out in 3D.
     await graph.setLayout("fixed", { dim: 2 });
@@ -902,6 +921,9 @@ const ENUM_PREPARE: Readonly<Partial<Record<string, (graph: Graph) => Promise<()
     "node.sizeSpace": turnedCamera,
 };
 
+/** Which graph an enum suite measures a channel on. */
+type Scene = "probe" | "group" | "bundle";
+
 /** A compound graph: a group the two nodes name as their parent, as a Cytoscape.js file writes it. */
 const GROUPED = JSON.stringify({
     elements: [
@@ -958,14 +980,22 @@ export function enumValuesSuite(
     const channels = sortedDescriptors(descriptors).filter(
         (descriptor) => descriptor.renderable && descriptor.accepts === "enum" && pick(descriptor),
     );
-    // the group channels size a group drawn round its members, which only a compound graph has
-    const isGroup = (descriptor: ChannelDescriptor): boolean => descriptor.channel.startsWith("node.group");
-    for (const [kind, ofKind] of [
-        ["", channels.filter((entry) => !isGroup(entry))],
-        [" on a group", channels.filter(isGroup)],
+    // the group channels size a group drawn round its members, which only a compound graph has, and the bundle
+    // channels gather edges that run beside each other, which only the bundle scene has
+    const sceneOf = (descriptor: ChannelDescriptor): Scene => {
+        if (descriptor.channel.startsWith("node.group")) {
+            return "group";
+        }
+        return BUNDLE_CHANNELS.has(descriptor.channel) ? "bundle" : "probe";
+    };
+    for (const [kind, scene] of [
+        ["", "probe"],
+        [" on a group", "group"],
+        [" on a bundle", "bundle"],
     ] as const) {
+        const ofKind = channels.filter((entry) => sceneOf(entry) === scene);
         if (ofKind.length > 0) {
-            valuesInViews(`${name}${kind}`, ofKind, kind !== "", suite);
+            valuesInViews(`${name}${kind}`, ofKind, scene, suite);
         }
     }
 
@@ -979,10 +1009,10 @@ export function enumValuesSuite(
  * The enum suite's measurements, for some channels, in both views.
  * @param name - What the suite covers.
  * @param channels - The channels.
- * @param grouped - Whether they are measured on the compound graph.
+ * @param scene - The graph they are measured on: the probe graph, the compound graph or the bundle scene.
  * @param suite - vitest's describe, beforeAll, afterAll and it.
  */
-function valuesInViews(name: string, channels: readonly ChannelDescriptor[], grouped: boolean, suite: Suite): void {
+function valuesInViews(name: string, channels: readonly ChannelDescriptor[], scene: Scene, suite: Suite): void {
     for (const view of ["2d", "3d"] as const) {
         suite.describe(`every value of ${name} draws in ${view}`, () => {
             let container: HTMLElement;
@@ -990,12 +1020,12 @@ function valuesInViews(name: string, channels: readonly ChannelDescriptor[], gro
             let session: GraphSession;
 
             suite.beforeAll(async () => {
-                if (grouped) {
+                if (scene === "group") {
                     ({ container, graph, session } = await mountGroupGraph(view));
                     return;
                 }
 
-                ({ container, graph, session } = await mountProbeGraph(view));
+                ({ container, graph, session } = await mountProbeGraph(view, "objects", scene === "bundle"));
                 await addProbePrerequisites(session, graph);
             });
 

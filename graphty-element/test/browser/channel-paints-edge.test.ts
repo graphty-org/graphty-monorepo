@@ -10,6 +10,7 @@ import type { GraphSession } from "../../src/session";
 import { CHANNEL_DESCRIPTORS, labelFieldOf } from "../../src/session/styles/channels";
 import {
     addProbePrerequisites,
+    BUNDLE_CHANNELS,
     drewPixels,
     measurePaint,
     mountProbeGraph,
@@ -24,14 +25,19 @@ import { MEASURED_TEXT_STYLES } from "../helpers/label-fields";
 /** The waivers, by channel, so a test can ask whether one is expected to paint. */
 const waived = new Map(UNPAINTED_CHANNELS.map((entry) => [entry.channel, entry]));
 
-for (const view of ["2d", "3d"] as const) {
-    describe(`every renderable edge channel changes the picture in ${view}`, () => {
+for (const [view, bundle] of [
+    ["2d", false],
+    ["3d", false],
+    ["2d", true],
+    ["3d", true],
+] as const) {
+    describe(`every renderable edge channel changes the picture in ${view}${bundle ? " on the bundle scene" : ""}`, () => {
         let container: HTMLElement;
         let graph: Graph;
         let session: GraphSession;
 
         beforeAll(async () => {
-            ({ container, graph, session } = await mountProbeGraph(view));
+            ({ container, graph, session } = await mountProbeGraph(view, "objects", bundle));
             await addProbePrerequisites(session, graph);
         });
 
@@ -47,6 +53,8 @@ for (const view of ["2d", "3d"] as const) {
                 entry.target === "edge" &&
                 entry.renderable &&
                 viewsOf(entry).includes(view) &&
+                // the route and the bundling settings are measured where edges run beside each other
+                BUNDLE_CHANNELS.has(entry.channel) === bundle &&
                 // A field channel (`edge.labelColor`) is measured by label-fields-node and -edge, channel by channel,
                 // in a scene that shows every field: texts in front of nodes for onTop, overlapping for declutter.
                 !MEASURED_TEXT_STYLES.includes(labelFieldOf(entry.channel)?.into ?? ""),

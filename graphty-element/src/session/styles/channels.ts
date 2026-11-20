@@ -5206,7 +5206,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             'vertical plane through both ends; "great-circle", along the great circle about the scene\'s ' +
             'origin, lifted at its middle; "bundled", through the points force-directed edge bundling gives it ' +
             "among every other edge drawn bundled (Holten and van Wijk 2009), so edges running the same way " +
-            "gather (`edge.bundleStrength`, `edge.bundleIterations`). Left unset, the layout decides: the location " +
+            "gather (`edge.bundleStrength`, `edge.bundleIterations`); bundles are worked out in the x-y plane, so in " +
+            "3D edges apart only in depth bundle together. Left unset, the layout decides: the location " +
             "map raises arcs over its flat map in 3D and draws great circles on its globe; every other layout " +
             "draws straight.",
     },

@@ -4,7 +4,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { type BundleEdge, bundleEdges } from "../../src/meshes/edgeBundling";
+import { type BundleEdge, bundleEdges, ForceBundles } from "../../src/meshes/edgeBundling";
 
 /** Twenty near-parallel edges, 2 apart, from x = 0 to x = 40. */
 const PARALLEL: BundleEdge[] = Array.from({ length: 20 }, (_, i) => ({
@@ -60,5 +60,30 @@ describe("bundleEdges", () => {
         for (let i = 1; i < first.length; i += 2) {
             assert.closeTo(first[i], 0, 1e-9);
         }
+    });
+});
+
+describe("ForceBundles", () => {
+    it("works the bundles out once a frame however many bundled edges move in it", async () => {
+        const bundles = new ForceBundles<number>();
+        const ids = PARALLEL.map((_, i) => i);
+        const read = (i: number): { edge: BundleEdge; options: { strength: number; iterations: number } } => ({
+            edge: PARALLEL[i],
+            options: { strength: 1, iterations: 5 },
+        });
+        // one frame: every edge moves, then is placed
+        for (const id of ids) {
+            bundles.touch();
+            bundles.bendsOf(id, () => ids, read);
+        }
+        assert.strictEqual(bundles.version, 1);
+        // a change made after the frame's read waits for the next frame, which works them out once more
+        assert.isTrue(bundles.stale);
+        await Promise.resolve();
+        for (const id of ids) {
+            bundles.touch();
+            bundles.bendsOf(id, () => ids, read);
+        }
+        assert.strictEqual(bundles.version, 2);
     });
 });

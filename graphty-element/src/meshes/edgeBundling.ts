@@ -189,13 +189,17 @@ export function bundleEdges(edges: readonly BundleEdge[], options: BundleOptions
 
 /**
  * The bundles of every edge drawn with `line.route` "bundled", worked out together when one of them asks after any
- * of them moved, restyled, came or went; edges with different strengths or iterations bundle apart.
+ * of them moved, restyled, came or went; edges with different strengths or iterations bundle apart. They are worked
+ * out at most once a frame: the edges a frame places are read together, and a change after that stays stale until
+ * the next frame's first read.
  * @internal
  */
 export class ForceBundles<E> {
     /** Counts each new set of bundles, so an edge drawn along an older one draws again. */
     version = 0;
     #stale = true;
+    /** Set when the bundles were worked out in this synchronous frame, cleared after it. */
+    #fresh = false;
     #bends = new Map<E, number[]>();
 
     /**
@@ -223,8 +227,12 @@ export class ForceBundles<E> {
         edges: () => Iterable<E>,
         read: (edge: E) => { edge: BundleEdge; options: BundleOptions } | undefined,
     ): readonly number[] {
-        if (this.#stale) {
+        if (this.#stale && !this.#fresh) {
             this.#stale = false;
+            this.#fresh = true;
+            queueMicrotask(() => {
+                this.#fresh = false;
+            });
             this.version++;
             const groups = new Map<string, { edges: E[]; ends: BundleEdge[]; options: BundleOptions }>();
             for (const each of edges()) {

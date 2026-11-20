@@ -2964,6 +2964,37 @@ function smartEdgeLabelCenter(smart: readonly [number, number], width: number, l
 }
 
 /**
+ * The part of a route outside its nodes' boxes: from where it last leaves the source's box to where it first enters the
+ * target's. A bend inside a box or on its side is passed by, so a route that runs along a node's side starts at that
+ * side's corner, as yEd draws it (gml-synthetic-coverage e65, whose first bend is on its source's top side).
+ * @param boxes - the source's and the target's center x and y, width and height
+ * @param route - the route, from port to port through its bends
+ * @returns the line, at least its two ends
+ */
+function routeOutside(
+    boxes: readonly [readonly number[], readonly number[]],
+    route: readonly BendPoint[],
+): BendPoint[] {
+    const within = (box: readonly number[], p: BendPoint): boolean =>
+        Math.abs(p[0] - box[0]) <= box[2] / 2 + YED_PORT_SLACK &&
+        Math.abs(p[1] - box[1]) <= box[3] / 2 + YED_PORT_SLACK;
+    const last = route.length - 1;
+    let a = 0;
+    while (a < last - 1 && within(boxes[0], route[a + 1])) {
+        a++;
+    }
+    let b = last;
+    while (b > a + 1 && within(boxes[1], route[b - 1])) {
+        b--;
+    }
+    return [
+        boxExit(boxes[0], route[a], route[a + 1]),
+        ...route.slice(a + 1, b),
+        boxExit(boxes[1], route[b], route[b - 1]),
+    ];
+}
+
+/**
  * Puts a place worked out on the line drawn between the nodes' sides as an offset from where graphty-element hangs the
  * edge's label.
  * @param boxes - the source's and the target's center x and y, width and height
@@ -2977,12 +3008,7 @@ export function putEdgeLabelAt(
     centerOn: (line: readonly BendPoint[]) => BendPoint | null,
     put: PutValue,
 ): void {
-    const last = route.length - 1;
-    const line = [
-        boxExit(boxes[0], route[0], route[1]),
-        ...route.slice(1, -1),
-        boxExit(boxes[1], route[last], route[last - 1]),
-    ];
+    const line = routeOutside(boxes, route);
     const center = centerOn(line);
     if (center?.every(Number.isFinite) !== true) {
         return;

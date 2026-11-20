@@ -78,6 +78,9 @@ async function loaded(
     document.body.appendChild(element);
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
+    // the engine the graph draws with, once WebGPU has replaced the first one, is the one to pin
+    await element.waitForStableFrame();
+    assert.strictEqual(element.rendererStatus?.active, renderer, element.rendererStatus?.reason ?? "");
     element.graph.engine.getCaps().maxTextureSize = MOST;
     const { nodes, edges } = columns(side);
     await element.session.data.addNodes(nodes);

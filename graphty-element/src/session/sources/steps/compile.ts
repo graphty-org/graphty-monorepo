@@ -14,7 +14,16 @@ import type { BatchCommand } from "../../commands";
 import { type DataImportCommand, type DataMutation, type HeldRows, importFact } from "../../commands/data";
 import type { DataStepsSetCommand } from "../../commands/source-steps";
 import type { SessionCommand } from "../../planning";
-import type { ImportOptions, JoinChoices, JoinRecord, JoinShape, LoadChoices, TableMapping } from "../../types";
+import type {
+    ImportOptions,
+    JoinChoices,
+    JoinRecord,
+    JoinShape,
+    LoadChoices,
+    LoadMapping,
+    SideMapping,
+    TableMapping,
+} from "../../types";
 import { applyAct } from "./acts";
 import { copyKey, isStaged, mintPart, nodeSpace, ownSpace, resolveEdge, resolveNode } from "./build";
 import {
@@ -126,6 +135,34 @@ function defined<T extends Record<string, unknown>>(members: T): Partial<T> {
 }
 
 /**
+ * Each table's roles in a load mapping; one named by side (`{ nodes, edges }`) is read as that
+ * side's rows.
+ * @param mapping - The load's mapping.
+ * @returns The tables' roles.
+ */
+function tablesOf(mapping: LoadMapping): readonly TableMapping[] {
+    if ("tables" in mapping) {
+        return Object.values(mapping.tables);
+    }
+    if (!isSideMapping(mapping)) {
+        return [mapping];
+    }
+    return (["nodes", "edges"] as const).flatMap((side) => {
+        const roles = mapping[side];
+        return roles === undefined ? [] : [{ ...roles, rowsAre: side }];
+    });
+}
+
+/**
+ * Whether a mapping names its tables by side.
+ * @param mapping - The mapping.
+ * @returns True for `{ nodes, edges }`.
+ */
+function isSideMapping(mapping: TableMapping | SideMapping): mapping is SideMapping {
+    return "nodes" in mapping || "edges" in mapping;
+}
+
+/**
  * The time roles a load's column mapping gives its node rows and its edge rows (design 3.9), so the
  * built elements carry `graphty.time`.
  * @param mapping - The load's mapping, one table's or each table's.
@@ -135,7 +172,7 @@ function timeRoles(mapping: LoadChoices["mapping"]): { readonly nodes?: string; 
     if (mapping === undefined) {
         return {};
     }
-    const tables: readonly TableMapping[] = "tables" in mapping ? Object.values(mapping.tables) : [mapping];
+    const tables = tablesOf(mapping);
     const timeOf = (edges: boolean): string | undefined =>
         tables.find((t) => (t.rowsAre === "edges") === edges && typeof t.time === "string")?.time ?? undefined;
     return defined({ nodes: timeOf(false), edges: timeOf(true) });

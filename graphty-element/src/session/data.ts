@@ -1306,8 +1306,8 @@ export class SessionData implements SessionDataApi {
             pages.sourceSteps?.() === true ? (compileCommand(command, {}, readConfig().knownFields) as C) : command;
         this.writes = {
             ...writes,
-            importer: (signal) => {
-                const send = writes.importer(signal);
+            importer: (options) => {
+                const send = writes.importer(options);
                 return (command) => send(compiled(command));
             },
             ...(writes.send === undefined

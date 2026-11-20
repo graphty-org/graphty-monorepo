@@ -354,9 +354,6 @@ describe("the code dialog on the real element", () => {
         assert.isTrue(added.ok);
 
         const gallery = await openGallery();
-        await userEvent.click(
-            within(within(gallery).getByRole("radiogroup", { name: "Origin" })).getByText("This project"),
-        );
         const tile = await within(gallery).findByRole("button", { name: "Pulse ring" });
         await userEvent.click(tile, { button: "right" });
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete from project/ }));
@@ -376,9 +373,6 @@ describe("the code dialog on the real element", () => {
         assert.isTrue(added.ok);
 
         const gallery = await openGallery();
-        await userEvent.click(
-            within(within(gallery).getByRole("radiogroup", { name: "Origin" })).getByText("This project"),
-        );
         const tile = await within(gallery).findByRole("button", { name: "Pulse ring" });
         tile.focus();
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
@@ -856,7 +850,7 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         await userEvent.click(await screen.findByRole("menuitem", { name: "Add Shader..." }));
     }
 
-    it("switching Node to Background shows BackgroundInput and back restores the typed code; Around the group shows GroupInput", async () => {
+    it("switching Node to Background shows BackgroundInput and back restores the typed code; Place offers no group (E422)", async () => {
         await mount();
         const box = await openNew();
         await userEvent.fill(box, "vec4 shade(NodeInput n) {\n    return n.color * 0.5;\n}\n");
@@ -871,10 +865,9 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         });
         const dialog = screen.getByRole("dialog", { name: "New shader" });
         await userEvent.click(within(dialog).getByLabelText(/^Place/));
-        await userEvent.click(await screen.findByRole("option", { name: "Around the group" }));
-        await waitFor(() => {
-            assert.include(textOf(box), "GroupInput");
-        });
+        await screen.findAllByRole("option");
+        assert.isNull(screen.queryByRole("option", { name: "Around the group" }), "group outlines are gone");
+        await userEvent.keyboard("{Escape}");
     });
 
     it("from a node list switched to Background, Add to project joins the project and changes no layer", async () => {

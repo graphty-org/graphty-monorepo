@@ -2817,14 +2817,13 @@ export function compareOracle(
             j.add("edge.wiggle", "edge", id, Math.max(0, Math.abs(rg - ro) - allowed), ro, rg);
         }
         if (o.stroke !== null && g.stroke !== null) {
-            j.add(
-                "edge.color",
-                "edge",
-                id,
-                Math.max(0, deltaE(o.stroke.color, g.stroke.color) - T.colorDeltaE),
-                o.stroke.color,
-                g.stroke.color,
-            );
+            // a line drawn as parallel strands is its strands' colors, strand by strand; a count that differs misses
+            const [os, gs] = [o.stroke.strands ?? [o.stroke.color], g.stroke.strands ?? [g.stroke.color]];
+            const colorMiss =
+                os.length === gs.length
+                    ? Math.max(...os.map((c, i) => deltaE(c, gs[i])))
+                    : Math.max(100, ...os.map((c) => deltaE(c, g.stroke?.color ?? c)));
+            j.add("edge.color", "edge", id, Math.max(0, colorMiss - T.colorDeltaE), os.join(" "), gs.join(" "));
             // a pattern drawn as a fill of its own (slashes, arrows, a double line) has no width to read; a width in
             // screen pixels (a line at its screen floor, sigma's minEdgeThickness) is the same whatever the frame's scale
             if (Number.isFinite(o.stroke.width)) {

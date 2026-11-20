@@ -955,6 +955,9 @@ function channelPlans(
         ["overlayPadding", [length("edge.overlayPadding")]],
         ["gradientColors", [id("edge.gradientColors")]],
         ["gradientStops", [id("edge.gradientStops")]],
+        ["strandColors", [id("edge.strandColors")]],
+        // a ratio of two lengths, the strands' spacing over the line's width: no unit to convert
+        ["strandSpacing", [id("edge.strandSpacing")]],
         ["gradientKind", [table("edge.gradientKind", GRADIENT_KINDS)]],
         ["lineStyle", [table("edge.style", LINE_STYLES, LINE_STYLES_NEAREST)]],
         // in the line's own widths, as the element draws a dash pattern

@@ -909,6 +909,8 @@ export type Channel =
     | "edge.gradientColors"
     | "edge.gradientStops"
     | "edge.gradientKind"
+    | "edge.strandColors"
+    | "edge.strandSpacing"
     | "edge.style"
     | "edge.patternCount"
     | "edge.waveAmplitude"

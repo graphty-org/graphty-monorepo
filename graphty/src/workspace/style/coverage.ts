@@ -295,6 +295,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.gradientColors": NOT_PLACED,
     "edge.gradientStops": NOT_PLACED,
     "edge.gradientKind": NOT_PLACED,
+    "edge.strandColors": NOT_PLACED,
+    "edge.strandSpacing": NOT_PLACED,
     "edge.waveAmplitude": NOT_PLACED,
     "edge.wavePeriod": NOT_PLACED,
     "edge.dashLength": NOT_PLACED,

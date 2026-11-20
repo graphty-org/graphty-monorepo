@@ -421,6 +421,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     name: "Gradient",
                     tail: ["edge.gradientKind", "edge.gradientColors", "edge.gradientStops"],
                 },
+                { id: "strands", name: "Strands", tail: ["edge.strandColors", "edge.strandSpacing"] },
                 { id: "band", name: "Band", tail: ["edge.bandColor", "edge.bandWidth", "edge.bandOpacity"] },
                 {
                     id: "outline",

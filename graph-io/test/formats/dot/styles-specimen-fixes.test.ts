@@ -209,6 +209,13 @@ describe("DOT styles: edges", () => {
         expect((await edges(doc, "gradientKind"))[0]).toBe("linear");
     });
 
+    it("draws a color list with no fractions as parallel lines, 2 points apart whatever the pen", async () => {
+        const doc = `digraph { a -> b [color="red:green:blue", penwidth=2]; b -> c [color=":blue"]; c -> d [color="red;0.3:blue"] }`;
+        expect(await edges(doc, "strandColors")).toEqual(["#ff0000 #008000 #0000ff", "#000000 #0000ff", null]);
+        expect(await edges(doc, "strandSpacing")).toEqual([1, 2, null]);
+        expect((await edges(doc, "color"))[0]).toBe("#ff0000");
+    });
+
     it("ends a band on a route the file stores where Graphviz ends it: at a share of the spline's measure", async () => {
         // one Bezier piece whose control points crowd its far end: t = 0.3 lies about 46% along its length
         const controls: [number, number][] = [

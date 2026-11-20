@@ -335,6 +335,21 @@ const LineStyle = z.strictObject({
             kind: z.enum(["linear", "radial", "none"]).optional(),
         })
         .optional(),
+    /**
+     * Draw the line as parallel strands side by side, one per color, in place of its `color` (Graphviz's color list
+     * with no fractions, `color="red:green:blue"`): `colors` are CSS colors separated by spaces, the first strand on
+     * the right of the line's direction from its source to its target and the last on its left, each drawn over the
+     * one before; `spacing` is how far apart the strands' middles are, in the line's own width units (unset, 1:
+     * strands that touch). Each strand is as wide as the line. Fewer than two colors draw the line as it is. Drawn
+     * on solid lines; in 3D the strands are laid apart in the layout's plane.
+     * @experimental file-styles
+     */
+    strands: z
+        .strictObject({
+            colors: z.string().optional(),
+            spacing: z.number().nonnegative().optional(),
+        })
+        .optional(),
     bezier: z.boolean().optional(),
     /**
      * The points the line passes through between its two nodes, as `along,across` pairs separated

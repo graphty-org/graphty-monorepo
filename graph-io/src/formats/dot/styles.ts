@@ -2108,6 +2108,7 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At, routed: string |
     readColor(nonEmpty(get("color")), scheme, "edge", "color", "opacity", put, at);
     readEdgeSegments(nonEmpty(get("color")), scheme, put, at, routed === null ? null : bandLengthShare(routed));
     readEdgeLine(get, tokens, cx, put, at);
+    readEdgeStrands(get, tokens, scheme, put, at);
     readEdgeArrows(get, cx, put, at);
     for (const [attribute, property] of [
         [LABEL_ATTRIBUTE, "label"],
@@ -2196,7 +2197,7 @@ function readEndLabelFace(get: Attr, scheme: string | null, put: Put, at: At): v
 /**
  * Reads an edge's colored segments: a color list with a `;fraction` in it (`red;0.3:blue`) draws the line in one piece
  * per color along its length, which is a linear gradient with a hard switch at each band's end. A list with no
- * fraction draws parallel lines, which graphty does not draw (the line is in the first color). Graphviz draws the head's
+ * fraction draws parallel lines (`readEdgeStrands`), the line's `color` its first. Graphviz draws the head's
  * arrow in the last band's color (emit.c `emit_edge_graphics`: `headcolor`), the tail's in the first, which the line
  * already has. Graphviz ends each band at a share of its spline's Bezier measure (`bandLengthShare`), which on a route
  * the file stores is turned into the share of the route's length the drawn line ends it at.
@@ -2233,6 +2234,44 @@ function readEdgeSegments(
     put("gradientColors", colors.join(" "));
     put("gradientStops", stops.join(" "));
     put("targetArrowColor", bands.at(-1)?.color ?? null);
+}
+
+/** How far apart Graphviz draws the parallel lines of an edge's color list with no fractions, in points (emit.c `SEP`). */
+const GRAPHVIZ_STRAND_SEP = 2;
+
+/**
+ * Reads an edge's parallel lines: a color list with no fraction in it (`red:green:blue`) draws one line per color, each
+ * the pen's width, their middles 2 points apart whatever the pen (emit.c `SEP`), the first on the right of the line's
+ * direction and the last on its left, each over the one before (emit.c `emit_edge_graphics`). An empty color is
+ * Graphviz's default, black.
+ * @param get - the edge's attributes
+ * @param tokens - its style tokens
+ * @param scheme - its color scheme
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEdgeStrands(get: Attr, tokens: readonly string[], scheme: string | null, put: Put, at: At): void {
+    const list = nonEmpty(get("color"));
+    if (list === null || !list.includes(":") || list.includes(";")) {
+        return;
+    }
+    const colors = list
+        .split(":")
+        .flatMap(
+            (part) =>
+                canonColor(part.trim() || "black", "graphviz", at("strandColors"), { scheme, use: "edge" })?.color ??
+                [],
+        );
+    if (colors.length < 2) {
+        return;
+    }
+    put("strandColors", colors.join(" "));
+    const raw = nonEmpty(get("penwidth")) ?? setLineWidth(tokens);
+    const unset = tokens.includes("bold") ? 2 : 1;
+    const pen = raw === null ? unset : Number(raw.trim());
+    if (Number.isFinite(pen) && pen > 0) {
+        put("strandSpacing", num6(GRAPHVIZ_STRAND_SEP / pen));
+    }
 }
 
 /**

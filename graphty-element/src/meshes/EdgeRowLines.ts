@@ -6,8 +6,8 @@ import type { EdgeStyleConfig } from "../config";
 import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { type EdgePaint, isPlainPaint } from "../managers/StylePainter";
-import { edgeDrawChanges } from "../render/EdgeIdTarget";
 import type { RowTable } from "../render/RowTable";
+import { DirtyRuns } from "./DirtyRuns";
 import { EdgeMesh } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
@@ -132,6 +132,8 @@ export class EdgeRowLines {
     /** Of {@link drawn}, the rows drawn in a plain batch. */
     private plainDrawn = 0;
     private lastLook: RowLook | null = null;
+    /** The rows whose line was drawn, removed, hidden or shown since the edge ID target last took them. */
+    private readonly changes = new DirtyRuns();
 
     /**
      * Start with no edge row drawn.
@@ -264,7 +266,7 @@ export class EdgeRowLines {
 
         lines.hidden[row] = hidden ? 1 : 0;
         this.batches[lines.batchOf[row]].setHidden(lines.piece[row], hidden);
-        edgeDrawChanges.count++;
+        this.changed(row);
         this.host.requestFrame();
     }
 
@@ -288,11 +290,11 @@ export class EdgeRowLines {
 
             hidden[row] = flag;
             this.batches[batch].setHidden(piece[row], flag === 1);
+            this.changed(row);
             changed = true;
         }
 
         if (changed) {
-            edgeDrawChanges.count++;
             this.host.requestFrame();
         }
     }
@@ -385,7 +387,7 @@ export class EdgeRowLines {
 
         this.lines.set(row, at, piece, source, target);
         this.drawn++;
-        edgeDrawChanges.count++;
+        this.changed(row);
         if (isPlainPaint(paint)) {
             this.plainBatches.add(at);
             this.plainDrawn++;
@@ -406,7 +408,7 @@ export class EdgeRowLines {
             this.plainDrawn -= this.plainBatches.has(lines.batchOf[row]) ? 1 : 0;
             lines.batchOf[row] = NO_LINE;
             this.drawn--;
-            edgeDrawChanges.count++;
+            this.changed(row);
             this.host.requestFrame();
         }
     }
@@ -447,7 +449,7 @@ export class EdgeRowLines {
             this.plainDrawn += this.plainBatches.has(lines.batchOf[row]) ? 1 : 0;
         }
 
-        edgeDrawChanges.count++;
+        this.changes.whole();
         this.host.requestFrame();
     }
 
@@ -461,7 +463,37 @@ export class EdgeRowLines {
         this.batches.length = 0;
         this.plainBatches.clear();
         this.plainDrawn = 0;
-        edgeDrawChanges.count++;
+        this.changes.whole();
+    }
+
+    /**
+     * The rows whose line was drawn, removed, hidden or shown since the last call: what the edge ID target writes
+     * again, so a change costs it the rows changed, not every line. Its one reader takes them each time it draws.
+     * @returns Runs of rows as flat pairs of first row and end row (exclusive), [] for none, or null for every row.
+     * @internal
+     */
+    takeChanged(): readonly number[] | null {
+        return this.changes.dirty ? this.changes.take(true) : [];
+    }
+
+    /**
+     * The row an edge row's line is drawn between and whether it shows, for the edge ID target.
+     * @param row - The edge row.
+     * @returns Its source and target node rows, or undefined for a row drawn nowhere here or hidden.
+     * @internal
+     */
+    shownEnds(row: number): readonly [number, number] | undefined {
+        const { lines } = this;
+        return lines.has(row) && lines.hidden[row] === 0 ? [lines.source[row], lines.target[row]] : undefined;
+    }
+
+    /**
+     * Note a row's line changed, for {@link EdgeRowLines.takeChanged}. Past half the rows the list becomes "every
+     * row", so it stays bounded while nothing takes it.
+     * @param row - The edge row.
+     */
+    private changed(row: number): void {
+        this.changes.mark(row, true, this.lines.batchOf.length);
     }
 
     /**

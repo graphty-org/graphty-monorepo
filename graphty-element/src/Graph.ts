@@ -268,6 +268,7 @@ import { EdgeIdTarget } from "./render/EdgeIdTarget";
 import { NodeIdTarget } from "./render/NodeIdTarget";
 import {
     type CanvasPoint,
+    clickEdgeAt,
     hoverEdgeAt,
     insidePolygon,
     openRowScan,
@@ -5626,7 +5627,7 @@ export class Graph implements GraphContext {
             this.#edgeIds = new EdgeIdTarget(this.scene, {
                 positionTexture: () => places.positionTexture,
                 edges: () => this.builtEdges(),
-                rowLines: () => this.rowLinePicks(),
+                rowLines: () => this.#edgeRowLines,
                 root: () => this.scene.getTransformNodeByName("graph-root"),
                 moves: (settle) => (settle ? places.settledMoves() : places.moves),
                 requestFrame: () => {
@@ -6075,7 +6076,39 @@ export class Graph implements GraphContext {
             return;
         }
 
-        const edgeId = this.pickEdgeId(x, y);
+        // On the "batched" path on WebGPU the edge can be known only once the edge ID target is read back.
+        const edgeId = clickEdgeAt(
+            this.scene,
+            () => this.builtEdges(),
+            x,
+            y,
+            (point) => this.worldToScreen(point),
+            this.rowLinePicks(),
+        );
+        if (edgeId instanceof Promise) {
+            void edgeId.then((id) => {
+                this.clickAt(id, x, y, event);
+            });
+        } else {
+            this.clickAt(edgeId, x, y, event);
+        }
+    }
+
+    /**
+     * The rest of {@link handleBackgroundClick}, once the edge under the click is known.
+     * @param edgeId - The edge, or undefined for none.
+     * @param x - The pointer's x on the canvas.
+     * @param y - The pointer's y on the canvas.
+     * @param event - The pointer event.
+     * @param event.button - The mouse button; 2 is the secondary one.
+     * @param event.shiftKey - Whether Shift was held.
+     */
+    private clickAt(
+        edgeId: EdgeId | undefined,
+        x: number,
+        y: number,
+        event: { button?: number; shiftKey?: boolean },
+    ): void {
         const secondary = event.button === 2;
         if (edgeId === undefined) {
             const outline = this.renderManager.pickGroupOutline(x, y);

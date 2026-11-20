@@ -1118,14 +1118,15 @@ export function hoverEdgeAt(
 }
 
 /**
- * The drawn edge a press (a click, or `elementAt`) at a canvas point lands on: {@link pickEdgeAt}'s answer, now.
- * On the `"batched"` path it measures only the edges the edge ID target draws near the point, and those it cannot
- * draw, as {@link hoverEdgeAt} does, so a press costs the same at a million edges as at a thousand. WebGL reads the
- * target now. WebGPU reads it back only asynchronously, so there a press takes the edges the hover's last read
- * named, which answers for a press where the pointer rests while nothing moves ({@link EdgeIdTarget.held}).
- * ponytail: a press the target cannot answer now (on WebGPU at a point no read covers or while rows move, in a
+ * The drawn edge `elementAt` at a canvas point finds: {@link pickEdgeAt}'s answer, now. On the `"batched"` path it
+ * measures only the edges the edge ID target draws near the point, and those it cannot draw, as {@link hoverEdgeAt}
+ * does, so it costs the same at a million edges as at a thousand. WebGL reads the target now. WebGPU reads it back
+ * only asynchronously, so there it takes the edges the last read named, which answers where the pointer rests while
+ * nothing moves ({@link EdgeIdTarget.held}); a click does not use this, see {@link clickEdgeAt}.
+ * ponytail: an answer the target cannot give now (on WebGPU at a point no read covers or while rows move, in a
  * layout transition, before the target is ready, or with no target) is one typed walk over every row line, with
- * no object per line, the same order of work as the node press's walk over every row that runs before it.
+ * no object per line, the same order of work as the node walk over every row that runs before it. `elementAt`
+ * answers now, and a WebGPU read cannot; an asynchronous `elementAt` would bound this too.
  * @param args - {@link hoverEdgeAt}'s: the scene, the graph's edges, x and y, toScreen and the row lines.
  * @returns The edge's id, or `undefined`.
  */
@@ -1137,6 +1138,20 @@ export function pressEdgeAt(...args: Parameters<typeof hoverEdgeAt>): EdgeId | u
     }
 
     return pickEdgeId(scene, near.edges, x, y, toScreen, lines, near.rows);
+}
+
+/**
+ * The drawn edge a click at a canvas point lands on. As {@link pressEdgeAt}, except that on WebGPU, where the last
+ * read does not answer for the point, it waits for the edge ID target's read instead of walking every line, as a
+ * hover does: a click on a graph whose layout is still moving its rows, or at a point the pointer never rested on,
+ * costs a window's read, not a walk over a million lines.
+ * @param args - {@link hoverEdgeAt}'s.
+ * @returns The edge's id or `undefined`, now or once read.
+ */
+export function clickEdgeAt(...args: Parameters<typeof hoverEdgeAt>): EdgeId | undefined | Promise<EdgeId | undefined> {
+    const [scene, , x, y, toScreen, lines = null] = args;
+    const near = scene.getEngine().isWebGPU ? heldNear(scene, x, y) : null;
+    return near === null ? hoverEdgeAt(...args) : pickEdgeId(scene, near.edges, x, y, toScreen, lines, near.rows);
 }
 
 /**

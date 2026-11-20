@@ -76,6 +76,28 @@ async function plainEdges(
 }
 
 /**
+ * Click with a real pointer and wait until the click has done what it does: on `"batched"` WebGPU a click whose
+ * point no read of the edge ID target answers waits for one, a frame or more later.
+ * @param element - The element.
+ * @param point - Where, in CSS pixels.
+ * @param options - Modifier keys.
+ * @param options.shift - Hold Shift.
+ */
+async function clickSettled(
+    element: Graphty,
+    point: { x: number; y: number },
+    options?: { shift?: boolean },
+): Promise<void> {
+    await click(element, point, options);
+    const target = element.graph.getEdgeIdTarget();
+    while (target !== null && target.counts.pending > 0) {
+        await nextFrame();
+    }
+
+    await operationQueueOf(element.graph).waitForCompletion();
+}
+
+/**
  * The middle of the line between two nodes, read off the row table (no `Edge` is built).
  * @param element - The element.
  * @param from - One node.
@@ -164,17 +186,14 @@ describe("picking a plain edge with a real pointer", () => {
 
                 // A node is selected; a click on an edge replaces it with the edge.
                 const node = element.nodeScreenPosition("c");
-                await click(element, { x: node?.x ?? 0, y: node?.y ?? 0 });
-                await operationQueueOf(graph).waitForCompletion();
+                await clickSettled(element, { x: node?.x ?? 0, y: node?.y ?? 0 });
                 assert.deepEqual(element.session.selection.nodes, ["c"], "the node is selected first");
-                await click(element, bottom);
-                await operationQueueOf(graph).waitForCompletion();
+                await clickSettled(element, bottom);
                 assert.deepEqual(element.session.selection.edges, [cd], "the click selects the edge");
                 assert.deepEqual(element.session.selection.nodes, [], "and replaces the node");
 
                 // Shift adds the other edge.
-                await click(element, top, { shift: true });
-                await operationQueueOf(graph).waitForCompletion();
+                await clickSettled(element, top, { shift: true });
                 assert.sameMembers([...element.session.selection.edges], [ab, cd], "shift adds the top edge");
             },
         );
@@ -278,8 +297,7 @@ describe("the work of a plain edge pick on batched", () => {
                 assert.isBelow(pressed, 10, "and only the lines near it, as a hover does");
                 assert.strictEqual(dataManagerInternals.edgesLive(manager), 0, "elementAt builds no Edge");
                 const beforeClick = edgePickWork.rowLines;
-                await click(element, mid);
-                await operationQueueOf(element.graph).waitForCompletion();
+                await clickSettled(element, mid);
                 assert.deepEqual(element.session.selection.edges, [id], "the click selects it");
                 assert.isBelow(edgePickWork.rowLines - beforeClick, 20, "the click measures only lines near it");
                 assert.isAtMost(
@@ -290,8 +308,7 @@ describe("the work of a plain edge pick on batched", () => {
 
                 // Clear the selection, rest the pointer on the line again, and pan the next line under it: the
                 // hover's read no longer answers, and the press finds the line that is there now.
-                await click(element, { x: 3, y: 3 });
-                await operationQueueOf(element.graph).waitForCompletion();
+                await clickSettled(element, { x: 3, y: 3 });
                 assert.deepEqual(element.session.selection.edges, [], "a click on empty canvas clears it");
                 await element.waitForStableFrame();
                 before = reads();
@@ -300,6 +317,11 @@ describe("the work of a plain edge pick on batched", () => {
                 const rested = edgePickWork.rowLines;
                 assert.deepEqual(element.elementAt(mid), { kind: "edge", id }, "the line is found again");
                 assert.isBelow(edgePickWork.rowLines - rested, 10, "by the lines near the point");
+
+                // Rows written into the edge ID target so far, to count what the next selection and its clearing write.
+                const target = element.graph.getEdgeIdTarget();
+                assert.isNotNull(target);
+                const written = target?.counts.rowsWritten ?? Number.NaN;
 
                 // Move the rows instead: the line under the pointer goes into the gap beside it and the next line
                 // takes its place. The hover's read no longer answers, and the press finds the line there now.
@@ -323,6 +345,19 @@ describe("the work of a plain edge pick on batched", () => {
                     "elementAt names the moved-in line",
                 );
                 assert.strictEqual(dataManagerInternals.edgesLive(manager), live, "and builds no Edge for it");
+
+                // A click there, with no read taken since the rows moved: it measures only the lines near it (on
+                // WebGPU it waits for the target's read rather than measuring every line) and selects the line.
+                const beforeMovedClick = edgePickWork.rowLines;
+                await clickSettled(element, mid);
+                assert.deepEqual(element.session.selection.edges, [nextId], "the click selects the moved-in line");
+                assert.isBelow(edgePickWork.rowLines - beforeMovedClick, 20, "measuring only the lines near it");
+                await clickSettled(element, { x: 3, y: 3 });
+                assert.isAtMost(
+                    (target?.counts.rowsWritten ?? Number.NaN) - written,
+                    8,
+                    "a selection and its clearing rewrite the rows they change in the edge ID target, not every line",
+                );
                 if (viewMode === "3d") {
                     return;
                 }
@@ -411,8 +446,7 @@ describe("picking a curved edge, and a line while the layout moves it", () => {
                 assert.strictEqual(canvas?.style.cursor, "pointer", "the cursor shows the curve");
                 assert.deepEqual(element.elementAt(point), { kind: "edge", id: ab }, "elementAt finds it");
                 assert.isNull(element.elementAt(straight), "nothing is on the straight line it no longer takes");
-                await click(element, point);
-                await operationQueueOf(graph).waitForCompletion();
+                await clickSettled(element, point);
                 assert.deepEqual(element.session.selection.edges, [ab], "the click selects it");
             },
         );

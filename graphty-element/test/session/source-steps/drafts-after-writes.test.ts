@@ -140,4 +140,19 @@ describe("source-steps drafts: writes while After is drawn", () => {
         await session.styles.settled();
         session.dispose();
     });
+
+    it("hiding a column and adding a computed column go ahead while After shows", async () => {
+        const { session, d } = await afterShown();
+        await session.data.setHidden([{ kind: "node", name: "name" }], true);
+        assert.deepEqual(session.data.hiddenColumns(), [{ kind: "node", name: "name" }]);
+        await session.data.derive("named", "data.name");
+        assert.deepEqual(
+            session.data.derivedColumns().map(({ name }) => name),
+            ["named"],
+            "the computed column is there",
+        );
+        await d.display(true);
+        assert.strictEqual(session.data.snapshot().nodeCount, 6, "After is drawn again");
+        session.dispose();
+    });
 });

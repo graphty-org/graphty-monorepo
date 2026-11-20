@@ -5231,6 +5231,8 @@ export interface SourceDraft {
      * hiding elements, moving a node only the draft has -- is refused with
      * `E_DRAFT_OPEN { draft, side: "after" }` until Before shows; styles, settings, views, filters
      * and moving a node the project has go ahead, and a moved node stays where it was moved.
+     * Hiding or showing columns and adding a computed column go ahead too, over the committed
+     * graph: After comes off while they are written and is drawn again once they are.
      * @param side - The side.
      * @returns Settles once the graph draws it.
      * @throws A `GraphtyError` with `E_BAD_COMMAND`, reason `side` for any other value, or reason

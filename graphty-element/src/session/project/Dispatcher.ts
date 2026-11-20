@@ -2680,8 +2680,11 @@ export class Dispatcher {
             // has moved the lane without dispatching anything.
             let ops: ArrangementOp[] = [];
             if (open !== null) {
-                // Then what steps recorded meanwhile placed: their moves are theirs, not the group's.
-                ops = [{ capture: open.before }, ...this.history.since(open)];
+                // For a source draft's After, then the rows steps recorded meanwhile placed: a
+                // reader's moves are theirs, not After's. Any other group puts back its before only.
+                ops = group.unlisted
+                    ? [{ capture: open.before }, ...this.history.since(open)]
+                    : [{ capture: open.before }];
             } else if (patch.rows !== null) {
                 ops = [{ patch: patch.rows, forward: false }];
             }

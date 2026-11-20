@@ -504,8 +504,8 @@ export interface DraftMarks {
  * What committing a draft does to each element, from the committed build and the draft's: a node
  * the draft's build folds more keys into is `merged`, one it builds with other values `changed`, one
  * only it builds `new`, one only the committed build holds `removed`, and the rest `unchanged`;
- * edges likewise, never merged. Committed nodes are named by their committed NodeId, new ones by
- * the draft's.
+ * edges likewise, never merged. Committed nodes are named by their committed NodeId and, where
+ * it differs, by the draft's; new ones by the draft's.
  * @param base - The committed value and copies.
  * @param state - The draft.
  * @returns The marks.
@@ -519,11 +519,14 @@ export function draftMarks(base: Omit<DraftState, "owned">, state: DraftState): 
     for (const [id, o] of b0.nodes) {
         nodes.set(String(ids0.get(id)), nodeMark(o, b1.nodes.get(id)));
     }
-    // A new node whose draft NodeId spells a committed node's keeps the drawn node's mark.
-    for (const id of b1.nodes.keys()) {
+    // After draws the draft's NodeIds: a committed node the draft spells otherwise (its space
+    // written out once a staged type's keys overlap) reads its mark there too. A draft NodeId that
+    // spells a committed node's keeps the drawn node's mark.
+    for (const [id, o] of b1.nodes) {
         const key = String(ids1.get(id));
-        if (!b0.nodes.has(id) && !nodes.has(key)) {
-            nodes.set(key, "new");
+        if (!nodes.has(key)) {
+            const was = b0.nodes.get(id);
+            nodes.set(key, was === undefined ? "new" : nodeMark(was, o));
         }
     }
     const edges = new Map<string, DraftMark>();

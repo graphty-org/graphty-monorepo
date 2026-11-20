@@ -383,4 +383,22 @@ describe("source-steps drafts: drawing a draft", () => {
         d.dispose();
         session.dispose();
     });
+    it("After gives every node it draws a mark when a staged source's keys overlap a committed type's and stay apart", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "id,name\nX1,Ann\nX2,Bo"), { key: "id", type: "person" });
+        const counts = await markLayers(session, "node");
+        const d = session.data.draft();
+        d.add(await d.stage(csv("rooms.csv", "id,floor\nX1,1\nX9,2"), { key: "id", type: "room" }));
+        await d.display(true);
+        await d.show("after");
+        await session.styles.settled();
+        const drawn = session.data.store.getSnapshot().nodeCount;
+        const read = counts();
+        assert.strictEqual(
+            MARKS.reduce((sum, mark) => sum + read[mark], 0),
+            drawn,
+            "every drawn node reads a mark",
+        );
+        session.dispose();
+    });
 });

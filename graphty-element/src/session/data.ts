@@ -7431,9 +7431,12 @@ export class SessionData implements SessionDataApi {
      */
     async derive(name: string, expression: Query, options: DeriveOptions = {}): Promise<void> {
         this.requireLive("derive");
-        return this.afterLoads(
-            () => this.deriveNow(name, expression, options.kind ?? "node"),
-            () => undefined,
+        // Computed over the committed graph: a drawn draft's After comes off while it is written.
+        return this.withoutDrawnDraft(() =>
+            this.afterLoads(
+                () => this.deriveNow(name, expression, options.kind ?? "node"),
+                () => undefined,
+            ),
         );
     }
 
@@ -7607,14 +7610,22 @@ export class SessionData implements SessionDataApi {
             }
         }
 
-        await this.send(
-            {
-                op: "batch",
-                label: hidden ? `Hid ${String(changing.length)} columns` : `Showed ${String(changing.length)} columns`,
-                fact: { code: hidden ? "data.hide-columns" : "data.show-columns", params: { count: changing.length } },
-                steps: [{ op: "data.columns", settings: { ...settings, hidden: [...now] } }],
-            },
-            "hide columns",
+        // A drawn draft's After holds the graph's settings while it is on: it comes off while this is written.
+        await this.withoutDrawnDraft(() =>
+            this.send(
+                {
+                    op: "batch",
+                    label: hidden
+                        ? `Hid ${String(changing.length)} columns`
+                        : `Showed ${String(changing.length)} columns`,
+                    fact: {
+                        code: hidden ? "data.hide-columns" : "data.show-columns",
+                        params: { count: changing.length },
+                    },
+                    steps: [{ op: "data.columns", settings: { ...settings, hidden: [...now] } }],
+                },
+                "hide columns",
+            ),
         );
     }
 

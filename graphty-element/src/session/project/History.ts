@@ -510,9 +510,9 @@ export class History<P> {
     }
 
     /**
-     * What the applied steps recorded since a group opened placed, written over its before: what
-     * the group's rollback writes after its before-arrangement, so a node moved by a step of its
-     * own meanwhile (a drag beside a long-open transaction) stays where that step put it.
+     * The rows the applied steps recorded since a group opened placed, written over its before:
+     * what a source draft's After writes after its before-arrangement when it comes off, so a node
+     * the reader moved meanwhile stays where that step put it.
      * @param group - The group's handle.
      * @returns The ops, oldest step first; empty when nothing was recorded since.
      */
@@ -520,7 +520,7 @@ export class History<P> {
         return this.entries
             .slice(0, this.cursor)
             .flatMap((step, index) =>
-                Number(step.id.slice("step-".length)) >= group.since ? this.redoOps(index) : [],
+                Number(step.id.slice("step-".length)) >= group.since ? this.placedRows(index) : [],
             );
     }
 
@@ -1083,6 +1083,17 @@ export class History<P> {
             values.set(this.valueAt(index, id, rows.rows[at]) ?? rows.values.subarray(6 * at, 6 * at + 3), 6 * at + 3);
         });
         return [{ patch: { ids: rows.ids, rows: rows.rows, values }, forward: true }];
+    }
+
+    /**
+     * The rows one step placed, without its before-arrangement: a capture taken mid-group would
+     * write a half-run layout over what the group puts back.
+     * @param index - The step.
+     * @returns The ops; empty when it placed no rows.
+     */
+    private placedRows(index: number): ArrangementOp[] {
+        const rows = this.rowsOf(this.entries[index]);
+        return rows === null ? [] : [{ patch: rows, forward: true }];
     }
 
     /**

@@ -944,7 +944,9 @@ function labelShown(label: unknown): boolean {
 
 /**
  * Reads an element's label: the first visible label with text (yEd icon nodes put an empty, `hasText="false"`
- * label first); further visible labels are noted for the element.
+ * label first). A node's second one is its external label (`xlabel`) when it is drawn in the label's look, centered
+ * where yEd stored it (yed-graphml-specimen-labels two-labels, configuration-er-labels); further visible labels are
+ * noted for the element.
  * @param labels - the label elements, in file order
  * @param node - whether they are node labels (which have a position)
  * @param put - receives the values
@@ -962,23 +964,17 @@ function readLabels(
     uml = false,
     icons?: ReadonlyMap<string, readonly [number, number]>,
 ): void {
-    let label: unknown = undefined;
-    let text = "";
-    let extra = 0;
-    for (const l of labels) {
-        if (!labelShown(l)) {
-            continue;
-        }
-        if (label === undefined) {
-            label = l;
-            text = labelWords(l);
-        } else {
-            extra++;
-        }
-    }
+    const shown = labels.filter((l) => labelShown(l));
+    const label = shown[0];
     if (label === undefined) {
         return;
     }
+    const text = labelWords(label);
+    const second = node && geometry !== undefined && shown[1] !== undefined && drawnAsSecond(label, shown[1]);
+    if (second) {
+        readSecondLabel(shown[1], geometry, put, at);
+    }
+    const extra = shown.length - (second ? 2 : 1);
     if (extra > 0) {
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
@@ -990,6 +986,54 @@ function readLabels(
     if (node && icons !== undefined) {
         readIconPlace(label, icons, put);
     }
+}
+
+/** What an external label takes from the label: its font, size, color and turn. */
+const SECOND_LABEL_SHARED = ["fontFamily", "fontSize", "fontStyle", "textColor", "rotationAngle"] as const;
+
+/**
+ * Whether a node's second label can be drawn as its external label: yEd stored the box it drew, it has the label's
+ * font, size, color and turn (an external label is drawn in the label's look), no box of its own drawn, and it is not
+ * a table lane's label (a ColumnNodeLabelModel or RowNodeLabelModel label belongs to its lane).
+ * @param first - the node's label
+ * @param label - its second label
+ * @returns true when it is drawn as the external label
+ */
+function drawnAsSecond(first: unknown, label: unknown): boolean {
+    const model = treeChild(label, "LabelModel");
+    const stored = ["x", "y", "width", "height"].every((k) =>
+        Number.isFinite(Number(treeAttr(label, k) ?? Number.NaN)),
+    );
+    return (
+        stored &&
+        treeChild(model, "ColumnNodeLabelModel") === undefined &&
+        treeChild(model, "RowNodeLabelModel") === undefined &&
+        // as readLabelLook draws a box: a color, not switched off
+        (treeAttr(label, "hasBackgroundColor") === "false" || treeAttr(label, "backgroundColor") === undefined) &&
+        (treeAttr(label, "hasLineColor") === "false" || treeAttr(label, "lineColor") === undefined) &&
+        SECOND_LABEL_SHARED.every((k) => treeAttr(first, k) === treeAttr(label, k))
+    );
+}
+
+/**
+ * Reads a node's second label as its external label: its words, its box's middle from the node's middle (yEd stores
+ * the box it drew, from the node's top left corner) and how its lines line up.
+ * @param label - the label element
+ * @param geometry - the node's `y:Geometry`
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readSecondLabel(label: unknown, geometry: unknown, put: PutValue, at: SiteOf): void {
+    const num = (o: unknown, k: string): number => {
+        const n = Number(treeAttr(o, k));
+        return Number.isFinite(n) ? n : 0;
+    };
+    const middle = (start: string, extent: string): number =>
+        Math.round(1000 * (num(label, start) + num(label, extent) / 2 - num(geometry, extent) / 2)) / 1000;
+    put("xlabel", canonText(labelWords(label), at("xlabel")));
+    put("xlabelOffsetX", middle("x", "width"));
+    put("xlabelOffsetY", middle("y", "height"));
+    put("xlabelTextAlign", treeAttr(label, "alignment") ?? null);
 }
 
 /**
@@ -2709,14 +2753,23 @@ export function routeMiddle(points: readonly BendPoint[]): BendPoint {
     return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 }
 
-/** Where a yEd edge label model's position sits: along the line, and -1 left of it, 0 on it, 1 right of it. */
-type EdgeSpot = readonly ["source" | "middle" | "target", -1 | 0 | 1];
+/**
+ * Where a yEd edge label model's position sits: along the line, and -1 left of it, 0 on it, 1 right of it, or `above`
+ * it on the page (left of a vertical line).
+ */
+type EdgeSpot = readonly ["source" | "middle" | "target", -1 | 0 | 1 | "above"];
 
 /** Each yEd edge label model's positions, `model/position` (yed-graphml-specimen-edge-labels). */
 const YED_EDGE_SPOTS: ReadonlyMap<string, EdgeSpot> = new Map([
     ["centered/center", ["middle", 0]],
     ["center_slider/center", ["middle", 0]],
     ["side_slider/center", ["middle", -1]],
+    // a GML side_slider label with no stored box: yEd 3.25 draws it at the line's start, above it on the page, left of
+    // a vertical line (gml-synthetic-coverage e2, e11, e20, e29, e38, e56, e74)
+    ["side_slider/start", ["source", "above"]],
+    // a GML center_slider label with no stored box: the same place, on the line (gml-specimen-edge-labels-p2
+    // model-center-slider-center, its text 12.1 px past the line's start like its side_slider neighbor's)
+    ["center_slider/start", ["source", 0]],
     ["two_pos/head", ["middle", -1]],
     ["two_pos/tail", ["middle", 1]],
     ["three_center/scentr", ["source", 0]],
@@ -2822,11 +2875,15 @@ function edgeLabelCenter(label: YedEdgeLabel, line: readonly BendPoint[]): BendP
     if (spot === undefined) {
         return null;
     }
-    const [along, side] = spot;
+    const [along, where] = spot;
     const length = lineLength(line);
     const end = YED_EDGE_LABEL_END + label.width / 2;
     const reach = { source: end, middle: length / 2, target: Math.max(0, length - end) };
     const { at, dir } = pointAlong(line, reach[along]);
+    // left of a line running rightward, or straight up the page, is above it, or left of it
+    const upward = dir[0] > YED_PORT_SLACK || (dir[0] >= -YED_PORT_SLACK && dir[1] < 0);
+    const upwardSide = upward ? -1 : 1;
+    const side = where === "above" ? upwardSide : where;
     const clear = label.distance + (label.lines * YED_LABEL_LINE * label.fontSize + YED_LABEL_BOX_PADDING) / 2;
     return [at[0] - side * dir[1] * clear, at[1] + side * dir[0] * clear];
 }

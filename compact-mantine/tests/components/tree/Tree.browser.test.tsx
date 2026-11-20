@@ -1176,6 +1176,71 @@ describe("PageList: keyboard and pointer", () => {
     });
 });
 
+describe("PageList: disabled rows, row keys and renaming from outside", () => {
+    const VIEWS = [
+        { id: "a", name: "Alpha" },
+        { id: "b", name: "Beta", disabledReason: "Needs a 3D drawing" },
+    ];
+
+    it("keeps a disabled row focusable with its reason, and never switches to it", async () => {
+        const onCurrentChange = vi.fn();
+        await renderThemed(<PageList items={VIEWS} current={null} onCurrentChange={onCurrentChange} />);
+        const cells = screen.getAllByRole("gridcell");
+        expect(cells[0]).not.toHaveAttribute("aria-current");
+        expect(cells[1]).toHaveAttribute("aria-disabled", "true");
+        expect(cells[1]).toHaveAccessibleDescription("Needs a 3D drawing");
+        await userEvent.click(screen.getByText("Beta"));
+        await userEvent.keyboard("{Enter} ");
+        expect(document.activeElement).toBe(cells[1]);
+        expect(onCurrentChange).not.toHaveBeenCalled();
+        await userEvent.keyboard("{ArrowUp}{Enter}");
+        expect(onCurrentChange).toHaveBeenCalledExactlyOnceWith("a", expect.anything());
+        expect(cells[0]).not.toHaveAttribute("aria-current");
+    });
+
+    it("hands a row the keys the list does not answer, and renames when told from outside", async () => {
+        const onRowKeyDown = vi.fn();
+        const onRename = vi.fn();
+        /**
+         * A list renamed from a button outside it, as a row menu's Rename does.
+         * @returns the host
+         */
+        function Host(): React.JSX.Element {
+            const [renaming, setRenaming] = React.useState<string | null>(null);
+            return (
+                <>
+                    <PageList
+                        items={VIEWS}
+                        onRowKeyDown={onRowKeyDown}
+                        onRename={onRename}
+                        renaming={renaming}
+                        onRenamingChange={setRenaming}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setRenaming("b");
+                        }}
+                    >
+                        Rename Beta
+                    </button>
+                </>
+            );
+        }
+        await renderThemed(<Host />);
+        await tabIn();
+        await userEvent.keyboard("{Delete}{ArrowDown}");
+        expect(onRowKeyDown).toHaveBeenCalledOnce();
+        expect(onRowKeyDown.mock.calls[0]?.[0]).toBe("a");
+        expect(onRowKeyDown.mock.calls[0]?.[1]).toMatchObject({ key: "Delete" });
+        await userEvent.click(screen.getByRole("button", { name: "Rename Beta" }));
+        expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Page name" }));
+        await userEvent.keyboard("Gamma{Enter}");
+        expect(onRename).toHaveBeenCalledExactlyOnceWith("b", "Gamma");
+        expect(screen.queryByRole("textbox")).toBeNull();
+    });
+});
+
 describe("PageList: second line, value and row menu", () => {
     const RECENT = [
         {

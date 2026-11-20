@@ -72,6 +72,41 @@ describe("UpdateManager", () => {
         });
     });
 
+    describe("the glide to a selection keeps to the clock", () => {
+        // Issue #9032: on a page drawing a frame a second (software WebGL on one busy CPU) the glide
+        // to a picked node was capped at 12 nominal frames per pass, so it took seven drawn frames,
+        // seven seconds, before the picture was final. The glide costs nothing per nominal frame it
+        // covers, so a pass covers all the time the last frame took and arrives in two.
+        it("a one-second frame brings the camera to a far node in two passes, and the third is at rest", async () => {
+            const MOVING = "the camera is still moving to the selection";
+            const AT_REST = new Set([
+                "the picture is final",
+                "nothing has drawn a frame since the graph stopped moving",
+            ]);
+            graph.setLayoutBehavior({ camera: { pivotOnSelection: true } });
+            await graph.addNodes([{ id: "far", position: { x: 500, y: 0, z: 0 } }]);
+            await graph.setLayout("fixed");
+            // A fixed layout has placed every node; as the tests above, mark it at rest by hand.
+            graph.getLayoutManager().running = false;
+            // Let the framing finish, so the glide is all that moves the camera.
+            for (let i = 0; i < 500 && !AT_REST.has(updateManager.whyFrameIsNotStable()); i++) {
+                updateManager.update(16);
+            }
+            assert.isTrue(AT_REST.has(updateManager.whyFrameIsNotStable()), updateManager.whyFrameIsNotStable());
+            const far = graph.getDataManager().nodes.get("far");
+            assert.isDefined(far);
+            graph.getSelectionManager().select(far);
+
+            let passes = 0;
+            do {
+                updateManager.update(1000);
+                passes++;
+            } while (updateManager.whyFrameIsNotStable() === MOVING && passes < 20);
+
+            assert.isAtMost(passes, 3, "passes until one finds the camera at rest on the selection");
+        });
+    });
+
     describe("edge rendering regression test", () => {
         it("should update edges even when layout is not running", () => {
             // This is a regression test for the bug where edges weren't rendered

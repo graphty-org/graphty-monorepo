@@ -503,6 +503,7 @@ describe("defineLayout on a rendered graph", () => {
                     spacing: 2,
                 }),
                 engine: "acme-tiers",
+                honorsWeights: false,
                 honoursWeights: false,
                 scoped: true,
             });

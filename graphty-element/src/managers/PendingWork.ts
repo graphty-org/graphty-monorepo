@@ -84,6 +84,7 @@ interface Watch extends PendingItem {
 /** The record of pending picture work; see the file comment. */
 export class PendingWork {
     #epoch = 0;
+    #released = 0;
     #nextToken = 0;
     readonly #open = new Map<number, PendingItem>();
     /** In the order they were entered: the first pending one names the reason. */
@@ -101,6 +102,15 @@ export class PendingWork {
      */
     get epoch(): number {
         return this.#epoch;
+    }
+
+    /**
+     * How many tokens have been released: moved on only when a piece of work lands, never by a
+     * pass saying the picture is still changing, as the epoch is.
+     * @returns The count; it only grows.
+     */
+    get released(): number {
+        return this.#released;
     }
 
     /** Say that the picture changed, so a frame drawn before now is no longer the final one. */
@@ -124,6 +134,7 @@ export class PendingWork {
         return () => {
             // The work landed: the frame before it does not show it, whatever else holds.
             if (this.#open.delete(token)) {
+                this.#released++;
                 this.changed();
             }
         };
@@ -248,6 +259,27 @@ export class PendingWork {
 
             await entry.settled();
         }
+    }
+
+    /**
+     * Whether everything that holds the frame and is still pending is of one of these kinds.
+     * @param kinds - The kinds of work allowed to be pending.
+     * @returns True when no open token or pending watch of another kind holds the frame.
+     */
+    pendingOnly(kinds: ReadonlySet<string>): boolean {
+        for (const item of this.#open.values()) {
+            if (item.scope === "picture" && !kinds.has(item.kind)) {
+                return false;
+            }
+        }
+
+        for (const entry of this.#watches) {
+            if (entry.scope === "picture" && !kinds.has(entry.kind) && entry.pending()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

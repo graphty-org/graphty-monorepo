@@ -1636,8 +1636,11 @@ export interface DrawnEdge {
     label: DrawnLabel | null;
     /** The texts at its ends (`edge.arrowTailText`, `edge.arrowHeadText`), tail first. */
     endLabels: DrawnLabel[];
-    /** The gradient its line is painted in: the color of each piece drawn, source end first, or null for none. */
-    gradient: { kind: "linear" | "radial"; colors: readonly string[] } | null;
+    /**
+     * The gradient its line is painted in: the color of each piece drawn, source end first, and where each piece starts
+     * as a share of the pieces' length, then 1 (`shares`, one more than the colors; equal shares without it), or null for none.
+     */
+    gradient: { kind: "linear" | "radial"; colors: readonly string[]; shares?: readonly number[] } | null;
 }
 
 /**
@@ -1772,7 +1775,7 @@ function capOutline(cap: ArrowCap | null, p: Projector): [number, number][] | nu
 function joinedDashes(
     batch: EdgeLineBatch,
     slots: readonly number[],
-    pattern: { kind: string; elementLength?: number } | undefined,
+    pattern: { kind: string; elementLength?: number; dashes?: readonly number[] } | undefined,
     at: Vector3,
     p: Projector,
 ): number[] | null {
@@ -1786,6 +1789,10 @@ function joinedDashes(
         return null;
     }
     const k = p.pxPerWorld(at);
+    // a dash array (`line.dashArray`) is its own dashes and gaps
+    if (pattern.dashes !== undefined) {
+        return pattern.dashes.map((d) => d * k);
+    }
     return [length * k, Math.max(0, spacing - length) * k];
 }
 
@@ -2076,8 +2083,29 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
                 : {
                       kind: internal.drawnStyle?.line?.gradient?.kind === "radial" ? "radial" : "linear",
                       colors: edge.drawnGradient,
+                      shares: gradientShares(internal),
                   },
     };
+}
+
+/**
+ * Where each of an edge's gradient pieces starts, as a share of their length end to end, then 1: the pieces are laid
+ * along the line by its length or by the measure of the curve its layout laid, so they need not be equal.
+ * @param internal - the edge's internals
+ * @returns one share per piece, then 1
+ */
+function gradientShares(internal: EdgeInternals): number[] {
+    const lengths = internal.gradientPieces.map(({ batch, slot }) => {
+        const [a, b] = batch.endsOf(slot);
+        return Vector3.Distance(a, b);
+    });
+    const total = lengths.reduce((sum, l) => sum + l, 0);
+    const shares = [0];
+    for (const l of lengths) {
+        shares.push((shares.at(-1) ?? 0) + (total > 0 ? l / total : 1 / lengths.length));
+    }
+
+    return shares;
 }
 
 /** One file annotation as drawn: its kind, its text and the screen box of its geometry. */

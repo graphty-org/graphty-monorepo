@@ -90,7 +90,7 @@ function layers(session: GraphSession): unknown[] {
 async function openData(): Promise<HTMLElement> {
     await userEvent.keyboard("{Control>}e{/Control}");
     const dialog = await screen.findByRole("dialog", { name: "Export" });
-    await userEvent.click(within(dialog).getByText("Data"));
+    await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"));
     await waitFor(() => {
         assert.notInclude(
             within(dialog).getByLabelText("Preview of the exported data").textContent,

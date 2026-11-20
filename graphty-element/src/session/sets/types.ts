@@ -178,6 +178,8 @@ export interface SetUser {
     /**
      * What to show for it: a layer's or set's name, "Visibility filter", "Layout (ngraph)", a
      * note's first line cut to 80 characters.
+     * @deprecated English text the element composed. Write your own words from `kind` and `id`:
+     *   look up the layer, set, run or note by `id`, or name the layout type `id` holds.
      */
     readonly label: string;
 }

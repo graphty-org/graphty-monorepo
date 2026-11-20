@@ -351,10 +351,11 @@ export class EdgeIdTarget {
         }
 
         const buffer = this.rowBuffer;
+        let changed = false;
         for (let i = 0; i < runs.length; i += 2) {
             const [first, end] = [runs[i], runs[i + 1]];
             for (let row = first; row < end; row++) {
-                this.setRow(vertices, row, lines.shownEnds(row));
+                changed = this.setRow(vertices, row, lines.shownEnds(row)) || changed;
             }
 
             this.counts.rowsWritten += end - first;
@@ -363,7 +364,10 @@ export class EdgeIdTarget {
             buffer?.updateDirectly(floats, first * ROW_FLOATS, (end - first) * 2);
         }
 
-        this.rowsChanged();
+        // A row painted again with the same line (a restyle of its color) leaves the target as it was.
+        if (changed) {
+            this.rowsChanged();
+        }
     }
 
     /**
@@ -402,16 +406,22 @@ export class EdgeIdTarget {
      * @param vertices - The row lines' vertices.
      * @param row - The edge row.
      * @param ends - Its line's node rows, or undefined for a row with no shown line.
+     * @returns Whether the row's line changed.
      */
-    private setRow(vertices: Float32Array, row: number, ends: readonly [number, number] | undefined): void {
+    private setRow(vertices: Float32Array, row: number, ends: readonly [number, number] | undefined): boolean {
         const at = row * ROW_FLOATS;
         const kind = ends === undefined ? 0 : 2;
+        const same =
+            vertices[at + 2] === kind &&
+            vertices[at + 1] === row + 1 &&
+            (kind === 0 || (vertices[at] === ends?.[0] && vertices[at + 3] === ends[1]));
         vertices[at] = ends?.[0] ?? 0;
         vertices[at + 1] = row + 1;
         vertices[at + 2] = kind;
         vertices[at + 3] = ends?.[1] ?? 0;
         vertices[at + 4] = row + 1;
         vertices[at + 5] = kind;
+        return !same;
     }
 
     /** The row lines changed: the drawn target and the read held from it no longer hold them. */

@@ -191,11 +191,13 @@ describe("edge pick cost", () => {
                 const builtEdges = (): Iterable<never> =>
                     dataManagerInternals.builtEdges(manager).values() as Iterable<never>;
                 const hoverTimes: number[] = [];
+                const hoverFrames: number[] = [];
                 let hoverEdges = 0;
                 const lines1 = (edgePickWork as { rowLines?: number }).rowLines ?? 0;
                 const measured1 = edgePickWork.measured + edgePickWork.fromRows;
                 for (const point of points) {
                     const start = performance.now();
+                    const frame = graph.scene.getFrameId();
                     // Six arguments; the code before the row lines took five and ignores the last.
                     const got = await (hoverEdgeAt as (...args: unknown[]) => unknown)(
                         graph.scene,
@@ -206,6 +208,7 @@ describe("edge pick cost", () => {
                         lines,
                     );
                     hoverTimes.push(performance.now() - start);
+                    hoverFrames.push(graph.scene.getFrameId() - frame);
                     hoverEdges += got === undefined ? 0 : 1;
                 }
                 const hoverLines = ((edgePickWork as { rowLines?: number }).rowLines ?? 0) - lines1;
@@ -304,6 +307,7 @@ describe("edge pick cost", () => {
                     hoverEdgesFound: hoverEdges,
                     hoverMaxMs: Number(Math.max(...hoverTimes).toFixed(3)),
                     hoverMaxAt: largestAt(hoverTimes),
+                    hoverFramesAtMax: hoverFrames[largestAt(hoverTimes)],
                     frameMs: Number(frameMs.toFixed(2)),
                     clickMedianMs: Number(median(clickTimes).toFixed(3)),
                     clickMaxMs: Number(Math.max(...clickTimes).toFixed(3)),

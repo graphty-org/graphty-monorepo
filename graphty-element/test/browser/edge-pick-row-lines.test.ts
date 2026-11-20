@@ -314,6 +314,11 @@ describe("the work of a plain edge pick on batched", () => {
                 before = reads();
                 await hover(element, mid);
                 await readBack(element, before);
+                // A Node built now, as a selection or a hover builds one lazily, moves no line: the hover's read
+                // still answers the press (a Node built into its row used to throw that read away).
+                assert.isUndefined(dataManagerInternals.builtNode(manager, "n0"), "n0 has no Node yet");
+                dataManagerInternals.buildRow(manager, "n0");
+                assert.isDefined(dataManagerInternals.builtNode(manager, "n0"), "n0 has its Node now");
                 const rested = edgePickWork.rowLines;
                 assert.deepEqual(element.elementAt(mid), { kind: "edge", id }, "the line is found again");
                 assert.isBelow(edgePickWork.rowLines - rested, 10, "by the lines near the point");

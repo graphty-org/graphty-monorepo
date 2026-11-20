@@ -620,11 +620,26 @@ export class RowTable {
         const atLane =
             Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (this.twoD ? 0 : lane.z);
         const flags = this.flags[row] ?? 0;
+        const next = atLane ? flags & ~HELD : flags | HELD;
         this.ownRowWrites++;
-        this.flags[row] = atLane ? flags & ~HELD : flags | HELD;
-        this.moves++;
+        this.flags[row] = next;
         const base = row * POSITION_FLOATS;
         const { floats } = this.positions;
+        // A write that leaves the row where it is drawn moves nothing: a node built lazily for its row (a
+        // selection, a hover) places it again where it already is, and must not tell the edge ID target, the
+        // nodes that follow the rows or the update loop that rows moved. Drawn where the lane says unless held,
+        // and where the floats say when held.
+        const unmoved =
+            next === flags &&
+            (atLane ||
+                (floats[base] === Math.fround(x) &&
+                    floats[base + 1] === Math.fround(y) &&
+                    floats[base + 2] === Math.fround(z))) &&
+            ((flags & (HIDDEN | SHRUNK)) !== 0 || floats[base + 3] === 1);
+        if (!unmoved) {
+            this.moves++;
+        }
+
         const { bounds } = this;
         floats[base] = bounds[base] = x;
         floats[base + 1] = bounds[base + 1] = y;

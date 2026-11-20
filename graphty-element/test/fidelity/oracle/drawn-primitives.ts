@@ -967,6 +967,8 @@ export function drawnPrimitives(
                     dash: dashed(e.style, d.pattern, d.dashPx ?? null),
                     dashClass,
                     gradient,
+                    // a line drawn as strands, side by side in the order drawn
+                    ...(d.strands !== undefined && d.strands.length >= 2 ? { strands: d.strands } : {}),
                 },
                 arrows,
                 outline: outlineOf(d.outline),

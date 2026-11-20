@@ -207,6 +207,46 @@ describe("browserProjects", () => {
         assert.deepStrictEqual(await browserProjects.list(), []);
     });
 
+    it("saves where IndexedDB refuses Blobs, as WebKit does, and still opens a project stored as a Blob", async () => {
+        const session = (await threeInARow()).getSession();
+        // WebKit (Safari) cannot store a Blob in IndexedDB; this is the error it reports.
+        const original = IDBObjectStore.prototype.put;
+        override(IDBObjectStore.prototype, "put", function (this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+            if (Object.values(value as object).some((each) => each instanceof Blob)) {
+                throw new DOMException("Error preparing Blob/File data to be stored in object store", "UnknownError");
+            }
+            return original.call(this, value, key);
+        });
+
+        const stored = await browserProjects.save(session);
+        assert.isFalse(session.project.dirty);
+        const file = await browserProjects.get(stored.id);
+        assert.deepInclude(JSON.parse((await file?.text()) ?? "null") as object, { name: "Three in a row" });
+
+        // A project kept by an earlier release holds its file as a Blob, and still opens.
+        const text = await file?.text();
+        const db = await new Promise<IDBDatabase>((resolve) => {
+            const request = indexedDB.open("graphty-projects", 1);
+            request.onsuccess = () => {
+                resolve(request.result);
+            };
+        });
+        await new Promise((resolve) => {
+            const transaction = db.transaction("projects", "readwrite");
+            original.call(transaction.objectStore("projects"), {
+                id: "older",
+                name: "Older",
+                savedAt: 1,
+                nodes: 3,
+                edges: 2,
+                file: new Blob([text ?? ""]),
+            });
+            transaction.oncomplete = resolve;
+        });
+        db.close();
+        assert.strictEqual(await (await browserProjects.get("older"))?.text(), text);
+    });
+
     it("refuses every storage method with E_UNSUPPORTED when there is no IndexedDB", async () => {
         override(globalThis, "indexedDB", undefined);
         const session = { project: {}, status: {} } as never;

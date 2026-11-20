@@ -135,9 +135,10 @@ A red master build comes first: it also blocks canary and the build cache every 
   reopen it as graphty-agent (`gh pr close <n> && gh pr reopen <n>`). When master is green again without it, close
   it with a one-line reason. After three failed fix attempts on one problem, keep master green by reverting the
   culprit and start the next attempt from a different approach, with the earlier attempts' evidence in its prompt.
-- **While master's build is red:** no other pull request is opened (issue-round's `open` jobs wait); the same holds while the
-  newest full run is red. Issue jobs keep working and queue `ready` branches, and master's fix takes a test slot
-  first (see "While master is red" in the shared file).
+- **While master's build is red:** no other pull request is opened (issue-round's `open` jobs wait). While only the
+  newest full run is red, only the pull requests that touch its failing lane wait; the others open as normal (owner,
+  2026-11-20). Issue jobs keep working and queue the held `ready` branches, and master's fix takes a test slot first
+  (see "While master is red" in the shared file).
 - **A critical issue no later step owns** is still this skill's alarm (issue-round also takes free code-work
   `priority:critical` issues first; the `in-progress` label and `taken` marker keep the two off each other): mark it
   and start a fix subagent the same way.

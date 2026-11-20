@@ -246,6 +246,9 @@ expectTypeOf(algorithms.stoerWagner).toEqualTypeOf<(s: GraphSnapshot, options?: 
 expectTypeOf(algorithms.modularity).toEqualTypeOf<
     (s: AdjacencyView, labels: U32, options?: ModularityOptions) => number
 >();
+expectTypeOf(algorithms.partitionAgreement).toEqualTypeOf<
+    (a: ArrayLike<string | number>, b: ArrayLike<string | number>) => algorithms.PartitionAgreement
+>();
 expectTypeOf(algorithms.kruskalMST).toEqualTypeOf<(s: GraphSnapshot, o?: MstOptions) => MstResult>();
 expectTypeOf(algorithms.primMST).toEqualTypeOf<(s: GraphSnapshot, o?: PrimOptions) => PrimResult>();
 expectTypeOf(algorithms.pageRank).toEqualTypeOf<(s: GraphSnapshot, o?: PageRankOptions) => PageRankResult>();

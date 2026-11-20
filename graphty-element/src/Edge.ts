@@ -29,7 +29,7 @@ import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
 import type { JoinedPatternKind } from "./meshes/CustomLineRenderer";
 import type { EdgeEffectBatch, ShadedEdgeBatch } from "./meshes/EdgeEffectBatch";
-import { gradientPieceColors } from "./meshes/edgeGradient";
+import { gradientColorList, gradientPieceColors } from "./meshes/edgeGradient";
 import { EDGE_STATE_BITS } from "./meshes/edgeJoinShader";
 import type { EdgeLineBatch, EdgeLineMeta } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
@@ -79,6 +79,7 @@ import { edgeDrawChanges } from "./render/EdgeIdTarget";
 import type { RowMeasure } from "./render/RowTable";
 import { frozenRecord } from "./session/project/draft";
 import { placeOfUse } from "./session/styles/channels";
+import { transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 interface InterceptPoint {
     srcPoint: Vector3 | null;
@@ -271,6 +272,42 @@ function captionWanted(block: RichTextStyleType | undefined): RichTextStyleType 
  * @param style - The style, or undefined for one not yet painted.
  * @returns True when the line is never placed.
  */
+/**
+ * The colors of the parallel strands a style draws its line as (`line.strands`), first on the right, or null for fewer
+ * than two.
+ * @param style - The resolved style.
+ * @returns The colors, `#rrggbb`, or null.
+ */
+function strandColorsOf(style: EdgeStyleConfig): string[] | null {
+    const colors = gradientColorList(style.line?.strands?.colors).map((c) => c.toLowerCase());
+    return colors.length >= 2 ? colors : null;
+}
+
+/**
+ * A line's points moved sideways in the layout's plane (x, y), to the left of its direction, each along the direction
+ * between its two neighbors.
+ * ponytail: no miter length at a corner, so a strand narrows its spacing there by the corner's cosine
+ * @param flat - The points, flat x, y, z.
+ * @param by - How far, in scene units; a negative distance moves them to the right.
+ * @returns The moved points.
+ */
+function offsetLine(flat: readonly number[], by: number): number[] {
+    const out = [...flat];
+    const count = flat.length / 3;
+    for (let i = 0; i < count; i++) {
+        const [a, b] = [Math.max(0, i - 1), Math.min(count - 1, i + 1)];
+        const dx = flat[3 * b] - flat[3 * a];
+        const dy = flat[3 * b + 1] - flat[3 * a + 1];
+        const length = Math.hypot(dx, dy);
+        if (length > 0) {
+            out[3 * i] -= (dy / length) * by;
+            out[3 * i + 1] += (dx / length) * by;
+        }
+    }
+
+    return out;
+}
+
 function drawsNoLine(style: EdgeStyleConfig | null | undefined): boolean {
     return (
         (style?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) === 0 && !isPositive(style?.line?.minScreenWidth ?? 0)
@@ -554,6 +591,7 @@ export const edgeInternals = {} as {
         lineIsCurve: Edge["lineIsCurve"];
         drawnStyle: Edge["drawnStyle"];
         gradientPieces: Edge["gradientPieces"];
+        strandRuns: Edge["strandRuns"];
     };
     /** Where the edge's line leaves `node`, from `centre` toward `toward`; see `Edge.leaveNode`. */
     leaveNode(edge: Edge, node: Node, centre: Vector3, toward: Vector3): Vector3;
@@ -726,6 +764,7 @@ export class Edge {
             lineIsCurve: edge.lineIsCurve,
             drawnStyle: edge.drawnStyle,
             gradientPieces: edge.gradientPieces,
+            strandRuns: edge.strandRuns,
         });
         edgeInternals.leaveNode = (edge, node, centre, toward) => edge.leaveNode(node, centre, toward);
         edgeInternals.bareEnd = (edge, end, centre, toward) => edge.bareEnd(end, centre, toward);
@@ -1021,6 +1060,15 @@ export class Edge {
      * each a slot in the batch of its color, drawn over the line.
      */
     private gradientPieces: { batch: EdgeLineBatch; slot: number; color: string }[] = [];
+
+    /**
+     * The parallel strands this edge's line is drawn as (`line.strands`), first on the right of its direction, each a
+     * run of slots along the line moved sideways; the line itself is drawn clear under them.
+     */
+    private strandRuns: { batch: EdgeLineBatch; slots: number[]; color: string }[] = [];
+
+    /** How far apart the strands' middles are, in scene units. */
+    private strandStep = 0;
 
     /**
      * The curve the layout laid this edge's line along, with its measure ({@link EdgePosition.laidCurve}), in scene
@@ -1705,8 +1753,9 @@ export class Edge {
             return;
         }
 
-        const src = new Vector3(lnk.src.x, lnk.src.y, lnk.src.z ?? 0);
-        const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
+        const gliding = transitionsOf(this.context.getLayoutManager())?.active === true;
+        const src = this.laidEnd("source", lnk.src, srcPos, gliding);
+        const dst = this.laidEnd("target", lnk.dst, dstPos, gliding);
         const lift = this.liftDrawn();
         const bentBefore = this.bundled || this.lifted;
         this.bentMiddle = null;
@@ -1742,6 +1791,30 @@ export class Edge {
         this._lastSrcPos = srcPos.clone();
         this._lastDstPos = dstPos.clone();
         this.endsMoving = false;
+    }
+
+    /**
+     * Where to lay one end of the line: the layout's answer, or while a layout transition moves the nodes, where the
+     * end is drawn this frame. The answer is where the node is going, so a line laid there would be drawn at the new
+     * layout on the move's first frame while its nodes glide in to meet it (issue #9222). A group is drawn set back
+     * behind its members, so its end keeps the answer.
+     * @param end - Which end.
+     * @param laid - The layout's answer.
+     * @param drawn - Where the end is drawn this frame.
+     * @param gliding - Whether a layout transition is under way.
+     * @returns The point.
+     */
+    private laidEnd(
+        end: "source" | "target",
+        laid: EdgePosition["src"],
+        drawn: Readonly<Vector3>,
+        gliding: boolean,
+    ): Vector3 {
+        const group =
+            gliding &&
+            this.columnEnd(end) === undefined &&
+            this.context.getLayoutManager().groupBox((end === "source" ? this.srcNode : this.dstNode).id) !== undefined;
+        return gliding && !group ? drawn.clone() : new Vector3(laid.x, laid.y, laid.z ?? 0);
     }
 
     /**
@@ -2355,8 +2428,10 @@ export class Edge {
         const rgb = Color3.FromHexString(this.lineColor);
         const opacity = EdgeMesh.opacityOf(style);
         this.lineOpacity = opacity;
+        // a line drawn as strands shows only its strands
+        const shown = strandColorsOf(style) === null ? opacity : 0;
         for (const slot of this.lineSlots) {
-            batch.setColor(slot, rgb.r, rgb.g, rgb.b, opacity);
+            batch.setColor(slot, rgb.r, rgb.g, rgb.b, shown);
         }
     }
 
@@ -2374,6 +2449,7 @@ export class Edge {
             this.lineWanted === "plain" &&
             this.outlineBatch === null &&
             this.gradientPieces.length === 0 &&
+            this.strandRuns.length === 0 &&
             this.haloBands.length === 0 &&
             this.arrowMiddleHeadCap === null &&
             this.arrowMiddleTailCap === null &&
@@ -2913,6 +2989,7 @@ export class Edge {
             this.lineStatic = null;
             this.createOutline(meshKey, drawnStyle);
             this.createGradient(meshKey, drawnStyle);
+            this.createStrands(meshKey, drawnStyle);
 
             // No per-edge mesh to make unpickable and nothing to hang `parentEdge` on: the batch
             // is unpickable as a whole, and the back-reference was only ever written and never
@@ -3333,11 +3410,7 @@ export class Edge {
             return;
         }
 
-        for (const { batch, slot } of this.gradientPieces) {
-            batch.release(slot);
-        }
-
-        this.gradientPieces = [];
+        this.releaseColorRuns();
 
         if (this.outlineBatch) {
             for (const slot of this.outlineSlots) {
@@ -3861,6 +3934,10 @@ export class Edge {
             all = visit(batch, slot) && all;
         }
 
+        for (const { batch, slots } of this.strandRuns) {
+            all = everySlotOf(batch, slots, visit) && all;
+        }
+
         return all;
     }
 
@@ -4018,6 +4095,7 @@ export class Edge {
             this.placeEffects(curve);
             this.placeOutline(curve);
             this.placeGradient(curve);
+            this.placeStrands(curve);
         } else if (this.lineBatch) {
             // One straight piece: a run left from a lift, a fan or a loop is handed back to one slot.
             // A line tapered at both ends is two, so its middle can be its widest.
@@ -4037,6 +4115,7 @@ export class Edge {
             this.placeEffects(straight);
             this.placeOutline(straight);
             this.placeGradient(straight);
+            this.placeStrands(straight);
         } else if (this.mesh instanceof PatternedLineMesh) {
             // Pattern lines: Update element positions in world space
             this.mesh.update(srcPoint, dstPoint);
@@ -4821,6 +4900,7 @@ export class Edge {
 
         this.placeOutline(flat);
         this.placeGradient(flat);
+        this.placeStrands(flat);
         this.placeEffects(flat);
     }
 
@@ -4832,6 +4912,16 @@ export class Edge {
      */
     get drawnGradient(): readonly string[] {
         return this.gradientPieces.map((p) => p.color);
+    }
+
+    /**
+     * The colors of the parallel strands this edge's line is drawn as, first on the right of its direction, and none
+     * otherwise.
+     * @returns The strands' colors, `#rrggbb`.
+     * @internal
+     */
+    get drawnStrands(): readonly string[] {
+        return this.strandRuns.map((r) => r.color);
     }
 
     /**
@@ -4870,6 +4960,72 @@ export class Edge {
             }
 
             this.gradientPieces.push({ batch, slot: batch.acquire(this), color });
+        }
+    }
+
+    /** Hand back the slots of the pieces a gradient is drawn as and of the strands the line is drawn as. */
+    private releaseColorRuns(): void {
+        for (const { batch, slot } of this.gradientPieces) {
+            batch.release(slot);
+        }
+
+        this.gradientPieces = [];
+
+        for (const { batch, slots } of this.strandRuns) {
+            for (const slot of slots) {
+                batch.release(slot);
+            }
+        }
+
+        this.strandRuns = [];
+    }
+
+    /**
+     * Build the parallel strands this edge's line is drawn as (`line.strands`): one solid run per color, each as wide
+     * as the line, drawn over it in 2D, each strand a hair before the one before it.
+     * @param meshKey - The source mesh key the edge is drawn under.
+     * @param style - The style the line is drawn from.
+     */
+    private createStrands(meshKey: string, style: EdgeStyleConfig): void {
+        const colors = strandColorsOf(style);
+        if (colors === null || this.lineBatch === null) {
+            return;
+        }
+
+        const width = style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+        // a line `width` wide is `width / 40` scene units across (EdgeMesh.lineBatch)
+        this.strandStep = (width / 40) * (style.line?.strands?.spacing ?? 1);
+        const solid = { ...style, line: { ...style.line, type: "solid" as const, animationSpeed: 0 } };
+        for (const [i, color] of colors.entries()) {
+            const batch = EdgeMesh.lineBatch(
+                this.context.getMeshCache(),
+                { styleId: `${meshKey}-strand-${String(i)}-${color}`, width, color },
+                solid,
+                this.context.getScene(),
+                false,
+            );
+            if (batch === null) {
+                continue;
+            }
+
+            // ponytail: in 3D the strands are drawn at the line's depth, so where two overlap either may show
+            if (this.context.is2D()) {
+                batch.mesh.position.z = -OUTLINE_BEHIND * (2 + i);
+            }
+
+            this.strandRuns.push({ batch, slots: [batch.acquire(this)], color });
+        }
+    }
+
+    /**
+     * Lay the strands along the line's points, each moved sideways from the line's middle: the first furthest to the
+     * right of its direction, the strands `strandStep` apart.
+     * @param flat - The line's points, flat x, y, z.
+     */
+    private placeStrands(flat: readonly number[]): void {
+        const n = this.strandRuns.length;
+        for (const [i, { batch, slots }] of this.strandRuns.entries()) {
+            Edge.placeBand(this, batch, slots, offsetLine(flat, (i - (n - 1) / 2) * this.strandStep));
         }
     }
 

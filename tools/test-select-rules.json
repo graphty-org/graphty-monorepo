@@ -108,6 +108,18 @@
         "$comment": "Packages of fileLevel whose shards that run a browser project may also run a list of test files (design/ci/minimal-tests.md section 3). A package joins only after tools/test-select-mutate.mjs finds no miss in its browser projects.",
         "packages": ["compact-mantine", "graphty", "graphty-element", "graph-io", "algorithms"]
     },
+    "canary": {
+        "$comment": "The configuration canary ships (graphty/sites/canary.json turns on cosmograph; graphty's ElementHost.tsx then draws batched with COSMOGRAPH_LIMITS) and the tests that check what it draws. A change to a build file matching a pattern adds, per shard family, the tracked test files matching that family's patterns to its selection, so they run on every such pull request whatever the import graphs say (#9234). A family that runs whole runs them anyway; a features-on family (pull-request: selected, which a pull request never runs whole) gets them as a bin of their own. A file not yet in the checkout is skipped and joins once it lands. The features-on frame tests draw the app's workspace with every experiment on, cosmograph included: the batched path with COSMOGRAPH_LIMITS, and startingRows where a test turns it on.",
+        "patterns": ["^graphty-element/src/", "^graphty/src/workspace/frame/"],
+        "files": {
+            "graphty-element-browser": ["^graphty-element/test/browser/drawn-invariants\\.test\\.ts$"],
+            "graphty": [
+                "^graphty/src/workspace/frame/__tests__/CanaryDrawing\\.real-element\\.test\\.tsx$",
+                "^graphty/src/workspace/__tests__/CosmographFlag\\.real-element\\.test\\.tsx$"
+            ],
+            "graphty-features-on": ["^graphty/src/workspace/frame/__tests__/[^/]+\\.real-element\\.test\\.tsx$"]
+        }
+    },
     "alsoRun": {
         "$comment": "Packages that read another package's files without importing them and that nx's graph and the relative-path scan miss. Each entry: a changed path pattern and the packages whose shards then all run.",
         "entries": [

@@ -809,6 +809,17 @@
     display: contents;
 }
 
+/* TEMPORARY (issue #9142): compact-mantine's ControlSection cannot collapse from its caret alone, so a "+"
+   list's whole header is its toggle button. Only the caret keeps the pointer cursor; the title does nothing
+   on a click (v2/PlusList.tsx caretOnly). Deleted when ControlSection gains a caret-only collapse. */
+[data-plus-list="section"] [data-testid="control-section-toggle"] {
+    cursor: default;
+}
+
+[data-plus-list="section"] [data-testid="control-section-chevron-slot"] {
+    cursor: pointer;
+}
+
 /* Style panel v2: a family row's Switch to glyph before its line (v2/ThingLine.tsx, v2/MemberMenu.tsx). */
 .ws-thing-line {
     display: flex;

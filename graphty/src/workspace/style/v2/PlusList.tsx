@@ -33,7 +33,12 @@ interface PlusListProps {
 
 /**
  * Stops a pointer click on a section header's title from collapsing it: only its caret does. A click the
- * browser makes from Enter or Space (`detail` 0) still toggles, so the header stays one keyboard control.
+ * browser makes from Enter or Space (`detail` 0) still toggles, so the header stays one keyboard control:
+ * it keeps the button role, and Enter on it collapses the section.
+ *
+ * TEMPORARY workaround of a compact-mantine defect (issue #9142): `ControlSection`'s toggle is one button
+ * around the caret, the title and the summary, with no caret-only collapse. This handler and the cursor rule
+ * in style.css are deleted when compact-mantine gains one (it waits for the owner's Figma approval).
  * @param event - the click, in its capture phase.
  */
 function caretOnly(event: React.MouseEvent<HTMLElement>): void {

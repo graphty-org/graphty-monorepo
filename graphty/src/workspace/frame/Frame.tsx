@@ -91,12 +91,18 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     }, [panels, dockOpen, element]);
     // TEMPORARY workaround of a compact-mantine defect (issue #9145): Chrome slides an input's overflowing
     // text under a sideways wheel, focused or not, and compact-mantine's Select shows its value in an input,
-    // so a touchpad swipe over the panels moves a long value sideways. A field nobody is editing goes back
-    // to its start. Delete this when compact-mantine's Select stops its value scrolling.
+    // so a touchpad swipe over the panels moves a long value sideways. A side-panel field nobody is typing
+    // in (a Select keeps focus on its read-only input after a pick) goes back to its start. Delete this when
+    // compact-mantine's Select stops its value scrolling.
     useEffect(() => {
         const unslide = (event: Event): void => {
             const field = event.target;
-            if (field instanceof HTMLInputElement && field !== document.activeElement && field.scrollLeft !== 0) {
+            if (
+                field instanceof HTMLInputElement &&
+                field.scrollLeft !== 0 &&
+                !(field === document.activeElement && !field.readOnly) &&
+                field.closest(".ws-panel-body, [data-thing-popover]") !== null
+            ) {
                 field.scrollLeft = 0;
             }
         };

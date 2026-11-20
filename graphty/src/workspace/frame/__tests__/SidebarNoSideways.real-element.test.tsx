@@ -119,9 +119,11 @@ function scrollers(root: Element): HTMLElement[] {
  * its start.
  * @param region - the panel region.
  * @param where - what the region shows, for messages.
+ * @returns how many fields were swiped (a field covered by another element is not).
  */
-async function swipeOverflowingFields(region: HTMLElement, where: string): Promise<void> {
+async function swipeOverflowingFields(region: HTMLElement, where: string): Promise<number> {
     const fields = [...region.querySelectorAll("input")].filter((each) => each.scrollWidth > each.clientWidth);
+    let swiped = 0;
     for (const field of fields) {
         field.scrollIntoView({ block: "center" });
         const [px, py] = pointOf(field);
@@ -135,14 +137,45 @@ async function swipeOverflowingFields(region: HTMLElement, where: string): Promi
             scrolled ||= event.target === field;
         };
         window.addEventListener("scroll", seen, true);
-        const [x, y] = topPoint(px, py);
-        await mouse({ type: "mouseWheel", x, y, deltaX: 40, deltaY: 0 });
-        await waitFor(() => {
-            assert.isTrue(scrolled, `${where}: the swipe scrolled ${line}'s text`);
-        });
-        window.removeEventListener("scroll", seen, true);
+        try {
+            const [x, y] = topPoint(px, py);
+            await mouse({ type: "mouseWheel", x, y, deltaX: 40, deltaY: 0 });
+            await waitFor(() => {
+                assert.isTrue(scrolled, `${where}: the swipe scrolled ${line}'s text`);
+            });
+        } finally {
+            window.removeEventListener("scroll", seen, true);
+        }
         assert.equal(field.scrollLeft, 0, `${where}: ${line}'s text is back at its start`);
+        swiped++;
     }
+    return swiped;
+}
+
+/**
+ * Picks another value in a Select and then its first value again, with the mouse, so the Select keeps focus
+ * on its read-only input, as it does after a reader's pick.
+ * @param field - the Select's input.
+ */
+async function pickAndPickBack(field: HTMLInputElement): Promise<void> {
+    const first = field.value;
+    for (const wanted of [(text: string) => text !== first, (text: string) => text === first]) {
+        await userEvent.click(field);
+        const list = await screen.findByRole("listbox");
+        const option = within(list)
+            .getAllByRole("option")
+            .find((each) => wanted(each.textContent ?? ""));
+        assert.isDefined(option, "the Select offers the value");
+        if (option !== undefined) {
+            await userEvent.click(option);
+        }
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("listbox"));
+        });
+    }
+    assert.equal(field.value, first, "the Select shows its first value again");
+    assert.equal(document.activeElement, field, "the Select keeps focus after the pick");
+    assert.isTrue(field.readOnly, "the Select's input is read-only");
 }
 
 /**
@@ -150,10 +183,11 @@ async function swipeOverflowingFields(region: HTMLElement, where: string): Promi
  * moved down when it has room to.
  * @param region - the panel region (the left panel, the inspector or a pop-over).
  * @param where - what the region shows, for messages.
+ * @returns how many overflowing fields were swiped.
  */
-async function swipeAndCheck(region: HTMLElement, where: string): Promise<void> {
+async function swipeAndCheck(region: HTMLElement, where: string): Promise<number> {
     // First, while nothing is still moving from an earlier swipe: a wheel's scroll runs on over several frames.
-    await swipeOverflowingFields(region, where);
+    const swiped = await swipeOverflowingFields(region, where);
     const { left } = region.getBoundingClientRect();
     const scrolling = scrollers(region);
     const before = scrolling.map((each) => each.scrollTop);
@@ -204,6 +238,7 @@ async function swipeAndCheck(region: HTMLElement, where: string): Promise<void> 
     for (const root of [document.documentElement, document.body]) {
         assert.equal(getComputedStyle(root).overscrollBehaviorX, "none", `${where}: ${root.tagName} stops the swipe`);
     }
+    return swiped;
 }
 
 /**
@@ -391,7 +426,24 @@ describe("the side panels never scroll sideways", () => {
             const tab = await openStyle("Links");
             await showKind("edge");
             await addEverything(tab, "edge");
-            await swipeAndCheck(inspector(), `${at} edge Style`);
+            // The bundling model's value is wider than its field.
+            assert.isAbove(await swipeAndCheck(inspector(), `${at} edge Style`), 0, `${at}: a field was swiped`);
+
+            // Focused after a pick, the Select's text still goes back to its start.
+            const model = inspector().querySelector<HTMLInputElement>('[data-line="edge.supportModel"] input');
+            assert.isNotNull(model, `${at}: the edge tab shows the bundling model`);
+            if (model !== null) {
+                model.scrollIntoView({ block: "center" });
+                await pickAndPickBack(model);
+                assert.equal(
+                    await swipeOverflowingFields(
+                        model.closest<HTMLElement>("[data-line]") ?? model,
+                        `${at} model picked`,
+                    ),
+                    1,
+                    `${at}: the picked model was swiped`,
+                );
+            }
         });
 
         it(`${at}: Graph settings`, async () => {

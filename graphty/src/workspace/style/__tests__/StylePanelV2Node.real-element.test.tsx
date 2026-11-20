@@ -87,17 +87,19 @@ async function addBorder(tab: HTMLElement): Promise<HTMLElement> {
 describe("Style panel v2's node things", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("Border's row is its color, with an empty Width line under it that typing sets", async () => {
+    it("Border's row is its color, with the Width it needs to draw under it, which typing changes", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const row = await addBorder(tab);
         await waitFor(() => {
             assert.isDefined(written(session, id, "node.borderColor"), "Border starts with its color");
+            assert.equal(written(session, id, "node.borderWidth"), 0.1, "and the width graphty-element says it needs");
         });
         assert.isNotNull(row.querySelector('[data-line="node.borderColor"] .cm-paint'), "the row is a color field");
         const width = await lineOf(row, "node.borderWidth");
-        assert.isFalse(width.hasAttribute("data-set"), "the Width line is empty until written");
-        assert.isNull(within(width).queryByRole("button", { name: "Remove width" }), "no minus while unset");
+        await waitFor(() => {
+            assert.isTrue(width.hasAttribute("data-set"), "the Width line is set");
+        });
 
         await typeInto(width, "2");
         await waitFor(() => {

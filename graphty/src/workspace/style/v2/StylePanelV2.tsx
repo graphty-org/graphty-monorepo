@@ -18,7 +18,7 @@ import { itemChannels, partsFor, type PartSpec } from "../parts/parts";
 import { useFindKey } from "../parts/useFindKey";
 import { PickerNamesOnly } from "../pickerNames";
 import type { RowContext } from "../PropertyRow";
-import { startForOrNone, writeIn, writeLine } from "../row";
+import { needsFor, startForOrNone, writeIn, writeLine } from "../row";
 import { AddButton, type AddOption, Section } from "../Section";
 import { addShader, pickedShader, placeOf, shaderEntries, type ShaderEntry } from "../shaderSlots";
 import { focusLineNext } from "../useFocusLine";
@@ -226,14 +226,17 @@ function ThingSection({
             setOpening(id);
         }
         const start = first?.[main.channel] ?? (main.accepts === "text" ? undefined : startForOrNone(ctx, main));
-        const starts = first === undefined || main.channel in first ? thing.starts : { ...thing.starts, ...first };
         // A thing with no plain starting value (a text source, a list) waits for the reader's first pick.
         if (typeof start !== "number" && typeof start !== "boolean" && (typeof start !== "string" || start === "")) {
             setWaiting((now) => (now.includes(id) ? now : [...now, id]));
             return;
         }
-        // What "+" adds draws at once (design 5.1): an end with no arrowhead starts with one.
-        const value = thing.drawn !== undefined && (start === "none" || start === 0) ? thing.drawn : start;
+        const value = start;
+        // What "+" adds draws at once (design 5.1): with it, what graphty-element says it needs to draw, over a
+        // list's first item (a chart's values and colors).
+        const starts = Object.fromEntries(
+            Object.entries({ ...first, ...needsFor(ctx, main.channel, value) }).filter(([c]) => c !== main.channel),
+        );
         // Its own undo step, never merged with the first edit after it (design 12.13).
         const written =
             ctx.many === undefined
@@ -311,7 +314,7 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
     const [revealed, setRevealed] = useState<readonly string[]>([]);
     const box = useRef<HTMLInputElement>(null);
     const onKeyDown = useFindKey(box);
-    const ctx: RowContext = { ...row, pickers: "listbox", listSections: sectionsOf, namesOnly: true };
+    const ctx: RowContext = { ...row, pickers: "listbox", listSections: sectionsOf, namesOnly: true, withNeeds: true };
     const parts = partsFor(
         ctx.side,
         experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) }),

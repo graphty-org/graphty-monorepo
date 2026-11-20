@@ -5,7 +5,7 @@
  * names the parts items it is made of, so the channels stay in one place.
  */
 
-import type { Channel, ChannelDescriptor, ChannelValue } from "@graphty/graphty-element/catalog";
+import type { Channel, ChannelDescriptor } from "@graphty/graphty-element/catalog";
 
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
@@ -30,10 +30,6 @@ export interface ThingSpec {
     readonly own?: readonly Channel[];
     /** Its section already names it (Fill, Border, Shape, Line, Visibility): the row has no name column. */
     readonly unnamed?: boolean;
-    /** Its main value when "+" adds it and its own start draws nothing (an end with no arrowhead). */
-    readonly drawn?: ChannelValue;
-    /** Values "+" writes with its main value in the same step, so what it adds draws (design 5.1). */
-    readonly starts?: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
 
 /** One section: the `parts.ts` part it draws and its things, in "+" menu groups. */
@@ -93,7 +89,6 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         name: "Raised edge",
                         items: ["raised"],
                         main: ["node.raisedBorderWidth"],
-                        drawn: 0.1,
                     },
                     { id: "outline", name: "Outline", items: ["outline"], main: ["node.outline"] },
                     { id: "innerLines", name: "Inner lines", items: ["innerLines"], main: ["node.shapeLines"] },
@@ -123,7 +118,6 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         name: "Drop shadow",
                         items: ["shadow"],
                         main: ["node.shadowColor"],
-                        starts: { "node.shadowOpacity": 0.5 },
                     },
                     { id: "glow", name: "Glow", items: ["glow"], main: ["node.glow"] },
                     {
@@ -131,7 +125,6 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         name: "Halo",
                         items: ["halo"],
                         main: ["node.haloColor"],
-                        starts: { "node.halo": true },
                     },
                 ],
                 [
@@ -140,14 +133,12 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         name: "Underlay",
                         items: ["underlay"],
                         main: ["node.underlayColor"],
-                        starts: { "node.underlayOpacity": 1 },
                     },
                     {
                         id: "overlay",
                         name: "Overlay",
                         items: ["overlay"],
                         main: ["node.overlayColor"],
-                        starts: { "node.overlayOpacity": 1 },
                     },
                 ],
             ],
@@ -195,8 +186,8 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
             part: "ends",
             groups: [
                 [
-                    { id: "target", name: "Target end", items: ["target"], main: ["edge.arrowHead"], drawn: "normal" },
-                    { id: "source", name: "Source end", items: ["source"], main: ["edge.arrowTail"], drawn: "normal" },
+                    { id: "target", name: "Target end", items: ["target"], main: ["edge.arrowHead"] },
+                    { id: "source", name: "Source end", items: ["source"], main: ["edge.arrowTail"] },
                 ],
                 [
                     {
@@ -204,14 +195,12 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         name: "Middle target end",
                         items: ["middleTarget"],
                         main: ["edge.arrowMiddleHead"],
-                        drawn: "normal",
                     },
                     {
                         id: "middleSource",
                         name: "Middle source end",
                         items: ["middleSource"],
                         main: ["edge.arrowMiddleTail"],
-                        drawn: "normal",
                     },
                 ],
             ],
@@ -256,14 +245,12 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         name: "Underlay",
                         items: ["underlay"],
                         main: ["edge.underlayColor"],
-                        starts: { "edge.underlayOpacity": 1 },
                     },
                     {
                         id: "overlay",
                         name: "Overlay",
                         items: ["overlay"],
                         main: ["edge.overlayColor"],
-                        starts: { "edge.overlayOpacity": 1 },
                     },
                 ],
             ],

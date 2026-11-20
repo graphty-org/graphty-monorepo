@@ -23,6 +23,7 @@ import {
     type Line,
     lineIn,
     type LiteralWrite,
+    needsFor,
     type NewLayer,
     partlySet,
     propose,
@@ -97,6 +98,8 @@ export interface RowContext {
     readonly listSections?: (channel: Channel) => readonly ValueSection[] | undefined;
     /** Style panel v2: a value bound to data is its column's name alone, its range only in its tooltip (#8739). */
     readonly namesOnly?: boolean;
+    /** Style panel v2: a write brings the values graphty-element says it needs to draw (`needsFor`). */
+    readonly withNeeds?: boolean;
 }
 
 /** Several rows edited as one: each write reaches every row, one undo step. */
@@ -502,7 +505,9 @@ function failureOf(store: Store, channel: Channel): (error: unknown) => void {
 function fieldWrite(ctx: RowContext, channel: Channel, store: Store): (next: FieldWrite, words?: string) => void {
     const fail = failureOf(store, channel);
     return (next, words) => {
-        writeIn(ctx, channel, next)
+        const needs =
+            ctx.withNeeds === true ? needsFor(ctx, channel, "value" in next ? next.value : undefined) : undefined;
+        writeIn(ctx, channel, next, needs)
             .then((id) => {
                 if (words !== undefined && ctx.many === undefined) {
                     store.set({ announcement: reachWords(ctx.session, id, channel, ctx.side, words) });

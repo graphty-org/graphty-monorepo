@@ -81,3 +81,73 @@ export function sectionOf(tab: HTMLElement, id: string): HTMLElement {
     }
     return found;
 }
+
+/**
+ * Opens three nodes on a circle, two edges between them, a layer "Key people" over every node and a layer
+ * "Links" over every edge, each setting only its color.
+ * @returns the session, the element and the two layers' ids.
+ */
+export async function openGraph(): Promise<{
+    session: GraphSession;
+    element: HTMLElementTagNameMap["graphty-element"];
+    nodes: string;
+    edges: string;
+}> {
+    const { session, id: nodes } = await openProject();
+    await session.data.addEdges([
+        { source: "a", target: "b" },
+        { source: "b", target: "c" },
+    ]);
+    // A layout that stands still, so two pictures differ only by what a style draws.
+    await session.layout.set("circular");
+    const { id: edges } = await session.styles.add({
+        name: "Links",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.color": "#E8590C" },
+    });
+    await session.styles.settled();
+    const element = document.querySelector("graphty-element");
+    if (element === null) {
+        throw new Error("the element never came up");
+    }
+    return { session, element, nodes, edges };
+}
+
+/**
+ * The graph's picture, as the element's own screenshot draws it once the frame is stable.
+ * @param element - the element.
+ * @returns its pixels.
+ */
+export async function picture(element: HTMLElementTagNameMap["graphty-element"]): Promise<ImageData> {
+    await element.waitForStableFrame();
+    const shot = await element.captureScreenshot({ destination: { blob: true }, format: "png" });
+    const bitmap = await createImageBitmap(shot.blob);
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext("2d");
+    if (context === null) {
+        throw new Error("no 2D canvas");
+    }
+    context.drawImage(bitmap, 0, 0);
+    return context.getImageData(0, 0, bitmap.width, bitmap.height);
+}
+
+/**
+ * How many pixels of two pictures of the same size differ by more than one level in a channel.
+ * @param a - a picture.
+ * @param b - another.
+ * @returns the count.
+ */
+export function pixelsApart(a: ImageData, b: ImageData): number {
+    assert.equal(a.data.length, b.data.length, "pictures of one size");
+    let apart = 0;
+    for (let i = 0; i < a.data.length; i += 4) {
+        for (let c = 0; c < 4; c++) {
+            if (Math.abs((a.data[i + c] ?? 0) - (b.data[i + c] ?? 0)) > 1) {
+                apart++;
+                break;
+            }
+        }
+    }
+    return apart;
+}

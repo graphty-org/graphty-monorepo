@@ -21,7 +21,7 @@ import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
 import { ValueListbox } from "../parts/ValueListbox";
 import { Field, FieldLine, type RowContext } from "../PropertyRow";
-import { lineIn, writeIn } from "../row";
+import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { channelWord, failureWords, fieldName, FONTS, isPercent } from "../words";
 import { PointPair } from "./ItemFields";
@@ -704,7 +704,8 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
         store.set({ notice: { message: failureWords(channelWord(channel), "changed", error), error: true } });
     };
     const write = (to: Channel, value: ChannelValue | undefined): void => {
-        const done = value === undefined ? unsetIn(ctx, [to]) : writeIn(ctx, to, { value });
+        // With what graphty-element says the value needs to draw (a wireframe's low mesh detail).
+        const done = value === undefined ? unsetIn(ctx, [to]) : writeIn(ctx, to, { value }, needsFor(ctx, to, value));
         done.catch(fail);
     };
     if (rule === "R17") {

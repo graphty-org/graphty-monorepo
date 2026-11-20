@@ -5996,6 +5996,13 @@ const START: ReadonlyMap<string, ChannelScalar> = new Map<Channel, ChannelScalar
     ["edge.animationSpeed", 1],
     ["node.labelSize", READABLE_LABEL_SIZE],
     ["edge.labelSize", READABLE_LABEL_SIZE],
+    // 0 draws no raised edge; a tenth of the node shows it.
+    ["node.raisedBorderWidth", 0.1],
+    // An end with no arrowhead draws nothing: an editor adding an end starts with the plain arrow.
+    ["edge.arrowHead", "normal"],
+    ["edge.arrowTail", "normal"],
+    ["edge.arrowMiddleHead", "normal"],
+    ["edge.arrowMiddleTail", "normal"],
 ]);
 
 /**

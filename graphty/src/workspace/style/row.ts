@@ -9,7 +9,7 @@
  * marked in the layer's `userData` so the row keeps finding it.
  */
 
-import type { ChannelDescriptor, ShaderUse } from "@graphty/graphty-element/catalog";
+import { type ChannelDescriptor, channelDescriptor, type ShaderUse } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
 import {
     type ColumnRef,
@@ -600,9 +600,9 @@ function startingValueOrNone(
     session?: GraphSession,
     selector?: Layer["selector"],
 ): ChannelValue | undefined {
-    const own = APP_STARTS[descriptor.channel];
-    if (own !== undefined) {
-        return own;
+    // graphty-element's first value for a channel whose default draws nothing (a pattern count of 10).
+    if (descriptor.start !== undefined) {
+        return descriptor.start;
     }
     const highlight =
         session !== undefined && selector?.match === "ids"
@@ -620,13 +620,6 @@ function startingValueOrNone(
         (descriptor.accepts === "text" ? "" : undefined);
     return value;
 }
-
-/**
- * Starting values the app chooses where the element has no value that draws what is there now.
- * A pattern count left unset follows the element's spacing rule, which differs edge by edge, and
- * the channel's floor (2) draws only a mark at each end, so the line seems to vanish.
- */
-const APP_STARTS: Readonly<Partial<Record<Channel, ChannelValue>>> = { "edge.patternCount": 10 };
 
 /**
  * What `encode()` would store for a choice on a channel, from the element.
@@ -926,7 +919,14 @@ export function startForOrNone(
     descriptor: ChannelDescriptor,
 ): ChannelValue | undefined {
     const beneath = ctx.beneath(descriptor.channel).value;
-    if (beneath !== undefined) {
+    // A channel graphty-element starts elsewhere (an animation speed of 1) does not start from a beneath that
+    // draws nothing: its default, its off value or what the element draws with nothing set.
+    const blank =
+        descriptor.start !== undefined &&
+        [descriptor.default, descriptor.off, ctx.session.styles.defaultValue(descriptor.channel)].includes(
+            beneath as ChannelValue,
+        );
+    if (beneath !== undefined && !blank) {
         if (descriptor.accepts === "color") {
             const hex = hexOf(beneath);
             if (hex !== null) {
@@ -938,6 +938,47 @@ export function startForOrNone(
     }
     const selector = ctx.layers.find((layer) => !layer.locked)?.selector ?? ctx.fresh?.selector;
     return startingValueOrNone(descriptor, ctx.session, selector);
+}
+
+/**
+ * The values graphty-element says a channel needs written beside it to draw (`needs`, else its part's),
+ * for the partners the row does not set and the layers beneath draw nothing for (an element default is
+ * not a layer beneath: a border's default color draws nothing without a width). Nothing for a value that
+ * switches the channel off.
+ * @param ctx - the row.
+ * @param channel - the channel written.
+ * @param value - the value written, when a plain one.
+ * @returns the partners' values.
+ */
+export function needsFor(
+    ctx: Pick<RowContext, "session" | "beneath" | "layers" | "many">,
+    channel: Channel,
+    value?: unknown,
+): Partial<Record<Channel, ChannelValue>> {
+    const descriptor = channelDescriptor(channel);
+    if (descriptor === undefined || value === false || value === "none" || value === descriptor.off) {
+        return {};
+    }
+    const head = descriptor.modifies === undefined ? undefined : channelDescriptor(descriptor.modifies);
+    const needs = descriptor.needs ?? head?.needs ?? [];
+    return Object.fromEntries(
+        needs
+            .filter((need) => need.channel !== channel && lineIn(ctx, need.channel) === undefined)
+            .filter((need) => {
+                const partner = channelDescriptor(need.channel);
+                const beneath = ctx.beneath(need.channel).value;
+                // A width or an opacity draws above 0; a color draws unless it is the off value; any other
+                // partner (a line style, a mesh detail) draws for this channel only at the value it needs.
+                if (typeof need.value === "number") {
+                    return !(typeof beneath === "number" && beneath > 0);
+                }
+                if (partner?.accepts === "color") {
+                    return typeof beneath !== "string" || beneath === "" || beneath === "none" || beneath === partner.off;
+                }
+                return String(beneath) !== String(need.value);
+            })
+            .map((need) => [need.channel, need.value]),
+    );
 }
 
 /**

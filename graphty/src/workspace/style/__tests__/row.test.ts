@@ -38,15 +38,17 @@ describe("the value a line starts with", () => {
         session = null;
     });
 
-    it("is the element's own value for every channel a line can add, but a pattern count", () => {
+    it("is the element's own value for every channel a line can add, its start where it declares one", () => {
         for (const descriptor of addable()) {
             const value = startingValue(descriptor);
-            // Unset, a pattern count follows the element's spacing rule edge by edge; its floor (2)
-            // draws a mark at each end only, so the app starts it at 10 marks.
+            // A pattern count's floor (2) draws a mark at each end only: graphty-element starts it at 10.
             const own =
-                descriptor.channel === "edge.patternCount"
-                    ? 10
-                    : (descriptor.default ?? descriptor.off ?? descriptor.min ?? descriptor.values?.[0] ?? "");
+                descriptor.start ??
+                descriptor.default ??
+                descriptor.off ??
+                descriptor.min ??
+                descriptor.values?.[0] ??
+                "";
             assert.deepEqual(value, own, descriptor.channel);
         }
     });

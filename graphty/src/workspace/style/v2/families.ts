@@ -21,7 +21,7 @@ import type { GraphSession, Layer, StaticStyle, StyleFamilyValues } from "@graph
 import { cosmographOn, nodeModelsOn } from "../../features";
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
-import { lineIn, startFor, writeIn } from "../row";
+import { lineIn, needsFor, startFor, writeIn } from "../row";
 import { placeOf, type ShaderEntry } from "../shaderSlots";
 import { experimentChannelsOff } from "../words";
 
@@ -276,7 +276,7 @@ export async function switchMember(
         const [main] = to.owns;
         const start = picked ?? startOf(ctx, to, {})[main ?? ""];
         if (main !== undefined && start !== undefined) {
-            await writeIn(ctx, main, { value: start });
+            await writeIn(ctx, main, { value: start }, needsFor(ctx, main, start));
         }
         return;
     }
@@ -295,7 +295,10 @@ export async function switchMember(
     } else if (picked !== undefined && to.owns[0] !== undefined) {
         start = { set: { [to.owns[0]]: picked } };
     } else {
-        start = { set: startOf(ctx, to, left.set) };
+        // A kind's start, with what graphty-element says it needs to draw (design 5.1).
+        const set = startOf(ctx, to, left.set);
+        const [main] = to.owns;
+        start = { set: main === undefined ? set : { ...needsFor(ctx, main, set[main]), ...set } };
     }
     await ctx.session.transaction(`switching ${family.plainName.toLowerCase()} to ${to.name.toLowerCase()}`, (tx) =>
         tx.styles.switchFamily(layer.id, family.id, memberId(to), start),

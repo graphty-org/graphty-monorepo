@@ -19,6 +19,7 @@ import "@graphty/graphty-element";
 import {
     type Channel,
     type ChannelDescriptor,
+    channelDescriptor,
     channelsFor,
     LABEL_STYLE_DESCRIPTORS,
     LABEL_STYLE_FIELDS,
@@ -865,12 +866,11 @@ vec4 shade(NodeInput n) {
                     missing.push(`${channel}: no "+" entry`);
                     continue;
                 }
-                // What "+" writes for it: a list's first item, else the start, the thing's drawn value in place
-                // of one that draws nothing (StylePanelV2's add).
+                // What "+" writes for it: a list's first items, else its start, graphty-element's own `start`
+                // where its default draws nothing (StylePanelV2's add).
                 const list = side === "node" ? LISTS[thing.id] : undefined;
                 const fresh = list === undefined ? ITEM_LISTS[channel]?.fresh : undefined;
-                const start = list !== undefined ? "a list" : (fresh ?? startForOrNone(ctx, descriptor));
-                const value = thing.drawn !== undefined && (start === "none" || start === 0) ? thing.drawn : start;
+                const value = list !== undefined ? "a list" : (fresh ?? startForOrNone(ctx, descriptor));
                 const written = JSON.stringify(value);
                 if (value === undefined || written === JSON.stringify(off)) {
                     missing.push(`${channel}: starts at ${written}`);
@@ -909,7 +909,9 @@ vec4 shade(NodeInput n) {
         // What v2 writes: every channel it has a control for, and the companions a "+" starts with.
         const writes = (side: Side): readonly string[] => [
             ...HOMED[side],
-            ...thingsOf(side).flatMap((thing) => Object.keys(thing.starts ?? {})),
+            ...thingsOf(side).flatMap((thing) =>
+                thing.main.flatMap((channel) => (channelDescriptor(channel)?.needs ?? []).map((need) => need.channel)),
+            ),
         ];
         const extraneous = [
             ...SIDES.flatMap((side) => [...new Set(writes(side))].filter((channel) => !allowed.has(channel))),

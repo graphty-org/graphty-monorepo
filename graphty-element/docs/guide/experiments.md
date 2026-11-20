@@ -188,6 +188,30 @@ await draft.commit(); // one undo step: Undo puts the entries back to staged
 more would match with `ignoreCase` or `ignoreSpaces` on. `matchValues` lists the values behind
 them, a page at a time.
 
+Before a join, a staged source can be read and set up without building anything:
+
+- `data.sourceTable(source).summary()` gives its tables (rows and columns each), size, format,
+  origin and read time, and its mapping as it stands; `profile(column, { table })` profiles one
+  column: `kind`, `valid`, `empty`, `distinct`, repeated keys and rows, and a few `samples`.
+  `data.profile({ space })` profiles the keys already in an id space the same way. A draft has the
+  same two, reading the draft's sources.
+- `data.setMapping(source, patch)` sets what a staged source's rows are (`rows: "nodes" | "edges"
+| "both"`), its key, `space` and `type`, and for edge rows their end columns, end spaces and end
+  types (`endTypes`). Like staging, it joins the undo step before it; a source already built
+  refuses it (`E_BAD_COMMAND`, reason `not-staged`).
+- A staged source named like a committed one lists that source's key in `sameName`.
+- `connect` and `merge` take `ignoreSpaces` beside `ignoreCase`; `editStep` also takes
+  `unmatchedFrom: "keep" | "drop"` (whether a merge adds the rows that met no node) and
+  `aggregate` (fold a key's repeated rows per column: `count`, `sum`, `min`, `max`, `mean`,
+  `first`, `last` or `list`), and each
+  `steps()` row's `act` reads back what the step does.
+
+```ts
+const visitors = await session.data.stage(visitorsCsv);
+session.data.sourceTable(visitors).profile("badge"); // { kind, distinct, repeated, samples, ... }
+await session.data.setMapping(visitors, { nodes: { key: "badge" }, type: "person" });
+```
+
 `preview()` compares the draft's graph with the committed one, counted over every row: totals and
 counts per type `before` and `after`; nodes and edges added, removed and changed; and for each
 step its counts (`buckets`) and their change from the committed ones:

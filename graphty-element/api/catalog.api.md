@@ -1195,7 +1195,8 @@ export type GraphtyErrorCode =
 /**
 * A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
 * incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
-* `details.column` and `details.rule` name them. The caller picks another rule for that column.
+* `details.column` and `details.rule` name them, and `details.step` the step when a source step's
+* merge refuses it (the source-steps experiment). The caller picks another rule for that column.
 */
 | "E_CLASH_RULE_TYPE"
 /**
@@ -1769,13 +1770,6 @@ export type GraphtyErrorCode =
 * `details.column` is the column. Experimental: the source-steps experiment.
 */
 | "E_EDIT_ROLE_COLUMN"
-/**
-* A merge's clash rule orders values (`min`, `max`, `mean`) but the values that meet in a column
-* are not all numbers (or, for `min` and `max`, all dates). `details.step`, `details.column` and
-* `details.rule` name the step, the column and the rule. Experimental: the source-steps
-* experiment.
-*/
-| "E_CLASH_RULE_TYPE"
 /**
 * A role setter that names no source could mean several built sources: each carries the
 * column and can carry the role. `details.sources` lists them; the caller names one with the

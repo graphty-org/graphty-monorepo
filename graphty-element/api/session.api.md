@@ -8017,8 +8017,9 @@ export { SourceParamType }
 export interface SourcePickAllOptions {
     readonly column: string;
     readonly only?: "all" | "open" | "decided";
+    readonly otherThan?: SourceKey;
     readonly refs?: readonly SourceElementRef[];
-    readonly source: SourceKey;
+    readonly source?: SourceKey;
     readonly step?: number;
 }
 
@@ -8243,6 +8244,7 @@ export type SourceStepResolution = {
 // @public
 export interface SourceStepRow {
     readonly buckets: SourceStepCounts | null;
+    readonly except: SourceRowFilter | null;
     readonly held: boolean;
     readonly index: number;
     readonly missing: readonly SourceRefreshIssue[];

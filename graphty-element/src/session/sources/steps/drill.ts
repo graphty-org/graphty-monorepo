@@ -375,7 +375,10 @@ export function exceptOf(
 /** Which cells a batch pick takes one source's value for. */
 export interface PickAllQuery {
     readonly column: string;
-    readonly source: string;
+    /** The source whose value to take; give this or `otherThan`. */
+    readonly source?: string;
+    /** In each cell, the first source other than this one. */
+    readonly otherThan?: string;
     /** `"open"` (default): cells no reader decision settles; `"decided"`; `"all"`. */
     readonly only?: "all" | "open" | "decided";
     readonly step?: number;
@@ -389,29 +392,42 @@ export interface PickAllQuery {
  * @param copies - The rows as read.
  * @param query - The column, the source, which cells, the step and the elements.
  * @returns The edit and how many cells it picks; no edit when it picks none.
- * @throws A `GraphtyError` with the code a single pick throws for a column it guards.
+ * @throws A `GraphtyError` with the code a single pick throws for a column it guards, or
+ * `E_BAD_COMMAND` (`no-source`) when the query names neither `source` nor `otherThan`.
  */
 export function pickAllEdit(
     value: SourceSteps,
     copies: DraftState["copies"],
     query: PickAllQuery,
 ): { edit: StepsEdit | null; count: number } {
+    if (query.source === undefined && query.otherThan === undefined) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `pickAll names no source for ${query.column}.`,
+            source: "data",
+            details: { reason: "no-source", column: query.column },
+        });
+    }
     const result = buildOf(value, copies);
     const only = query.only ?? "open";
     const wanted = query.refs === undefined ? null : new Set(query.refs.map((r) => refKey(r)));
     const cells = conflicts(result, {
         column: query.column,
-        source: query.source,
+        ...(query.source === undefined ? {} : { source: query.source }),
         ...(query.step === undefined ? {} : { step: query.step }),
         ...(only === "all" ? {} : { only }),
     }).filter((c) => wanted === null || wanted.has(refKey(c.ref)));
     const reader: ReaderOp[] = [...value.reader];
     for (const c of cells) {
+        const source = query.source ?? c.values.find((x) => x.source !== query.otherThan)?.source;
+        if (source === undefined) {
+            continue;
+        }
         const op = pickEdit({ ...value, reader }, result, {
             id: mintEditId(),
             ref: c.ref,
             column: query.column,
-            source: query.source,
+            source,
         });
         if (op !== null && "code" in op) {
             throw new GraphtyError({

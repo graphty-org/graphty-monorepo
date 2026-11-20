@@ -20,6 +20,7 @@ import type {
     NoteTargetInput,
     ScopeInput,
     ScoreTerm,
+    SourceDraftBucket,
     SourceKey,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
@@ -119,7 +120,27 @@ export interface JoinCardState {
      * they were before each change made since, so Undo puts them back. Null while picking.
      */
     readonly preview: { readonly step: number; readonly undo: readonly JoinChoices[] } | null;
+    /** What the dock's Preview tab shows once the reader clicked a count or a Values differ column. */
+    readonly drill: JoinDrill | null;
 }
+
+/**
+ * The dock's Preview tab: the rows behind one count of the previewed step, or the cells of one
+ * Values differ column, with the ids of those the reader selected.
+ */
+export type JoinDrill =
+    | {
+          readonly kind: "rows";
+          readonly bucket: SourceDraftBucket;
+          readonly changedOnly: boolean;
+          readonly selected: readonly string[];
+      }
+    | {
+          readonly kind: "cells";
+          readonly column: string;
+          readonly only: "all" | "open" | "decided";
+          readonly selected: readonly string[];
+      };
 
 /**
  * How a merge settles a key source 2's rows repeat: keep the first row's values or the last's, as

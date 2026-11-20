@@ -4590,8 +4590,14 @@ export interface SourceDraftCells {
 export interface SourcePickAllOptions {
     /** The column. */
     readonly column: string;
-    /** The source whose value to take. */
-    readonly source: SourceKey;
+    /** The source whose value to take. Give this or `otherThan`. */
+    readonly source?: SourceKey;
+    /**
+     * Instead of `source`: in each cell, take the value of the first source other than this one, in
+     * {@link SourceConflict.values} order. Passing a merge's incoming source takes the value held
+     * before it, whichever source holds it in each cell.
+     */
+    readonly otherThan?: SourceKey;
     /** `"open"` (default): cells no reader decision settles; `"decided"`; `"all"`. */
     readonly only?: "all" | "open" | "decided";
     /** Only cells this step counts under its Values differ (see {@link SourceConflict.steps}). */
@@ -4645,6 +4651,11 @@ export interface SourceStepRow {
     readonly buckets: SourceStepCounts | null;
     /** One `W_VALUES_DIFFER` per column whose values from different sources differ at this step. */
     readonly valuesDiffer: readonly SourceValuesDiffer[];
+    /**
+     * The rows it leaves out (its excluded list): the column `draft.exclude` reads and the keys
+     * listed, which `draft.include` takes off; null when it leaves none out.
+     */
+    readonly except: SourceRowFilter | null;
 }
 
 /**

@@ -8,6 +8,8 @@ import {
     isGraphtyError,
     type SourceCellValue,
     type SourceClashRule,
+    type SourceDraftBucket,
+    type SourceDraftRow,
     type SourceOverlapQuestion,
     type SourceProfileKind,
     type SourceStepCounts,
@@ -321,4 +323,104 @@ export function committedWords(kind: "add" | "join", name: string): string {
  */
 export function newTypeWords(type: string): string {
     return `new ${type}`;
+}
+
+/** The dock's Preview tab and the card's acts on its selection. */
+export const DRILL_WORDS = {
+    preview: "Preview",
+    show: "Show",
+    changedOnly: "Changed only",
+    all: "All",
+    rows: "rows",
+    rowsLabel: "Rows",
+    cells: "Cells",
+    cellsLabel: "Cells",
+    key: "Key",
+    from: "From",
+    effect: "Effect",
+    held: "held",
+    incoming: "incoming",
+    shown: "Shown",
+    by: "By",
+    /** A cell a reader decision (a pick or an edit) shows. */
+    reader: "R",
+    excluded: "Excluded",
+    remove: "Remove",
+} as const;
+
+/** What the commit does to a row's element, as `preview.rows` reports it. */
+export const EFFECT_WORDS: Readonly<Record<SourceDraftRow["effect"], string>> = {
+    added: "new",
+    changed: "changed",
+    removed: "removed",
+    unchanged: "unchanged",
+    "left-out": "left out",
+};
+
+/** The cell list's filters, as `preview.cells` takes them. */
+export const CELL_FILTERS = [
+    { value: "all", label: "All" },
+    { value: "open", label: "Open" },
+    { value: "decided", label: "Decided" },
+] as const;
+
+/**
+ * A count's name, as the Preview lists it.
+ * @param bucket - the element's name for the count.
+ * @returns its words.
+ */
+export function bucketWords(bucket: SourceDraftBucket): string {
+    for (const list of Object.values(BUCKET_WORDS)) {
+        const found = list.find((each) => each.id === bucket);
+        if (found !== undefined) {
+            return found.label;
+        }
+    }
+    return bucket;
+}
+
+/**
+ * The Show rows button's name for a count.
+ * @param label - the count's words.
+ * @returns such as "Show new edges rows".
+ */
+export function showRowsWords(label: string): string {
+    return `Show ${label} rows`;
+}
+
+/**
+ * The Show cells button's name for a Values differ column.
+ * @param column - the column.
+ * @returns such as "Show dept cells".
+ */
+export function showCellsWords(column: string): string {
+    return `Show ${column} cells`;
+}
+
+/**
+ * Exclude selected (n).
+ * @param count - the keys selected.
+ * @returns the label.
+ */
+export function excludeWords(count: number): string {
+    return `Exclude selected (${formatNumber(count)})`;
+}
+
+/**
+ * Pick 1 (n) or Pick 2 (n).
+ * @param side - which source.
+ * @param count - the cells selected.
+ * @returns the label.
+ */
+export function pickWords(side: 1 | 2, count: number): string {
+    return `Pick ${side} (${formatNumber(count)})`;
+}
+
+/**
+ * Clear picks (n).
+ * @param count - the decided cells selected.
+ * @returns the label.
+ */
+export function clearPicksWords(count: number): string {
+    return `Clear picks (${formatNumber(count)})`;
 }

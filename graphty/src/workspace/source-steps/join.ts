@@ -23,6 +23,9 @@ import { panelsInView } from "../time/timeActions";
 /** The dock tab the Join card opens on. */
 export const FIELDS_TAB = "fields";
 
+/** The dock tab the Join card's Preview opens on a count or a Values differ column. */
+export const PREVIEW_TAB = "preview";
+
 /**
  * Opens the Join card, unless a card or a draft is open already. It moves to the Data place's Sources
  * tab, where the card is drawn, from wherever the reader opened it (the inspector shows at every
@@ -56,6 +59,7 @@ export function openJoin(
             repeated: "first",
             unmatchedFrom: "keep",
             preview: null,
+            drill: null,
             dockWas: { open: now.dockOpen, tab: now.dockTab },
         },
         page: "panels",
@@ -93,7 +97,7 @@ export function updateJoin(
             draft.dispose();
         }
     }
-    workspace.set({ sourceCard: { ...card, ...patch, ...(reAct ? { preview: null } : {}) } });
+    workspace.set({ sourceCard: { ...card, ...patch, ...(reAct ? { preview: null, drill: null } : {}) } });
 }
 
 /**

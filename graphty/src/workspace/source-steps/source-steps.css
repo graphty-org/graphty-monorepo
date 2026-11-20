@@ -54,3 +54,11 @@
     box-shadow: var(--mantine-shadow-xs);
     pointer-events: auto;
 }
+
+/* A count or a Values differ column that lists its rows or cells in the dock's Preview tab. */
+.ss-count-show {
+    font: inherit;
+    color: inherit;
+    text-align: start;
+    text-decoration: underline dotted;
+}

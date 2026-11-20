@@ -184,8 +184,10 @@ describe("source-steps drafts: drill-down and exclusion (5.4)", () => {
             "kept node 2s are new accounts",
         );
         // Exclude selected: A-2 stays its own node 2; Untouched rises by one.
+        assert.isNull(st.except, "no excluded list yet");
         d.exclude(st.index, ["A-2"]);
         const st2 = mergeOf(d);
+        assert.deepStrictEqual(st2.except, { column: "account_id", values: ["A-2"] }, "the excluded list");
         assert.strictEqual(st2.buckets?.merged, 1);
         assert.strictEqual(st2.buckets?.untouched, 2);
         assert.strictEqual(st2.buckets?.valuesDiffer.holder ?? 0, 0);
@@ -193,6 +195,7 @@ describe("source-steps drafts: drill-down and exclusion (5.4)", () => {
         // Include takes the key off again; an empty list is taken off the step.
         d.include(st.index, ["A-2"]);
         assert.strictEqual(mergeOf(d).buckets?.merged, 2);
+        assert.isNull(mergeOf(d).except, "an empty list is taken off the step");
         d.exclude(st.index, ["A-2", "A-2", "A-1"]);
         assert.strictEqual(mergeOf(d).buckets?.merged, 0, "each key is listed once");
         assert.isTrue(d.undo());
@@ -254,6 +257,47 @@ describe("source-steps drafts: rules and picks per column (3.10)", () => {
         assert.strictEqual(m?.origin, "rule:mean", "a computed value is marked computed");
         const doc: unknown = JSON.parse((await session.project.save()).text);
         assert.deepInclude(savedClash(doc, b), { "*": "keep", amt: "mean" }, "saved per column with * for the rest");
+        session.dispose();
+    });
+
+    it("pickAll otherThan takes the held value in every cell, whichever source holds it", async () => {
+        const staff = csv("staff.csv", "id,name,amt\np3,Cy,60");
+        const hr = csv("hr2.csv", "id,name,amt\np1,Anne,50\np3,Cyd,60");
+        const {
+            session,
+            ids: [crm, s, h],
+        } = await people(staff, hr);
+        const d = session.data.draft();
+        const { cells } = d.preview().cells({ column: "name" });
+        assert.deepStrictEqual(
+            cells.map((c) => c.values.map((v) => v.source)),
+            [
+                [crm, h],
+                [s, h],
+            ],
+            "the held value comes from crm.csv in one cell and staff.csv in the other",
+        );
+        assert.strictEqual(
+            d.pickAll({ column: "name", source: crm ?? "" }),
+            1,
+            "one source decides only its own cells",
+        );
+        d.undo();
+        assert.strictEqual(d.pickAll({ column: "name", otherThan: h ?? "" }), 2);
+        assert.deepStrictEqual(
+            d.edits().map((e) => [e.picked, e.value]),
+            [
+                [crm, "Ann"],
+                [s, "Cy"],
+            ],
+        );
+        assert.strictEqual(d.preview().cells({ column: "name", only: "open" }).total, 0);
+        const details = await refused(
+            () => Promise.resolve().then(() => d.pickAll({ column: "name" })),
+            "E_BAD_COMMAND",
+        );
+        assert.strictEqual(details.reason, "no-source", "a pick naming no source is refused");
+        d.dispose();
         session.dispose();
     });
 

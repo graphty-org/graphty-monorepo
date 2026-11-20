@@ -17,8 +17,9 @@ import { runName } from "../runWords";
 import { TABLE_EVENTS, useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { formatCount, useNumberFormats } from "../settings/numberFormat";
 import { FieldsTab } from "../source-steps/FieldsTab";
-import { FIELDS_TAB, joinCardOf } from "../source-steps/join";
-import { JOIN_WORDS } from "../source-steps/words";
+import { FIELDS_TAB, joinCardOf, PREVIEW_TAB } from "../source-steps/join";
+import { PreviewTab } from "../source-steps/PreviewTab";
+import { DRILL_WORDS, JOIN_WORDS } from "../source-steps/words";
 import type { JoinCardState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { panelsInView } from "../time/timeActions";
@@ -697,12 +698,60 @@ function leaveGrid(event: React.KeyboardEvent): void {
 }
 
 /**
- * The Fields tab's value while the Join card is open (the source-steps experiment), else none.
+ * The Join card's dock tabs (the source-steps experiment): Fields while the card is open, and
+ * Preview once its preview showed a count's rows or a column's cells; else none.
  * @param join - the open Join card, or null.
- * @returns the values.
+ * @returns the tabs, each its value and its words.
  */
-function fieldsTabValue(join: JoinCardState | null): string[] {
-    return join === null ? [] : [FIELDS_TAB];
+function joinTabs(join: JoinCardState | null): { readonly value: string; readonly label: string }[] {
+    if (join === null) {
+        return [];
+    }
+    const fields = { value: FIELDS_TAB, label: JOIN_WORDS.fields };
+    return join.drill === null ? [fields] : [fields, { value: PREVIEW_TAB, label: DRILL_WORDS.preview }];
+}
+
+/**
+ * Which of the Join card's dock tabs shows, if one does. The Preview tab goes with the preview
+ * (Undo back to picking): the card's Fields tab shows then.
+ * @param join - the open Join card, or null.
+ * @param tab - the dock's tab.
+ * @returns the tab, or undefined when the table shows.
+ */
+function shownJoinTab(
+    join: JoinCardState | null,
+    tab: string,
+): { readonly value: string; readonly card: JoinCardState } | null {
+    if (join === null) {
+        return null;
+    }
+    const value =
+        joinTabs(join).find((each) => each.value === tab)?.value ?? (tab === PREVIEW_TAB ? FIELDS_TAB : undefined);
+    return value === undefined ? null : { value, card: join };
+}
+
+/**
+ * The body of the Join card's dock tab that shows.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.shown - the tab and the card
+ * @param props.height - the body's height in pixels
+ * @returns the Fields or the Preview tab
+ */
+function JoinTabBody({
+    session,
+    shown,
+    height,
+}: Readonly<{
+    session: GraphSession;
+    shown: { readonly value: string; readonly card: JoinCardState };
+    height: number;
+}>): React.JSX.Element | null {
+    return shown.value === PREVIEW_TAB ? (
+        <PreviewTab session={session} card={shown.card} height={height} />
+    ) : (
+        <FieldsTab session={session} card={shown.card} height={height} />
+    );
 }
 
 /**
@@ -784,58 +833,55 @@ function ShowAllButton({ kind, onClear }: Readonly<{ kind: RecordKind; onClear: 
 }
 
 /**
- * The dock on the Join card's Fields tab (the source-steps experiment): the same tab strip, Maximize
- * and Close, and the Fields tab's profiles and value list in place of the table.
+ * The dock on one of the Join card's tabs (the source-steps experiment): the same tab strip, Maximize
+ * and Close, and the tab's body in place of the table.
  * @param props - Component props
- * @param props.session - the element's session
- * @param props.card - the open Join card
+ * @param props.value - the tab shown
+ * @param props.children - its body
  * @param props.tabList - the dock's tabs
  * @param props.tabValues - every tab's value
  * @param props.end - the strip's Maximize and Close
  * @param props.maximized - whether the dock fills the canvas area
- * @param props.height - the body's height in pixels
  * @param props.bodyRef - measures the body
  * @param props.onPick - takes the tab the reader picks
  * @returns the dock's contents
  */
-function FieldsDock({
-    session,
-    card,
+function JoinTabDock({
+    value,
+    children,
     tabList,
     tabValues,
     end,
     maximized,
-    height,
     bodyRef,
     onPick,
 }: Readonly<{
-    session: GraphSession;
-    card: JoinCardState;
+    value: string;
+    children: React.ReactNode;
     tabList: React.ReactNode;
     tabValues: readonly string[];
     end: React.ReactNode;
     maximized: boolean;
-    height: number;
     bodyRef: (element: HTMLElement | null) => void;
     onPick: (value: string | null) => void;
 }>): React.JSX.Element {
     return (
         <div className="ws-table" data-maximized={maximized ? "" : undefined}>
-            <Tabs className="ws-table-main" value={FIELDS_TAB} onChange={onPick}>
+            <Tabs className="ws-table-main" value={value} onChange={onPick}>
                 <div className="ws-table-strip">
                     {tabList}
                     <span className="ws-table-spacer" />
                     {end}
                 </div>
                 {tabValues
-                    .filter((value) => value !== FIELDS_TAB)
-                    .map((value) => (
-                        <Tabs.Panel key={value} value={value}>
+                    .filter((each) => each !== value)
+                    .map((each) => (
+                        <Tabs.Panel key={each} value={each}>
                             {null}
                         </Tabs.Panel>
                     ))}
-                <Tabs.Panel value={FIELDS_TAB} className="ws-table-body" ref={bodyRef}>
-                    <FieldsTab session={session} card={card} height={height} />
+                <Tabs.Panel value={value} className="ws-table-body" ref={bodyRef}>
+                    {children}
                 </Tabs.Panel>
             </Tabs>
         </div>
@@ -1020,7 +1066,7 @@ export function TableDock(): React.JSX.Element {
             : countOf(groupRun.groupCount, "group");
 
     // Every tab names a rendered tab panel (aria-controls); the showing one holds the table.
-    const tabValues = [...tabValuesOf(hasEdges, groups), ...fieldsTabValue(join)];
+    const tabValues = [...tabValuesOf(hasEdges, groups), ...joinTabs(join).map((each) => each.value)];
     const pickTab = (value: string | null): void => {
         if (value !== null) {
             store.set({ dockTab: value });
@@ -1041,19 +1087,18 @@ export function TableDock(): React.JSX.Element {
                     {run.label}
                 </Tabs.Tab>
             ))}
-            {fieldsTabValue(join).map((value) => (
+            {joinTabs(join).map(({ value, label }) => (
                 <Tabs.Tab key={value} value={value}>
-                    {JOIN_WORDS.fields}
+                    {label}
                 </Tabs.Tab>
             ))}
         </Tabs.List>
     );
-    const shownFields = tab === FIELDS_TAB ? join : null;
-    if (shownFields !== null) {
+    const joinTab = shownJoinTab(join, tab);
+    if (joinTab !== null) {
         return (
-            <FieldsDock
-                session={session}
-                card={shownFields}
+            <JoinTabDock
+                value={joinTab.value}
                 tabList={tabList}
                 tabValues={tabValues}
                 end={
@@ -1063,10 +1108,11 @@ export function TableDock(): React.JSX.Element {
                     </>
                 }
                 maximized={maximized}
-                height={tableHeight}
                 bodyRef={bodyRef}
                 onPick={pickTab}
-            />
+            >
+                <JoinTabBody session={session} shown={joinTab} height={tableHeight} />
+            </JoinTabDock>
         );
     }
     const table = (

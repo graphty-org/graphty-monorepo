@@ -9,15 +9,20 @@
 import {
     type GraphSession,
     isGraphtyError,
+    type SourceCellValue,
     type SourceClashRule,
     type SourceDraft,
+    type SourceDraftCell,
     type SourceDraftPreview,
     type SourceDraftPreviewStep,
+    type SourceDraftRow,
+    type SourceElementRef,
+    type SourcePickAllOptions,
     type SourceStepPatch,
 } from "@graphty/graphty-element/session";
 
-import type { JoinCardState, JoinChoices, JoinRepeats, WorkspaceStore } from "../state/store";
-import { joinCardOf, joinPair, sourceColumns } from "./join";
+import type { JoinCardState, JoinChoices, JoinDrill, JoinRepeats, WorkspaceStore } from "../state/store";
+import { joinCardOf, joinPair, PREVIEW_TAB, sourceColumns } from "./join";
 import { refusedWords } from "./words";
 
 /**
@@ -215,7 +220,7 @@ export function undoInCard(workspace: WorkspaceStore, session: GraphSession): vo
     if (was === undefined) {
         // The act was the draft's only act: taking it back leaves nothing to draw or commit.
         draft.dispose();
-        workspace.set({ sourceCard: { ...card, preview: null } });
+        workspace.set({ sourceCard: { ...card, preview: null, drill: null } });
         return;
     }
     draft.undo();
@@ -251,4 +256,187 @@ export function askIfDraftOpen(workspace: WorkspaceStore, error: unknown, retry:
     }
     workspace.set({ draftOpen: { retry } });
     return true;
+}
+
+/**
+ * A row of `preview.rows` as the dock's table names it: its source, table, place and key, and the
+ * element it reached, so two rows never share a name.
+ * @param row - the row.
+ * @returns its id.
+ */
+export function rowId(row: SourceDraftRow): string {
+    return JSON.stringify([row.source, row.table, row.row, row.key, row.element]);
+}
+
+/**
+ * The key a row's id names, as `draft.exclude` takes it.
+ * @param id - the row's id.
+ * @returns the key, or null for a row with none.
+ */
+function keyOfRow(id: string): SourceCellValue | null {
+    const parts = JSON.parse(id) as unknown[];
+    return (parts[3] ?? null) as SourceCellValue | null;
+}
+
+/**
+ * A cell of `preview.cells` as the dock's table names it: its element.
+ * @param cell - the cell.
+ * @returns its id.
+ */
+export function cellId(cell: SourceDraftCell): string {
+    return JSON.stringify(cell.ref);
+}
+
+/**
+ * The element a cell's id names.
+ * @param id - the cell's id.
+ * @returns the element.
+ */
+function refOfCell(id: string): SourceElementRef {
+    return JSON.parse(id) as SourceElementRef;
+}
+
+/**
+ * Opens the dock's Preview tab on the rows behind one count or the cells of one Values differ
+ * column.
+ * @param workspace - the workspace store.
+ * @param drill - what to show.
+ */
+export function openDrill(workspace: WorkspaceStore, drill: JoinDrill): void {
+    const card = joinCardOf(workspace.get().sourceCard);
+    if (card?.preview !== undefined && card.preview !== null) {
+        workspace.set({ sourceCard: { ...card, drill }, dockOpen: true, dockTab: PREVIEW_TAB });
+    }
+}
+
+/**
+ * Changes what the dock's Preview tab shows or has selected.
+ * @param workspace - the workspace store.
+ * @param drill - the tab's view now.
+ */
+export function setDrill(workspace: WorkspaceStore, drill: JoinDrill): void {
+    const card = joinCardOf(workspace.get().sourceCard);
+    if (card !== null) {
+        workspace.set({ sourceCard: { ...card, drill } });
+    }
+}
+
+/**
+ * The distinct keys of the rows selected in the dock's Preview tab.
+ * @param card - the card.
+ * @returns the keys.
+ */
+export function selectedKeys(card: JoinCardState): SourceCellValue[] {
+    if (card.drill?.kind !== "rows") {
+        return [];
+    }
+    const keys = card.drill.selected.map((id) => keyOfRow(id)).filter((key) => key !== null);
+    return [...new Set(keys)];
+}
+
+/**
+ * The elements of the cells selected in the dock's Preview tab.
+ * @param card - the card.
+ * @returns the elements.
+ */
+export function selectedRefs(card: JoinCardState): SourceElementRef[] {
+    return card.drill?.kind === "cells" ? card.drill.selected.map((id) => refOfCell(id)) : [];
+}
+
+/**
+ * Makes one act in the draft on the previewed step, remembering the card's choices so Undo, which
+ * takes the act back, leaves them as they are. The selection goes: the rows or cells it named have
+ * moved. A refusal changes nothing and says why.
+ * @param workspace - the workspace store.
+ * @param session - the element's session.
+ * @param act - the act; it returns false when it recorded nothing.
+ */
+function actOnStep(
+    workspace: WorkspaceStore,
+    session: GraphSession,
+    act: (draft: SourceDraft, step: number) => boolean,
+): void {
+    const card = joinCardOf(workspace.get().sourceCard);
+    const draft = openDraft(session);
+    if (card?.preview === undefined || card.preview === null || draft === null) {
+        return;
+    }
+    let recorded: boolean;
+    try {
+        recorded = act(draft, card.preview.step);
+    } catch (error) {
+        workspace.set({ notice: { message: refusedWords(error), error: true } });
+        return;
+    }
+    workspace.set({
+        sourceCard: {
+            ...card,
+            drill: card.drill === null ? null : { ...card.drill, selected: [] },
+            preview: recorded ? { ...card.preview, undo: [...card.preview.undo, choicesOf(card)] } : card.preview,
+        },
+    });
+}
+
+/**
+ * Exclude selected: leaves the selected rows' keys out of the previewed step.
+ * @param workspace - the workspace store.
+ * @param session - the element's session.
+ */
+export function excludeSelected(workspace: WorkspaceStore, session: GraphSession): void {
+    const card = joinCardOf(workspace.get().sourceCard);
+    const keys = card === null ? [] : selectedKeys(card);
+    if (keys.length > 0) {
+        actOnStep(workspace, session, (draft, step) => {
+            draft.exclude(step, keys);
+            return true;
+        });
+    }
+}
+
+/**
+ * Takes one key off the previewed step's excluded list.
+ * @param workspace - the workspace store.
+ * @param session - the element's session.
+ * @param key - the key.
+ */
+export function includeKey(workspace: WorkspaceStore, session: GraphSession, key: SourceCellValue): void {
+    actOnStep(workspace, session, (draft, step) => {
+        draft.include(step, [key]);
+        return true;
+    });
+}
+
+/**
+ * Pick 1 or Pick 2: takes one source's value for the selected cells of the column.
+ * @param workspace - the workspace store.
+ * @param session - the element's session.
+ * @param side - the source whose value to take, or the source whose value not to take.
+ */
+export function pickSelected(
+    workspace: WorkspaceStore,
+    session: GraphSession,
+    side: Pick<SourcePickAllOptions, "source" | "otherThan">,
+): void {
+    const card = joinCardOf(workspace.get().sourceCard);
+    if (card?.drill?.kind !== "cells") {
+        return;
+    }
+    const { column } = card.drill;
+    const refs = selectedRefs(card);
+    actOnStep(workspace, session, (draft) => draft.pickAll({ ...side, column, only: "all", refs }) > 0);
+}
+
+/**
+ * Clear picks: takes back the picks of the selected cells of the column.
+ * @param workspace - the workspace store.
+ * @param session - the element's session.
+ */
+export function clearSelectedPicks(workspace: WorkspaceStore, session: GraphSession): void {
+    const card = joinCardOf(workspace.get().sourceCard);
+    if (card?.drill?.kind !== "cells") {
+        return;
+    }
+    const { column } = card.drill;
+    const refs = selectedRefs(card);
+    actOnStep(workspace, session, (draft) => draft.clearPicks({ column, refs }) > 0);
 }

@@ -380,7 +380,7 @@ export function JoinCard({
             session.on("data:draft-changed", () => {
                 const now = joinCardOf(store.get().sourceCard);
                 if (now !== null && now.preview !== null && openDraft(session) === null) {
-                    store.set({ sourceCard: { ...now, preview: null } });
+                    store.set({ sourceCard: { ...now, preview: null, drill: null } });
                 }
             }),
         [session, store],

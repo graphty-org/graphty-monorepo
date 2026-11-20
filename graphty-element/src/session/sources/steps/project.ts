@@ -29,6 +29,7 @@ import {
     READER_SPACE,
     type ReaderOp,
     type RowFateKind,
+    type RowFilter,
     type Source,
     type Step,
     type StepStats,
@@ -1009,6 +1010,8 @@ export interface StepRow {
     readonly buckets: StepStats | null;
     /** One `W_VALUES_DIFFER` per column whose values from different sources differ at this step. */
     readonly valuesDiffer: readonly Extract<StepsOutcome, { code: "W_VALUES_DIFFER" }>[];
+    /** The rows it leaves out by one column's values (5.4); null when it leaves none out. */
+    readonly except: RowFilter | null;
 }
 
 /**
@@ -1090,6 +1093,7 @@ export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies
             missing: Object.freeze(missing),
             buckets: result.stats.find((s) => s.step === index) ?? null,
             valuesDiffer: Object.freeze(report.filter((each) => each.params.step === index)),
+            except: step.op === "join.add" || step.except === undefined ? null : step.except,
         });
     });
 }

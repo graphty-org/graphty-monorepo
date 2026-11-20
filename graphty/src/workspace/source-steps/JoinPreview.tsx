@@ -1,32 +1,71 @@
-import { SegmentedControl } from "@graphty/compact-mantine";
+import { SegmentedControl, UiGlyph } from "@graphty/compact-mantine";
 import type { GraphSession, SourceClashRule, SourceDraftPreviewStep } from "@graphty/graphty-element/session";
-import { Group, Select, Stack, Text } from "@mantine/core";
+import { ActionIcon, Button, Group, Select, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";
 
 import { formatNumber } from "../inspector/words";
 import type { JoinCardState, JoinRepeats } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { openDraft, previewStep, setChoice, setRule } from "./preview";
-import { afterWords, BUCKET_WORDS, newTypeWords, PREVIEW_WORDS, REPEATS_WORDS, RULE_WORDS } from "./words";
+import {
+    cellId,
+    clearSelectedPicks,
+    excludeSelected,
+    includeKey,
+    openDraft,
+    openDrill,
+    pickSelected,
+    previewStep,
+    selectedKeys,
+    selectedRefs,
+    setChoice,
+    setRule,
+} from "./preview";
+import {
+    afterWords,
+    BUCKET_WORDS,
+    cellWords,
+    clearPicksWords,
+    DRILL_WORDS,
+    excludeWords,
+    newTypeWords,
+    pickWords,
+    PREVIEW_WORDS,
+    REPEATS_WORDS,
+    RULE_WORDS,
+    showCellsWords,
+    showRowsWords,
+} from "./words";
 
 /** The Repeats menu's ways, in its order. */
 const REPEATS: readonly JoinRepeats[] = ["first", "last", "count", "list"];
 
 /**
- * A count and its words, as a term and its definition, number first.
+ * A count and its words, as a term and its definition, number first. With `onShow`, the number is a
+ * button that lists the count's rows in the dock.
  * @param props - Component props
  * @param props.label - the words
  * @param props.value - the count
+ * @param props.onShow - lists the rows behind the count
  * @returns the pair
  */
-function Count({ label, value }: Readonly<{ label: string; value: number }>): React.JSX.Element {
+function Count({
+    label,
+    value,
+    onShow,
+}: Readonly<{ label: string; value: number; onShow?: () => void }>): React.JSX.Element {
     return (
         <div className="ss-count">
             <Text component="dt" size="xs" c="dimmed">
                 {label}
             </Text>
             <Text component="dd" size="xs" fw={600}>
-                {formatNumber(value)}
+                {onShow === undefined ? (
+                    formatNumber(value)
+                ) : (
+                    <UnstyledButton className="ss-count-show" aria-label={showRowsWords(label)} onClick={onShow}>
+                        {formatNumber(value)}
+                    </UnstyledButton>
+                )}
             </Text>
         </div>
     );
@@ -58,9 +97,18 @@ function ValuesDiffer({
             </Text>
             {step.valuesDiffer.map(({ params }) => (
                 <Group key={params.column} gap={6} wrap="nowrap">
-                    <Text size="xs" style={{ flex: 1, minWidth: 0 }} truncate>
-                        {params.column}
-                    </Text>
+                    <UnstyledButton
+                        className="ss-count-show"
+                        style={{ flex: 1, minWidth: 0 }}
+                        aria-label={showCellsWords(params.column)}
+                        onClick={() => {
+                            openDrill(store, { kind: "cells", column: params.column, only: "all", selected: [] });
+                        }}
+                    >
+                        <Text size="xs" truncate>
+                            {params.column}
+                        </Text>
+                    </UnstyledButton>
                     <Text
                         size="xs"
                         fw={600}
@@ -156,6 +204,129 @@ function MergeChoices({
 }
 
 /**
+ * The card's acts on what the dock's Preview tab has selected: Exclude selected (n) for rows; Pick
+ * 1 (n), Pick 2 (n) and Clear picks (n) for cells. Then the step's excluded list, each key with
+ * Remove.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.card - the card, previewing
+ * @param props.step - the previewed step
+ * @returns the rows
+ */
+function Selection({
+    session,
+    card,
+    step,
+}: Readonly<{ session: GraphSession; card: JoinCardState; step: SourceDraftPreviewStep }>): React.JSX.Element | null {
+    const { store } = useWorkspace();
+    const keys = selectedKeys(card);
+    const refs = selectedRefs(card);
+    const excluded = step.except?.values ?? [];
+    const { drill } = card;
+    let picks: React.ReactNode = null;
+    if (drill?.kind === "cells" && refs.length > 0) {
+        const preview = openDraft(session)?.preview();
+        const ids = new Set(drill.selected);
+        const decided =
+            preview
+                ?.cells({ column: drill.column, step: step.index, only: "decided" })
+                .cells.filter((cell) => ids.has(cellId(cell))).length ?? 0;
+        const two = card.field2?.source;
+        const one = card.field1?.source;
+        // Field 1 is usually a type built from several sources: in each cell, the one that is not Field 2.
+        let side1: { source: string } | { otherThan: string } | undefined;
+        if (one !== undefined) {
+            side1 = { source: one };
+        } else if (two !== undefined) {
+            side1 = { otherThan: two };
+        }
+        picks = (
+            <Group gap={6}>
+                {side1 === undefined ? null : (
+                    <Button
+                        size="compact-xs"
+                        variant="default"
+                        onClick={() => {
+                            pickSelected(store, session, side1);
+                        }}
+                    >
+                        {pickWords(1, refs.length)}
+                    </Button>
+                )}
+                {two === undefined ? null : (
+                    <Button
+                        size="compact-xs"
+                        variant="default"
+                        onClick={() => {
+                            pickSelected(store, session, { source: two });
+                        }}
+                    >
+                        {pickWords(2, refs.length)}
+                    </Button>
+                )}
+                <Button
+                    size="compact-xs"
+                    variant="default"
+                    disabled={decided === 0}
+                    onClick={() => {
+                        clearSelectedPicks(store, session);
+                    }}
+                >
+                    {clearPicksWords(decided)}
+                </Button>
+            </Group>
+        );
+    }
+    if (keys.length === 0 && picks === null && excluded.length === 0) {
+        return null;
+    }
+    return (
+        <Stack gap={4}>
+            {keys.length > 0 ? (
+                <Group gap={6}>
+                    <Button
+                        size="compact-xs"
+                        variant="default"
+                        onClick={() => {
+                            excludeSelected(store, session);
+                        }}
+                    >
+                        {excludeWords(keys.length)}
+                    </Button>
+                </Group>
+            ) : null}
+            {picks}
+            {excluded.length > 0 ? (
+                <fieldset className="ss-field" aria-label={DRILL_WORDS.excluded}>
+                    <Text component="legend" size="xs" fw={600}>
+                        {`${DRILL_WORDS.excluded} ${formatNumber(excluded.length)}`}
+                    </Text>
+                    {excluded.map((key) => (
+                        <Group key={`${typeof key}:${String(key)}`} gap={6} wrap="nowrap">
+                            <Text size="xs" style={{ flex: 1, minWidth: 0 }} truncate>
+                                {cellWords(key)}
+                            </Text>
+                            <Tooltip label={DRILL_WORDS.remove}>
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="xs"
+                                    aria-label={`${DRILL_WORDS.remove} ${cellWords(key)}`}
+                                    onClick={() => {
+                                        includeKey(store, session, key);
+                                    }}
+                                >
+                                    <UiGlyph name="close" />
+                                </ActionIcon>
+                            </Tooltip>
+                        </Group>
+                    ))}
+                </fieldset>
+            ) : null}
+        </Stack>
+    );
+}
+
+/**
  * The Join card's Preview (design 5.3): the step's buckets and new elements by type, its choices,
  * and the graph's totals before and after, all from the draft's `preview()`.
  * @param props - Component props
@@ -167,6 +338,7 @@ export function JoinPreview({
     session,
     card,
 }: Readonly<{ session: GraphSession; card: JoinCardState }>): React.JSX.Element | null {
+    const { store } = useWorkspace();
     const draft = openDraft(session);
     if (draft === null || card.preview === null || card.field2 === null) {
         return null;
@@ -183,7 +355,14 @@ export function JoinPreview({
                 {buckets === null ? null : (
                     <dl className="ss-counts" aria-label={PREVIEW_WORDS.buckets}>
                         {BUCKET_WORDS[kind].map(({ id, label }) => (
-                            <Count key={id} label={label} value={buckets[id]} />
+                            <Count
+                                key={id}
+                                label={label}
+                                value={buckets[id]}
+                                onShow={() => {
+                                    openDrill(store, { kind: "rows", bucket: id, changedOnly: true, selected: [] });
+                                }}
+                            />
                         ))}
                         {buckets.groups.length > 0 ? (
                             <Count label={PREVIEW_WORDS.largestGroup} value={buckets.groups[0] ?? 0} />
@@ -197,6 +376,7 @@ export function JoinPreview({
                     <>
                         <ValuesDiffer session={session} step={step} />
                         {kind === "merge" ? <MergeChoices session={session} card={card} step={step} /> : null}
+                        <Selection session={session} card={card} step={step} />
                     </>
                 )}
                 <fieldset className="ss-field">

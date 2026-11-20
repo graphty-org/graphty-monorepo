@@ -43,7 +43,7 @@ import {
 import { resetSentryState, type SentryCalls, setSentryCallsForTests, stopSentry } from "./sentry";
 
 const KEY = "phc_testkey123";
-const HOST = "https://eu.i.posthog.com";
+const HOST = "https://us.i.posthog.com";
 /** A site's analytics block that turns PostHog on. */
 const PH: SiteAnalytics = { posthogKey: KEY, posthogHost: HOST };
 const VISITS = "graphty.visits.v1";

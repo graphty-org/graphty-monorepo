@@ -120,6 +120,10 @@ async function swipeAndCheck(region: HTMLElement, where: string): Promise<void> 
     );
     assert.equal(document.querySelector(".ws-app")?.scrollTop, 0, `${where}: the app did not scroll`);
     assert.equal(region.getBoundingClientRect().left, left, `${where}: the panel stayed put`);
+    const body = region.closest(".ws-panel-body") ?? region.querySelector(".ws-panel-body");
+    if (body !== null) {
+        assert.equal(getComputedStyle(body).overscrollBehaviorY, "contain", `${where}: the panel keeps its swipe`);
+    }
     for (const root of [document.documentElement, document.body]) {
         assert.equal(getComputedStyle(root).overscrollBehaviorX, "none", `${where}: ${root.tagName} stops the swipe`);
     }

@@ -1119,12 +1119,13 @@ export function hoverEdgeAt(
 
 /**
  * The drawn edge a press (a click, or `elementAt`) at a canvas point lands on: {@link pickEdgeAt}'s answer, now.
- * On WebGL on the `"batched"` path it measures only the edges the edge ID target draws near the point, and those
- * it cannot draw, as {@link hoverEdgeAt} does, so a press costs the same at a million edges as at a thousand.
- * WebGPU reads the target back only asynchronously, so there, and in a layout transition, with a target not ready
- * yet, or with no target, it measures every edge.
- * ponytail: on WebGPU a press is one typed walk over every row line (no object per line); a CPU copy of the
- * target's pixels from the last hover read would bound it too, if a million-edge WebGPU click measures too slow.
+ * On the `"batched"` path it measures only the edges the edge ID target draws near the point, and those it cannot
+ * draw, as {@link hoverEdgeAt} does, so a press costs the same at a million edges as at a thousand. WebGL reads the
+ * target now. WebGPU reads it back only asynchronously, so there a press takes the edges the hover's last read
+ * named, which answers for a press where the pointer rests while nothing moves ({@link EdgeIdTarget.held}).
+ * ponytail: a press the target cannot answer now (on WebGPU at a point no read covers or while rows move, in a
+ * layout transition, before the target is ready, or with no target) is one typed walk over every row line, with
+ * no object per line, the same order of work as the node press's walk over every row that runs before it.
  * @param scene - The scene.
  * @param edges - The graph's edges, for the full walk.
  * @param x - X in CSS pixels.
@@ -1141,7 +1142,7 @@ export function pressEdgeAt(
     toScreen: (point: Vector3) => { x: number; y: number },
     lines: RowLinePicks | null = null,
 ): EdgeId | undefined {
-    const near = scene.getEngine().isWebGPU ? null : edgesNear(scene, x, y);
+    const near = scene.getEngine().isWebGPU ? heldNear(scene, x, y) : edgesNear(scene, x, y);
     if (near === null || near instanceof Promise) {
         return pickEdgeId(scene, edges(), x, y, toScreen, lines);
     }
@@ -1158,7 +1159,27 @@ export function pressEdgeAt(
  */
 function edgesNear(scene: Scene, x: number, y: number): EdgeCandidates | Promise<EdgeCandidates> | null {
     const target = edgeIdTargets.get(scene);
-    // The window must hold every pixel within the tolerance of the pointer's pixel center.
-    const radius = Math.ceil(EDGE_PICK_TOLERANCE_PX / scene.getEngine().getHardwareScalingLevel()) + 1;
-    return target === undefined || transitionUnderWay(scene) ? null : target.candidates(x, y, radius);
+    return target === undefined || transitionUnderWay(scene) ? null : target.candidates(x, y, pickRadius(scene));
+}
+
+/**
+ * {@link edgesNear} from the last read only, for a press on WebGPU.
+ * @param scene - The scene.
+ * @param x - X in CSS pixels.
+ * @param y - Y in CSS pixels.
+ * @returns The edges, or null when no read answers for the point now.
+ */
+function heldNear(scene: Scene, x: number, y: number): EdgeCandidates | null {
+    const target = edgeIdTargets.get(scene);
+    return target === undefined || transitionUnderWay(scene) ? null : target.held(x, y, pickRadius(scene));
+}
+
+/**
+ * The edge ID target window's half-width: it must hold every pixel within the tolerance of the pointer's pixel
+ * center.
+ * @param scene - The scene.
+ * @returns The half-width, in render pixels.
+ */
+function pickRadius(scene: Scene): number {
+    return Math.ceil(EDGE_PICK_TOLERANCE_PX / scene.getEngine().getHardwareScalingLevel()) + 1;
 }

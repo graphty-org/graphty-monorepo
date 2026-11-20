@@ -180,67 +180,129 @@ describe("the work of a plain edge pick on batched", () => {
     /** A 20 by 20 grid of short vertical lines, each its own pair of nodes. */
     const LINES = 400;
 
-    it("measures only the lines near a hover, and builds no Edge", async () => {
-        const element = document.createElement("graphty-element");
-        element.renderer = "webgl";
-        element.renderPath = "batched";
-        element.directed = false;
-        element.style.display = "block";
-        element.style.width = "500px";
-        element.style.height = "400px";
-        document.body.appendChild(element);
-        cleanups.push(() => {
-            element.remove();
-        });
-        await element.updateComplete;
-        await element.setViewMode("2d");
-        await operationQueueOf(element.graph).waitForCompletion();
-        const nodes = Array.from({ length: LINES * 2 }, (_, i) => {
-            const line = Math.floor(i / 2);
-            return {
-                id: `n${String(i)}`,
-                position: { x: (line % 20) * 5, y: Math.floor(line / 20) * 4 + (i % 2 === 0 ? 1.5 : -1.5), z: 0 },
-            };
-        });
-        const edges = Array.from({ length: LINES }, (_, i) => ({
-            src: `n${String(i * 2)}`,
-            dst: `n${String(i * 2 + 1)}`,
-        }));
-        await element.session.data.addNodes(nodes);
-        await element.session.data.addEdges(edges);
-        await element.graph.setLayout("fixed", { dim: 2 });
-        await operationQueueOf(element.graph).waitForCompletion();
-        await element.waitForStableFrame();
-        const manager = element.graph.getDataManager();
-        assert.strictEqual(element.rowCounts.pulledEdges, LINES, "every edge is a row line");
-        const canvas = element.graph.scene.getEngine().getInputElement();
+    /**
+     * Wait until a hover's read of the edge ID target has come back: at once on WebGL, a frame or more later on
+     * WebGPU.
+     * @param element - The element.
+     * @param readsBefore - The target's reads before the move.
+     */
+    async function readBack(element: Graphty, readsBefore: number): Promise<void> {
+        const target = element.graph.getEdgeIdTarget();
+        assert.isNotNull(target);
+        while (target !== null && (target.counts.reads === readsBefore || target.counts.pending > 0)) {
+            await nextFrame();
+        }
+    }
 
-        // The first move may rebuild and draw the edge ID target.
-        await hover(element, { x: 2, y: 2 });
-        await element.waitForStableFrame();
-        const empty = edgePickWork.rowLines;
-        await hover(element, { x: 3, y: 3 });
-        assert.strictEqual(edgePickWork.rowLines - empty, 0, "over empty canvas no line is measured");
+    for (const renderer of ["webgl", "webgpu"] as const) {
+        it.skipIf(renderer === "webgpu" && ADAPTER === "")(
+            `measures only the lines near a hover and a press, and builds no Edge, on ${renderer}`,
+            async () => {
+                const element = document.createElement("graphty-element");
+                element.renderer = renderer;
+                element.renderPath = "batched";
+                element.directed = false;
+                element.style.display = "block";
+                element.style.width = "500px";
+                element.style.height = "400px";
+                document.body.appendChild(element);
+                cleanups.push(() => {
+                    element.remove();
+                });
+                await element.updateComplete;
+                await element.setViewMode("2d");
+                await operationQueueOf(element.graph).waitForCompletion();
+                const nodes = Array.from({ length: LINES * 2 }, (_, i) => {
+                    const line = Math.floor(i / 2);
+                    return {
+                        id: `n${String(i)}`,
+                        position: {
+                            x: (line % 20) * 5,
+                            y: Math.floor(line / 20) * 4 + (i % 2 === 0 ? 1.5 : -1.5),
+                            z: 0,
+                        },
+                    };
+                });
+                const edges = Array.from({ length: LINES }, (_, i) => ({
+                    src: `n${String(i * 2)}`,
+                    dst: `n${String(i * 2 + 1)}`,
+                }));
+                await element.session.data.addNodes(nodes);
+                await element.session.data.addEdges(edges);
+                await element.graph.setLayout("fixed", { dim: 2 });
+                await operationQueueOf(element.graph).waitForCompletion();
+                await element.waitForStableFrame();
+                const manager = element.graph.getDataManager();
+                assert.strictEqual(element.rowCounts.pulledEdges, LINES, "every edge is a row line");
+                const canvas = element.graph.scene.getEngine().getInputElement();
+                const reads = (): number => element.graph.getEdgeIdTarget()?.counts.reads ?? 0;
 
-        const mid = between(element, "n420", "n421");
-        const near = edgePickWork.rowLines;
-        await hover(element, mid);
-        const measured = edgePickWork.rowLines - near;
-        assert.isAbove(measured, 0, "the line under the pointer is measured");
-        assert.isBelow(measured, 10, "only the lines near the pointer are measured");
-        assert.strictEqual(canvas?.style.cursor, "pointer", "the cursor shows the line");
-        assert.strictEqual(dataManagerInternals.edgesLive(manager), 0, "a hover builds no Edge");
+                // The first move may rebuild and draw the edge ID target.
+                let before = reads();
+                await hover(element, { x: 2, y: 2 });
+                await readBack(element, before);
+                await element.waitForStableFrame();
+                const empty = edgePickWork.rowLines;
+                before = reads();
+                await hover(element, { x: 3, y: 3 });
+                await readBack(element, before);
+                assert.strictEqual(edgePickWork.rowLines - empty, 0, "over empty canvas no line is measured");
 
-        const [id] = dataManagerInternals.incidentEdgeIds(manager, "n420");
-        const beforePress = edgePickWork.rowLines;
-        assert.deepEqual(element.elementAt(mid), { kind: "edge", id }, "elementAt names the line");
-        const pressed = edgePickWork.rowLines - beforePress;
-        assert.isAbove(pressed, 0, "elementAt measures the line under the point");
-        assert.isBelow(pressed, 10, "and only the lines near it, as a hover does (WebGL)");
-        assert.strictEqual(dataManagerInternals.edgesLive(manager), 0, "elementAt builds no Edge");
-        await click(element, mid);
-        await operationQueueOf(element.graph).waitForCompletion();
-        assert.deepEqual(element.session.selection.edges, [id], "the click selects it");
-        assert.strictEqual(dataManagerInternals.edgesLive(manager), 1, "only the selected edge gets an Edge");
-    });
+                const mid = between(element, "n420", "n421");
+                const near = edgePickWork.rowLines;
+                before = reads();
+                await hover(element, mid);
+                await readBack(element, before);
+                const measured = edgePickWork.rowLines - near;
+                assert.isAbove(measured, 0, "the line under the pointer is measured");
+                assert.isBelow(measured, 10, "only the lines near the pointer are measured");
+                assert.strictEqual(canvas?.style.cursor, "pointer", "the cursor shows the line");
+                assert.strictEqual(dataManagerInternals.edgesLive(manager), 0, "a hover builds no Edge");
+
+                // A press where the pointer rests: WebGL reads the target now, WebGPU takes the hover's read.
+                const [id] = dataManagerInternals.incidentEdgeIds(manager, "n420");
+                const beforePress = edgePickWork.rowLines;
+                assert.deepEqual(element.elementAt(mid), { kind: "edge", id }, "elementAt names the line");
+                const pressed = edgePickWork.rowLines - beforePress;
+                assert.isAbove(pressed, 0, "elementAt measures the line under the point");
+                assert.isBelow(pressed, 10, "and only the lines near it, as a hover does");
+                assert.strictEqual(dataManagerInternals.edgesLive(manager), 0, "elementAt builds no Edge");
+                const beforeClick = edgePickWork.rowLines;
+                await click(element, mid);
+                await operationQueueOf(element.graph).waitForCompletion();
+                assert.deepEqual(element.session.selection.edges, [id], "the click selects it");
+                assert.isBelow(edgePickWork.rowLines - beforeClick, 20, "the click measures only lines near it");
+                assert.strictEqual(dataManagerInternals.edgesLive(manager), 1, "only the selected edge gets an Edge");
+
+                // Clear the selection, rest the pointer on the line again, and pan the next line under it: the
+                // hover's read no longer answers, and the press finds the line that is there now.
+                await click(element, { x: 3, y: 3 });
+                await operationQueueOf(element.graph).waitForCompletion();
+                assert.deepEqual(element.session.selection.edges, [], "a click on empty canvas clears it");
+                await element.waitForStableFrame();
+                before = reads();
+                await hover(element, mid);
+                await readBack(element, before);
+                const rested = edgePickWork.rowLines;
+                assert.deepEqual(element.elementAt(mid), { kind: "edge", id }, "the line is found again");
+                assert.isBelow(edgePickWork.rowLines - rested, 10, "by the lines near the point");
+                const next = between(element, "n422", "n423");
+                const state = element.getCameraState();
+                const pan = state.pan ?? { x: 0, y: 0 };
+                await element.setCameraState({ pan: { x: pan.x + 1, y: pan.y } }, { animate: false });
+                await element.waitForStableFrame();
+                const perUnit = between(element, "n420", "n421").x - mid.x;
+                assert.notStrictEqual(perUnit, 0, "the pan moves the lines");
+                await element.setCameraState(
+                    { pan: { x: pan.x + (mid.x - next.x) / perUnit, y: pan.y } },
+                    { animate: false },
+                );
+                await element.waitForStableFrame();
+                const moved = between(element, "n422", "n423");
+                assert.closeTo(moved.x, mid.x, 1, "the next line is under the pointer now");
+                const [nextId] = dataManagerInternals.incidentEdgeIds(manager, "n422");
+                assert.deepEqual(element.elementAt(mid), { kind: "edge", id: nextId }, "elementAt names it");
+            },
+        );
+    }
 });

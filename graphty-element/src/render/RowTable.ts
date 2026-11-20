@@ -847,6 +847,15 @@ export class RowTable {
         }
     }
 
+    /**
+     * {@link RowTable.moves} once the CPU copy is up to what the layout last published.
+     * @returns The count.
+     */
+    settledMoves(): number {
+        this.catchUp();
+        return this.moves;
+    }
+
     /** Bring the CPU copy up to a publish the lane owes (`ElementPositions.owe`) before it is read. */
     private catchUp(): void {
         if (this.lane().settle()) {

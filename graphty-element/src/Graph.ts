@@ -5619,6 +5619,7 @@ export class Graph implements GraphContext {
                 edges: () => this.builtEdges(),
                 rowLines: () => this.rowLinePicks(),
                 root: () => this.scene.getTransformNodeByName("graph-root"),
+                moves: (settle) => (settle ? places.settledMoves() : places.moves),
                 requestFrame: () => {
                     this.renderManager.requestFrame();
                 },

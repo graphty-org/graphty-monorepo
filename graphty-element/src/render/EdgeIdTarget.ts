@@ -3,6 +3,7 @@ import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
 import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
 import { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture.js";
 import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Matrix } from "@babylonjs/core/Maths/math.vector.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
@@ -71,6 +72,11 @@ export interface EdgeIdHost {
     rowLines(): RowLinePicks | null;
     /** The node that places every row. */
     root(): TransformNode | null;
+    /**
+     * How many writes so far could have moved a row (`RowTable.moves`).
+     * @param settle - First bring the rows' CPU copy up to what the layout last published.
+     */
+    moves(settle: boolean): number;
     /** Draw a frame soon: on WebGPU the target is drawn inside one. */
     requestFrame(): void;
 }
@@ -101,6 +107,12 @@ export class EdgeIdTarget {
     private pixels = new Uint8Array(0);
     private disposed = false;
     private readonly stops: (() => void)[] = [];
+    /** What the target was last drawn from: the rows' move count, then the rows' matrix to the screen. */
+    private drawnFrom: number[] = [];
+    private readsSent = 0;
+    private readKept = 0;
+    /** The last window read back on WebGPU, what the target was drawn from then, and the edges it named. */
+    private lastRead: { cx: number; cy: number; radius: number; from: number[]; named: EdgeCandidates } | null = null;
 
     /**
      * Start the target of a scene.
@@ -170,6 +182,7 @@ export class EdgeIdTarget {
             // empty (measured on SwiftShader), so only a later frame's draw counts.
             if (this.materialReady() && !(engine.isWebGPU && this.builtIn === scene.getFrameId())) {
                 this.drawnIn = scene.getFrameId();
+                this.drawnFrom = this.from(false);
                 this.drawnRequested = false;
                 this.counts.draws++;
             }
@@ -220,6 +233,63 @@ export class EdgeIdTarget {
         return read.finally(() => {
             this.counts.pending--;
         });
+    }
+
+    /**
+     * {@link candidates} with no read, for a press on WebGPU, which cannot wait for one: the edges the last window
+     * read back named, when it was read around the same pixel and nothing has moved, been shown or hidden, or
+     * changed size since the target it read was drawn. A click lands where the pointer last moved, so the hover's
+     * read usually answers it.
+     * @param x - X in CSS pixels.
+     * @param y - Y in CSS pixels.
+     * @param radius - The window's half-width, in render pixels.
+     * @returns The edges, or null when no read still answers for this point.
+     */
+    held(x: number, y: number, radius: number): EdgeCandidates | null {
+        const read = this.lastRead;
+        if (read === null || this.disposed || this.builtAt !== edgeDrawChanges.count || !this.fits()) {
+            return null;
+        }
+
+        const { cx, cy } = this.pixel(x, y);
+        const now = this.from(true);
+        const same =
+            read.cx === cx &&
+            read.cy === cy &&
+            read.radius === radius &&
+            read.from.length === now.length &&
+            read.from.every((value, i) => value === now[i]);
+        return same ? read.named : null;
+    }
+
+    /**
+     * What the target would be drawn from now: the rows' move count, then root, view and projection as one matrix.
+     * @param settle - First bring the rows' CPU copy up to date (never while a frame draws).
+     * @returns The values, empty with no camera.
+     */
+    private from(settle: boolean): number[] {
+        const camera = this.scene.activeCamera;
+        if (!camera) {
+            return [];
+        }
+
+        const root = this.host.root()?.computeWorldMatrix() ?? Matrix.IdentityReadOnly;
+        return [
+            this.host.moves(settle),
+            ...root.multiply(camera.getViewMatrix().multiply(camera.getProjectionMatrix())).m,
+        ];
+    }
+
+    /**
+     * A canvas point's pixel in the target.
+     * @param x - X in CSS pixels.
+     * @param y - Y in CSS pixels.
+     * @returns The pixel's column and row, counted from the bottom.
+     */
+    private pixel(x: number, y: number): { cx: number; cy: number } {
+        const scaling = this.scene.getEngine().getHardwareScalingLevel();
+        // A render target's first row is the bottom of the picture on either engine.
+        return { cx: Math.floor(x / scaling), cy: this.target.getSize().height - 1 - Math.floor(y / scaling) };
     }
 
     /**
@@ -292,6 +362,7 @@ export class EdgeIdTarget {
         this.edges = edges;
         this.lineRows = lineRows;
         this.loose = loose;
+        this.lastRead = null;
         // At least one line, so a graph of curves alone still draws (nothing) and reads as fresh.
         this.mesh.setVerticesData("position", vertices, false);
         this.drawnIn = -1;
@@ -344,11 +415,8 @@ export class EdgeIdTarget {
     private window(x: number, y: number, radius: number, now: false): Promise<EdgeCandidates>;
     private window(x: number, y: number, radius: number, now: boolean): EdgeCandidates | Promise<EdgeCandidates> {
         const engine = this.scene.getEngine();
-        const scaling = engine.getHardwareScalingLevel();
         const { width, height } = this.target.getSize();
-        const cx = Math.floor(x / scaling);
-        // A render target's first row is the bottom of the picture on either engine.
-        const cy = height - 1 - Math.floor(y / scaling);
+        const { cx, cy } = this.pixel(x, y);
         const left = Math.max(0, cx - radius);
         const bottom = Math.max(0, cy - radius);
         const w = Math.min(width, cx + radius + 1) - left;
@@ -371,9 +439,19 @@ export class EdgeIdTarget {
         // A buffer of its own, since a later move's read can land first. WebGPU copies rows padded
         // to 256 bytes into it, then packs them at its front.
         const pixels = new Uint8Array(h * Math.ceil((w * 4) / 256) * 256);
-        return engine
-            ._readTexturePixels(texture, w, h, -1, 0, pixels, true, false, left, bottom)
-            .then(() => this.named(pixels, w * h));
+        const { builtAt } = this;
+        const from = this.drawnFrom;
+        const sent = ++this.readsSent;
+        return engine._readTexturePixels(texture, w, h, -1, 0, pixels, true, false, left, bottom).then(() => {
+            const named = this.named(pixels, w * h);
+            // Kept for a press only while it names this build's lines, and when no later read has landed.
+            if (builtAt === this.builtAt && sent > this.readKept) {
+                this.readKept = sent;
+                this.lastRead = { cx, cy, radius, from, named };
+            }
+
+            return named;
+        });
     }
 
     /**

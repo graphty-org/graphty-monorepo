@@ -4420,7 +4420,10 @@ export interface SourceStepCounts {
     readonly rowsDifferIn: Readonly<Record<string, number>>;
     /** End pairs the step joined with an edge when an earlier edge already joined them. */
     readonly parallelPairs: number;
-    /** Edge ends that found a node already built, by the id space they look in. */
+    /**
+     * Edge ends that found a node already built, by the id space they look in. For `join.add`, its
+     * node rows whose key found a node an earlier step built count here too.
+     */
     readonly endsMeet: Readonly<Record<SourceSpaceName, number>>;
     /** Edge ends that found no node, so made one or left the row out, by id space. */
     readonly endsMissing: Readonly<Record<SourceSpaceName, number>>;

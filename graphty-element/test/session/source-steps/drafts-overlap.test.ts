@@ -320,6 +320,34 @@ describe("source-steps drafts: the key-overlap question", () => {
         session.dispose();
     });
 
+    it("an Add's node rows that meet built nodes count as ends meet, and the count follows the answer", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const csv = (name: string, ...data: string[]): { type: string; config: { data: string }; name: string } => ({
+            type: "csv",
+            config: { data: data.join("\n") },
+            name,
+        });
+        await session.data.import(csv("people.csv", "badge,name", "B1,Ann", "B2,Bo"), { key: "badge", type: "person" });
+        const visitors = await session.data.stage(csv("visitors.csv", "badge,name", "B1,Ann", "V1,Val", "V1,Vee"), {
+            key: "badge",
+            type: "person",
+        });
+        const d = session.data.draft({ askOverlap: true });
+        d.add(visitors);
+        const added = (): Readonly<Record<string, number>> | undefined =>
+            d.preview().steps.find((step) => step.source === visitors)?.buckets?.endsMeet;
+        d.answerOverlap(visitors, "merge");
+        assert.deepStrictEqual(
+            added(),
+            { person: 1 },
+            "B1 meets the person people.csv built; V1's repeat meets its own row",
+        );
+        d.answerOverlap(visitors, "separate");
+        assert.deepStrictEqual(added(), {}, "kept separate, nothing meets");
+        d.dispose();
+        session.dispose();
+    });
+
     it("a question goes with its source: removed or never added, nothing is open", async () => {
         const { session, b } = await stagedBankB();
         const d = session.data.draft({ askOverlap: true });

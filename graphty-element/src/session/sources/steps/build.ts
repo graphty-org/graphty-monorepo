@@ -1347,7 +1347,13 @@ class Builder {
             this.fate(s.source, "nodes", i, "left-out:empty-key");
             return;
         }
-        const n = this.node(nodeSpace(src), text(key), { source: s.source }, r, st) as BuiltNode;
+        const space = nodeSpace(src);
+        const met = this.resolve(space, text(key));
+        // A row whose key names a node an earlier step built meets it, as an edge end does.
+        if (met !== undefined && !at.seen.has(met)) {
+            this.end(st, space, met, { table: "nodes", row: i });
+        }
+        const n = this.node(space, text(key), { source: s.source }, r, st) as BuiltNode;
         const repeat = at.seen.has(n.id);
         at.seen.add(n.id);
         this.touch(n, s, si, "nodes", r, i);

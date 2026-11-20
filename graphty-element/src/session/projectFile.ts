@@ -466,7 +466,9 @@ export interface ProjectOpenOptions {
      * @beta
      */
     readonly columns?: {
+        /** Node columns: each name a style section reads, mapped to the open data's column. */
         readonly node?: Readonly<Record<string, string>>;
+        /** Edge columns: each name a style section reads, mapped to the open data's column. */
         readonly edge?: Readonly<Record<string, string>>;
     };
     /**

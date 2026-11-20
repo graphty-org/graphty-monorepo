@@ -209,7 +209,12 @@ export interface DocumentSectionAbout {
     /** When its content last changed (ISO 8601). */
     readonly modified?: string;
     /** Its authors. */
-    readonly authors?: readonly { readonly name: string; readonly uri?: string }[];
+    readonly authors?: readonly {
+        /** The author's name. */
+        readonly name: string;
+        /** A link that identifies the author, when the file gives one. */
+        readonly uri?: string;
+    }[];
     /** An SPDX license expression, or text. */
     readonly license?: string;
     /** The URL or file name a copied-in section was taken from. */

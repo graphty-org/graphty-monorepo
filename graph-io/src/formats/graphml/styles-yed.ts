@@ -830,6 +830,13 @@ export function typeOutline(type: unknown, unknown: string): YedOutline | null {
 }
 
 /**
+ * What a yEd shape type is read as beside its `shape` (`putOutline`): a type drawn as a polygon (yEd's star5, a fat
+ * arrow) gives its corners, so a file graphty wrote compares these with its block's values too, and a shape written
+ * as the nearest yEd type (graphty's star as star5) reads back as the block's.
+ */
+export const YED_OUTLINE_READS: readonly string[] = ["shapePoints", "shapeLines", "shapePointsStretch"];
+
+/**
  * Writes what an outline draws. Reading the width and the height first lets an outline with proportions of its own
  * replace them.
  * @param outline - the outline
@@ -974,7 +981,9 @@ function labelShown(label: unknown): boolean {
 
 /**
  * Reads an element's label: the first visible label with text (yEd icon nodes put an empty, `hasText="false"`
- * label first); further visible labels are noted for the element.
+ * label first). A node's second one is its external label (`xlabel`) when it is drawn in the label's look, centered
+ * where yEd stored it (yed-graphml-specimen-labels two-labels, configuration-er-labels); further visible labels are
+ * noted for the element.
  * @param labels - the label elements, in file order
  * @param node - whether they are node labels (which have a position)
  * @param put - receives the values
@@ -992,23 +1001,17 @@ function readLabels(
     uml = false,
     icons?: ReadonlyMap<string, readonly [number, number]>,
 ): void {
-    let label: unknown = undefined;
-    let text = "";
-    let extra = 0;
-    for (const l of labels) {
-        if (!labelShown(l)) {
-            continue;
-        }
-        if (label === undefined) {
-            label = l;
-            text = labelWords(l);
-        } else {
-            extra++;
-        }
-    }
+    const shown = labels.filter((l) => labelShown(l));
+    const label = shown[0];
     if (label === undefined) {
         return;
     }
+    const text = labelWords(label);
+    const second = node && geometry !== undefined && shown[1] !== undefined && drawnAsSecond(label, shown[1]);
+    if (second) {
+        readSecondLabel(shown[1], geometry, put, at);
+    }
+    const extra = shown.length - (second ? 2 : 1);
     if (extra > 0) {
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
@@ -1020,6 +1023,54 @@ function readLabels(
     if (node && icons !== undefined) {
         readIconPlace(label, icons, put);
     }
+}
+
+/** What an external label takes from the label: its font, size, color and turn. */
+const SECOND_LABEL_SHARED = ["fontFamily", "fontSize", "fontStyle", "textColor", "rotationAngle"] as const;
+
+/**
+ * Whether a node's second label can be drawn as its external label: yEd stored the box it drew, it has the label's
+ * font, size, color and turn (an external label is drawn in the label's look), no box of its own drawn, and it is not
+ * a table lane's label (a ColumnNodeLabelModel or RowNodeLabelModel label belongs to its lane).
+ * @param first - the node's label
+ * @param label - its second label
+ * @returns true when it is drawn as the external label
+ */
+function drawnAsSecond(first: unknown, label: unknown): boolean {
+    const model = treeChild(label, "LabelModel");
+    const stored = ["x", "y", "width", "height"].every((k) =>
+        Number.isFinite(Number(treeAttr(label, k) ?? Number.NaN)),
+    );
+    return (
+        stored &&
+        treeChild(model, "ColumnNodeLabelModel") === undefined &&
+        treeChild(model, "RowNodeLabelModel") === undefined &&
+        // as readLabelLook draws a box: a color, not switched off
+        (treeAttr(label, "hasBackgroundColor") === "false" || treeAttr(label, "backgroundColor") === undefined) &&
+        (treeAttr(label, "hasLineColor") === "false" || treeAttr(label, "lineColor") === undefined) &&
+        SECOND_LABEL_SHARED.every((k) => treeAttr(first, k) === treeAttr(label, k))
+    );
+}
+
+/**
+ * Reads a node's second label as its external label: its words, its box's middle from the node's middle (yEd stores
+ * the box it drew, from the node's top left corner) and how its lines line up.
+ * @param label - the label element
+ * @param geometry - the node's `y:Geometry`
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readSecondLabel(label: unknown, geometry: unknown, put: PutValue, at: SiteOf): void {
+    const num = (o: unknown, k: string): number => {
+        const n = Number(treeAttr(o, k));
+        return Number.isFinite(n) ? n : 0;
+    };
+    const middle = (start: string, extent: string): number =>
+        Math.round(1000 * (num(label, start) + num(label, extent) / 2 - num(geometry, extent) / 2)) / 1000;
+    put("xlabel", canonText(labelWords(label), at("xlabel")));
+    put("xlabelOffsetX", middle("x", "width"));
+    put("xlabelOffsetY", middle("y", "height"));
+    put("xlabelTextAlign", treeAttr(label, "alignment") ?? null);
 }
 
 /**
@@ -2753,6 +2804,9 @@ const YED_EDGE_SPOTS: ReadonlyMap<string, EdgeSpot> = new Map([
     // a GML side_slider label with no stored box: yEd 3.25 draws it at the line's start, above it on the page, left of
     // a vertical line (gml-synthetic-coverage e2, e11, e20, e29, e38, e56, e74)
     ["side_slider/start", ["source", "above"]],
+    // a GML center_slider label with no stored box: the same place, on the line (gml-specimen-edge-labels-p2
+    // model-center-slider-center, its text 12.1 px past the line's start like its side_slider neighbor's)
+    ["center_slider/start", ["source", 0]],
     ["two_pos/head", ["middle", -1]],
     ["two_pos/tail", ["middle", 1]],
     ["three_center/scentr", ["source", 0]],
@@ -3334,8 +3388,18 @@ export const YED_SHAPES: ReadonlyMap<string, string> = new Map([
     ["octagon", "octagon"],
     ["parallelogram", "parallelogram"],
     ["trapezoid", "trapezoid"],
-    ["star", "star5"],
 ]);
+
+/**
+ * The yEd ShapeNode type written for a shape yEd has no exact type for: graphty-element's star, five points up and
+ * stretched to its box, as yEd's star5, inscribed in its box's ellipse with a point down (`YED_TYPES`); a vee as a
+ * triangle; anything else as a rectangle.
+ * @param shape - the neutral shape
+ * @returns the yEd type
+ */
+export function yedNearestShape(shape: string): string {
+    return ({ star: "star5", vee: "triangle" } as Partial<Record<string, string>>)[shape] ?? "rectangle";
+}
 
 /** yEd's line types, by the neutral line style each draws exactly. */
 export const YED_LINES: ReadonlyMap<string, string> = new Map([
@@ -3545,8 +3609,8 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
     const node: Tree = {};
     node["y:Geometry"] = geometryTree(get, at);
     const shape = get("shape");
-    const nearest = shape === "vee" ? "triangle" : "rectangle";
-    const yedShape = typeof shape === "string" ? yedSpelled(YED_SHAPES, shape, nearest, "shape", approximate) : null;
+    const yedShape =
+        typeof shape === "string" ? yedSpelled(YED_SHAPES, shape, yedNearestShape(shape), "shape", approximate) : null;
     const fill = get("fill");
     const fillOpacity = get("fillOpacity");
     if (typeof fill === "string") {
@@ -3730,7 +3794,10 @@ export function exactFromBlock(snapshot: GraphSnapshot, text: string, read: YedR
     const notes = new StyleNotes();
     takeFromBlock(snapshot, text, "graphml", (target) => ({
         values: read[target],
-        properties: GRAPHML_STYLE_CAPABILITIES[target],
+        properties:
+            target === "node"
+                ? [...GRAPHML_STYLE_CAPABILITIES.node, ...YED_OUTLINE_READS]
+                : GRAPHML_STYLE_CAPABILITIES[target],
         writes: GRAPHML_STYLE_CAPABILITIES[target],
         readBack: (_i, want) => {
             const back = writtenAndReadBack(target, want, notes);

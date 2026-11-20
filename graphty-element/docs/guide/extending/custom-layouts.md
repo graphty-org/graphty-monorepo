@@ -312,7 +312,7 @@ removed or rewired in the same change, the whole graph is arranged again.
 **A long arrangement should watch `signal`.** When the reader switches layout or the graph changes
 before you answer, the signal aborts and whatever you return afterwards is ignored.
 
-**Say whether you read edge weights** with `descriptor.honoursWeights: true`, and whether you can
+**Say whether you read edge weights** with `descriptor.honorsWeights: true`, and whether you can
 lay out a set while holding the rest with `descriptor.scoped: true`. Both default to false.
 
 A failure is reported on the element's `error` event with `context: "layout"`; throw a
@@ -523,13 +523,13 @@ does.
 ```ts
 class RingWalk extends LayoutEngine {
     static type = "acme-ring";
-    static honoursWeights = true;
+    static honorsWeights = true;
 }
 ```
 
-`honoursWeights` defaults to `false`, and false is right for most layouts: of the element's own
+`honorsWeights` defaults to `false`, and false is right for most layouts: of the element's own
 sixteen only Kamada-Kawai and ForceAtlas2 have a weight channel at all. Declaring it `true` puts
-`honoursWeights: true` on your descriptor in `session.catalog.layouts()`, which is how a settings
+`honorsWeights: true` on your descriptor in `session.catalog.layouts()`, which is how a settings
 panel decides whether to offer a "use edge weights" control for your layout. Declaring it on a
 layout that ignores weights advertises a control that changes nothing.
 

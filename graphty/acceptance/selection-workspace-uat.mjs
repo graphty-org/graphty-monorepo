@@ -504,13 +504,18 @@ class Visit {
         }
     }
 
+    // The header's Cancel: a step whose run is still computing shows a Cancel button of its own.
+    get cancelButton() {
+        return this.ws.locator(".sel-ws-head").getByRole("button", { name: /^Cancel/ });
+    }
+
     // Leaves with Cancel or Escape and checks nothing stayed.
     async cancel(how) {
         if (how === "escape") {
             await this.ws.locator(".sel-ws-head").click({ position: { x: 300, y: 8 } });
             await this.page.keyboard.press("Escape");
         } else {
-            await this.ws.getByRole("button", { name: /^Cancel/ }).click();
+            await this.cancelButton.click();
         }
         await this.ws.waitFor({ state: "detached" });
         // A layer that selected everything reads the same as one card with All and no step.
@@ -1028,7 +1033,7 @@ async function reopenSame(v) {
     await v.ws.waitFor();
     await v.check("reopen");
     await assertOrder(v, "reopen");
-    await v.ws.getByRole("button", { name: /^Cancel/ }).click();
+    await v.cancelButton.click();
     await v.ws.waitFor({ state: "detached" });
 }
 
@@ -1265,7 +1270,7 @@ const reopenOrder = async (page) => {
     if (ring !== null) {
         fail(`opening left focus, and its ring, on the drawing (${String(ring)})`);
     }
-    await v.ws.getByRole("button", { name: /^Cancel/ }).click();
+    await v.cancelButton.click();
 };
 
 // A workspace opened while the graph is still being framed leaves it framed.
@@ -1273,9 +1278,7 @@ const quickOpen = (how) => async (page) => {
     const v = await visit(page, "lesmis", "style-nodes");
     await v.pickFirst(0, "Degree");
     await v.step(0, 0).getByRole("textbox", { name: "Degree from, number" }).waitFor();
-    await (how === "done"
-        ? v.ws.getByRole("button", { name: "Done", exact: true }).click()
-        : v.ws.getByRole("button", { name: /^Cancel/ }).click());
+    await (how === "done" ? v.ws.getByRole("button", { name: "Done", exact: true }).click() : v.cancelButton.click());
     await v.ws.waitFor({ state: "detached" });
     const zoomed = await inPage(page, async () => {
         const element = document.querySelector("graphty-element");
@@ -1322,7 +1325,7 @@ const edgesOnCard = async (page) => {
     if (lone > 0) {
         fail("the card's groups became a lone (no value) row");
     }
-    await v.ws.getByRole("button", { name: /^Cancel/ }).click();
+    await v.cancelButton.click();
 };
 
 // Every key a card's menu shows does what it says on the card's grip.

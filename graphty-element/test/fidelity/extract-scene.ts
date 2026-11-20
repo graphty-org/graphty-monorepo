@@ -20,6 +20,8 @@
  * expresses every length in reference units with its scale. The vocabulary maps are unit-tested in
  * Node (`extract-scene.test.ts`); the reader runs in the browser (`fidelity.test.ts`).
  */
+import type { GraphSnapshot } from "@graphty/graph-format";
+
 import { resample } from "../../../graph-io/test/fidelity/compare";
 import { canCarry } from "../../../graph-io/test/fidelity/routes";
 import {
@@ -36,6 +38,7 @@ import {
 import { channelDescriptor } from "../../catalog";
 import type { Graphty } from "../../index.js";
 import { polygonPoints } from "../../src/meshes/shapeOutlines";
+import { childrenOf } from "../../src/session/styles/fileStyles/translate";
 import type { DrawnEdge, DrawnGraph, DrawnNode, ScreenBox } from "./drawn-scene";
 import { insideFigure } from "./oracle/primitives";
 
@@ -92,16 +95,37 @@ export function shapeClassOf(shape: unknown): ShapeClass {
 
 /**
  * The shape class a node's style asks for: a polygon of three corners (`node.shapePoints`) asks for a triangle, as
- * vis-network's triangles are drawn; any other polygon stays "other", the class the references give the free-form
+ * vis-network's triangles are drawn, and a star-shaped one (`isStar`) for a star; any other polygon stays "other", the class the references give the free-form
  * polygons of DOT, GML and yEd.
  * @param shape - its `node.shape`
  * @param points - its `node.shapePoints`
  * @returns the class
  */
 export function askedShapeClass(shape: unknown, points: unknown): ShapeClass {
-    const triangle =
-        shape === "polygon" && polygonPoints(typeof points === "string" ? points : undefined)?.length === 3;
-    return triangle ? "triangle" : shapeClassOf(shape);
+    const corners = shape === "polygon" ? polygonPoints(typeof points === "string" ? points : undefined) : null;
+    if (corners?.length === 3) {
+        return "triangle";
+    }
+    return corners !== null && isStar(corners) ? "star" : shapeClassOf(shape);
+}
+
+/**
+ * Whether a polygon is a star: five or more points, its corners alternately far from and near its middle, the near
+ * ones under 0.8 of the far ones' reach (yEd's star5, star6 and star8, read as polygons). A rounded or wavy outline
+ * (a cloud) has many more corners, or no such steady alternation.
+ * @param corners - its corners
+ * @returns whether it is
+ */
+function isStar(corners: readonly (readonly number[])[]): boolean {
+    const n = corners.length;
+    if (n < 10 || n > 24 || n % 2 !== 0) {
+        return false;
+    }
+    const [cx, cy] = [0, 1].map((k) => corners.reduce((sum, p) => sum + p[k], 0) / n);
+    const reach = corners.map(([x, y]) => Math.hypot(x - cx, y - cy));
+    const [even, odd] = [0, 1].map((k) => reach.filter((_, i) => i % 2 === k));
+    const under = (near: number[], far: number[]): boolean => Math.max(...near) < 0.8 * Math.min(...far);
+    return under(odd, even) || under(even, odd);
 }
 
 /**
@@ -146,6 +170,9 @@ export function polygonClassOf(
     }
     if (corners.length > 8 && fillsBoxRounded(corners)) {
         return "roundrect";
+    }
+    if (isStar(corners)) {
+        return "star";
     }
     return (
         ({ 3: "triangle", 6: "hexagon", 8: "octagon" } as Partial<Record<number, ShapeClass>>)[corners.length] ??
@@ -727,6 +754,16 @@ export function comparerEdgeIds(
 }
 
 /**
+ * The nodes a graph nests others in (graph-io's `parent` or `parents` column), by id: the ones the reference
+ * extractors read groups off.
+ * @param snapshot - the graph
+ * @returns their ids
+ */
+export function nestingNodes(snapshot: GraphSnapshot): Set<string> {
+    return new Set([...childrenOf(snapshot).keys()].map((row) => String(snapshot.ids.idOf(row))));
+}
+
+/**
  * Builds the scene from what was drawn. Call `readDrawn(element.graph)` after
  * `waitForStableFrame()` and hand its result here.
  * @param element - the mounted element, for its records and the requested styles
@@ -742,8 +779,10 @@ export function extractScene(element: Graphty, drawn: DrawnGraph, provenance: Gr
     const hidden = occluders(drawn.nodes);
     const nodes: SceneNode[] = [];
     // the nodes the file nests others in: the file styles draw each behind its members by the "node.groups" rule
-    // (`fileStyles/translate.ts`), which matches the file's containment (graph-io's `parent` or `parents` column)
-    const declared = new Set<string>();
+    // (`fileStyles/translate.ts`), which matches the file's containment (graph-io's `parent` or `parents` column);
+    // that rule's name is gone once the file's layers are folded to the cap (`fileStyles/fold.ts`;
+    // dot-synth-edges-clusters), so the containment is read off the data too
+    const declared = nestingNodes(session.data.snapshot());
     for (const record of session.data.nodes()) {
         const id = String(record.id);
         const d = drawn.nodes.get(id);

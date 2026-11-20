@@ -82,6 +82,8 @@ describe("the empty Fill color box", () => {
         const session = await openSample();
         const id = await openLayer(session, "Unpainted", { "node.size": 2 });
         await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
+        // Fill offers Color and Picture in a menu.
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
         const box = await waitFor(() => {
             const found = document.querySelector<HTMLInputElement>('[data-line="node.color"] input');
             assert.isNotNull(found);

@@ -87,6 +87,7 @@ import {
     typeOutline,
     YED_ARROWS,
     YED_LINES,
+    YED_OUTLINE_READS,
     YED_SHAPES,
     yedArcControl,
     yedArrowLength,
@@ -94,6 +95,7 @@ import {
     yedColor,
     yedDrawnWidth,
     yedFontName,
+    yedNearestShape,
     yedSpelled,
     yedValue,
 } from "../graphml/styles-yed.js";
@@ -1711,17 +1713,16 @@ function readOgdfLabelPlace(
 }
 
 /**
- * A yEd GML edge label's model and position, as `putYedEdgeLabel` keys them: a side slider with no stored box is at
- * its line's start; a center slider with none sits somewhere along the line that the file does not say, and a free
- * label's box is not in the file's coordinates, so neither is read.
+ * A yEd GML edge label's model and position, as `putYedEdgeLabel` keys them: a side or center slider with no stored box
+ * is at its line's start; a free label's box is not in the file's coordinates, so it is not read.
  * @param model - the label's `model`
  * @param position - its `position`
  * @param stored - whether the file stores its box
  * @returns the spot, or null for a place not read
  */
 function yedLabelSpot(model: string, position: unknown, stored: boolean): string | null {
-    if (!stored && model === "side_slider") {
-        return "side_slider/start";
+    if (!stored && (model === "side_slider" || model === "center_slider")) {
+        return `${model}/start`;
     }
     if (model === "free" || (!stored && model.endsWith("_slider"))) {
         return null;
@@ -2162,7 +2163,7 @@ function nodeGraphics(get: Get, approximate: Approximate): Rec {
     }
     const shape = get("shape");
     if (typeof shape === "string") {
-        const w = yedValue(YED_SHAPES, shape, shape === "vee" ? "triangle" : "rectangle");
+        const w = yedValue(YED_SHAPES, shape, yedNearestShape(shape));
         if (!w.exact) {
             approximate("shape", shape);
         }
@@ -2331,7 +2332,8 @@ function exactFromBlock(
     const notes = new StyleNotes();
     takeFromBlock(snapshot, text, "gml", (target) => ({
         values: read[target],
-        properties: GML_STYLE_CAPABILITIES[target],
+        properties:
+            target === "node" ? [...GML_STYLE_CAPABILITIES.node, ...YED_OUTLINE_READS] : GML_STYLE_CAPABILITIES[target],
         writes: GML_STYLE_CAPABILITIES[target],
         readBack: (_i, want) => {
             const back = writtenAndReadBack(target, want, notes);

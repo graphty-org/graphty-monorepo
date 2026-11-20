@@ -86,7 +86,7 @@ describe("Export > Data: what a format cannot hold, in the app's words", () => {
 
         await userEvent.keyboard("{Control>}e{/Control}");
         const dialog = await screen.findByRole("dialog", { name: "Export" });
-        await userEvent.click(within(dialog).getByText("Data"));
+        await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"));
 
         await pick(dialog, "Format", "CSV");
         await pick(dialog, "Table", "Edges");
@@ -138,7 +138,7 @@ async function openData(
     await load(session);
     await userEvent.keyboard("{Control>}e{/Control}");
     const dialog = await screen.findByRole("dialog", { name: "Export" });
-    await userEvent.click(within(dialog).getByText("Data"));
+    await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"));
     return { dialog, element };
 }
 

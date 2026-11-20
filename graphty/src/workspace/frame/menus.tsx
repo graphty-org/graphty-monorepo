@@ -81,7 +81,7 @@ function CommandItem({ id }: Readonly<{ id: string }>): React.JSX.Element | null
     return (
         <CommandMenuItem
             label={command.label}
-            shortcut={command.keys?.[0] ?? command.rowKeys?.[0]}
+            shortcut={command.keys?.[0] ?? command.rowKeys?.[0] ?? command.whileShownKeys?.[0]}
             reason={disabledReason}
             onRun={run}
         />

@@ -606,6 +606,7 @@ export interface ChannelValues {
     "edge.wavePeriod": number;
     "edge.dashLength": number;
     "edge.dashGap": number;
+    "edge.dashArray": string;
     "edge.curvature": boolean;
     "edge.bends": string;
     "edge.fanSpacing": number;
@@ -757,6 +758,7 @@ export interface ChannelValues {
     "node.xlabelLocation": LabelLocation;
     "node.xlabelOffsetX": number;
     "node.xlabelOffsetY": number;
+    "node.xlabelTextAlign": LabelTextAlign;
     "edge.labelTable": string;
     "edge.xlabel": string;
     "edge.xlabelStyle": LabelStyle;
@@ -4736,6 +4738,20 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "`edge.width`, repeating from the edge's start, the last dash cut where the edge ends. Unset, the " +
             "first and last touch the edge's ends and the rest spread between them.",
     },
+    "edge.dashArray": {
+        channel: "edge.dashArray",
+        target: "edge",
+        plainName: "Edge Dash Array",
+        shortName: "Dash array",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.dashArray",
+        renderable: true,
+        caveat:
+            "A pattern of several dash lengths on a dashed, dotted or dash-dot edge: dashes and gaps alternating from " +
+            "the edge's start, in the units of `edge.width`, separated by spaces or commas (`8 1 2 1`). It replaces " +
+            "the edge's own elements, dash length and gap; unset, they hold.",
+    },
     "edge.curvature": {
         channel: "edge.curvature",
         target: "edge",
@@ -5199,6 +5215,20 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "xlabel.offsetY",
         renderable: true,
         caveat: "How far the external label is moved down from where its location puts it, in scene units.",
+    },
+    "node.xlabelTextAlign": {
+        channel: "node.xlabelTextAlign",
+        target: "node",
+        plainName: "Node External Label Text Align",
+        shortName: "External label text align",
+        group: "text",
+        accepts: "enum",
+        values: LABEL_TEXT_ALIGN_VALUES,
+        stylePath: "xlabel.textAlign",
+        renderable: true,
+        caveat:
+            "Lines up the lines of an external label of more than one line with one another: their left edges, " +
+            "their middles or their right edges. Unset, as the label's.",
     },
     "edge.labelTable": {
         channel: "edge.labelTable",

@@ -3,6 +3,8 @@
  * label locations and colors become the fidelity scene's classes. The reader itself runs in the
  * browser (`fidelity.test.ts`); these are the parts that decide what a value means.
  */
+import { GraphBuilder } from "@graphty/graph-format";
+import { dotImporter } from "@graphty/graph-io/dot";
 import { assert, describe, it } from "vitest";
 
 import type { SceneNode } from "../../../graph-io/test/fidelity/scene";
@@ -11,12 +13,14 @@ import { NODE_SHAPES } from "../../src/session/styles/fileStyles/shapes";
 import type { DrawnLabel, DrawnNode } from "./drawn-scene";
 import {
     arrowClassOf,
+    askedShapeClass,
     capClassOf,
     colorOf,
     GRAPHTY_GAPS,
     groupsOf,
     labelPositionOf,
     lineStyleOf,
+    nestingNodes,
     occluders,
     polygonClassOf,
     sceneNode,
@@ -268,6 +272,17 @@ describe("what the graphty scene extractor counts as hidden, and as a group", ()
         );
     });
 
+    it("reads the nodes a graph nests others in off its data, which no folding of the file's layers loses", async () => {
+        // dot-synth-edges-clusters: its file styles make more layers than the cap, so the rule that draws each cluster
+        // behind its members is folded and its name gone; the clusters are still the graph's nesting
+        const builder = new GraphBuilder({ directed: true });
+        const dot = "digraph { subgraph cluster_a { a; b; subgraph cluster_b { c } } d; a -> d }";
+        await dotImporter.import(new TextEncoder().encode(dot), builder, { ids: "keep" });
+        const snapshot = builder.freeze();
+        const nesting = nestingNodes(snapshot);
+        assert.deepEqual([...nesting].sort(), ["cluster_a", "cluster_b"]);
+    });
+
     it("shows a label drawn under one pixel tall, and leaves its size to fontSize", () => {
         // cx-ddram: a 1 pt label drawn in proportion at 0.09 px in a frame that shrinks the drawing
         const label: DrawnLabel = {
@@ -371,6 +386,11 @@ describe("the graphty scene extractor's vocabulary", () => {
         assert.strictEqual(polygonClassOf("1,0.7 -0.6,0.7 -1,-0.7 0.6,-0.7"), "other", "a parallelogram");
         assert.strictEqual(polygonClassOf("1,0 0.5,1 -0.5,1 -1,0 -0.5,-1 0.5,-1"), "hexagon");
         assert.strictEqual(polygonClassOf("1,0 0,1 -1,0 0,-1 0.5,-0.5 0.7,-0.2 0.9,-0.1"), "other");
+        // yEd's star5, read as a polygon, is still a star
+        const star5 =
+            "0,-1 0.3527,-0.4854 0.9511,-0.309 0.5706,0.1854 0.5878,0.809 0,0.6 -0.5878,0.809 -0.5706,0.1854 -0.9511,-0.309 -0.3527,-0.4854";
+        assert.strictEqual(polygonClassOf(star5), "star");
+        assert.strictEqual(askedShapeClass("polygon", star5), "star");
         // without corners graphty draws the node's box
         assert.strictEqual(polygonClassOf(undefined), "rect");
     });

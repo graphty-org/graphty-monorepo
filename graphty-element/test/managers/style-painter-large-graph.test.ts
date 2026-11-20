@@ -40,7 +40,7 @@ async function painted(large: () => boolean, detail?: "full" | "low"): Promise<S
         measured: () => undefined,
     });
     const styles = createStylesApi({ elements, base: [], repaint: engine.repaint });
-    const painter = new StylePainter(undefined, undefined, large);
+    const painter = new StylePainter(undefined, undefined, undefined, large);
     painter.bind(engine);
     if (detail !== undefined) {
         await styles.add({

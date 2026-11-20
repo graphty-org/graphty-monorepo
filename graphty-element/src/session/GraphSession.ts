@@ -23,6 +23,7 @@ import {
 } from "../acceleration";
 import { sessionColumns } from "../algorithms/input/columns";
 import { shareInputs } from "../algorithms/input/ScopedInput";
+import type { Tour } from "../camera/tour";
 import type { CameraState } from "../camera/types";
 import { arrangedDimension, LAYOUT_CATALOG, LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
@@ -69,6 +70,7 @@ import { readProjectConfig } from "./commands/config";
 import { declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
+import { holdStartingCameras, writeStartingViews } from "./commands/view";
 import {
     calibrateOnce,
     type CostEstimate,
@@ -146,7 +148,8 @@ import {
     type RunsApi,
     type SessionRunsApi,
 } from "./runs";
-import { canonicalize, frozenSelection, type LiveKeyword } from "./runs/runId";
+import { canonicalize, freezeScope, frozenSelection, type LiveKeyword } from "./runs/runId";
+import type { RunLiveScope } from "./runs/types";
 import {
     type ComponentLabels,
     createScopeApi,
@@ -240,6 +243,7 @@ import type {
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    SavedView,
     SessionAnnotations,
     SessionCapabilities,
     SessionCatalogApi,
@@ -255,8 +259,10 @@ import type {
     SessionRecordSource,
     SessionRunsOptions,
     SessionStatus,
+    SessionTours,
     SessionViews,
     SettingEffect,
+    StartingCamera,
     TransactionOptions,
     TransactionScope,
 } from "./types";
@@ -308,6 +314,8 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
      * @returns stops the delivery
      */
     readonly followRenumbering?: (follower: FreezeFollower) => () => void;
+    /** Let the builder go while nothing writes the graph; see `GraphStore.releaseIdle`. */
+    readonly releaseIdle?: () => void;
 }
 
 /**
@@ -409,8 +417,10 @@ const TX_PARTS = [
     "visibility",
     "styles",
     "shaders",
+    "assets",
     "time",
     "views",
+    "tours",
     "annotations",
     "positions",
     "config",
@@ -587,6 +597,7 @@ class Session implements ElementSession {
     readonly styles: SessionStylesApi;
     readonly shaders: SessionShaders;
     readonly views: SessionViews;
+    readonly tours: SessionTours;
     readonly annotations: SessionAnnotations;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
@@ -714,6 +725,17 @@ class Session implements ElementSession {
         this.unwatchCeilings = this.ceilings.onChange(changed);
         let version = 0;
         this.dispatcher = parts.dispatcher;
+        // A model's own settings live in the project (undone and saved with it); its records show them.
+        const { assets } = this;
+        assets.bindDefaults({
+            read: (id) => this.dispatcher.state.modelDefaults.get(id),
+            dispatch: (command) => this.dispatcher.dispatch(command),
+        });
+        this.dispatcher.lane.register("modelDefaults", (rendered, target, dirty) => {
+            assets.refreshDefaults(
+                [...dirty].filter((id) => rendered.modelDefaults.get(id) !== target.modelDefaults.get(id)),
+            );
+        });
         // A collapse is worked out from the graph once the loads ahead of it have landed.
         // Inside a transaction or a command (`tx.groups`, a project opening) the steps join it at
         // once, as a door called through a routed facade does; on their own they are one step,
@@ -755,6 +777,10 @@ class Session implements ElementSession {
                 slices: change.slices as readonly ProjectSlice[],
                 cause: change.cause,
             });
+            // Quiet: no command runs and every pass has run, so the builder may go until the next write.
+            if (this.dispatcher.idle) {
+                this.store.releaseIdle?.();
+            }
         };
         // A command that replaces the project is announced before it runs (autosave keeps the
         // work it replaces); chained, because a test may spy here too.
@@ -789,7 +815,10 @@ class Session implements ElementSession {
         LANES.set(this, this.store);
         registerSessionRuns(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
-        this.views = viewsOf(this.dispatcher);
+        this.views = viewsOf(this.dispatcher, (names) => {
+            publish(this.watchers, "views:seeded", { names });
+        });
+        this.tours = toursOf(this.dispatcher);
         this.annotations = annotationsOf(this.dispatcher);
         this.runner = new LayoutRunner({
             // The working graph, never the store: a hidden node is not laid out.
@@ -1862,12 +1891,6 @@ interface LayoutDrive {
 }
 
 /**
- * The saved camera views: the dispatcher's `views` slice, read as a map, with the two verbs that
- * write it.
- * @param dispatcher - The dispatcher.
- * @returns The views.
- */
-/**
  * The `layout` slice with its verbs.
  * @param dispatcher - The session's dispatcher, whose state is read.
  * @param dispatch - Where the verbs go: the session's dispatch, or a transaction's.
@@ -2005,8 +2028,25 @@ function annotationsOf(dispatcher: Dispatcher): SessionAnnotations {
     });
 }
 
-function viewsOf(dispatcher: Dispatcher): SessionViews {
-    const held = dispatcher.state.views;
+/**
+ * The saved camera views: the dispatcher's `views` slice, read as a map in project order, with the
+ * verbs that write it.
+ * @param dispatcher - The dispatcher.
+ * @param seeded - Told the names the starting cameras wrote into the baseline.
+ * @returns The views.
+ */
+function viewsOf(dispatcher: Dispatcher, seeded: (names: readonly string[]) => void): SessionViews {
+    const { state } = dispatcher;
+    const held = state.views;
+    /**
+     * The views as entries, in project order.
+     * @returns The entries.
+     */
+    const ordered = (): [string, SavedView][] =>
+        state.viewOrder.flatMap((name) => {
+            const view = held.get(name);
+            return view === undefined ? [] : [[name, view] as [string, SavedView]];
+        });
     const views: SessionViews = Object.freeze({
         get size() {
             return held.size;
@@ -2014,26 +2054,142 @@ function viewsOf(dispatcher: Dispatcher): SessionViews {
         get: (name: string) => held.get(name),
         has: (name: string) => held.has(name),
         forEach: (
-            visit: (camera: CameraState, name: string, map: ReadonlyMap<string, CameraState>) => void,
+            visit: (view: SavedView, name: string, map: ReadonlyMap<string, SavedView>) => void,
             self?: unknown,
         ) => {
-            held.forEach((camera, name) => {
-                visit.call(self, camera, name, views);
-            });
+            for (const [name, view] of ordered()) {
+                visit.call(self, view, name, views);
+            }
         },
-        entries: () => held.entries(),
-        keys: () => held.keys(),
-        values: () => held.values(),
-        [Symbol.iterator]: () => held.entries(),
-        save: async (saved: readonly { readonly name: string; readonly camera: CameraState }[]) => {
-            await dispatcher.dispatch({ op: "view.save", views: saved });
+        entries: () => ordered()[Symbol.iterator](),
+        keys: () =>
+            ordered()
+                .map(([name]) => name)
+                .values(),
+        values: () =>
+            ordered()
+                .map(([, view]) => view)
+                .values(),
+        [Symbol.iterator]: () => ordered()[Symbol.iterator](),
+        save: async (
+            saved: readonly {
+                readonly name: string;
+                readonly camera?: CameraState;
+                readonly follows?: string;
+                readonly key?: string | null;
+            }[],
+        ) => {
+            // The camera is read once, here, so redo and replay never read the live camera again.
+            const resolved = saved.map((view) =>
+                view.camera === undefined && view.follows === undefined
+                    ? { ...view, camera: currentCamera(dispatcher) }
+                    : view,
+            );
+            await dispatcher.dispatch({ op: "view.save", views: resolved });
         },
         remove: async (names: readonly string[]) => {
             await dispatcher.dispatch({ op: "view.remove", names });
         },
+        rename: async (from: string, to: string) => {
+            await dispatcher.dispatch({ op: "view.rename", from, to });
+        },
+        move: async (name: string, index: number) => {
+            await dispatcher.dispatch({ op: "view.move", name, index });
+        },
+        setKey: async (name: string, key: string | null) => {
+            await dispatcher.dispatch({ op: "view.key", name, key });
+        },
+        setStartingCameras: async (list: readonly StartingCamera[] | null) => {
+            const starting = holdStartingCameras(dispatcher, list);
+            if (starting === null || state.config.get("startingCamerasWritten") === true) {
+                return;
+            }
+            // A project nobody has changed yet gets them as its starting state, never a step;
+            // after a change they are one step, so undo takes them out with their record.
+            if (dispatcher.seedable) {
+                let names: readonly string[] = [];
+                dispatcher.seed((draft) => {
+                    names = writeStartingViews(state, starting, draft);
+                });
+                seeded(names);
+                return;
+            }
+            await dispatcher.dispatch({ op: "view.starting", views: starting });
+        },
     });
 
     return views;
+}
+
+/**
+ * The saved camera tours: the dispatcher's `tours` slice, read as a map in project order, with the
+ * verbs that write it.
+ * @param dispatcher - The dispatcher.
+ * @returns The tours.
+ */
+function toursOf(dispatcher: Dispatcher): SessionTours {
+    const { state } = dispatcher;
+    /**
+     * The tours as entries, in project order.
+     * @returns The entries.
+     */
+    const entries = (): [string, Tour][] => state.tours.map((saved): [string, Tour] => [saved.name, saved.tour]);
+    const tours: SessionTours = Object.freeze({
+        get size() {
+            return state.tours.length;
+        },
+        get: (name: string) => state.tours.find((saved) => saved.name === name)?.tour,
+        has: (name: string) => state.tours.some((saved) => saved.name === name),
+        forEach: (visit: (tour: Tour, name: string, map: ReadonlyMap<string, Tour>) => void, self?: unknown) => {
+            for (const [name, tour] of entries()) {
+                visit.call(self, tour, name, tours);
+            }
+        },
+        entries: () => entries()[Symbol.iterator](),
+        keys: () =>
+            entries()
+                .map(([name]) => name)
+                .values(),
+        values: () =>
+            entries()
+                .map(([, tour]) => tour)
+                .values(),
+        [Symbol.iterator]: () => entries()[Symbol.iterator](),
+        save: async (saved: readonly { readonly name: string; readonly tour: Tour }[]) => {
+            await dispatcher.dispatch({ op: "tour.save", tours: saved });
+        },
+        remove: async (names: readonly string[]) => {
+            await dispatcher.dispatch({ op: "tour.remove", names });
+        },
+        rename: async (from: string, to: string) => {
+            await dispatcher.dispatch({ op: "tour.rename", from, to });
+        },
+        move: async (name: string, index: number) => {
+            await dispatcher.dispatch({ op: "tour.move", name, index });
+        },
+    });
+
+    return tours;
+}
+
+/**
+ * Where the renderer's camera stands now, for a view saved with no camera.
+ * @param dispatcher - The dispatcher, whose services hold the renderer's camera.
+ * @returns The state.
+ * @throws A `GraphtyError` with `E_UNSUPPORTED` when the session draws nothing, as `view.camera`
+ *     refuses, or `{ reason: "xr", mode }` while immersive.
+ */
+function currentCamera(dispatcher: Dispatcher): CameraState {
+    const { camera } = dispatcher.services;
+    if (camera === undefined) {
+        throw new GraphtyError({
+            code: "E_UNSUPPORTED",
+            message: "This session draws nothing, so it has no camera to save.",
+            source: "view",
+        });
+    }
+
+    return camera.current();
 }
 
 /**
@@ -2103,6 +2259,9 @@ function configOf(
         },
         get timelineHiddenAdded() {
             return read().timelineHiddenAdded;
+        },
+        get startingCamerasWritten() {
+            return read().startingCamerasWritten;
         },
         get runPlacement() {
             return read().runPlacement;
@@ -3288,6 +3447,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // And the query engine, below that.
             search: (text, request) => requireQuery(query).search(text, request),
             textTest: (text, mode, target, only) => requireQuery(query).textTest(text, mode, target, only),
+            textMatch: (text, mode, target, only) => requireQuery(query).textMatch(text, mode, target, only),
             matchWhere: (where, target) =>
                 new Set<NodeId | EdgeId>(
                     target === "node" ? requireQuery(query).nodes(where) : requireQuery(query).edges(where),
@@ -3662,6 +3822,29 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const canned: CannedOutcomes = new Map();
     // What a run compares to tell "the data changed under me" from "my scope moved".
     const dataNow = (): string => dataDigest(dispatcher.state.graph, snapshot);
+    // What the live keywords a scope names stand for now, so a saved run can be resolved again
+    // under them on open.
+    const liveScopeOf = (spec: Scope): { live?: RunLiveScope } => {
+        const used = new Set<LiveKeyword>();
+        freezeScope(spec, (keyword) => used.add(keyword));
+        if (used.size === 0) {
+            return {};
+        }
+
+        const visible = used.has("visible")
+            ? {
+                  visible: {
+                      filter: visibility.filter,
+                      conditions: visibility.conditions,
+                      window: visibility.window,
+                  },
+              }
+            : {};
+        const selected = used.has("selection")
+            ? { selection: frozenSelection(requireSelection(selection).nodeMembers().ids()) }
+            : {};
+        return { live: { ...visible, ...selected } };
+    };
     const runs = createRunsApi({
         queue,
         // Finished runs are the `runs` slice, recorded in this session's history.
@@ -3694,9 +3877,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                                   : { ...bounds, nodes: inside.nodes, edges: inside.edges },
                       };
 
+            const live = liveScopeOf(spec);
             return kept === undefined
-                ? { reading, dataDigest: data, ...window }
-                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data, ...window };
+                ? { reading, dataDigest: data, ...window, ...live }
+                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data, ...window, ...live };
         },
         dataDigest: () => dataNow(),
         defaultWeight: () => data.weightKey(),

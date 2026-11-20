@@ -7,21 +7,20 @@
  *
  * Every mesh is a 12-triangle cube in one strong color, so a test can check what the picture
  * shows: vertex-colored variants are red, textured ones green (an 8 x 8 picture), plain material
- * colors (MTL `Kd`, glTF `baseColorFactor`, `.babylon` `diffuse`) blue; point clouds and splats
- * are a 6 x 6 x 6 grid of red points.
+ * colors (MTL `Kd`, glTF `baseColorFactor`, `.babylon` `diffuse`) blue; point clouds are a
+ * 6 x 6 x 6 grid of red points.
  *
  * What it needs beyond the repository's dev dependencies:
  * - ImageMagick's `convert` for the GIF, WebP, AVIF and DDS pictures;
- * - the network, once, for the files no npm package can write (listed in SOURCES.md): Babylon's
- *   compressed splat PLY, `.spz` and `.sog` samples and one KTX2 texture. A file already in its
- *   folder is not downloaded again. Tests never download anything.
+ * - the network, once, for the file no npm package can write (listed in SOURCES.md): one KTX2
+ *   texture. A file already in its folder is not downloaded again. Tests never download anything.
  */
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { deflateSync } from "node:zlib";
+import { deflateSync, gzipSync } from "node:zlib";
 
 import { NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS, EXTMeshoptCompression, KHRDracoMeshCompression } from "@gltf-transform/extensions";
@@ -29,8 +28,9 @@ import draco3d from "draco3dgltf";
 import { zipSync } from "fflate";
 import { MeshoptEncoder } from "meshoptimizer/encoder";
 
+import { fbxAscii, fbxBinary, type FbxCube, fbxCube } from "./fbx.js";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SH_C0 = 0.28209479177387814;
 
 /** What the tests expect of one variant. */
 interface Variant {
@@ -40,7 +40,7 @@ interface Variant {
     /** How the app's dialog test hands them over: files chosen, or a folder. */
     readonly upload: "files" | "folder";
     readonly format: string;
-    readonly geometry?: "mesh" | "points" | "splats";
+    readonly geometry?: "mesh" | "points";
     readonly encoding?: "ascii" | "binary" | "binaryBigEndian";
     readonly compression?: string[];
     readonly gltfVersion?: "1.0";
@@ -55,7 +55,7 @@ interface Variant {
     /** Accepted, but drawing it fails with one of these codes. */
     readonly drawFails?: string[];
     /** The axis the summary says points up in the file. */
-    readonly upAxis?: "y" | "z" | "-y";
+    readonly upAxis?: "y" | "z";
     /** The color the picture shows at the top, and the one at the bottom, when drawn upright. */
     readonly upright?: { readonly top: "red" | "green" | "blue"; readonly bottom: "red" | "green" | "blue" };
     /** A short description for people. */
@@ -845,24 +845,6 @@ const PLY_FACES = Array.from({ length: 12 }, (_, t) => [3, ...CUBE.indices.slice
 const XYZN = ["float x", "float y", "float z", "float nx", "float ny", "float nz"];
 const FACE = ["list uchar int vertex_indices"];
 
-/**
- * The point grid as 32-byte splat rows, red unless `colorOf` says otherwise.
- * @param colorOf - The r, g, b of a point.
- * @returns The rows.
- */
-function splatRows(colorOf: (p: number[]) => number[] = () => [255, 0, 0]): Uint8Array {
-    const out = new Uint8Array(GRID.length * 32);
-    const view = new DataView(out.buffer);
-    GRID.forEach((p, i) => {
-        p.forEach((v, k) => view.setFloat32(i * 32 + k * 4, v, true));
-        for (let k = 0; k < 3; k++) {
-            view.setFloat32(i * 32 + 12 + k * 4, 0.04, true);
-        }
-        out.set([...colorOf(p), 255, 128, 128, 128, 255], i * 32 + 24);
-    });
-    return out;
-}
-
 /** Green above, red below, for a file whose Y points up. */
 const GREEN_ABOVE_Y = (p: number[]): number[] => (p[1] > 0 ? [0, 255, 0] : [255, 0, 0]);
 
@@ -888,7 +870,6 @@ async function downloaded(id: string, name: string, url: string): Promise<Uint8A
     return new Uint8Array(await response.arrayBuffer());
 }
 
-const SPLATS = "https://assets.babylonjs.com/splats";
 const KTX2 =
     "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/ChronographWatch/glTF-KTX-BasisU/dgg_basecolor.ktx2";
 
@@ -898,18 +879,17 @@ const KTX2 =
 const up = (format: string): string[] => (format === "stl" || format === "ply" ? ["W_MODEL_UP_GUESSED"] : []);
 const mesh = { geometry: "mesh" as const, warnings: [] as string[], refused: null, upload: "files" as const };
 
+/** The variants usd.py writes. */
+const USD_VARIANTS = ["usda", "usdc", "usd-layers", "usdz", "usda-z-up", "usda-animated", "usdz-skinned-animated"];
+
 async function main(): Promise<void> {
     const kept = new Map<string, Uint8Array>();
-    for (const [id, name, url] of [
-        ["ply-splat-compressed", "combined_SPZv3.compressed.ply", `${SPLATS}/combined_SPZv3.compressed.ply`],
-        ["spz", "combined_SPZv3.spz", `${SPLATS}/combined_SPZv3.spz`],
-        ["sog", "combined_SPZv3.sog", `${SPLATS}/combined_SPZv3.sog`],
-        ["gltf-ktx2", "cube.ktx2", KTX2],
-    ] as const) {
+    for (const [id, name, url] of [["gltf-ktx2", "cube.ktx2", KTX2]] as const) {
         kept.set(id, await downloaded(id, name, url));
     }
 
-    for (const entry of readdirVariants()) {
+    // usd.py's folders are kept: this script lists them.
+    for (const entry of readdirVariants().filter((name) => !USD_VARIANTS.includes(name))) {
         rmSync(join(HERE, entry), { recursive: true, force: true });
     }
 
@@ -1019,7 +999,7 @@ async function main(): Promise<void> {
         "gltf-morph-animated",
         { morph: true, animatedWeights: true },
         "blue",
-        "GLB whose one clip moves a morph target's weight (held at rest when played)",
+        "GLB whose one clip, 'grow', moves a morph target's weight from 0 to 1",
         ["W_MODEL_HAS_ANIMATIONS"],
     );
     gltfOne(
@@ -1047,8 +1027,8 @@ async function main(): Promise<void> {
     gltfOne(
         "gltf-transmission-used",
         { transmissionUsed: true },
-        "blue",
-        "GLB using KHR_materials_transmission (drawn opaque)",
+        "any",
+        "GLB using KHR_materials_transmission (drawn see-through, its blue faint)",
         ["W_MODEL_EXTENSION_IGNORED"],
     );
     {
@@ -1087,8 +1067,8 @@ async function main(): Promise<void> {
                 id: "gltf-transmission-required",
                 format: "gltf",
                 compression: ["webp"],
-                color: "green",
-                what: ".gltf shaped as ChronographWatch glTF-WEBP: WebP, transmission and texture transform required, three 2048 x 2048 pictures (drawn opaque)",
+                color: "any",
+                what: ".gltf shaped as ChronographWatch glTF-WEBP: WebP, transmission and texture transform required, three 2048 x 2048 pictures (drawn see-through, its green faint)",
                 warnings: ["W_MODEL_EXTENSION_IGNORED"],
             },
             {
@@ -1517,7 +1497,7 @@ async function main(): Promise<void> {
             "points.ply": ply("binary_little_endian", [{ element: "vertex", properties: pointProps, rows: pointRows }]),
         },
     );
-    // A point cloud is not a Gaussian splat: its Y points up, so it is drawn as it is written.
+    // A point cloud's Y points up, so it is drawn as it is written.
     write(
         {
             ...points,
@@ -1533,98 +1513,6 @@ async function main(): Promise<void> {
             ]),
         },
     );
-    // Gaussian splats store Y pointing down (the 3D Gaussian splatting convention).
-    const splats = {
-        ...mesh,
-        geometry: "splats" as const,
-        upAxis: "-y" as const,
-        warnings: ["W_MODEL_UP_GUESSED", "W_MODEL_POINTS_APPROXIMATED"],
-    };
-    write(
-        {
-            ...splats,
-            format: "ply",
-            id: "ply-splat",
-            encoding: "binary",
-            color: "red",
-            what: "3D Gaussian splat PLY",
-        },
-        {
-            "splat.ply": ply("binary_little_endian", [
-                {
-                    element: "vertex",
-                    properties: [
-                        "x",
-                        "y",
-                        "z",
-                        "f_dc_0",
-                        "f_dc_1",
-                        "f_dc_2",
-                        "opacity",
-                        "scale_0",
-                        "scale_1",
-                        "scale_2",
-                        "rot_0",
-                        "rot_1",
-                        "rot_2",
-                        "rot_3",
-                    ].map((n) => `float ${n}`),
-                    rows: GRID.map((p) => [
-                        ...p,
-                        0.5 / SH_C0,
-                        -0.5 / SH_C0,
-                        -0.5 / SH_C0,
-                        5,
-                        Math.log(0.04),
-                        Math.log(0.04),
-                        Math.log(0.04),
-                        1,
-                        0,
-                        0,
-                        0,
-                    ]),
-                },
-            ]),
-        },
-    );
-    write(
-        {
-            ...splats,
-            format: "ply",
-            id: "ply-splat-compressed",
-            encoding: "binary",
-            color: "any",
-            what: "PlayCanvas compressed splat PLY (Babylon sample)",
-        },
-        {
-            "combined_SPZv3.compressed.ply": kept.get("ply-splat-compressed") as Uint8Array,
-        },
-    );
-    write(
-        { ...splats, format: "splat", id: "splat", color: "red", what: "raw .splat (32-byte rows)" },
-        { "points.splat": splatRows() },
-    );
-    // Its Y points down, so the green half (negative Y in the file) must be drawn on top.
-    write(
-        {
-            ...splats,
-            format: "splat",
-            id: "splat-upright",
-            color: "any",
-            upright: { top: "green", bottom: "red" },
-            what: "raw .splat, green on top and red below with Y pointing down",
-        },
-        { "points.splat": splatRows((p) => GREEN_ABOVE_Y([p[0], -p[1], p[2]])) },
-    );
-    write(
-        { ...splats, format: "spz", id: "spz", color: "any", what: "Niantic .spz (Babylon sample)" },
-        { "combined_SPZv3.spz": kept.get("spz") as Uint8Array },
-    );
-    write(
-        { ...splats, format: "sog", id: "sog", color: "any", what: "PlayCanvas .sog bundle (Babylon sample)" },
-        { "combined_SPZv3.sog": kept.get("sog") as Uint8Array },
-    );
-
     // .babylon (left-handed: the winding is reversed)
     const babylonIndices = Array.from({ length: 12 }, (_, t) => [
         CUBE.indices[t * 3],
@@ -1690,6 +1578,116 @@ async function main(): Promise<void> {
         },
     );
 
+    // FBX, binary and ASCII, written by ./fbx.ts.
+    const colorOf = (cube: FbxCube): "red" | "green" | "blue" => {
+        if (cube.texture !== undefined) {
+            return "green";
+        }
+        return cube.vertexColors === undefined ? "blue" : "red";
+    };
+    const BLUE: [number, number, number] = [0, 0, 1];
+    const fbx = (id: string, cube: FbxCube, what: string, extra: Partial<Variant> = {}, ascii = false): void => {
+        const tree = fbxCube(cube, CUBE.positions, CUBE.uvs);
+        const files: Record<string, Uint8Array | string> = { "cube.fbx": ascii ? fbxAscii(tree) : fbxBinary(tree) };
+        if (cube.texture !== undefined && !cube.texture.embedded) {
+            files[cube.texture.name] = cube.texture.bytes;
+        }
+        write(
+            {
+                ...mesh,
+                id,
+                format: "fbx",
+                encoding: ascii ? "ascii" : "binary",
+                color: colorOf(cube),
+                warnings: cube.clip === undefined ? [] : ["W_MODEL_HAS_ANIMATIONS"],
+                what,
+                ...(cube.texture !== undefined && !cube.texture.embedded ? { upload: "folder" as const } : {}),
+                ...extra,
+            },
+            files,
+        );
+    };
+    fbx("fbx", { color: BLUE }, "binary FBX 7.4, plain material color");
+    fbx("fbx-ascii", { color: BLUE }, "ASCII FBX 7.4, plain material color", {}, true);
+    fbx(
+        "fbx-textured",
+        { texture: { name: "textures/cube.png", bytes: png(GREEN), embedded: false } },
+        "binary FBX whose texture is a file beside it, named by a relative path and an absolute one from its author's disk",
+    );
+    fbx(
+        "fbx-embedded-texture",
+        { texture: { name: "cube.png", bytes: png(GREEN), embedded: true } },
+        "binary FBX with its texture embedded in the file",
+    );
+    fbx(
+        "fbx-ascii-embedded-texture",
+        { texture: { name: "cube.png", bytes: png(GREEN), embedded: true } },
+        "ASCII FBX with its texture embedded in the file (base64)",
+        {},
+        true,
+    );
+    fbx("fbx-vertex-colors", { vertexColors: [1, 0, 0] }, "binary FBX with vertex colors");
+    fbx("fbx-animated", { color: BLUE, clip: "spin" }, "binary FBX whose one clip, 'spin', turns the cube about Z");
+    fbx(
+        "fbx-skinned-animated",
+        { color: BLUE, clip: "turn" },
+        "binary FBX skinned to one bone, whose one clip, 'turn', turns the bone about Z",
+    );
+    fbx(
+        "fbx-skinned-two-parts",
+        { color: BLUE, clip: "turn", secondPart: true },
+        "binary FBX of two cubes skinned to one bone, each with its own bind matrix, one clip 'turn'",
+    );
+    fbx(
+        "fbx-morph-animated",
+        { color: BLUE, clip: "grow" },
+        "binary FBX whose one clip, 'grow', moves a blend shape channel from 0 to 100%",
+    );
+
+    // USD, written by ./usd.py with OpenUSD (no npm package writes a binary layer or a USDZ).
+    const usd = (id: string, format: "usd" | "usdz", what: string, extra: Partial<Variant> = {}): void => {
+        const dir = join(HERE, id);
+        if (!existsSync(dir)) {
+            throw new Error(`${id} is missing: run test/fixtures/variants/usd.py first (see SOURCES.md)`);
+        }
+        const files: Record<string, Uint8Array> = {};
+        const walk = (sub: string): void => {
+            for (const name of readdirSync(join(dir, sub)).sort()) {
+                const rel = sub === "" ? name : `${sub}/${name}`;
+                if (statSync(join(dir, rel)).isDirectory()) {
+                    walk(rel);
+                } else {
+                    files[rel] = readFileSync(join(dir, rel));
+                }
+            }
+        };
+        walk("");
+        const ordered = Object.fromEntries(
+            Object.entries(files).sort(([a], [b]) => Number(/\.usd[az]?$/.test(b)) - Number(/\.usd[az]?$/.test(a))),
+        );
+        write({ ...mesh, id, format, color: "blue", what, ...extra }, ordered);
+    };
+    usd("usda", "usd", "text USD layer (.usda), UsdPreviewSurface color", { encoding: "ascii" });
+    usd("usdc", "usd", "binary USD layer (.usdc), UsdPreviewSurface color", { encoding: "binary" });
+    usd("usd-layers", "usd", "text USD layer referencing a binary layer in geo/, whose picture is in textures/", {
+        encoding: "ascii",
+        color: "green",
+        upload: "folder",
+    });
+    usd("usdz", "usdz", "USDZ package of a binary layer and its picture", { color: "green" });
+    usd("usda-z-up", "usd", "Z-up text USD layer, red on top (+Z) and blue below, drawn upright", {
+        encoding: "ascii",
+        color: "red",
+        upright: { top: "red", bottom: "blue" },
+    });
+    usd("usda-animated", "usd", "text USD layer whose stage turns the cube about Y over a second", {
+        encoding: "ascii",
+        warnings: ["W_MODEL_HAS_ANIMATIONS"],
+    });
+    usd("usdz-skinned-animated", "usdz", "USDZ of a cube skinned to one joint, whose stage turns the joint", {
+        warnings: ["W_MODEL_HAS_ANIMATIONS"],
+    });
+
     // Recognized and refused.
     const refused = (id: string, format: string, name: string, bytes: Uint8Array | string, what: string): void => {
         write(
@@ -1706,13 +1704,6 @@ async function main(): Promise<void> {
         );
     };
     refused(
-        "fbx",
-        "fbx",
-        "cube.fbx",
-        concat([encoder.encode("Kaydara FBX Binary  "), new Uint8Array([0, 0x1a, 0, 0xe8, 0x1c, 0, 0])]),
-        "FBX (refused)",
-    );
-    refused(
         "dae",
         "dae",
         "cube.dae",
@@ -1720,20 +1711,88 @@ async function main(): Promise<void> {
         "COLLADA (refused)",
     );
     refused("3mf", "3mf", "cube.3mf", zipSync({ "3D/3dmodel.model": encoder.encode("<model/>") }), "3MF (refused)");
-    refused(
-        "usdz",
-        "usdz",
-        "cube.usdz",
-        zipSync({ "cube.usdc": encoder.encode("PXR-USDC") }, { level: 0 }),
-        "USDZ (refused)",
-    );
     refused("blend", "blend", "cube.blend", "BLENDER-v300REND", "Blender (refused)");
+    // BVH motion capture: recognized and refused.
     refused(
         "bvh",
         "bvh",
         "walk.bvh",
-        "HIERARCHY\nROOT Hips\n{\n  OFFSET 0 0 0\n  CHANNELS 3 Xposition Yposition Zposition\n}\nMOTION\nFrames: 1\nFrame Time: 0.033\n0 0 0\n",
-        "BVH animation with no mesh (refused)",
+        [
+            "HIERARCHY",
+            "ROOT Hips",
+            "{",
+            "  OFFSET 0 0 0",
+            "  CHANNELS 6 Xposition Yposition Zposition Zrotation Yrotation Xrotation",
+            "  JOINT Chest",
+            "  {",
+            "    OFFSET 0 1 0",
+            "    CHANNELS 3 Zrotation Yrotation Xrotation",
+            "    JOINT Arm",
+            "    {",
+            "      OFFSET 0.6 0 0",
+            "      CHANNELS 3 Zrotation Yrotation Xrotation",
+            "      End Site",
+            "      {",
+            "        OFFSET 0.6 0 0",
+            "      }",
+            "    }",
+            "    End Site",
+            "    {",
+            "      OFFSET 0 0.5 0",
+            "    }",
+            "  }",
+            "}",
+            "MOTION",
+            "Frames: 3",
+            "Frame Time: 0.5",
+            "0 0 0 0 0 0 0 0 0 0 0 0",
+            "0 0 0 45 0 0 0 0 0 45 0 0",
+            "0 0 0 90 0 0 0 0 0 90 0 0",
+            "",
+        ].join("\n"),
+        "BVH (refused)",
+    );
+    // Gaussian splats: recognized and refused, each a few splats of its own container.
+    const splatProps = ["x", "y", "z", "f_dc_0", "f_dc_1", "f_dc_2", "opacity", "scale_0", "scale_1", "scale_2"];
+    refused(
+        "ply-splat",
+        "splat-ply",
+        "splat.ply",
+        ply("binary_little_endian", [
+            {
+                element: "vertex",
+                properties: splatProps.map((n) => `float ${n}`),
+                rows: GRID.slice(0, 4).map((p) => [...p, 1, 0, 0, 5, -3, -3, -3]),
+            },
+        ]),
+        "3D Gaussian splat PLY (refused)",
+    );
+    refused(
+        "ply-splat-compressed",
+        "splat-ply",
+        "splat.compressed.ply",
+        ply("binary_little_endian", [
+            { element: "chunk", properties: ["float min_x", "float max_x"], rows: [[-1, 1]] },
+            {
+                element: "vertex",
+                properties: ["uint packed_position", "uint packed_rotation", "uint packed_scale", "uint packed_color"],
+                rows: [[0, 0, 0, 0xff0000ff]],
+            },
+        ]),
+        "PlayCanvas compressed splat PLY (refused)",
+    );
+    refused("splat", "splat", "points.splat", new Uint8Array(32 * 4), "raw .splat (refused)");
+    const spz = new Uint8Array(16 + 20);
+    new DataView(spz.buffer).setUint32(0, 0x5053474e, true);
+    new DataView(spz.buffer).setUint32(4, 3, true);
+    new DataView(spz.buffer).setUint32(8, 1, true);
+    refused("spz", "spz", "points.spz", new Uint8Array(gzipSync(spz)), "Niantic .spz (refused)");
+    refused(
+        "sog",
+        "sog",
+        "points.sog",
+        zipSync({ "meta.json": encoder.encode('{"version":2,"count":1,"means":{"files":[]},"quats":{"files":[]}}') }),
+        "PlayCanvas .sog bundle (refused)",
     );
 
     writeFileSync(join(HERE, "manifest.json"), `${JSON.stringify(variants, null, 2)}\n`);

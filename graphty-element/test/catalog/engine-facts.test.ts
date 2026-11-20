@@ -56,6 +56,7 @@ import { ForceAtlas2Layout } from "../../src/layout/ForceAtlas2LayoutEngine";
 import { GRAPHVIZ_LAYOUTS } from "../../src/layout/GraphvizLayoutEngine";
 import { GridLayout } from "../../src/layout/GridLayoutEngine";
 import { KamadaKawaiLayout } from "../../src/layout/KamadaKawaiLayoutEngine";
+import { honorsWeights } from "../../src/layout/LayoutEngine";
 import { LocationMapLayout } from "../../src/layout/LocationMapLayoutEngine";
 import { MultipartiteLayout } from "../../src/layout/MultipartiteLayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
@@ -151,7 +152,7 @@ function factsFromClasses(): EngineFacts {
                 cls.type,
                 {
                     options: optionsFromZod(cls.zodOptionsSchema ?? {}),
-                    honoursWeights: cls.honoursWeights,
+                    honoursWeights: honorsWeights(cls),
                     scoped: cls.scoped,
                 },
             ]),

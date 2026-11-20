@@ -4636,6 +4636,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return;
         }
         const { diff, idPath } = drawn;
+        // The After taken off for this one is still rolling back: its rollback lands first, or the
+        // two interleave and leave neither graph drawn.
+        const prior = drawing;
         let abort = (): void => undefined;
         let land = (): void => undefined;
         const landed = new Promise<void>((resolve) => {
@@ -4647,6 +4650,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 abort = (): void => {
                     dispatcher.abort(tx);
                 };
+                await prior;
+                if (signal.aborted) {
+                    return;
+                }
                 const writes: DataMutation[] = [];
                 removeAndPatch(diff, (mutation) => writes.push(mutation));
                 if (diff.addNodes.length > 0) {

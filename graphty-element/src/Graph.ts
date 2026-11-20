@@ -5610,7 +5610,7 @@ export class Graph implements GraphContext {
             this.#nodeIds = target;
             useNodeIdTarget(this.scene, {
                 target,
-                nodeIdAt: (row) => this.dataManager.nodeAtRow(row)?.id,
+                nodeIdAt: (row) => this.dataManager.nodeIdAtRow(row),
                 hiddenRows: () => batches.hiddenRows(),
             });
             this.#edgeIds = new EdgeIdTarget(this.scene, {
@@ -5666,6 +5666,7 @@ export class Graph implements GraphContext {
                 this.#rowTable,
                 (row) => this.dataManager.nodeAtRow(row),
                 this.renderManager.graphRoot,
+                (row) => this.#nodeBatches?.columnRowOf(row) ?? this.dataManager.nodeAtRow(row),
             );
         }
 

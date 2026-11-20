@@ -287,12 +287,15 @@ export class RowScan {
      * @param table - The rows.
      * @param nodeAt - A row's node.
      * @param root - What rows are placed inside, or null when they are in the world.
+     * @param shapeAt - What draws a row, for testing a ray against it: a row drawn with no `Node` answers from its
+     *     row, so a ray that only passes near rows builds no `Node` for them (issue #9166). By default, its node.
      */
     constructor(
         private readonly scene: Scene,
         private readonly table: ScannedTable,
         private readonly nodeAt: (row: number) => ScannedRow | undefined,
         private readonly root: TransformNode | null,
+        private readonly shapeAt: (row: number) => RowShape | undefined = nodeAt,
     ) {}
 
     /**
@@ -329,7 +332,7 @@ export class RowScan {
      *     mesh, so asking where a ray meets it builds no `Node` (issue #9166).
      * @returns The point, or null for a miss.
      */
-    rowRayHitOn(row: number, ray: Ray, drawn: RowShape | undefined = this.nodeAt(row)): Vector3 | null {
+    rowRayHitOn(row: number, ray: Ray, drawn: RowShape | undefined = this.shapeAt(row)): Vector3 | null {
         const root = this.root?.computeWorldMatrix() ?? this.identity;
         // a closed convex shape (box, cylinder, cone, polyhedron) is met from its face planes, as a node's own mesh is
         const convex =
@@ -560,7 +563,7 @@ export class RowScan {
         row: number,
         root: Matrix,
         rayFor: (world: Matrix) => Ray,
-        node: RowShape | undefined = this.nodeAt(row),
+        node: RowShape | undefined = this.shapeAt(row),
     ): PickingInfo | null {
         if (node?.drawnByRowScan !== true) {
             return null;
@@ -583,7 +586,7 @@ export class RowScan {
      * @param node - What draws the row.
      * @returns The matrix, which the next call overwrites.
      */
-    private rowWorld(row: number, root: Matrix, node: RowShape | undefined = this.nodeAt(row)): Matrix {
+    private rowWorld(row: number, root: Matrix, node: RowShape | undefined = this.shapeAt(row)): Matrix {
         const { rowBounds: bounds } = this.table;
         const at = row * 4;
         const { x, y, z } = node?.drawnScaling ?? { x: 1, y: 1, z: 1 };
@@ -672,14 +675,16 @@ const rowScans = new WeakMap<Scene, RowScan>();
  * @param table - The rows.
  * @param nodeAt - A row's node.
  * @param root - What rows are placed inside.
+ * @param shapeAt - What draws a row, without building a `Node` for a row drawn with none.
  */
 export function openRowScan(
     scene: Scene,
     table: ScannedTable,
     nodeAt: (row: number) => ScannedRow | undefined,
     root: TransformNode,
+    shapeAt?: (row: number) => RowShape | undefined,
 ): void {
-    rowScans.set(scene, new RowScan(scene, table, nodeAt, root));
+    rowScans.set(scene, new RowScan(scene, table, nodeAt, root, shapeAt));
 }
 
 /**

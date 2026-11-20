@@ -5814,13 +5814,7 @@ export class Edge {
             return scan?.worldCenter(at.index) ?? Vector3.Zero();
         };
         const hitOf = (at: Node | ColumnRow): Vector3 | null =>
-            at instanceof Node
-                ? at.drawnRayHit(ray)
-                : (scan?.rowRayHitOn(at.index, ray, {
-                      drawnByRowScan: true,
-                      drawnSourceMesh: at.paintedSourceMesh,
-                      drawnScaling: Vector3.OneReadOnly,
-                  }) ?? null);
+            at instanceof Node ? at.drawnRayHit(ray) : (scan?.rowRayHitOn(at.index, ray, at) ?? null);
         const rayed = input.source.measured === TRIM_NO_HIT || input.target.measured === TRIM_NO_HIT;
         const srcAt = rayed ? drawer("source") : null;
         const dstAt = rayed ? drawer("target") : null;

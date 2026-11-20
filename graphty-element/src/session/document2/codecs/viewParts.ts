@@ -40,6 +40,11 @@ export interface ViewMemory {
     readonly notRun: Map<string, unknown>;
     /** The run ids in the order the opened `runs` listed them. */
     readonly runOrder: string[];
+    /**
+     * View layers the open kept rather than applied (one reading a readable path, spec 4.2 rule
+     * 4), each with the file id of the layer it followed: written back in their places.
+     */
+    readonly keptLayers: { readonly layer: unknown; readonly after: string | null }[];
 }
 
 const MEMORIES = projectMemory<ViewMemory>();
@@ -52,7 +57,7 @@ const MEMORIES = projectMemory<ViewMemory>();
 export function memoryOf(session: object): ViewMemory {
     let memory = MEMORIES.get(session);
     if (memory === undefined) {
-        memory = { kept: new Map(), heldOnly: new Map(), notRun: new Map(), runOrder: [] };
+        memory = { kept: new Map(), heldOnly: new Map(), notRun: new Map(), runOrder: [], keptLayers: [] };
         MEMORIES.set(session, memory);
     }
 

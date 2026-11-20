@@ -1841,6 +1841,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinOnDrag: INPUT,
             fetchNodes: HOST_HOOK,
             fetchEdges: HOST_HOOK,
+            fetchNeighborEdges: HOST_HOOK,
             initialized: LIFECYCLE,
             runAlgorithmsOnLoad: assigns(false, [{ op: "config.set", values: { runAlgorithmsOnLoad: false } }]),
             enableDetailedProfiling: PROFILING,
@@ -3765,6 +3766,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 expect: [{ op: "config.set", values: { name: "Fixture project" } }],
             },
             assetChoices: READ,
+            describe: READ,
+            inspect: READ,
             save: exempt("Writes the session out as text and marks it saved; it changes nothing a project saves."),
             markSaved: exempt("Moves the save point that dirty is measured from; it changes nothing a project saves."),
             open: exempt(

@@ -1146,13 +1146,13 @@ const config = defineConfig({
             },
             {
                 // The `"batched"` render path against `"objects"`, on SwiftShader with both engines
-                // (design/rendering/row-renderer.md 7). This never joins a pull request; "forced-batched" joins
-                // one only as the selected files of a change to a browser test or the render path, and the full
-                // run runs it in twelve shards (tools/ci-test-matrix.mjs). .github/workflows/render-proof.yml
+                // (design/rendering/row-renderer.md 7). This never joins a pull request: the full run runs it on
+                // WebGL, WebGPU and WebKit (graphty-element-render-parity-<engine>, tools/ci-test-matrix.mjs).
+                // "forced-batched" joins a pull request as the browser shards do. .github/workflows/render-proof.yml
                 // dispatches the whole of both.
                 define: { ...define },
                 plugins: [rawModelWorkers()],
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_PARITY_BROWSER"],
                 resolve: {
                     alias: {
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
@@ -1164,21 +1164,31 @@ const config = defineConfig({
                 test: {
                     name: "render-parity",
                     setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
-                    include: ["test/render-parity/**/*.test.ts", "test/browser/node-batch.test.ts"],
+                    // node-batch.test.ts drives input over the Chrome DevTools protocol, which WebKit has not got
+                    include:
+                        process.env.GRAPHTY_PARITY_BROWSER === "webkit"
+                            ? ["test/render-parity/**/*.test.ts"]
+                            : ["test/render-parity/**/*.test.ts", "test/browser/node-batch.test.ts"],
                     fileParallelism: false,
                     browser: {
                         enabled: true,
                         commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: playwright({
-                            launchOptions: {
-                                args: [...BROWSER_GPU_FLAGS[browserGpu === "" ? "swiftshader" : browserGpu]],
-                                channel: "chromium",
-                                env: browserLaunchEnv(),
-                            },
-                        }),
-                        instances: [{ browser: "chromium" }],
+                        // GRAPHTY_PARITY_BROWSER=webkit draws in WebKit's WebGL2 instead (the iPad path); the
+                        // full run's graphty-element-render-parity-webkit shard sets it (tools/ci-test-matrix.mjs).
+                        ...(process.env.GRAPHTY_PARITY_BROWSER === "webkit"
+                            ? { provider: playwright(), instances: [{ browser: "webkit" as const }] }
+                            : {
+                                  provider: playwright({
+                                      launchOptions: {
+                                          args: [...BROWSER_GPU_FLAGS[browserGpu === "" ? "swiftshader" : browserGpu]],
+                                          channel: "chromium",
+                                          env: browserLaunchEnv(),
+                                      },
+                                  }),
+                                  instances: [{ browser: "chromium" as const }],
+                              }),
                         // The page a visual capture loads (VIEWPORT in visual-review/capture/capture.mjs):
                         // a story laid out for it -- AiControl's Send, right of the graph in the 800 px
                         // host -- is off Vitest's default 414 px viewport, where no pointer reaches it.

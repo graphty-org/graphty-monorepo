@@ -24,8 +24,8 @@ export interface KindMember {
     readonly plainName: string;
     /** Its main channel: the row's main control. */
     readonly head: Channel;
-    /** The `parts.ts` items whose channels it owns. */
-    readonly items: readonly string[];
+    /** The channels it owns, of its row's `parts.ts` item. */
+    readonly owns: (channel: Channel) => boolean;
     /** The values a switch moves to the same slot of the kind switched to. */
     readonly slots: { readonly color?: readonly SlotRef[]; readonly size?: readonly SlotRef[] };
     /** What it writes when switched to with nothing moved or held, so the row stays (graphty-element's starts). */
@@ -54,7 +54,7 @@ export const KIND_GROUPS: readonly KindGroup[] = [
                 id: "text",
                 plainName: "Text",
                 head: "node.label",
-                items: ["label"],
+                owns: (channel) => !channel.startsWith("node.glyph"),
                 slots: {
                     color: ["node.labelColor", { style: "node.labelStyle", field: "color" }],
                     size: [{ style: "node.labelStyle", field: "size" }],
@@ -65,7 +65,7 @@ export const KIND_GROUPS: readonly KindGroup[] = [
                 id: "glyph",
                 plainName: "Glyph",
                 head: "node.glyph",
-                items: ["glyph"],
+                owns: (channel) => channel.startsWith("node.glyph"),
                 slots: { color: ["node.glyphColor"], size: ["node.glyphSize"] },
                 start: () => ({ "node.glyphColor": channelDescriptor("node.glyphColor")?.default }),
             },
@@ -91,7 +91,11 @@ export function kindGroupOf(side: "node" | "edge", thing: string): KindGroup | u
  */
 export function ownsOf(group: KindGroup, member: KindMember): readonly Channel[] {
     const items = partsFor(group.side, new Set()).flatMap((part) => part.items);
-    return items.filter((item) => member.items.includes(item.id)).flatMap((item) => itemChannels(item));
+    // the thing's item: a Label row's is the Label item, its glyph channels the Glyph kind's
+    return items
+        .filter((item) => item.id === group.thing)
+        .flatMap((item) => itemChannels(item))
+        .filter((channel) => member.owns(channel));
 }
 
 /**

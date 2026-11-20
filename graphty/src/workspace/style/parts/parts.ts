@@ -287,6 +287,14 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                             "node.labelMaxLinesEllipsis",
                         ],
                         View: ["node.labelMinScreenSize"],
+                        // A label drawn as a glyph in place of text (owner: "glyph seems duplicative to label", E275).
+                        Glyph: [
+                            "node.glyph",
+                            "node.glyphFont",
+                            "node.glyphSize",
+                            "node.glyphWeight",
+                            "node.glyphColor",
+                        ],
                     },
                 },
                 {
@@ -300,12 +308,6 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     name: "External label",
                     main: ["node.xlabel"],
                     tail: ["node.xlabelStyle", "node.xlabelLocation", "node.xlabelOffsetX", "node.xlabelOffsetY"],
-                },
-                {
-                    id: "glyph",
-                    name: "Glyph",
-                    main: ["node.glyph"],
-                    tail: ["node.glyphFont", "node.glyphSize", "node.glyphWeight", "node.glyphColor"],
                 },
                 { id: "record", name: "Record", tail: ["node.shapeTexts", "node.labelTable"] },
             ],

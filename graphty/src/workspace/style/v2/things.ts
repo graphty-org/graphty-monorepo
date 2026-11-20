@@ -105,7 +105,7 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                     {
                         id: "label",
                         name: "Label",
-                        items: ["label", "glyph"],
+                        items: ["label"],
                         main: ["node.label", "node.glyph"],
                         start: "node.label",
                     },

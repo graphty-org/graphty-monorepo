@@ -359,6 +359,57 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
         );
     });
 
+    it("Find a setting, on both tabs, finds none of them by name", async () => {
+        await openGraph();
+        const words = ["Glyph", "Group", "Order", "Group outline", "Stacking", "Custom shader", "Around", "Material"];
+        for (const kind of ["node", "edge"] as const) {
+            await openStyle(kind === "node" ? "Key people" : "Links");
+            await showKind(kind);
+            const search = screen.getByRole("searchbox", { name: /Find a setting/ });
+            for (const word of words) {
+                await userEvent.clear(search);
+                await userEvent.type(search, word);
+                const results = await waitFor(() => {
+                    const found = panel().querySelector<HTMLElement>("[data-find-results]");
+                    assert.isNotNull(found, "the results replace the sections");
+                    return found;
+                });
+                // A heading is "Part - Item": each half is a section or a row's name.
+                const headings = [...results.querySelectorAll<HTMLElement>("[data-find-group] > :first-child")].flatMap(
+                    (heading) => heading.innerText.split(" - ").map((half) => half.trim()),
+                );
+                const channels = [...results.querySelectorAll<HTMLElement>("[data-result]")].map(
+                    (line) => line.dataset.result ?? "",
+                );
+                if (kind === "node" && word === "Glyph") {
+                    // a glyph is the Label row's Glyph kind, found under the Label
+                    const label = [...results.querySelectorAll<HTMLElement>("[data-find-group]")].find(
+                        (group) => group.querySelector('[data-result="node.glyph"]') !== null,
+                    );
+                    assert.equal(label?.firstElementChild?.textContent.trim(), "Text - Label", "glyph is under Label");
+                }
+                for (const forbidden of OWNER_FORBIDDEN) {
+                    const why = `${kind} Find "${word}": ${forbidden.what} (${forbidden.ledger})`;
+                    if (forbidden.text !== undefined) {
+                        assert.deepEqual(
+                            headings.filter((heading) => forbidden.text?.test(heading)),
+                            [],
+                            why,
+                        );
+                    }
+                    if (forbidden.channel !== undefined) {
+                        assert.deepEqual(
+                            channels.filter((channel) => forbidden.channel?.test(channel)),
+                            [],
+                            why,
+                        );
+                    }
+                }
+            }
+            await userEvent.clear(search);
+        }
+    });
+
     it("Settings shows none of the forbidden switches", async () => {
         await openGraph();
         await userEvent.click(screen.getByRole("button", { name: "Settings" }));

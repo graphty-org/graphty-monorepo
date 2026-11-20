@@ -3,7 +3,8 @@
  * label"), on the REAL graphty-element and real input: the Text "+" offers no Glyph; a Label switched to Glyph
  * from its Switch to and given a character draws it, its color moved from the text; Undo brings the text back;
  * and a file whose styles write a glyph (a vis-network icon node, through graph-io) opens as one Label row of
- * kind Glyph showing its character, drawn on the graph.
+ * kind Glyph showing its character, drawn on the graph. A vis-network file stands in for the plan's Cytoscape.js
+ * one: graph-io's Cytoscape.js styles write no node.glyph (Cytoscape.js has no glyph), vis-network's icons do.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -162,5 +163,19 @@ describe("a node's Label is Text or Glyph", () => {
         assert.equal(await kindOf(row), "Glyph");
         const field = row.querySelector<HTMLInputElement>('.ws-row[data-line="node.glyph"] input');
         assert.equal(field?.value, "A", "the row shows the character");
+        // Drawn in the picture: another character typed into the row repaints the nodes.
+        const element = document.querySelector("graphty-element");
+        if (element === null || field === null) {
+            throw new Error("no element or field");
+        }
+        const before = await picture(element);
+        await userEvent.click(field);
+        await userEvent.clear(field);
+        await userEvent.keyboard("W{Enter}");
+        await waitFor(() => {
+            assert.equal(session.styles.get(layer?.id ?? "")?.set?.["node.glyph"], "W");
+        });
+        await session.styles.settled();
+        assert.isAbove(pixelsApart(before, await picture(element)), 0, "the glyph is drawn: its character shows");
     });
 });

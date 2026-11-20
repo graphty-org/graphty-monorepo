@@ -13,7 +13,7 @@ import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
-import type { Edge, EdgeCapEnd } from "../Edge";
+import { type Edge, type EdgeCapEnd, edgeInternals } from "../Edge";
 import type { DrawnNodeSpot, Graph, NodeScreenPosition } from "../Graph";
 import { dataManagerInternals } from "../managers/DataManager";
 import type { ArrowCap } from "../meshes/ArrowCapBatch";
@@ -100,7 +100,8 @@ export interface FigureDrawing {
     width: number;
     height: number;
     background?: string;
-    edges: readonly { x1: number; y1: number; x2: number; y2: number; color: string; opacity: number; width: number }[];
+    /** Each edge's line through the points the canvas draws it through: two for a straight line, more for a curve. */
+    edges: readonly { points: readonly Point2[]; color: string; opacity: number; width: number }[];
     /** The arrow caps, drawn over the nodes, as the canvas draws a cap over its node's border. */
     caps: readonly FigureShape[];
     /** The nodes, far first, each followed by its border and outer border. */
@@ -239,11 +240,14 @@ function figureSvg(drawing: FigureDrawing, key: readonly FigureMark[]): string {
     if (drawing.background !== undefined) {
         out.push(`<rect width="100%" height="100%" fill="${esc(drawing.background)}"/>`);
     }
-    out.push(`<g stroke-linecap="round">`);
+    out.push(`<g fill="none" stroke-linecap="round" stroke-linejoin="round">`);
     for (const e of drawing.edges) {
+        const paint = `stroke="${esc(e.color)}" stroke-width="${num(e.width)}"${opacityAttr("stroke-opacity", e.opacity)}`;
+        const [[x1, y1], [x2, y2]] = e.points;
         out.push(
-            `<line x1="${num(e.x1)}" y1="${num(e.y1)}" x2="${num(e.x2)}" y2="${num(e.y2)}" stroke="${esc(e.color)}" ` +
-                `stroke-width="${num(e.width)}"${opacityAttr("stroke-opacity", e.opacity)}/>`,
+            e.points.length > 2
+                ? `<polyline points="${pointList(e.points)}" ${paint}/>`
+                : `<line x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}" ${paint}/>`,
         );
     }
     // One push per shape: spreading a million shapes into one call overflows the stack (#9034).
@@ -605,11 +609,20 @@ function edgeLines(
         if (px <= 0) {
             continue;
         }
+        // Where the canvas draws the line: along its curve, bends or bundle, or straight and stopped at
+        // its arrowheads; a line drawn with no slot of its own runs between its nodes' centers.
+        const path = edge === undefined ? null : edgeInternals.lineInWorld(edge);
+        const points =
+            path?.map((p): Point2 => {
+                const at = graph.worldToScreen(p);
+                return [at.x, at.y];
+            }) ??
+            ([
+                [src.at.x, src.at.y],
+                [dst.at.x, dst.at.y],
+            ] as const);
         edges.push({
-            x1: src.at.x,
-            y1: src.at.y,
-            x2: dst.at.x,
-            y2: dst.at.y,
+            points,
             color: typeof line.color === "string" ? line.color : "#a9a9a9",
             opacity: line.opacity ?? 1,
             width: px,

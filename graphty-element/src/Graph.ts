@@ -115,6 +115,7 @@ import {
 } from "./camera/tour.js";
 import type { CameraState, CameraViewExtent, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
+import type { CameraGestureKind } from "./cameras/gestureEnd";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
 import { type OverviewInputs, OverviewSource, watchOverview } from "./cameras/overview";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
@@ -306,6 +307,7 @@ import {
     paintAddedRows,
     repaintGraphPass,
     scopeResolverOfSession,
+    sessionDataOf,
     sessionRunsOf,
     setsNotifierOfSession,
     workingGraphOfSession,
@@ -878,6 +880,19 @@ export class Graph implements GraphContext {
         this.#initialCameraStateOwed = false;
         this.updateManager.stopAutoZoomToFit();
     };
+    /**
+     * A reader's camera gesture ended: published as `camera:gesture-end`.
+     * @param kind - What the gesture did.
+     */
+    readonly #cameraGestureEnded = (kind: CameraGestureKind): void => {
+        this.session.cameraGestureEnd(kind);
+    };
+
+    /** Hooks the render manager's camera's reader input to the session. */
+    #hookCamera(): void {
+        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.camera.onGestureEnd = this.#cameraGestureEnded;
+    }
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
     /**
      * Announces a new skybox's image: `skybox-loaded` once its texture arrived, `skybox-failed`
@@ -1317,7 +1332,7 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
-        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.#hookCamera();
 
         // Initialize StatsManager
         this.statsManager = new StatsManager(this.eventManager);
@@ -2683,7 +2698,7 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
-        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.#hookCamera();
         this.camera.setViewInsets(this.#viewInsets);
         this.camera.setZoomToPointer(this.#zoomToPointer);
         this.camera.setInstantGlides(this.#cameraMoveMs() === 0);
@@ -3776,7 +3791,12 @@ export class Graph implements GraphContext {
         try {
             // Waited for only when an earlier load still reads, so one with nothing ahead of it
             // dispatches before this call returns, as it did before the line existed.
-            await turn.take(() => this.dataManager.addDataFromSource(type, opts, { ...place, ...extras }));
+            // `source:loaded` for what it added, as `session.data`'s own loads publish it.
+            await turn.take(() =>
+                sessionDataOf(this.session).announcing(place.replace ? "replace" : "merge", () =>
+                    this.dataManager.addDataFromSource(type, opts, { ...place, ...extras }),
+                ),
+            );
         } finally {
             this.leaveLine(load);
         }
@@ -4611,7 +4631,8 @@ export class Graph implements GraphContext {
                         });
                     }
                 },
-                { fact: { code: "style.suggested", params: { algorithms: [...keys] } } },
+                // Every entry it writes, the layers and the moves stacking them, is the suggestion's.
+                { fact: { code: "style.suggested", params: { algorithms: [...keys] } }, trigger: "suggestion" },
             )
             .then(undefined, report);
         // Entered in the record of pending work until the layers are stacked, so
@@ -5867,8 +5888,8 @@ export class Graph implements GraphContext {
             return ids;
         }
 
-        const project = screenProjector(this.scene);
-        const view = this.scene.getViewMatrix().m;
+        const project = screenProjector(this.scene, camera);
+        const view = camera.getViewMatrix().m;
         for (const node of this.dataManager.nodes.values()) {
             regionWork.nodes++;
             if (node.getRenderState() !== "visible") {
@@ -5920,7 +5941,9 @@ export class Graph implements GraphContext {
                 const distance = Math.hypot(dx, dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
-                    this.handleBackgroundClick(pointerInfo.event);
+                    this.session.selection.byInput("click", () => {
+                        this.handleBackgroundClick(pointerInfo.event);
+                    });
                 }
             }
         });
@@ -5938,7 +5961,9 @@ export class Graph implements GraphContext {
                 }
             },
             select: (polygon) => {
-                this.session.selection.applyNow({ region: { polygon } }, "add", "user");
+                this.session.selection.byInput("box", () =>
+                    this.session.selection.applyNow({ region: { polygon } }, "add", "user"),
+                );
             },
         });
 
@@ -7277,11 +7302,12 @@ export class Graph implements GraphContext {
      * @returns Screen coordinates {x, y}
      */
     worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
-        if (!this.scene.activeCamera?.viewport) {
+        const camera = this.scene.activeCamera;
+        if (!camera?.viewport) {
             return { x: 0, y: 0 };
         }
 
-        return screenProjector(this.scene)(worldPos);
+        return screenProjector(this.scene, camera)(worldPos);
     }
 
     /**
@@ -7344,7 +7370,7 @@ export class Graph implements GraphContext {
         const { x, y } = this.worldToScreen(centre);
 
         // Distance in front of the camera along its view axis; the same test LabelDeclutter uses.
-        const view = this.scene.getViewMatrix().m;
+        const view = camera.getViewMatrix().m;
         const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
         const inDepth = depth >= camera.minZ && (camera.maxZ <= 0 || depth <= camera.maxZ);
 
@@ -7355,7 +7381,7 @@ export class Graph implements GraphContext {
 
         // The largest half-extent projected: the projection's y scale over the clip w (the depth in
         // perspective, 1 in orthographic), in pixels.
-        const projection = this.scene.getProjectionMatrix().m;
+        const projection = camera.getProjectionMatrix().m;
         const w = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depth;
         const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
 

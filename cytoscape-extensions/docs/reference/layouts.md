@@ -112,10 +112,11 @@ No options of its own.
 
 ### `graphty-spiral` (static)
 
-| Option        | Type      | Default | Meaning                                                                                                                                                                                                                                     |
-| ------------- | --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolution`  | `number`  | `0.35`  | The angle between consecutive nodes, in radians. With `equidistant: true` it is instead the angle the spiral starts at, and since the spiral's radius grows with its angle, it changes the shape of the inner turns, not only the rotation. |
-| `equidistant` | `boolean` | `false` | Space consecutive nodes the same distance apart along the spiral, instead of by equal angles.                                                                                                                                               |
+| Option        | Type      | Default | Meaning                                                                                                                                                                                                                                        |
+| ------------- | --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolution`  | `number`  | `0.35`  | The angle between consecutive nodes, in radians. With `equidistant: true` it is instead the angle the spiral starts at, and since the spiral's radius grows with its angle, it changes the shape of the inner turns, not only the rotation.    |
+| `equidistant` | `boolean` | `false` | Space consecutive nodes the same distance apart along the spiral, instead of by equal angles.                                                                                                                                                  |
+| `height`      | `number`  | `1`     | Read only with `dim: 3`: how far the spiral rises per unit of radius, so the nodes lie on a cone. A 3D run is projected onto the x-y plane, so the rise itself is not drawn; with `equidistant: true` it changes the spacing along the spiral. |
 
 ### `graphty-grid` (static)
 

@@ -64,6 +64,8 @@ import { englishReading, type ReadingOptions, type RunResult } from "./src/sessi
 import type { SelectionOp } from "./src/session/selection";
 
 export type { EasingName, Tour, TourPause, TourStop } from "./src/camera/tour";
+export type { CameraGestureKind } from "./src/cameras/gestureEnd";
+export { CAMERA_GESTURE_KINDS } from "./src/cameras/gestureEnd";
 export type { FeatureId } from "./src/features/registry";
 export type { EnabledFeatures } from "./src/features/resolve";
 export type {
@@ -165,6 +167,7 @@ export type {
     PendingId,
     PendingStep,
     PositionEntry,
+    PreparePageControl,
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
@@ -208,6 +211,7 @@ export type {
     SettingEffect,
     SettingEffectCode,
     SideMapping,
+    SourceLoaded,
     StartingCamera,
     StyleProblem,
     TableMapping,
@@ -223,6 +227,9 @@ export type { DrawnAnnotation, DrawnAnnotations } from "./src/session";
 export type { KeymapOptions, KeymapReport, KeymapRoot, KeymapSession } from "./src/session";
 export { createGraphSession } from "./src/session";
 export { attachKeymap } from "./src/session";
+// The recording formats, here too so a consumer can read them without loading the element.
+export type { VideoFormat } from "./src/video/VideoCapture";
+export { VIDEO_FORMATS } from "./src/video/VideoCapture";
 
 /**
  * What the element has to say about a load, once the load is over: which record keys named the
@@ -572,6 +579,7 @@ export type {
     SelectionStatisticsOptions,
     SelectionTarget,
     SelectionTextMode,
+    SelectionVia,
     UnknownRulePath,
 } from "./src/session/selection";
 export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
@@ -611,6 +619,7 @@ export type {
     FilterResult,
     FilterSelectWithin,
     FilterStep,
+    FilterStepCount,
     HiddenNotDrawn,
     RuleTree,
     StepCounts,

@@ -21,6 +21,11 @@ export interface Forbidden {
     readonly source?: RegExp;
     /** A CSS selector in the v2 panel or its pop-overs that would draw it. */
     readonly selector?: string;
+    /**
+     * A real-input check the walk runs for it: "approved-controls", every element of the sidebar is an approved
+     * control (approvedControls.ts); "only-plus-adds", a section's title and bar add nothing and only its "+" adds.
+     */
+    readonly check?: "approved-controls" | "only-plus-adds";
 }
 
 /** The owner's removals: see the file header. */
@@ -84,5 +89,15 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         text: /^Add section$/,
         selector: "[data-add-section]",
         source: /styleEmptySections|STYLE_EMPTY_SECTIONS/,
+    },
+    {
+        what: "information in the Style sidebar: a pill, chip, badge, caption, description or warning",
+        ledger: "E174, E175",
+        check: "approved-controls",
+    },
+    {
+        what: "a '+' section whose title or bar is a button: only its '+' adds",
+        ledger: "E210",
+        check: "only-plus-adds",
     },
 ];

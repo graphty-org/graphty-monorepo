@@ -151,3 +151,56 @@ export function pixelsApart(a: ImageData, b: ImageData): number {
     }
     return apart;
 }
+
+/**
+ * What the layers hold, to tell whether a click changed anything.
+ * @param session - the session.
+ * @returns the layers as text.
+ */
+export function layersNow(session: GraphSession): string {
+    return JSON.stringify(session.styles.list());
+}
+
+/**
+ * Clicks a "+" list's title and the empty middle of its bar, and checks neither adds nor opens anything; then
+ * clicks its "+" and checks it opens its menu or adds.
+ * @param session - the session.
+ * @param list - the "+" list.
+ * @param what - what it is, for messages.
+ */
+export async function onlyPlusAdds(session: GraphSession, list: HTMLElement, what: string): Promise<void> {
+    const before = layersNow(session);
+    const title =
+        list.querySelector<HTMLElement>(
+            '[data-testid="control-section-lead"], [data-testid="control-section-toggle"]',
+        ) ?? list.querySelector<HTMLElement>('[data-testid="control-group-label"]');
+    assert.isNotNull(title, `${what} has a title`);
+    await userEvent.click(title);
+    const bar = list.querySelector<HTMLElement>(
+        '[data-testid="control-section-header"], [data-testid="control-group-header"]',
+    );
+    if (bar !== null) {
+        const box = bar.getBoundingClientRect();
+        await userEvent.click(bar, { position: { x: Math.round(box.width * 0.62), y: Math.round(box.height / 2) } });
+    }
+    assert.isNull(screen.queryByRole("menu"), `${what}: no menu from its title or bar`);
+    assert.equal(layersNow(session), before, `${what}: its title and bar add nothing`);
+    const plus = list.querySelector<HTMLElement>("[data-plus]");
+    assert.isNotNull(plus, `${what} has a "+"`);
+    await userEvent.click(plus);
+    // Its menu, its one list (the Shaders list, E381), or what it adds at once.
+    const gallery = (): Element | null => document.querySelector(".ws-gallery-grid");
+    await waitFor(() => {
+        assert.isTrue(
+            screen.queryByRole("menu") !== null || gallery() !== null || layersNow(session) !== before,
+            `${what}: its "+" adds`,
+        );
+    });
+    if (screen.queryByRole("menu") !== null || gallery() !== null) {
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu"));
+            assert.isNull(gallery());
+        });
+    }
+}

@@ -465,7 +465,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     visibility: { row: { channel: "node.visible", name: null, rule: "R8" }, main: [] },
     // The Label row's Glyph kind (kindGroups.ts).
     "label:node.glyph": {
-        common: [{ channel: "node.glyphColor", name: null }],
+        common: [{ channel: "node.glyphColor", name: "Color" }],
         main: [
             { channel: "node.glyphSize", name: "Size" },
             { channel: "node.glyphFont", name: "Font", rule: "R13" },

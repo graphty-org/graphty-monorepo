@@ -36,9 +36,10 @@ const EDGES = [
  * The node sizes the fixed layout hands Graphviz to route a load's edges round: each node's `width` in the DOT text of
  * the first request, made as the load arrives.
  * @param path - The render path.
+ * @param border - The border style every node is drawn with.
  * @returns The width of each node, by its DOT name.
  */
-async function routedSizes(path: "objects" | "batched"): Promise<Map<string, number>> {
+async function routedSizes(path: "objects" | "batched", border: Record<string, unknown>): Promise<Map<string, number>> {
     document.body.replaceChildren();
     // The DOT text each Graphviz request carries.
     const sent: string[] = [];
@@ -67,7 +68,7 @@ async function routedSizes(path: "objects" | "batched"): Promise<Map<string, num
             name: "bordered",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.borderWidth": 3, "node.borderColor": "#202020" },
+            set: { ...border, "node.borderColor": "#202020" },
         } as never);
         await element.session.data.addNodes(NODES);
         await element.session.data.addEdges(EDGES);
@@ -83,14 +84,21 @@ async function routedSizes(path: "objects" | "batched"): Promise<Map<string, num
 }
 
 describe("the node sizes a layout reads under batched", () => {
-    it("are the drawn sizes, border included, as the objects path reads them", async () => {
-        const objects = await routedSizes("objects");
-        assert.equal(objects.size, NODES.length);
-        const batched = await routedSizes("batched");
-        assert.equal(batched.size, objects.size);
-        for (const [name, width] of objects) {
-            // The batched sizes are read from a float table, the objects path's in doubles.
-            assert.closeTo(batched.get(name) ?? Number.NaN, width, 1e-5, name);
-        }
-    });
+    // A border in screen pixels changes its reach in the scene with the zoom, so the objects path's `layoutRadius`
+    // leaves it out; the row table holds its scene width for edges to stop at, and a layout must leave it out too.
+    for (const [name, border] of [
+        ["a border in scene units", { "node.borderWidth": 3 }],
+        ["a border in screen pixels", { "node.borderScreenWidth": 4 }],
+    ] as const) {
+        it(`are the drawn sizes as the objects path reads them, with ${name}`, async () => {
+            const objects = await routedSizes("objects", border);
+            assert.equal(objects.size, NODES.length);
+            const batched = await routedSizes("batched", border);
+            assert.equal(batched.size, objects.size);
+            for (const [node, width] of objects) {
+                // The batched sizes are read from a float table, the objects path's in doubles.
+                assert.closeTo(batched.get(node) ?? Number.NaN, width, 1e-5, node);
+            }
+        });
+    }
 });

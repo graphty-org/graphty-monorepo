@@ -520,7 +520,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             // Under renderPath "batched" every measured row is read from the row table, `Node` or none, border included as
             // `Node.layoutRadius` counts it: whether a row has its `Node` when a layout reads the sizes is no fixed point
             // in a load, and two answers (one without the border, one in doubles) had Graphviz route round two sizes.
-            // ponytail: the table holds a border sized on the screen at its scene width, which `layoutRadius` leaves out.
+            // A border drawn in screen pixels is left out, as `layoutRadius` leaves it out (`RowTable.extentOf`).
             nodeSizes: () => {
                 this.#host?.drawPaint();
                 return Float32Array.from({ length: n }, (_, row) => {

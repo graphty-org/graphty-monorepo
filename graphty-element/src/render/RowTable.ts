@@ -17,7 +17,12 @@ import { INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import type { ElementPositions } from "../data/positions";
 import type { Xyz } from "../meshes/edgeRoute";
-import { ROW_EXTENT_ELLIPSE, ROW_EXTENT_ROUND, ROW_EXTENT_SEEN_THROUGH } from "../meshes/edgeTrim";
+import {
+    ROW_EXTENT_ELLIPSE,
+    ROW_EXTENT_ROUND,
+    ROW_EXTENT_SCREEN_BORDER,
+    ROW_EXTENT_SEEN_THROUGH,
+} from "../meshes/edgeTrim";
 import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { Node } from "../Node";
 import type { GpuBufferHandle, GpuDeviceHandle } from "./gpuHandles";
@@ -58,6 +63,8 @@ export interface RowMeasure {
     readonly drawnScale: number;
     readonly roundRadius: number | null;
     readonly borderReach: number;
+    /** Whether its border is drawn in screen pixels, so {@link RowMeasure.borderReach} changes with the zoom. */
+    readonly screenBorder?: boolean;
     readonly drawnHalfExtents: Readonly<{ x: number; y: number; z: number }>;
     readonly drawnBoundingRadius: number;
     readonly outlineHalfExtents: Readonly<{ x: number; y: number; z: number }>;
@@ -90,7 +97,10 @@ export interface RowExtent {
     round: number | null;
     /** How far its surface reaches along each axis. */
     half: Xyz;
-    /** How far its border reaches past its surface (`Node.borderReach`). */
+    /**
+     * How far its border reaches past its surface as layout counts it (`Node.layoutRadius`): 0 for a border drawn in
+     * screen pixels, whose reach changes with the zoom.
+     */
     border: number;
 }
 
@@ -575,7 +585,7 @@ export class RowTable {
             scale: of(0),
             round: ((floats[base + 3] ?? 0) & ROW_EXTENT_ROUND) === 0 ? null : of(1),
             half: { x: of(4), y: of(5), z: of(6) },
-            border: of(2),
+            border: ((floats[base + 3] ?? 0) & ROW_EXTENT_SCREEN_BORDER) === 0 ? of(2) : 0,
         };
     }
 
@@ -705,7 +715,8 @@ export class RowTable {
         const extentFlags =
             (round === null ? 0 : ROW_EXTENT_ROUND) |
             (node.shapeType === "ellipse" ? ROW_EXTENT_ELLIPSE : 0) |
-            (node.paintedOpacity < 1 ? ROW_EXTENT_SEEN_THROUGH : 0);
+            (node.paintedOpacity < 1 ? ROW_EXTENT_SEEN_THROUGH : 0) |
+            (node.screenBorder === true ? ROW_EXTENT_SCREEN_BORDER : 0);
         this.extents.floats.set(
             [
                 node.drawnScale,

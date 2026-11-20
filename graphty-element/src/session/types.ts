@@ -2913,8 +2913,10 @@ export type ByTableMapping =
 
 /**
  * Each table's roles named by what its rows are, so a caller need not look up table ids: `nodes`
- * applies to the table read as nodes and `edges` to the table read as edges. With one table, the
- * side named is what its rows are read as.
+ * applies to the table read as nodes and `edges` to the table read as edges, with one table or
+ * two; a side no table is read as is refused (`E_BAD_COMMAND`). The side picks the table and never
+ * changes what its rows are: to read the table read as nodes as edges, say so in its roles
+ * (`{ nodes: { rowsAre: "edges", source: "from", target: "to" } }`).
  * @since 3.40.0
  */
 export interface SideMapping {

@@ -202,7 +202,8 @@ function isSideMapping(mapping: LoadMapping): mapping is SideMapping {
 
 /**
  * A mapping as a bare mapping or by table id: one named by side (`{ nodes, edges }`) names the
- * table each side's rows are read as, or a source's one table.
+ * table each side's rows are read as, whatever the number of tables, so it never changes what a
+ * table's rows are unless its roles say `rowsAre` themselves.
  * @param given - The mapping.
  * @param reading - What each table's rows are read as.
  * @returns The mapping, never by side.
@@ -220,7 +221,7 @@ export function byTableId(given: LoadMapping, reading: LoadMappingRead | undefin
             continue;
         }
 
-        const id = ids.length === 1 ? ids[0] : ids.find((each) => reading?.tables[each].rowsAre === side);
+        const id = ids.find((each) => reading?.tables[each].rowsAre === side);
         if (id === undefined || id in tables) {
             throw badCommand(`The mapping names ${side}, but no table of its own is read as ${side}.`, {
                 side,
@@ -228,7 +229,7 @@ export function byTableId(given: LoadMapping, reading: LoadMappingRead | undefin
             });
         }
 
-        tables[id] = { ...roles, rowsAre: side };
+        tables[id] = { rowsAre: side, ...roles };
     }
 
     return { tables };

@@ -639,4 +639,27 @@ describe("Data > Fields' settings rows on the real element", () => {
         assert.equal(session.data.statistics().nodeCount, 5);
         assert.equal(session.data.node("a")?.name, "Ann");
     });
+
+    it("keeps a one-edge-file load's rows as edges when a node column takes a load role from its header", async () => {
+        // The edge file's own id column shares its name with the nodes' id column.
+        const session = await dropCsv("id,source,target\ne1,a,b\ne2,b,c\n");
+        await waitFor(() => {
+            assert.lengthOf(session.data.edges(), 2);
+        });
+        const steps = session.history.steps.length;
+
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        const grid = await screen.findByRole("grid", { name: "Nodes" });
+        await userEvent.click(within(grid).getByRole("button", { name: "Options for id" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+        await userEvent.click(await screen.findByRole("menuitemradio", { name: "Kind" }));
+
+        await waitFor(() => {
+            assert.equal(session.history.steps.length, steps + 1);
+        });
+        // The table is read again as the edges it was: the id column names each edge's kind.
+        assert.equal(Object.values(session.data.sources()[0].mapping?.tables ?? {})[0]?.rowsAre, "edges");
+        assert.lengthOf(session.data.edges(), 2);
+        assert.equal(session.data.statistics().nodeCount, 3);
+    });
 });

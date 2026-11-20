@@ -52,7 +52,7 @@ export async function pickEnd(
     workspace.set({ ends });
     if (ends.source !== null && ends.target !== null) {
         await session.data.reloadSource(load.key, {
-            mapping: { edges: { source: ends.source, target: ends.target } },
+            mapping: { rowsAre: "edges", source: ends.source, target: ends.target },
         });
         workspace.set({ ends: null });
     }

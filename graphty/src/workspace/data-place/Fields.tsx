@@ -880,7 +880,7 @@ function SourceFields({
                         if (picked === "edges") {
                             store.set({ ends: { load: source.key, source: null, target: null } });
                         } else if (ends === null) {
-                            reload({ mapping: { nodes: {} } });
+                            reload({ mapping: { rowsAre: "nodes" } });
                         } else {
                             store.set({ ends: null });
                         }

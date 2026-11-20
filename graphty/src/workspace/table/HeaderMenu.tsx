@@ -74,7 +74,13 @@ async function assignRole(
         if (load === undefined) {
             throw new Error("the load cannot be read again");
         }
-        const side = kind === "node" ? "nodes" : "edges";
+        // The side the column's table is read as: a load's one table whatever its rows are, so
+        // the role never turns that table's rows into the other side's.
+        const tables = Object.values(load.mapping?.tables ?? {});
+        let side: "nodes" | "edges" = kind === "node" ? "nodes" : "edges";
+        if (tables.length === 1) {
+            side = tables[0].rowsAre;
+        }
         await session.data.reloadSource(load.key, { mapping: { [side]: { [role]: ref.name } } });
         return;
     }

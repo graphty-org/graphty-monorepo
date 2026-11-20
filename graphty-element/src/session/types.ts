@@ -66,6 +66,7 @@ import type { EnabledFeatures } from "../features/resolve";
 import type { DrawnAnnotation } from "./annotations";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { SessionGraphs } from "./graphs/GraphsApi";
 import type { GroupsApi } from "./groups";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
@@ -5831,6 +5832,11 @@ export interface GraphSession {
      * @since 3.58.0
      */
     readonly tours: SessionTours;
+    /**
+     * The session's graphs, one shown at a time: copy the graph shown, or a selection of it, into a
+     * new graph, and switch between them. Each keeps its own attributes, results and styles.
+     */
+    readonly graphs: SessionGraphs;
     /** The annotations drawn beside the graph; every change is a step, and a project file saves them. */
     readonly annotations: SessionAnnotations;
     /** Which layout draws the graph, and in how many dimensions; choosing either is a step. */

@@ -7,13 +7,13 @@
  *
  * A session is a graph with no view attached: data, runs, scopes, selection and style layers,
  * usable in Node, in a worker and in a test, and bindable to one or more views in a browser.
- * The model exists so that a headless test, a server-side check and two synchronised views all
+ * The model exists so that a headless test, a server-side check and two synchronized views all
  * fall out of one structure instead of four, and so that "compare these two graphs" is two
  * sessions rather than a second element.
  *
  * **What is here today.** `createGraphSession` and the session it builds: the graph data -- the
  * store, the snapshot, node and edge lookup by id, the attribute listing and the graph
- * statistics -- the node coordinates, the O(1) status facts, the catalogue of everything the
+ * statistics -- the node coordinates, the O(1) status facts, the catalog of everything the
  * element can offer, the configuration and what the machine can do. On top of those, runs: start
  * one and get back an object with an identity, a label, progress, a cancel and a promise that
  * resolves to the result; address what it produced at `results.<runId>.<field>`; and ask, before
@@ -46,7 +46,7 @@
  * no algorithm executor -- every algorithm this package ships is built from the renderer -- so
  * `runs.start` on a standalone session answers `E_UNSUPPORTED` unless one was handed in; and the
  * style stack resolves what every element shows without anything yet DRAWING it, so a layer
- * added here changes the model and does not change the screen. The catalogue is here with its
+ * added here changes the model and does not change the screen. The catalog is here with its
  * five static tables and `metrics()`, which says which metrics this graph can support, what each
  * would cost and which have already been run; what an option's bounds resolve to over a scope,
  * and whether an expression references anything real, still wait on the query engine.
@@ -63,6 +63,7 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import { englishReading, type ReadingOptions, type RunResult } from "./src/session/results";
 import type { SelectionOp } from "./src/session/selection";
 
+export type { EasingName, Tour, TourPause, TourStop } from "./src/camera/tour";
 export type { FeatureId } from "./src/features/registry";
 export type { EnabledFeatures } from "./src/features/resolve";
 export type {
@@ -167,6 +168,8 @@ export type {
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    RecordMatch,
+    RecordMatchRank,
     RecordPage,
     RecordPageOptions,
     RecordSort,
@@ -183,6 +186,7 @@ export type {
     RowReasonCode,
     RowUpdate,
     RunPlacement,
+    SavedView,
     ScoreTerm,
     SessionAnnotations,
     SessionAttributes,
@@ -199,9 +203,11 @@ export type {
     SessionPositions,
     SessionRunsOptions,
     SessionStatus,
+    SessionTours,
     SessionViews,
     SettingEffect,
     SettingEffectCode,
+    StartingCamera,
     StyleProblem,
     TableMapping,
     TableMappingRead,
@@ -266,6 +272,9 @@ export type {
     AssetState,
     BuiltInModelFormat,
     ModelCompression,
+    ModelDefaultChannel,
+    ModelDefaults,
+    ModelDefaultsPatch,
     ModelEncoding,
     ModelFormat,
     ModelGeometry,
@@ -273,11 +282,12 @@ export type {
     ModelPart,
     ModelPartRole,
     ModelPartState,
+    ModelPicture,
     ModelSummary,
     NamedBlob,
     PartAnswer,
 } from "./src/session";
-export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
+export { DEFAULT_MODEL_LIMITS, isAssetId, MODEL_DEFAULT_CHANNELS } from "./src/session";
 
 /**
  * The fetches the page's code did not ask for -- a model URL from a project file, an AI command or
@@ -646,7 +656,15 @@ export type {
 // Asking what something would do and cost, before doing it
 // ---------------------------------------------------------------------------------------------
 
-export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type { AlgorithmRunCommand, AssetCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type {
+    SavedTour,
+    TourCommand,
+    TourMoveCommand,
+    TourRemoveCommand,
+    TourRenameCommand,
+    TourSaveCommand,
+} from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
     CostBasis,

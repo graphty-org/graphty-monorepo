@@ -89,12 +89,16 @@ describe("project:derived", () => {
             attributes: true,
             valueLabels: true,
             shaders: true,
+            modelDefaults: true,
             runs: true,
             sets: true,
             notes: true,
             styles: true,
             visibility: true,
             views: true,
+            // Written by the views verbs and derived as the views slice, so its own hook never runs.
+            viewOrder: true,
+            tours: true,
         };
         let seq = 0;
         const finished: { slice: string; at: number }[] = [];

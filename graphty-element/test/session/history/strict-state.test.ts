@@ -428,13 +428,13 @@ export function narrowedAtCompileTime(parts: {
     // @ts-expect-error `Graph.styles` is readonly
     graph.styles = styles;
     // @ts-expect-error `Graph.operationQueue` is private
-    const _queue = graph.operationQueue;
+    const _queue: unknown = graph.operationQueue;
     // @ts-expect-error the node map is read-only
-    const _setNode = dataManager.nodes.set;
+    const _setNode: unknown = dataManager.nodes.set;
     // @ts-expect-error the edge map is read-only
-    const _deleteEdge = dataManager.edges.delete;
+    const _deleteEdge: unknown = dataManager.edges.delete;
     // @ts-expect-error the pair list is read-only
-    const _pushPair = dataManager.getEdgesBetween(edge.srcId, edge.dstId).push;
+    const _pushPair: unknown = dataManager.getEdgesBetween(edge.srcId, edge.dstId).push;
     // @ts-expect-error the row index is read-only
     dataManager.edgesByIndex[0] = edge;
     // @ts-expect-error a node's id is read-only
@@ -454,9 +454,9 @@ export function narrowedAtCompileTime(parts: {
     // @ts-expect-error pinning on the engine is protected
     engine.pin(node);
     // @ts-expect-error the store's coordinates are read-only
-    const _writeStore = session.data.store.positions.write;
+    const _writeStore: unknown = session.data.store.positions.write;
     // @ts-expect-error and so are the session's
-    const _setPinned = session.positions.setPinned;
+    const _setPinned: unknown = session.positions.setPinned;
 }
 
 describe("strict state: pins", () => {

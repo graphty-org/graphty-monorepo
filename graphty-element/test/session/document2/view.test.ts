@@ -14,7 +14,7 @@ import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import type { RuleTree } from "../../../src/catalog/types";
+import type { RuleTree, RunId } from "../../../src/catalog/types";
 import { dispatcherOf } from "../../../src/session/dispatchers";
 import { markRecipeRun } from "../../../src/session/document2/codecs/results";
 import { viewCodec } from "../../../src/session/document2/codecs/view";
@@ -30,6 +30,7 @@ import {
     type WriteContext,
 } from "../../../src/session/document2/types";
 import { answeringFromProject, type CannedOutcomes } from "../../../src/session/projectFile";
+import type { RunOutcome } from "../../../src/session/runs";
 import { finishAtOnce } from "../runs/harness";
 
 const SPEC = new URL("../../../spec/", import.meta.url);
@@ -182,7 +183,7 @@ async function open(
             dataMode: "replace",
             restored: new Set(),
             other: (name) => (name === "style" && choices.style === true ? style : undefined),
-            canned: choices.canned ?? new Map(),
+            canned: choices.canned ?? new Map<RunId, RunOutcome>(),
             restoreDerived: (id) => {
                 derived.push(id);
             },
@@ -479,6 +480,7 @@ describe("view codec: the live camera and playhead", () => {
         // What a renderer gives the session: where its camera is now.
         dispatcherOf(session).services.camera = {
             move: () => Promise.resolve(),
+            current: () => ({ position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } }),
             state: () => ({ position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } }),
         };
         const saved = await save(session);
@@ -602,9 +604,11 @@ describe("view codec: opening", () => {
             { code: "W_CAMERA_CONTROLLER_UNKNOWN", params: { section: "view", controller: "fly" } },
         ]);
         assert.deepEqual(opened.views.get("Fly"), {
-            position: { x: 1, y: 2, z: 3 },
-            target: { x: 0, y: 0, z: 0 },
-            fov: 0.5,
+            camera: {
+                position: { x: 1, y: 2, z: 3 },
+                target: { x: 0, y: 0, z: 0 },
+                fov: 0.5,
+            },
         });
     });
 

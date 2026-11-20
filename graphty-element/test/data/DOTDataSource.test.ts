@@ -304,7 +304,7 @@ describe("DOTDataSource", () => {
         }
 
         assert.deepEqual(
-            edges.map(({ tailport, headport }) => ({ tailport, headport })),
+            edges.map(({ tailport, headport }): Record<string, unknown> => ({ tailport, headport })),
             [
                 { tailport: undefined, headport: "c:w" },
                 { tailport: "e", headport: undefined },

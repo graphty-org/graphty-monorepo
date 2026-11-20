@@ -1,6 +1,6 @@
 /**
  * @file The Graphviz layouts' Node-side pieces: the DOT the element writes, the json it reads back,
- * the options, the error codes, the catalogue entries, each engine on a small graph through the real
+ * the options, the error codes, the catalog entries, each engine on a small graph through the real
  * WebAssembly library. The recommendation for a requested layout is in test/session/layout-requested.test.ts.
  */
 
@@ -122,6 +122,41 @@ describe("the DOT the element hands Graphviz", () => {
         assert.closeTo(placed[2 * b] - placed[2 * a], 100 / 72, 1e-3);
         const bends = edgeBends(json, [{ src: a, dst: c }], graphvizPosBends);
         assert.isTrue(bends.has(0), "the edge goes round b, not through it");
+    });
+
+    it("lays pinned parallel edges side by side, nodesep apart, as native Graphviz does (neato -n2)", async () => {
+        // a -> b twice and b -> a once: the WebAssembly build routes all three along one line
+        const snapshot = graph(true, [
+            ["a", "b"],
+            ["a", "b"],
+            ["b", "a"],
+        ]);
+        const positions = new Float32Array([0, 0, 136, 0]);
+        const sizes = new Float32Array(2).fill(0.2);
+        const edges = [
+            { src: 0, dst: 1 },
+            { src: 0, dst: 1 },
+            { src: 1, dst: 0 },
+        ];
+        for (const splines of ["polyline", "true"]) {
+            const reply = await layout(
+                toDot(snapshot, { splines }, sizes, undefined, new Map(), { positions }),
+                "neato",
+                true,
+            );
+            assert.isTrue(reply.ok, JSON.stringify(reply));
+            const json = reply.ok ? reply.json : "{}";
+            const bends = edgeBends(json, edges, graphvizPosBends);
+            // the farthest each route passes to the left of its own direction, in points (136 between the centers)
+            const across = (k: number): number =>
+                136 * Math.max(...(bends.get(k) ?? "0,0").split(" ").map((p) => Number(p.split(",")[1])));
+            const offset = splines === "polyline" ? 18 : 13.5;
+            assert.closeTo(across(0), offset, 0.5, `${splines}: the first to the left of a -> b`);
+            assert.isFalse(bends.has(1), `${splines}: the middle one on the line`);
+            // the third runs from b, so its left is the right of a -> b
+            assert.closeTo(across(2), offset, 0.5, `${splines}: the last to the right of a -> b`);
+            assert.deepEqual([...edgeLineEnds(json, edges).keys()], [], "a spread edge is cut at its nodes");
+        }
     });
 
     it("writes each group as a cluster of its members, a group inside a group nested in it", () => {
@@ -518,7 +553,7 @@ describe("options and failures", () => {
     });
 });
 
-/** The plain name each Graphviz engine's catalogue entry carries. */
+/** The plain name each Graphviz engine's catalog entry carries. */
 const GRAPHVIZ_NAMES: Readonly<Record<(typeof GRAPHVIZ_ENGINES)[number], string>> = {
     dot: "Layered",
     neato: "Stress",

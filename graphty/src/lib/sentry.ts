@@ -47,8 +47,8 @@ function getDefaultConfig(): SentryConfig {
     const { site, sentryEnvironment } = siteConfig();
     return {
         dsn: import.meta.env.VITE_SENTRY_DSN,
-        // The site's label from its site.json, so canary's errors are not labelled production; a
-        // site that serves none is labelled as the build was before site.json existed.
+        // The site's label from its site.json, so canary's errors are not labeled production; a
+        // site that serves none is labeled as the build was before site.json existed.
         environment: sentryEnvironment ?? (site === "unknown" ? import.meta.env.MODE : site),
         isProd: import.meta.env.PROD,
     };

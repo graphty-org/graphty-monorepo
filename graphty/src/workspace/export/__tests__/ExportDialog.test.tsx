@@ -29,23 +29,10 @@ describe("the Export dialog", () => {
 
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         const list = within(dialog).getByRole("grid", { name: "What to export" });
-        for (const name of ["Image", "Video", "Data", "Report", "Styles", "Recipe", "Project"]) {
+        for (const name of ["Data", "Report", "Styles", "Recipe", "Project"]) {
             await userEvent.click(within(list).getByText(name));
             assert.isNotNull(await within(dialog).findByRole("heading", { name }));
         }
-    });
-
-    it("switches between Image and Data from the list", async () => {
-        render(<Workspace initialState={{ ...OPEN, dialog: "export" }} />);
-
-        const dialog = await screen.findByRole("dialog", { name: "Export" });
-        assert.isNotNull(within(dialog).getByRole("heading", { name: "Image" }));
-        // The image carries the legend card, so there is no note saying it does not.
-        assert.isNull(within(dialog).queryByText("The legend is not in the image"));
-
-        await userEvent.click(within(dialog).getByRole("gridcell", { name: "Data" }));
-        assert.isNotNull(within(dialog).getByRole("heading", { name: "Data" }));
-        assert.isNull(within(dialog).queryByRole("heading", { name: "Image" }));
     });
 
     it("lists its outputs in the shared page list, the current one marked", async () => {
@@ -57,10 +44,10 @@ describe("the Export dialog", () => {
         // The one Export dialog's outputs (the data prototype), in tier 3's page list.
         assert.deepEqual(
             rows.map((row) => row.textContent),
-            ["Image", "Video", "Data", "Report", "Styles", "Recipe", "Project"],
+            ["Data", "Report", "Styles", "Recipe", "Project"],
         );
         assert.strictEqual(rows[0].getAttribute("aria-current"), "page");
-        assert.isNotNull(within(dialog).getByRole("region", { name: "Image" }));
+        assert.isNotNull(within(dialog).getByRole("heading", { name: "Data" }));
     });
 
     it("keeps its buttons 8px above its own bottom edge and inside the window on a short screen", async () => {

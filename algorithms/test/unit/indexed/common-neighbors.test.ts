@@ -34,7 +34,7 @@ describe("commonNeighborsScore", () => {
     });
 
     it("scores zero when the two rows are disjoint", () => {
-        // row(a) = [c] and row(c) = [a, b, d]: c is not its own neighbour and a is not its own,
+        // row(a) = [c] and row(c) = [a, b, d]: c is not its own neighbor and a is not its own,
         // so the merge finds nothing.
         const s = star();
         expect(commonNeighborsScore(s, s.ids.requireIndex("a"), s.ids.requireIndex("c"))).toBe(0);

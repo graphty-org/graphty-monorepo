@@ -3,10 +3,10 @@
  * rule the GPU simulations can run as written: after every iteration each node moves out of the nodes it overlaps,
  * reading the positions the iteration left and writing all its moves at once (a Jacobi step, so the result does not
  * depend on the order of the nodes). A pair shares the push and a fixed partner leaves all of it to the free one; a
- * node pushed by several neighbours takes their sum, which spreads a crowd far faster than their mean (measured: 230
+ * node pushed by several neighbors takes their sum, which spreads a crowd far faster than their mean (measured: 230
  * sweeps against more than 400 on the same 200 nodes). The forces can leave pairs overlapping when a run ends, so a
  * settling simulation sweeps until none are (`settleCollisions`). The grid is one largest diameter wide, so a node is
- * compared with the nodes of its own and the neighbouring cells only. GPU twin:
+ * compared with the nodes of its own and the neighboring cells only. GPU twin:
  * webgpu-graph-algorithms/src/wgsl/collide-gather.wgsl.ts.
  */
 
@@ -109,7 +109,7 @@ function addPush(sweep: Sweep, i: number, j: number, moves: Float64Array): boole
 }
 
 /**
- * Adds to `moves` the pushes on one node from its own and the neighbouring cells.
+ * Adds to `moves` the pushes on one node from its own and the neighboring cells.
  * @param sweep - the sweep
  * @param i - the node
  * @param moves - the stride-3 moves
@@ -197,6 +197,6 @@ export function collide(
  */
 export function settleCollisions(...args: Parameters<typeof collide>): void {
     for (let sweep = 0; sweep < COLLISION_FINAL_SWEEPS && collide(...args); sweep++) {
-        // each sweep parts what the one before it pushed into a neighbour
+        // each sweep parts what the one before it pushed into a neighbor
     }
 }

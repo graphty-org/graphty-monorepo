@@ -31,7 +31,7 @@ export interface CollideScene {
 }
 
 /**
- * A seeded scene of `n` nodes spread so about half of them overlap a neighbour; rows 0 and 1 coincide, row 2 is fixed
+ * A seeded scene of `n` nodes spread so about half of them overlap a neighbor; rows 0 and 1 coincide, row 2 is fixed
  * on top of row 3, row 4 is inert in the middle of row 5.
  * @param n - the node count (>= 8)
  * @param dim - the simulation's dimension

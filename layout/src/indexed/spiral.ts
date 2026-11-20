@@ -12,9 +12,9 @@ export interface SpiralLayoutOptions extends CommonLayoutOptions {
 }
 
 /**
- * Archimedean-spiral rows in node order, rescaled so the farthest node is `scale` from the centre.
+ * Archimedean-spiral rows in node order, rescaled so the farthest node is `scale` from the center.
  * @param n - node count
- * @param scale - distance of the farthest node from the centre
+ * @param scale - distance of the farthest node from the center
  * @param center - at least 2 components
  * @param resolution - see SpiralLayoutOptions
  * @param equidistant - see SpiralLayoutOptions
@@ -49,10 +49,10 @@ function spiralRows(
 }
 
 /**
- * Nodes along an Archimedean spiral from the centre outwards, in node-index order. In 3D the spiral lies in the plane
- * of the centre's z.
+ * Nodes along an Archimedean spiral from the center outwards, in node-index order. In 3D the spiral lies in the plane
+ * of the center's z.
  * @param s - the snapshot; only its node count is read
- * @param options - `scale` is the distance of the farthest node from the centre
+ * @param options - `scale` is the distance of the farthest node from the center
  * @returns the layout
  */
 export function spiral(s: GraphSnapshot, options: SpiralLayoutOptions = {}): LayoutResult {

@@ -116,7 +116,7 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         expect(ours.rank("#b")).toBeCloseTo(20 / 114, 12);
         expect(ours.converged).toBe(true);
         // Before 3.34.5, Cytoscape added the teleport (1 - d) / n to every column without scaling the links by d,
-        // then renormalised, so its dampingFactor d behaved as the standard damping 1 / (2 - d). 3.34.5 fixed that
+        // then renormalized, so its dampingFactor d behaved as the standard damping 1 / (2 - d). 3.34.5 fixed that
         // (upstream commit acaa3ad, "Apply the damping factor to the link term in pageRank()"), so from then on
         // its d is the standard damping and needs no conversion.
         const [major, minor, patch] = (cytoscape as unknown as { version: string }).version.split(".").map(Number);
@@ -314,7 +314,7 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         expect(ours.parent("#d")?.id()).toBe("c");
         expect(ours.parent("#a")).toBeUndefined();
 
-        // Depth-first order depends on which neighbour is tried first (graphty: edge order; Cytoscape: the last
+        // Depth-first order depends on which neighbor is tried first (graphty: edge order; Cytoscape: the last
         // one), so compare on a tree where every node has one child.
         const line = graph([
             ["a", "b"],

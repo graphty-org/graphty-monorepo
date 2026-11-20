@@ -18,6 +18,7 @@ import {
     canonNodeOffsets,
     flattenCubic,
     flattenQuadSpline,
+    naturalSplineControls,
     nodeOffsetsToPoints,
 } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity, hexChannels } from "../../styles/canon/color.js";
@@ -943,7 +944,9 @@ function labelShown(label: unknown): boolean {
 
 /**
  * Reads an element's label: the first visible label with text (yEd icon nodes put an empty, `hasText="false"`
- * label first); further visible labels are noted for the element.
+ * label first). A node's second one is its external label (`xlabel`) when it is drawn in the label's look, centered
+ * where yEd stored it (yed-graphml-specimen-labels two-labels, configuration-er-labels); further visible labels are
+ * noted for the element.
  * @param labels - the label elements, in file order
  * @param node - whether they are node labels (which have a position)
  * @param put - receives the values
@@ -961,23 +964,17 @@ function readLabels(
     uml = false,
     icons?: ReadonlyMap<string, readonly [number, number]>,
 ): void {
-    let label: unknown = undefined;
-    let text = "";
-    let extra = 0;
-    for (const l of labels) {
-        if (!labelShown(l)) {
-            continue;
-        }
-        if (label === undefined) {
-            label = l;
-            text = labelWords(l);
-        } else {
-            extra++;
-        }
-    }
+    const shown = labels.filter((l) => labelShown(l));
+    const label = shown[0];
     if (label === undefined) {
         return;
     }
+    const text = labelWords(label);
+    const second = node && geometry !== undefined && shown[1] !== undefined && drawnAsSecond(label, shown[1]);
+    if (second) {
+        readSecondLabel(shown[1], geometry, put, at);
+    }
+    const extra = shown.length - (second ? 2 : 1);
     if (extra > 0) {
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
@@ -989,6 +986,54 @@ function readLabels(
     if (node && icons !== undefined) {
         readIconPlace(label, icons, put);
     }
+}
+
+/** What an external label takes from the label: its font, size, color and turn. */
+const SECOND_LABEL_SHARED = ["fontFamily", "fontSize", "fontStyle", "textColor", "rotationAngle"] as const;
+
+/**
+ * Whether a node's second label can be drawn as its external label: yEd stored the box it drew, it has the label's
+ * font, size, color and turn (an external label is drawn in the label's look), no box of its own drawn, and it is not
+ * a table lane's label (a ColumnNodeLabelModel or RowNodeLabelModel label belongs to its lane).
+ * @param first - the node's label
+ * @param label - its second label
+ * @returns true when it is drawn as the external label
+ */
+function drawnAsSecond(first: unknown, label: unknown): boolean {
+    const model = treeChild(label, "LabelModel");
+    const stored = ["x", "y", "width", "height"].every((k) =>
+        Number.isFinite(Number(treeAttr(label, k) ?? Number.NaN)),
+    );
+    return (
+        stored &&
+        treeChild(model, "ColumnNodeLabelModel") === undefined &&
+        treeChild(model, "RowNodeLabelModel") === undefined &&
+        // as readLabelLook draws a box: a color, not switched off
+        (treeAttr(label, "hasBackgroundColor") === "false" || treeAttr(label, "backgroundColor") === undefined) &&
+        (treeAttr(label, "hasLineColor") === "false" || treeAttr(label, "lineColor") === undefined) &&
+        SECOND_LABEL_SHARED.every((k) => treeAttr(first, k) === treeAttr(label, k))
+    );
+}
+
+/**
+ * Reads a node's second label as its external label: its words, its box's middle from the node's middle (yEd stores
+ * the box it drew, from the node's top left corner) and how its lines line up.
+ * @param label - the label element
+ * @param geometry - the node's `y:Geometry`
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readSecondLabel(label: unknown, geometry: unknown, put: PutValue, at: SiteOf): void {
+    const num = (o: unknown, k: string): number => {
+        const n = Number(treeAttr(o, k));
+        return Number.isFinite(n) ? n : 0;
+    };
+    const middle = (start: string, extent: string): number =>
+        Math.round(1000 * (num(label, start) + num(label, extent) / 2 - num(geometry, extent) / 2)) / 1000;
+    put("xlabel", canonText(labelWords(label), at("xlabel")));
+    put("xlabelOffsetX", middle("x", "width"));
+    put("xlabelOffsetY", middle("y", "height"));
+    put("xlabelTextAlign", treeAttr(label, "alignment") ?? null);
 }
 
 /**
@@ -1617,7 +1662,7 @@ function readTable(real: Realizer, put: PutValue, at: SiteOf): void {
         ][]
     )
         .filter(([size]) => size > 0)
-        // yEd paints neighbouring lanes of one color as one band
+        // yEd paints neighboring lanes of one color as one band
         .reduce<[number, string][]>((merged, [size, color]) => {
             const last = merged.at(-1);
             if (last?.[1] === color) {
@@ -2217,7 +2262,7 @@ function readShadow(real: Realizer, put: PutValue, at: SiteOf): void {
 }
 
 /**
- * The fill an outline darkens, and the raised and bevelled borders it draws round it.
+ * The fill an outline darkens, and the raised and beveled borders it draws round it.
  * @param r - the node realizer element
  * @param outline - the node's outline, or null for a plain shape
  * @param border - its y:BorderStyle
@@ -2517,12 +2562,13 @@ function oneCubic(real: Realizer): boolean {
 }
 
 /**
- * Whether an edge is drawn curved through its bends: an arc always; a spline only through its control points (with
- * none it is a straight line); a polyline, and a generic edge (a framed or styled polyline), only when it smooths
- * bends it has. A quad curve edge never, nor a Bezier edge of whole cubic pieces (two control points, five, ...): its
- * curve is flattened into points on it (`readEdgeRoute`), drawn straight from one to the next, as a Graphviz spline
- * is; rounding their corners cut inside the curve (a quad curve of straightness 1, whose points are its control
- * polygon, was drawn bowed).
+ * Whether an edge is drawn curved through its bends: an arc always; a spline when it has bends (its natural spline is
+ * flattened into points on it by `readEdgeRoute`, close enough that rounding their corners keeps to the curve, and a
+ * spline is a curve however a reader draws it); a polyline, and a generic edge (a framed or styled polyline), only
+ * when it smooths bends it has. A quad curve edge never, nor a Bezier edge of whole cubic pieces (two control points,
+ * five, ...): its curve is flattened into points on it, drawn straight from one to the next, as a Graphviz spline is;
+ * rounding their corners cut inside the curve (a quad curve of straightness 1, whose points are its control polygon,
+ * was drawn bowed).
  * @param real - the edge realizer
  * @returns true when curved, null when a polyline does not say whether it smooths
  */
@@ -2550,8 +2596,9 @@ function edgeCurved(real: Realizer): boolean | null {
 /**
  * An edge's route from its `y:Path`: the ports its ends attach at (`sx sy`, `tx ty`: offsets from the node centers),
  * relative to each node's size, and its bends, relative to the centers of its two nodes (a self-loop's to its node's
- * size). yEd draws a polyline, an arc or a spline through the points; a Bezier or quad curve edge takes them as
- * control points its curve does not pass through, so its curve is flattened into the points it does pass through.
+ * size). yEd draws a polyline or an arc through the points; a Bezier or quad curve edge takes them as control points
+ * its curve does not pass through, and a spline edge draws a natural cubic spline through them, so those curves are
+ * flattened into points they pass through.
  * @param real - the edge realizer
  * @param nodes - each node's center x and y, width and height
  * @param source - the source node's index
@@ -2603,14 +2650,19 @@ function readEdgeRoute(
     ]);
     if (real.type === "ArcEdge") {
         points = arcControl(treeChild(real.r, "Arc"), ends) ?? points;
-    } else if (points.length > 0 && !oneCubic(real) && (real.type === "BezierEdge" || real.type === "QuadCurveEdge")) {
+    } else if (
+        points.length > 0 &&
+        !oneCubic(real) &&
+        (real.type === "BezierEdge" || real.type === "QuadCurveEdge" || real.type === "SplineEdge")
+    ) {
         const controls = [ends[0], ...points, ends[1]];
+        // a spline edge is the natural cubic spline through its ends and bends (yed-graphml-specimen-edges-lines
+        // spline); a quad curve edge joins its first and last legs at their middles too, straight from the ends
+        // (graphml-magiclantern-architecture n0::n1::e4, yed-graphml-specimen-edges-lines' quad curves)
         const curve =
-            real.type === "BezierEdge"
-                ? flattenCubic(controls)
-                : // yEd joins its first and last legs at their middles too, straight from the ends
-                  // (graphml-magiclantern-architecture n0::n1::e4, yed-graphml-specimen-edges-lines' quad curves)
-                  flattenQuadSpline(controls, Number(treeAttr(real.r, "straightness") ?? YED_STRAIGHTNESS), 8, true);
+            real.type === "QuadCurveEdge"
+                ? flattenQuadSpline(controls, Number(treeAttr(real.r, "straightness") ?? YED_STRAIGHTNESS), 8, true)
+                : flattenCubic(real.type === "SplineEdge" ? (naturalSplineControls(controls) ?? controls) : controls);
         points = (curve ?? controls).slice(1, -1);
     }
     put(
@@ -2701,14 +2753,23 @@ export function routeMiddle(points: readonly BendPoint[]): BendPoint {
     return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 }
 
-/** Where a yEd edge label model's position sits: along the line, and -1 left of it, 0 on it, 1 right of it. */
-type EdgeSpot = readonly ["source" | "middle" | "target", -1 | 0 | 1];
+/**
+ * Where a yEd edge label model's position sits: along the line, and -1 left of it, 0 on it, 1 right of it, or `above`
+ * it on the page (left of a vertical line).
+ */
+type EdgeSpot = readonly ["source" | "middle" | "target", -1 | 0 | 1 | "above"];
 
 /** Each yEd edge label model's positions, `model/position` (yed-graphml-specimen-edge-labels). */
 const YED_EDGE_SPOTS: ReadonlyMap<string, EdgeSpot> = new Map([
     ["centered/center", ["middle", 0]],
     ["center_slider/center", ["middle", 0]],
     ["side_slider/center", ["middle", -1]],
+    // a GML side_slider label with no stored box: yEd 3.25 draws it at the line's start, above it on the page, left of
+    // a vertical line (gml-synthetic-coverage e2, e11, e20, e29, e38, e56, e74)
+    ["side_slider/start", ["source", "above"]],
+    // a GML center_slider label with no stored box: the same place, on the line (gml-specimen-edge-labels-p2
+    // model-center-slider-center, its text 12.1 px past the line's start like its side_slider neighbor's)
+    ["center_slider/start", ["source", 0]],
     ["two_pos/head", ["middle", -1]],
     ["two_pos/tail", ["middle", 1]],
     ["three_center/scentr", ["source", 0]],
@@ -2724,6 +2785,13 @@ const YED_EDGE_SPOTS: ReadonlyMap<string, EdgeSpot> = new Map([
 
 /** How far from the line's end yEd starts a label at a source or target position. */
 const YED_EDGE_LABEL_END = 10;
+
+/**
+ * How far a SmartEdgeLabelModel label's box stays clear of its segment's ends: its ratio slides the box's middle from
+ * this far plus half its width past the start to as far short of the end (yed-graphml-specimen-edge-labels
+ * `model-smart-ratio-0-2`: an 18.7 px box at ratio 0.2 of a 66 px line is drawn with its middle 21.8 px along it).
+ */
+const YED_SMART_EDGE_LABEL_END = 5;
 
 /**
  * Where a line from a point in a box leaves the box, or the line's end for one that stays inside.
@@ -2778,6 +2846,8 @@ interface YedEdgeLabel {
     stored: readonly number[] | null;
     /** Whether a stored box is in the file's coordinates (yEd's GML), not from where the line starts (its GraphML). */
     storedOnPage?: boolean;
+    /** A SmartEdgeLabelModel label on its line: the segment it is on (from the target where below zero) and its ratio. */
+    smart?: readonly [number, number];
     /** How far it stays clear of the line. */
     distance: number;
     width: number;
@@ -2797,18 +2867,44 @@ function edgeLabelCenter(label: YedEdgeLabel, line: readonly BendPoint[]): BendP
         const [ox, oy] = label.storedOnPage === true ? [0, 0] : line[0];
         return [ox + x + w / 2, oy + y + h / 2];
     }
+    if (label.smart !== undefined) {
+        return smartEdgeLabelCenter(label.smart, label.width, line);
+    }
     const spot =
         YED_EDGE_SPOTS.get(label.spot) ?? YED_EDGE_SPOTS.get(`${label.spot.slice(0, label.spot.indexOf("/"))}/center`);
     if (spot === undefined) {
         return null;
     }
-    const [along, side] = spot;
+    const [along, where] = spot;
     const length = lineLength(line);
     const end = YED_EDGE_LABEL_END + label.width / 2;
     const reach = { source: end, middle: length / 2, target: Math.max(0, length - end) };
     const { at, dir } = pointAlong(line, reach[along]);
+    // left of a line running rightward, or straight up the page, is above it, or left of it
+    const upward = dir[0] > YED_PORT_SLACK || (dir[0] >= -YED_PORT_SLACK && dir[1] < 0);
+    const upwardSide = upward ? -1 : 1;
+    const side = where === "above" ? upwardSide : where;
     const clear = label.distance + (label.lines * YED_LABEL_LINE * label.fontSize + YED_LABEL_BOX_PADDING) / 2;
     return [at[0] - side * dir[1] * clear, at[1] + side * dir[0] * clear];
+}
+
+/**
+ * The middle of a SmartEdgeLabelModel label centered on its line: `ratio` of the way along its segment, kept its
+ * half width and `YED_SMART_EDGE_LABEL_END` clear of the segment's ends.
+ * @param smart - the segment (from the target where below zero) and the ratio
+ * @param width - the label's width
+ * @param line - the line drawn between the nodes' sides
+ * @returns the point
+ */
+function smartEdgeLabelCenter(smart: readonly [number, number], width: number, line: readonly BendPoint[]): BendPoint {
+    const [segment, ratio] = smart;
+    const last = line.length - 2;
+    const k = Math.min(last, Math.max(0, segment < 0 ? last + 1 + segment : segment));
+    const [a, b] = [line[k], line[k + 1]];
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const end = Math.min(length / 2, YED_SMART_EDGE_LABEL_END + width / 2);
+    const t = length > 0 ? (end + ratio * (length - 2 * end)) / length : 0.5;
+    return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
 }
 
 /**
@@ -2859,8 +2955,9 @@ export function putYedEdgeLabel(
 }
 
 /**
- * Reads where yEd draws an edge's label, from the model the file names; a free label and a SmartEdgeLabelModel off the
- * line's middle by the box the file stores. A label naming no model is drawn by yEd's default one, six_pos at tail:
+ * Reads where yEd draws an edge's label, from the model the file names; a SmartEdgeLabelModel label centered on its
+ * line by its segment and ratio, and a free label and a SmartEdgeLabelModel label off the line by the box the file
+ * stores. A label naming no model is drawn by yEd's default one, six_pos at tail:
  * on the middle of the line, clear of it on its right (yed-graphml-specimen-edge-labels `default`), unless graphty
  * wrote the file, which keeps the label's place in its styles block. A curved line or a self-loop keeps graphty's place.
  * @param real - the edge realizer
@@ -2896,7 +2993,9 @@ function readEdgeLabelPlace(
     const [s, t] = [box(source), box(target)];
     const offset = (key: string): number => Number(treeAttr(path, key) ?? 0) || 0;
     const smart = treeChild(treeChild(label, "ModelParameter"), "SmartEdgeLabelModelParameter");
-    const smartMiddle = treeAttr(smart, "position") === "center" && Number(treeAttr(smart, "ratio")) === 0.5;
+    // a label centered on its line is drawn where its ratio puts it, whatever box the file stores
+    const ratio = Number(treeAttr(smart, "ratio") ?? Number.NaN);
+    const smartMiddle = treeAttr(smart, "position") === "center" && ratio >= 0 && ratio <= 1;
     const stored = model === "free" || (model === "custom" && smart !== undefined && !smartMiddle);
     const position = smartMiddle ? "center" : (treeAttr(label, "modelPosition") ?? "tail");
     const placed = smartMiddle ? "centered" : model;
@@ -2906,6 +3005,7 @@ function readEdgeLabelPlace(
         {
             spot: model === "custom" && smart === undefined ? unplacedSmartSpot(label, s, t) : `${placed}/${position}`,
             stored: stored ? ["x", "y", "width", "height"].map((k) => Number(treeAttr(label, k))) : null,
+            smart: smartMiddle ? [Number(treeAttr(smart, "segment") ?? 0) || 0, ratio] : undefined,
             distance: Number(treeAttr(label, "distance") ?? 2) || 0,
             width: Number(treeAttr(label, "width")) || 0,
             fontSize: Number(treeAttr(label, "fontSize") ?? 12) || 12,

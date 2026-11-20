@@ -212,12 +212,19 @@ export class StatsManager implements Manager {
     private babylonInstrumentation: EngineInstrumentation | null = null;
 
     // Performance counters
+    /** Time spent in each layout step of a graph update. */
     graphStep = new PerfCounter();
+    /** Time spent moving and redrawing nodes in each graph update. */
     nodeUpdate = new PerfCounter();
+    /** Time spent moving and redrawing edges in each graph update. */
     edgeUpdate = new PerfCounter();
+    /** Time spent placing an edge's arrowheads and trimming its line beside them, one sample per edge placed. */
     arrowCapUpdate = new PerfCounter();
+    /** Time spent finding where an edge meets its nodes' surfaces, one sample per edge end search. */
     intersectCalc = new PerfCounter();
+    /** Time each data load took, from its first read to its last record, one sample per finished load. */
     loadTime = new PerfCounter();
+    /** How many graph updates have run since the counters were last reset. */
     totalUpdates = 0;
 
     // Cache statistics (will be updated by other managers)
@@ -388,13 +395,21 @@ export class StatsManager implements Manager {
      * @returns Current graph statistics including counts and performance metrics
      */
     getStats(): {
+        /** How many nodes the graph holds. */
         numNodes: number;
+        /** How many edges the graph holds. */
         numEdges: number;
+        /** How many graph updates have run since the counters were last reset. */
         totalUpdates: number;
+        /** How many meshes were reused from the mesh cache. */
         meshCacheHits: number;
+        /** How many meshes had to be built because the mesh cache did not hold them. */
         meshCacheMisses: number;
+        /** How many times nodes were updated (`nodeUpdate`'s count). */
         nodeUpdateCount: number;
+        /** How many times edges were updated (`edgeUpdate`'s count). */
         edgeUpdateCount: number;
+        /** How many times an edge's arrowheads were placed (`arrowCapUpdate`'s count). */
         arrowCapUpdateCount: number;
     } {
         return {
@@ -451,7 +466,7 @@ export class StatsManager implements Manager {
 
         // Graph engine performance
         statsSection("Graph Engine Performance");
-        appendPerf("JSON Load Time", this.loadTime);
+        appendPerf("Data Load Time", this.loadTime);
         appendPerf("Graph Physics Engine Time", this.graphStep);
         appendPerf("Node Update Time", this.nodeUpdate);
         appendPerf("Edge Update Time", this.edgeUpdate);
@@ -481,10 +496,15 @@ export class StatsManager implements Manager {
      * @returns Summary of key performance metrics
      */
     getPerformanceSummary(): {
+        /** Frames per second, from the average frame time; zero before instrumentation is attached. */
         fps: number;
+        /** Average frame time over the last second, in milliseconds. */
         frameTime: number;
+        /** Average render time over the last second, in milliseconds. */
         renderTime: number;
+        /** Average GPU frame time over the last second, in milliseconds. */
         gpuTime: number;
+        /** Draw calls in the most recent frame. */
         drawCalls: number;
     } {
         if (!this.sceneInstrumentation || !this.babylonInstrumentation) {
@@ -787,7 +807,7 @@ export class StatsManager implements Manager {
                 max: -Infinity,
                 avg: 0,
                 lastDuration: 0,
-                durations: new Array(StatsManager.RING_BUFFER_SIZE),
+                durations: new Array<number>(StatsManager.RING_BUFFER_SIZE),
                 durationsIndex: 0,
                 durationsFilled: false,
             });

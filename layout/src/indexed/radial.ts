@@ -16,7 +16,7 @@ import { type ShellRotate, shellRows } from "./shell.js";
 /** Options of the index-based radial layout. */
 export interface RadialLayoutOptions extends CommonLayoutOptions {
     /**
-     * The node at the centre: its index, or `{ id }`; default the node with the most distinct neighbours (the lowest
+     * The node at the center: its index, or `{ id }`; default the node with the most distinct neighbors (the lowest
      * index on a tie).
      */
     readonly root?: NodeRef | null | undefined;
@@ -43,11 +43,11 @@ export interface RadialLayoutOptions extends CommonLayoutOptions {
 export type RadialArrangement = "rings" | "sectors";
 
 /**
- * The distinct neighbours of `u` in the order of the first edge joining them (edge-index order), which is the order
+ * The distinct neighbors of `u` in the order of the first edge joining them (edge-index order), which is the order
  * the legacy radial layout visited them in.
  * @param g - an undirected snapshot
  * @param u - the node
- * @returns neighbour indices
+ * @returns neighbor indices
  */
 function neighboursByEdge(g: GraphSnapshot, u: number): number[] {
     // rows are sorted by target with ties in ascending edge order, so the first arc to each target is its first edge
@@ -61,7 +61,7 @@ function neighboursByEdge(g: GraphSnapshot, u: number): number[] {
 }
 
 /**
- * The node with the most distinct neighbours (the first on a tie).
+ * The node with the most distinct neighbors (the first on a tie).
  * @param g - an undirected snapshot with at least one node
  * @returns its index
  */
@@ -84,7 +84,7 @@ function mostNeighbours(g: GraphSnapshot): number {
 }
 
 /**
- * The root option, checked, or the node with the most distinct neighbours when it is null.
+ * The root option, checked, or the node with the most distinct neighbors when it is null.
  * @param g - an undirected snapshot with at least one node
  * @param root - the root option
  * @returns the root index
@@ -103,7 +103,7 @@ function checkedRoot(g: GraphSnapshot, root: number | null): number {
 }
 
 /**
- * The breadth-first rings the root reaches, neighbours visited in edge order.
+ * The breadth-first rings the root reaches, neighbors visited in edge order.
  * @param g - an undirected snapshot
  * @param root - the root index
  * @param parent - all -1 on entry; receives each reached node's breadth-first parent
@@ -133,10 +133,10 @@ function breadthFirstRings(g: GraphSnapshot, root: number, parent: Int32Array): 
 }
 
 /**
- * The breadth-first rings around a root: ring k holds the nodes k hops away (edges taken as undirected, neighbours
+ * The breadth-first rings around a root: ring k holds the nodes k hops away (edges taken as undirected, neighbors
  * visited in edge order), and every node the root cannot reach goes on one extra ring after the last.
  * @param g - an undirected snapshot
- * @param root - the root index, or null for the node with the most distinct neighbours
+ * @param root - the root index, or null for the node with the most distinct neighbors
  * @returns node indices per ring, the root's ring first, and each reached node's breadth-first parent (-1 for the root
  * and for nodes the root cannot reach)
  */
@@ -183,7 +183,7 @@ function leavesUnder(n: number, rings: readonly number[][], parent: Int32Array, 
 /**
  * Each node within its breadth-first parent's sector. The root's sector is the whole circle; a node's share of its
  * parent's sector is in proportion to the leaves under it, handed out in edge order, and the node sits at the middle of
- * its share. A deeper node's share is narrowed to the wedge its edges can reach without crossing a neighbouring branch,
+ * its share. A deeper node's share is narrowed to the wedge its edges can reach without crossing a neighboring branch,
  * so the edges of the breadth-first tree never cross. Nodes the root cannot reach go evenly around the outer ring.
  * @param n - node count
  * @param rings - node indices per ring, the root's first, the unreachable nodes (if any) last
@@ -210,7 +210,7 @@ function sectorRows(
     const leaves = leavesUnder(n, rings, parent, reachedRings);
     // the sector each node hands out to its children, in ring (edge) order and in proportion to their leaves. Past the
     // root it is the node's own share of its parent's sector, narrowed to the wedge between the tangents at the node's
-    // ring that meet the next ring, so no edge to a child can cut across a neighbouring branch (Eades, 1992)
+    // ring that meet the next ring, so no edge to a child can cut across a neighboring branch (Eades, 1992)
     const start = new Float64Array(n);
     const width = new Float64Array(n);
     const used = new Float64Array(n);
@@ -246,13 +246,13 @@ function sectorRows(
 }
 
 /**
- * Nodes on concentric rings by hop distance from a root: the root on the centre, ring k at radius
+ * Nodes on concentric rings by hop distance from a root: the root on the center, ring k at radius
  * `k * scale / (ringCount - 1)`, nodes the root cannot reach on one extra outer ring. By default each ring's nodes are
  * evenly spaced in breadth-first order, which is NetworkX's `shell_layout` over the breadth-first rings, ring k turned
  * by `(k + 1) * rotate`; `arrangement: "sectors"` keeps each node in its parent's sector instead. Edges are taken as
- * undirected. In 3D the rings lie in the plane of the centre's z.
+ * undirected. In 3D the rings lie in the plane of the center's z.
  * @param s - the snapshot; a directed one is read as its undirected derived graph
- * @param options - `scale` is the radius of the outermost ring; `root` the centre node; `rotate` the turn of each ring
+ * @param options - `scale` is the radius of the outermost ring; `root` the center node; `rotate` the turn of each ring
  * past the one inside it; `arrangement` how a ring's nodes are spread
  * @returns the layout
  * @throws an Error with `code` `E_BAD_NODE` and `params` `{ option: "root", index }` when `root` is an index that is

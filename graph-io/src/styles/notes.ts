@@ -27,7 +27,7 @@ const PHRASES: ReadonlyMap<StyleNoteCode, string> = new Map<StyleNoteCode, strin
     ["W_STYLE_SIZE_MINIMUM", "node sizes are minimums: the node grows to fit its label"],
     ["W_STYLE_HTML_LABEL", "HTML-like labels keep their text; markup was dropped"],
     ["W_STYLE_RECORD_LABEL", "record label fields were joined"],
-    ["W_STYLE_EXTRA_LABELS", "elements have more than one label; the first was kept"],
+    ["W_STYLE_EXTRA_LABELS", "elements have more labels than are drawn; the rest were left out"],
     ["W_STYLE_INHERIT_COLOR", "inherited colors cannot be expressed"],
     ["W_STYLE_NOT_CARRIED", "style properties have no counterpart and were not carried"],
     ["W_STYLE_ANNOTATION_SKIPPED", "annotations of a kind graph-io does not read were skipped"],

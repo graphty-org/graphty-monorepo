@@ -15,6 +15,11 @@
 # <main checkout>/tmp/waits.jsonl). BROWSER_SLOT_POLL sets the seconds between looks (5). The command runs
 # with BROWSER_SLOT (the slot's number) and BROWSER_SLOT_FILE (its lock file) set.
 #
+# A holder that makes no progress -- its process tree uses almost no CPU and writes no output for
+# BROWSER_SLOT_STALL seconds (600) -- is named to every waiter, with its command, checkout and age, and once in
+# the wait log as "browser-slot-stalled" (tools/browser-slot-stall.mjs; on 2026-11-19 a hung holder kept a slot
+# 16 hours with nobody told, #9046). It is only reported: never stopped, and its slot is never taken from it.
+#
 # BROWSER_SLOTS (1 to 16, default 4) is how many slots the command may take, slot1 up to slotN. Slots 5 and
 # up are the design studio's alone; nothing else sets more than 4.
 #
@@ -104,6 +109,7 @@ high=""
 ticket=""
 tickets=""
 first=1
+stall_look=-999999
 case "${BROWSER_SLOT_PRIORITY:-}" in
 high)
     high="$dir/.high-$$"
@@ -120,8 +126,12 @@ low)
     ;;
 esac
 [ -z "$ticket" ] || echo "$n" >"$ticket"
+# No trap of its own on TERM, INT or HUP: bash (5.2) that receives a trapped signal while it parses a command
+# substitution, as this loop does on every look, fails to parse the trap's command and carries on, so a
+# waiter told to stop kept waiting with its ticket in the queue (#9010). Left to their default the signals
+# always end it, and bash runs the EXIT trap on the way out; a ticket left behind anyway is a dead one, which
+# every waiter skips.
 trap 'rm -f "$high" "$ticket"' EXIT
-trap 'exit 143' TERM INT HUP
 while :; do
     slots="$(seq "$first" "$n") $(seq $((first - 1)) -1 1)"
     if [ -z "$high" ] && high_waiting; then slots=""; fi
@@ -132,7 +142,7 @@ while :; do
         if flock -n "$fd"; then
             echo "$$ $(date -u +%Y-%m-%dT%H:%M:%SZ) $PWD :: $*" >"$dir/slot$i.holder"
             rm -f "$high" "$ticket"
-            trap - EXIT TERM INT HUP
+            trap - EXIT
             if [ ${#held_by[@]} -gt 0 ]; then
                 node "$here/wait-log.mjs" browser-slot "$start" "$PWD :: $*" "${held_by[@]}" 2>/dev/null
             fi
@@ -149,6 +159,13 @@ while :; do
         mapfile -t held_by < <(holders)
         [ ${#held_by[@]} -gt 0 ] || held_by=("unknown (a command that takes the slots without this script)")
         echo "with-browser: waiting for one of $n browser slots, held by: $(printf '%s; ' "${held_by[@]}")" >&2
+    fi
+    # A holder that has made no progress for BROWSER_SLOT_STALL seconds (600) is named loudly, here and once
+    # in the wait log; it is never stopped (tools/browser-slot-stall.mjs, #9046). Looked at every
+    # BROWSER_SLOT_STALL_CHECK seconds (60).
+    if [ $((SECONDS - stall_look)) -ge "${BROWSER_SLOT_STALL_CHECK:-60}" ]; then
+        stall_look=$SECONDS
+        node "$here/browser-slot-stall.mjs" "$dir" "$n" "${BROWSER_SLOT_STALL:-600}" >&2
     fi
     sleep "${BROWSER_SLOT_POLL:-5}"
 done

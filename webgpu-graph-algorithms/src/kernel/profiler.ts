@@ -3,7 +3,7 @@
  * whose query set (PROFILER_QUERY_SLOTS slots, two per pass) is written by the timestampWrites of
  * every CommandBatch pass; `resolveInto(batch)` records the resolve plus a copy into the batch's
  * staging slot and `timings(bytes, request)` decodes `{ label, ns }` per pass from the batch's
- * readback bytes. Chromium quantises timestamps to 100 us (`quantised: true`); Dawn-node reports
+ * readback bytes. Chromium quantizes timestamps to 100 us (`quantised: true`); Dawn-node reports
  * 1,024 ns ticks. The profiler never throws: a full query set drops the timings of the
  * passes past the budget and marks the batch's request `partial(request)` so a caller summing the
  * rows into a duration falls back to wall time; a device without the feature disables it. Slot
@@ -34,7 +34,7 @@ interface PendingPass {
 export class Profiler {
     /** True when the feature was granted and a query set exists. */
     readonly enabled: boolean;
-    /** True in browsers (100 us quantisation), false under Dawn-node. */
+    /** True in browsers (100 us quantization), false under Dawn-node. */
     readonly quantised: boolean;
     private readonly slots: number;
     private readonly querySet: GPUQuerySet | null;

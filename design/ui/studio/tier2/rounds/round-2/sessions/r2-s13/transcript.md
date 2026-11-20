@@ -97,7 +97,7 @@ node ../tool/real.mjs --step rounds/round-2/sessions/r2-s13 --click Color
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/rounds/round-2/sessions/r2-s13/13.png
 ```
 
-**Elena:** It made a thing called '3 edges' on the left and a legend entry 'Edge color: 3 edges'. But the color is A9A9A9, grey -- same as every other line, so that does nothing. I'll click the little grey square to pick red.
+**Elena:** It made a thing called '3 edges' on the left and a legend entry 'Edge color: 3 edges'. But the color is A9A9A9, gray -- same as every other line, so that does nothing. I'll click the little gray square to pick red.
 
 ```
 node ../tool/real.mjs --step rounds/round-2/sessions/r2-s13 --click-at 1220\,160
@@ -130,7 +130,7 @@ at 400,600: empty canvas
 ```
 
 **Elena (17.png):** The red stayed after I clicked away. The three slow links are red and every
-other line is still grey; the panel still says 10 nodes and 17 edges, so nothing was taken off.
+other line is still gray; the panel still says 10 nodes and 17 edges, so nothing was taken off.
 That's what my colleague asked for. I'm done.
 
 ```
@@ -154,7 +154,7 @@ session ended
     didn't know if they mattered. I still don't know.
   - The blue "selected" outline looked like the answer, but I was pretty sure it would go away
     when I clicked somewhere, so I had to find another way to make it stay. The Style tab worked.
-    But the first color it gave me was the same grey as every other line, so "adding a color"
+    But the first color it gave me was the same gray as every other line, so "adding a color"
     changed nothing until I picked a new one.
   - The red lines are thin, and the legend calls them "3 edges", not "10 minutes or more". If
     I send this to someone, they won't know what red means unless I tell them. I'm also not sure

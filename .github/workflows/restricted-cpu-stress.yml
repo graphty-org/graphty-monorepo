@@ -202,7 +202,7 @@ jobs:
 
             - name: Install Mesa lavapipe
               if: matrix.needs-lavapipe
-              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
+              uses: ./.github/actions/mesa-lavapipe
 
             - name: Locate the lavapipe ICD and export the lane's environment
               if: matrix.needs-lavapipe

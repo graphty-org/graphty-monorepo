@@ -1511,6 +1511,16 @@
                     "advanced": true
                 },
                 {
+                    "name": "spacing",
+                    "plainName": "Spacing",
+                    "technicalName": "spacing",
+                    "type": "number",
+                    "description": "How far apart neighbors are drawn at least, in scene units (a default node is one across): data positions closer than that are spread out, keeping their proportions; 0 draws them as given",
+                    "default": 3,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
                     "name": "edgeRoutes",
                     "plainName": "Edge routes",
                     "technicalName": "edgeRoutes",

@@ -189,7 +189,14 @@ import {
     writeSourcesMember,
 } from "./sources/member";
 import { pendingSourceLoads, targetOf } from "./sources/pending";
-import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
+import {
+    heldCounts,
+    type Provenance,
+    PROVENANCE_VALUE,
+    provenanceIndex,
+    withoutSource,
+    withSupplied,
+} from "./sources/provenance";
 import type {
     CollapseResult,
     ExpandOptions,
@@ -3376,7 +3383,6 @@ export class SessionData implements SessionDataApi {
         const records = new Map(this.ledger.loads().map((record) => [record.key, record]));
         const catalog = new Map(sourceDescriptors().map((entry) => [entry.id, entry.features]));
 
-        const space = edgeSpaceOf(snapshot);
         // Each load belongs to one entry: a node two loads share names both, or only the first.
         const taken = new Set<string>();
         // An entry saved before loads had keys gets one by its place in the list.
@@ -3414,14 +3420,7 @@ export class SessionData implements SessionDataApi {
                     ...(loadKey === undefined ? {} : { loadKey }),
                     ...loadFacts(records.get(loadKey ?? ""), catalog),
                     ...addressOf(kind, each.config, records.get(loadKey ?? "")),
-                    counts: Object.freeze(
-                        supplied === undefined
-                            ? { ...each.added }
-                            : {
-                                  nodes: supplied.nodes.filter((id) => snapshot.ids.has(id)).length,
-                                  edges: supplied.edges.filter((id) => space.indexOf(id) !== INVALID_INDEX).length,
-                              },
-                    ),
+                    counts: Object.freeze(supplied === undefined ? { ...each.added } : heldCounts(supplied, snapshot)),
                 });
             }),
         );

@@ -121,6 +121,36 @@ describe("the graph builder on the batched path", () => {
         assert.deepEqual(sorted(graphOf(element)), sorted(want));
         assert.strictEqual(builderRelease(element).revivals, 1, "a rebuilt builder is kept");
     });
+    it("let it go again after a second source merges in, so a graph of several sources holds one copy", async () => {
+        const element = document.createElement("graphty-element");
+        element.renderer = "webgl";
+        element.renderPath = "batched";
+        element.layout = "fixed";
+        element.style.display = "block";
+        element.style.width = "300px";
+        element.style.height = "200px";
+        document.body.appendChild(element);
+        const csv = (prefix: string, count: number): string =>
+            [
+                "source,target",
+                ...Array.from({ length: count }, (_, at) => `${prefix}${at % 20},${prefix}${(at + 3) % 20}`),
+            ].join("\n");
+        await element.session.data.import({ type: "csv", config: { data: csv("a", 60) }, name: "a.csv" });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.isTrue(builderRelease(element).released, "the first source let it go");
+
+        // The second source writes into the let-go builder, which rebuilds it once.
+        await element.session.data.import(
+            { type: "csv", config: { data: csv("b", 30) }, name: "b.csv" },
+            { mode: "merge" },
+        );
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.strictEqual(element.session.data.snapshot().edgeCount, 90, "both sources' edges are in");
+        assert.strictEqual(element.session.data.sources().length, 2);
+        assert.deepEqual(builderRelease(element), { released: true, revivals: 1 });
+    });
     it("let it go again after nodes and edges arrive as two commands, and clear and undo it with no rebuild", async () => {
         const element = await loaded("batched", [], []);
         await element.session.data.addNodes(nodes());

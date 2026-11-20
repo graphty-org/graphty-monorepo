@@ -685,9 +685,10 @@ export class GraphStore {
      */
     private held: GraphBuilder | null = null;
     /**
-     * Whether the builder may be let go: true from the store's start and from each load that
-     * replaces the graph, false from the first rebuild after a release (of a builder holding edges)
-     * until then, so editing a loaded graph rebuilds it once, not after every quiet moment.
+     * Whether the builder may be let go: true from the store's start, from each load that
+     * replaces the graph and from the end of every load, false from the first rebuild after a
+     * release (of a builder holding edges) until then, so editing a loaded graph rebuilds it once,
+     * not after every quiet moment.
      */
     private releasable = true;
     /** The builder let go, while it is. */
@@ -1411,6 +1412,10 @@ export class GraphStore {
             this.completeIdentity();
             // The pass's column writes are the store's own.
             this.account();
+            // A load, merging or not, may let a rebuilt builder go again: a graph built from several
+            // sources is one load after another, and keeping the builder after the second would
+            // hold a second copy of the whole graph for the rest of the session.
+            this.releasable = true;
         }
     }
 

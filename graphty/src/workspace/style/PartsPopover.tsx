@@ -134,21 +134,24 @@ function WhichFile({ part, name, label, first, answer }: Readonly<PartControlsPr
     const candidates = (part.params.candidates ?? []) as readonly string[];
     const more = typeof part.params.more === "number" ? part.params.more : 0;
     return (
-        <Group gap={4} wrap="nowrap">
-            <PanelField
-                label={main ? "Which file is the model" : `Which file is ${label}`}
-                kind="select"
-                width="fill"
-                value={null}
-                placeholder="Choose"
-                data={candidates.map((c) => ({ value: c, label: c }))}
-                data-autofocus={first ? true : undefined}
-                onChange={(next) => {
-                    answer(main ? { main: String(next) } : { name, use: String(next) });
-                }}
-            />
-            {more > 0 ? <Text size="xs">{`+${String(more)} more`}</Text> : null}
-        </Group>
+        <>
+            <Group gap={4} wrap="nowrap">
+                <PanelField
+                    label={main ? "Which file is the model" : `Which file is ${label}`}
+                    kind="select"
+                    width="fill"
+                    value={null}
+                    placeholder="Choose"
+                    data={candidates.map((c) => ({ value: c, label: c }))}
+                    data-autofocus={first ? true : undefined}
+                    onChange={(next) => {
+                        answer(main ? { main: String(next) } : { name, use: String(next) });
+                    }}
+                />
+                {more > 0 ? <Text size="xs">{`+${String(more)} more`}</Text> : null}
+            </Group>
+            <LoadWithout part={part} name={name} label={label} answer={answer} />
+        </>
     );
 }
 
@@ -212,23 +215,44 @@ function SupplyPart({
                     answer({ name, url: address });
                 }}
             />
-            {part.params.optional === true ? (
-                <Group gap={4}>
-                    <Tooltip label={`Load without ${label}`}>
-                        <Button
-                            size="compact-xs"
-                            variant="default"
-                            aria-label={`Load without ${label}`}
-                            onClick={() => {
-                                answer({ name, skip: true });
-                            }}
-                        >
-                            Load without it
-                        </Button>
-                    </Tooltip>
-                </Group>
-            ) : null}
+            <LoadWithout part={part} name={name} label={label} answer={answer} />
         </>
+    );
+}
+
+/**
+ * Load without it, for a part the model may be drawn without (a picture or a material).
+ * @param props - Component props
+ * @param props.part - the part
+ * @param props.name - its name, as the model names it
+ * @param props.label - the name the reader reads and hears
+ * @param props.answer - hands the skip over
+ * @returns The button, or nothing for a part the model needs
+ */
+function LoadWithout({
+    part,
+    name,
+    label,
+    answer,
+}: Readonly<Pick<PartControlsProps, "part" | "name" | "label" | "answer">>): React.JSX.Element | null {
+    if (part.params.optional !== true) {
+        return null;
+    }
+    return (
+        <Group gap={4}>
+            <Tooltip label={`Load without ${label}`}>
+                <Button
+                    size="compact-xs"
+                    variant="default"
+                    aria-label={`Load without ${label}`}
+                    onClick={() => {
+                        answer({ name, skip: true });
+                    }}
+                >
+                    Load without it
+                </Button>
+            </Tooltip>
+        </Group>
     );
 }
 

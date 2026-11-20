@@ -57,10 +57,15 @@ export interface TimeSeriesOptions {
  * @beta
  */
 export interface TimeSeriesRow {
+    /** Where the window starts. */
     readonly from: number;
+    /** Where the window ends. */
     readonly to: number;
+    /** The nodes and edges the window shows. */
     readonly visible: TimeCountPair;
+    /** The nodes and edges it shows that the window before did not. */
     readonly entered: TimeCountPair;
+    /** The nodes and edges the window before showed that it does not. */
     readonly left: TimeCountPair;
     /** One value per measure asked for, keyed by the measure. */
     readonly values: Readonly<Record<string, number | null>>;
@@ -71,6 +76,7 @@ export interface TimeSeriesRow {
  * @beta
  */
 export interface TimeSeries {
+    /** One row per window, in time order. */
     readonly rows: readonly TimeSeriesRow[];
 }
 

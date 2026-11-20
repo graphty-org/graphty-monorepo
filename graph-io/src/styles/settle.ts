@@ -670,12 +670,12 @@ export function settleFor(
     if (defaults?.arrowhead !== undefined) {
         arrows(extracted, snapshot, work, defaults.arrowhead, tool);
     }
-    if (!graphty && snapshot.nodeCount > 1) {
-        const last = snapshot.nodeCount - 1;
+    // a reader that read the file's own order (Cytoscape.js's `z-index`) has written it already
+    if (!graphty && snapshot.nodeCount > 1 && !work.rules.some((r) => r.target === "node" && writes(r, "drawOrder"))) {
         addValues(
             work,
             { id: "node.draw-order", name: "Draw order", target: "node" },
-            { drawOrder: Array.from({ length: snapshot.nodeCount }, (_unused, i) => Math.round((i * 100) / last)) },
+            { drawOrder: drawOrders(snapshot) },
         );
     }
     labelGrid(extracted, snapshot, work, options.frame ?? null);
@@ -687,6 +687,28 @@ export function settleFor(
         styles: { ...extracted.styles, lengths, rules: named(work.rules), notes },
         columns: work.columns,
     };
+}
+
+/**
+ * Each node's draw order, 0 to 100, as the program that wrote the file stacks its nodes: by Cytoscape's stored `z`
+ * (XGMML, CX, CX2 and sessions), higher on top, and in file order among equal ones, a node later in the file on top.
+ * @param snapshot - the graph, at least two nodes
+ * @returns the draw order by node index
+ */
+function drawOrders(snapshot: GraphSnapshot): number[] {
+    const n = snapshot.nodeCount;
+    const z = [...snapshot.nodes].find((c) => c.meta.name === "z" && c.meta.origin?.namespace === "cytoscape");
+    const zOf = (i: number): number => {
+        const v = z?.isSet(i) === true ? z.value(i) : null;
+        return typeof v === "number" && Number.isFinite(v) ? v : 0;
+    };
+    const order = new Array<number>(n);
+    Array.from({ length: n }, (_unused, i) => i)
+        .sort((a, b) => zOf(a) - zOf(b) || a - b)
+        .forEach((node, rank) => {
+            order[node] = Math.round((rank * 100) / (n - 1));
+        });
+    return order;
 }
 
 /**

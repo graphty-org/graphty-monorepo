@@ -10,6 +10,7 @@ import type { Scene, SceneNode, ShapeClass } from "../../../../graph-io/test/fid
 import type { DrawnEdge, DrawnGraph, DrawnLabel, DrawnNode } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
 import { extendToTip, measureArrow, mergeTexts, stackedOn, withinShape } from "./associate";
+import { legiblePx } from "./compare-oracle";
 import {
     type ArrowShape,
     boxOfPoints,
@@ -524,6 +525,8 @@ function edgeGradientOf(drawn: DrawnEdge["gradient"], points: readonly [number, 
         return null;
     }
     const n = drawn.colors.length;
+    // where each piece starts and ends along the line: as drawn, or equal shares
+    const at = (i: number): number => (drawn.shares?.length === n + 1 ? drawn.shares[i] : i / n);
     // a linear piece is one flat color from its start to its end: a hard switch between two pieces is drawn as one, not
     // blended across the two pieces' middles (dot-specimen-edges-lines color-segments, red;0.5:blue)
     const stops = drawn.colors
@@ -531,8 +534,8 @@ function edgeGradientOf(drawn: DrawnEdge["gradient"], points: readonly [number, 
             drawn.kind === "radial"
                 ? [{ offset: Math.abs((2 * (i + 0.5)) / n - 1), color, opacity: 1 }]
                 : [
-                      { offset: i / n, color, opacity: 1 },
-                      { offset: (i + 1) / n, color, opacity: 1 },
+                      { offset: at(i), color, opacity: 1 },
+                      { offset: at(i + 1), color, opacity: 1 },
                   ],
         )
         .sort((a, b) => a.offset - b.offset);
@@ -975,7 +978,7 @@ export function drawnPrimitives(
                 // the texts at its ends belong to it too, as the oracle reads every text beside an edge
                 label: mergeTexts(
                     [e.label !== null ? d.label : null, ...d.endLabels]
-                        .filter((l): l is DrawnLabel => l !== null && l.enabled && l.fontPx >= 1 && l.text !== "")
+                        .filter((l): l is DrawnLabel => l !== null && l.enabled && legiblePx(l.fontPx) && l.text !== "")
                         .map(textOf),
                 ),
             },

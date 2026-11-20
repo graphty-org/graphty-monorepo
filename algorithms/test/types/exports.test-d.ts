@@ -2,7 +2,16 @@
 // algorithms 3.0.0: every algorithm takes a GraphSnapshot (or an AdjacencyView, for the traversals and paths) first
 // and an options object last, the 2.x `indexed` namespace is a deprecated alias of the same functions, and none of
 // the 2.x legacy names is exported any more.
-import type { AdjacencyView, F32, F64, GraphSnapshot, NodeId, NodeRef, U32 } from "@graphty/graph-format";
+import type {
+    AdjacencyView,
+    F32,
+    F64,
+    GraphSnapshot,
+    NodeId,
+    NodeRef,
+    NumericVector,
+    U32,
+} from "@graphty/graph-format";
 import { expectTypeOf } from "vitest";
 
 import type {
@@ -26,12 +35,14 @@ import type {
     CommonNeighborsOptions,
     CondensationResult,
     CorenessResult,
+    CountShortestPathsOptions,
     DegreeCentralityOptions,
     DfsOptions,
     DfsResult,
     DirectionOptimizedBfsOptions,
     EdgeBetweennessOptions,
     EdgeScoresResult,
+    EdgeSetResult,
     EigenvectorOptions,
     EigenvectorResult,
     GirvanNewmanOptions,
@@ -66,6 +77,7 @@ import type {
     MstOptions,
     MstResult,
     NodePairs,
+    NodeSetResult,
     PageRankOptions,
     PageRankResult,
     PathOptions,
@@ -73,6 +85,8 @@ import type {
     PrimOptions,
     PrimResult,
     ScoresResult,
+    SimplePathsOptions,
+    SimplePathsResult,
     SpectralOptions,
     SpectralResult,
     SsspOptions,
@@ -83,6 +97,8 @@ import type {
     SynchronousLabelPropagationOptions,
     TeraHacOptions,
     TeraHacResult,
+    TimeOrderedPathsOptions,
+    TimeOrderedPathsResult,
     TriangleCountResult,
 } from "../../src/index.js";
 import * as algorithms from "../../src/index.js";
@@ -125,6 +141,12 @@ expectTypeOf(algorithms.topologicalSort).toEqualTypeOf<(g: AdjacencyView, option
 expectTypeOf(algorithms.dijkstra).toEqualTypeOf<
     (g: AdjacencyView, source: NodeRef, options?: SsspOptions) => SsspResult
 >();
+expectTypeOf(algorithms.countShortestPaths).toEqualTypeOf<
+    (g: AdjacencyView, dist: NumericVector, source: NodeRef, options?: CountShortestPathsOptions) => Float64Array
+>();
+expectTypeOf(algorithms.timeOrderedPaths).toEqualTypeOf<
+    (g: AdjacencyView, source: NodeRef, options: TimeOrderedPathsOptions) => TimeOrderedPathsResult
+>();
 expectTypeOf(algorithms.walkPredArcs).toEqualTypeOf<
     (g: AdjacencyView, predArc: U32, source: number, target: NodeRef) => U32
 >();
@@ -161,6 +183,8 @@ expectTypeOf(algorithms.findAllIsomorphisms).toEqualTypeOf<
 expectTypeOf(algorithms.isGraphIsomorphic).toEqualTypeOf<
     (s1: GraphSnapshot, s2: GraphSnapshot, options?: IsomorphismOptions) => IsomorphismResult
 >();
+expectTypeOf(algorithms.articulationPoints).toEqualTypeOf<(s: GraphSnapshot) => NodeSetResult>();
+expectTypeOf(algorithms.bridges).toEqualTypeOf<(s: GraphSnapshot) => EdgeSetResult>();
 expectTypeOf(algorithms.kCoreDecomposition).toEqualTypeOf<(s: GraphSnapshot) => CorenessResult>();
 expectTypeOf(algorithms.katzCentrality).toEqualTypeOf<(s: GraphSnapshot, o?: KatzOptions) => KatzResult>();
 expectTypeOf(algorithms.labelPropagation).toEqualTypeOf<
@@ -237,6 +261,9 @@ expectTypeOf(algorithms.astar).toEqualTypeOf<
         options?: PathOptions,
     ) => AstarResult
 >();
+expectTypeOf(algorithms.allSimplePaths).toEqualTypeOf<
+    (g: AdjacencyView, sourceNode: NodeRef, targetNode: NodeRef, options?: SimplePathsOptions) => SimplePathsResult
+>();
 expectTypeOf(algorithms.bidirectionalDijkstra).toEqualTypeOf<
     (s: GraphSnapshot, source: NodeRef, target: NodeRef, options?: PathOptions) => PathResult
 >();
@@ -270,20 +297,24 @@ type Promoted =
     | "adamicAdarPrediction"
     | "adamicAdarScore"
     | "allPairsShortestPath"
+    | "allSimplePaths"
     | "APSP_DEFAULT_MAX_NODES"
     | "arcSourceIn"
+    | "articulationPoints"
     | "astar"
     | "bellmanFord"
     | "betweennessCentrality"
     | "bidirectionalDijkstra"
     | "bipartiteFlowNetwork"
     | "breadthFirstSearch"
+    | "bridges"
     | "closenessCentrality"
     | "commonNeighborsForPairs"
     | "commonNeighborsPrediction"
     | "commonNeighborsScore"
     | "compareAdamicAdarWithCommonNeighbors"
     | "condensation"
+    | "countShortestPaths"
     | "connectedComponents"
     | "degreeCentrality"
     | "DeltaPageRank"
@@ -327,11 +358,14 @@ type Promoted =
     | "personalizedPageRank"
     | "primMST"
     | "PriorityDeltaPageRank"
+    | "SIMPLE_PATHS_DEFAULT_MAX_PATHS"
+    | "SIMPLE_PATHS_DEFAULT_MAX_STEPS"
     | "spectralClustering"
     | "stoerWagner"
     | "stronglyConnectedComponents"
     | "syncClustering"
     | "teraHAC"
+    | "timeOrderedPaths"
     | "topologicalSort"
     | "triangleCount"
     | "walkPredArcs"

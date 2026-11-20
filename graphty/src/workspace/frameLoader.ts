@@ -22,6 +22,12 @@ export function loadFrame(): Promise<typeof FrameComponent> {
             bootSignal({ line: "frame code loaded" });
             return module.Frame;
         });
+        // A failed load is not kept, as in elementLoader.ts: a chunk that failed to fetch once
+        // (a blip, a deploy that replaced it, a test server re-bundling) would otherwise fail
+        // every later project open on the page.
+        loading.catch(() => {
+            loading = null;
+        });
     }
     return loading;
 }

@@ -28,6 +28,7 @@ See [Graph Data Structure](../guide/graph.md) for building a snapshot and mappin
 - `bellmanFord()` - Single-source shortest paths with negative weights, and the negative-cycle flag
 - `bidirectionalDijkstra()` - One shortest path, naming the edges taken
 - `astar()` - A\* search, the heuristic taking node indices
+- `allSimplePaths()` - Every simple path between two nodes, capped by length, count and search steps
 - `allPairsShortestPath()` - Every pair, as a row-major typed-array matrix (Floyd-Warshall or one search per source)
 - `walkPredArcs()`, `walkPredEdges()` - The arcs or edges of a path from a predecessor array
 

@@ -37,3 +37,13 @@ export const BellmanFord: Story = createAlgorithmStory("graphty:bellman-ford", {
  * Peripheral nodes (eccentricity = diameter) are dimmed
  */
 export const FloydWarshall: Story = createAlgorithmStory("graphty:floyd-warshall", { varies: "hex", atLeast: 2 });
+
+/**
+ * All paths - every route between the same two nodes that visits no node twice, up to four edges
+ * long.
+ *
+ * The nodes and edges on any of the routes are painted; everything else is left as the layers
+ * beneath it drew it. Each node and edge also carries how many of the routes run through it
+ * (`pathCount`), which a reader's own layer can size or color by.
+ */
+export const AllPaths: Story = createAlgorithmStory("graphty:all-paths", { params: { maxLength: 4 } });

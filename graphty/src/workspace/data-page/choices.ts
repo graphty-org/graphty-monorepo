@@ -13,6 +13,7 @@ import {
     LOAD_ROLES,
     type LoadChoices,
     type LoadDraft,
+    type LoadedChoices,
     type TableMapping,
 } from "@graphty/graphty-element/session";
 
@@ -349,7 +350,10 @@ function mappedColumn(table: DraftTable, value: unknown): string | undefined {
  * @param mapping - the load's mapping.
  * @returns the mappings.
  */
-function tablesOf(draft: LoadDraft, mapping: LoadChoices["mapping"]): Readonly<Partial<Record<string, TableMapping>>> {
+function tablesOf(
+    draft: LoadDraft,
+    mapping: LoadedChoices["mapping"],
+): Readonly<Partial<Record<string, TableMapping>>> {
     if (mapping === undefined) {
         return {};
     }
@@ -399,7 +403,7 @@ function carryTable(draft: LoadDraft, table: DraftTable, read: TableMapping, sta
  * @param fileStyles - whether the element's file styles experiment is on.
  * @returns the page's choices.
  */
-export function carriedChoices(draft: LoadDraft, carried: LoadChoices, fileStyles = false): PageChoices {
+export function carriedChoices(draft: LoadDraft, carried: LoadedChoices, fileStyles = false): PageChoices {
     let choices: PageChoices = {
         ...initialChoices(fileStyles),
         ...(carried.unmatched === undefined ? {} : { unmatched: carried.unmatched }),

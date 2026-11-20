@@ -2288,6 +2288,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             arrowHeadStackCaps: READ,
             arrowTailStackCaps: READ,
             drawnGradient: READ,
+            drawnStrands: READ,
             invalidatePositionCache: RENDER,
             update: RENDER,
             updateStyle: RENDER,
@@ -3196,6 +3197,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             loads: READ,
             sourceSettings: READ,
             sourceInput: READ,
+            copies: READ,
+            setCopy: exempt(
+                "How a save keeps a load (a copy or a reference) is a save choice, as save({ assets }) is: kept with the project outside the history, and it marks the project unsaved.",
+            ),
             nodeSource: READ,
             pendingSourceLoads: READ,
             expand: SOURCE_EXPANSION,

@@ -917,6 +917,15 @@ export interface EdgeStyleValues {
      * middle, or `none` for a line in its `color` (Cytoscape.js `line-fill`).
      */
     readonly gradientKind: string;
+    /**
+     * The colors of the parallel strands the line is drawn as, side by side, `#rrggbb` separated by spaces: the first
+     * on the right of the line's direction from its source to its target, the last on its left, each over the one
+     * before (Graphviz's color list with no fractions, `color="red:green:blue"`). Fewer than two draw the line in its
+     * `color`.
+     */
+    readonly strandColors: string;
+    /** How far apart the strands' middles are, as a multiple of `width`; absent, 1 (strands that touch). */
+    readonly strandSpacing: number;
     /** The line width. */
     readonly width: number;
     /**

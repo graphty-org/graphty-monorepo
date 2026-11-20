@@ -1568,6 +1568,61 @@ export function segmentedLine(part: readonly Prim[]): { line: Prim; pieces: Read
     return { line, pieces: new Set(open) };
 }
 
+/**
+ * The parallel strands an edge's line is drawn as (Graphviz's color list with no fractions, `color="red:green:blue"`,
+ * emit.c `emit_edge_graphics`: one open path per color, each the route moved sideways a fixed step, 2 points apart):
+ * the open unfilled paths as wide as the line that run its length beside it, every point of each within a few widths
+ * of it, the line among them, in the order drawn.
+ * @param part - an edge's primitives
+ * @param line - the line read from them
+ * @returns the strands, or null for fewer than two
+ */
+export function parallelStrands(part: readonly Prim[], line: Prim): Prim[] | null {
+    const width = line.stroke?.width ?? Number.NaN;
+    const candidates = part.filter(
+        (p) =>
+            p.kind === "path" &&
+            !p.closed &&
+            p.fill === null &&
+            p.stroke !== null &&
+            Math.abs(p.stroke.width - width) <= 1e-6 * Math.max(1, width),
+    );
+    if (!(width > 0) || candidates.length < 2 || !candidates.includes(line)) {
+        return null;
+    }
+    // the strands are laid a step apart, about a pen's width or two, so all of them lie within that of the line
+    const reach = 2 * width * candidates.length;
+    const total = pathLength(line.points);
+    const near = (a: Pt | undefined, b: Pt | undefined): boolean =>
+        a !== undefined && b !== undefined && Math.hypot(a[0] - b[0], a[1] - b[1]) <= reach;
+    const beside = (q: Prim): boolean =>
+        q === line ||
+        (Math.abs(pathLength(q.points) - total) <= 0.2 * total &&
+            near(q.points[0], line.points[0]) &&
+            near(q.points.at(-1), line.points.at(-1)) &&
+            q.points.every((pt) => distanceToPolyline(pt, line.points) <= reach));
+    const strands = candidates.filter(beside).sort((a, b) => a.index - b.index);
+    return strands.length >= 2 ? strands : null;
+}
+
+/**
+ * How far a point lies from a polyline.
+ * @param pt - the point
+ * @param pts - the polyline
+ * @returns the distance
+ */
+function distanceToPolyline(pt: Pt, pts: readonly Pt[]): number {
+    let best = pts.length > 0 ? Math.hypot(pt[0] - pts[0][0], pt[1] - pts[0][1]) : Infinity;
+    for (let i = 1; i < pts.length; i++) {
+        const [ax, ay] = pts[i - 1];
+        const [dx, dy] = [pts[i][0] - ax, pts[i][1] - ay];
+        const len2 = dx * dx + dy * dy;
+        const t = len2 > 0 ? Math.max(0, Math.min(1, ((pt[0] - ax) * dx + (pt[1] - ay) * dy) / len2)) : 0;
+        best = Math.min(best, Math.hypot(pt[0] - (ax + t * dx), pt[1] - (ay + t * dy)));
+    }
+    return best;
+}
+
 const longestPath = (prims: readonly Prim[]): Prim | undefined => {
     const lines = prims.filter((p) => p.kind === "path" || (p.closed && p.fill === null));
     const reach = Math.max(0, ...lines.filter((p) => !p.closed).map((p) => pathLength(p.points)));
@@ -3301,6 +3356,7 @@ export function associate(
                 if (line === undefined) {
                     continue;
                 }
+                const strands = tapered === null && segmented === null ? parallelStrands(part, line) : null;
                 part.forEach(take);
                 const pairId = `${ends[0]}->${ends[1]}`;
                 const k = edgeCount.get(pairId) ?? 0;
@@ -3348,6 +3404,7 @@ export function associate(
                     (q) =>
                         q !== line &&
                         segmented?.pieces.has(q) !== true &&
+                        strands?.includes(q) !== true &&
                         q.kind === "path" &&
                         !q.closed &&
                         q.fill === null,
@@ -3388,7 +3445,14 @@ export function associate(
                     source: ends[0],
                     target: ends[1],
                     points,
-                    stroke: line.stroke,
+                    // a line drawn as strands reads as the colors of its strands in the order drawn
+                    stroke:
+                        strands === null || line.stroke === null
+                            ? line.stroke
+                            : {
+                                  ...line.stroke,
+                                  strands: strands.map((q) => q.stroke?.color ?? line.stroke?.color ?? ""),
+                              },
                     arrows,
                     label: mergeTexts(part.flatMap((p) => (p.text ? [p.text] : []))),
                 });

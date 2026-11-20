@@ -8,12 +8,14 @@
  * the milliseconds until `waitForStableFrame()` resolved, the frames drawn, and the meshes the scene built and
  * disposed while it loaded.
  *
- * WHAT IS ASSERTED IS COUNTED WORK: the load settles, and the scene disposes fewer meshes than a tenth of the edges.
+ * WHAT IS ASSERTED IS COUNTED WORK: the load settles, and the scene disposes fewer whole meshes (instances not
+ * counted: each node trades its placeholder instance on hand-over) than a tenth of the edges.
  * Under renderPath "batched" each such edge used to be built from the placeholder paint and repainted at once,
  * disposing the placeholder's line and cap batches: about three meshes built and disposed per edge, which kept the
  * worldcup story from settling within 30 seconds under load (issue #9181).
  */
 
+import { InstancedMesh } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 import { commands, page } from "vitest/browser";
 
@@ -48,7 +50,13 @@ async function measured(element: Graphty, work: () => Promise<unknown>): Promise
     const { scene } = element.graph;
     const counts = { built: 0, disposed: 0 };
     const built = scene.onNewMeshAddedObservable.add(() => counts.built++);
-    const disposed = scene.onMeshRemovedObservable.add(() => counts.disposed++);
+    // A node trades its placeholder instance for its batch's on hand-over, one or two per node on both paths; only
+    // whole meshes (batches, lines) are what an edge must not dispose.
+    const disposed = scene.onMeshRemovedObservable.add((mesh) => {
+        if (!(mesh instanceof InstancedMesh)) {
+            counts.disposed++;
+        }
+    });
     const firstFrame = scene.getRenderId();
     const start = performance.now();
     try {
@@ -70,9 +78,9 @@ async function measured(element: Graphty, work: () => Promise<unknown>): Promise
 function report(name: string, path: RenderPath, edges: number, cost: Cost): void {
     console.log(
         `[painted-edges-load] ${name} ${path}: ${cost.ms.toFixed(0)} ms, ${String(cost.frames)} frames, ` +
-            `${String(cost.built)} meshes built, ${String(cost.disposed)} disposed`,
+            `${String(cost.built)} meshes built, ${String(cost.disposed)} whole meshes disposed`,
     );
-    assert.isBelow(cost.disposed, edges / 10, "meshes disposed while the edges were built");
+    assert.isBelow(cost.disposed, edges / 10, "whole meshes disposed while the edges were built");
 }
 
 describe("loading colored arrows", () => {

@@ -115,8 +115,15 @@ describe("one real hover in a large connected arrowed graph", () => {
                     const manager = element.graph.getDataManager();
                     const atLoad = dataManagerInternals.nodesBuilt(manager);
                     const middle = `n${String(Math.floor(count / 2))}`;
+                    const nextId = `n${String(Math.floor(count / 2) + 1)}`;
+                    // Framing the whole graph puts 100,000 nodes about a pixel apart, where the middle of an edge
+                    // touches the nodes beside it; frame the hovered pair instead, so where the pointer lands is
+                    // unambiguous. The camera reads two positions, so it is counted apart from the hover.
+                    await element.zoomToNodes([middle, nextId], { animate: false });
+                    await element.waitForStableFrame();
+                    const beforeHover = dataManagerInternals.nodesBuilt(manager);
                     const center = element.nodeScreenPosition(middle);
-                    const next = element.nodeScreenPosition(`n${String(Math.floor(count / 2) + 1)}`);
+                    const next = element.nodeScreenPosition(nextId);
                     assert.isDefined(center);
                     assert.isDefined(next);
                     const at = target === "node" ? center : { x: (center.x + next.x) / 2, y: (center.y + next.y) / 2 };
@@ -130,11 +137,11 @@ describe("one real hover in a large connected arrowed graph", () => {
                     await element.waitForStableFrame();
                     const ms = performance.now() - start;
                     const bytes = (await heap()) - startHeap;
-                    const builtByHover = dataManagerInternals.nodesBuilt(manager) - atLoad;
+                    const builtByHover = dataManagerInternals.nodesBuilt(manager) - beforeHover;
                     console.log(
                         `[hover-builds-few-nodes] ${path} ${String(count)} ${shape} on a ${target}: hover to settled ${ms.toFixed(1)} ms, ` +
                             `${(bytes / 1e6).toFixed(1)} MB heap kept, ${String(atLoad)} Nodes at load, ` +
-                            `${String(builtByHover)} built by the hover`,
+                            `${String(beforeHover - atLoad)} by the zoom, ${String(builtByHover)} by the hover`,
                     );
                     assert.equal(
                         element.session.selection.hovered,
@@ -142,7 +149,11 @@ describe("one real hover in a large connected arrowed graph", () => {
                         "the hover's target",
                     );
                     if (path === "batched") {
-                        assert.isAtMost(atLoad + builtByHover, 3, "a batched hover builds a handful of Nodes");
+                        assert.isAtMost(
+                            beforeHover + builtByHover,
+                            4,
+                            "a batched zoom and hover build a handful of Nodes",
+                        );
                     }
                 });
             }

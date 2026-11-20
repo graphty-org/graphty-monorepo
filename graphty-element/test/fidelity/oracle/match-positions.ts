@@ -67,7 +67,7 @@ export async function matchPositions(element: Graphty, first: OracleComparison, 
     for (const [key, node] of element.graph.getDataManager().nodes) {
         world.set(first.names.get(String(key)) ?? String(key), {
             key,
-            at: [node.mesh.position.x, node.mesh.position.y],
+            at: [node.drawnPosition.x, node.drawnPosition.y],
         });
     }
     const finite = (p: Pt): boolean => Number.isFinite(p[0]) && Number.isFinite(p[1]);

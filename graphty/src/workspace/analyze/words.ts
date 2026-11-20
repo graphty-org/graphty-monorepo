@@ -151,6 +151,12 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "A route between two nodes, optionally steered by where they are drawn.",
         aliases: ["a*", "astar", "route", "path", "how are they connected"],
     },
+    "all-paths": {
+        name: "Every route",
+        answers:
+            "Every route between two nodes that visits no node twice, and how many run through each node and edge.",
+        aliases: ["all paths", "all routes", "simple paths", "alternatives", "redundancy"],
+    },
     "all-pairs-distance": {
         name: "All-pairs distance",
         answers: "How far each node is from all the others.",
@@ -211,6 +217,16 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "What the selected nodes or edges hold together: the nodes cut off if they were removed.",
         aliases: ["simulate removing", "what breaks", "what if", "cut off", "vulnerable", "resilience"],
     },
+    "articulation-points": {
+        name: "Articulation points",
+        answers: "Which nodes would split the graph apart if removed.",
+        aliases: ["cut points", "cut vertex", "single point of failure", "chokepoint"],
+    },
+    bridges: {
+        name: "Bridges",
+        answers: "Which edges would split the graph apart if removed.",
+        aliases: ["cut edges", "single point of failure", "weak link"],
+    },
 };
 
 /**
@@ -251,6 +267,8 @@ export const ALGORITHM_DESCRIPTIONS: Readonly<Partial<Record<string, string>>> =
         "Finds the cheapest route from one node to another, and how far every reachable node is from the source.",
     "algorithm.astar":
         "Finds a route from one node to another, optionally steered by how far apart the nodes are drawn. Without that steering it finds the cheapest route.",
+    "algorithm.all-paths":
+        "Finds every route from one node to another that visits no node twice, up to a longest route and a number of routes, and how many of the routes run through each node and edge.",
     "algorithm.all-pairs-distance":
         "Measures the distance between every pair of nodes, and gives each node the distance to the furthest node it can reach.",
     "algorithm.bfs": "Walks outwards from one node a level at a time, recording how many steps away each node is.",
@@ -272,6 +290,10 @@ export const ALGORITHM_DESCRIPTIONS: Readonly<Partial<Record<string, string>>> =
         "Scores the pairs of nodes that are not yet joined by the neighbors they share, and lists the pairs most likely to be joined next.",
     "algorithm.removal-impact":
         "Works out what removing some nodes or edges would cut off, without removing them: the separate pieces before and after, and the nodes left cut off from the rest of their piece.",
+    "algorithm.articulation-points":
+        "Finds the nodes whose removal would split their piece of the graph into more pieces: the single points of failure.",
+    "algorithm.bridges":
+        "Finds the edges whose removal would split their piece of the graph in two: the links nothing else backs up.",
 };
 
 /**

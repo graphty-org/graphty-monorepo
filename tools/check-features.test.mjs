@@ -68,7 +68,7 @@ describe("check-features", () => {
         });
         assert.deepEqual(found, [
             "graphty-element/src/a.ts:2: @experimental names no feature id",
-            'graphty-element/src/b.ts:2: @experimental tag names "mapz", which is not in FEATURES',
+            'graphty-element/src/b.ts:2: @experimental tag names "mapz", which is not in FEATURES or APP_FEATURES',
         ]);
     });
 
@@ -105,10 +105,41 @@ describe("check-features", () => {
         });
         assert.deepEqual(found.sort(), [
             'graphty-element/src/catalog/layouts.ts:1: feature field "timeline" has no @experimental timeline tag in its doc comment',
-            'graphty/sites/nightly.json:1: site configuration names "gone", which is not in FEATURES',
-            'graphty/src/Panel.stories.tsx:1: story features parameter names "nope", which is not in FEATURES',
-            'graphty/src/Panel.tsx:1: features.has call names "mapz", which is not in FEATURES',
+            'graphty/sites/nightly.json:1: site configuration names "gone", which is not in FEATURES or APP_FEATURES',
+            'graphty/src/Panel.stories.tsx:1: story features parameter names "nope", which is not in FEATURES or APP_FEATURES',
+            'graphty/src/Panel.tsx:1: features.has call names "mapz", which is not in FEATURES or APP_FEATURES',
             'graphty/src/Panel.tsx:2: graduated feature "old-map" is still named',
         ]);
+    });
+
+    it("checks the graphty app's own experiments (APP_FEATURES) like graphty-element's", () => {
+        const appRows = (rows) => `export const APP_FEATURES: readonly AppFeature[] = Object.freeze([\n${rows}\n]);\n`;
+        const { problems: found, flags } = checkFeatures(
+            tree({
+                "graphty/src/features.ts": appRows(`    { id: "usage-analytics", issue: 8818, since: "2026-11-18" },`),
+                "graphty/src/Card.tsx": `const on = useAppFeature("usage-analytics");\nappFeatureOn("nope");\n`,
+                "graphty/sites/canary.json": `{ "site": "canary", "features": ["usage-analytics"] }\n`,
+                "graphty/src/Chip.tsx": `const sends = useAnalyticsSends();\n`,
+            }),
+        );
+        assert.deepEqual(found, [
+            'graphty/src/Card.tsx:2: app gate names "nope", which is not in FEATURES or APP_FEATURES',
+        ]);
+        assert.deepEqual(flags.find((f) => f.id === "usage-analytics")?.files, [
+            "graphty/sites/canary.json",
+            "graphty/src/Card.tsx",
+            "graphty/src/Chip.tsx",
+        ]);
+        assert.deepEqual(
+            problems({
+                "graphty/src/features.ts": appRows(
+                    `    { id: "usage-analytics", since: "2026-11-18" },\n    { id: "timeline", issue: 1, since: "2026-11-18" },`,
+                ),
+            }),
+            [
+                'graphty/src/features.ts: APP_FEATURES row "usage-analytics" names no tracking issue (issue: <number>)',
+                'graphty/src/features.ts: APP_FEATURES row "timeline" is also a graphty-element FEATURES row',
+            ],
+        );
     });
 });

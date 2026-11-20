@@ -719,7 +719,24 @@ describe("session.assets: tolerant matching (design 12.5)", () => {
             name: "Wood.png",
             referencedBy: "quad.mtl",
             candidates: ["a/wood.png", "b/wood.png"],
+            role: "texture",
+            optional: true,
         });
+    });
+
+    it("draws without a picture several files match: skipped by supply, or by accept (#8614)", async () => {
+        const files = objNaming("Wood.png", { "a/wood.png": PNG_1X1, "b/wood.png": PNG_1X1 });
+        const api = createAssetsApi();
+        const waiting = await api.add({ files });
+        const skipped = await api.supply(waiting.id, { name: "Wood.png", skip: true });
+        assert.strictEqual(skipped.state, "accepted", JSON.stringify(skipped.problems));
+        assert.deepStrictEqual([...(skipped.skipped ?? [])], ["Wood.png"]);
+
+        const other = createAssetsApi();
+        const again = await other.add({ files });
+        const accepted = await other.accept(again.id, { without: "missing" });
+        assert.strictEqual(accepted.state, "accepted", JSON.stringify(accepted.problems));
+        assert.deepStrictEqual([...(accepted.skipped ?? [])], ["Wood.png"]);
     });
 
     it("never matches a web address by base name: it stays a missing part with its address", async () => {

@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { assert, describe, it } from "vitest";
 
+import { AllPathsAlgorithm } from "../../src/algorithms/AllPathsAlgorithm";
 import { AStarAlgorithm } from "../../src/algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../../src/algorithms/BellmanFordAlgorithm";
 import { BetweennessCentralityAlgorithm } from "../../src/algorithms/BetweennessCentralityAlgorithm";
@@ -20,6 +21,7 @@ import { BipartiteMatchingAlgorithm } from "../../src/algorithms/BipartiteMatchi
 import { ClosenessCentralityAlgorithm } from "../../src/algorithms/ClosenessCentralityAlgorithm";
 import { ClusteringCoefficientAlgorithm } from "../../src/algorithms/ClusteringCoefficientAlgorithm";
 import { ConnectedComponentsAlgorithm } from "../../src/algorithms/ConnectedComponentsAlgorithm";
+import { ArticulationPointsAlgorithm, BridgesAlgorithm } from "../../src/algorithms/CutAlgorithms";
 import { DegreeAlgorithm } from "../../src/algorithms/DegreeAlgorithm";
 import { DFSAlgorithm } from "../../src/algorithms/DFSAlgorithm";
 import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
@@ -72,6 +74,7 @@ import { SpringLayout } from "../../src/layout/SpringLayoutEngine";
 const FACTS_FILE = fileURLToPath(new URL("../../src/catalog/engine-facts.json", import.meta.url));
 
 const ALGORITHMS = [
+    AllPathsAlgorithm,
     AStarAlgorithm,
     BellmanFordAlgorithm,
     BetweennessCentralityAlgorithm,
@@ -102,6 +105,8 @@ const ALGORITHMS = [
     PageRankAlgorithm,
     PrimAlgorithm,
     RemovalImpactAlgorithm,
+    ArticulationPointsAlgorithm,
+    BridgesAlgorithm,
     SpectralClusteringAlgorithm,
     StronglyConnectedComponentsAlgorithm,
 ];

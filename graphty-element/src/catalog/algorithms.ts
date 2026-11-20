@@ -743,10 +743,20 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 kind: "graph",
                 type: "integer",
             }),
+            field({
+                name: "tiedRoutes",
+                plainName: "Routes tied for cheapest",
+                technicalName: "tiedRoutes",
+                kind: "graph",
+                type: "number",
+            }),
             HAS_NEGATIVE_CYCLE,
         ],
         options: mergeOptions(
-            optionsOf("dijkstra", { bidirectional: { internal: true } }),
+            optionsOf("dijkstra", {
+                bidirectional: { internal: true },
+                timeOrder: { type: "attribute", on: "edge" },
+            }),
             optionsOf("bellman-ford"),
             optionsFromZod(shortestPathEngineOptions),
         ),
@@ -807,6 +817,65 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         costClass: "instant",
         complexity: "O((n + m) log n)",
         legacyKeys: [{ key: "astar" }],
+    },
+    {
+        key: "all-paths",
+        plainName: "Every route",
+        technicalName: "All simple paths",
+        description:
+            "Finds every route from one node to another that visits no node twice, up to a longest route and a number of routes, and how many of the routes run through each node and edge.",
+        category: "path",
+        keywords: ["all routes", "every path", "simple paths", "alternatives", "redundancy"],
+        shape: "node-set",
+        fields: [
+            ...setFields("node", "On a route", {
+                name: "found",
+                plainName: "Routes found",
+                technicalName: "found",
+                type: "integer",
+            }),
+            field({
+                name: "pathCount",
+                plainName: "Routes through it",
+                technicalName: "pathCount",
+                kind: "node",
+                type: "integer",
+            }),
+            field({ name: "in", plainName: "On a route", technicalName: "in", kind: "edge", type: "boolean" }),
+            field({
+                name: "pathCount",
+                plainName: "Routes through it",
+                technicalName: "pathCount",
+                kind: "edge",
+                type: "integer",
+            }),
+            field({
+                name: "complete",
+                plainName: "Every route found",
+                technicalName: "complete",
+                kind: "graph",
+                type: "boolean",
+            }),
+            field({
+                name: "shortest",
+                plainName: "Edges on the shortest route",
+                technicalName: "shortest",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "longest",
+                plainName: "Edges on the longest route",
+                technicalName: "longest",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({ name: "paths", plainName: "Routes", technicalName: "paths", kind: "graph", type: "table" }),
+        ],
+        options: optionsOf("all-paths"),
+        costClass: "instant",
+        complexity: "O(min(paths * length, 1,000,000 steps))",
+        legacyKeys: [{ key: "all-paths" }],
     },
     {
         /* ONE KEY, ONE RESULT SHAPE. The all-pairs sweep used to be a PARAMETER on shortest-path
@@ -1180,12 +1249,52 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         complexity: "O(n + m)",
         legacyKeys: [{ key: "removal-impact" }],
     },
+    {
+        key: "articulation-points",
+        plainName: "Cut points",
+        technicalName: "Articulation points",
+        description:
+            "Finds the nodes whose removal would split their piece of the graph into more pieces: the single points of failure.",
+        category: "structure",
+        keywords: ["single point of failure", "cut vertex", "chokepoint", "vulnerability"],
+        shape: "node-set",
+        fields: setFields("node", "Cut point", {
+            name: "share",
+            plainName: "Share of nodes",
+            technicalName: "share",
+            type: "number",
+        }),
+        options: optionsOf("articulation-points"),
+        costClass: "instant",
+        complexity: "O(n + m)",
+        legacyKeys: [{ key: "articulation-points" }],
+    },
+    {
+        key: "bridges",
+        plainName: "Cut edges",
+        technicalName: "Bridges",
+        description:
+            "Finds the edges whose removal would split their piece of the graph in two: the links nothing else backs up.",
+        category: "structure",
+        keywords: ["single point of failure", "cut edge", "weak link", "vulnerability"],
+        shape: "edge-set",
+        fields: setFields("edge", "Cut edge", {
+            name: "share",
+            plainName: "Share of edges",
+            technicalName: "share",
+            type: "number",
+        }),
+        options: optionsOf("bridges"),
+        costClass: "instant",
+        complexity: "O(n + m)",
+        legacyKeys: [{ key: "bridges" }],
+    },
 ];
 
 /**
  * Every algorithm this package registers, as a plain-JSON descriptor.
  *
- * Thirty descriptors for thirty-two registered algorithms: the two single-source
+ * Thirty-three descriptors for thirty-five registered algorithms: the two single-source
  * shortest-path engines are one key with a `method` parameter, and the two component algorithms
  * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
  * replaces and the parameters that reproduce them.

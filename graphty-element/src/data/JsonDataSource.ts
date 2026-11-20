@@ -379,7 +379,7 @@ export class JsonDataSource extends DataSource {
         const imported = await importRecords(
             jsonImporter,
             JSON.stringify({
-                // A node with a null, empty or missing id is keyless, not wrong: nothing to check.
+                // A node with a null, empty or missing id is left out and counted by the load: nothing to check.
                 nodes:
                     idKey === null
                         ? []

@@ -8,6 +8,7 @@
 
 import type { F32 } from "@graphty/graph-format";
 
+import { parseBends } from "../../meshes/edgeRoute";
 import type { GroupMargins } from "../groupMargins";
 import type { EdgePosition } from "../LayoutEngine";
 import { POINTS_PER_UNIT } from "./toDot";
@@ -245,6 +246,46 @@ export function edgeBends(
         const bends = source && target ? bendsOf(source, target, pos, loopSize) : null;
         if (bends !== null) {
             out.set(k, bends);
+        }
+    }
+
+    return out;
+}
+
+/**
+ * Read the route Graphviz laid each edge along, sampled, with how far along it Graphviz measures each sample when it
+ * splits the line into color bands ({@link EdgePosition.laidCurve}), whether or not {@link edgeBends} reads bends for it.
+ * A self-loop gets none.
+ * @param json - the `-Tjson` text
+ * @param edges - the edges handed over, each with its end rows
+ * @param curveOf - an edge's samples, as a `bends` value between its ends' centers, and their measures (graph-io's reading)
+ * @returns each edge's curve, by place in the list; absent for a self-loop or an edge not laid
+ */
+export function edgeCurves(
+    json: string,
+    edges: readonly { readonly src: number; readonly dst: number }[],
+    curveOf: (source: Point, target: Point, pos: string) => { points: string; params: number[] } | null,
+): Map<number, NonNullable<EdgePosition["laidCurve"]>> {
+    const parsed = JSON.parse(json) as JsonGraph;
+    const centers = nodeCenters(parsed);
+    const out = new Map<number, NonNullable<EdgePosition["laidCurve"]>>();
+    // an edge's curve between its two centers, or null for a self-loop, ends Graphviz did not place or no spline
+    const read = (
+        edge: { readonly src: number; readonly dst: number },
+        pos: string,
+    ): NonNullable<EdgePosition["laidCurve"]> | null => {
+        const source = edge.src === edge.dst ? undefined : centers.get(`n${edge.src}`);
+        const target = centers.get(`n${edge.dst}`);
+        const curve = source && target ? curveOf(source, target, pos) : null;
+        const points = curve === null ? null : parseBends(curve.points);
+        return curve !== null && points?.length === 2 * curve.params.length ? { points, params: curve.params } : null;
+    };
+    for (const { id, pos } of parsed.edges ?? []) {
+        const k = typeof id === "string" && /^e\d+$/.test(id) ? Number(id.slice(1)) : -1;
+        const edge = k >= 0 ? edges[k] : undefined;
+        const curve = edge !== undefined && typeof pos === "string" ? read(edge, pos) : null;
+        if (curve !== null) {
+            out.set(k, curve);
         }
     }
 

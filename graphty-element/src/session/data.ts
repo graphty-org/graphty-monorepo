@@ -120,7 +120,6 @@ import {
 } from "./commands/derive";
 import {
     byTableId,
-    type ByTableMapping,
     Draft,
     draftStyles,
     fileName,
@@ -215,6 +214,7 @@ import { expressionPaths } from "./styles/predicate";
 import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
 import { columnsOf, layersReadingOnly } from "./styles/staleLayers";
 import type {
+    ByTableMapping,
     ColumnHistogram,
     ColumnRole,
     DatasetLoadOptions,

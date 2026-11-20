@@ -496,6 +496,11 @@ export interface BySizeLeaf {
 }
 
 // @public
+export type ByTableMapping = TableMapping | {
+    readonly tables: Readonly<Record<string, TableMapping>>;
+};
+
+// @public
 export const CAMERA_GESTURE_KINDS: readonly CameraGestureKind[];
 
 // @public
@@ -3724,12 +3729,17 @@ export interface LoadDraft {
 }
 
 // @public
+export interface LoadedChoices extends LoadChoices {
+    readonly mapping?: ByTableMapping;
+}
+
+// @public
 export interface LoadedSource extends DataSourceDescriptor {
     readonly added: {
         readonly nodes: number;
         readonly edges: number;
     };
-    readonly choices?: LoadChoices;
+    readonly choices?: LoadedChoices;
     readonly counts: {
         readonly nodes: number;
         readonly edges: number;
@@ -3780,9 +3790,7 @@ export interface LoadError {
 export { LoadFromSourceOptions }
 
 // @public
-export type LoadMapping = TableMapping | {
-    readonly tables: Readonly<Record<string, TableMapping>>;
-} | SideMapping;
+export type LoadMapping = ByTableMapping | SideMapping;
 
 // @public
 export interface LoadMappingRead {

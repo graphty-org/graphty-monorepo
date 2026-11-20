@@ -1,7 +1,7 @@
 /**
  * Profiler (contract 3.9, spec 5.5): with timestamp-query granted the context owns an enabled profiler; every
  * CommandBatch.pass(label) takes a slot pair, resolveInto(batch) records the resolve + copy into the batch's staging
- * slot, and timings(bytes, request) decodes one { label, ns } per pass with ns > 0; quantised is false under Dawn-node.
+ * slot, and timings(bytes, request) decodes one { label, ns } per pass with ns > 0; quantized is false under Dawn-node.
  * Without the feature ctx.profiler is null and a Profiler constructed by hand is a no-op (enabled false, beginPass
  * undefined, resolveInto null, timings [], destroy harmless). A full query set drops the timings past the budget
  * instead of throwing and marks the batch's request partial(request), so a duration is never the sum of a prefix.

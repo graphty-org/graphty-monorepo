@@ -1,6 +1,6 @@
 /**
  * The walking-skeleton algorithm (spec 11.5, 3.3; contract 3.12, 5.5): degree(ctx, s) equals outDegreeOracle bitwise on
- * every named fixture, the empty / one-node / arcCount-0 / directed / parallel cases, honours dest / signal /
+ * every named fixture, the empty / one-node / arcCount-0 / directed / parallel cases, honors dest / signal /
  * onProgress, runs twice bitwise, on the arena AND the per-array path, through the row-window leg, and writes /
  * compares the cross-adapter noise fixture (u32 bitwise). Plus the CPU tests of the noise-floor helpers.
  */

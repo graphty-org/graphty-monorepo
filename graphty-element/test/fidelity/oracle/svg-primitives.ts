@@ -396,6 +396,7 @@ function strokeOf(
         dash: solid ? null : dashAsDrawn(dash, width, cs.strokeLinecap),
         dashClass: dashClassOf(solid ? null : dash, width, cs.strokeLinecap),
         gradient,
+        ...(cs.strokeLinejoin === "round" || cs.strokeLinejoin === "bevel" ? { join: cs.strokeLinejoin } : {}),
     };
 }
 
@@ -1077,6 +1078,32 @@ function measureInJavaFace(el: SVGTextElement, first: string): () => void {
     };
 }
 
+/**
+ * How much narrower than the browser draws it a program sets a lowered or raised run: CSS's `smaller` step (Graphviz's
+ * measures 0.82).
+ */
+const SHIFTED_RUN_SCALE = 1 / 1.2;
+
+/**
+ * A lowered or raised run's box as wide as its program set it. Graphviz writes an HTML label's `<SUB>` and `<SUP>` as a
+ * text of its own with `baseline-shift`, at the line's font size, but lays the run out smaller, and places the next run
+ * where that smaller run ends: the browser draws "bc" of `a<SUB>bc</SUB>d` at the full 10 px, 11.9 units wide, over the
+ * first 2 units of "d", which Graphviz placed 9.75 units on (dot-specimen-labels-p2 html-sub, html-sup). Read at the
+ * browser's width the run overlaps the next one and the line reads as two.
+ * @param box - the run's box as the browser lays it out
+ * @param cs - its computed style
+ * @param anchor - its text anchor
+ * @returns the box, narrowed about its anchor where the run is shifted
+ */
+function shiftedRunBox(box: PBox, cs: CSSStyleDeclaration, anchor: "start" | "middle" | "end"): PBox {
+    if (cs.baselineShift !== "sub" && cs.baselineShift !== "super") {
+        return box;
+    }
+    const w = (box.x1 - box.x0) * SHIFTED_RUN_SCALE;
+    const AT: Record<typeof anchor, number> = { start: box.x0, middle: (box.x0 + box.x1 - w) / 2, end: box.x1 - w };
+    return { ...box, x0: AT[anchor], x1: AT[anchor] + w };
+}
+
 /** A text drawn under this many screen pixels is laid out again larger for its line box (`lineBoxOf`). */
 const SMALL_TEXT_PX = 6;
 /** How much larger. */
@@ -1220,8 +1247,11 @@ function textOf(
     } else if (anchor === "end") {
         x0 = x - w;
     }
-    const box =
-        bb.width > 0 && bb.height > 0 ? boxThrough(m, bb) : boxThrough(m, new DOMRect(x0, y - 0.8 * size, w, size));
+    const box = shiftedRunBox(
+        bb.width > 0 && bb.height > 0 ? boxThrough(m, bb) : boxThrough(m, new DOMRect(x0, y - 0.8 * size, w, size)),
+        cs,
+        anchor,
+    );
     // each positioned tspan line's own box, which the lines' alignment is read off
     const tspans = [...el.children].filter(
         (c): c is SVGTSpanElement => c.localName === "tspan" && (c.hasAttribute("y") || c.hasAttribute("dy")),

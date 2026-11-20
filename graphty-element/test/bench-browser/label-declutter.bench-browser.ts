@@ -1,7 +1,7 @@
 /**
  * @file What the label declutter pass costs a frame.
  *
- * Renders graphs with 100, 1000 and 5000 labelled nodes and times `scene.render()` with the
+ * Renders graphs with 100, 1000 and 5000 labeled nodes and times `scene.render()` with the
  * declutter pass on and off, for a still camera over a still layout and for a camera that turns
  * a little every frame. The pass's own time is measured separately by wrapping its `run`.
  *
@@ -60,7 +60,7 @@ describe("label declutter performance", () => {
         graph = g;
         await g.init();
 
-        // A square grid tight enough that neighbouring labels collide, so the pass has work.
+        // A square grid tight enough that neighboring labels collide, so the pass has work.
         const side = Math.ceil(Math.sqrt(count));
         const nodes = [];
         for (let i = 0; i < count; i++) {

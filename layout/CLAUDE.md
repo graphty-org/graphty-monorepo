@@ -130,7 +130,7 @@ A simulation runs in LAYOUT units (FA2's `[-1, 1)` seed scale; FR's `[0, 1)`) in
 holds SCENE units in f32 (design 7.18). `load()` converts every row as `(v - center[axis]) / scale` (z forced to 0 in
 2D); `step()` writes every FREE node back as `layout * scale + center[axis]` (z = `center.z` in 2D). A fixed row is
 never written: its scene value is the owner's. Nothing rescales the output per step -- the one-shot
-`forceAtlas2`'s unit-ball normalisation is NOT reproduced by the steppable classes -- so a pinned or dragged
+`forceAtlas2`'s unit-ball normalization is NOT reproduced by the steppable classes -- so a pinned or dragged
 node stays where the user put it and `scale` / `center` are the only mapping between the two unit systems.
 
 ### The two CPU classes

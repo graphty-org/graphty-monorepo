@@ -1,6 +1,6 @@
 /**
- * Camera extension point. NORMATIVE for shapes; behaviour in design/extensions/camera.md.
- * Entry point: @graphty/graphty-element/extend. Serialised form of the descriptor:
+ * Camera extension point. NORMATIVE for shapes; behavior in design/extensions/camera.md.
+ * Entry point: @graphty/graphty-element/extend. Serialized form of the descriptor:
  * design/extensions/descriptors.schema.json#/$defs/CameraDescriptor.
  */
 import type { OptionDescriptor, RegisterOptions } from "./common";
@@ -113,7 +113,7 @@ export declare function clearRegisteredCamerasForTesting(): void;
  * PROPOSED -- open decision 27 (scene convention), ONLY as an alternative to documenting the
  * published `pivotRotation`, which already fixes yaw, pitch and roll on the orbit controller: the
  * decision adopts one route, not both. Also proposed there: zoom in CSS pixels per scene unit, pan
- * as the scene coordinates of the viewport centre. A view returning `up` would declare it in its
+ * as the scene coordinates of the viewport center. A view returning `up` would declare it in its
  * descriptor and list that member in mustUnderstand (README section 6.3 item 7).
  */
 export interface CameraStateUp {

@@ -70,7 +70,7 @@ column selects several homes.
 ### 2.1 Drop a file onto a loaded graph (screen 26)
 
 **Design.** While a file is dragged over the canvas, the whole stage takes a dashed brand
-outline and one centred line, "Drop karate-2020.graphml to import it". Dropping never loads by
+outline and one centered line, "Drop karate-2020.graphml to import it". Dropping never loads by
 itself when a graph is open: the Import dialog opens with the **Into** radio group:
 
 - *Replace Karate Club* -- the old dataset and its tree go; the unsaved-work prompt of the file
@@ -222,7 +222,7 @@ If a graph was open, it is still open and unchanged; if not, the Welcome sheet i
 
 **Element API.** Error codes exist (`E_UNKNOWN_FORMAT`, `E_PARSE_FAILED`, `E_FETCH_FAILED`,
 `E_EDGE_ENDPOINTS_UNRESOLVED`, `E_OUT_OF_MEMORY`). Missing: a guarantee that a failed or
-cancelled load leaves the previous graph untouched, by reading into a staging store and
+canceled load leaves the previous graph untouched, by reading into a staging store and
 swapping on success (**medium**; it must be checked against how `Graph` clears data today).
 
 ### 2.10 Load progress with Cancel (screen 28)
@@ -269,7 +269,7 @@ measures, filters and the table use every node. The canvas draws the 200,000 bus
 Performance). A Performance mode switch, on by itself above 100,000 nodes (the element's
 `largeGraphThreshold` is 10,000 for detail; this is the app-visible switch), with what it turns
 off: labels capped ("Labels: top 500 by degree"), hover highlight off (the tooltip stays), VR off
-with its reason ("takes up to 10,000 nodes"), which is also the greyed VR button's tooltip.
+with its reason ("takes up to 10,000 nodes"), which is also the grayed VR button's tooltip.
 
 **Element API.** The limits are published (`DEFAULT_LIMITS`). Missing: drawing only the top N by
 a measure when over the ceiling, with a `drawn` count in `status.counts` (issue #302,
@@ -312,12 +312,12 @@ success (**small** once the staging swap of 2.9 exists), and the source address 
 | Item | Size | Gaps |
 |---|---|---|
 | `session.data.peek(file \| url \| text)` extended: counts for both files of a pair, the first rejected lines with reason, a one-column warning | small (on top of the proposed peek) | 2.3, 2.4, 2.5, 2.8 |
-| Staging load: a failed or cancelled load leaves the previous graph untouched | medium | 2.9, 2.10, 2.14 |
+| Staging load: a failed or canceled load leaves the previous graph untouched | medium | 2.9, 2.10, 2.14 |
 | Cancel through `AbortSignal` (issue #296) | small | 2.3, 2.10 |
 | `data.add(..., { onExisting, dryRun })` | small for skip and dry run (#337); medium for replace and merge (#297) | 2.1, 2.2 |
 | Reader options through `FormatDescriptor.options`, including a connection group, and `test()` | small | 2.7, 2.13 |
 | A reason on `E_FETCH_FAILED` (blocked, not found, offline, not graph data) | tiny | 2.3 |
-| Subset load (busiest N, largest part, neighbourhood, time window) and a memory estimate | medium to large; estimate small | 2.11 |
+| Subset load (busiest N, largest part, neighborhood, time window) and a memory estimate | medium to large; estimate small | 2.11 |
 | Enforce the render ceiling and report `drawn`; performance mode (#302) | medium | 2.12 |
 | Neo4j server and STRING readers (#303 to #308) | medium each | 2.13 |
 | `data.reload()` and the source on `lastImport()` | small | 2.14 |
@@ -360,7 +360,7 @@ incremental add, whose Mock column becomes the screens above.
 The four ways in are the dialog's tabs; Into is a radio group; pasted text, a Cypher query and a
 gene list are monospace fields; errors sit under the field they are about in red; Load is drawn
 disabled where it waits; the status bar's failure and limit chips are red and amber; a load that
-fails is said inside the Welcome sheet; a load in progress is a centred card with the pending name
-greyed in the header; VR is greyed with its reason as a tooltip on screen 30. The second state of
+fails is said inside the Welcome sheet; a load in progress is a centered card with the pending name
+grayed in the header; VR is grayed with its reason as a tooltip on screen 30. The second state of
 a screen (a failure beside the normal case, the JSON options, STRING) is an inset with a dark tag.
 The drop outline is its own screen, 101, because it is the moment before screen 26's dialog.

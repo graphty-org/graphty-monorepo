@@ -495,7 +495,7 @@ function SideGroup({
         if (!ready) {
             return;
         }
-        const field = group.current?.querySelector<HTMLElement>(`[data-entry="${wantedHere ?? ""}"] input`);
+        const field = group.current?.querySelector<HTMLElement>(`[data-entry="${wantedHere}"] input`);
         if (field !== null && field !== undefined) {
             field.scrollIntoView({ block: "nearest" });
             focusWithRing(field);

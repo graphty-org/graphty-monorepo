@@ -68,6 +68,7 @@
         "./dist/webgpu.js",
         "./dist/chunks/*.js",
         "./webgpu.ts",
+        "./src/acceleration/autoload.ts",
         "./src/algorithms/index.ts",
         "./src/data/index.ts",
         "./src/layout/index.ts",
@@ -82,7 +83,8 @@
         "!dist/**/*.map",
         "AGENTS.md",
         "README.md",
-        "LICENSE"
+        "LICENSE",
+        "spec/"
     ],
     "publishConfig": {
         "access": "public",
@@ -111,6 +113,7 @@
     "scripts": {
         "test": "npm run test:shards:parallel",
         "test:default": "vitest --project=default",
+        "test:bundlers": "node scripts/bundler-matrix.mjs",
         "test:browser": "vitest --project=browser",
         "test:xr": "vitest run --project=xr",
         "test:storybook": "vitest --project=storybook",
@@ -159,7 +162,7 @@
         "benchmark": "tsx benchmarks/run.ts",
         "fidelity:issues": "tsx scripts/fidelity-issues.ts",
         "fidelity:ratchet": "tsx scripts/fidelity-ratchet.ts",
-        "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json tsconfig.no-jsx-opt-in.json && tsc -p tsconfig.strict-consumer.json && tsc -p tsconfig.no-jsx-opt-in.json",
+        "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json tsconfig.no-jsx-opt-in.json && node scripts/typecheck-strict-consumer.mjs tsconfig.strict-consumer.json tsconfig.no-jsx-opt-in.json",
         "lint:fix": "eslint --fix",
         "api:report": "node ../tools/api-report.mjs .",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace graphty-element",
@@ -180,8 +183,8 @@
         "docs:preview": "vitepress preview docs --port ${PORT:?start it through servherd, which sets PORT}"
     },
     "devDependencies": {
-        "@babylonjs/core": "^8.56.2",
-        "@babylonjs/loaders": "8.56.2",
+        "@babylonjs/core": "^9.37.0",
+        "@babylonjs/loaders": "9.37.0",
         "@graphty/remote-logger": "workspace:^",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@hpcc-js/wasm-graphviz": "1.29.2",
@@ -206,6 +209,7 @@
         "@types/react": "^19.3.0",
         "@types/toposort": "^2.0.7",
         "@vitest/browser-playwright": "catalog:",
+        "@webgpu/types": "^0.1.74",
         "ajv": "^8.20.0",
         "ajv-formats": "^3.0.1",
         "axe-core": "^4.13.0",
@@ -234,8 +238,8 @@
         "webpack": "^5.112.2"
     },
     "peerDependencies": {
-        "@babylonjs/core": "^8.0.0",
-        "@babylonjs/loaders": "^8.0.0",
+        "@babylonjs/core": "^9.37.0",
+        "@babylonjs/loaders": "^9.37.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@hpcc-js/wasm-graphviz": ">=1.29.0",
         "@mlc-ai/web-llm": ">=0.2.0",

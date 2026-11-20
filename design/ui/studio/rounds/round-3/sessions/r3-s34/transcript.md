@@ -12,7 +12,7 @@ Command: `node tool/real.mjs --start $S empty` -> 01.png
 Saw: a dark start page. "Start" (Open project or file, New from data), "Recent projects" (empty),
 "Samples" with Les Miserables (77 characters) at the top. A consent box at the bottom: "Your data
 is yours, but please help us", with "Share usage data" / "No thanks". "Files are read on this
-computer and never uploaded" -- good, that answers half my IT question. The grey description text
+computer and never uploaded" -- good, that answers half my IT question. The gray description text
 is small; I am squinting.
 
 Next: say No thanks (I never share usage data from a work laptop), then open Les Miserables.
@@ -43,17 +43,17 @@ flask is presumably "Analyze", per the hint on the left). Clicking it to see.
 
 Command: `--step $S --click "Layout"` -> 04.png
 
-Saw: a list. "Force -- Recommended" is ticked. Then Circle, Rings around a node (greyed, "Select
+Saw: a list. "Force -- Recommended" is ticked. Then Circle, Rings around a node (grayed, "Select
 a node first"), Grid, Rings by group (greyed, "Needs a node attribute to group by"), Spiral,
-Spectral, No crossings (greyed, with a line saying 'the layout "planar" cannot draw this graph
+Spectral, No crossings (grayed, with a line saying 'the layout "planar" cannot draw this graph
 without crossings: G is not planar' -- that reads like an error message from a program, not for
-me), Random, Tree (greyed), Two columns and Columns by group (both greyed, need a node attribute),
+me), Random, Tree (grayed), Two columns and Columns by group (both grayed, need a node attribute),
 Keep positions.
 
 Reaction: "Rings by group" and "Columns by group" are the ones that sound like clusters, and they
-are both greyed out. What is a "node attribute to group by"? These characters do not come with a
+are both grayed out. What is a "node attribute to group by"? These characters do not come with a
 group, I suppose. "Spectral" -- I do not know what that word means here. "Force" is what I already
-have. The grey hint lines are tiny.
+have. The gray hint lines are tiny.
 
 Next: the only plain-English options are Circle, Grid, Spiral, Random. I will try Circle -- at
 least I know what a circle is.
@@ -79,7 +79,7 @@ than before -- the little groups I could see before are gone. A few dots (top ri
 have big fans of lines, which tells me who is busy, but not who belongs together. Also the
 toolbar button still says "3D" although I chose 2D. Odd.
 
-Next: back to the Layout menu. The two "by group" ones are greyed. I do not know "Spectral", but
+Next: back to the Layout menu. The two "by group" ones are grayed. I do not know "Spectral", but
 clicking a choice only opens a card with a sentence, so I will peek at what Spectral says before
 I run anything.
 
@@ -90,7 +90,7 @@ Command: `--step $S --click "Layout" --click "Spectral"` -> 07.png
 Saw: "Places nodes from the graph's own structure, so densely connected groups land near each
 other without any grouping being named. Draws flat." That is exactly my ask -- groups land near
 each other, and I do not need to supply a group. I would never have guessed it from the word
-"Spectral"; the sentence sold it. The sentence is small grey text though, I had to lean in.
+"Spectral"; the sentence sold it. The sentence is small gray text though, I had to lean in.
 
 Next: Apply.
 
@@ -147,7 +147,7 @@ is not better than the start, I put it back the way it was and stop.
 
 Command: `--step $S --click "Layout" --click "Force"` -> 12.png
 
-Saw: the card remembers 2D and 80, and the button now reads "Applied" (greyed). There is a small
+Saw: the card remembers 2D and 80, and the button now reads "Applied" (grayed). There is a small
 "x" next to the 80 -- I take that to mean "put it back to the default". Clicking the x, then Apply.
 
 ## Step 13 -- reset spring length
@@ -163,7 +163,7 @@ Saw: this one is actually better than where I started. I can now pick out separa
 tight bunch top right, a smaller ring of about eight on the left, a knot at the bottom, a fan of
 six dots hanging off one dot on the far left (one hub with hangers-on), and a busy middle. At the
 start the middle was one smear and the groups overlapped; flat, they sit apart. I would call that
-"easier to tell apart", not "obvious" -- there is no colour per group, and no names on the dots,
+"easier to tell apart", not "obvious" -- there is no color per group, and no names on the dots,
 so I still cannot say who is in which bunch.
 
 I stopped here: the drawing is better than the start, and I would not keep guessing numbers.
@@ -179,7 +179,7 @@ while trying to undo my own bad guess.
 
 **Did it help?** Yes, somewhat. Flat, I can see four or five bunches with space between them,
 where the starting picture was one overlapping blob in the middle. But I still could not tell a VP
-"these are the groups" -- nothing coloured them and nothing named them.
+"these are the groups" -- nothing colored them and nothing named them.
 
 **Ease: 3 out of 7** (somewhat difficult).
 
@@ -188,7 +188,7 @@ where the starting picture was one overlapping blob in the middle. But I still c
 - The button is called "Layout". To me layout means page layout; I only clicked it because the
   icon had dots on it and nothing else fit.
 - The two options that sounded like what I wanted -- "Rings by group", "Columns by group" -- were
-  greyed out with "Needs a node attribute to group by". I do not know what a node attribute is or
+  grayed out with "Needs a node attribute to group by". I do not know what a node attribute is or
   how to get one, and it did not point me anywhere.
 - "Spectral" had the best sentence ("densely connected groups land near each other") and the
   worst result: one lump in a corner, half behind the toolbar, plus two stray arms. The sentence
@@ -199,11 +199,11 @@ where the starting picture was one overlapping blob in the middle. But I still c
   The description also says "with 'dim: 2'", which is code, not English.
 - Everything defaulted to 3D. I chose 2D three times and the toolbar button kept saying "3D".
 - No "go back to how it was" in the Layout menu; I used the field's x and the Recommended choice.
-- Grey helper text everywhere is very small and low contrast; I had to lean in for every hint.
+- Gray helper text everywhere is very small and low contrast; I had to lean in for every hint.
 - No labels on the dots at all, so even when it got better I could not check whether the bunches
   made sense ("is that Valjean's lot?").
 
-**Would I use it?** For practice, fine. For my own suppliers I would want the groups coloured and
+**Would I use it?** For practice, fine. For my own suppliers I would want the groups colored and
 named, and a picture I could drop on a slide. And I still need to know whether IT would approve it
 -- "Files are read on this computer and never uploaded" on the start page is the first thing I
 would show them.

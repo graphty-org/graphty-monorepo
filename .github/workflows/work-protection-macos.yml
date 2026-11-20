@@ -62,7 +62,7 @@ jobs:
         steps:
             - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
             - uses: actions/setup-node@v7
               with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
@@ -108,7 +108,7 @@ jobs:
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
             - uses: actions/setup-node@v7
               with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
@@ -155,7 +155,7 @@ jobs:
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
             - uses: actions/setup-node@v7
               with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
@@ -229,7 +229,7 @@ jobs:
                   sudo xcode-select -s "$xcode"
                   xcodebuild -version
                   xcrun simctl list runtimes
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
             - uses: actions/setup-node@v7
               with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
@@ -246,6 +246,20 @@ jobs:
               timeout-minutes: 30
               # Safari's first launch takes minutes: the step's limit bounds it.
               run: cd .. && node tools/results/run-group.mjs macos-ios-lifecycle "cd graphty-element && pnpm exec vitest run --project=lifecycle test/lifecycle/ios-simulator.test.ts"
+            # The test saves a failed scenario's own diagnostics, but a run its hang guard or the step's limit
+            # ends never gets there (#8861): keep the Simulator's screen, its devices and its log here too.
+            - name: Collect the Simulator's screen and log of a failed run
+              if: failure()
+              timeout-minutes: 5
+              run: |
+                  mkdir -p test-results/ios/job
+                  xcrun simctl list devices > test-results/ios/job/devices.txt 2>&1 || true
+                  xcrun simctl io booted screenshot test-results/ios/job/screen.png || echo "no booted Simulator"
+                  xcrun simctl spawn booted log show --last 45m --style compact \
+                      --predicate 'process == "MobileSafari" OR process BEGINSWITH "com.apple.WebKit" OR process == "SpringBoard"' \
+                      > test-results/ios/job/log.txt || true
+                  log show --last 45m --style compact --predicate 'process BEGINSWITH "com.apple.CoreSimulator" OR process == "simctl"' \
+                      > test-results/ios/job/coresimulator.log || true
             - name: Keep the Simulator's screen and Safari's log of a failed scenario
               if: failure()
               uses: actions/upload-artifact@v7

@@ -265,7 +265,7 @@ function adjacency(s: GraphSnapshot, o: ClosenessOptions, reverse: boolean): Adj
  * even over a full sample: a weighted `cutoff` (the node just past it is admitted from the source's end of the
  * path) and a negative weight (the legacy settle rule is not symmetric).
  * @param s - The snapshot
- * @param options - Normalisation, harmonic form, cutoff, weights and sampling
+ * @param options - Normalization, harmonic form, cutoff, weights and sampling
  * @returns One score per node index; `iterations` and `sourcesUsed` are the number of searches run
  * @throws RangeError for a bad `sources` or `k`
  * @public

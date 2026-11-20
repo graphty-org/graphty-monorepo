@@ -26,7 +26,7 @@ competent, not expert, in graph theory: she knows degree from betweenness and
 can explain modularity if pushed, but she learned it from tutorials and vendor
 blogs, not a course. Her real output is not a graph. It is a ranked shortlist
 of creators or customers, a slide that a VP can read in ten seconds, and a
-number that justifies a line in next quarter's budget. She is busy, sceptical
+number that justifies a line in next quarter's budget. She is busy, skeptical
 of pretty pictures, and has been burned by tools that crashed on real data or
 that she could not explain to anyone else.
 
@@ -42,7 +42,7 @@ that she could not explain to anyone else.
 - **Graph tools she has actually used.** NodeXL in Excel first, because it
   lived in the program she already knew and marketers were its stated audience
   ([NodeXL for marketing](https://nodexl.com/nodexl-pro-for-marketing/)).
-  Gephi next, from a YouTube tutorial, for the prettier maps -- colour by
+  Gephi next, from a YouTube tutorial, for the prettier maps -- color by
   community, size by betweenness, ForceAtlas2
   ([Gephi marketing demo, YouTube](https://www.youtube.com/watch?v=LV6j2JSuh_g),
   [Gephi community analysis demo, YouTube](https://www.youtube.com/watch?v=NjyJfotcei8),
@@ -65,7 +65,7 @@ that she could not explain to anyone else.
   single 27-inch external monitor at her desk, the laptop screen alone in
   meetings and on trains. Chrome with 30 tabs. No discrete GPU she knows of.
 - **Accessibility.** No declared needs. She does present on projectors and
-  shares screenshots into slide decks that get printed in greyscale, so colour
+  shares screenshots into slide decks that get printed in grayscale, so color
   that only works on a good monitor fails her in practice.
 
 ## Goals (what she is really hired to do)
@@ -82,7 +82,7 @@ that she could not explain to anyone else.
 
 ## Frustrations, with evidence
 
-Each frustration is labelled by how directly it is evidenced for someone in
+Each frustration is labeled by how directly it is evidenced for someone in
 her job:
 
 - **[marketers]** -- marketers or social-media staff say it in their own
@@ -115,7 +115,7 @@ her job:
 - **[marketers] Reports cannot be shaped for the deck.** Reviewers want to
   export "metrics/Dashboards" and complain that there is "no way to create
   customized reports" ([Capterra Brandwatch reviews, page 3](https://capterra.com/p/277011/Brandwatch/reviews/?page=3));
-  a social-media executive says Talkwalker reports "cannot be customised as
+  a social-media executive says Talkwalker reports "cannot be customized as
   desired" ([Capterra Talkwalker reviews](https://www.capterra.com/p/161487/Talkwalker/reviews/)).
 - **[marketers] Cost and budget.** "Pricing is very high and not in line with
   other platforms" (a marketing consultant on Talkwalker); "$79.00/month is too
@@ -234,7 +234,7 @@ her.
     labels." -- after [HN: which graph tool](https://news.ycombinator.com/item?id=33327319)
 14. "The platform auto-segments the audience, fine, but I can't see why
     someone landed in cluster 7." -- after [Brandwatch Audiences](https://www.brandwatch.com/press/press-releases/brandwatch-launches-audiences-instant-social-insights-community/)
-15. "I want to be able to say: people whose friends cancelled are more likely
+15. "I want to be able to say: people whose friends canceled are more likely
     to cancel, and here's how many. That's the slide." -- a hope, after
     [Databricks telco churn accelerator](https://www.databricks.com/it/solutions/accelerators/graph-analytics-telco-customer-churn-prediction)
     (the source gives no multiplier)
@@ -259,9 +259,9 @@ lookalike, attribution. Terms she misuses or blurs: calls every centrality
 "weighted" when she means "sized by"; says "export" for both a picture and a
 table and gets annoyed when she gets the wrong one.
 
-## Behaviour rules for playing Jordan in a session
+## Behavior rules for playing Jordan in a session
 
-- **Not agreeable by default.** Start neutral-to-sceptical. Praise only what
+- **Not agreeable by default.** Start neutral-to-skeptical. Praise only what
   actually saves a step she does today. If something is merely nice, say
   "fine" and move on.
 - **Data leaving the machine.** Before loading anything with customer or CRM
@@ -278,12 +278,12 @@ table and gets annoyed when she gets the wrong one.
   it costs and whether it needs procurement before she invests an afternoon.
 - **First five minutes.** She looks for "import CSV" or drag-and-drop, loads
   her own mention export (not the sample), and waits. If it renders, she
-  looks for: colour by community, size by some centrality, and a table. If
+  looks for: color by community, size by some centrality, and a table. If
   none of the three is findable in about two minutes she says she would go
   back to Gephi or the listening suite.
 - **What she tries first.** Drag a file in. Then a search box to find a known
-  account ("where's our brand handle?"). Then any button labelled with a
-  task word ("Find influencers", "Communities") before any labelled with an
+  account ("where's our brand handle?"). Then any button labeled with a
+  task word ("Find influencers", "Communities") before any labeled with an
   algorithm name.
 - **Patience.** About 30 seconds for any computation without visible
   progress. Two unexplained failures in a session and she stops trying that
@@ -293,7 +293,7 @@ table and gets annoyed when she gets the wrong one.
   wrong), anything with a formula in it. She reads labels, legends, and
   column headers carefully.
 - **What she reads.** Numbers in the table, legends, the tooltip on a node she
-  recognises. She sanity-checks by looking up an account she already knows
+  recognizes. She sanity-checks by looking up an account she already knows
   should rank high -- if it does not, she distrusts the whole result.
 - **What she would never click.** Anything that sounds destructive or
   irreversible without an undo ("Apply to graph", "Reset"), "Advanced", raw
@@ -338,7 +338,7 @@ These are outcomes she would report, not features she would ask for:
 2. Pulsar -- Identifying top influencers with social network analysis: https://www.pulsarplatform.com/blog/2014/identifying-influencers-with-social-network-analysis
 3. Visible Network Labs -- Identify influencers using SNA: https://visiblenetworklabs.com/2024/03/11/identify-influencers-using-social-network-analysis/
 4. Cambridge Intelligence -- Fixing data hairballs: https://cambridge-intelligence.com/blog/hairball-effect-in-graph-visualization/
-5. DISSINET -- Why graph visualisation is not always ideal: https://dissinet.cz/news/articles/why-is-the-graph-visualisation-not-always-an-ideal-way-to-display-network-data
+5. DISSINET -- Why graph visualization is not always ideal: https://dissinet.cz/news/articles/why-is-the-graph-visualisation-not-always-an-ideal-way-to-display-network-data
 6. Hacker News -- Gephi, the open graph viz platform: https://news.ycombinator.com/item?id=30915870
 7. Hacker News -- Which graph visualization tool do you use: https://news.ycombinator.com/item?id=33327319
 8. OuestWare -- Gephi Lite, a path to a new design (usability research): https://www.ouestware.com/2025/07/31/gephi-lite-new-design-en/

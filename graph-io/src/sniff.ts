@@ -32,7 +32,20 @@ import { type GraphImporter } from "./types.js";
  * @category Formats and detection
  */
 export type GraphFormatName =
-    "gexf" | "graphml" | "gml" | "dot" | "pajek" | "csv" | "json" | "neo4j" | "xgmml" | "cx2" | "cx" | "obo" | "cys";
+    | "gexf"
+    | "graphml"
+    | "gml"
+    | "dot"
+    | "pajek"
+    | "csv"
+    | "json"
+    | "neo4j"
+    | "xgmml"
+    | "cx2"
+    | "cx"
+    | "obo"
+    | "cys"
+    | "sif";
 
 /**
  * A format name: one of the built-in names (with editor autocomplete) or the name of a format you
@@ -65,6 +78,7 @@ export const GRAPH_FORMATS: readonly GraphFormatName[] = Object.freeze([
     "cx",
     "obo",
     "cys",
+    "sif",
 ]);
 
 /** Content confidence below this is a weak guess, which loses to a file extension another format claims. */
@@ -480,7 +494,7 @@ interface KeyScanState {
 }
 
 /**
- * Open an object or array: push its frame, labelled by the key or index it sits under.
+ * Open an object or array: push its frame, labeled by the key or index it sits under.
  * @param state - the scanner state
  * @param ch - `{` or `[`
  */

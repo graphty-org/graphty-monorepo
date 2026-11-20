@@ -1092,13 +1092,16 @@ describe("checking what the Assistant says", () => {
         await openOn(3);
         const talk = await screen.findByRole("button", { name: "Talk" });
         const send = screen.getByRole("button", { name: "Send" });
-        const before = { talk: talk.getBoundingClientRect().toJSON(), send: send.getBoundingClientRect().toJSON() };
+        const before = { talk: talk.getBoundingClientRect(), send: send.getBoundingClientRect() };
         model.holdTurn = 0;
         await say("Take your time");
         const stop = await screen.findByRole("button", { name: "Stop" });
         assert.strictEqual(stop, send, "one button, so focus survives the change");
-        assert.deepEqual(stop.getBoundingClientRect().toJSON(), before.send);
-        assert.deepEqual(screen.getByRole("button", { name: "Talk" }).getBoundingClientRect().toJSON(), before.talk);
+        assert.deepEqual(stop.getBoundingClientRect().toJSON(), before.send.toJSON());
+        assert.deepEqual(
+            screen.getByRole("button", { name: "Talk" }).getBoundingClientRect().toJSON(),
+            before.talk.toJSON(),
+        );
         // A release before the model reaches its hold is lost.
         await waitFor(() => {
             assert.isTrue(model.held);

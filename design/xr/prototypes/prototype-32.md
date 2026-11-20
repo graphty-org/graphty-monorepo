@@ -466,7 +466,7 @@ Severity 2 findings also addressed:
 - **No path from a node to the box that changed it** (red team; the knowledge-graph workflow). Inspect lists "Changed by", each with Open box and Bypass.
 - **One owner per hand** (WebXR; VR interaction). A hand in touch mode has no ray and the board consumes its select events, including a Vision Pro transient pointer begun near the board; the "pointing up keeps its ray" exception is removed.
 - **Table mode punished resting fingers** (VR interaction). A resting fingertip does nothing; a hold is tap-then-hold; a press is desk contact with a 0.3 s ring.
-- **Rotating to find a Route target cancelled the arming** (VR interaction). Only a tap on empty space cancels; a drag keeps the port armed. A tap on any reader row fills an armed port (coverage), so a hidden target is filled from its Find row.
+- **Rotating to find a Route target canceled the arming** (VR interaction). Only a tap on empty space cancels; a drag keeps the port armed. A tap on any reader row fills an armed port (coverage), so a hidden target is filled from its Find row.
 - **Repeat-tap cycling was undefined** (VR interaction). Within 2 degrees and 1 s, in every mode, with "3 here" on the pointer before the tap.
 - **A quick press latched the probe, unseen** (VR interaction). A press is momentary; Latch probe is on the wire's list; the Showing chip names a latched probe; verbs always act on the real input; the bead's hit area is twice the wire's.
 - **Every inspection tap was an undo step** (VR interaction). Consecutive selection changes form one undo step. The Add switch stays on until flipped off or Clear.

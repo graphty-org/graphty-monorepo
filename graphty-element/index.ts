@@ -11,12 +11,12 @@
  * depends on it.
  *
  * It also means this entry point carries the renderer, so it needs a DOM and a 3D engine. The
- * parts of the package that do not are published separately, and a consumer that wants a colour
+ * parts of the package that do not are published separately, and a consumer that wants a color
  * ramp, a palette, an options list or a plugin base class should import one of those instead of
  * this:
  *
  * - `@graphty/graphty-element/schema` -- palettes, shapes, style defaults, the style document
- *   vocabulary and the colour helpers, the colour-vision simulators among them.
+ *   vocabulary and the color helpers, the color-vision simulators among them.
  * - `@graphty/graphty-element/catalog` -- the algorithms, layouts, formats, palettes and scales
  *   the element offers, as plain JSON descriptors.
  * - `@graphty/graphty-element/extend` -- the registration surface for a plugin.
@@ -25,13 +25,15 @@
  * - `@graphty/graphty-element/logging` -- the logger, the levels, the record, the destinations
  *   the element ships and `lazy`.
  * - `@graphty/graphty-element/ai` -- the natural-language layer and its optional peers.
- * - `@graphty/graphty-element/webgpu` -- one import that switches on GPU acceleration.
+ * - `@graphty/graphty-element/webgpu` -- optional: registers GPU acceleration statically. This
+ *   entry finds an installed `@graphty/webgpu-graph-algorithms` by itself, the first time the
+ *   element probes for acceleration.
  *
  * Each of the first six resolves in Node with no renderer anywhere in its import graph.
  *
  * TWO GROUPS OF NAMES USED TO BE HERE AND ARE NOT ANY MORE, because each was published from two
  * addresses at once and a consumer reading two import lines for one symbol has no way to tell
- * they are the same object. The logging vocabulary is at `/logging`. The seven colour-vision
+ * they are the same object. The logging vocabulary is at `/logging`. The seven color-vision
  * simulators are at `/schema`, beside the palettes they exist to check. Reaching either through
  * this file cost a 3D engine for code that never draws anything.
  */
@@ -40,6 +42,9 @@
 // and registers the <graphty-element> custom element. This prevents tree-shaking from removing
 // the custom element registration when consumers do `import "@graphty/graphty-element";`
 import "./src/graphty-element";
+// Registers the lazy WebGPU loader: an installed @graphty/webgpu-graph-algorithms is used with no
+// consumer code. Nothing is imported until the element first probes for acceleration.
+import "./src/acceleration/autoload";
 
 // =============================================================================
 // Core classes
@@ -84,6 +89,8 @@ export type {
     BasemapConfig,
     BasemapSourceId,
     BasemapStatus,
+    // Which background color the canvas draws, as `element.colorScheme` takes it
+    ColorScheme,
     EdgeStyleConfig,
     // The room `element.fitInsets` keeps clear when the graph is framed
     FitInsets,
@@ -175,6 +182,8 @@ export type {
 // `session.data.neighbors(id)`: a node's neighbors, one row each, with their combined weight
 export type { WeightMeaning } from "./src/session/runs";
 export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./src/session/types";
+// `session.views`: a saved view (a fixed camera or a camera view it follows) and a starting camera
+export type { SavedView, StartingCamera } from "./src/session/types";
 // The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
 export type { NodeId } from "./src/catalog/types";
 // What `element.elementAt({ x, y })` finds under a point
@@ -206,6 +215,8 @@ export type {
 // The project file: the whole session as one graphty document, as `element.session.project`
 export type {
     AssetStorage,
+    DocumentCode,
+    DocumentSection,
     ProjectApi,
     ProjectAssetChoice,
     ProjectOpenOptions,
@@ -216,6 +227,7 @@ export type {
     ProjectSource,
     ProjectStatus,
     SavedProject,
+    SourceStorage,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 // What autosave reports: its status, its codes, its entries and what a restore found.
@@ -299,7 +311,9 @@ export { defineShader } from "./src/simple/defineShader";
 // Events
 // =============================================================================
 export type {
+    AiCommandCanceledEvent,
     AiEventType,
+    AnimationProgressEvent,
     BasemapStatusEvent,
     CameraStateChangedEvent,
     DataLoadingCompleteEvent,
@@ -343,12 +357,18 @@ export type {
     NodeEventType,
     NodeGenericEvent,
     NodeHoverEvent,
+    OperationCanceledEvent,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- the British alias stays exported until the next major
     OperationCancelledEvent,
     OverviewChangedEvent,
+    ReducedMotionChangedEvent,
     RenderLostEvent,
     RenderRestoredEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
+    TourEndedEvent,
+    TourProgressEvent,
+    ViewsChangedEvent,
     XRSessionEndedEvent,
     XRSessionStartedEvent,
 } from "./src/events";
@@ -388,6 +408,16 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // =============================================================================
 // Screenshot exports
 // =============================================================================
+export type {
+    EasingName,
+    Tour,
+    TourEndReason,
+    TourInput,
+    TourPause,
+    TourPlan,
+    TourPlanStop,
+    TourStop,
+} from "./src/camera/tour";
 export type { CameraViewExtent, ViewInsets } from "./src/camera/types";
 export type { FigureOptions, FigureResult } from "./src/screenshot/figure";
 export type {
@@ -403,7 +433,7 @@ export type {
 } from "./src/screenshot/types";
 
 // One node drawn alone, for a key or a picker (element.nodeThumbnail)
-export type { ModelPreview, ModelPreviewOptions } from "./src/meshes/ModelPreview";
+export type { ModelCheck, ModelCheckOptions, ModelPreview, ModelPreviewOptions } from "./src/meshes/ModelPreview";
 export type { ModelThumbnailOptions, NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
@@ -412,7 +442,7 @@ export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/ca
 // =============================================================================
 // Video capture exports
 // =============================================================================
-export { AnimationCancelledError } from "./src/video/MediaRecorderCapture";
+export { AnimationCanceledError, AnimationCancelledError } from "./src/video/MediaRecorderCapture";
 export type { AnimationOptions, AnimationResult, CameraWaypoint, ViewWaypoint } from "./src/video/VideoCapture";
 
 // Video capture estimation
@@ -427,7 +457,7 @@ export type { CaptureEstimate } from "./src/video/estimation";
  * modes each view works in, and both include the views a third party registered, which a fixed
  * array of five cannot.
  */
-export { BUILTIN_PRESETS } from "./src/camera/presets";
+export { BUILTIN_PRESETS, type SkippedPreset } from "./src/camera/presets";
 export { linkCameras, type LinkedCameraView } from "./src/cameras/linkCameras";
 
 // =============================================================================

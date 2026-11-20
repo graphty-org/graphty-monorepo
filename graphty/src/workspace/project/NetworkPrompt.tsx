@@ -62,7 +62,7 @@ export function NetworkPrompt(): React.JSX.Element | null {
     if (session === null) {
         return null;
     }
-    const [request] = waiting;
+    const request = waiting.at(0);
     const settle = (answer: () => void | Promise<void>): void => {
         void Promise.resolve(answer())
             .catch(() => undefined)
@@ -76,7 +76,9 @@ export function NetworkPrompt(): React.JSX.Element | null {
             opened={request !== undefined}
             onClose={() => {
                 settle(() => {
-                    session.network.deny(request.params.id);
+                    if (request !== undefined) {
+                        session.network.deny(request.params.id);
+                    }
                 });
             }}
             title="Open a web address?"
@@ -86,8 +88,8 @@ export function NetworkPrompt(): React.JSX.Element | null {
             {request === undefined ? null : (
                 <Stack gap="xs">
                     {request.params.by === "supplied" ? (
-                        // A part the reader handed a model by its address (only the node-models
-                        // experiment's Parts pop-over supplies parts).
+                        // A part the reader handed a model by its address (only the Parts
+                        // pop-over supplies parts).
                         <Text size="sm">
                             Load a part of this model from {request.params.host}? It is {fileOf(request.params.url)}.
                         </Text>

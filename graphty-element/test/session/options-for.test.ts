@@ -113,6 +113,11 @@ describe("session.catalog.optionsFor", () => {
         const result = await harness.session.runs.start("louvain", {}, { style: false });
 
         assert.deepStrictEqual(await groupBy(), ["team", `results.${result.runId}.group`]);
+        const choices = (await harness.session.catalog.optionsFor("shell")).find(
+            (option) => option.name === "groupBy",
+        )?.values;
+        assert.isUndefined(choices?.[0]?.runField, "an attribute names no run");
+        assert.deepStrictEqual(choices?.[1]?.runField, { runId: result.runId, field: "group" });
         harness.session.dispose();
     });
 

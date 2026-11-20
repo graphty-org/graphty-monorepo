@@ -21,7 +21,7 @@ Saw (02.png): the banner went away (screenshot only, nothing printed). Now click
 ## Step 3
 
 Command: `--step --click "Florentine families"`
-Saw (03.png): blue dots and grey lines on a light canvas, no names on any of the dots. Right side:
+Saw (03.png): blue dots and gray lines on a light canvas, no names on any of the dots. Right side:
 "Graph -- From Florentine families", Nodes 15, Edges 20, Density 0.1905, Components 1 -- numbers I
 don't really follow. Left: a search box "Find nodes, edges, values", "Selection", "Everything".
 Elena: "Hm, no names. Which one is the Medici? The one in the middle with lots of lines must be the

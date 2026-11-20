@@ -31,6 +31,17 @@ Then import in your JavaScript/TypeScript:
 import "@graphty/graphty-element";
 ```
 
+### GPU acceleration
+
+Install `@graphty/webgpu-graph-algorithms` as well, and the element runs its layouts and
+algorithms on the GPU wherever the browser has one. There is nothing to import or configure: the
+element finds the package itself. Without it everything runs on the CPU. Building the element with
+webpack needs webpack 5.90.2 or later. See [Acceleration](./acceleration) for the details.
+
+```bash
+npm install @graphty/webgpu-graph-algorithms
+```
+
 ## CDN Usage
 
 For quick prototyping or simple pages, load the self-contained bundle (`dist/graphty.bundle.js`) from a
@@ -181,14 +192,15 @@ Graphty has peer dependencies on Babylon.js and Lit:
 ```json
 {
     "peerDependencies": {
-        "@babylonjs/core": "^8.0.0",
-        "@babylonjs/loaders": "^8.0.0",
+        "@babylonjs/core": "^9.37.0",
+        "@babylonjs/loaders": "^9.37.0",
         "lit": "^3.0.0"
     }
 }
 ```
 
-These are typically installed automatically. If you need to install them manually:
+Babylon.js must be 9.37 or a later 9.x: the FBX and USD loaders graphty-element loads models with
+are not in earlier 9.x releases. These are typically installed automatically. If you need to install them manually:
 
 ```bash
 npm install @babylonjs/core @babylonjs/loaders lit
@@ -206,6 +218,12 @@ import type { Edge, Graph, Node } from "@graphty/graphty-element";
 const element = document.querySelector("graphty-element");
 const graph: Graph = (element as any).graph;
 ```
+
+Babylon.js 9's own declarations do not compile under `"skipLibCheck": false`: on TypeScript 5
+they name WebGPU types (`GPUDevice`, `GPUBuffer`) that only TypeScript 6's DOM library declares,
+and on any version one of them fails `"exactOptionalPropertyTypes": true`. Keep
+`"skipLibCheck": true` (the default of Vite's and most other project templates) in a project that
+uses graphty-element.
 
 ## Bundle Size Considerations
 

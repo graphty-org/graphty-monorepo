@@ -48,8 +48,8 @@ File: `ImportOptions.dc.html`. State: Import options over the Empty shell, nothi
 
 5. **POP-11: record that the import policies were considered for a pop-out and refused.** Region: same
    comment block. Add: `REVISION 1.7, POP-11: the three applied policies stay exactly as drawn -- noun
-   label, behaviour in the field, full sentence on the info circle. A control whose home is a dialog
-   may not acquire a second home as a pop-out (6.4, one behaviour one home).` No change on screen.
+   label, behavior in the field, full sentence on the info circle. A control whose home is a dialog
+   may not acquire a second home as a pop-out (6.4, one behavior one home).` No change on screen.
 
 6. **SAV-10: record that the remembered mapping now has a visible home.** Region: same comment block.
    Add: `REVISION 1.7, SAV-10: the footer line "Mapping is remembered for files with these columns."
@@ -80,7 +80,7 @@ File: `ImportOptions.dc.html`. State: Import options over the Empty shell, nothi
 ## ImportRecognised
 
 File: `ImportRecognised.dc.html`. State: Import options over the Empty shell, nothing loaded,
-`ovarian_de_string.tsv`, 212 KB, a recognised STRING export. Dialog frame 1120 (12 columns).
+`ovarian_de_string.tsv`, 212 KB, a recognized STRING export. Dialog frame 1120 (12 columns).
 
 1. **IMP-4: the recognition banner leaves the interpretation row and becomes a full-width RT-7 run
    record.** Region: item 2's field group, lines 466-471 -- the banner currently sits as the last flex
@@ -125,7 +125,7 @@ File: `ImportRecognised.dc.html`. State: Import options over the Empty shell, no
 5. **Canvas toolbar (TB-1, TB-4, A1): nothing to draw here.** Region: the Welcome underlay behind the
    scrim. This board is the Empty state (deltas W1 to W8) and draws no navigation cluster, no minimap
    and no legend, so **no toolbar is drawn**. Add one line to the comment: `REVISION 1.7, TB-1: the
-   navigation cluster is retired app-wide for the bottom-centre canvas toolbar; neither is drawn on
+   navigation cluster is retired app-wide for the bottom-center canvas toolbar; neither is drawn on
    this board, because nothing is loaded.`
 
 6. **IMP-2: replace the freeform OPENS paragraph with the decision-table extract.** Region: file
@@ -169,8 +169,8 @@ File: `ImportRecognised.dc.html`. State: Import options over the Empty shell, no
     section 12 "Import state banner", title-row snippet at VOCAB.md lines 2604-2612; this board's span
     is 12 px where the snippet is 11 px -- **take the snippet's 11 px**, so the five Import boards agree.
     (b) File comment lines 22-23. Current: `CANVAS TITLE (recorded here only; canvas.json is not
-    edited): Import options -- recognised export, nothing loaded.` New: `CANVAS TITLE: Import options --
-    delimited file (recognised export).` Drop the "canvas.json is not edited" hedge; 1.7 makes that edit
+    edited): Import options -- recognized export, nothing loaded.` New: `CANVAS TITLE: Import options --
+    delimited file (recognized export).` Drop the "canvas.json is not edited" hedge; 1.7 makes that edit
     once, coordinated, and **not from this file**.
 
 ## ImportLargeFile
@@ -286,14 +286,14 @@ File: `ImportAddToGraph.dc.html`. State: Import options at step 3 over a loaded 
 `devices-batch2.csv`, 8 KB. Canvas 832 x 836 behind a full-frame scrim at z-index 20.
 
 1. **Canvas toolbar (TB-1, TB-2, TB-4, A1): delete the left-edge cluster, draw the bar at bottom
-   centre.** Region: lines 576-598, the `<!-- NAVIGATION CLUSTER (5.6), verbatim from
+   center.** Region: lines 576-598, the `<!-- NAVIGATION CLUSTER (5.6), verbatim from
    SHELL-SKELETON.html -->` comment and the `position: absolute; left: 12px; bottom: 120px; width: 56px`
    div with its 2D/3D pair, Zoom to fit, Zoom to selection, Zoom in, Zoom out and Views. Delete both.
    In their place, as the last overlay child of the same canvas div, paste VOCAB.md lines 2466-2494
    ("Canvas toolbar (5.6, 5.1)") **verbatim**. Board-specific values:
    - **Bottom offset 12.** This board draws no time slider and no Data table drawer, so the canvas
      floor is the canvas rect itself. Keep the snippet's `bottom: 12px`.
-   - **Centred on the canvas rect, not the window.** The snippet's `left: 50%; transform:
+   - **Centered on the canvas rect, not the window.** The snippet's `left: 50%; transform:
      translateX(-50%)` is measured against the 832 px canvas div, giving a left edge of 293. Measured
      privately from the snippet at a file:// URL: **246.00 x 36.00**.
    - **Zoom to selection stays drawn and disabled** -- the item set is fixed, and nothing appears or
@@ -389,26 +389,26 @@ columns). Canvas 832 x 836.
    before that. Measured height of the header at a 256 px panel content band: **33.00 px**.
 
 2. **Canvas toolbar (TB-1, TB-2, TB-4, A1): delete the left-edge cluster, draw the bar at bottom
-   centre.** Region: lines 402-425, the `<!-- NAVIGATION CLUSTER (5.6), copied from
+   center.** Region: lines 402-425, the `<!-- NAVIGATION CLUSTER (5.6), copied from
    SHELL-SKELETON.html -->` comment and its `left: 12px; bottom: 120px; width: 56px` div. Delete both
    and paste VOCAB.md lines 2466-2494 verbatim as the last overlay child of the canvas div.
    Board-specific values:
    - **Bottom offset 12**: no time slider (this dataset has no time attribute -- the file comment
      already says so) and no Data table drawer, so the canvas floor is the rect. Keep `bottom: 12px`.
-   - Centred on the 832 px canvas rect, left edge 293; measured **246.00 x 36.00**.
+   - Centered on the 832 px canvas rect, left edge 293; measured **246.00 x 36.00**.
    - **Zoom to selection stays drawn and disabled**, with the register's disabled title
      `Zoom to selection (F). Select something first` -- nothing is selected on this board. The item set
      is fixed; it never shrinks.
    - **The collision on this board:** the Table join dialog sits on a full-frame modal scrim, so the
      toolbar draws **dimmed under the scrim**, exactly as the minimap, legend and Insights strip
      already do. It is drawn, not omitted.
-   - **The Insights strip does not collide**: it is at `top: 12px`, centred, so the two centred
+   - **The Insights strip does not collide**: it is at `top: 12px`, centered, so the two centered
      overlays sit on opposite edges of the canvas.
    - Minimap (`left: 12px; bottom: 12px`) and legend (`right: 12px; bottom: 12px`) stay put:
      832 - 172 - 172 = 488 px of room for a 246 px bar, so the two-line rule (below 622) does not fire.
    - Line 23-24 of the file comment lists `navigation cluster` among the untouched canvas parts.
      Rewrite that clause: `the canvas -- graph drawing, Insights strip, minimap, canvas toolbar,
-     legend -- ` and add `the cluster was replaced by the bottom-centre toolbar in 1.7 (TB-1)`.
+     legend -- ` and add `the cluster was replaced by the bottom-center toolbar in 1.7 (TB-1)`.
 
 3. **POP-0: record that this dialog is tier 3b and stays one.** Region: file comment, after the
    REVISION 1.6 block. Add: `REVISION 1.7, POP-0: 6.2's tier 3 splits into 3a (pop-out: no scrim, no
@@ -426,13 +426,13 @@ columns). Canvas 832 x 836.
    DataPanelLoaded, whose fields render as flat text with no per-row affordance at all.` No change on
    screen.
 
-5. **SAV-2, one label to normalise (label change, last).** Region: the panel tier 2 row at lines 345-355, `Run a recipe...` with its `Coming` tag. **No change** -- A5 names it as the one deliberate
+5. **SAV-2, one label to normalize (label change, last).** Region: the panel tier 2 row at lines 345-355, `Run a recipe...` with its `Coming` tag. **No change** -- A5 names it as the one deliberate
    exception: `Run a recipe...` stays in Data tier 1/2 and on Welcome, because it is the front door of
    an empty app and the one place where the list is not on screen. Record that in the comment so a
    later pass does not rename it: `REVISION 1.7, SAV-2/A5: "Load" is retired from the saved-thing
    vocabulary and the three verbs are "Save as <kind>...", "Import <kind>..." and "Export <kind>
    (JSON)", with apply being the row click. "Run a recipe..." is the named exception and keeps its
-   wording; "Import and replay" is retired in favour of "Import recipe...".`
+   wording; "Import and replay" is retired in favor of "Import recipe...".`
 
 ## DataPanelLoaded
 
@@ -497,18 +497,18 @@ Canvas 832 x 836, no scrim.
    on a row adds the computed column to the current dataset.`
 
 4. **Canvas toolbar (TB-1, TB-2, TB-4, A1): delete the left-edge cluster, draw the bar at bottom
-   centre.** Region: lines 752-774, the `<!-- NAVIGATION CLUSTER (5.6), copied from
+   center.** Region: lines 752-774, the `<!-- NAVIGATION CLUSTER (5.6), copied from
    SHELL-SKELETON.html -->` comment and its `left: 12px; bottom: 120px; width: 56px` div. Delete both
    and paste VOCAB.md lines 2466-2494 verbatim as the last overlay child of the canvas div.
    Board-specific values:
    - **Bottom offset 12**: this board draws neither the time slider nor the Data table drawer, so the
      canvas floor is the rect. Keep `bottom: 12px`.
-   - Centred on the 832 px canvas rect, left edge 293; measured **246.00 x 36.00**.
+   - Centered on the 832 px canvas rect, left edge 293; measured **246.00 x 36.00**.
    - **Zoom to selection stays drawn and disabled**, with the register's disabled title
      `Zoom to selection (F). Select something first` -- nothing is selected on this board.
    - **The collision on this board:** there is **no scrim**, so this is the one board in the group where
      the toolbar draws at full strength, and it is the reference drawing for the group. The Insights
-     strip is at `top: 12px` centred, so the two centred overlays sit on opposite edges.
+     strip is at `top: 12px` centered, so the two centered overlays sit on opposite edges.
    - Minimap (`left: 12px; bottom: 12px`, height 84) and legend (`right: 12px; bottom: 12px`) share the
      toolbar's 12 px baseline and do not move: 832 - 172 - 172 = 488 px of room for a 246 px bar, so
      the two-line rule (below 622 px of canvas) does not fire.
@@ -593,7 +593,7 @@ File: `DataTableDrawer.dc.html`. State: Result plus Selected, no activity panel,
 docked along the canvas bottom at 260, the time slider docked above it, three nodes selected. Canvas
 1112 x 836 (rail 48 + inspector 280).
 
-1. **A1 + TB-4: normalise the slider to 70 px and rebuild the bottom stack.** Region: line 424, the
+1. **A1 + TB-4: normalize the slider to 70 px and rebuild the bottom stack.** Region: line 424, the
    time slider container. Current: `position: absolute; left: 0; right: 0; bottom: 260px; height: 72px;
    ... padding: 6px 12px 2px; ... z-index: 5;`. New: `height: 70px` and `padding: 6px 12px 1px`;
    everything else unchanged, including `bottom: 260px`. **The collision, resolved:** TimeSlider.dc.html
@@ -604,7 +604,7 @@ docked along the canvas bottom at 260, the time slider docked above it, three no
    Update the arithmetic in the comment on line 395 from `(drawer 260 + slider 72 + 12)` to
    `(drawer 260 + slider 70 + 12 = 342)`.
 
-2. **TB-1, TB-2, TB-4: delete the left-edge cluster, draw the bar at bottom centre, offset 342.**
+2. **TB-1, TB-2, TB-4: delete the left-edge cluster, draw the bar at bottom center, offset 342.**
    Region: lines 395-418 -- the `<!-- NAVIGATION CLUSTER (5.6) ... -->` comment and the
    `position: absolute; left: 12px; bottom: 344px; width: 56px; ... z-index: 6;` div with its 2D/3D
    pair, Zoom to fit, Zoom to selection, Zoom in, Zoom out and Views. Delete both. Paste VOCAB.md lines
@@ -620,22 +620,22 @@ docked along the canvas bottom at 260, the time slider docked above it, three no
      (drop the `. Select something first` half). This is the only board in the group where that item is
      live, and the item set is fixed either way -- it disables, it never disappears.
    - **Views caret flips to point up** (the snippet's `polyline points="3,10 8,5 13,10"`) and its menu
-     opens upward: bottom edge 4 px above the bar, centred on the Views button, clamped 12 px inside the
+     opens upward: bottom edge 4 px above the bar, centered on the Views button, clamped 12 px inside the
      canvas edges. The menu is not drawn here; record the clamp in the comment, because with the drawer
      and slider both open this is the board where an unclamped menu would run off the canvas top.
    - **The collision on this board, and it is the one the whole bottom stack exists for:** the drawer is
      open, so **the minimap and the legend are not drawn at all** (5.1 hides them while the drawer is
      open) and the toolbar has the bottom band to itself -- no two-line rule, no 622 px threshold, no
      clearance arithmetic. The band above it belongs to the slider, 12 px down.
-   - **The second collision: two centred controls on one screen.** `Graph / Table` is at `top: 12px;
-     left: 50%` (line 389) and the toolbar is at bottom centre. That is accepted -- opposite edges, only
+   - **The second collision: two centered controls on one screen.** `Graph / Table` is at `top: 12px;
+     left: 50%` (line 389) and the toolbar is at bottom center. That is accepted -- opposite edges, only
      one of them conditional. **Graph / Table never enters the toolbar**, because the bar's item set is
-     fixed and a centred container that changes width moves every item under the pointer. Write that
+     fixed and a centered container that changes width moves every item under the pointer. Write that
      into the comment where the next drafter will find it, next to the Graph / Table control.
    - **The one state where the toolbar is not drawn**, to record in the same comment: when Graph / Table
-     maximises the drawer to the full canvas height there is no canvas left to navigate, so the toolbar
+     maximizes the drawer to the full canvas height there is no canvas left to navigate, so the toolbar
      hides with the minimap and the legend and returns when the drawer is restored. Graph / Table stays
-     at top centre and is the way back. That is not the state drawn here.
+     at top center and is the way back. That is not the state drawn here.
    - Rewrite the comment on line 395 to name the toolbar rather than the cluster, and re-point the
      MIN-1/MIN-15 note on line 394 if it names the cluster.
 
@@ -654,7 +654,7 @@ docked along the canvas bottom at 260, the time slider docked above it, three no
    it with item 3 while you are in the row).** Region: line 436. Current: `title="Time slider settings
    (T)"`. New: `title="Time slider settings"`. 5.6 binds `T` to **toggling** the slider, not to opening
    its settings, and under 5.6's own rule a control may not print a binding it does not own. The
-   neighbouring `title="Hide the time slider (T)"` at line 437 is correct and **does not change** -- it
+   neighboring `title="Hide the time slider (T)"` at line 437 is correct and **does not change** -- it
    is the control that owns `T`.
 
 5. **POP-9: Selection statistics stays inline; record the condition that would move it.** Region: the
@@ -674,7 +674,7 @@ docked along the canvas bottom at 260, the time slider docked above it, three no
    context menu rather than a pop-out -- five verbs on one row is a menu, matching SAV-7's row
    treatment.` No change on screen.
 
-7. **SAV-2: normalise one saved-thing verb (label change, last).** Region: line 859, the bookmark glyph
+7. **SAV-2: normalize one saved-thing verb (label change, last).** Region: line 859, the bookmark glyph
    in the inspector's pinned action row. Current: `title="Save as set..."`. New:
    `title="Save selection as set..."` -- SAV-2 keeps this one in its longer form, because "selection"
    names the source and the floor's scope clause wants it. The glyph does not change: REGISTER-1.5
@@ -720,10 +720,10 @@ canvas rect itself.
    Current content: `position: absolute; left: 72px; bottom: 120px; width: 248px;`.
    New content: `position: absolute; left: 533px; bottom: 52px; width: 248px;`,
    everything else unchanged (`z-index: 15` stays, so the menu paints over the bar's
-   `z-index: 6`). The arithmetic, to put in the comment: the 246px bar is centred on
+   `z-index: 6`). The arithmetic, to put in the comment: the 246px bar is centered on
    an 1112px canvas, so its left edge is at x = 433; inside the bar the Views item
-   starts at 1 + 3 + 60 + 12 + (28*4 + 2*3) + 12 = 206 and is 36 wide, so its centre
-   is x = 433 + 224 = 657, and a 248px menu centred on it starts at 533. Bottom
+   starts at 1 + 3 + 60 + 12 + (28*4 + 2*3) + 12 = 206 and is 36 wide, so its center
+   is x = 433 + 224 = 657, and a 248px menu centered on it starts at 533. Bottom
    edge = toolbar bottom 12 + toolbar height 36 + 4 = 52. With the new Toolbar row
    the menu is about 341 tall, so its top lands at y = 443 in an 836-tall canvas and
    TB-8's "clamped 12px inside the canvas edges" does not fire on this board -- say
@@ -770,10 +770,10 @@ canvas rect itself.
    menu)" and "The navigation cluster is copied from SHELL-SKELETON.html") and the
    overlay comment you rewrite in item 1. New content: "canvas toolbar" in both
    places, plus one sentence recording that 5.6's navigation cluster paragraph is now
-   the canvas toolbar paragraph and that the bar is centred on the live canvas rect,
+   the canvas toolbar paragraph and that the bar is centered on the live canvas rect,
    never on the window.
 8. **Comment: record the two decisions this board is the drawn proof of.** Region:
-   the Views menu comment. Add: (a) the menu opens upward from a bottom-centre
+   the Views menu comment. Add: (a) the menu opens upward from a bottom-center
    trigger and its caret points up; (b) the `Toolbar` row makes the toolbar the third
    canvas overlay with a visibility toggle, joining 6.5's existing "minimap and legend
    visibility" memory rather than adding a new clause, and hiding it hides this menu,
@@ -804,7 +804,7 @@ No time slider and no drawer, so the canvas floor is the canvas rect.
    (F)"` -- acct-4471 is selected, and this board and ExplorerNotes are the only two
    in this group where the control is live. The glyph itself does not change.
 3. **Collision check, to record rather than to draw:** the open node menu occupies
-   x 622-886, y 330-692 in canvas coordinates; the centred 246px bar occupies
+   x 622-886, y 330-692 in canvas coordinates; the centered 246px bar occupies
    x 433-679, y 788-824. They share x but not y, so the menu does not need moving and
    the toolbar does not need an offset. Put those two rectangles in the toolbar
    comment so a later menu-length change is checked against them.
@@ -835,13 +835,13 @@ No time slider and no drawer, so the canvas floor is the canvas rect.
    fix.
 5. **Comment: re-point the "navigation cluster" reference (TB-1).** Region: the
    overlay comment you rewrite in item 1. New content: "CANVAS TOOLBAR (5.6, 5.1)",
-   plus the sentence that the bar is centred on the live canvas rect and rides 12px
+   plus the sentence that the bar is centered on the live canvas rect and rides 12px
    above the canvas floor.
 
 ## ShortcutsDialog
 
 Screen group: nav. Canvas 832 x 836 (Explore panel open), nothing selected, 3D.
-The whole frame carries a 60% scrim with the shortcuts dialog centred over it; the
+The whole frame carries a 60% scrim with the shortcuts dialog centered over it; the
 canvas overlays render beneath the scrim and the bottom band below the dialog is
 visible, so the toolbar is a **visible** change on this board.
 
@@ -878,7 +878,7 @@ visible, so the toolbar is a **visible** change on this board.
    4th), EMPTY. ... -->`. New content: `ZOOM (drops last)` and `VIEWING SLOT (drops
    3rd)`. The percentage stays in the status bar and never enters the toolbar (a
    numeric readout would change the bar's width as the graph is zoomed, which a
-   centred bar cannot tolerate); now that zoom is the only camera fact in the bar it
+   centered bar cannot tolerate); now that zoom is the only camera fact in the bar it
    moves to the end of the drop order, which becomes AI status, layout name, Viewing,
    zoom.
 4. **Comment: the three deliberate refusals, so a later pass does not add them.**
@@ -895,7 +895,7 @@ visible, so the toolbar is a **visible** change on this board.
 5. **Comment: re-point the "navigation cluster" reference (TB-1).** Region: the
    overlay comment you rewrite in item 1, which currently reads "canvas overlay on
    the left edge above the minimap, 24px rows, top to bottom". New content: a bar
-   centred on the live canvas rect, 246 x 36 at desktop, riding 12px above the canvas
+   centered on the live canvas rect, 246 x 36 at desktop, riding 12px above the canvas
    floor, items 28 x 28 on a 3px pad with a concentric 7px radius, and the only
    canvas overlay carrying the tooltip shadow.
 
@@ -956,7 +956,7 @@ occluded today.
    (5.6)"), the panel comment at line 192 ("'Zoom to selection' is gone from the
    panel: the canvas navigation cluster owns it"), and the overlay comment you
    rewrite in item 1. New content: "canvas toolbar" in all four. Line 192's argument
-   survives intact -- the control still lives on the canvas, at the bottom centre
+   survives intact -- the control still lives on the canvas, at the bottom center
    rather than the left edge -- so re-point it, do not delete it.
 6. **Comment: the deliberate refusals (POP-13d, TB-8, TB-6).** Region: the Keyboard
    shortcuts section comment. Add the same three sentences as ShortcutsDialog item 4,
@@ -993,7 +993,7 @@ note markers on the canvas. No time slider and no drawer.
    cluster (MIN-8). ... -->`. New content: "canvas toolbar" in both. (b) is the
    load-bearing one: it is the justification for the deleted status-bar 3D chip, and
    it must be **re-pointed, not deleted** -- the 2D/3D control is still always
-   visible, now at the bottom centre of the canvas rect.
+   visible, now at the bottom center of the canvas rect.
 4. **Leave the inspector Notes section exactly as drawn (POP-10).** Region:
    inspector, the block headed `<!-- Notes (5.7, 5.4). RT-6: the note body, author,
    time, mark and tag are all the user's own strings ... -->`, including the
@@ -1027,7 +1027,7 @@ expanded, nothing selected, 3D. No time slider and no drawer.
    path `<path d="M2.5 3.5h11l-4.25 5v4.25l-2.5 1.25V8.5z"></path>` at
    `width="14" height="14"`. It is drawn at value ink `#d5d7da`, not dimmed `#7a828e`,
    because a non-default filter is active -- that is 6.11's stub obligation in the
-   form POP-5 states it ("the gear draws in the primary colour whenever any hidden
+   form POP-5 states it ("the gear draws in the primary color whenever any hidden
    option deviates from its default"), and it matches this board's own eye glyph,
    which is at value ink because markers are on. Wrap the two trailing glyphs in
    `<div style="display: flex; gap: 4px; flex: 0 0 auto;">`. The search field row
@@ -1136,7 +1136,7 @@ nodes), nothing selected, 3D. No time slider and no drawer.
    above the 622 two-line threshold, so the density-heatmap minimap and the legend
    stay on the 12px baseline. The bar is drawn in full even while the graph is still
    building: the item set is fixed and the bar leaves only when the Data table drawer
-   is maximised to the full canvas height, which is not this board's state.
+   is maximized to the full canvas height, which is not this board's state.
 3. **Update the status bar drop order (TB-7).** Region: the status-bar slot comments.
    Current content: `ZOOM (drops 2nd)`, `LAYOUT SLOT (name drops 3rd)`,
    `VIEWING SLOT (drops 4th)`. New content: `ZOOM (drops last)`, `LAYOUT SLOT (name
@@ -1149,7 +1149,7 @@ nodes), nothing selected, 3D. No time slider and no drawer.
    is changed"), and the overlay comment you rewrite in item 2. New content: "canvas
    toolbar" in all three. Line 3027 is the justification for having no mode chip and
    must be **re-pointed, not deleted**. Line 19's claim that the canvas is unchanged
-   is no longer true and becomes "the canvas gains the bottom-centre toolbar in place
+   is no longer true and becomes "the canvas gains the bottom-center toolbar in place
    of the left-edge cluster; the minimap, legend, top bar and status bar are
    otherwise unchanged".
 
@@ -1157,7 +1157,7 @@ nodes), nothing selected, 3D. No time slider and no drawer.
 
 Screen group: nav. Canvas 832 x 836 in Performance mode (120,418 nodes), Analyze
 panel open with a pinned Bridges result, nothing selected, 3D. No time slider and no
-drawer. Two centred canvas overlays already exist -- the Insights strip at `top:
+drawer. Two centered canvas overlays already exist -- the Insights strip at `top:
 12px` and the filter strip at `top: 140px` -- both at the **top**, so neither
 collides with the bar.
 
@@ -1244,7 +1244,7 @@ beneath must be identical to every other board.
    status, layout name, Viewing, zoom. The zoom percentage stays in the status bar and
    never enters the toolbar: the bar sits 12px above the status bar so the number is
    already adjacent to the buttons that change it, and a numeric readout would change
-   a centred bar's width as the graph is zoomed.
+   a centered bar's width as the graph is zoomed.
 3. **Comment: re-point every "navigation cluster" reference (TB-1).** Region: three
    places -- the file comment at line 20 ("5.6 (navigation cluster, zoom percentage,
    mode chip)") and line 27 ("the canvas gains the navigation cluster above the
@@ -1253,7 +1253,7 @@ beneath must be identical to every other board.
    owns them. ... -->`). New content: "canvas toolbar" in all three. Line 424 is the
    justification for the deleted mode chip and must be **re-pointed, not deleted**:
    the 2D / 3D segmented control is still a canvas control, now at the head of the
-   bottom-centre bar, and the VR or AR chip still fills that slot during a session.
+   bottom-center bar, and the VR or AR chip still fills that slot during a session.
 4. **Comment: `Import everything anyway always stays.` keeps its words and changes
    its referent (IMP-5).** Region: the Thresholds and loading block, the 11px line
    under `Measured 4 Sep 18:02 on Apple M2 Pro, 8 cores, 8 GB.`
@@ -1289,7 +1289,7 @@ Decisions landing here: TB-1, TB-2, TB-3, TB-4, TB-8, POP-7, POP-13b.
 
 2. **Canvas overlays, bottom band -- insert the canvas toolbar.** Region: canvas, in place of the deleted cluster. New content: the VOCAB.md section 12 snippet **"Canvas toolbar (5.6, 5.1)"**, copied verbatim, at `left: 50%; bottom: 12px; transform: translateX(-50%)`, 246x36. The bottom offset is **12**: this board draws no time slider and no Data table drawer, so it is the plain case of A1's four offsets. Two edits to the snippet as copied: (a) **Zoom to selection is ENABLED** here -- acct-4471 is selected in both halves -- so that item's `color` becomes `#a3a8b1`, its `cursor` becomes `pointer`, and its title becomes `Zoom to selection (F)` with no second sentence; (b) leave 3D as the selected half of the segmented pair, which is what the board already draws.
 
-3. **Canvas overlays, bottom band -- the three-box collision, resolved.** Region: canvas, the minimap (line ~904, `left: 12px; bottom: 12px`, 160 wide), LEGEND A (line ~1053, `left: 244px; bottom: 12px`, 160 wide) and LEGEND B (line ~1087, `right: 12px; bottom: 12px`, 172 wide). This is the one board in the set with **three** boxes on the 12 px baseline, and a centred 246 px bar spans canvas x 293..539, which runs straight through LEGEND A at 244..404. TB-3's arithmetic for two boxes (`172 + 16 + 246 + 16 + 172 = 622`) becomes `172 + 16 + 160 + 16 + 246 + 16 + 184 = 810` here, against 832 of canvas, and LEGEND A cannot move left without hitting the minimap. **Resolution chosen: TB-3's two-line rule fires on this board.** Change `bottom: 12px` to `bottom: 60px` on all three boxes -- minimap, LEGEND A and LEGEND B -- so they share one raised baseline and the bottom band belongs to the toolbar alone. Do not move the toolbar and do not shrink or hide a legend: the legend is floor item 5. Record the trigger in the file comment: three boxes, not canvas width, is what fires the rule here.
+3. **Canvas overlays, bottom band -- the three-box collision, resolved.** Region: canvas, the minimap (line ~904, `left: 12px; bottom: 12px`, 160 wide), LEGEND A (line ~1053, `left: 244px; bottom: 12px`, 160 wide) and LEGEND B (line ~1087, `right: 12px; bottom: 12px`, 172 wide). This is the one board in the set with **three** boxes on the 12 px baseline, and a centered 246 px bar spans canvas x 293..539, which runs straight through LEGEND A at 244..404. TB-3's arithmetic for two boxes (`172 + 16 + 246 + 16 + 172 = 622`) becomes `172 + 16 + 160 + 16 + 246 + 16 + 184 = 810` here, against 832 of canvas, and LEGEND A cannot move left without hitting the minimap. **Resolution chosen: TB-3's two-line rule fires on this board.** Change `bottom: 12px` to `bottom: 60px` on all three boxes -- minimap, LEGEND A and LEGEND B -- so they share one raised baseline and the bottom band belongs to the toolbar alone. Do not move the toolbar and do not shrink or hide a legend: the legend is floor item 5. Record the trigger in the file comment: three boxes, not canvas width, is what fires the rule here.
 
 4. **Analyze panel, result card A -- the run record Details becomes a pop-out opener.** Region: line ~208-213, the RT-10 run record row reading `Resolution 0.5, seed 42` with the 16 px `Details` chevron. Current content: the chevron's comment says Details "holds" the full record inline. New content: the line itself is unchanged (floor 3 keeps it exactly as drawn); the chevron now opens a **360 px activity-panel pop-out** headed with the result's own title `Groups` and `Communities (Louvain)` dimmed beside it, at `left: 336px`, top aligned to the run record row, per the VOCAB.md section 12 **"Pop-out container, anchored form"** snippet. Do **not** draw the pop-out open on this board (the shell is drawn at 360 on ValidationPopout and GroupProfilePopout; POP-7's pop-out is drawn nowhere). Keep the chevron in the closed right-pointing form permanently (POP-13b). Update the comment above the row from "Details holds:" to "Details opens a 360 pop-out holding:", keeping the same content list.
 
@@ -1299,7 +1299,7 @@ Decisions landing here: TB-1, TB-2, TB-3, TB-4, TB-8, POP-7, POP-13b.
 
 7. **File comment -- rename the mechanism.** Region: the head comment, line 20: `5.6 (navigation cluster, mode chip)`. New content: `5.6 (canvas toolbar, mode chip)`. Same rename in the item-2 region comment: `NAVIGATION CLUSTER (spec 5.6), one cluster because the views are linked` becomes `CANVAS TOOLBAR (5.6, TB-1). One bar, centred on the full two-view canvas, because the views are linked (TB-1 names this board).`
 
-8. **File comment -- record the 1.7 pass.** Region: the head comment, after the "Compaction 1.6" paragraph. New content: one paragraph naming what 1.7 changed on this board -- the navigation cluster became the bottom-centre canvas toolbar at offset 12 (TB-1, TB-2, TB-4); the minimap and both legends rose to `bottom: 60` because three boxes share this board's baseline (TB-3); both cards' run-record Details now open a 360 pop-out rather than expanding inline, and neither is drawn open (POP-7). State that no word on the canvas, in the compare toolbar, in the diff legend or in the status bar changed.
+8. **File comment -- record the 1.7 pass.** Region: the head comment, after the "Compaction 1.6" paragraph. New content: one paragraph naming what 1.7 changed on this board -- the navigation cluster became the bottom-center canvas toolbar at offset 12 (TB-1, TB-2, TB-4); the minimap and both legends rose to `bottom: 60` because three boxes share this board's baseline (TB-3); both cards' run-record Details now open a 360 pop-out rather than expanding inline, and neither is drawn open (POP-7). State that no word on the canvas, in the compare toolbar, in the diff legend or in the status bar changed.
 
 ## MultiSelection
 
@@ -1328,7 +1328,7 @@ Decisions landing here: POP-9, POP-12a/A3 cut 2, SAV-7, SAV-1, SAV-2, POP-3, POP
 
 11. **Canvas -- delete the navigation cluster, insert the canvas toolbar.** Region: line ~696-729, the block commented `NAVIGATION CLUSTER (spec 5.6): canvas overlay on the left edge above the minimap ... Bottom offset = minimap bottom 12 + minimap height 100 + 8 gap = 120`. New content: delete the whole block and its offset arithmetic; insert the VOCAB.md section 12 **"Canvas toolbar"** snippet at `left: 50%; bottom: 12px; transform: translateX(-50%)`. Bottom offset **12** -- no time slider (the Viewing slot is empty) and no Data table drawer on this board. **Zoom to selection is ENABLED**: seven nodes and four edges are selected, so that item takes `color: #a3a8b1`, `cursor: pointer` and the bare title `Zoom to selection (F)`.
 
-12. **Canvas -- confirm no reflow.** Region: minimap at `left: 12px; bottom: 12px` (160 wide) and legend at `right: 12px; bottom: 12px` (160 wide). The centred 246 px bar spans canvas x 293..539; the minimap ends at 172 and the legend begins at 660, giving 121 px of clearance each side against TB-3's 16 px minimum. Leave both at `bottom: 12px` -- the two-line rule does not fire at 832 px of canvas (its threshold is 622). Record the two clearances in the region comment so a later resize does not silently eat them.
+12. **Canvas -- confirm no reflow.** Region: minimap at `left: 12px; bottom: 12px` (160 wide) and legend at `right: 12px; bottom: 12px` (160 wide). The centered 246 px bar spans canvas x 293..539; the minimap ends at 172 and the legend begins at 660, giving 121 px of clearance each side against TB-3's 16 px minimum. Leave both at `bottom: 12px` -- the two-line rule does not fire at 832 px of canvas (its threshold is 622). Record the two clearances in the region comment so a later resize does not silently eat them.
 
 13. **Canvas -- the Views menu gains a Toolbar row.** Region: line ~723, the comment `Views menu trigger: Reset view, Top, Front, Side, Isometric, Follow selection, Save view..., Show minimap, Show legend, Enter VR, Enter AR`. New content: insert `Toolbar` between `Show minimap` and `Show legend`, checked, following RT-5's verbs-out form (TB-8). Add one sentence: hiding the toolbar hides its own Views menu, so the way back is the command palette row `Show canvas toolbar`; the toolbar takes no key binding.
 
@@ -1347,13 +1347,13 @@ Decisions landing here: SAV-8, SAV-1, SAV-2, POP-7, STY-1, TB-1..TB-4, TB-8.
 
 2. **Analyze panel, History header -- the recipe verbs leave.** Region: line ~275-283, the History section header's trailing glyph row. Current content: Export history (JSON), **Save as recipe** (bookmark glyph), Copy as commands, More. New content: **delete the bookmark glyph** -- SAV-8 moves creation to the `+` one section down, because a recipe is created where the steps are and listed where the kind lives. The header keeps Export history (JSON), Copy as commands and More, in that order.
 
-3. **Analyze panel, History overflow -- retire `Import and replay`.** Region: the comment at line ~258-262, `More menu, full text (6.8 twin, mandatory): Replay all on current data (Coming) / Export as script (Coming) / Copy as methods text / Import and replay... (Coming)`. New content: drop `Import and replay... (Coming)` -- SAV-2 retires the phrase in favour of `Import recipe...`, which now lives in the Recipes section overflow. The menu becomes `Replay all on current data (Coming) / Export as script (Coming) / Copy as methods text`. History keeps Replay all, Export history, Export as script, Copy as commands, Copy as methods text and Clear history and nothing else (SAV-8).
+3. **Analyze panel, History overflow -- retire `Import and replay`.** Region: the comment at line ~258-262, `More menu, full text (6.8 twin, mandatory): Replay all on current data (Coming) / Export as script (Coming) / Copy as methods text / Import and replay... (Coming)`. New content: drop `Import and replay... (Coming)` -- SAV-2 retires the phrase in favor of `Import recipe...`, which now lives in the Recipes section overflow. The menu becomes `Replay all on current data (Coming) / Export as script (Coming) / Copy as methods text`. History keeps Replay all, Export history, Export as script, Copy as commands, Copy as methods text and Clear history and nothing else (SAV-8).
 
 4. **Inspector -- the open run-record Details block closes and becomes a pop-out.** Region: line ~835-853, the run record line with its Details chevron drawn **OPEN** and the disclosed block beneath it (the full record plus the Copy menu). This board is the only one in the set that draws that block expanded inline. New content: **close the chevron** and delete the disclosed block from the inspector column; the one-line run record above it stays exactly as drawn (floor 3). The chevron now opens a **360 px inspector-region pop-out** headed with the result's own title, at `right edge 1152 / left: 792px`, per the VOCAB.md section 12 "Pop-out container, anchored form" snippet, holding the weight attribute and its meaning, direction, every parameter including seed and sample size, scope with counts, timestamp, duration, the algorithms package version, and the copy control whose menu holds Copy as JSON / Copy as command / Copy methods text. Move the disclosed block's text verbatim into the region comment as the pop-out's contents. **Do not draw the pop-out open:** the History popover already occupies x 554..994 from y 44 downward and a pop-out at 792..1152 anchored to a run-record row about y 200 would sit on top of it; POP-7's shell is drawn nowhere in the set by design (the Rejected table). Keep the chevron in the permanently closed right-pointing form (POP-13b). **Note in the comment that this board's 1.6 claim -- "the one board in the set that shows what is behind that chevron" -- is retired by POP-7, and that the height it releases is the push-down POP-7 exists to remove.** POP-7 does not name this board in its artboard list; it is applied here because this is the only board where the difference is visible, and leaving it open would contradict POP-7 on the one screen that shows it.
 
 5. **Canvas -- delete the navigation cluster, insert the canvas toolbar.** Region: line ~663-686, the block commented `NAVIGATION CLUSTER (5.6)` at `left: 12px; bottom: 120px`. New content: delete it; insert the VOCAB.md section 12 **"Canvas toolbar"** snippet at `left: 50%; bottom: 12px; transform: translateX(-50%)`. Bottom offset **12** -- no time slider, no drawer. **Zoom to selection stays DISABLED**: nothing is selected on this board, so keep the snippet's own disabled form, `color: #5f6873`, `cursor: default`, title `Zoom to selection (F). Select something first` -- which is the string the deleted cluster already carried, so nothing changes but the position.
 
-6. **Canvas -- the preview banner collides with the toolbar; raise the banner.** Region: line ~655-662, the preview banner at `position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%)`, 28 px tall, drawn because a History row is hovered. The canvas toolbar is now also bottom-centre at `bottom: 12px`, so the two occupy the same point. **Resolution chosen: the banner rises, the toolbar does not.** Change the banner to `bottom: 60px` -- 12 (toolbar offset) + 36 (toolbar height) + 12 (gap). The toolbar keeps its 12 px offset because A1 fixes that offset to four states (12 / 82 / 272 / 342) and a transient hover banner is not one of them; the banner is the conditional object and therefore the one that moves. Record the arithmetic in the banner's comment, and change its comment from `preview banner, bottom center between the minimap and the legend` to `preview banner, bottom centre, riding 12 px above the canvas toolbar`.
+6. **Canvas -- the preview banner collides with the toolbar; raise the banner.** Region: line ~655-662, the preview banner at `position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%)`, 28 px tall, drawn because a History row is hovered. The canvas toolbar is now also bottom-center at `bottom: 12px`, so the two occupy the same point. **Resolution chosen: the banner rises, the toolbar does not.** Change the banner to `bottom: 60px` -- 12 (toolbar offset) + 36 (toolbar height) + 12 (gap). The toolbar keeps its 12 px offset because A1 fixes that offset to four states (12 / 82 / 272 / 342) and a transient hover banner is not one of them; the banner is the conditional object and therefore the one that moves. Record the arithmetic in the banner's comment, and change its comment from `preview banner, bottom center between the minimap and the legend` to `preview banner, bottom centre, riding 12 px above the canvas toolbar`.
 
 7. **Canvas -- confirm no reflow.** Region: minimap `left: 12px; bottom: 12px` (160 wide, line ~688) and legend `right: 12px; bottom: 12px` (160 wide, line ~762). The 246 px bar spans canvas x 293..539; clearances 121 px each side. Both stay at `bottom: 12px`; the two-line rule does not fire (threshold 622, canvas 832). Record the two clearances in the region comments.
 
@@ -1361,7 +1361,7 @@ Decisions landing here: SAV-8, SAV-1, SAV-2, POP-7, STY-1, TB-1..TB-4, TB-8.
 
 9. **Views menu -- caret and the Toolbar row.** Region: the toolbar inserted at item 5. The VOCAB snippet carries the up-caret already; the menu opens upward, bottom edge 4 px above the bar, clamped 12 px inside the canvas edges (TB-8). This board prints no Views menu list, so no list edit is needed; record the upward anchoring in the toolbar's region comment.
 
-10. **File comment -- rename the mechanism and record the 1.7 pass.** Region: the head comment at line 29 ("the canvas drawing, the minimap, the legend and the status bar are untouched") and line 949 (`no mode chip (MIN-8): 3D is the default and the navigation cluster already shows the 2D / 3D toggle`). New content: line 949 becomes `... and the canvas toolbar already shows the 2D / 3D toggle`. Add a 1.7 paragraph: the navigation cluster became the bottom-centre canvas toolbar at offset 12 and the preview banner rose to 60 to clear it (TB-1..TB-4); a `Recipes` library section arrived under History in its empty 33 px form and History gave up `Save as recipe` and `Import and replay` (SAV-8, SAV-2); the inspector's run-record Details block closed and now opens a 360 pop-out, which is why this board no longer shows the disclosed record (POP-7). State the word delta honestly: the popover, the canvas, the minimap, the legend and the status bar are otherwise untouched.
+10. **File comment -- rename the mechanism and record the 1.7 pass.** Region: the head comment at line 29 ("the canvas drawing, the minimap, the legend and the status bar are untouched") and line 949 (`no mode chip (MIN-8): 3D is the default and the navigation cluster already shows the 2D / 3D toggle`). New content: line 949 becomes `... and the canvas toolbar already shows the 2D / 3D toggle`. Add a 1.7 paragraph: the navigation cluster became the bottom-center canvas toolbar at offset 12 and the preview banner rose to 60 to clear it (TB-1..TB-4); a `Recipes` library section arrived under History in its empty 33 px form and History gave up `Save as recipe` and `Import and replay` (SAV-8, SAV-2); the inspector's run-record Details block closed and now opens a 360 pop-out, which is why this board no longer shows the disclosed record (POP-7). State the word delta honestly: the popover, the canvas, the minimap, the legend and the status bar are otherwise untouched.
 
 ## AnalyzeSweep
 
@@ -1370,11 +1370,11 @@ Decisions landing here: POP-5, STY-2, STY-5, POP-7, POP-12c, TB-1..TB-4, TB-8, P
 
 1. **Analyze panel, Groups run card -- the Advanced block leaves the card for a 280 pop-out.** Region: line ~230-256, the block commented `The Advanced block, open on Run as sweep`, drawn inline inside the card with a border and holding: the `Run as sweep` title with the Values / Range segmented pair, the `Resolution` parameter select with the `0.5, 1.0, 1.5` values field, and the `3 runs` / `Run sweep` RT-7 row. New content: **delete the inline block from the card.** Its first two rows -- `Run as sweep` + Values/Range, and Resolution + values -- move into a **280 px 3a pop-out** anchored to the RT-1 Method/Scope row (POP-5), built from the VOCAB.md section 12 "Pop-out container, anchored form" snippet narrowed to 280, at `left: 336px`, top aligned to that row, headed `Advanced` with `Communities (Louvain)` dimmed beside it. **The `3 runs` / `Run sweep` RT-7 row does NOT go with it:** it stays resident on the card as its own action row, because floor item 4 puts the estimate and the verb at the control they belong to and A3's POP-5 row says the cost estimate stays at the Run control. Card height falls by about 110 px, which is the "Advanced stops pushing Run below the fold" POP-5 is for. Do not draw the pop-out open -- POP-5's shell is drawn nowhere in the set.
 
-2. **Analyze panel, Groups run card -- the Advanced gear becomes the door's opener and reports deviation.** Region: line ~223-226, the 24 px gear in the RT-1 row's trailing slot, currently drawn active (`background: #28364e; color: #4a7ee8`) because the block below it is open. New content: keep the gear in that slot as the pop-out's opener; it stays in the **primary colour** `#4a7ee8` because a hidden option deviates from its default -- Resolution is being swept over three values rather than left at 1.0 (POP-5's stub obligation). Retitle it `Advanced parameters. Run as sweep is on`. Drop the `background: #28364e` unless the pop-out is drawn open; the opener carries the selected-row fill only while its pop-out is open (POP-13b).
+2. **Analyze panel, Groups run card -- the Advanced gear becomes the door's opener and reports deviation.** Region: line ~223-226, the 24 px gear in the RT-1 row's trailing slot, currently drawn active (`background: #28364e; color: #4a7ee8`) because the block below it is open. New content: keep the gear in that slot as the pop-out's opener; it stays in the **primary color** `#4a7ee8` because a hidden option deviates from its default -- Resolution is being swept over three values rather than left at 1.0 (POP-5's stub obligation). Retitle it `Advanced parameters. Run as sweep is on`. Drop the `background: #28364e` unless the pop-out is drawn open; the opener carries the selected-row fill only while its pop-out is open (POP-13b).
 
 3. **Analyze panel, Sweep summary card -- the applied state moves onto the card (STY-5, STY-2).** Region: line ~338-348, the card's RT-7 action row holding `Compare two views` and `More`. New content: insert a new 24 px state row **above** that action row, carrying, left to right: the resident three-stripe state swatch showing the seven-group palette, titled `Node color: Groups (resolution 1.0), 7 groups`; the layer name `Groups (resolution 1.0)` at 11 px `#7a828e`; and, right-aligned, `Change encoding` at 11 px `#5b8ff9`, which opens Style with that layer selected. The existing glyph row keeps `Compare two views` and `More` unchanged. This is STY-5's applied form: no card holds a palette, a scale or a domain.
 
-4. **Analyze panel, Sweep summary card -- draw the batch limit, and say what painted.** Region: the three RT-6 run rows at line ~312-337, in particular the green brush glyph on the `1.0` row titled `Encoded as style: colors show this run`. **Collision, and how it is resolved:** STY-2's limit 3 says a batch "applies the first and lands the rest un-applied", while the same decision's boards paragraph says AnalyzeSweep draws "three per-value cards land un-applied and the Sweep summary card carries the applier". Taken together on this board, **nothing auto-applied**: all three per-value runs landed un-applied, and the picture on the canvas came from the user pressing the summary card's own applier and choosing resolution 1.0. Keep the brush glyph on the `1.0` row -- it is the resident state mark saying which run the layer reads -- and retitle it `Encoded as style from the Sweep summary: colors show resolution 1.0`. Do **not** move the paint to the `0.5` row and do **not** recolour the canvas, the legend or the result chip. Record the reasoning in the card's region comment so the board reads as the rule rather than as an inconsistency: six runs never paint six times, and a sweep paints only when the user picks.
+4. **Analyze panel, Sweep summary card -- draw the batch limit, and say what painted.** Region: the three RT-6 run rows at line ~312-337, in particular the green brush glyph on the `1.0` row titled `Encoded as style: colors show this run`. **Collision, and how it is resolved:** STY-2's limit 3 says a batch "applies the first and lands the rest un-applied", while the same decision's boards paragraph says AnalyzeSweep draws "three per-value cards land un-applied and the Sweep summary card carries the applier". Taken together on this board, **nothing auto-applied**: all three per-value runs landed un-applied, and the picture on the canvas came from the user pressing the summary card's own applier and choosing resolution 1.0. Keep the brush glyph on the `1.0` row -- it is the resident state mark saying which run the layer reads -- and retitle it `Encoded as style from the Sweep summary: colors show resolution 1.0`. Do **not** move the paint to the `0.5` row and do **not** recolor the canvas, the legend or the result chip. Record the reasoning in the card's region comment so the board reads as the rule rather than as an inconsistency: six runs never paint six times, and a sweep paints only when the user picks.
 
 5. **Analyze panel, Sweep summary card -- the run record Details becomes a pop-out opener.** Region: line ~301-311, the run record line `Louvain, seed 42, max passes 20` with its `Details` chevron, and the comment above it listing what the chevron opens. New content: the line is unchanged (floor 3); the chevron opens a **360 px activity-panel pop-out** at `left: 336px`, top aligned to the row, headed `Sweep summary` (POP-7). Change the comment's "which is what the Details chevron opens" to "which is what the Details chevron opens, in a 360 pop-out at x = 336 (POP-7)". Chevron stays permanently closed (POP-13b). Not drawn open.
 
@@ -1388,7 +1388,7 @@ Decisions landing here: POP-5, STY-2, STY-5, POP-7, POP-12c, TB-1..TB-4, TB-8, P
 
 10. **Views menu -- upward anchoring.** Region: the toolbar inserted at item 8. The VOCAB snippet carries the up-caret; the menu opens upward, bottom edge 4 px above the bar, clamped 12 px inside the canvas edges (TB-8). No Views list is printed on this board; record the anchoring in the toolbar's region comment.
 
-11. **File comment -- rename the mechanism and record the 1.7 pass.** Region: the head comment at line ~202 (`5.1, 5.6, 6.3, 6.7, 6.8, 5.8`) and the region comment `NAVIGATION CLUSTER (5.6)`. New content: the region comment becomes `CANVAS TOOLBAR (5.6, TB-1)`. Add a 1.7 paragraph: the Advanced block left the card for a 280 pop-out and the gear stayed in the primary colour because a hidden option deviates (POP-5); the sweep summary card gained the applied state row -- swatch, layer name and `Change encoding` -- and lost nothing (STY-5); the batch limit is drawn as three un-applied per-value runs with the picture coming from the summary card's applier (STY-2); both run records now open 360 pop-outs (POP-7); the navigation cluster became the bottom-centre toolbar at offset 12 (TB-1..TB-4). Note the audit that changed nothing: POP-12c.
+11. **File comment -- rename the mechanism and record the 1.7 pass.** Region: the head comment at line ~202 (`5.1, 5.6, 6.3, 6.7, 6.8, 5.8`) and the region comment `NAVIGATION CLUSTER (5.6)`. New content: the region comment becomes `CANVAS TOOLBAR (5.6, TB-1)`. Add a 1.7 paragraph: the Advanced block left the card for a 280 pop-out and the gear stayed in the primary color because a hidden option deviates (POP-5); the sweep summary card gained the applied state row -- swatch, layer name and `Change encoding` -- and lost nothing (STY-5); the batch limit is drawn as three un-applied per-value runs with the picture coming from the summary card's applier (STY-2); both run records now open 360 pop-outs (POP-7); the navigation cluster became the bottom-center toolbar at offset 12 (TB-1..TB-4). Note the audit that changed nothing: POP-12c.
 
 ## FilterBuilderExpert
 
@@ -1405,7 +1405,7 @@ Decisions landing here: POP-2 (this board draws the pop-out), POP-9/A3 cut 1, SA
 
 2. **Explore panel, Filter builder -- the section's remaining rows.** Region: the section body between the RT-8 header (line ~207) and the section's closing divider (line ~508). New content, top to bottom, all at the 256 px content band: a new RT-3 pair `Nodes | Edges` (32 px) with **Nodes** selected, because the section's live count and the selection are node counts and the pair governs what `+ Add a rule` adds; the existing RT-3 pair `Hide others | Select matches` (32 px, unchanged, `Select matches` active); the existing RT-1 join `Match all` (32 px, unchanged); the five read-back rows from item 1 (160 px); the existing neighbors row (32 px, unchanged -- checkbox, `Neighbors`, the `1 step` scrub field); and the live count line, whose text changes from `38 nodes match` to **`38 of 318 would match`** (POP-2's exact string, and the string the Expression tooltip on this board already prints). **Do not add a body `+ Rule` row:** POP-2 lists one, but the RT-8 header already carries `Add a rule` as a resident `+` and Rule 9 forbids the second copy. Resulting section: 33 px header + 292 px body = 325, down from 567, which is **-242 rather than POP-2's -387** -- POP-2's figure assumes a two-rule example, and this board carries three rules and a group. State that arithmetic in the region comment rather than claiming the larger number. The edge rule under a `Nodes` scope keeps its `E` letter and its title explains that it restricts which nodes survive through their edges.
 
-3. **Explore panel -- draw the 360 rule pop-out (this is the board that draws it).** Region: a new last child of the artboard root div; first add `position: relative;` to the root `<div style="width: 1440px; height: 900px; ...">` at line ~35, which the board does not have. New content: the VOCAB.md section 12 "Pop-out container, anchored form" 360 shell at `left: 336px; top: 309px; width: 360px` -- an activity-panel pop-out opens right with its left edge 8 px clear of the panel's 328 edge, and the top aligns to the first read-back row. Header: `Confidence between 0.7 and 0.99` with `combined_score` dimmed beside it, the pin toggle, the close X titled `Close (Esc)`. Body, in order: the attribute picker as an RT-1 select field showing `E Confidence combined_score`; a row holding the `NOT` toggle, the `between` operator select and the RT-2 pair of value fields `0.7` / `0.99`; then the **full-width histogram** across the whole 336 px content band with the dual-handle quantile slider under it, both handles labelled and **both axis endpoints legible** (`0.4` and `1`) -- this is the drawing problem POP-2 exists to fix, since 224 px cannot hold two handles and two legible numbers; then the per-rule detail line. **No transform glyph is drawn**: linear is combined_score's default and Rule 7a deletes a control at its default. **The match count `597` is not in the pop-out** (POP-2 amendment). Height about 220. While it is open the `Confidence between 0.7 and 0.99` read-back row carries the selected-row background `#28364e`.
+3. **Explore panel -- draw the 360 rule pop-out (this is the board that draws it).** Region: a new last child of the artboard root div; first add `position: relative;` to the root `<div style="width: 1440px; height: 900px; ...">` at line ~35, which the board does not have. New content: the VOCAB.md section 12 "Pop-out container, anchored form" 360 shell at `left: 336px; top: 309px; width: 360px` -- an activity-panel pop-out opens right with its left edge 8 px clear of the panel's 328 edge, and the top aligns to the first read-back row. Header: `Confidence between 0.7 and 0.99` with `combined_score` dimmed beside it, the pin toggle, the close X titled `Close (Esc)`. Body, in order: the attribute picker as an RT-1 select field showing `E Confidence combined_score`; a row holding the `NOT` toggle, the `between` operator select and the RT-2 pair of value fields `0.7` / `0.99`; then the **full-width histogram** across the whole 336 px content band with the dual-handle quantile slider under it, both handles labeled and **both axis endpoints legible** (`0.4` and `1`) -- this is the drawing problem POP-2 exists to fix, since 224 px cannot hold two handles and two legible numbers; then the per-rule detail line. **No transform glyph is drawn**: linear is combined_score's default and Rule 7a deletes a control at its default. **The match count `597` is not in the pop-out** (POP-2 amendment). Height about 220. While it is open the `Confidence between 0.7 and 0.99` read-back row carries the selected-row background `#28364e`.
 
 4. **Explore panel -- the attribute picker becomes a menu inside the pop-out, and retires from the panel.** Region: line ~352-395, RULE 2's attribute select drawn with its popover open (search field, `Node attributes` group, `Metrics` group with Bridges / Influence / Hubs and authorities and their play glyphs and disabled reason). **Collision, and how it is resolved:** POP-2 nests the attribute picker inside the rule pop-out **as a menu, not a second pop-out**, and POP-0 forbids a pop-out opening a second pop-out. Drawing that menu open over the rule pop-out would cover the histogram, which is the one thing this board exists to prove. So: **delete the open popover from the drawing**, and move its rows verbatim into the pop-out's region comment as the picker menu's printed contents, which is the 6.8 full-text twin convention this board already uses for every other menu. Keep every DEF-7 fact in that comment -- an unrun metric is still an attribute you can pick, the play glyph says so, and `Hubs and authorities` carries `directed only` as its reason. The board keeps two pointer states at once: the rule pop-out open, and the Expression door hovered with its portal tooltip.
 
@@ -1425,7 +1425,7 @@ Decisions landing here: POP-2 (this board draws the pop-out), POP-9/A3 cut 1, SA
 
 12. **Views menu -- upward anchoring.** Region: the toolbar inserted at item 10. The VOCAB snippet carries the up-caret; the menu opens upward, bottom edge 4 px above the bar, clamped 12 px inside the canvas edges (TB-8). No Views list is printed on this board; record the anchoring in the toolbar's region comment.
 
-13. **File comment -- rename the mechanism and record the 1.7 pass.** Region: the head comment, line 17 (`5.1, 5.3 Explore tier 2, 5.4 (multiple nodes), 5.6, 5.8, 6.3, 6.6`), line 29 ("Canvas, rail, top bar, minimap, legend and status bar are untouched") and the "TWO POINTER STATES AT ONCE" paragraph. New content: the region comment `NAVIGATION CLUSTER (spec 5.6)` becomes `CANVAS TOOLBAR (5.6, TB-1)`. Rewrite the two-pointer-states paragraph: the two states are now the **rule pop-out drawn open** and the Expression door hovered with its portal tooltip; rule 2's attribute popover is retired to the pop-out's comment as the picker menu's contents. Add a 1.7 paragraph: the builder dropped from 567 to 325 px by collapsing three rules and a group into five read-back rows with their counts kept resident (POP-2 and its floor-4 amendment); one rule's editing controls now live in a 360 pop-out drawn open at x = 336; the Expression door moved target rather than place; a `Filters` library section arrived with one installed row and a resident `+` (SAV-1, SAV-2, SAV-3); the attribute profile stayed inline on floor 7 (A3 cut 1); the navigation cluster became the bottom-centre toolbar at offset 12 (TB-1..TB-4).
+13. **File comment -- rename the mechanism and record the 1.7 pass.** Region: the head comment, line 17 (`5.1, 5.3 Explore tier 2, 5.4 (multiple nodes), 5.6, 5.8, 6.3, 6.6`), line 29 ("Canvas, rail, top bar, minimap, legend and status bar are untouched") and the "TWO POINTER STATES AT ONCE" paragraph. New content: the region comment `NAVIGATION CLUSTER (spec 5.6)` becomes `CANVAS TOOLBAR (5.6, TB-1)`. Rewrite the two-pointer-states paragraph: the two states are now the **rule pop-out drawn open** and the Expression door hovered with its portal tooltip; rule 2's attribute popover is retired to the pop-out's comment as the picker menu's contents. Add a 1.7 paragraph: the builder dropped from 567 to 325 px by collapsing three rules and a group into five read-back rows with their counts kept resident (POP-2 and its floor-4 amendment); one rule's editing controls now live in a 360 pop-out drawn open at x = 336; the Expression door moved target rather than place; a `Filters` library section arrived with one installed row and a resident `+` (SAV-1, SAV-2, SAV-3); the attribute profile stayed inline on floor 7 (A3 cut 1); the navigation cluster became the bottom-center toolbar at offset 12 (TB-1..TB-4).
 
 ## CategoryTable
 
@@ -1436,7 +1436,7 @@ Decisions landing here: STY-5, STY-1, STY-4, POP-4, POP-7, SAV-9, TB-1..TB-4, TB
 
 2. **Analyze panel, Groups card -- the More menu loses one item and gains two.** Region: the menu list in the comment at line ~233-238, which currently reads `Run again with changes / Compare categories (enrichment) / Label group by top value / Compare with... / See all 6 groups / Select members (Coming) / Filter to this group (Coming) / Pin to report (Coming) / Change encoding / Copy member ids / Copy as TSV / Export groups (CSV)`. New content: **delete `Change encoding`** -- it is now resident on row A and a verb gets one home. **Add STY-5's two delete verbs**, both undoable by toast: `Delete layer` (removes the picture, leaves the run; the card reverts to its un-applied form) and `Remove result` (deletes the run and every layer that reads it, naming the count before the act -- the toast reads `Removed Groups. Removes 1 style layer. Undo`). Put them at the end of the list, after `Export groups (CSV)`.
 
-3. **Analyze panel, Groups card -- the six group swatches become pop-out openers (POP-4).** Region: line ~224-232, the 16 px row of six coloured swatch-and-count chips (118, 71, 52, 38, 24, 15). New content: each chip's click now opens the **360 px group profile pop-out** anchored to that chip, headed with the group's own name and `Communities (Markov clustering)` dimmed beside it, holding over-represented values as a four-column table, internal hubs as RT-6 rows, edges to other groups as RT-9 micro-bars, and the group-scoped actions. Retitle each chip accordingly, for example `Group 1: 118 members. Open its profile`. **Resolution to state:** POP-4 removes a 228 px `Group 1` block from the inspector on the boards that draw one; **this board draws no such block**, so POP-4 removes nothing here and only adds the door. Record that in the region comment, together with POP-4's capability point -- the profile is anchored to the clicked group rather than fixed to one -- and the re-target rule: Up and Down on the group list re-target an open profile rather than closing it. Do not draw the pop-out open; GroupProfilePopout is the board that draws it.
+3. **Analyze panel, Groups card -- the six group swatches become pop-out openers (POP-4).** Region: line ~224-232, the 16 px row of six colored swatch-and-count chips (118, 71, 52, 38, 24, 15). New content: each chip's click now opens the **360 px group profile pop-out** anchored to that chip, headed with the group's own name and `Communities (Markov clustering)` dimmed beside it, holding over-represented values as a four-column table, internal hubs as RT-6 rows, edges to other groups as RT-9 micro-bars, and the group-scoped actions. Retitle each chip accordingly, for example `Group 1: 118 members. Open its profile`. **Resolution to state:** POP-4 removes a 228 px `Group 1` block from the inspector on the boards that draw one; **this board draws no such block**, so POP-4 removes nothing here and only adds the door. Record that in the region comment, together with POP-4's capability point -- the profile is anchored to the clicked group rather than fixed to one -- and the re-target rule: Up and Down on the group list re-target an open profile rather than closing it. Do not draw the pop-out open; GroupProfilePopout is the board that draws it.
 
 4. **Analyze panel, Groups card -- the run record Details becomes a pop-out opener.** Region: line ~217-222, the run record line `MCL, granularity 2.5` with its `Details` chevron and the comment listing what Details holds. New content: the line is unchanged (floor 3); the chevron opens a **360 px activity-panel pop-out** at `left: 336px`, top aligned to the row, headed `Groups` with `Markov clustering` dimmed beside it (POP-7). Change the comment's "Details holds the full string" to "Details opens a 360 pop-out holding the full string". Chevron stays permanently closed (POP-13b). Not drawn open.
 
@@ -1456,7 +1456,7 @@ Decisions landing here: STY-5, STY-1, STY-4, POP-4, POP-7, SAV-9, TB-1..TB-4, TB
 
 12. **Views menu -- upward anchoring.** Region: the toolbar inserted at item 10. The VOCAB snippet carries the up-caret; the menu opens upward, bottom edge 4 px above the bar, clamped 12 px inside the canvas edges (TB-8). No Views list is printed here; record the anchoring in the toolbar's region comment.
 
-13. **File comment -- rename the mechanism and record the 1.7 pass.** Region: the head comment and the region comment `NAVIGATION CLUSTER (5.6)`, which becomes `CANVAS TOOLBAR (5.6, TB-1)`. Add a 1.7 paragraph: the Groups card's action row became the resident swatch, the layer name and `Change encoding`, and gained `Delete layer` and `Remove result` in its menu (STY-5); each group swatch opens the 360 group profile pop-out (POP-4); both run records open 360 pop-outs (POP-7); `Encode as style` stayed because this result is un-applied, annotated with what a Category table writes (STY-4); the navigation cluster became the bottom-centre toolbar at offset 12 (TB-1..TB-4). State the two no-changes and their reasons: SAV-9 draws nothing here, and the run keeps the bare name `Groups`.
+13. **File comment -- rename the mechanism and record the 1.7 pass.** Region: the head comment and the region comment `NAVIGATION CLUSTER (5.6)`, which becomes `CANVAS TOOLBAR (5.6, TB-1)`. Add a 1.7 paragraph: the Groups card's action row became the resident swatch, the layer name and `Change encoding`, and gained `Delete layer` and `Remove result` in its menu (STY-5); each group swatch opens the 360 group profile pop-out (POP-4); both run records open 360 pop-outs (POP-7); `Encode as style` stayed because this result is un-applied, annotated with what a Category table writes (STY-4); the navigation cluster became the bottom-center toolbar at offset 12 (TB-1..TB-4). State the two no-changes and their reasons: SAV-9 draws nothing here, and the run keeps the bare name `Groups`.
 
 ## StyleDiverging
 
@@ -1471,7 +1471,7 @@ Decisions landing here: SAV-5, SAV-1, SAV-2, SAV-3, SAV-6, POP-5, POP-2, STY-6, 
 
 4. **Inspector, Which nodes -- the Expression door opens a pop-out.** Region: line ~1068-1071, the 24 px `Expression` glyph in the trailing slot of the `Which nodes` RT-1 row. New content: the glyph is unchanged in place and treatment; its target becomes a **360 px pop-out** holding the JMESPath field, the same door POP-2 gives the filter builder's section header. Retitle it `Edit as an expression. Opens the expression pop-out`. Add one sentence to the section comment: this is the layer selector's copy of the same door, and one pop-out per region means it and any other inspector pop-out cannot both be open. No pixel change.
 
-5. **Inspector, Size -- the cost gate is relabelled in a comment only (STY-6).** Region: line ~1258-1265, the block reading `Bridges takes about 40 s. Size still shows Significance (padj).` with `Run and use it` and `Cancel`. New content: **the drawing does not change**. Add to the section comment that this is the exact construction a re-run from a style layer's Source row reaches from the other direction -- the same three Analyze cost bands, because it is the same run; under 2 s it starts on release with no button, from 2 s to the ask limit it is this one line and these two verbs, above the ask limit the estimate moves onto the verb, above the warn limit the section carries the section 3 warning line. Add the sentence about what the canvas does meanwhile: the canvas keeps the completed run's picture and never shows a half-computed state.
+5. **Inspector, Size -- the cost gate is relabeled in a comment only (STY-6).** Region: line ~1258-1265, the block reading `Bridges takes about 40 s. Size still shows Significance (padj).` with `Run and use it` and `Cancel`. New content: **the drawing does not change**. Add to the section comment that this is the exact construction a re-run from a style layer's Source row reaches from the other direction -- the same three Analyze cost bands, because it is the same run; under 2 s it starts on release with no button, from 2 s to the ask limit it is this one line and these two verbs, above the ask limit the estimate moves onto the verb, above the warn limit the section carries the section 3 warning line. Add the sentence about what the canvas does meanwhile: the canvas keeps the completed run's picture and never shows a half-computed state.
 
 6. **Inspector -- no Source section on this board, and say why.** Region: the inspector's head comment at line ~1038. STY-3 adds a 164 px `Source` section only to a layer **created by a run**. The `Expression` layer here is hand-authored -- Color by log2FoldChange, Size by padj, both joined attributes -- so it carries no run, no reading, no caveats line, no run record and no `Open result`. Do not add one. Record the condition in the comment so a later pass does not add a Source section to a hand-authored layer, and point at StyleFromAnalysis as the board that draws one.
 
@@ -1487,7 +1487,7 @@ Decisions landing here: SAV-5, SAV-1, SAV-2, SAV-3, SAV-6, POP-5, POP-2, STY-6, 
 
 12. **Views menu -- upward anchoring.** Region: the toolbar inserted at item 10. The VOCAB snippet carries the up-caret; the menu opens upward, bottom edge 4 px above the bar, clamped 12 px inside the canvas edges (TB-8). No Views list is printed here; record the anchoring in the toolbar's region comment.
 
-13. **File comment -- rename the mechanism and record the 1.7 pass.** Region: the head comment, line 17 (`5.6 (navigation cluster)`) becomes `5.6 (canvas toolbar)`, and the region comment `NAVIGATION CLUSTER (spec 5.6)` becomes `CANVAS TOOLBAR (5.6, TB-1)`. Add a 1.7 paragraph: the preset chip row became a `Styles` library section with a resident `+`, five built-in rows and the destination line on its info circle, at a measured +68 px (SAV-5, SAV-1, SAV-3); the panel header overflow gave up Import and Export and kept Reset (SAV-1, with the SAV-5 duplication resolved in favour of the panel header); the Parameters section became a door stub over a 280 pop-out and lost its gear (POP-5, POP-13b); the Which nodes Expression glyph now opens a 360 pop-out (POP-2); the Size cost gate is unchanged and is now named as the shared construction a Source re-run reaches (STY-6); StyleTemplate's export and import consequences are recorded as comments (STY-8); the navigation cluster became the bottom-centre toolbar at offset 12 (TB-1..TB-4). Name the one thing deliberately not added: no Source section, because this layer is hand-authored.
+13. **File comment -- rename the mechanism and record the 1.7 pass.** Region: the head comment, line 17 (`5.6 (navigation cluster)`) becomes `5.6 (canvas toolbar)`, and the region comment `NAVIGATION CLUSTER (spec 5.6)` becomes `CANVAS TOOLBAR (5.6, TB-1)`. Add a 1.7 paragraph: the preset chip row became a `Styles` library section with a resident `+`, five built-in rows and the destination line on its info circle, at a measured +68 px (SAV-5, SAV-1, SAV-3); the panel header overflow gave up Import and Export and kept Reset (SAV-1, with the SAV-5 duplication resolved in favor of the panel header); the Parameters section became a door stub over a 280 pop-out and lost its gear (POP-5, POP-13b); the Which nodes Expression glyph now opens a 360 pop-out (POP-2); the Size cost gate is unchanged and is now named as the shared construction a Source re-run reaches (STY-6); StyleTemplate's export and import consequences are recorded as comments (STY-8); the navigation cluster became the bottom-center toolbar at offset 12 (TB-1..TB-4). Name the one thing deliberately not added: no Source section, because this layer is hand-authored.
 
 ## InspectorGenomics
 
@@ -1498,20 +1498,20 @@ Decisions landing here: TB-1, TB-2, TB-3, TB-4, TB-8, POP-10, POP-13b.
 
 2. **Canvas -- insert the canvas toolbar.** Region: in place of the deleted cluster. New content: the VOCAB.md section 12 **"Canvas toolbar (5.6, 5.1)"** snippet, copied verbatim, at `left: 50%; bottom: 12px; transform: translateX(-50%)`, 246x36, with the 7 px radius and the `0 8px 24px rgba(0,0,0,.45)` shadow that make it the only canvas overlay with lift. Bottom offset **12**: this board draws no time slider (the Viewing slot is empty) and no Data table drawer, so it is the plain case of A1's four offsets (12 / 82 / 272 / 342). One edit to the snippet as copied: **Zoom to selection is ENABLED** -- TP53 is selected -- so that item takes `color: #a3a8b1`, `cursor: pointer` and the bare title `Zoom to selection (F)`, replacing the snippet's disabled form.
 
-3. **Canvas -- the 1112 px case, with its own arithmetic.** Region: minimap `left: 12px; bottom: 12px` (160 wide, line ~697) and legend `right: 12px; bottom: 12px` (160 wide, line ~711). This board has **no activity panel**, so the canvas is 1112 rather than 832 and the centred 246 px bar spans canvas x **433..679**. The minimap ends at 172 and the legend begins at 940, giving **261 px** of clearance on each side against TB-3's 16 px minimum -- the widest margin of any board in the group. Both boxes stay at `bottom: 12px`; the two-line rule (threshold 622 px of canvas) does not come close to firing. Record the two clearances and the 1112 figure in the region comments, so a later resize or a panel opening does not silently eat them; note that with an activity panel open the canvas would be 832 and the clearances 121 px each, which still does not reflow.
+3. **Canvas -- the 1112 px case, with its own arithmetic.** Region: minimap `left: 12px; bottom: 12px` (160 wide, line ~697) and legend `right: 12px; bottom: 12px` (160 wide, line ~711). This board has **no activity panel**, so the canvas is 1112 rather than 832 and the centered 246 px bar spans canvas x **433..679**. The minimap ends at 172 and the legend begins at 940, giving **261 px** of clearance on each side against TB-3's 16 px minimum -- the widest margin of any board in the group. Both boxes stay at `bottom: 12px`; the two-line rule (threshold 622 px of canvas) does not come close to firing. Record the two clearances and the 1112 figure in the region comments, so a later resize or a panel opening does not silently eat them; note that with an activity panel open the canvas would be 832 and the clearances 121 px each, which still does not reflow.
 
-4. **Canvas -- the Views trigger's caret flips up.** Region: the Views item inside the toolbar inserted at item 2. The VOCAB snippet already carries the up-caret (`polyline points="3,10 8,5 13,10"`); verify that the deleted cluster's down-caret (`points="3,6 8,11 13,6"`) survives nowhere on the board. Record in the toolbar's region comment that the menu opens **upward**, bottom edge 4 px above the bar, centred on the Views button and clamped 12 px inside the canvas's left, right and top edges, and that the menu's Show group now carries a checked `Toolbar` row between Minimap and Legend whose way back, once unchecked, is the command palette row `Show canvas toolbar` (TB-8). This board prints no Views menu list, so the note is the whole of the change.
+4. **Canvas -- the Views trigger's caret flips up.** Region: the Views item inside the toolbar inserted at item 2. The VOCAB snippet already carries the up-caret (`polyline points="3,10 8,5 13,10"`); verify that the deleted cluster's down-caret (`points="3,6 8,11 13,6"`) survives nowhere on the board. Record in the toolbar's region comment that the menu opens **upward**, bottom edge 4 px above the bar, centered on the Views button and clamped 12 px inside the canvas's left, right and top edges, and that the menu's Show group now carries a checked `Toolbar` row between Minimap and Legend whose way back, once unchecked, is the command palette row `Show canvas toolbar` (TB-8). This board prints no Views menu list, so the note is the whole of the change.
 
 5. **Inspector, Notes -- explicitly unchanged.** Region: line ~996-1011, the `Notes` section drawn in RT-8's empty-section form as exactly one 32 px row, because TP53 has no notes. POP-10 names this board: its inspector Notes section stays **inline and unchanged**. Do not give it a filter door, do not give the empty row a pop-out opener, do not add a count. Add one clause to the section comment recording POP-10's reasoning -- note text is the user's own data (floor item 7) and a notes list exists to be scanned, so size alone is never a trigger for a door -- and that the header filter and editor pop-outs POP-10 does allow belong to ExploreNotesList, which is the board with fourteen notes.
 
 6. **Inspector -- no other section becomes a door.** Region: the inspector head comment at line ~782. New content: one sentence recording that none of this board's sections -- Attributes, Computed metrics, Neighbors, Notes -- takes a pop-out in 1.7: Attributes and Neighbors are scan surfaces of the user's own strings (floor item 7, the same ground as A3's cut 1), Computed metrics is one RT-9 row per metric and is not a report read once, and this board draws no Schema row, no validation report, no All statistics section and no run record, so POP-3, POP-6, POP-7 and POP-8 all pass over it. State it so a later pass does not read the absence as an oversight.
 
-7. **File comment -- rename the mechanism and record the 1.7 pass.** Region: the head comment, line 16 (`5.1, 5.4 (One node), 5.6, 5.7, 5.8, 6.3, 6.7 ..., 6.8`) and line 24 ("the canvas drawing, the legend, the minimap, the rail, the top bar and the status bar are untouched"); and the region comment `NAVIGATION CLUSTER (5.6)`, which becomes `CANVAS TOOLBAR (5.6, TB-1)`. New content: line 24 gains "except that the navigation cluster left the canvas's left edge". Add a 1.7 paragraph: the 56 px vertical cluster became the 246x36 bottom-centre canvas toolbar at offset 12, with Zoom to selection enabled because TP53 is selected, and the freed left-edge column became canvas (TB-1..TB-4); the minimap and legend stayed on the 12 px baseline with 261 px of clearance each at this board's 1112 px canvas (TB-3); the Views menu now opens upward and carries a `Toolbar` row (TB-8); Notes stayed inline and unchanged (POP-10). State that no panel, inspector or status bar word changed on this board -- it is a pure canvas-chrome pass.
+7. **File comment -- rename the mechanism and record the 1.7 pass.** Region: the head comment, line 16 (`5.1, 5.4 (One node), 5.6, 5.7, 5.8, 6.3, 6.7 ..., 6.8`) and line 24 ("the canvas drawing, the legend, the minimap, the rail, the top bar and the status bar are untouched"); and the region comment `NAVIGATION CLUSTER (5.6)`, which becomes `CANVAS TOOLBAR (5.6, TB-1)`. New content: line 24 gains "except that the navigation cluster left the canvas's left edge". Add a 1.7 paragraph: the 56 px vertical cluster became the 246x36 bottom-center canvas toolbar at offset 12, with Zoom to selection enabled because TP53 is selected, and the freed left-edge column became canvas (TB-1..TB-4); the minimap and legend stayed on the 12 px baseline with 261 px of clearance each at this board's 1112 px canvas (TB-3); the Views menu now opens upward and carries a `Toolbar` row (TB-8); Notes stayed inline and unchanged (POP-10). State that no panel, inspector or status bar word changed on this board -- it is a pure canvas-chrome pass.
 
 ## Welcome
 
 State after the edit: unchanged Empty state, 1440 x 900, Data panel open, Welcome
-block centred on the canvas. Welcome is the cold-start board and revision 1.7
+block centered on the canvas. Welcome is the cold-start board and revision 1.7
 deliberately leaves almost all of it alone (SAV-8: "Welcome and Data tier 1 are
 unchanged"). Four items, three of which are confirmations that must be written
 into the file comment so the next pass does not "fix" them.
@@ -1609,7 +1609,7 @@ is the one every other board copies (SHELL-SKELETON inherits it under POP-0).
    the 56 px vertical cluster at `left: 12px; bottom: 120px`. New (TB-1): delete
    the whole container and its six children. The freed 56 x 160 column becomes
    canvas (TB-3); nothing moves left to fill it.
-3. **Canvas, bottom centre: add the toolbar.** New (TB-1, TB-2, TB-4): paste the
+3. **Canvas, bottom center: add the toolbar.** New (TB-1, TB-2, TB-4): paste the
    VOCAB.md section 12 "Canvas toolbar" snippet verbatim as the last canvas
    overlay child, **bottom offset 12** -- Main draws no time slider and no Data
    table drawer, so this is A1's "nothing else on" state. Desktop geometry:
@@ -1623,7 +1623,7 @@ is the one every other board copies (SHELL-SKELETON inherits it under POP-0).
 4. **Canvas, bottom band collision (this board's specific case).** The minimap
    keeps `left: 12px; bottom: 12px` (160 wide) and the legend keeps
    `right: 12px; bottom: 12px` (160 wide); all three now share one 12 px
-   baseline. Centred on 832 the bar spans x 293 to 539, so it clears the minimap
+   baseline. Centered on 832 the bar spans x 293 to 539, so it clears the minimap
    (ends at 172) by 121 px and the legend (starts at 660) by 121 px. The canvas
    is 832 wide, well above TB-3's 622 px two-line threshold, so **nothing
    reflows and neither overlay rises**. Record those two numbers in the toolbar's
@@ -1661,7 +1661,7 @@ is the one every other board copies (SHELL-SKELETON inherits it under POP-0).
    move the percentage into the bar: `TB-7: the zoom percentage stays in the
    status bar. One fact, one region; the bar sits 12px above the status bar so
    the number is already adjacent to the buttons that change it; and a numeric
-   readout would change a centred bar's width as the graph is zoomed. The
+   readout would change a centered bar's width as the graph is zoomed. The
    overflow drop order moves zoom later, since it is now the only camera fact in
    the bar.`
 8. **File comment, every occurrence of "navigation cluster" (lines 21, 25, 28,
@@ -1706,7 +1706,7 @@ face, and the canvas toolbar drawn. Panel and inspector both get shorter.
    the run record and the full table by construction -- floor items 1, 2, 3 and 7
    never travel behind the door.`
 2. **Inspector action block, the result action row (lines 823-841).** Current:
-   the left slot is the 2x2 colour swatch titled `Node color: Groups
+   the left slot is the 2x2 color swatch titled `Node color: Groups
    (communities, Louvain), 4 groups`; `Change encoding` is buried in the More
    menu's comment list; the right slot holds `Run again with changes` and More.
    New (STY-1, STY-5): this row becomes the run's **style face** in miniature --
@@ -1730,11 +1730,11 @@ face, and the canvas toolbar drawn. Panel and inspector both get shorter.
    New (TB-1, TB-2, TB-4): delete the 56 px cluster at `left: 12px; bottom:
    120px`; paste the VOCAB.md section 12 "Canvas toolbar" snippet as the last
    canvas overlay child at **bottom 12** (no slider, no drawer on this board),
-   246 x 36 centred on the 832-wide canvas, 3D selected, `Zoom to selection (F).
+   246 x 36 centered on the 832-wide canvas, 3D selected, `Zoom to selection (F).
    Select something first` drawn disabled at `#5f6873` -- a result is not a
    selection, which is the same fact the status bar's empty selection slot
    reports. **This board's collision:** minimap at `left: 12px; bottom: 12px` and
-   legend at `right: 12px; bottom: 12px` now share the bar's baseline; centred on
+   legend at `right: 12px; bottom: 12px` now share the bar's baseline; centered on
    832 the bar spans 293 to 539 and clears both by more than 80 px; 832 is above
    TB-3's 622 threshold so neither overlay rises. The Insights strip is at the
    top of the canvas and is untouched (G3).
@@ -1764,7 +1764,7 @@ face, and the canvas toolbar drawn. Panel and inspector both get shorter.
    by tier, a circle is disclosure by explanation. One pop-out per region, so
    opening it closes the group profile of POP-4 and the reverse.`
 7. **File comment, "navigation cluster" occurrences (lines 35, 506, 877).** New
-   (TB-1): line 35's shell-delta list reads `canvas toolbar at bottom centre with
+   (TB-1): line 35's shell-delta list reads `canvas toolbar at bottom center with
    the 2D/3D toggle`; line 506's block comment is replaced by the toolbar's own;
    line 877's MIN-8 justification reads `The canvas 2D/3D control is always
    visible in the canvas toolbar (5.6)`.
@@ -1788,7 +1788,7 @@ of its work is in comments that must be exact.
 1. **Canvas: delete the navigation cluster (lines 834-865) and add the toolbar.**
    New (TB-1, TB-2, TB-4): delete the 56 px cluster; paste the VOCAB.md section
    12 "Canvas toolbar" snippet as the last canvas overlay child at **bottom 12**,
-   246 x 36 centred on the 832-wide canvas, 3D selected, and `Zoom to selection
+   246 x 36 centered on the 832-wide canvas, 3D selected, and `Zoom to selection
    (F)` drawn **enabled** at `#a3a8b1` -- acct-4471 is selected on this board, so
    this is the one core-group desktop board where that item is live. **This
    board's collision:** the legend is 190 wide at `right: 12px; bottom: 12px`
@@ -1801,14 +1801,14 @@ of its work is in comments that must be exact.
    the drawing that proves the rule.** Add `title="Encode as style. Node color is
    held by your node type layer."` and rewrite the card comment as: `STY-2 limit
    2, suppression: a run applies its shape's primary action on first completion,
-   except where a user-authored layer already drives the channel. Node colour on
+   except where a user-authored layer already drives the channel. Node color on
    this board is the user's own node-type layer (see the legend's "Color: node
    type (type)" block), so the Groups run landed un-applied, the card keeps the
    full Encode as style button, its title names the layer that holds the channel,
    and the reading omits its closing clause -- which is why this card reads "7
    groups found. The largest has 41 members." with no "Colors show groups". This
    is the rule, not an inconsistency with ExplorerAfterCard, where nothing held
-   node colour and the run painted itself.`
+   node color and the run painted itself.`
 3. **Canvas legend, the highlight block (lines 1300-1320) and the Find a path
    card's More menu (lines 351-352).** Current: the legend's third block reads
    `Find a path (shortest path)` / `Not on path (dimmed)` / `Selected` / `Open
@@ -1852,7 +1852,7 @@ of its work is in comments that must be exact.
 8. **File comment header (lines 16-32).** Add: `Revision 1.7: TB-1/TB-2/TB-4
    (canvas toolbar, bottom 12, Zoom to selection enabled), STY-2 (this board is
    the canonical drawing of suppression -- the Groups card keeps Encode as style
-   because the user's node type layer holds node colour), STY-4 (the Find a path
+   because the user's node type layer holds node color), STY-4 (the Find a path
    result is the one highlight layer; its legend block is that layer's), STY-5
    (Clear the highlight becomes Delete layer), POP-7 (Details opens a 360
    pop-out), SAV-8 (the Recipes section is below the clip, as History is).`
@@ -1897,7 +1897,7 @@ afterwards.
      count, and section J of DECISIONS-1.7 requires the honest figure.
 2. **Canvas: delete the navigation cluster (lines 607-639) and add the toolbar.**
    New (TB-1, TB-2, TB-4): delete the 56 px cluster; paste the VOCAB.md section
-   12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36 centred on the
+   12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36 centered on the
    832-wide canvas, 3D selected, `Zoom to selection (F). Select something first`
    drawn disabled -- the cluster's own comment already says why ("A selected
    style layer is not a selection"), so carry that sentence into the toolbar's
@@ -2009,7 +2009,7 @@ header gains its library `+`, and the toolbar replaces the cluster.
      reused and no glyph is added).
 2. **Canvas: delete the navigation cluster (lines 547-578) and add the toolbar.**
    New (TB-1, TB-2, TB-4): delete the 56 px cluster; paste the VOCAB.md section
-   12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36 centred on the
+   12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36 centered on the
    832-wide canvas, 3D selected, and `Zoom to selection (F)` drawn **enabled** at
    `#a3a8b1` -- three nodes are selected on this board. **This board's
    collision:** minimap at bottom 12 left 12, legend at bottom 12 right 12; the
@@ -2053,7 +2053,7 @@ header gains its library `+`, and the toolbar replaces the cluster.
 7. **File comment, "navigation cluster" occurrences (lines 17, 24, 547, 802).**
    New (TB-1): line 17's spec list reads `5.6 (canvas toolbar, zoom percentage,
    mode chip)`; line 24 reads `the canvas gains the canvas toolbar at bottom
-   centre (5.6)`; line 547's block comment is replaced by the toolbar's own; line
+   center (5.6)`; line 547's block comment is replaced by the toolbar's own; line
    802's MIN-8 note reads `The canvas toolbar's [2D | 3D] toggle is the one home
    for that fact.`
 8. **File comment header (lines 16-29).** Add: `Revision 1.7: POP-2 (the builder
@@ -2119,7 +2119,7 @@ section appears under History, and the toolbar replaces the cluster.
      is a toast with Undo for 10 seconds rather than a confirm dialog (SAV-7).`
 3. **Canvas: delete the navigation cluster (lines 490-521) and add the toolbar.**
    New (TB-1, TB-2, TB-4): delete the 56 px cluster; paste the VOCAB.md section
-   12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36 centred on the
+   12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36 centered on the
    832-wide canvas, 3D selected, `Zoom to selection (F). Select something first`
    disabled. **This board's collision:** minimap at bottom 12 left 12, legend at
    bottom 12 right 12; the bar spans 293 to 539; nothing else occupies the bottom
@@ -2149,7 +2149,7 @@ section appears under History, and the toolbar replaces the cluster.
    change to a card is a subtraction that cannot show here because nothing has
    run: an applied card's action row loses its encoding controls to a resident
    state swatch plus "Change encoding", which opens Style with that layer
-   selected. A suggested card is NOT labelled with the channel it will paint
+   selected. A suggested card is NOT labeled with the channel it will paint
    ("Groups -> colors" was considered and refused): the reading's closing clause
    states it at the only moment it can be checked. STY-5: the empty Results tab
    is unchanged.`
@@ -2176,7 +2176,7 @@ byte-identical to that board's.
 1. **Canvas: delete the navigation cluster (lines 574-605) and add the toolbar.**
    New (TB-1, TB-2, TB-4): delete the 56 px cluster at `left: 12px; bottom:
    120px`; paste the VOCAB.md section 12 "Canvas toolbar" snippet at **bottom
-   12**, 246 x 36 centred on the 832-wide canvas, 3D selected, `Zoom to selection
+   12**, 246 x 36 centered on the 832-wide canvas, 3D selected, `Zoom to selection
    (F). Select something first` disabled. Copy the finished block from
    AnalyzePanel.dc.html rather than re-typing it: the file comment's promise that
    the shell is copied character for character from AnalyzePanel is the reason
@@ -2186,7 +2186,7 @@ byte-identical to that board's.
    The preview is at `left: 8px; top: 357px; width: 272px` -- it occupies the
    canvas's left flank in the vertical middle and does not enter the bottom band.
    The minimap is 160 wide at bottom 12 (x 12 to 172) and the legend is 200 wide
-   at bottom 12 (x 620 to 820); centred on 832 the bar spans 293 to 539, clearing
+   at bottom 12 (x 620 to 820); centered on 832 the bar spans 293 to 539, clearing
    the minimap by 121 px and the legend by 81 px. Record both numbers in the
    toolbar's comment. **Second point, and it must be written down or the next
    pass will strip it:** the preview card already carries the tooltip shadow
@@ -2199,7 +2199,7 @@ byte-identical to that board's.
    (TB-1): line 574's block comment is replaced by the toolbar's own; line 948's
    MIN-8 note reads `the canvas toolbar's [2D | 3D] toggle already shows it`.
 4. **File comment header (lines 16-38).** Add: `Revision 1.7: TB-1/TB-2/TB-4
-   (the navigation cluster becomes the bottom-centre canvas toolbar, bottom 12,
+   (the navigation cluster becomes the bottom-center canvas toolbar, bottom 12,
    copied verbatim from AnalyzePanel), TB-2 (the toolbar's shadow is the
    instrument mark; the hover preview keeps its own shadow because it is a
    transient surface, not a resident canvas overlay). No decision in tracks 1 to
@@ -2215,7 +2215,7 @@ plus the toolbar and three re-pointed Details doors.
 
 1. **Canvas: delete the navigation cluster (lines 458-489) and add the toolbar.**
    New (TB-1, TB-2, TB-4): delete the 56 px cluster; paste the VOCAB.md section
-   12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36 centred on the
+   12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36 centered on the
    832-wide canvas, 3D selected, `Zoom to selection (F). Select something first`
    disabled. **This board's collision:** minimap at bottom 12 left 12 and legend
    at bottom 12 right 12 share the bar's baseline; the bar spans 293 to 539 and
@@ -2290,7 +2290,7 @@ cluster.
    which currently explains why one shipped row sits inside a dimmed run.
 3. **Canvas: delete the navigation cluster (lines 625-656) and add the toolbar.**
    New (TB-1, TB-2, TB-4): delete the 56 px cluster; paste the VOCAB.md section
-   12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36 centred on the
+   12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36 centered on the
    832-wide canvas, 3D selected, `Zoom to selection (F). Select something first`
    disabled. **This board's collision:** minimap at bottom 12 left 12, legend at
    bottom 12 right 12, no time slider and no drawer; the bar spans 293 to 539
@@ -2333,7 +2333,7 @@ housekeeping list itself is drawn on the new SavedItems board.
 1. **Canvas beneath the overlay: delete the navigation cluster (lines 273-304)
    and add the toolbar.** New (TB-1, TB-2, TB-4): delete the 56 px cluster;
    paste the VOCAB.md section 12 "Canvas toolbar" snippet at **bottom 12**,
-   246 x 36 centred on the 832-wide canvas, 3D selected, `Zoom to selection (F).
+   246 x 36 centered on the 832-wide canvas, 3D selected, `Zoom to selection (F).
    Select something first` disabled. **This board's collision:** the Settings
    overlay and its scrim sit above every canvas overlay, so the toolbar is drawn
    under the scrim exactly as the minimap and legend are -- same z-order, same
@@ -2384,10 +2384,10 @@ toolbar.
 1. **Canvas beneath the scrim: delete the navigation cluster (lines 276-307) and
    add the toolbar.** New (TB-1, TB-2, TB-4): delete the 56 px cluster; paste
    the VOCAB.md section 12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36
-   centred on the **1112-wide** canvas (no activity panel is open on this board,
+   centered on the **1112-wide** canvas (no activity panel is open on this board,
    so the bar spans x 433 to 679), 3D selected, `Zoom to selection (F). Select
    something first` disabled. Copy the finished block from Main.dc.html and
-   change nothing but the centring, since the file comment promises the shell
+   change nothing but the centering, since the file comment promises the shell
    pieces are copied from Main so identical inputs render identically.
    **This board's collision:** the palette's scrim (`rgba(13,17,23,0.6)`,
    z-index 20) covers the bar, which is z-index 6 -- draw the bar dimmed under
@@ -2428,7 +2428,7 @@ toolbar.
    (TB-1): line 19's shell-copy list reads `top bar, canvas toolbar, legend,
    status bar`; line 276's block comment is replaced by the toolbar's own.
 6. **File comment header (lines 16-45).** Add: `Revision 1.7: TB-1/TB-2/TB-4
-   (canvas toolbar, bottom 12, centred on the 1112 canvas, drawn under the
+   (canvas toolbar, bottom 12, centered on the 1112 canvas, drawn under the
    palette scrim), POP-13d (seven pop-out rows indexed), SAV-11 (Cmd+S opens this
    palette scoped to Save), TB-6 (Select a region), TB-8 (Show canvas toolbar).
    The dialog's drawn rows are unchanged: none of the new rows matches the query
@@ -2444,7 +2444,7 @@ made a door.
 
 1. **Canvas: delete the navigation cluster (lines 475-506) and add the toolbar.**
    New (TB-1, TB-2, TB-4): delete the 56 px cluster; paste the VOCAB.md section
-   12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36 centred on the
+   12 "Canvas toolbar" snippet at **bottom 12**, 246 x 36 centered on the
    **1112-wide** canvas (x 433 to 679), 3D selected, `Zoom to selection (F).
    Select something first` disabled. **This board's collision:** minimap 160 wide
    at bottom 12 left 12 (x 12 to 172) and legend 190 wide at bottom 12 right 12
@@ -2473,12 +2473,12 @@ made a door.
    explicitly in the decision as the one comment that must be re-pointed or the
    deletion loses its justification): `MODE CHIP deleted (NAV-12 item 1, still
    sound in 1.7): the 2D/3D control is always visible in the canvas toolbar at
-   the bottom centre of the canvas (TB-1), so the status bar carries no 3D chip.
+   the bottom center of the canvas (TB-1), so the status bar carries no 3D chip.
    The control moved and stayed visible; it did not go behind anything.`
 4. **Canvas minimap comment (lines 509-511).** Current: `...Fit lives in the
-   navigation cluster above` and `The drawing is centred in the unchanged 160 by
+   navigation cluster above` and `The drawing is centered in the unchanged 160 by
    100 box so the navigation cluster above keeps its offset.` New (TB-1): `Fit
-   lives in the canvas toolbar at the bottom centre` and `The drawing is centred
+   lives in the canvas toolbar at the bottom center` and `The drawing is centered
    in the unchanged 160 by 100 box; nothing sits above the minimap any more --
    the toolbar shares its 12px baseline instead, 261px to the right.`
 5. **Canvas legend, the Time block (lines 928-935).** Current: `Time: ts` with a
@@ -2494,7 +2494,7 @@ made a door.
    2D/3D toggle`; line 38's untouched list drops the cluster and names the
    toolbar as new; lines 475 and 511 are covered by items 1 and 4.
 7. **File comment header (lines 16-47).** Add: `Revision 1.7: TB-1/TB-2/TB-4
-   (canvas toolbar, bottom 12, centred on the 1112 canvas; 261px and 231px
+   (canvas toolbar, bottom 12, centered on the 1112 canvas; 261px and 231px
    clear), POP-6 (the Schema row is a permanent door; the 480 pop-out is drawn on
    Main), POP-1 (recorded, not drawn), TB-1's re-point of the mode-chip
    justification. The Insights strip is untouched (G3) and the inspector loses
@@ -2538,7 +2538,7 @@ sits at bottom 82. This is the board that draws POP-1.
    New (TB-1, TB-2, TB-4, A1): delete the 56 px cluster at `left: 12px; bottom:
    190px`; paste the VOCAB.md section 12 "Canvas toolbar" snippet at **bottom
    82** -- this is A1's "time slider on" state (the slider is 70 px and the bar
-   rides 12 above it) -- 246 x 36 centred on the 832-wide canvas (x 293 to 539),
+   rides 12 above it) -- 246 x 36 centered on the 832-wide canvas (x 293 to 539),
    3D selected, `Zoom to selection (F). Select something first` disabled.
    **This board's collision, and it is the one the offset table exists for:** the
    minimap (`left: 12px; bottom: 82px`, 160 wide) and the legend (`right: 12px;
@@ -2609,7 +2609,7 @@ sits at bottom 82. This is the board that draws POP-1.
    snippet the Views caret already points **up** (`polyline points="3,10 8,5
    13,10"`); confirm it is the up form here rather than the old cluster's down
    form, and add to the comment: `TB-8: the Views menu opens upward, its bottom
-   edge 4px above the bar, centred on the Views button and clamped 12px inside
+   edge 4px above the bar, centered on the Views button and clamped 12px inside
    the canvas edges -- with the slider on, the clamp is real rather than
    theoretical. The menu gains a checked "Toolbar" row in its Show group between
    Minimap and Legend; hiding the bar hides its own menu, so the way back is the
@@ -2633,7 +2633,7 @@ sits at bottom 82. This is the board that draws POP-1.
 ## IpadPanel
 
 State after the edit: unchanged iPad Analyze state, 1180 x 820, panel overlay at
-left 48, canvas 1132 x 756 -- with the narrow toolbar centred on the canvas, All
+left 48, canvas 1132 x 756 -- with the narrow toolbar centered on the canvas, All
 statistics turned into a door, and a Recipes library section added.
 
 1. **Canvas: delete the navigation cluster (lines 209-241) and add the narrow
@@ -2648,7 +2648,7 @@ statistics turned into a door, and a Recipes library section added.
    selected on this board.
 2. **Canvas, this board's specific collisions (record both numbers in the
    toolbar's comment, per TB-5).** 5.2 says overlays do not resize the canvas, so
-   the bar centres on the full 1132 rect and spans x 429 to 703. The Analyze
+   the bar centers on the full 1132 rect and spans x 429 to 703. The Analyze
    panel overlay is 280 wide at canvas x 0 to 280, leaving **149 px** clear on
    the left; the legend is 190 wide at `right: 12px` (x 930 to 1120), leaving
    **227 px** clear on the right. The minimap stays at `left: 12px; bottom: 12px`
@@ -2687,7 +2687,7 @@ statistics turned into a door, and a Recipes library section added.
    block. New (POP-5 with POP-0's narrow clause): the gear opens the Advanced
    block as a **second sheet over the panel at full panel width (280) with a back
    chevron**, not as a floating 280 box -- below 1280 px and on iPad a pop-out is
-   a sheet, honouring 5.2's one-overlay-at-a-time rule. Nothing is drawn open;
+   a sheet, honoring 5.2's one-overlay-at-a-time rule. Nothing is drawn open;
    write the sentence into the comment and add `the gear draws in the primary ink
    whenever a hidden option deviates from its default (6.11's stub obligation);
    here nothing does`.
@@ -2696,12 +2696,12 @@ statistics turned into a door, and a Recipes library section added.
    it covers the navigation cluster and minimap.` and `ANALYZE PANEL OVERLAY, 280
    wide, over the canvas (spec 5.2). Covers the navigation cluster and the
    minimap.` New (TB-1, TB-5): both read `...it covers the minimap. The canvas
-   toolbar is centred on the full 1132 canvas rect (5.2: overlays do not resize
+   toolbar is centered on the full 1132 canvas rect (5.2: overlays do not resize
    the canvas) and clears the overlay by 149px, so the panel never covers it.`
 8. **File comment, remaining "navigation cluster" occurrence (line 209).** New
    (TB-1): the block comment is replaced by the toolbar's own.
 9. **File comment header (lines 16-19).** Add: `Revision 1.7: TB-1/TB-2/TB-5
-   (the narrow 274 x 40 canvas toolbar at bottom 12, centred on 1132, 149px clear
+   (the narrow 274 x 40 canvas toolbar at bottom 12, centered on 1132, 149px clear
    of the panel overlay and 227px clear of the legend; tapping it does not close
    the overlay), POP-8 (All statistics becomes a door whose stub reports the
    computation), SAV-8/SAV-1/SAV-7 (a Recipes library section with resident row
@@ -2715,7 +2715,7 @@ statistics turned into a door, and a Recipes library section added.
 
 State after the edit: unchanged iPad Selected state, 1180 x 820, inspector
 overlay on the right, canvas 1132 x 756, minimap hidden -- with the narrow
-toolbar centred on the canvas and the legend raised to clear it.
+toolbar centered on the canvas and the legend raised to clear it.
 
 1. **Canvas: delete the navigation cluster (lines 191-222) and add the narrow
    toolbar.** New (TB-1, TB-2, TB-5): delete the 56 px cluster at `left: 12px;
@@ -2730,11 +2730,11 @@ toolbar centred on the canvas and the legend raised to clear it.
    overlay, so it occupies canvas x 650 to 840. New (TB-3): change to
    **`bottom: 60px`**, keeping `right: 292px`. **Collision resolved, and this is
    the one place in the core group where TB-3's two-line state actually fires:**
-   the bar is centred on the full 1132 rect and spans x 429 to 703, so its right
+   the bar is centered on the full 1132 rect and spans x 429 to 703, so its right
    edge overlaps the shifted legend's left edge (650) by 53 px. TB-3's remedy is
    that the minimap and legend rise 48 px onto a second line and the bottom band
    belongs to the toolbar alone; the legend is floor item 5 and may never be
-   hidden, and the bar may not move, because a centred bar that shifts stops
+   hidden, and the bar may not move, because a centered bar that shifts stops
    reading as an instrument. 12 + 48 = 60 clears the bar's 40 px height with 8 px
    to spare. The minimap needs no treatment: it is hidden by default on iPad
    above the large-graph threshold. Use the panel's own transition for the rise
@@ -2756,7 +2756,7 @@ toolbar centred on the canvas and the legend raised to clear it.
    library row's verbs -- is drawn resident on this board, never hover-revealed
    (POP-13c). And a pop-out itself is not a floating box here: below 1280px and
    on iPad it opens as a second sheet over its panel at full panel width with a
-   back chevron, honouring 5.2's one-overlay-at-a-time rule (POP-0).`
+   back chevron, honoring 5.2's one-overlay-at-a-time rule (POP-0).`
 5. **Inspector, Notes section row verbs (lines 358-380).** Current: Edit and
    Delete drawn resident, with the comment explaining that R4 forbids hover-only
    actions on a touch board. New (SAV-7): no pixel change; add `SAV-7 uses the
@@ -2769,11 +2769,11 @@ toolbar centred on the canvas and the legend raised to clear it.
    the fifty-deep history store.`
 6. **Status bar comment (line 603).** Current: `...always visible in the
    navigation cluster (5.6).` New (TB-1): `...always visible in the canvas
-   toolbar at the bottom centre of the canvas (5.6, TB-1).`
+   toolbar at the bottom center of the canvas (5.6, TB-1).`
 7. **File comment, remaining "navigation cluster" occurrence (line 191).** New
    (TB-1): the block comment is replaced by the toolbar's own.
 8. **File comment header (lines 16-23).** Add: `Revision 1.7: TB-1/TB-2/TB-5
-   (the narrow 274 x 40 canvas toolbar at bottom 12, centred on 1132, Zoom to
+   (the narrow 274 x 40 canvas toolbar at bottom 12, centered on 1132, Zoom to
    selection enabled because DC01 is selected; tapping it does not close the
    inspector), TB-3 (the legend rises 48px to bottom 60 -- the shifted legend is
    the one case in the set where the two-line rule fires), POP-13c/POP-0

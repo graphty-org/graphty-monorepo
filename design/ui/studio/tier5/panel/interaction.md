@@ -63,7 +63,7 @@ picker straight away: one pick, not two.
 6. Structure: within k hops of, connected to, on a path between, linked to at least N of, shares a
    value with, edges within / leaving, and "while ... is not empty".
 
-Entries name the value first; one that cannot apply is greyed with the element's reason as its
+Entries name the value first; one that cannot apply is grayed with the element's reason as its
 tooltip; descriptions are tooltips; graph values are never entries.
 
 **Test control**: no dropdown. The kind chooses the control (histogram brush, counted checklist,

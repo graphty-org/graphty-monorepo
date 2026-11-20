@@ -1,7 +1,7 @@
 # Session r3-s37: Tom, task T6 (Les Miserables) -- "What did I get?"
 
 Participant: Tom, 52, lab manager of a cell biology lab. Not a network builder; opens what the
-postdoc sends. Reading glasses, trackpad, small grey text is hard for him.
+postdoc sends. Reading glasses, trackpad, small gray text is hard for him.
 
 Task in his words: get the Les Miserables sample on screen; find how many characters, how many
 connections, whether everyone can reach everyone, and what facts are recorded about each
@@ -153,5 +153,5 @@ The Data tab and its table were plain and familiar, like a spreadsheet.
   tooltip confirmed "Edge table".
 - Clicking a line did nothing (or I missed it -- they are hairline thin); a click on the canvas
   also dropped my selected character without warning.
-- Small grey text throughout (the "In the order loaded" and "254 edges" captions) is hard on my
+- Small gray text throughout (the "In the order loaded" and "254 edges" captions) is hard on my
   eyes.

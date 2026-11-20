@@ -114,7 +114,7 @@ function backtickSuggestion(error: unknown): string | null {
     if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
         return null;
     }
-    const details = (error.details ?? {}) as { reason?: unknown; suggestion?: unknown };
+    const details = error.details as { reason?: unknown; suggestion?: unknown };
     return details.reason === "number-needs-backticks" && typeof details.suggestion === "string"
         ? details.suggestion
         : null;
@@ -155,7 +155,7 @@ function ruleRefusal(error: unknown): Refusal | null {
     if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
         return null;
     }
-    const details = (error.details ?? {}) as { position?: unknown };
+    const details = error.details as { position?: unknown };
     // The element counts from 0 after the "="; the reader counts from 1 including it.
     const words =
         typeof details.position === "number"
@@ -1727,7 +1727,7 @@ export function FindBox(): React.JSX.Element {
 
     const runsTyped = runsTypedOf(found, session, isRule, text);
     const target = enterTarget(active, ruleOption, runsTyped, options.length);
-    const chosen: Option | undefined = options[target];
+    const chosen = target < 0 ? undefined : options.at(target);
     useScrollActiveIntoView(active >= 0 ? optionIdOf(listId, active) : undefined);
 
     const open = found !== null && listOpen;

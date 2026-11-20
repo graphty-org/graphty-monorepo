@@ -8,7 +8,7 @@ commit 8f0d5a6f77911a0093a614457ac3c9db5fde3235, build 8f0d5a6f7791 graphty@0.8.
 ```
 
 **Tom (01.png):** That's my colleague's bus file, already ranked -- orange balls, the big dark one in
-the middle. The lines are all the same grey. I need the slow links, 10 minutes or more, to stand
+the middle. The lines are all the same gray. I need the slow links, 10 minutes or more, to stand
 out. There's a box at the top left that says "Find nodes, edges, values". Values -- the minutes are
 values. I'll click in there and try.
 

@@ -13,9 +13,11 @@ graphty documents that carry those things, and the one JSON file they travel in:
 
 Status: specification of version 1, partly implemented in graphty-element: it reads and writes
 styles (`session.styles`), notes (`session.notes`) and the project file, and writes a recipe from the
-session's current state (`session.recipe()`) but does not yet replay one (recipe.md, "Status"). No
-major version gates it: changes land in minor releases (CLAUDE.md, "Public API and breaking
-changes"). The owner's decisions are in
+session's current state (`session.recipe()`) but does not yet replay one (recipe.md, "Status").
+Version 2 ([version-2.md](version-2.md), designed 2026-11-14) regroups these documents into seven
+sections that save and load separately, and wins where the two disagree. No major version gates
+either: changes land in minor releases (CLAUDE.md, "Public API and breaking changes"). The owner's
+decisions are in
 [../decisions/2026-09-28-document-formats-first-version.md](../decisions/2026-09-28-document-formats-first-version.md).
 
 ## Your first style
@@ -500,7 +502,7 @@ Not in version 1; each is a later version's work, and version 1 files stay valid
   `sha256`, `E_DIGEST_MISMATCH`, `W_DATA_DIFFERS`), and saving one;
 - service: replaying other people's documents against private data, with report redaction;
 - results: expected results, result signatures and comparison, dataset fingerprints in the report;
-- recipe 1.x ops: computed columns, kept sets, choosing nodes by a rule, randomised null models,
+- recipe 1.x ops: computed columns, kept sets, choosing nodes by a rule, randomized null models,
   fetching data, a precision request;
 - style v2: list and text membership tests, quoted path segments holding a dot, edges selected by
   id, splitting a look across style versions, down-conversion;
@@ -616,7 +618,7 @@ Objections raised in review that were not taken as asked, one line each; those t
 - Let an unknown-type value drop only its channel entry: no -- it refuses its layer; widening needs style v2.
 - Lay out only the kept graph: later -- it needs a new layout input for every engine.
 - Make the session's largest component read the visible graph: no -- it changes existing runs.
-- Skip a command whose randomised path takes no seed: no -- planned with a notice.
+- Skip a command whose randomized path takes no seed: no -- planned with a notice.
 - A color-and-size example with a recommended size range: no -- style.md covers both.
 - Raise the load ceilings everywhere: only in a session that draws nothing.
 - An application-built starter recipe for a refused table: no -- read-time filtering is the data plan's.

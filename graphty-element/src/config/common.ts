@@ -10,6 +10,7 @@ import { z } from "zod";
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AdHocData<KeyType extends string | number = string> = Record<KeyType, any> & {
+    /** An optional type tag that marks the record as ingested data; never needed. */
     readonly __brand?: "AdHocData";
 };
 
@@ -36,7 +37,7 @@ export function colorToHex(s: string): string | undefined {
 }
 
 // The output type stays `string | undefined`, as published: narrowing it would break code that
-// builds a parsed style by hand with a colour it has not got yet.
+// builds a parsed style by hand with a color it has not got yet.
 export const ColorStyle = z.string().transform((s, ctx): string | undefined => {
     const hex = colorToHex(s);
     if (hex === undefined) {
@@ -48,20 +49,29 @@ export const ColorStyle = z.string().transform((s, ctx): string | undefined => {
 });
 export const AdvancedColorStyle = z.discriminatedUnion("colorType", [
     z.strictObject({
+        /** One flat color. */
         colorType: z.literal("solid"),
+        /** The color. */
         value: ColorStyle,
+        /** How opaque the color is, 0 (invisible) to 1 (solid); left out, 1. */
         opacity: z.number().min(0).max(1).optional(),
     }),
     z.strictObject({
+        /** Colors blended along a straight line. */
         colorType: z.literal("gradient"),
+        /** The angle the gradient runs at, in degrees, 0 to 360. */
         direction: z.number().min(0).max(360),
+        /** The colors, in order along the line. */
         colors: z.array(ColorStyle),
         /** Where each color sits, 0 to 1; left out, or not one per color, the colors are evenly spaced. */
         stops: z.array(z.number().min(0).max(1)).optional(),
+        /** How opaque the colors are, 0 (invisible) to 1 (solid); left out, 1. */
         opacity: z.number().min(0).max(1).optional(),
     }),
     z.strictObject({
+        /** Colors blended outward from a middle point. */
         colorType: z.literal("radial-gradient"),
+        /** The colors, from the middle outward. */
         colors: z.array(ColorStyle),
         /** Where each color sits, 0 at the middle to 1; left out, or not one per color, evenly spaced. */
         stops: z.array(z.number().min(0).max(1)).optional(),
@@ -71,6 +81,7 @@ export const AdvancedColorStyle = z.discriminatedUnion("colorType", [
         centerY: z.number().optional(),
         /** How far the gradient reaches from its middle, in halves of the node's side; left out, 1 (to its edge); 0, all the last color. */
         radius: z.number().min(0).optional(),
+        /** How opaque the colors are, 0 (invisible) to 1 (solid); left out, 1. */
         opacity: z.number().min(0).max(1).optional(),
     }),
 ]);
@@ -106,4 +117,5 @@ const HttpUrl = z.url({
 // "data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="
 const EmbeddedBase64Image = z.string().startsWith("data:image/png;base64,");
 
+/** An image the element can load: an http(s) URL, or a PNG embedded as a `data:image/png;base64,` URL. */
 export const ImageData = HttpUrl.or(EmbeddedBase64Image);

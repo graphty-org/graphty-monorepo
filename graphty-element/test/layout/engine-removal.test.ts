@@ -24,6 +24,7 @@ import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
 import { assertScalesLinearly } from "../helpers/cost";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /**
  * A node as a layout engine sees one: an id and the row it owns in the position array.
@@ -32,7 +33,7 @@ import { assertScalesLinearly } from "../helpers/cost";
  * @returns the stand-in
  */
 function node(id: string, index: number): Node {
-    return { id, index } as unknown as Node;
+    return fakeNode(id, { index });
 }
 
 /**
@@ -42,7 +43,7 @@ function node(id: string, index: number): Node {
  * @returns the stand-in
  */
 function edge(src: Node, dst: Node): Edge {
-    return { srcId: src.id, dstId: dst.id, srcNode: src, dstNode: dst } as unknown as Edge;
+    return fakeEdge(src, dst);
 }
 
 describe("a layout engine gives back a node the graph has removed", () => {

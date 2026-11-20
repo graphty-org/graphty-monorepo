@@ -19,7 +19,7 @@ export class LifecycleManager implements Manager {
     private initializing = false;
     /**
      * Set by {@link dispose} and cleared by {@link init}. Disposal is keyed on this rather than on
-     * `initialized`, so a graph shut down before it finished initialising -- one never attached,
+     * `initialized`, so a graph shut down before it finished initializing -- one never attached,
      * or detached while it was opening -- still disposes its managers, and with them its Babylon
      * engine and WebGL context (issue #1977).
      */
@@ -104,7 +104,7 @@ export class LifecycleManager implements Manager {
             const managerStartTime = performance.now();
             this.logger.debug(`Initializing manager: ${managerName}`);
             await manager.init();
-            // Disposed while this manager was initialising: the rest are disposed too.
+            // Disposed while this manager was initializing: the rest are disposed too.
             if (this.disposed) {
                 this.initializing = false;
                 return false;

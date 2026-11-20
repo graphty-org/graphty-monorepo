@@ -585,21 +585,11 @@ function copyColumnWhole(builder: GraphBuilder, domain: "node" | "edge", column:
     }
 
     const data = (column as unknown as { data: Float64Array }).data.slice(0, rows * meta.components);
-    const decl: ColumnDeclPatch = {
-        dtype: meta.dtype,
-        components: meta.components,
-        nullable: meta.nullable,
-        mutable: meta.mutable,
-        role: meta.role ?? undefined,
-        unique: meta.unique,
-        default: meta.default,
-        fill: meta.fill,
-        options: meta.options ?? undefined,
-        origin: meta.origin ?? undefined,
-        dynamic: meta.dynamic,
-        extra: meta.extra,
-        coordinates: meta.coordinates ?? undefined,
-    };
+    // Its own metadata as the declaration: every field it has, less the two the call names and the
+    // ones it holds none of.
+    const decl = Object.fromEntries(
+        Object.entries(meta).filter(([key, value]) => key !== "name" && key !== "domain" && value !== null),
+    ) as ColumnDeclPatch;
     if (domain === "node") {
         builder.setNodeColumn(meta.name, data, decl);
     } else {

@@ -959,6 +959,13 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility ??= session.on("visibility:changed", (change) => {
             this.#mirrorVisibilityChange(change);
         });
+        // A saved view keeps the legend switch and brings it back.
+        dispatcherOf(session).services.legend = {
+            shown: () => this.#legendOn,
+            show: (on) => {
+                this.legend = on;
+            },
+        };
         this.#screenReader.connect(this.renderRoot);
         if (this.#legendOn) {
             this.#legendView.connect(this.renderRoot);

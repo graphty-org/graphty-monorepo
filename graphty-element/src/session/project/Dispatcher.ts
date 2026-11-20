@@ -100,6 +100,8 @@ interface CommandServices {
     sets?: SetService;
     notes?: NoteService;
     camera?: CameraService;
+    /** The element's legend switch, which a saved view keeps and brings back; absent with no element. */
+    legend?: { shown(): boolean; show(on: boolean): void };
     /** A renderer's: the size of the canvas it draws on, in CSS px, or null before it has one. */
     viewport?: () => { readonly width: number; readonly height: number } | null;
     /** The renderer's layout engine and scene: what `layout.set` and `view.dimension` build. */

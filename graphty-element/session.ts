@@ -193,6 +193,8 @@ export type {
     RowUpdate,
     RunPlacement,
     SavedView,
+    SavedViewInput,
+    SavedViewPart,
     ScoreTerm,
     SessionAnnotations,
     SessionAttributes,

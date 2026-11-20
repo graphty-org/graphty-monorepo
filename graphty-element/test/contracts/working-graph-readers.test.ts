@@ -675,6 +675,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "transaction()": "writes",
     "undo()": "writes",
     "views.move()": "writes",
+    "views.open()": "writes",
     "views.remove()": "writes",
     "views.rename()": "writes",
     "views.save()": "writes",

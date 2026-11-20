@@ -290,6 +290,7 @@ export const MUTATING: readonly string[] = [
     "SessionTours.rename",
     "SessionTours.save",
     "SessionViews.move",
+    "SessionViews.open",
     "SessionViews.remove",
     "SessionViews.rename",
     "SessionViews.save",

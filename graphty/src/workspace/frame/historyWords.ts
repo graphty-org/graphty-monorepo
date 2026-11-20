@@ -284,6 +284,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "view.move": (p) => `moving ${one(p, "name", "camera")}`,
     "view.key": (p) => keyWords(p),
     "view.starting": () => "adding the starting cameras",
+    "view.open": (p) => `opening ${one(p, "name", "camera")}`,
     "tour.save": (p) => `saving ${named(p, "tour")}`,
     "tour.remove": (p) => `deleting ${named(p, "tour")}`,
     "tour.rename": (p) => `renaming ${one(p, "from", "tour")} to ${text(p, "to", "a new name")}`,

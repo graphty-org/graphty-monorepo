@@ -32,7 +32,18 @@ export type GroupValue = string | number | boolean;
  * @beta
  */
 export type GroupRef =
-    { readonly run: RunRef; readonly group: GroupValue } | { readonly groupBy: Path; readonly group: GroupValue };
+    | {
+          /** The run whose primary field holds the group. */
+          readonly run: RunRef;
+          /** The group's value in that field. */
+          readonly group: GroupValue;
+      }
+    | {
+          /** The node path the nodes are grouped by. */
+          readonly groupBy: Path;
+          /** The value the group's nodes hold at that path. */
+          readonly group: GroupValue;
+      };
 
 /**
  * A group that is collapsed now.

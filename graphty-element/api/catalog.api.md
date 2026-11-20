@@ -2715,7 +2715,6 @@ export interface ScreenshotPreset {
     readonly enhanceQuality?: boolean;
     readonly format: "png" | "jpeg" | "webp";
     readonly height?: number;
-    // (undocumented)
     readonly id: ScreenshotPresetId;
     readonly multiplier?: number;
     readonly quality?: number;
@@ -3310,9 +3309,7 @@ export const UNSERVED_LAYOUT_IDS: readonly UnservedLayout[];
 
 // @public
 export interface UnservedFormat {
-    // (undocumented)
     id: (typeof KNOWN_FORMAT_IDS)[number];
-    // (undocumented)
     reason: string;
 }
 

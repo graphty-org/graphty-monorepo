@@ -1178,6 +1178,8 @@ export class Edge {
         pattern: JoinedPatternKind | null;
     } | null;
     get drawnPattern(): readonly ArrowCap[];
+    // @internal
+    get drawnStrands(): readonly string[];
     // (undocumented)
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
@@ -2097,6 +2099,10 @@ export const EdgeStyle: z.ZodObject<{
                 linear: "linear";
                 radial: "radial";
             }>>;
+        }, z.core.$strict>>;
+        strands: z.ZodOptional<z.ZodObject<{
+            colors: z.ZodOptional<z.ZodString>;
+            spacing: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>>;
         bezier: z.ZodOptional<z.ZodBoolean>;
         bends: z.ZodOptional<z.ZodString>;

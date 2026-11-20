@@ -756,15 +756,19 @@ describe("usage counts from the real element", () => {
         const save = await screen.findByRole("dialog", { name: /^Save .* as$/ });
         await userEvent.clear(within(save).getByRole("textbox", { name: "Name" }));
         const kept = next("project_saved");
-        await userEvent.type(within(save).getByRole("textbox", { name: "Name" }), "SECRET_SAVED{Enter}");
+        await userEvent.type(within(save).getByRole("textbox", { name: "Name" }), "SECRET_SAVED");
+        // Enter submits only once Save is enabled (with save files version 2 on, after graphty-element's verdict).
+        await waitFor(() => {
+            assert.isFalse(within(save).getByRole<HTMLButtonElement>("button", { name: "Save" }).disabled);
+        });
+        await userEvent.keyboard("{Enter}");
         assert.deepEqual({ ...(await kept) }, { kind: "browser", as: "new" });
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
         });
-        // A later Save writes the same record again.
-        const again = next("project_saved");
-        await userEvent.keyboard("{Control>}s{/Control}");
-        assert.deepEqual({ ...(await again) }, { kind: "browser", as: "again" });
+        // The save has finished (its notice comes last, after the browser's list is read again):
+        // only then can the browser refuse the next one.
+        await screen.findAllByText(/^Saved SECRET_SAVED in this browser/);
         // A Save the browser refuses sends nothing.
         const refusedSaves: string[] = [];
         const offSaves = onUsageEvent((name) => {
@@ -778,6 +782,10 @@ describe("usage counts from the real element", () => {
         vi.unstubAllGlobals();
         offSaves();
         assert.isEmpty(refusedSaves, "a refused Save is no save");
+        // A later Save writes the same record again.
+        const again = next("project_saved");
+        await userEvent.keyboard("{Control>}s{/Control}");
+        assert.deepEqual({ ...(await again) }, { kind: "browser", as: "again" });
         await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
         const recent = await screen.findByRole("gridcell", { name: /^SECRET_SAVED/ });

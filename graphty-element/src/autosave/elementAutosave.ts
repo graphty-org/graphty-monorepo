@@ -410,11 +410,29 @@ function readItem(env: AutosaveEnvironment, name: string): string | null {
  */
 const TAB_RECORD = "graphty-autosave:";
 
-/** The most entry ids the tab's record keeps. */
+/**
+ * The most entry ids the tab's record keeps. One record serves every key and element of the page,
+ * so a page writing more than this many entries can push an older key's entry out of it.
+ */
 const TAB_RECORD_MAX = 16;
 
-/** The keys whose lost note this page load has looked for (once each: a later mount never adopts). */
-const lostLooked = new Set<string>();
+/** The keys whose lost note each page load has looked for (once each: a later mount never adopts). */
+const lostLookedBy = new WeakMap<AutosaveEnvironment, Set<string>>();
+
+/**
+ * The keys this page load has looked for its lost note.
+ * @param env - The page.
+ * @returns Its set.
+ */
+function lostLooked(env: AutosaveEnvironment): Set<string> {
+    let looked = lostLookedBy.get(env);
+    if (looked === undefined) {
+        looked = new Set();
+        lostLookedBy.set(env, looked);
+    }
+
+    return looked;
+}
 
 /**
  * The tab's record in `window.name`.
@@ -489,11 +507,12 @@ async function adoptLostOwn(
     metas: readonly AutosaveEntryMeta[],
     leaving: string | null,
 ): Promise<{ id: string; by: LostOwnRule } | null> {
-    if (lostLooked.has(key)) {
+    const looked = lostLooked(env);
+    if (looked.has(key)) {
         return null;
     }
 
-    lostLooked.add(key);
+    looked.add(key);
     const open = metas.filter((meta) => meta.ended !== "replaced");
     const record = tabRecord(env);
     let found: AutosaveEntryMeta | undefined;
@@ -504,9 +523,13 @@ async function adoptLostOwn(
             .map((id) => open.find((meta) => meta.id === id))
             .find((meta) => meta !== undefined);
     } else if (["reload", "back_forward"].includes(env.navigationType?.() ?? "")) {
-        // ponytail: a heuristic, for a browser that kept neither session storage nor window.name; it
-        // can take work a closed tab left when this tab had written none. Never an older entry
-        // when the newest is held: that one is probably this tab's, reopened by another.
+        // ponytail: a heuristic, for a browser that kept neither session storage nor window.name. Never
+        // an older entry when the newest is held: that one is probably this tab's, reopened by another.
+        // Known misses, each forking or offering work rather than losing it: it can take work a closed
+        // tab left when this tab had written none; work of a tab in the back/forward cache, which holds
+        // no lock there (that tab writes a copy when shown again); and when several tabs of the key come
+        // back at once, the first to load can take another's newest work. A stricter rule (only one
+        // open entry) would miss the usual case, a store holding many closed tabs' work.
         by = "newest-unheld";
         found = open.reduce<AutosaveEntryMeta | undefined>(
             (newest, meta) => (newest === undefined || textOf(meta.savedAt) > textOf(newest.savedAt) ? meta : newest),
@@ -908,7 +931,7 @@ export class ElementAutosave {
      * @returns The entry, or null.
      */
     async #adoptLost(store: AutosaveStore, key: string): Promise<string | null> {
-        const metas = lostLooked.has(key) ? null : await listWithin(store, key).catch(() => null);
+        const metas = lostLooked(this.#env).has(key) ? null : await listWithin(store, key).catch(() => null);
         const adopted =
             metas === null ? null : await adoptLostOwn(this.#env, key, metas, readItem(this.#env, LEAVING_ITEM + key));
         writeTabRecord(this.#env, null);
@@ -1278,9 +1301,10 @@ export class ElementAutosave {
                     // No session storage here: a reload cannot wait for this page's lock.
                 }
 
-                // Session storage serves a reload from here on; the next site sees no record.
+                // Session storage serves a reload from here on. The next site sees an empty record, and a
+                // later load of this tab still knows it had one, so it takes nothing by guessing.
                 if (this.#env.tab !== undefined && tabRecord(this.#env) !== null) {
-                    this.#env.tab.name = "";
+                    this.#env.tab.name = TAB_RECORD;
                 }
             }
 

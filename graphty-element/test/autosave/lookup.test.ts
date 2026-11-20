@@ -176,6 +176,24 @@ describe("listAutosaves after the tab lost its session storage", () => {
         assert.strictEqual(tab.name, "graphty-autosave:");
     });
 
+    it("a replaced entry is never taken: the newest open one is", async () => {
+        const { store, key } = await kept();
+        await store.commit([
+            write(`gone-${key}`, key, 0, { rest: "c" }, { savedAt: "2026-11-20T16:00:00.000Z", ended: "replaced" }),
+        ]);
+        const { env } = lostPage("reload");
+        assert.deepEqual(ownIds(await listAutosavesIn(env, key, { store })), [`mine-${key}`]);
+    });
+
+    it("looks for a lost note once per page load: a later lookup of the key adopts nothing", async () => {
+        const { store, key } = await kept();
+        // A window name the page set, so no record starts and only the guard keeps the guess out.
+        const { env } = lostPage("reload", "checkout");
+        // The first lookup, while the key holds nothing yet, finds nothing to adopt.
+        assert.deepEqual(await listAutosavesIn(env, key, { store: memoryAutosaveStore() }), []);
+        assert.deepEqual(ownIds(await listAutosavesIn(env, key, { store })), []);
+    });
+
     it("never overwrites a window name the page set itself", async () => {
         const { store, key } = await kept();
         const { env, tab } = lostPage("reload", "checkout");

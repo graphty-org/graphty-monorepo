@@ -151,3 +151,22 @@ export function PlusList({
         </div>
     );
 }
+
+/**
+ * One kind's rows inside a long PlusList section: an always-open legend over them (a divider, never a
+ * second collapsible level), as a section of more than 8 rows separates its rows by kind.
+ * @param props - Component props
+ * @param props.label - the kind's name
+ * @param props.children - its rows
+ * @returns The legend and its rows
+ */
+export function PlusListKind({
+    label,
+    children,
+}: Readonly<{ label: string; children: React.ReactNode }>): React.JSX.Element {
+    return (
+        <div data-plus-list-kind={label}>
+            <ControlGroup label={label}>{children}</ControlGroup>
+        </div>
+    );
+}

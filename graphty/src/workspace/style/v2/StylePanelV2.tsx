@@ -6,7 +6,7 @@
  * lists one row per thing the layer sets or the reader just added.
  */
 
-import { ControlGroup, LabelsProvider } from "@graphty/compact-mantine";
+import { LabelsProvider } from "@graphty/compact-mantine";
 import { type Channel, writeChannelList } from "@graphty/graphty-element/catalog";
 import React, { useRef, useState } from "react";
 
@@ -27,7 +27,7 @@ import { viewDim } from "./drawn";
 import { replaceUse } from "./families";
 import { kindGroupOf, type KindMember, kindsShown, ownsOf } from "./kindGroups";
 import { drawnItems, firstColors, ITEM_LISTS, LISTS } from "./lists";
-import { PlusList } from "./PlusList";
+import { PlusList, PlusListKind } from "./PlusList";
 import { FIT_TO_LABEL, lineFor, V2_LABELS } from "./rubric";
 import { RubricLine } from "./RubricLine";
 import { ShaderUseRow } from "./ShaderUseRow";
@@ -308,9 +308,9 @@ function ThingSection({
                     return run.legend === undefined ? (
                         drawn
                     ) : (
-                        <ControlGroup key={run.legend} label={run.legend}>
+                        <PlusListKind key={run.legend} label={run.legend}>
                             {drawn}
-                        </ControlGroup>
+                        </PlusListKind>
                     );
                 })}
             </PlusList>

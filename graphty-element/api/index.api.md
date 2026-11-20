@@ -1393,6 +1393,11 @@ export const EdgeStyle: z.ZodObject<{
                 rectangle: "rectangle";
                 circle: "circle";
             }>>;
+            image: z.ZodOptional<z.ZodString>;
+            imageWidth: z.ZodOptional<z.ZodNumber>;
+            imageHeight: z.ZodOptional<z.ZodNumber>;
+            imageOffsetX: z.ZodOptional<z.ZodNumber>;
+            imageOffsetY: z.ZodOptional<z.ZodNumber>;
             minScreenSize: z.ZodOptional<z.ZodNumber>;
             declutter: z.ZodOptional<z.ZodEnum<{
                 size: "size";
@@ -1690,6 +1695,11 @@ export const EdgeStyle: z.ZodObject<{
                 rectangle: "rectangle";
                 circle: "circle";
             }>>;
+            image: z.ZodOptional<z.ZodString>;
+            imageWidth: z.ZodOptional<z.ZodNumber>;
+            imageHeight: z.ZodOptional<z.ZodNumber>;
+            imageOffsetX: z.ZodOptional<z.ZodNumber>;
+            imageOffsetY: z.ZodOptional<z.ZodNumber>;
             minScreenSize: z.ZodOptional<z.ZodNumber>;
             declutter: z.ZodOptional<z.ZodEnum<{
                 size: "size";
@@ -2145,6 +2155,11 @@ export const EdgeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -2388,6 +2403,11 @@ export const EdgeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -6569,6 +6589,11 @@ export const NodeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -6812,6 +6837,11 @@ export const NodeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -7055,6 +7085,11 @@ export const NodeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -7993,6 +8028,11 @@ export const RichTextStyle: z.ZodObject<{
         rectangle: "rectangle";
         circle: "circle";
     }>>;
+    image: z.ZodOptional<z.ZodString>;
+    imageWidth: z.ZodOptional<z.ZodNumber>;
+    imageHeight: z.ZodOptional<z.ZodNumber>;
+    imageOffsetX: z.ZodOptional<z.ZodNumber>;
+    imageOffsetY: z.ZodOptional<z.ZodNumber>;
     minScreenSize: z.ZodOptional<z.ZodNumber>;
     declutter: z.ZodOptional<z.ZodEnum<{
         size: "size";

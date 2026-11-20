@@ -39693,14 +39693,14 @@
             "label.background": 1,
             "label.backgroundBorder": 1,
             "stray.present": 1,
-            "stray.extra": 0.6,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.94,
-            "raster.nodeBody": 0.96,
+            "raster.label": 0.96,
+            "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.94
         },
         "yed-graphml-specimen-images-charts@matched": {
@@ -39734,7 +39734,7 @@
             "label.background": 1,
             "label.backgroundBorder": 1,
             "stray.present": 1,
-            "stray.extra": 0.6,
+            "stray.extra": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -56485,22 +56485,6 @@
                 "to": 0.971,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            }
-        },
-        "yed-graphml-specimen-images-charts": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.158,
-                "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
-                "date": "2026-11-07"
-            }
-        },
-        "yed-graphml-specimen-images-charts@matched": {
-            "stray.present": {
-                "floor": 1,
-                "to": 0.158,
-                "reason": "yEd draws an SVGNode as its picture alone (yed-graphml-specimen-images-charts.svg: four 18x18 rects #dc2828/#28a028/#2846dc/#f0c800 under matrix(0.9,...), the node's #c8c8c8 fill and #505050 border nowhere), so graph-io now reads it as a node of no shape with its picture; graphty's painted box used to pair with one of those squares and passed node.shape and node.stroke by chance. The comparator cannot read inside graphty's SVG picture, so the oracle's first square is judged as a rect body against graphty's image and the other squares (face@...) are strays",
-                "date": "2026-11-07"
             }
         },
         "yed-live-graphml-specimen-labels-p5": {

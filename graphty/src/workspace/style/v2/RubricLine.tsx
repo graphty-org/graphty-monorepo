@@ -23,7 +23,7 @@ import { ValueListbox } from "../parts/ValueListbox";
 import { Field, FieldLine, type RowContext } from "../PropertyRow";
 import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
-import { channelWord, failureWords, fieldName, FONTS, isPercent } from "../words";
+import { channelWord, failureWords, fieldName, FONTS, isPercent, scrubLetter } from "../words";
 import { dimOf } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
@@ -43,13 +43,16 @@ export interface RowSlots {
 }
 
 /**
- * A number field as the rubric draws one (R5): no caret, empty when unset; clearing it unsets.
+ * A number field as the rubric draws one (R5), Figma's number input (design/ui/figma, "Scrubbable number
+ * input"): its slot at the left -- the line's glyph, else its name's initial -- is the scrub handle, the arrow
+ * keys step by 1 and Shift by 10, typing applies on Enter, Tab or blur; no caret, no stepper buttons, empty
+ * when unset; clearing it unsets.
  * @param props - Component props
  * @param props.descriptor - its channel, or a label style field described as one
  * @param props.label - its accessible name, when not its channel's
  * @param props.percent - reads and types as a percent, when not its channel's say
  * @param props.value - the value set, if any
- * @param props.glyph - its in-field glyph or letter
+ * @param props.glyph - its in-field glyph or letter, else its name's initial
  * @param props.onWrite - writes a number, or undefined to unset
  * @returns The field
  */
@@ -70,6 +73,7 @@ export function NumberLine({
 }>): React.JSX.Element {
     const scale = (percent ?? isPercent(descriptor)) ? 100 : 1;
     const { min, max } = descriptor;
+    const name = label ?? fieldName(descriptor.channel);
     // Emptied and Enter unsets the line (design 2.2): the number field commits no empty text itself.
     const onEmptyEnter = (event: React.KeyboardEvent<HTMLDivElement>): void => {
         const input = event.target;
@@ -81,11 +85,11 @@ export function NumberLine({
         // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- only hears Enter bubbling from its own field
         <div style={{ display: "contents" }} onKeyDown={onEmptyEnter}>
             <ComboInput
-                label={label ?? fieldName(descriptor.channel)}
+                label={name}
                 width="100%"
                 numeric
                 options={[]}
-                glyph={glyph}
+                glyph={glyph ?? scrubLetter(name)}
                 value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : ""}
                 suffix={scale === 100 ? "%" : undefined}
                 min={min === undefined ? undefined : min * scale}

@@ -8,7 +8,17 @@ import React from "react";
 import { useModelPicture } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { ValueListbox, type ValueSection } from "./parts/ValueListbox";
-import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
+import {
+    channelWord,
+    colorName,
+    enumWords,
+    GLYPH_TABLES,
+    hexOf,
+    isPercent,
+    scrubLetter,
+    TWO_WORDS,
+    valueFieldKind,
+} from "./words";
 
 /**
  * A select's choices, named as graphty-element's catalog names them. A value the layer holds that
@@ -225,7 +235,8 @@ function ColorValueField(props: KindFieldProps): React.JSX.Element {
 }
 
 /**
- * A number; an opacity reads and types as a percent, as the property row does.
+ * A number, Figma's number input: its slot at the left scrubs (its name's initial), the arrow keys step;
+ * an opacity reads and types as a percent, as the property row does.
  * @param props - ValueField's props
  * @returns The field
  */
@@ -241,6 +252,7 @@ function NumberValueField(props: KindFieldProps): React.JSX.Element {
             width={compact ? 64 : "100%"}
             numeric
             options={[]}
+            glyph={scrubLetter(label)}
             value={mixed ? "" : (toShown(value) ?? toShown(shown) ?? "")}
             mixed={mixed}
             suffix={scale === 100 ? "%" : undefined}

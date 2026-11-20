@@ -55,6 +55,7 @@ import {
     listWords,
     paletteWord,
     SCALE_WORDS,
+    scrubLetter,
     takesBinding,
     valueWords,
 } from "./words";
@@ -976,7 +977,7 @@ function NumberValue({
             options={[]}
             value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : ""}
             suffix={percent ? "%" : undefined}
-            glyph={prefix === undefined ? undefined : <span>{prefix}</span>}
+            glyph={prefix === undefined ? scrubLetter(name) : <span>{prefix}</span>}
             min={min === undefined ? undefined : min * scale}
             max={max === undefined ? undefined : max * scale}
             step={!percent && max !== undefined && max <= 1 ? 0.1 : 1}

@@ -2483,3 +2483,15 @@ export const FONTS = [
     ["serif", "Serif"],
     ["monospace", "Monospace"],
 ] as const;
+
+/**
+ * The letter in a number field's scrub slot when it has no glyph of its own: the initial of the last word of its
+ * name ("Node label size" -> "S"), as Figma's "W" and "H" (design/ui/figma, "Scrubbable number input").
+ * @param name - the field's name.
+ * @returns the letter.
+ */
+export function scrubLetter(name: string): string {
+    // ponytail: the last word names the quantity in every field name here; a caller with a better letter passes it.
+    const words = name.trim().split(/\s+/);
+    return (words.at(-1) ?? "").charAt(0).toUpperCase();
+}

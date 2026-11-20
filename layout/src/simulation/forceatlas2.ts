@@ -53,7 +53,7 @@ import {
     FA2_DISTANCE_FLOOR_SQ,
     FA2_FOLD_LANES,
 } from "./constants.js";
-import { resolveNodeVector, resolveWeights } from "./inputs.js";
+import { resolveFixedMask, resolveNodeVector, resolveWeights } from "./inputs.js";
 import { seedPositions } from "./seed.js";
 import type { ClusterOptions, CollisionOptions, ForceAtlas2Options, LayoutSimulation } from "./types.js";
 
@@ -90,6 +90,7 @@ interface ResolvedOptions {
     readonly seed: number | null;
     /** The Barnes-Hut opening angle, or null for every pair. */
     readonly barnesHutTheta: number | null;
+    readonly fixed: NodeMask | string | null;
 }
 
 /** Gephi's default Barnes-Hut opening angle. */
@@ -298,6 +299,7 @@ function resolveOptions(options: ForceAtlas2SimulationOptions | undefined): Reso
             "an integer >= 1",
         ),
         compat,
+        fixed: o.fixed ?? null,
         seed: o.seed ?? null,
         barnesHutTheta: pickBoolean("barnesHutOptimize", o.barnesHutOptimize, false)
             ? pickNumber("barnesHutTheta", o.barnesHutTheta, BARNES_HUT_THETA, (v) => v > 0, "> 0")
@@ -634,7 +636,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
      * in place (seedPositions with the `seed` option, the GPU simulation's rule), converts the scene-unit rows into the f64
      * layout-unit array `(v - center) / scale` (z forced to 0 in 2D), resets the speed controller (speed =
      * speedEfficiency = swing = traction = 1: the one place that does, D8), clears the fixed mask when n changed
-     * (design 7.12), and reheats.
+     * (design 7.12), applies the `fixed` option (a mask, a bool node column by name, or the role-`fixed` bool column
+     * when the option is null), and reheats.
      * @param snapshot - an undirected snapshot (both arcs of every edge present)
      * @param positions - the owner's stride-3 scene-unit array, length 3 x nodeCount, read AND written in place
      *     (non-finite rows are seeded)
@@ -666,11 +669,15 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         // resolveWeights returns arcCount values (the snapshot's arc array or an edge column expanded to arcs)
         const weights = weightSource === null ? null : Float64Array.from(weightSource);
         const sizes = this.resolveSizes(snapshot);
+        const pinned = resolveFixedMask(this.options.fixed, snapshot, "ForceAtlas2Simulation");
         if (n !== this.n) {
             this.fixed = null;
             this.inert = null;
             this.clusters = null;
             this.collision = null;
+        }
+        if (pinned !== null) {
+            this.fixed = pinned;
         }
         this.n = n;
         this.rowPtr = snapshot.rowPtr;

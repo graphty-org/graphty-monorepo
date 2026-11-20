@@ -184,6 +184,7 @@ const BUILT_IN_LAYOUT_ENGINES: readonly string[] = Object.freeze([
     "circular",
     "d3",
     "fixed",
+    "geographic",
     "forceatlas2",
     "graphviz-circo",
     "graphviz-dot",

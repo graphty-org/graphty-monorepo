@@ -55,6 +55,7 @@ import { CircularLayout } from "../../src/layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
 import { FixedLayout } from "../../src/layout/FixedLayoutEngine";
 import { ForceAtlas2Layout } from "../../src/layout/ForceAtlas2LayoutEngine";
+import { GeographicLayout } from "../../src/layout/GeographicLayoutEngine";
 import { GRAPHVIZ_LAYOUTS } from "../../src/layout/GraphvizLayoutEngine";
 import { GridLayout } from "../../src/layout/GridLayoutEngine";
 import { KamadaKawaiLayout } from "../../src/layout/KamadaKawaiLayoutEngine";
@@ -119,6 +120,7 @@ const LAYOUTS = [
     D3GraphEngine,
     FixedLayout,
     ForceAtlas2Layout,
+    GeographicLayout,
     GridLayout,
     KamadaKawaiLayout,
     LocationMapLayout,

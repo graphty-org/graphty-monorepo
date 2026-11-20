@@ -22,6 +22,8 @@ import {
     createSimulation,
     type ForceAtlas2Options,
     type FruchtermanReingoldOptions,
+    geographic,
+    type GeographicLayoutOptions,
     grid,
     type GridLayoutOptions,
     kamadaKawai,
@@ -173,10 +175,18 @@ export interface LayoutOptionFields {
     readonly nodeMass?: string | ArrayLike<number> | Readonly<Record<string, number>>;
     /** forceatlas2: accepted in the same forms as `nodeMass` and not used yet: nodes are treated as points. */
     readonly nodeSize?: string | ArrayLike<number> | Readonly<Record<string, number>>;
+    /**
+     * geographic: the node data field holding each node's latitude in degrees (a number, or text that reads as one);
+     * default "latitude". A node without one is not placed and keeps its position.
+     */
+    readonly latitude?: string;
+    /** geographic: the node data field holding each node's longitude in degrees; default "longitude". */
+    readonly longitude?: string;
 }
 
 /** The options of LayoutOptionFields that only some layouts take. */
-type PerLayoutField = "nlist" | "subsets" | "top" | "align" | "root" | "nodeMass" | "nodeSize";
+type PerLayoutField =
+    "nlist" | "subsets" | "top" | "align" | "root" | "nodeMass" | "nodeSize" | "latitude" | "longitude";
 /** The options every layout takes. */
 type Shared = Omit<LayoutOptionFields, "name" | PerLayoutField>;
 /** Some of the per-layout options. */
@@ -207,6 +217,7 @@ export interface GraphtyLayoutOptionsByName {
     "graphty-circular": Shared;
     "graphty-spiral": Shared & Library<SpiralLayoutOptions>;
     "graphty-grid": Shared & Library<GridLayoutOptions>;
+    "graphty-geographic": Shared & Own<"latitude" | "longitude"> & Library<GeographicLayoutOptions, "position">;
     "graphty-spectral": Shared;
     "graphty-planar": Shared;
     "graphty-arf": Shared & Library<ArfOptions>;
@@ -345,6 +356,26 @@ const STATIC: Readonly<Record<string, StaticLayout>> = {
         bfs(s, { ...o, start: indexOf(cs, root as NodeSelection | undefined, "graphty layout: root") }),
     radial: (s, o, cs) =>
         radial(s, { ...o, root: indexOf(cs, o.root as NodeSelection | undefined, "graphty layout: root") }),
+    geographic: (s, { latitude = "latitude", longitude = "longitude", ...o }, cs) => {
+        const degrees = (field: unknown): Float64Array<ArrayBuffer> => {
+            const out = new Float64Array(s.nodeCount);
+            cs.nodes.forEach((node, i) => {
+                const v: unknown = node.data(String(field));
+                out[i] = typeof v === "number" || (typeof v === "string" && v.trim() !== "") ? Number(v) : Number.NaN;
+            });
+            return out;
+        };
+        const r = geographic(s.withColumns({ lat: degrees(latitude), lon: degrees(longitude) }), {
+            ...o,
+            latitude: "lat",
+            longitude: "lon",
+        });
+        // the map's y grows north; Cytoscape's grows down
+        for (let i = 1; i < r.positions.length; i += r.dim) {
+            r.positions[i] = -r.positions[i];
+        }
+        return r;
+    },
 };
 
 // This package's own iteration budgets for the simulations, passed explicitly so a change of a @graphty/layout

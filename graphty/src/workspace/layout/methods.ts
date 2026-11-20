@@ -40,6 +40,7 @@ const LAYOUT_NAMES: Readonly<Partial<Record<string, string>>> = {
     layers: "Columns by group",
     fixed: "Keep positions",
     "location-map": "Map",
+    geographic: "Map projection",
 };
 
 /**

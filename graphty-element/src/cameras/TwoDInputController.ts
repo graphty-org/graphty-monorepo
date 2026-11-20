@@ -5,6 +5,7 @@ import Hammer from "hammerjs";
 
 import { type CanvasKeyAction, canvasKeyAction } from "../catalog/canvasKeys";
 import { firstSight } from "../input/first-sight";
+import { type CameraGestureKind, type GestureEndHooks, WheelRun } from "./gestureEnd";
 import { wheelZoomFactor } from "./InputUtils";
 import { TwoDCameraController, TwoDCameraControlsConfigType } from "./TwoDCameraController";
 
@@ -28,7 +29,16 @@ interface GestureSession {
  * Handles user input for the 2D camera controller.
  * Processes mouse, touch, and keyboard input for 2D camera manipulation.
  */
-export class InputController {
+export class InputController implements GestureEndHooks {
+    /** Told once when a reader's camera gesture ends; see `camera:gesture-end`. */
+    public onGestureEnd: ((kind: CameraGestureKind) => void) | null = null;
+    /** Asks the render loop for one more frame; see {@link WheelRun}. */
+    public requestFrame: (() => void) | null = null;
+    /** What the drag or touch gesture under way has done, once it moved the camera. */
+    private dragKind: CameraGestureKind | null = null;
+    /** What the camera keys have been doing, until the camera's inertia comes to rest. */
+    private keyKind: CameraGestureKind | null = null;
+    private readonly wheelRun = new WheelRun();
     /** The camera actions whose keys are held down now. */
     private readonly held = new Set<CanvasKeyAction>();
     /** The actions whose key went down since the last frame, so a tap between two frames acts. */
@@ -61,6 +71,18 @@ export class InputController {
         this.held.clear();
         this.tapped.clear();
     };
+
+    /**
+     * A drag or a touch gesture ended: report it once, if it moved the camera. A mouse drag ends
+     * both the pointer and the touch recognizer, and only the first end counts.
+     */
+    private endDrag(): void {
+        const kind = this.dragKind;
+        this.dragKind = null;
+        if (kind !== null) {
+            this.onGestureEnd?.(kind);
+        }
+    }
 
     private readonly keyUpHandler = (e: KeyboardEvent): void => {
         // Released whatever modifiers are down by then.
@@ -103,6 +125,7 @@ export class InputController {
             switch (pi.type) {
                 case PointerEventTypes.POINTERDOWN:
                     isPanning = true;
+                    this.dragKind = null;
                     lastX = e.clientX;
                     lastY = e.clientY;
                     this.pointerDownHandler();
@@ -110,6 +133,7 @@ export class InputController {
 
                 case PointerEventTypes.POINTERUP:
                     isPanning = false;
+                    this.endDrag();
                     break;
 
                 case PointerEventTypes.POINTERMOVE:
@@ -127,6 +151,9 @@ export class InputController {
 
                         const dx = e.clientX - lastX;
                         const dy = e.clientY - lastY;
+                        if (dx !== 0 || dy !== 0) {
+                            this.dragKind ??= "pan";
+                        }
 
                         this.cam.pan(-dx * scaleX * this.config.mousePanScale, dy * scaleY * this.config.mousePanScale);
 
@@ -145,6 +172,7 @@ export class InputController {
         this.prePointerObserverHandle = this.cam.scene.onPrePointerObservable.add((pi) => {
             const e = pi.event as WheelEvent;
             if (pi.type === PointerEventTypes.POINTERWHEEL && newWheel(e)) {
+                this.wheelRun.wheel();
                 // In proportion to the delta, so a trackpad zooms no faster than a mouse wheel
                 const delta = wheelZoomFactor(e, this.config.mouseWheelZoomSpeed);
                 if (this.zoomToPointer) {
@@ -217,6 +245,13 @@ export class InputController {
             );
 
             const pinch = (ev.scale || 1) / this.gestureSession.scale;
+            // A gesture that changed the scale is a zoom; one that only moved is a pan.
+            if (pinch !== 1) {
+                this.dragKind = "zoom";
+            } else if (dx !== 0 || dy !== 0) {
+                this.dragKind ??= "pan";
+            }
+
             this.cam.camera.orthoLeft = this.gestureSession.ortho.left / pinch;
             this.cam.camera.orthoRight = this.gestureSession.ortho.right / pinch;
             this.cam.camera.orthoTop = this.gestureSession.ortho.top / pinch;
@@ -231,6 +266,7 @@ export class InputController {
 
         this.hammer.on("panend pinchend rotateend", () => {
             this.gestureSession = null;
+            this.endDrag();
         });
     }
 
@@ -291,6 +327,10 @@ export class InputController {
 
         // Clear gesture session
         this.gestureSession = null;
+        // Input taken away (a node drag, another camera) ends nothing a reader can finish.
+        this.dragKind = null;
+        this.keyKind = null;
+        this.wheelRun.reset();
     }
 
     /**
@@ -344,10 +384,27 @@ export class InputController {
             v.rotate -= rotatePush;
         }
 
+        this.noteKeyGesture(on);
         this.tapped.clear();
 
         if (v.x + v.y + v.zoom + v.rotate !== before) {
             this.cam.onReaderMove?.();
+        }
+    }
+
+    /**
+     * Record what the camera keys on this frame do to the key gesture under way: a roll makes it
+     * an orbit, a pan a pan unless it already turned, a zoom alone a zoom.
+     * @param on - Whether an action's key is on this frame.
+     */
+    private noteKeyGesture(on: (action: CanvasKeyAction) => boolean): void {
+        const pans = on("pan-up") || on("pan-down") || on("pan-left") || on("pan-right");
+        if (on("roll-left") || on("roll-right")) {
+            this.keyKind = "orbit";
+        } else if (pans) {
+            this.keyKind = this.keyKind === "orbit" ? "orbit" : "pan";
+        } else if (on("zoom-in") || on("zoom-out")) {
+            this.keyKind ??= "zoom";
         }
     }
 
@@ -358,5 +415,21 @@ export class InputController {
     public update(): void {
         this.applyKeyboardInertia();
         this.cam.applyInertia();
+        if (!this.enabled) {
+            return;
+        }
+
+        // A key gesture ends once no camera key is held and the inertia it gave has damped to
+        // rest; a key pressed before then continues it.
+        const v = this.cam.velocity;
+        if (this.keyKind !== null && this.held.size === 0 && v.x === 0 && v.y === 0 && v.zoom === 0 && v.rotate === 0) {
+            const kind = this.keyKind;
+            this.keyKind = null;
+            this.onGestureEnd?.(kind);
+        }
+
+        if (this.wheelRun.frame(this.requestFrame)) {
+            this.onGestureEnd?.("zoom");
+        }
     }
 }

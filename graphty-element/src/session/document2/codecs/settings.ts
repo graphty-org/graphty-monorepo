@@ -41,17 +41,7 @@ const SAVED_HERE: readonly string[] = [...CONFIG_KEYS.keys()].filter(
  * refused on save and reported (spec 8.1 rule 2). `data.algorithms` is among them: the on-load
  * algorithms have no version 2 home.
  */
-const NO_HOME: readonly string[] = [
-    "data.algorithms",
-    "data.knownFields.idCoercion",
-    "data.knownFields.positionScale",
-    "data.knownFields.nodeTimeEndPath",
-    "data.knownFields.edgeTimeEndPath",
-    "data.knownFields.nodeTimeSpellsPath",
-    "data.knownFields.edgeTimeSpellsPath",
-    "data.knownFields.nodeTimeParseZone",
-    "data.knownFields.edgeTimeParseZone",
-];
+const NO_HOME: readonly string[] = ["data.algorithms", "data.knownFields.idCoercion", "data.knownFields.positionScale"];
 
 /** The members of `playback`, in the order it writes them (spec 4.4 rule 2). */
 // How what lies outside the window draws is the style layers' (`{ match: "state", state: "outsideWindow" }`).

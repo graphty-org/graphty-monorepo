@@ -67,12 +67,12 @@ end, then the target end, each on its own graph value.
 
 ### Values onto nodes or edges
 
-| Choice      | What it does                                                                                                          |
-| ----------- | --------------------------------------------------------------------------------------------------------------------- |
-| `columns`   | The columns to bring; every column but the keys by default                                                            |
-| `clash`     | Per column the graph already has: `"keep"`, `"overwrite"` or `"both"` (default, written as `<column> (<table name>)`) |
-| `repeated`  | Several rows with one key: `"first"` (default), `"last"`, or `"both"` (a list of values)                              |
-| `aggregate` | Reduce a key's rows to one value per column (see below)                                                               |
+| Choice      | What it does                                                                                                                                                                                        |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `columns`   | The columns to bring; every column but the keys by default                                                                                                                                          |
+| `clash`     | Per column the graph already has, `"*"` for the rest: `"keep"` (default), `"overwrite"`, `"both"` (the incoming value written as `<column> (<table name>)`), `"min"`, `"max"`, `"mean"` or `"vote"` |
+| `repeated`  | Several rows with one key: `"first"` (default), `"last"`, or `"both"` (a list of values)                                                                                                            |
+| `aggregate` | Reduce a key's rows to one value per column (see below)                                                                                                                                             |
 
 ### Edges from rows naming two ends
 
@@ -171,8 +171,8 @@ await draft.load({ join: { keys, shape: "merge", compare: true, membership: "in"
 // a filter on in == "both" keeps the intersection
 ```
 
-A clashing column of the table is written as `<column> (<table name>)`, so both graphs' values
-sit side by side. The report's `regions.nodes` counts each region, by the same codes.
+Comparing writes a clashing column of the table as `<column> (<table name>)`, so both graphs'
+values sit side by side. The report's `regions.nodes` counts each region, by the same codes.
 
 ### Translating keys through a mapping table
 

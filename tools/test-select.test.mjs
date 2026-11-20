@@ -10,7 +10,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { BATCHED_PATH_CHANGES, plan as matrixPlan, SHARDS } from "./ci-test-matrix.mjs";
+import { plan as matrixPlan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
     advisoryMisses,
@@ -22,7 +22,6 @@ import {
     graphCacheKey,
     nearestBase,
     lightPlan,
-    onlyWhenChanged,
     planSummary,
     reusableEdges,
     lockMoves,
@@ -2721,58 +2720,68 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
     });
 });
 
-describe("the forced-batched variant on a pull request (#8826)", () => {
-    const fb = SHARDS.filter((s) => s.shard.startsWith("graphty-element-forced-batched-"));
-    const files = { mode: "files", files: [{ file: "graphty-element/test/browser/a.test.ts", why: "changed" }] };
-    const selection = (mode = files) => fb.map((s) => ({ shard: s.shard, package: s.package, ...mode }));
+describe("the forced-batched variant on a pull request (#9165)", () => {
+    const fb = SHARDS.filter((s) => /^graphty-element-forced-batched-\d+$/u.test(s.shard));
+    const browser = SHARDS.filter((s) => /^graphty-element-browser-\d+$/u.test(s.shard));
+    // a light plan's bin of one family, as lightPlan() writes it; `whole` when the change runs the package whole
+    const bin = (family, shards, n, whole) => ({
+        name: `${family}-${n}`,
+        family,
+        shard: shards[0].shard,
+        covers: shards.map((s) => s.shard),
+        files: [`graphty-element/test/browser/f${n}.test.ts`],
+        command: `cd graphty-element && pnpm exec vitest run test/browser/f${n}.test.ts`,
+        ...(whole ? { whole: "graphty-element" } : {}),
+    });
+    const both = (n, whole) => [
+        bin("graphty-element-browser", browser, n, whole),
+        bin("graphty-element-forced-batched", fb, n, whole),
+    ];
+    const count = (matrix, family) => matrix.filter((e) => new RegExp(`^${family}-\\d+$`, "u").test(e.shard)).length;
 
-    it("runs its selected files only when a browser test or the render path changed", () => {
-        assert.ok(fb.length > 0 && fb.every((s) => !s["full-run-only"] && s["pull-request"] === "selected"));
-        for (const changed of [
-            ["graphty-element/test/browser/a.test.ts"],
-            ["graphty-element/test/interactions/drag.test.ts"],
-            ["graphty-element/src/meshes/EdgeMesh.ts"],
-            ["graphty-element/src/Edge.ts"],
-            ["graphty-element/src/managers/UpdateManager.ts"],
-        ]) {
-            assert.ok(
-                onlyWhenChanged(selection(), fb, changed).every((s) => s.mode === "files"),
-                changed[0],
-            );
-        }
-        for (const changed of [["graphty-element/src/session/projectFile.ts"], ["graphty-element/src/EdgeX.ts"]]) {
-            const out = onlyWhenChanged(selection(), fb, changed);
-            assert.ok(
-                out.every((s) => s.mode === "none" && s.files.length === 0),
-                changed[0],
-            );
-        }
-        assert.equal(BATCHED_PATH_CHANGES, fb[0]["pull-request-when"]);
+    it("runs every file, packed into bins, when the change runs graphty-element whole", () => {
+        // a change to a test/data file, package.json or a vitest config: test-select packs both families whole
+        const light = { bins: [1, 2, 3].flatMap((n) => both(n, true)) };
+        const pr = matrixPlan(["graphty-element"], undefined, light, true);
+        assert.equal(count(pr, "graphty-element-browser"), 3);
+        assert.equal(count(pr, "graphty-element-forced-batched"), 3, "the batched bins ran with the objects ones");
+        assert.equal(count(matrixPlan(["graph-io"], undefined, light, true), "graphty-element-forced-batched"), 0);
     });
 
-    it("leaves a shard without a pull-request-when list as it was", () => {
-        const other = [{ shard: "graphty-element-browser-1", package: "graphty-element" }];
-        const sel = [{ shard: "graphty-element-browser-1", ...files }];
-        assert.deepEqual(onlyWhenChanged(sel, other, ["graphty-element/src/session/x.ts"]), sel);
+    it("runs its twelve shards, not packed bins, when the change runs graphty-element whole", () => {
+        const specs = Array.from({ length: 40 }, (_, i) => `graphty-element/test/browser/t${i}.test.ts`);
+        const all = (s) => ({ shard: s.shard, mode: "all", files: [], reasons: ["package.json changed"], specs });
+        const light = lightPlan(ROOT, [...browser, ...fb], [...browser, ...fb].map(all));
+        assert.deepEqual(
+            light.whole,
+            fb.map((s) => s.shard),
+        );
+        assert.ok(light.bins.length > 0 && light.bins.every((b) => b.family === "graphty-element-browser"));
+        const pr = matrixPlan(["graphty-element"], undefined, light, true);
+        assert.deepEqual(
+            pr.filter((e) => e.shard.includes("forced-batched")).map((e) => e.shard),
+            fb.map((s) => s.shard),
+        );
     });
 
-    it("runs as bins of the selected files on a pull request, never whole", () => {
-        const bin = {
-            name: "graphty-element-forced-batched-1",
-            family: "graphty-element-forced-batched",
-            shard: fb[0].shard,
-            covers: fb.map((s) => s.shard),
-            files: ["graphty-element/test/browser/a.test.ts"],
-            command: "cd graphty-element && pnpm exec vitest run --project=forced-batched test/browser/a.test.ts",
-        };
-        const pr = matrixPlan(["graphty-element"], undefined, { bins: [bin] }, true);
+    it("runs as the bins of the selected files, as the browser shards do", () => {
+        const pr = matrixPlan(["graphty-element"], undefined, { bins: both(1, false) }, true);
         assert.deepEqual(
             pr.filter((e) => e.shard.includes("forced-batched")).map((e) => e.shard),
             ["graphty-element-forced-batched-1"],
         );
-        const whole = matrixPlan(["graphty-element"], undefined, { bins: [] }, true);
-        assert.ok(!whole.some((e) => e.shard.includes("forced-batched")), "no whole shard on a pull request");
-        const full = matrixPlan(["graphty-element"], undefined, undefined, false);
-        assert.equal(full.filter((e) => e.shard.includes("forced-batched")).length, fb.length, "the full run");
+        const none = { bins: [], none: [...browser, ...fb].map((s) => s.shard) };
+        assert.equal(
+            count(matrixPlan(["graphty-element"], undefined, none, true), "graphty-element-forced-batched"),
+            0,
+        );
+    });
+
+    it("runs whole wherever the browser shards run whole", () => {
+        for (const pullRequest of [true, false]) {
+            const m = matrixPlan(["graphty-element"], undefined, undefined, pullRequest);
+            assert.equal(count(m, "graphty-element-forced-batched"), fb.length, `pull request ${pullRequest}`);
+            assert.equal(count(m, "graphty-element-browser"), browser.length);
+        }
     });
 });

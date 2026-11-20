@@ -40,6 +40,7 @@ import type { SetService } from "../commands/sets";
 import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
+import type { JournalEntry } from "../journal";
 import type { CodedFact, ProgressChange } from "../shared";
 import type { HistoryCode, HistoryStepId, ProjectConfig } from "../types";
 import { Arrangement, type ArrangementOp, mergeRowPatches } from "./arrangement";
@@ -157,7 +158,14 @@ interface DispatchOptions {
     readonly signal?: AbortSignal;
     /** A queued command that starts at once, beside the queue, instead of taking a slot. */
     readonly beside?: boolean;
+    /** Why the session ran it, when it was not a direct call: its journal entry's `trigger`. */
+    readonly trigger?: JournalTrigger;
+    /** The caller's own key for the work it started: its journal entry's `callerKey`. */
+    readonly callerKey?: string;
 }
+
+/** Why the session ran a command: {@link JournalEntry.trigger}. */
+export type JournalTrigger = NonNullable<JournalEntry["trigger"]>;
 
 /** Dispatch one command, as a transaction's scope or a deferred member's origin does. */
 export type DispatchFunction = <C extends CommandLike>(
@@ -352,6 +360,10 @@ export interface TransactionOptions {
      * as a deferred member does.
      */
     readonly after?: HistoryStepId;
+    /** Stamped on every member's journal entry: why the session ran them. */
+    readonly trigger?: JournalTrigger;
+    /** Stamped on every member's journal entry: the caller's own key for the work. */
+    readonly callerKey?: string;
 }
 
 /** What moved live project state. */
@@ -418,6 +430,10 @@ export interface ExecutedCommand {
     readonly coalesceKey: string | null;
     /** How long it executed, in milliseconds of the dispatcher's clock. */
     readonly durationMs: number;
+    /** Why the session ran it, when it was not a direct call. */
+    readonly trigger?: JournalTrigger;
+    /** The caller's own key for the work it belongs to. */
+    readonly callerKey?: string;
 }
 
 /** One slot a queued command holds on the queue. */
@@ -615,6 +631,10 @@ interface Job {
     readonly run: boolean;
     /** Dispatched inline by a running member of its group: it neither seals nor rolls back the group. */
     readonly inline: boolean;
+    /** Why the session ran it, when it was not a direct call. */
+    readonly trigger: JournalTrigger | undefined;
+    /** The caller's own key for the work it belongs to. */
+    readonly callerKey: string | undefined;
     readonly controller: AbortController;
     slot: ScheduledSlot | null;
     /** The group whose hold it is waiting on. */
@@ -672,6 +692,10 @@ interface Group {
     readonly onSeal: Map<string, (dispatch: DispatchFunction) => void>;
     /** A transaction's finished members, published to the journal when it records. */
     readonly executed: ExecutedCommand[];
+    /** Why the session ran its members, when it was not a direct call; their deferred work inherits it. */
+    readonly trigger: JournalTrigger | undefined;
+    /** The caller's own key for its members; their deferred work inherits it. */
+    readonly callerKey: string | undefined;
     /** Its before-arrangement, once a member that needs one has started; see `History.open`. */
     arrangement: OpenArrangement | null;
     /** The graph epoch when it took its before-arrangement. */
@@ -684,6 +708,10 @@ interface DeferredOrigin {
     readonly setup: boolean;
     /** The origin's `Group.starts`: work a start load deferred is part of that load. */
     readonly starts: number | null;
+    /** The origin's `Group.trigger`. */
+    readonly trigger: JournalTrigger | undefined;
+    /** The origin's `Group.callerKey`. */
+    readonly callerKey: string | undefined;
 }
 
 /** When a step was recorded and undone, and the op-log keys its group held. */
@@ -950,6 +978,8 @@ export class Dispatcher {
     private baselineOpen: boolean;
     /** Where an untagged dispatch goes during a call through a group-tagged facade; see {@link Dispatcher.routed}. */
     private route: DispatchFunction | null = null;
+    /** Why the session runs what the call on the stack starts; see {@link Dispatcher.triggered}. */
+    private trigger: JournalTrigger | undefined = undefined;
     /**
      * Stamped on every step as it is recorded, under the step's own provenance: the renderer
      * stamps `xr` while an immersive session is active (design section 5.3).
@@ -1146,6 +1176,45 @@ export class Dispatcher {
     }
 
     /**
+     * Why the session is running the work a call on the stack starts, when it is not a direct
+     * call: what a run started now carries as `RunChange.trigger`. Lasts for the synchronous
+     * part of a `triggered` call only, as a routing does.
+     * @returns The trigger, or undefined.
+     */
+    get startingTrigger(): JournalTrigger | undefined {
+        return this.trigger;
+    }
+
+    /**
+     * Run `fn` with `startingTrigger` set to `trigger`.
+     * @param trigger - Why the session runs what `fn` starts; undefined leaves the current one.
+     * @param fn - The call.
+     * @returns What `fn` returned.
+     */
+    triggered<T>(trigger: JournalTrigger | undefined, fn: () => T): T {
+        if (trigger === undefined) {
+            return fn();
+        }
+
+        const previous = this.trigger;
+        this.trigger = trigger;
+        try {
+            return fn();
+        } finally {
+            this.trigger = previous;
+        }
+    }
+
+    /**
+     * The trigger a transaction was opened with: what its members' journal entries carry.
+     * @param tx - The transaction's scope.
+     * @returns Its trigger, or undefined.
+     */
+    triggerOf(tx: TransactionScope): JournalTrigger | undefined {
+        return this.scopes.get(tx)?.trigger;
+    }
+
+    /**
      * Run `fn`, and record every command it dispatches through `tx` as one step once it settles
      * and every non-run command it dispatched has executed. Runs still going then are deferred
      * members: each merges into the step when it commits while the step is on top, and records
@@ -1169,7 +1238,12 @@ export class Dispatcher {
         if (via !== null) {
             // Already inside one command's group: the transaction's members join it.
             const scope: TransactionScope = {
-                dispatch: (command, dispatched) => via(command, dispatched),
+                dispatch: (command, dispatched) =>
+                    via(command, {
+                        ...(options.trigger === undefined ? {} : { trigger: options.trigger }),
+                        ...(options.callerKey === undefined ? {} : { callerKey: options.callerKey }),
+                        ...dispatched,
+                    }),
                 transaction: (_label, body) => settle(() => body(scope, new AbortController().signal)),
             };
             return settle(() => fn(scope, new AbortController().signal));
@@ -1186,7 +1260,13 @@ export class Dispatcher {
                 status: "open",
                 controller,
             },
-            { setup: options.setup === true, compound: options.compound === true, starts: options.starts === true },
+            {
+                setup: options.setup === true,
+                compound: options.compound === true,
+                starts: options.starts === true,
+                trigger: options.trigger,
+                callerKey: options.callerKey,
+            },
         );
         this.enter(group);
         if (options.moves === true) {
@@ -1873,7 +1953,15 @@ export class Dispatcher {
 
         const compound = definition.members?.(concrete);
         if (compound !== undefined) {
-            return this.compound(compound, tx, isSetup(concrete), options.beside === true, startsHistory(concrete));
+            return this.compound(
+                compound,
+                tx,
+                isSetup(concrete),
+                options.beside === true,
+                startsHistory(concrete),
+                options.trigger,
+                options.callerKey,
+            );
         }
 
         const undoable = definition as UndoableDefinition<CommandLike>;
@@ -1903,7 +1991,10 @@ export class Dispatcher {
         }
 
         const group = tx ?? this.groupOf(concrete, undoable, origin, state);
-        const job = this.job(concrete, keys, undoable, group, queuedKey);
+        const job = this.job(concrete, keys, undoable, group, queuedKey, false, {
+            trigger: options.trigger ?? group.trigger,
+            callerKey: options.callerKey ?? group.callerKey,
+        });
         for (const key of keys) {
             group.keys.add(key);
         }
@@ -1950,6 +2041,8 @@ export class Dispatcher {
      * @param beside - Whether its queued members start at once, beside the queue, as a
      *     synchronous door's must.
      * @param starts - Whether it starts the history.
+     * @param trigger - Why the session ran it, stamped on each member's journal entry.
+     * @param callerKey - The caller's own key for it, stamped on each member's journal entry.
      * @returns Settles when every member has.
      */
     private compound(
@@ -1958,8 +2051,14 @@ export class Dispatcher {
         setup: boolean,
         beside: boolean,
         starts = false,
+        trigger?: JournalTrigger,
+        callerKey?: string,
     ): Promise<unknown> {
-        const options = beside ? { beside } : {};
+        const options: DispatchOptions = {
+            ...(beside ? { beside } : {}),
+            ...(trigger === undefined ? {} : { trigger }),
+            ...(callerKey === undefined ? {} : { callerKey }),
+        };
         if (tx !== null) {
             return Promise.all(steps.map((step) => settle(() => this.submit(step, tx, options))));
         }
@@ -1972,6 +2071,8 @@ export class Dispatcher {
                 compound: true,
                 fact,
                 starts,
+                trigger,
+                callerKey,
             },
         );
         // As a single command's promise is: a batch nobody awaited, canceled, is not an unhandled
@@ -2084,6 +2185,8 @@ export class Dispatcher {
                 setup: isSetup(concrete) || origin?.setup === true,
                 starts: startsHistory(concrete),
                 startsAt: origin?.starts ?? null,
+                trigger: origin?.trigger,
+                callerKey: origin?.callerKey,
             },
         );
     }
@@ -2315,6 +2418,8 @@ export class Dispatcher {
                 value,
                 coalesceKey: job.definition.undo.coalesce?.(job.command) ?? null,
                 durationMs: this.clock() - job.startedAt,
+                ...(job.trigger === undefined ? {} : { trigger: job.trigger }),
+                ...(job.callerKey === undefined ? {} : { callerKey: job.callerKey }),
             };
             // A transaction member is published when the transaction records, and never when it
             // rolls back: what it did is undone then, so it did not happen.
@@ -2434,6 +2539,7 @@ export class Dispatcher {
                 stepId,
                 job.seq,
                 null,
+                { trigger: group.trigger, callerKey: group.callerKey },
             );
             if (recorded === null) {
                 deferred.named = true;
@@ -2605,7 +2711,13 @@ export class Dispatcher {
      * @param step - The step it recorded, or null when it recorded none.
      */
     private startDeferred(group: Group, step: string | null): void {
-        const origin: DeferredOrigin = { step, setup: group.setup, starts: group.starts };
+        const origin: DeferredOrigin = {
+            step,
+            setup: group.setup,
+            starts: group.starts,
+            trigger: group.trigger,
+            callerKey: group.callerKey,
+        };
         const starts = [...group.onSeal.values()];
         group.onSeal.clear();
         for (const start of starts) {
@@ -3118,6 +3230,8 @@ export class Dispatcher {
      * @param flags.compound - A batch's transaction.
      * @param flags.starts - It is the load that starts the history.
      * @param flags.startsAt - For work a start load deferred, that load's `Group.starts`.
+     * @param flags.trigger - Why the session ran its members, when it was not a direct call.
+     * @param flags.callerKey - The caller's own key for its members.
      * @returns The group.
      */
     private group(
@@ -3132,11 +3246,15 @@ export class Dispatcher {
             compound = false,
             starts = false,
             startsAt = null,
+            trigger,
+            callerKey,
         }: {
             readonly setup?: boolean;
             readonly compound?: boolean;
             readonly starts?: boolean;
             readonly startsAt?: number | null;
+            readonly trigger?: JournalTrigger;
+            readonly callerKey?: string;
         } = {},
     ): Group {
         return {
@@ -3161,6 +3279,8 @@ export class Dispatcher {
             starts: starts ? seq : startsAt,
             onSeal: new Map(),
             executed: [],
+            trigger,
+            callerKey,
             arrangement: null,
             epoch: 0,
         };
@@ -3174,6 +3294,10 @@ export class Dispatcher {
      * @param group - The group it writes into.
      * @param queuedKey - Its queued coalesce key.
      * @param inline - Dispatched inline by a running job of its group.
+     * @param stamp - What its journal entry carries beside the command: why the session ran it,
+     *     when it was not a direct call, and the caller's own key for it.
+     * @param stamp.trigger - Why the session ran it.
+     * @param stamp.callerKey - The caller's own key.
      * @returns The job.
      */
     private job(
@@ -3183,6 +3307,7 @@ export class Dispatcher {
         group: Group,
         queuedKey: string | null,
         inline = false,
+        { trigger, callerKey }: { trigger: JournalTrigger | undefined; callerKey: string | undefined } = group,
     ): Job {
         let yes: (value: unknown) => void = () => undefined;
         let no: (error: unknown) => void = () => undefined;
@@ -3203,6 +3328,8 @@ export class Dispatcher {
             queuedKey,
             run: !inline && definition.lane.kind === "queued" && definition.lane.category === RUN_CATEGORY,
             inline,
+            trigger,
+            callerKey,
             controller: new AbortController(),
             slot: null,
             blockedBy: null,

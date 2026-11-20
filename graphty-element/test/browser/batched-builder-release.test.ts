@@ -150,6 +150,20 @@ describe("the graph builder on the batched path", () => {
         assert.strictEqual(element.session.data.snapshot().edgeCount, 90, "both sources' edges are in");
         assert.strictEqual(element.session.data.sources().length, 2);
         assert.deepEqual(builderRelease(element), { released: true, revivals: 1 });
+
+        // Two more sources: the third rebuilds it and keeps it, the fourth writes with no rebuild and,
+        // having paid for that rebuild, lets it go. Paged or many-source loading must not copy the
+        // whole graph once per load.
+        for (const prefix of ["c", "d"]) {
+            await element.session.data.import(
+                { type: "csv", config: { data: csv(prefix, 30) }, name: `${prefix}.csv` },
+                { mode: "merge" },
+            );
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+        }
+        assert.strictEqual(element.session.data.snapshot().edgeCount, 150);
+        assert.deepEqual(builderRelease(element), { released: true, revivals: 2 });
     });
     it("let it go again after nodes and edges arrive as two commands, and clear and undo it with no rebuild", async () => {
         const element = await loaded("batched", [], []);

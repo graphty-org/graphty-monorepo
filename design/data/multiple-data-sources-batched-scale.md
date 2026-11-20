@@ -29,7 +29,11 @@ second source:
 - **The released builder after a second source.** Under `"batched"` the graph store lets its
   builder go after a load and rebuilds it on the next write. A merging load rebuilt it and then kept
   it for the rest of the session, a second copy of the whole graph. The store now lets it go again
-  at the end of every load (edits still keep it, as before).
+  at the end of a load, but only while the rows the loads since the last replace added are at least
+  the rows the rebuilds in that time copied. A second source of any size lets it go; many pages or
+  sources rebuild it each time the graph has roughly doubled, never once per page: 10 pages of
+  100,000 edges rebuild it 4 times (`graphty-element/test/data/builder-release-paging.bench.test.ts`),
+  20 small pages 5 times where one rebuild per page would be 19. Edits still keep it, as before.
 
 Measured with `graphty-element/test/session/multi-source-scale.bench.test.ts` (headless) at
 100,000 nodes and 1,000,000 edges, merging a second source of 1,000 nodes and 10,000 edges, before
@@ -83,7 +87,8 @@ Measured by the batched-renderer audit on `feat/element-source-drafts`: a source
    plus adds (`removeStrays`), so it never reaches the store's replace path, which sets the old
    graph aside without copying it and lets the builder go.
 6. **Write a source change as a load.** The store lets its builder go again only at the end of a
-   load (its `openLoad`/`closeLoad` bracket, which `ingest.ts` opens for every import). A steps
+   load (its `openLoad`/`closeLoad` bracket, which `ingest.ts` opens for every import), and only
+   when the loads have added at least as many rows as its rebuilds copied. A steps
    change that writes through `service.apply` outside that bracket rebuilds the builder and keeps
    it: open the bracket around the change's writes, or route them through the import.
 7. **Check the size ceiling before building.** An over-ceiling edge set today runs the build and

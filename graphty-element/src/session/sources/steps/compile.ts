@@ -107,7 +107,7 @@ function kindOf(command: DataImportCommand): StepsSourceKind {
  * The SHA-256 of the bytes each draft's rows were read from, under the source-steps experiment: what
  * names a file, URL or downloaded sample's copy (version 2, 4.1.2 rule 1).
  */
-export const heldDigests = new WeakMap<HeldRows, string>();
+const heldDigests = new WeakMap<HeldRows, string>();
 
 /**
  * A command with the digest of the bytes its rows were read from noted on each import's rows.

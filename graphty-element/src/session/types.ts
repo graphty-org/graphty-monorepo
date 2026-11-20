@@ -812,7 +812,10 @@ export interface LoadedWeight {
      * Experimental: may change or be removed in a minor release.
      * @beta
      */
-    readonly mixed?: { readonly sources: readonly string[] };
+    readonly mixed?: {
+        /** The sources whose weights were combined. */
+        readonly sources: readonly string[];
+    };
 }
 
 /** A {@link RecordPage} of neighbors, plus what the numbers measured. */
@@ -4091,7 +4094,9 @@ export interface ImportOptions {
      * @experimental source-steps
      */
     readonly edges?: {
+        /** The column naming each edge's source end, and that end's space and type. */
         readonly from: SourceEndOption;
+        /** The column naming each edge's target end, and that end's space and type. */
         readonly to: SourceEndOption;
         /** The column holding each edge's own key; absent keys each row by its place in the file. */
         readonly id?: string;
@@ -4602,7 +4607,9 @@ export interface SourceStepRow {
  * @experimental source-steps
  */
 export interface SourceValuesDiffer {
+    /** The code. */
     readonly code: "W_VALUES_DIFFER";
+    /** Its parameters. */
     readonly params: {
         /** The step's place. */
         readonly step: number;
@@ -4641,7 +4648,18 @@ export interface ReaderEditRow {
     readonly op: "add" | "add-edge" | "remove" | "edit";
     /** The node (`{ space, key }`) or edge (`{ load, key }`: the source that made it, and its key there) it names. */
     readonly target:
-        { readonly space: SourceSpaceName; readonly key: string } | { readonly load: SourceKey; readonly key: string };
+        | {
+              /** The id space the node's key lives in. */
+              readonly space: SourceSpaceName;
+              /** The node's key. */
+              readonly key: string;
+          }
+        | {
+              /** The source that made the edge. */
+              readonly load: SourceKey;
+              /** The edge's key within that source. */
+              readonly key: string;
+          };
     /** For an edit: the column it writes. */
     readonly column?: string;
     /** For an edit: the value it writes. */
@@ -4769,8 +4787,22 @@ export interface SourceField {
  * @experimental source-steps
  */
 export type SourceJoinInto =
-    | { readonly source: SourceKey; readonly field?: string; readonly space?: SourceSpaceName }
-    | { readonly space: SourceSpaceName; readonly source?: undefined; readonly field?: undefined };
+    | {
+          /** The source whose nodes are joined onto. */
+          readonly source: SourceKey;
+          /** The field of the source naming them; absent, its key. */
+          readonly field?: string;
+          /** For a source that holds only edges: the space of the end whose nodes `field` names. */
+          readonly space?: SourceSpaceName;
+      }
+    | {
+          /** The id space whose every node is joined onto. */
+          readonly space: SourceSpaceName;
+          /** Never set: the space names the nodes. */
+          readonly source?: undefined;
+          /** Never set: the space names the nodes. */
+          readonly field?: undefined;
+      };
 
 /**
  * The two fields a Merge or Make an edge would compare, for `data.matchCounts` and
@@ -4966,7 +4998,15 @@ export interface SourceMoveColumnsOptions {
     /** The columns. */
     readonly columns: readonly string[];
     /** Where they go. */
-    readonly to: "source" | "target" | { readonly column: string; readonly space: SourceSpaceName };
+    readonly to:
+        | "source"
+        | "target"
+        | {
+              /** The column naming the nodes. */
+              readonly column: string;
+              /** The id space the column's values live in. */
+              readonly space: SourceSpaceName;
+          };
 }
 
 /**
@@ -5403,7 +5443,14 @@ export interface SourceLineage {
     /** The sources that only named it (an edge end, a key a step looked up). */
     readonly named: readonly SourceKey[];
     /** Every row a step read into it: the step's place, its source and the row. */
-    readonly steps: readonly { readonly step: number; readonly source: SourceKey; readonly row: number }[];
+    readonly steps: readonly {
+        /** The step's place. */
+        readonly step: number;
+        /** The source the step read. */
+        readonly source: SourceKey;
+        /** The row it read. */
+        readonly row: number;
+    }[];
     /** The references that also reach it: merged nodes, a moved node's former place, reduced edges' rows. */
     readonly aliases: readonly SourceElementRef[];
     /** The types other steps would have given it. */
@@ -5419,9 +5466,13 @@ export interface SourceLineage {
 export interface SourceCellValues {
     /** Each source's value, in step order, then the values a merge kept only in the lineage. */
     readonly list: readonly {
+        /** The source that holds the value. */
         readonly source: SourceKey;
+        /** The value. */
         readonly value: SourceValue;
+        /** The place of the step that read it. */
         readonly step?: number;
+        /** The row of the source it was read from. */
         readonly row?: number;
         /** For a value a merge kept only in the lineage: the key of the node it came from. */
         readonly from?: SourceNodeRef["key"];
@@ -5440,9 +5491,22 @@ export interface SourceCellValues {
  * @experimental source-steps
  */
 export type SourceCellState =
-    | { readonly state: "value"; readonly value: SourceValue; readonly edited?: true }
-    | { readonly state: "empty" }
-    | { readonly state: "not-carried" };
+    | {
+          /** The cell holds a value. */
+          readonly state: "value";
+          /** The value. */
+          readonly value: SourceValue;
+          /** Set when a reader edit wrote the value. */
+          readonly edited?: true;
+      }
+    | {
+          /** A supplying source has the column, but the cell is empty. */
+          readonly state: "empty";
+      }
+    | {
+          /** No supplying source has the column. */
+          readonly state: "not-carried";
+      };
 
 /**
  * One cell where supplying sources hold different values.
@@ -5461,7 +5525,12 @@ export interface SourceConflict {
     /** The column. */
     readonly column: string;
     /** Each source's value. */
-    readonly values: readonly { readonly source: SourceKey; readonly value: SourceValue }[];
+    readonly values: readonly {
+        /** The source. */
+        readonly source: SourceKey;
+        /** Its value. */
+        readonly value: SourceValue;
+    }[];
     /** The value shown. */
     readonly shown: SourceValue | null;
     /** What shows the value: the rule, or `"reader"` for a reader decision (a pick or an edit). */
@@ -5506,40 +5575,87 @@ export interface SourceConflictQuery {
  */
 export type SourceRefreshIssue =
     | {
+          /** The code. */
           readonly code: "E_COLUMN_MISSING";
+          /** Its parameters. */
           readonly params: {
+              /** The source whose rows lost the column. */
               readonly source: SourceKey;
+              /** The column. */
               readonly column: string;
+              /** The table that held it. */
               readonly table: "nodes" | "edges";
+              /** The place of the step that reads it. */
               readonly step?: number;
+              /** The type whose rule reads it. */
               readonly type?: SourceTypeName;
           };
       }
     | {
+          /** The code. */
           readonly code: "E_READ_ROLE_MISSING";
+          /** Its parameters. */
           readonly params: {
+              /** The place of the step that reads the role. */
               readonly step: number;
+              /** The source whose rows lost the column. */
               readonly source: SourceKey;
+              /** The column. */
               readonly column: string;
+              /** The role read from it. */
               readonly role: SourceRoleName;
+              /** The table that held it. */
               readonly table: "nodes" | "edges";
           };
       }
-    | { readonly code: "W_COLUMN_UNUSED"; readonly params: { readonly source: SourceKey; readonly column: string } }
     | {
-          readonly code: "W_STEP_REMOVED";
-          readonly params: { readonly step: number; readonly reason: "source-removed"; readonly source: SourceKey };
+          /** The code. */
+          readonly code: "W_COLUMN_UNUSED";
+          /** Its parameters. */
+          readonly params: {
+              /** The source whose new rows bring the column. */
+              readonly source: SourceKey;
+              /** The column. */
+              readonly column: string;
+          };
       }
     | {
-          readonly code: "W_EDIT_SOURCE_CHANGED";
+          /** The code. */
+          readonly code: "W_STEP_REMOVED";
+          /** Its parameters. */
           readonly params: {
+              /** The removed step's place. */
+              readonly step: number;
+              /** Why it went. */
+              readonly reason: "source-removed";
+              /** The removed source. */
+              readonly source: SourceKey;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_EDIT_SOURCE_CHANGED";
+          /** Its parameters. */
+          readonly params: {
+              /** The reader edit's id. */
               readonly edit: ReaderEditRow["id"];
+              /** The value under the edit before. */
               readonly was: SourceValue | null;
+              /** The value under the edit now. */
               readonly now: SourceValue | null;
+              /** For a pick: the source it took from. */
               readonly picked?: SourceKey;
           };
       }
-    | { readonly code: "W_REFERENCE_UNBOUND"; readonly params: { readonly ref: SourceElementRef } };
+    | {
+          /** The code. */
+          readonly code: "W_REFERENCE_UNBOUND";
+          /** Its parameters. */
+          readonly params: {
+              /** The element the reference names. */
+              readonly ref: SourceElementRef;
+          };
+      };
 
 /**
  * A weight, time or location role a step reads from a column. OPEN UNION: roles may be added.
@@ -5561,7 +5677,15 @@ export type SourceEditChoice = "follow" | "keep" | "drop";
  * `none` clears a vanished weight, time or location role.
  * @experimental source-steps
  */
-export type SourceStepResolution = { readonly column: string } | { readonly none: true };
+export type SourceStepResolution =
+    | {
+          /** The column of the new rows that takes the vanished name. */
+          readonly column: string;
+      }
+    | {
+          /** Clear the vanished role. */
+          readonly none: true;
+      };
 
 /**
  * A key overlap a source met when it was added: its keys meet nodes another source built in the

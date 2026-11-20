@@ -46,7 +46,9 @@ const KNOWN_BROKEN_LINKS = [];
  * same change, so the debt paid off cannot come back.
  */
 // undocumented: 2088 counts the two members of EdgeStyle line `colorFrom`'s inline z.enum (#9147), which TypeDoc lists and no doc comment can reach.
-const DEBT_CEILING = { undocumented: 2088, unexported: 139, misplacedTags: 16 };
+// unexported: 140 counts DataStepsSetCommand, the source-steps experiment's command in SessionCommand, whose
+// edit and copies types stay internal until the experiment graduates.
+const DEBT_CEILING = { undocumented: 2088, unexported: 140, misplacedTags: 16 };
 
 /** Warning text that means a documentation link does not resolve to a page. */
 const LINK_PATTERNS = [/Failed to resolve link to /, /links to ".*" which was resolved but is not included/];

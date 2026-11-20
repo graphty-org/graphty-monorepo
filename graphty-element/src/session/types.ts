@@ -4215,7 +4215,7 @@ export interface SourceStepCounts {
 }
 
 /** The counts of {@link SourceStepCounts} that are numbers, besides the step's place and part. */
-type SourceStepNumber = Exclude<
+export type SourceStepNumber = Exclude<
     {
         [K in keyof SourceStepCounts]-?: SourceStepCounts[K] extends number | undefined ? K : never;
     }[keyof SourceStepCounts],
@@ -4223,7 +4223,7 @@ type SourceStepNumber = Exclude<
 >;
 
 /** The counts of {@link SourceStepCounts} kept by name (a column, a space or a type). */
-type SourceStepByName =
+export type SourceStepByName =
     "valuesDiffer" | "ruleType" | "rowsDifferIn" | "endsMeet" | "endsMissing" | "newNodeTypes" | "newEdgeTypes";
 
 /**
@@ -4240,9 +4240,13 @@ export type SourceStepCountsChange = { readonly [K in SourceStepNumber]: number 
  * @experimental source-steps
  */
 export interface SourceDraftPreviewTotals {
+    /** Nodes in all. */
     readonly nodes: number;
+    /** Edges in all. */
     readonly edges: number;
+    /** Nodes by type. */
     readonly nodeTypes: Readonly<Record<SourceTypeName, number>>;
+    /** Edges by type. */
     readonly edgeTypes: Readonly<Record<SourceTypeName, number>>;
 }
 
@@ -4251,8 +4255,11 @@ export interface SourceDraftPreviewTotals {
  * @experimental source-steps
  */
 export interface SourceDraftPreviewChanges {
+    /** Elements the draft adds. */
     readonly added: number;
+    /** Elements the draft removes. */
     readonly removed: number;
+    /** Elements the draft keeps with different values. */
     readonly changed: number;
 }
 
@@ -4276,6 +4283,7 @@ export interface SourceDraftPreviewStep extends SourceStepRow {
  * @experimental source-steps
  */
 export interface SourceDraftPreviewSource {
+    /** The source. */
     readonly source: SourceKey;
     /** Where it stands in the draft; `"removed"` for a committed source the draft takes out. */
     readonly state: "staged" | "built" | "off" | "held" | "removed";
@@ -4289,9 +4297,13 @@ export interface SourceDraftPreviewSource {
     readonly noStep: number;
     /** Each count minus the committed one. */
     readonly change: {
+        /** Nodes it supplies, minus the committed count. */
         readonly nodes: number;
+        /** Edges it supplies, minus the committed count. */
         readonly edges: number;
+        /** Nodes it only names, minus the committed count. */
         readonly named: number;
+        /** Rows no step reads, minus the committed count. */
         readonly noStep: number;
     };
 }
@@ -4321,50 +4333,180 @@ export interface SourceDraftPreviewSource {
  */
 export type SourceDraftPreviewIssue =
     | {
+          /** The code. */
           readonly code: "W_STEP_REMOVED";
+          /** Its parameters. */
           readonly params: {
+              /** The step's place. */
               readonly step: number;
+              /** Why it went. */
               readonly reason: "source-removed" | "step-removed" | "source-held";
+              /** The source. */
               readonly source: SourceKey;
           };
       }
-    | { readonly code: "W_REFERENCE_UNBOUND"; readonly params: { readonly ref: SourceElementRef } }
-    | { readonly code: "W_FILTER_HELD"; readonly params: { readonly filter: string; readonly column: Path } }
-    | Extract<SourceRefreshIssue, { readonly code: "W_EDIT_SOURCE_CHANGED" }>
-    | SourceValuesDiffer
-    | { readonly code: "W_FAN_OUT"; readonly params: { readonly step: number; readonly rows: number } }
-    | { readonly code: "W_UNMATCHED"; readonly params: { readonly step: number; readonly rows: number } }
-    | { readonly code: "W_UNTOUCHED"; readonly params: { readonly step: number; readonly nodes: number } }
-    | { readonly code: "W_PARALLEL_EDGES"; readonly params: { readonly step: number; readonly pairs: number } }
-    | { readonly code: "W_SELF_LOOPS"; readonly params: { readonly step: number; readonly count: number } }
     | {
-          readonly code: "W_ROWS_DIFFER";
-          readonly params: { readonly step: number; readonly column: string; readonly keys: number };
-      }
-    | {
-          readonly code: "W_NODE_NAMED_ONLY";
-          readonly params: { readonly step: number; readonly source: SourceKey; readonly nodes: number };
-      }
-    | {
-          readonly code: "W_EDGE_END_MISSING";
-          readonly params: { readonly step: number; readonly space: SourceSpaceName; readonly ends: number };
-      }
-    | {
-          readonly code: "W_KEY_EMPTY";
-          readonly params: { readonly source: SourceKey; readonly column: string; readonly rows: number };
-      }
-    | {
-          readonly code: "W_VALUE_HUB";
+          /** The code. */
+          readonly code: "W_REFERENCE_UNBOUND";
+          /** Its parameters. */
           readonly params: {
-              readonly source: SourceKey;
-              readonly column: string;
-              readonly value: string;
+              /** The element the reference names. */
+              readonly ref: SourceElementRef;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_FILTER_HELD";
+          /** Its parameters. */
+          readonly params: {
+              /** The filter condition's id. */
+              readonly filter: string;
+              /** The column. */
+              readonly column: Path;
+          };
+      }
+    | Extract<
+          SourceRefreshIssue,
+          {
+              /** The code. */
+              readonly code: "W_EDIT_SOURCE_CHANGED";
+          }
+      >
+    | SourceValuesDiffer
+    | {
+          /** The code. */
+          readonly code: "W_FAN_OUT";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many rows. */
               readonly rows: number;
           };
       }
     | {
+          /** The code. */
+          readonly code: "W_UNMATCHED";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many rows. */
+              readonly rows: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_UNTOUCHED";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many nodes. */
+              readonly nodes: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_PARALLEL_EDGES";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many end pairs. */
+              readonly pairs: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_SELF_LOOPS";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many edges. */
+              readonly count: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_ROWS_DIFFER";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** The column. */
+              readonly column: string;
+              /** How many keys. */
+              readonly keys: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_NODE_NAMED_ONLY";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** The source. */
+              readonly source: SourceKey;
+              /** How many nodes. */
+              readonly nodes: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_EDGE_END_MISSING";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** The id space. */
+              readonly space: SourceSpaceName;
+              /** How many edge ends. */
+              readonly ends: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_KEY_EMPTY";
+          /** Its parameters. */
+          readonly params: {
+              /** The source. */
+              readonly source: SourceKey;
+              /** The column. */
+              readonly column: string;
+              /** How many rows. */
+              readonly rows: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_VALUE_HUB";
+          /** Its parameters. */
+          readonly params: {
+              /** The source. */
+              readonly source: SourceKey;
+              /** The column. */
+              readonly column: string;
+              /** The key value. */
+              readonly value: string;
+              /** How many rows. */
+              readonly rows: number;
+          };
+      }
+    | {
+          /** The code. */
           readonly code: "E_EDGE_KEY_COLLISION";
-          readonly params: { readonly load: SourceKey; readonly key: string; readonly steps: readonly number[] };
+          /** Its parameters. */
+          readonly params: {
+              /** The source that made the edges. */
+              readonly load: SourceKey;
+              /** The edge key. */
+              readonly key: string;
+              /** The places of the steps that make the key. */
+              readonly steps: readonly number[];
+          };
       };
 
 /**
@@ -4387,7 +4529,9 @@ export interface SourceDraftPreview {
     readonly before: SourceDraftPreviewTotals;
     /** The graph once committed. */
     readonly after: SourceDraftPreviewTotals;
+    /** How the draft changes the nodes. */
     readonly nodes: SourceDraftPreviewChanges;
+    /** How the draft changes the edges. */
     readonly edges: SourceDraftPreviewChanges;
     /** Every step of the draft, with its buckets and their change from the committed counts. */
     readonly steps: readonly SourceDraftPreviewStep[];
@@ -4395,6 +4539,7 @@ export interface SourceDraftPreview {
     readonly sources: readonly SourceDraftPreviewSource[];
     /** Each reader edit of the draft, with its state. */
     readonly edits: readonly ReaderEditRow[];
+    /** The outcomes the draft reports. */
     readonly issues: readonly SourceDraftPreviewIssue[];
     /**
      * The key-overlap questions still open, in a draft opened with `askOverlap`; `commit()` is
@@ -4499,6 +4644,7 @@ export interface SourceDraftRow {
 export interface SourceDraftRows {
     /** How many the count counted: the step's count, or its count for `name`. */
     readonly total: number;
+    /** The page's rows. */
     readonly rows: readonly SourceDraftRow[];
 }
 
@@ -4535,6 +4681,7 @@ export interface SourceDraftCell extends SourceConflict {
 export interface SourceDraftCells {
     /** How many cells the filter keeps. */
     readonly total: number;
+    /** The page's cells. */
     readonly cells: readonly SourceDraftCell[];
 }
 
@@ -5122,12 +5269,19 @@ export interface SourceDraftOptions {
  * @experimental source-steps
  */
 export interface SourceOverlapQuestion {
+    /** The code. */
     readonly code: "W_SPACE_OVERLAP";
+    /** Its parameters. */
     readonly params: {
+        /** The space the keys meet in. */
         readonly space: SourceSpaceName;
+        /** How many of the source's keys meet a node there. */
         readonly count: number;
+        /** How many keys the source holds. */
         readonly of: number;
+        /** The source the question is about. */
         readonly source: SourceKey;
+        /** The sources whose node rows built the nodes met; `"reader"` for nodes the reader added. */
         readonly sources: readonly SourceKey[];
     };
 }

@@ -97,6 +97,11 @@ interface SetsDependencies {
      * spellings of one undirected edge are one member. Absent: members are stored as given.
      */
     readonly pairsOrdered?: () => boolean;
+    /**
+     * Whether the source-steps experiment is on. False: a `{ types }` scope is refused with
+     * `E_FEATURE_OFF`. Absent: a `{ types }` scope is accepted.
+     */
+    readonly sourceSteps?: () => boolean;
     /** The most edge members one member edit may touch. */
     readonly maxEdgeMembers?: number;
     /**
@@ -650,6 +655,14 @@ export function createSetsApi(
      * @throws `E_BAD_COMMAND` for a malformed scope or a `{ set }` id never issued.
      */
     const readScope = (ref: ScopeInput): Scope => {
+        if (typeof ref === "object" && "types" in ref && dependencies.sourceSteps?.() === false) {
+            throw new GraphtyError({
+                code: "E_FEATURE_OFF",
+                message: 'A { types } scope needs the "source-steps" experiment.',
+                source: "run",
+                details: { feature: "source-steps", key: "types" },
+            });
+        }
         const inline = typeof ref === "object" && "define" in ref;
         const scope = parseScope(inline ? { define: collect(() => stabilise(ref.define))[0] } : ref);
         if (

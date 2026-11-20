@@ -9,13 +9,16 @@
  * marks a credential.
  */
 
-import type { NodeId, SourceKey } from "../../catalog/types";
+import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import type { GraphtyErrorCode, GraphtyWarningCode } from "../../errors/codes";
 import type { CodedFact } from "../shared";
 import type { LoadedSource } from "../types";
 import { isRecordableEndpoint } from "./endpoint";
 import { SOURCE_RECORD_MEMBER, SOURCES_MEMBER_VERSION } from "./ids";
 import type { Provenance } from "./provenance";
+import type { Copies, SourceSteps } from "./steps/project";
+import { readStepsMember, STEPS_MEMBER_FIELDS } from "./steps/saved";
+import { READER_SOURCE } from "./steps/types";
 import type { SourceLoadRecord } from "./types";
 
 /** The member's kind. */
@@ -273,6 +276,11 @@ export interface SourcesWrite {
     readonly idOf: (value: string) => string;
     /** Where an id sits in the member, for writing a record's loads oldest first; unknown ids last. */
     readonly rank: (id: string) => number;
+    /**
+     * Under the `source-steps` experiment, each element's type, written on its record as
+     * `graphty.types` (at most one item; `[]` for the default type). Absent with the experiment off.
+     */
+    readonly typeOf?: (kind: "node" | "edge", id: NodeId | EdgeId) => string | null;
 }
 
 /**
@@ -1102,7 +1110,9 @@ function overLimit(member: Record<string, unknown>, loads: readonly unknown[]): 
         return "extensions";
     }
 
-    return jsonBytes(member) > LIMITS.bytes ? "bytes" : undefined;
+    // The rows as read a source-steps member carries count against the file's limit, not the member's.
+    const records = Object.fromEntries(Object.entries(member).filter(([name]) => !STEPS_MEMBER_FIELDS.includes(name)));
+    return jsonBytes(records) > LIMITS.bytes ? "bytes" : undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1125,6 +1135,12 @@ export interface SourcesReadContext {
     readonly isGenerator: (name: string) => boolean;
     /** The time of opening, RFC 3339. */
     readonly now: string;
+    /**
+     * Whether the `source-steps` experiment is on, so the member's sources and steps (section 10
+     * names) are read; while it is off a member carrying them is skipped, as a release without the
+     * experiment skips it.
+     */
+    readonly steps?: boolean;
 }
 
 /** What the reader found. */
@@ -1151,6 +1167,8 @@ export interface SourcesRead {
     readonly skipped?: Readonly<Record<string, unknown>>;
     /** The ids of the entries that were still waiting to be run when the member was written. */
     readonly waiting?: readonly string[];
+    /** Under the `source-steps` experiment: the sources and steps the member carries, and their rows as read. */
+    readonly steps?: { readonly value: SourceSteps; readonly copies: Copies };
 }
 
 /** One entry as read. */
@@ -1409,15 +1427,18 @@ function badIds(loads: readonly Record<string, unknown>[]): string | undefined {
  * or its ids (sources.md, "Reading" rules 1 and 5, "Limits").
  * @param member - The member.
  * @param pointer - Its pointer.
+ * @param steps - Whether the sources and steps names are read (the `source-steps` experiment).
  * @returns The problem, or undefined for a member that is read.
  */
-function memberProblem(member: Record<string, unknown>, pointer: string): SourcesProblem | undefined {
+function memberProblem(member: Record<string, unknown>, pointer: string, steps: boolean): SourcesProblem | undefined {
     const problem = (code: ProblemCode, at: string, more: Record<string, unknown> = {}): SourcesProblem => ({
         code,
         params: { kind: KIND, pointer: `${pointer}${at}`, ...more },
     });
     const unknown = Object.keys(member).find(
-        (name) => !["kind", "version", "data", "loads", "extensions", "waiting"].includes(name),
+        (name) =>
+            !["kind", "version", "data", "loads", "extensions", "waiting"].includes(name) &&
+            !(steps && STEPS_MEMBER_FIELDS.includes(name)),
     );
     if (unknown !== undefined) {
         return problem("E_BAD_DOCUMENT", `/${unknown}`);
@@ -1490,6 +1511,7 @@ function readEntries(
  * @param rename - The version 1 keys and the ids they are read as.
  * @param provenance - Collects what each entry supplied: a node's id, or a link's position.
  * @param target - Whether the rows are nodes or links.
+ * @param rebuilt - Values that name no entry but are dropped too: the rebuild writes them again.
  * @returns The rows, a copy of each one whose column changed.
  */
 function readColumn(
@@ -1498,6 +1520,7 @@ function readColumn(
     rename: ReadonlyMap<string, string>,
     provenance: Record<string, { nodes: NodeId[]; edges: number[] }>,
     target: "nodes" | "edges",
+    rebuilt: ReadonlySet<string> = new Set(),
 ): Record<string, unknown>[] {
     const live = (value: string): boolean => entries.get(value.split("/x")[0] ?? "")?.record !== undefined;
     return rows.map((row, at) => {
@@ -1521,11 +1544,32 @@ function readColumn(
         }
 
         const held = values.filter((value) => typeof value === "string" && live(value));
-        const other = values.filter((value) => !(typeof value === "string" && (live(value) || entries.has(value))));
+        const other = values.filter(
+            (value) => !(typeof value === "string" && (live(value) || entries.has(value) || rebuilt.has(value))),
+        );
         const kept = [...new Set([...held, ...other])];
         const { "_source.loads": _column, ...rest } = row;
         return kept.length === 0 ? rest : { ...rest, "_source.loads": kept };
     });
+}
+
+/**
+ * The sources and steps a member carries, read under the `source-steps` experiment.
+ * @param member - The member.
+ * @param ctx - The file.
+ * @param problems - Collects `E_BAD_DOCUMENT` for sources and steps not shaped as saved.
+ * @returns The value and its copies, or undefined when none are read.
+ */
+function stepsOf(
+    member: Record<string, unknown>,
+    ctx: SourcesReadContext,
+    problems: SourcesProblem[],
+): SourcesRead["steps"] {
+    const steps = ctx.steps === true ? readStepsMember(member) : null;
+    if (steps !== null && "pointer" in steps) {
+        problems.push({ code: "E_BAD_DOCUMENT", params: { kind: KIND, pointer: `${ctx.pointer}${steps.pointer}` } });
+    }
+    return steps !== null && "value" in steps ? steps : undefined;
 }
 
 /**
@@ -1565,9 +1609,12 @@ function readVersion2(
 
     const entries = readEntries(member.loads as Record<string, unknown>[], ctx, problems);
     const byId = new Map(entries.map((entry) => [entry.id, entry]));
+    const restored = stepsOf(member, ctx, problems);
+    // The reader source's value comes back with the rebuild, which writes every `_source.loads` again.
+    const rebuilt = new Set(restored === undefined ? [] : [READER_SOURCE]);
     const provenance: Record<string, { nodes: NodeId[]; edges: number[]; held?: NodeId[] }> = {};
-    const nodes = readColumn(ctx.nodes, byId, rename, provenance, "nodes");
-    const links = readColumn(ctx.links, byId, rename, provenance, "edges");
+    const nodes = readColumn(ctx.nodes, byId, rename, provenance, "nodes", rebuilt);
+    const links = readColumn(ctx.links, byId, rename, provenance, "edges", rebuilt);
     for (const [id, supplied] of Object.entries(legacy)) {
         const into = (provenance[id] ??= { nodes: [], edges: [] });
         into.nodes = [...new Set([...into.nodes, ...supplied.nodes])];
@@ -1615,6 +1662,7 @@ function readVersion2(
         records: entries.flatMap((entry) => (entry.record === undefined ? [] : [entry.record])),
         facts: new Map(entries.map((entry) => [entry.id, entry.facts])),
         ...(Array.isArray(member.waiting) ? { waiting: member.waiting as string[] } : {}),
+        ...(restored === undefined ? {} : { steps: restored }),
     };
 }
 
@@ -1901,7 +1949,7 @@ function upgradeVersion1(
 
     problems.push({ code: "W_VERSION_UPGRADED", params: { kind: KIND, pointer: ctx.pointer, found: 1, version: 2 } });
     const upgraded = { kind: KIND, version: SOURCES_MEMBER_VERSION, loads };
-    const skipped = memberProblem(upgraded, ctx.pointer);
+    const skipped = memberProblem(upgraded, ctx.pointer, false);
     if (skipped !== undefined) {
         problems.push(skipped);
         return { problems, records: [], facts: new Map(), skipped: member };
@@ -1926,7 +1974,7 @@ export function readSourcesMember(member: Record<string, unknown> | undefined, c
         return upgradeVersion1(member, ctx, problems);
     }
 
-    const skipped = memberProblem(member, ctx.pointer);
+    const skipped = memberProblem(member, ctx.pointer, ctx.steps === true);
     if (skipped !== undefined) {
         problems.push(skipped);
         return { problems, records: [], facts: new Map(), skipped: member };

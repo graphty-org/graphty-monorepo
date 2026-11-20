@@ -262,9 +262,11 @@ export interface WeightMeaning {
 /**
  * Why a run left a weight unread. `code` is `"weight.meaning-mismatch"`; `params.attribute` is the
  * column, `params.meaning` what the weight means (null when nobody said), and `params.reads` the
- * meaning the algorithm reads.
+ * meaning the algorithm reads. Under the `source-steps` experiment, `"weight.meaning-mixed"`:
+ * the edges' weights do not share one meaning, or some edges' sources read no weight, so the run
+ * reads none (design 8.6); `params.sources` lists the sources of the edges.
  */
-export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
+export type WeightSkip = CodedFact<"weight.meaning-mismatch" | "weight.meaning-mixed">;
 
 /**
  * What qualifies a run's numbers.

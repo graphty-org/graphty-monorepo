@@ -1294,6 +1294,9 @@ export class DataManager implements Manager {
             values: (values, draft) => {
                 this.graph.writer(draft, this.store).setGraphValues(values);
             },
+            direct: (directed, statedBy, draft) => {
+                this.graph.writer(draft, this.store).setDirected(directed, statedBy);
+            },
             import: (command, draft, signal, after) => {
                 // One import at a time (the ingest's `oneAtATime`, issue #3535): this manager's load
                 // id, held announcement and cause are one import's too, so they are set inside the

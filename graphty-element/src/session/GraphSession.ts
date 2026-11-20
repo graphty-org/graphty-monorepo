@@ -68,9 +68,10 @@ import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attribute
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
-import { declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
+import { type DataMutation, declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
+import { edgeAddsOf, freshEdgeIds, removeAndPatch, reportOfBuild } from "./commands/source-steps";
 import { holdStartingCameras, writeStartingViews } from "./commands/view";
 import {
     calibrateOnce,
@@ -103,6 +104,7 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
+
 export { dispatcherOf, sessionRunsOf } from "./dispatchers";
 import { ANNOTATIONS_VALUE, type DrawnAnnotation, type DrawnAnnotations, drawnAnnotationsOf } from "./annotations";
 import { graphsOf, type SessionGraphs } from "./graphs/GraphsApi";
@@ -125,7 +127,7 @@ import {
     NODES_ADDED,
     ROWS_MOVED,
 } from "./project/graphOps";
-import type { GraphSlice, LayoutChoice } from "./project/state";
+import type { GraphSlice, LayoutChoice, ProjectState } from "./project/state";
 import { reportCaught } from "./project/strict";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
@@ -184,6 +186,8 @@ import type { StatusRun } from "./sets/status";
 import type { SetsApi, SetUser } from "./sets/types";
 import { bindShadersController, createSessionShaders, type SessionShaders, type ShadersController } from "./shaders";
 import { type Provenance, PROVENANCE_VALUE, suppliedBy } from "./sources/provenance";
+import { DRAFT_PATH, RECORD_PATHS } from "./sources/steps/paths";
+import type { StepsEdit } from "./sources/steps/project";
 import {
     createAutoApplyPolicy,
     createStylesApi,
@@ -239,6 +243,7 @@ import type {
     HistoryClearOptions,
     HistoryOutcome,
     HistoryRestoreOptions,
+    HistoryStepId,
     LayoutMotion,
     LocationColumns,
     ModelChange,
@@ -279,6 +284,9 @@ import { type FilterRunResult, type TimeWindow } from "./visibility/filter";
 import type { SlideCounts } from "./visibility/slide";
 import { wholeGraph, type WholeSnapshot } from "./working/graphs";
 import { createWorkingGraph, type WorkingGraph } from "./working/view";
+
+/** The readable path every timed element of a source-steps build carries its time at (design 3.9). */
+const STEPS_TIME = "graphty.time";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -899,6 +907,7 @@ class Session implements ElementSession {
             parts.readProject,
             parts.controller,
             parts.nodeSizeSpace,
+            (values) => parts.data.settingRoles(values.data?.knownFields),
             parts.darkScheme,
         );
         this.project = projectOf(this, this.dispatcher, parts.canned, {
@@ -2224,6 +2233,7 @@ function projectConfigReader(dispatcher: Dispatcher, base: () => SessionDataConf
  * @param read - Reads the project settings.
  * @param controller - The acceleration controller.
  * @param nodeSizeSpace - Reads the renderer's graph-wide node size space, for `inEffect`.
+ * @param roles - Under source-steps, the role edit a settings write makes; null for none.
  * @param darkScheme - Whether the renderer's color scheme is dark, for `backgroundColor`.
  * @returns The settings.
  */
@@ -2232,6 +2242,7 @@ function configOf(
     read: () => ProjectConfig,
     controller: AccelerationControllerLike,
     nodeSizeSpace: (() => string | undefined) | undefined,
+    roles: (values: ProjectConfigPatch) => StepsEdit | null,
     darkScheme?: () => boolean,
 ): SessionConfig {
     return Object.freeze({
@@ -2303,7 +2314,22 @@ function configOf(
             // loads first, since the write's executor cannot wait for it. Counted as owed while it
             // loads, so a wait for the picture does not end on a canvas without it (issue #7970).
             const loading = loadNamedShaders(values);
-            const write = (): Promise<unknown> => dispatcher.dispatch({ op: "config.set", values });
+            // Under source-steps a weight or time setting is a view of a source's role (design
+            // 3.9): written to that source's mapping in the same step, or refused when several
+            // built sources could take it.
+            const edit = roles(values);
+            const write = (): Promise<unknown> =>
+                dispatcher.dispatch(
+                    edit === null
+                        ? { op: "config.set", values }
+                        : {
+                              op: "batch",
+                              steps: [
+                                  { op: "data.steps-set", edit },
+                                  { op: "config.set", values },
+                              ],
+                          },
+                );
             await (loading === undefined ? write() : dispatcher.ahead(loading.then(write)));
         },
         inEffect: (key: GraphSettingKey): SettingEffect =>
@@ -2602,6 +2628,10 @@ function fieldKindsOf(
 
     if ((STRUCTURE_PATHS as readonly string[]).includes(path)) {
         return ["node"];
+    }
+
+    if (RECORD_PATHS.includes(path)) {
+        return data.readableKinds(path);
     }
 
     if (path.startsWith("results.")) {
@@ -2925,15 +2955,21 @@ function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, 
  * consumer can say why a layer paints nothing rather than showing a confident empty screen.
  * @param data - The session's data surface.
  * @param runs - The runs this session holds.
+ * @param sourceSteps - Whether the source-steps experiment is on, under which `graphty.draft` answers.
  * @returns The directory.
  */
-function pathDirectoryOf(data: SessionData, runs: RunsApi): PathDirectory {
+function pathDirectoryOf(data: SessionData, runs: RunsApi, sourceSteps: () => boolean): PathDirectory {
     return {
-        // A note value is always answerable: it reads nothing until a note names the element.
+        // A note value is always answerable: it reads nothing until a note names the element. So is
+        // `graphty.draft` under the source-steps experiment: it reads nothing until a draft is drawn.
         answers: (path: Path, target: "node" | "edge"): boolean => {
             const end = edgeEndPathOf(path);
             if (end !== undefined) {
                 return target === "edge" && answersReadable(data, runs, end.node, "node");
+            }
+
+            if (path === DRAFT_PATH && sourceSteps()) {
+                return true;
             }
 
             return noteFieldOf(path) !== undefined || answersReadable(data, runs, path, target);
@@ -3349,6 +3385,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const ceilings = options.ceilings ?? new RenderLimits(true);
     const fileStylesOn = (): boolean =>
         (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
+    const sourceStepsOn = (): boolean =>
+        (settledFeatures ?? resolveFeatures(requested())).enabled.includes("source-steps");
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is
@@ -3369,6 +3407,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
     dispatcher.services.fileStyles = fileStylesOn;
+    dispatcher.services.sourceSteps = sourceStepsOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
@@ -3410,6 +3449,17 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Set once the stack exists; until then no layer reads the pointer.
     let repaintHover = (): void => undefined;
     let repaintPeek = (_dirty: ElementIndices): void => undefined;
+    // Set once the style stack exists: draws a source draft again after it changed or was shown otherwise.
+    let redrawDraft = (): void => undefined;
+    // Set once the style stack exists: takes a drawn draft's After off the graph now.
+    let stopAfter = (): void => undefined;
+    // Settles once the graph draws what the open source draft shows.
+    let draftDrawn = (): Promise<void> => Promise.resolve();
+    // True while a drawn draft's After dispatches its own writes, which the open draft lets through.
+    let drawingAfter = false;
+    // True while a draft's After is drawn: the graph is the draft's, and a reader's command that
+    // reads or names its elements is refused until Before shows.
+    let afterDrawn = false;
     // Moves whenever the selection, the filter, or an element's state a `{match:"state"}` layer reads, moves:
     // the style stack keeps its readings until it does.
     let stateRevision = 0;
@@ -3452,7 +3502,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const records = sliceRecords(
         slice,
         snapshot,
-        () => (slice().values.get("importReport") as LoadReport | undefined) ?? store.store.lastImport ?? null,
+        () =>
+            data.drawnReport() ??
+            (slice().values.get("importReport") as LoadReport | undefined) ??
+            store.store.lastImport ??
+            null,
         options.records ?? null,
     );
     const data = new SessionData(
@@ -3465,6 +3519,23 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 return (mutation) => send({ op: "data.apply", mutation });
             },
             importer: (signal) => dispatcher.capturedDispatch(signal === undefined ? {} : { signal }),
+            folder: () => {
+                const send = dispatcher.capturedDispatch();
+                const routed = dispatcher.routing;
+                return (command) => {
+                    const top = dispatcher.history.stepAt(dispatcher.history.position - 1);
+                    // Inside a routed verb it is part of that verb's step. With no step to join it
+                    // is written as setup, which becomes the baseline while nothing is recorded.
+                    if (routed) {
+                        return send(command);
+                    }
+                    return top === undefined
+                        ? send({ op: "batch", steps: [command], setup: true })
+                        : dispatcher.transaction("Staged a source", (tx) => tx.dispatch(command), {
+                              after: top.id as HistoryStepId,
+                          });
+                };
+            },
             loadLine: loadLineOf(dispatcher),
             ceilings,
             slice,
@@ -3497,6 +3568,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             send: (command) => dispatcher.dispatch(command),
             emit: (event, detail) => {
+                if (event === "data:draft-changed") {
+                    redrawDraft();
+                }
                 publish(watchers, event, detail);
             },
             readers: () => ({
@@ -3504,6 +3578,30 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 runs: dispatcher.state.runs,
                 visibility: dispatcher.state.visibility,
             }),
+            drawing: {
+                drawn: () => draftDrawn(),
+                stop: () => {
+                    stopAfter();
+                },
+                resume: () => {
+                    redrawDraft();
+                },
+            },
+            references: () => {
+                const nodes: NodeId[] = [...dispatcher.state.pins];
+                const members: EdgeMember[] = [];
+                for (const { note } of dispatcher.state.notes.values()) {
+                    for (const target of note.targets) {
+                        if ("node" in target) {
+                            nodes.push(target.node);
+                        } else if ("edge" in target) {
+                            members.push(target.edge);
+                        }
+                    }
+                }
+                heldBySetsAndRuns(dispatcher.state, nodes, members);
+                return { nodes, edges: dispatcher.services.edgeIdentity?.idsOf(members) ?? [] };
+            },
         },
         {
             revision: () => inputs.tick.value,
@@ -3532,6 +3630,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeCandidates: () => time.api.candidates(),
             fileStyles: () => fileStylesOn(),
+            sourceSteps: sourceStepsOn,
             batched: () => internals.batched?.() === true,
             visibleMasks: () => ({ nodes: visibility.masks.nodes(), edges: visibility.masks.edges() }),
             // And the working graph, built below the visibility.
@@ -3546,6 +3645,24 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     }
     // The computed columns, brought up to date by what moves their inputs (`commands/derive.ts`).
     dispatcher.services.derive = () => data.derivedRefresh();
+    // While a draft of the sources and steps is open, the data is its: every data write and every
+    // move through the history is refused until it is committed or discarded (design 5.6), but for
+    // the presentation writes `draftRefusal` lets through (value labels, hiding columns). The
+    // computed columns are the exception: they never touch the sources and steps, and their refresh
+    // follows the draft's own commit and the runs made while it is open.
+    dispatcher.services.refuse = (command) => {
+        if (command === "history") {
+            return data.draftRefusal();
+        }
+        if (drawingAfter) {
+            return null;
+        }
+        const refused = afterDrawn ? data.afterRefusal(command) : null;
+        if (refused !== null) {
+            return refused;
+        }
+        return command.op.startsWith("data.") && command.op !== "data.derive" ? data.draftRefusal(command) : null;
+    };
 
     const components = componentLabelsOf(data);
     // Kept sets, published as `session.sets`.
@@ -3609,6 +3726,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         dispatcher,
         edgeMember,
         pairsOrdered: () => pairsOrdered(snapshot()),
+        sourceSteps: sourceStepsOn,
         hasNode: (id: NodeId) => snapshot().ids.indexOf(id) !== INVALID_INDEX,
         dependencies,
         offering,
@@ -3741,6 +3859,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const scope: ScopeResolver = createScopeApi({
         snapshot,
         store: store.store,
+        sourceSteps: sourceStepsOn,
         components,
         // Read through a call rather than captured: both of these are built below, and the
         // resolver only reaches them when somebody resolves a scope that names them.
@@ -3829,6 +3948,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         result: resultSource,
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
+        own: (source: SourceKey) => data.ownValues(source),
+        sourceSteps: sourceStepsOn,
         onChange: (change) => {
             // What the filter keeps is read by the style stack's kept readings (`styles.counts`,
             // `drawnValues`): moved before anyone hears of the change, so a reader answers fresh.
@@ -4093,18 +4214,21 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         knownFields: () => {
             const known = readProject().data.knownFields;
+            // Under source-steps the timeline reads `graphty.time` wherever a built source has a
+            // time role (design 3.9): the build has already parsed each source's own column.
+            const timed = data.stepsTimed();
             return {
-                nodeTimePath: known.nodeTimePath,
+                nodeTimePath: timed.node ? STEPS_TIME : known.nodeTimePath,
                 nodeTimeUnit: known.nodeTimeUnit ?? null,
                 // A saved zone stays saved with the timeline off or a name this engine lacks, unread.
-                nodeTimeParseZone: readableZone(known.nodeTimeParseZone),
-                nodeTimeEndPath: known.nodeTimeEndPath ?? null,
-                nodeTimeSpellsPath: known.nodeTimeSpellsPath ?? null,
-                edgeTimePath: known.edgeTimePath,
+                nodeTimeParseZone: timed.node ? null : readableZone(known.nodeTimeParseZone),
+                nodeTimeEndPath: timed.node ? null : (known.nodeTimeEndPath ?? null),
+                nodeTimeSpellsPath: timed.node ? null : (known.nodeTimeSpellsPath ?? null),
+                edgeTimePath: timed.edge ? STEPS_TIME : known.edgeTimePath,
                 edgeTimeUnit: known.edgeTimeUnit ?? null,
-                edgeTimeParseZone: readableZone(known.edgeTimeParseZone),
-                edgeTimeEndPath: known.edgeTimeEndPath ?? null,
-                edgeTimeSpellsPath: known.edgeTimeSpellsPath ?? null,
+                edgeTimeParseZone: timed.edge ? null : readableZone(known.edgeTimeParseZone),
+                edgeTimeEndPath: timed.edge ? null : (known.edgeTimeEndPath ?? null),
+                edgeTimeSpellsPath: timed.edge ? null : (known.edgeTimeSpellsPath ?? null),
             };
         },
         declarations: () => dispatcher.state.attributes,
@@ -4129,6 +4253,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
             return data.setType({ kind, name }, "date");
         },
+        settingRoles: (knownFields) => data.settingRoles(knownFields),
     });
     timeInternals = time.internals;
     dispatcher.services.timeFieldChanged = () => {
@@ -4184,6 +4309,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         results: (runId) => runs.get(runId)?.result,
         records,
+        sourceSteps: sourceStepsOn,
+        draft: (target, id) => {
+            const shown = data.shownDraft();
+            return shown === null ? undefined : (target === "node" ? shown.nodes : shown.edges).get(id);
+        },
         notes: createNoteFacts(
             () => dispatcher.state.notes,
             () => dispatcher.lane.writes("notes"),
@@ -4192,7 +4322,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     // ONE query engine, over the same source the style layers read, so a layer selector and a
     // scope, a selection or a filter with the same expression match the same elements.
-    const paths = pathDirectoryOf(data, runs);
+    const paths = pathDirectoryOf(data, runs, sourceStepsOn);
     query = createQueryEngine({
         snapshot,
         revision: () => inputs.tick.value,
@@ -4413,6 +4543,153 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         painter
             .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
             .catch(repaintFailed("peek"));
+    };
+    // A drawn source draft: every element reads `graphty.draft` afresh.
+    // ponytail: repaints every element per draft act while one is drawn; repaint only the marks
+    // that moved if a large graph's drafting feels it.
+    const repaintDraft = (): void => {
+        // Every element's `graphty.draft` moved, as a write to that field would move it: what a rule,
+        // a set or a count read of it is stale now.
+        const { field } = dependencyOf(DRAFT_PATH) as { readonly field: string };
+        inputs.nodes.bump([field]);
+        inputs.edges.bump([field]);
+        notifier.notify({ kind: "attributes", element: "node", fields: [field] });
+        notifier.notify({ kind: "attributes", element: "edge", fields: [field] });
+        stateRevision++;
+        if (stack === null) {
+            return;
+        }
+        const graph = snapshot();
+        const all = (count: number): number[] => Array.from({ length: count }, (_, index) => index);
+        // A layer reading the path matched other elements before, as after a note changed.
+        painter.invalidate();
+        painter
+            .repaintElements(
+                stack.compiled(),
+                { node: all(graph.nodeCount), edge: all(graph.edgeCount) },
+                { signal: teardown.signal, report: () => undefined },
+            )
+            .catch(repaintFailed("draft"));
+    };
+    // A drawn draft's After (design 5.3): the graph its commit would leave, drawn by writing what the
+    // commit would remove, patch and add -- the graph's rows only, never the sources and steps --
+    // inside a transaction that is never recorded nor listed as pending. Taking After off aborts it,
+    // which puts every row and the arrangement back but for the nodes the reader moved meanwhile,
+    // so the history never holds it, and a save takes it off while it writes. While it is on,
+    // statistics, the legend and a count read the draft's graph, and a reader's command that would
+    // measure or name its elements (a run, a pin, a note) is refused. `marks` is what it was drawn for.
+    let after: { readonly marks: object; readonly abort: () => void; readonly landed: Promise<void> } | null = null;
+    /**
+     * Dispatch one of After's writes through its transaction, past the open draft's refusal.
+     * @param tx - The transaction.
+     * @param mutation - The write.
+     * @returns Settles once it is written.
+     */
+    const writeAfter = (tx: DispatchScope, mutation: DataMutation): Promise<unknown> => {
+        drawingAfter = true;
+        try {
+            // Beside the queue: drawing After is no operation of the reader's to wait in line.
+            return tx.dispatch({ op: "data.apply", mutation }, { beside: true });
+        } finally {
+            drawingAfter = false;
+        }
+    };
+    const drawAfter = (marks: object): void => {
+        const drawn = data.draftAfterDiff();
+        if (drawn === null) {
+            return;
+        }
+        const { diff, idPath } = drawn;
+        let abort = (): void => undefined;
+        let land = (): void => undefined;
+        const landed = new Promise<void>((resolve) => {
+            land = resolve;
+        });
+        const held = dispatcher.transaction(
+            "source-draft-after",
+            async (tx, signal) => {
+                abort = (): void => {
+                    dispatcher.abort(tx);
+                };
+                const writes: DataMutation[] = [];
+                removeAndPatch(diff, (mutation) => writes.push(mutation));
+                if (diff.addNodes.length > 0) {
+                    writes.push({ kind: "add-nodes", records: diff.addNodes, idPath });
+                }
+                for (const mutation of writes) {
+                    await writeAfter(tx, mutation);
+                }
+                const ids: Record<string, EdgeId> = { ...diff.kept };
+                for (const { mutation, built } of edgeAddsOf(diff.addEdges)) {
+                    const before = new Set(dispatcher.state.graph.edges.keys());
+                    await writeAfter(tx, mutation);
+                    freshEdgeIds(before, dispatcher.state.graph.edges.keys(), built, ids);
+                }
+                // Taken off while the last write landed: what it drew is gone again.
+                if (signal.aborted) {
+                    return;
+                }
+                // The commit names its whole build's ends once its writes land; After reads the same.
+                const sealed = dispatcher.state.graph.values.get("importReport") as LoadReport | undefined;
+                data.drawnAfter(ids, reportOfBuild(sealed, drawn.after));
+                repaintDraft();
+                await dispatcher.lane.settled();
+                land();
+                // Held open until After comes off the graph.
+                await new Promise((_resolve, reject) => {
+                    signal.addEventListener(
+                        "abort",
+                        () => {
+                            reject(signal.reason as Error);
+                        },
+                        { once: true },
+                    );
+                });
+            },
+            // Its before-arrangement is where a layout stood before the draft's elements pushed it;
+            // a reader's moves recorded meanwhile are put back over it when it ends.
+            { moves: true, unlisted: true },
+        );
+        // Aborting it is how it ends; a waiter on the drawing is never left waiting.
+        held.catch(() => undefined).finally(land);
+        afterDrawn = true;
+        after = {
+            marks,
+            abort: () => {
+                abort();
+            },
+            landed,
+        };
+    };
+    stopAfter = (): void => {
+        if (after === null) {
+            return;
+        }
+        const { abort } = after;
+        after = null;
+        afterDrawn = false;
+        data.drawnAfter(null);
+        abort();
+        // The abort queues the arrangement it began from for the next pass; a save made now reads it.
+        dispatcher.arrangement.flush();
+    };
+    draftDrawn = (): Promise<void> => after?.landed ?? Promise.resolve();
+    let draftShown = false;
+    redrawDraft = (): void => {
+        const shown = data.shownDraft();
+        // The marks stand for the draft's state: a new state is drawn afresh.
+        const wanted = shown?.side === "after" ? shown.nodes : null;
+        if (after !== null && after.marks !== wanted) {
+            stopAfter();
+        }
+        if (wanted !== null && after === null) {
+            drawAfter(wanted);
+        }
+        if (!draftShown && shown === null) {
+            return;
+        }
+        draftShown = shown !== null;
+        repaintDraft();
     };
     // A pin or a release moves nodes in or out of a `{ match: "state", state: "pinned" }` layer.
     dispatcher.lane.register("pins", (_rendered, _target, dirty) => {
@@ -5711,7 +5988,16 @@ function planningContext(
         defaultScope,
         limits: runsOptions.limits ?? DEFAULT_COST_GATE_LIMITS,
         defaultCaveats,
-        loadedWeight: () => data.loadedWeight(),
+        // The one weight rule is judged over the edges the run reads (design 8.6).
+        loadedWeight: (spec) => {
+            const loaded = data.loadedWeightOver(null);
+            // Only a source-steps build mixes meanings; nothing else resolves the scope here.
+            if (loaded?.mixed === undefined || spec === undefined || spec === "graph") {
+                return loaded;
+            }
+            const { edges } = resolveScope(spec);
+            return data.loadedWeightOver((edge) => edges.has(edge));
+        },
         // "idle" counts: an accelerator IS attached and the node count is merely below the
         // threshold at which the element bothers to use it, so an algorithm that needs one can run.
         acceleratorAvailable: () => ACCELERATOR_ATTACHED.has(acceleration.capabilities.acceleration.state),
@@ -5720,4 +6006,31 @@ function planningContext(
         calibration: runsOptions.calibration ?? currentCalibration,
         ...(runsOptions.measurements === undefined ? {} : { measurements: runsOptions.measurements }),
     };
+}
+
+/**
+ * Add what kept sets and runs name to a rebuild's references: a fixed set's or a path's members,
+ * and the nodes a run's node-id parameters hold (a shortest path's source and target).
+ * @param state - The project state.
+ * @param nodes - The node references, added to.
+ * @param members - The edge references, added to.
+ */
+function heldBySetsAndRuns(state: Pick<ProjectState, "sets" | "runs">, nodes: NodeId[], members: EdgeMember[]): void {
+    for (const { definition } of state.sets.values()) {
+        if (definition.kind === "fixed" || definition.kind === "path") {
+            nodes.push(...definition.nodes);
+            const edges: readonly (EdgeMember | readonly EdgeMember[] | null)[] = definition.edges ?? [];
+            members.push(...edges.flat().filter((edge) => edge !== null));
+        }
+    }
+    const algorithms = SESSION_CATALOG_TABLES.algorithms();
+    for (const { command } of state.runs.values()) {
+        const options = algorithms.find((each) => each.key === command.algorithm)?.options ?? [];
+        for (const option of options) {
+            const value = command.params?.[option.name];
+            if (option.type === "node-id" && (typeof value === "string" || typeof value === "number")) {
+                nodes.push(value);
+            }
+        }
+    }
 }

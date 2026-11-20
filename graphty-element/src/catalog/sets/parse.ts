@@ -1393,11 +1393,40 @@ export function assertRuleTree(value: unknown): void {
  * {@link parseSetDefinition} gives it for an inline definition.
  */
 export function parseScope(value: unknown): Scope {
+    if (isObject(value) && value.types !== undefined) {
+        return typesScope(value);
+    }
+
     checkScope(value, new Walker("door"));
 
     return isObject(value) && value.define !== undefined
         ? Object.freeze({ define: canonicalSetDefinition(value.define as SetDefinition) })
         : (value as Scope);
+}
+
+/**
+ * A `{ types }` scope (source-steps, design section 3.9) in its canonical form: the nodes whose
+ * one type is listed and the edges between them, a `{ where }` on the readable path
+ * `graphty.type`.
+ * @param value - The scope as given.
+ * @returns The `{ where }` scope.
+ * @throws A `GraphtyError` with `E_BAD_SCOPE` for anything but one non-empty list of type names.
+ */
+function typesScope(value: Record<string, unknown>): Scope {
+    const { types } = value;
+    if (
+        Object.keys(value).length !== 1 ||
+        !Array.isArray(types) ||
+        types.length === 0 ||
+        !types.every((t) => typeof t === "string" && t !== "")
+    ) {
+        throw bad("A { types } scope names one or more types.", { scope: value });
+    }
+
+    const backslash = String.raw`\\`;
+    const quote = String.raw`\'`;
+    const quoted = (t: string): string => `'${t.replaceAll("\\", backslash).replaceAll("'", quote)}'`;
+    return Object.freeze({ where: types.map((t: string) => `graphty.type == ${quoted(t)}`).join(" || ") });
 }
 
 /**
@@ -1410,12 +1439,22 @@ export function parseScope(value: unknown): Scope {
  * @param value - A scope, a set definition, a rule tree or a selector, as given.
  * @param stable - The stable member of a session edge id or an object member; throws for an edge
  * the graph lacks.
+ * @param types - What a `{ types }` scope in any scope position becomes (it is canonicalized or
+ * refused there); left as given when omitted.
  * @returns The value, stable.
  */
-export function stabiliseEdgeRefs<T>(value: T, stable: (ref: string) => unknown): T {
+export function stabiliseEdgeRefs<T>(
+    value: T,
+    stable: (ref: string) => unknown,
+    types?: (scope: Record<string, unknown>) => unknown,
+): T {
     const walk = (node: unknown): unknown => {
         if (!isObject(node)) {
             return node;
+        }
+
+        if (types !== undefined && node.types !== undefined && node.match === undefined && node.kind === undefined) {
+            return types(node);
         }
 
         const swap = (field: string, next: unknown): unknown =>

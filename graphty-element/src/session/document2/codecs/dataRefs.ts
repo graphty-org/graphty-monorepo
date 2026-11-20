@@ -2174,11 +2174,19 @@ function embedReason(source: ModelSource, model: DataModel): SourceEmbeddedReaso
     }
 
     const tables = Object.keys(source.load.mapping?.tables ?? {}).length;
-    // A CSV this session read whose roles were neither named nor read by its header columns has no
+    // A table this session read whose roles were neither named nor read by its header columns has no
     // spelling. ponytail: one opened from an embedded copy keeps the copy's role names, right only
     // for a `source,target` header; keep the header columns in the embedded record to know them.
+    // A JSON collection a pointer names is a table too; a pointer to an object, read whole, has no
+    // read columns either. ponytail: that one is embedded with reason `mapping`; record the shape read
+    // on the load to reference it.
+    const table =
+        source.load.type === "csv" ||
+        (source.load.type === "json" &&
+            typeof source.load.config?.pointer === "string" &&
+            source.load.config.pointer !== "");
     const unnamed =
-        source.load.type === "csv" &&
+        table &&
         tables === 0 &&
         !memoryOf(model.session).origins.has(source.id) &&
         readByOf(model.session, source.load.key) === undefined;

@@ -722,6 +722,56 @@ c,a,1.5
 The column separator is worked out from the first line -- comma, tab, semicolon or pipe -- so a
 tab-separated or semicolon-separated file loads with no options. Pass `delimiter` to override it.
 
+## One Part of a JSON File
+
+A JSON file can hold several collections. Pass `pointer`, a
+[JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901) such as `/graph/people`, to read one of
+them. Load each collection as its own source from the same file:
+
+```typescript
+const config = { url: "org.json" };
+await session.data.import({ type: "json", config: { ...config, pointer: "/graph/people" } });
+await session.data.import({ type: "json", config: { ...config, pointer: "/graph/knows" } }, { mode: "merge" });
+```
+
+```json
+{
+    "graph": {
+        "people": [{ "id": "ava" }, { "id": "ben" }],
+        "knows": [{ "source": "ava", "target": "ben" }]
+    }
+}
+```
+
+What the pointer names decides how it is read:
+
+- An array is one table of rows. Its records are edges when they name their ends (`edgeSource` and
+  `edgeTarget`, else `source`/`target`, `src`/`dst` or `from`/`to`), and nodes otherwise, keyed by
+  `nodeIdPath`, else `id`, `name`, `key` or `label`. In `session.data.prepare` it is a `rows`
+  table you map like a CSV file's.
+- An object is read whole, as if it were the file.
+- A pointer that names nothing, or names a number, string or other value, fails the load with
+  `E_OPTION_RANGE` (`details.option` is `"pointer"`).
+
+Two sources from one file share its bytes, so a project saved with them by reference reads the
+file once when it is opened again.
+
+## Placeholder Values
+
+Pass `missing`, a list of cell texts, to read placeholders such as `N/A` as unset values instead of
+text:
+
+```typescript
+await session.data.import({ type: "csv", config: { url: "people.csv", missing: ["N/A", "null"] } });
+```
+
+A cell matches only when its whole text equals an entry, after Unicode NFC normalization. Cells are
+never trimmed, so `" N/A"` stays text. In a CSV file (any delimiter) the match happens before
+columns are typed, so a number column holding `N/A` stays a number column, a placeholder id leaves
+its row out, and a placeholder end is a missing end. A Neo4j file refuses the option with
+`E_OPTION_RANGE`. In a JSON file only string values at the top level of each record are compared;
+numbers, `true`, `false`, `null` and nested values never are.
+
 ## Custom ID Paths
 
 The element finds an edge's endpoints on its own. It looks for `source` and `target`, then `src`

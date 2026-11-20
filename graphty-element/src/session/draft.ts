@@ -13,6 +13,7 @@ import { CSVDataSource, readGephiTypeColumn } from "../data/CSVDataSource";
 import { DataSource, type DeclaredDirection, setReaderSignal } from "../data/DataSource";
 import { readEndpoint, resolveEndpoints } from "../data/endpoints";
 import type { DataLoadingError } from "../data/ErrorAggregator";
+import { JsonDataSource } from "../data/JsonDataSource";
 import type { LoadReport } from "../data/report";
 import { readSource as sourceBytes } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
@@ -439,7 +440,19 @@ export async function readSource(
     }
 
     const named = source.name ?? type;
-    const rowTables = reader instanceof CSVDataSource ? await reader.readRows(progress) : null;
+    // A CSV file's tables, or the JSON collection a pointer names.
+    const rowTables: Readonly<
+        Record<
+            string,
+            {
+                readonly columns: readonly string[];
+                readonly rows: Record<string, unknown>[];
+                readonly lines: readonly number[] | null;
+                readonly delimiter?: DraftTable["delimiter"];
+            }
+        >
+    > | null =
+        reader instanceof CSVDataSource || reader instanceof JsonDataSource ? await reader.readRows(progress) : null;
     signal?.throwIfAborted();
     if (rowTables !== null) {
         const pairNames: Readonly<Record<string, string | undefined>> = {

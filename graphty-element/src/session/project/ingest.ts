@@ -23,6 +23,7 @@ import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } 
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
 import { GROUPS_VALUE, RANK_SETS_VALUE, readGroups, readRankSets } from "../../data/groups";
+import { JsonDataSource } from "../../data/JsonDataSource";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import {
     type ImportReport,
@@ -184,12 +185,12 @@ function drawnOf(command: DataImportCommand): { readonly drawn?: Pick<DataImport
 }
 
 /**
- * The header columns a CSV reader read its table by, if the reader is one.
+ * The columns a CSV reader read its table by, or a JSON reader its collection, if the reader is one.
  * @param reader - The load's reader.
  * @returns The columns, or undefined.
  */
 function csvReadBy(reader: unknown): CSVDataSource["readBy"] {
-    return reader instanceof CSVDataSource ? reader.readBy : undefined;
+    return reader instanceof CSVDataSource || reader instanceof JsonDataSource ? reader.readBy : undefined;
 }
 
 /**

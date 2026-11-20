@@ -303,6 +303,11 @@ interface CSVDataSourceConfig extends BaseDataSourceConfig {
     edgeURL?: string;
     nodeData?: string | Uint8Array;
     edgeData?: string | Uint8Array;
+    /**
+     * Cell texts read as unset, such as `["N/A", "null"]`: compared as exact strings after Unicode
+     * NFC normalization and never trimmed, before any column is typed. Not read for a Neo4j file.
+     */
+    missing?: readonly string[];
 }
 
 /** The options that make a CSV source a pair of tables. */
@@ -539,6 +544,7 @@ export class CSVDataSource extends DataSource {
                 ...table,
                 ...(delimiter === undefined ? {} : { delimiter }),
                 ...(nodes === undefined ? {} : { nodes }),
+                ...this.missingOption(),
             }),
         );
         // A node row with a blank id comes back empty, so the element leaves it out and counts it.
@@ -569,6 +575,7 @@ export class CSVDataSource extends DataSource {
                 weightFrom: null,
                 errorLimit: this.config.errorLimit,
                 ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
+                ...this.missingOption(),
             }),
         );
         aggregateErrors(rows.report, this.errorAggregator, CSVDataSource.type);
@@ -591,6 +598,15 @@ export class CSVDataSource extends DataSource {
      * @yields the nodes and relationships
      */
     private async *parseNeo4j(content: string): AsyncGenerator<DataSourceChunk, void, unknown> {
+        if (this.config.missing !== undefined) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: "the missing option is not read for a Neo4j admin-import file",
+                source: "config",
+                details: { kind: "format", id: CSVDataSource.type, option: "missing", value: this.config.missing },
+            });
+        }
+
         const imported = await importRecords(neo4jImporter, content, {
             ids: "string",
             errorLimit: this.config.errorLimit,
@@ -685,6 +701,7 @@ export class CSVDataSource extends DataSource {
                     weightFrom: null,
                     errorLimit: this.config.errorLimit,
                     ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
+                    ...this.missingOption(),
                 },
                 (rows) => {
                     progress(rows, done);
@@ -802,6 +819,15 @@ export class CSVDataSource extends DataSource {
             nodes.map(({ id, data }) => ({ ...data, id })),
             edgeRecords as AdHocData[],
         );
+    }
+
+    /**
+     * The missing option as graph-io's CSV importer takes it.
+     * @returns `{ missing }`, or nothing when it was not given
+     */
+    private missingOption(): Pick<CsvImportOptions, "missing"> {
+        const { missing } = this.config;
+        return missing === undefined ? {} : { missing };
     }
 
     /**

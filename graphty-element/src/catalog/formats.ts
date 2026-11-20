@@ -112,6 +112,15 @@ const jsonOptions: readonly OptionDescriptor[] = [
         description: "An expression selecting each node's identity out of the node record.",
     },
     {
+        name: "pointer",
+        plainName: "Collection",
+        technicalName: "pointer",
+        type: "string",
+        description:
+            "A JSON Pointer (RFC 6901, such as /graph/people) to the part of the file to read. An " +
+            "array is read as one table of rows; an object is read whole as a graph.",
+    },
+    {
         name: "oboIds",
         plainName: "Ontology Ids",
         technicalName: "oboIds",

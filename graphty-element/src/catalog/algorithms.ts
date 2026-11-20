@@ -743,10 +743,20 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 kind: "graph",
                 type: "integer",
             }),
+            field({
+                name: "tiedRoutes",
+                plainName: "Routes tied for cheapest",
+                technicalName: "tiedRoutes",
+                kind: "graph",
+                type: "number",
+            }),
             HAS_NEGATIVE_CYCLE,
         ],
         options: mergeOptions(
-            optionsOf("dijkstra", { bidirectional: { internal: true } }),
+            optionsOf("dijkstra", {
+                bidirectional: { internal: true },
+                timeOrder: { type: "attribute", on: "edge" },
+            }),
             optionsOf("bellman-ford"),
             optionsFromZod(shortestPathEngineOptions),
         ),

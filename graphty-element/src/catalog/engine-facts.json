@@ -335,6 +335,24 @@
                         }
                     ],
                     "advanced": true
+                },
+                {
+                    "name": "invertStrength",
+                    "plainName": "Read Strength as Closeness",
+                    "technicalName": "invertStrength",
+                    "type": "boolean",
+                    "description": "When the weight read is a strength (a larger weight is a stronger connection), cross each edge at a cost of 1 / weight, so the route prefers strong edges. Off, a strength is left unread and every edge counts the same",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "timeOrder",
+                    "plainName": "Time Order",
+                    "technicalName": "timeOrder",
+                    "type": "string",
+                    "description": "An edge column holding each edge's time. Set, the route only takes edges in time order: each edge at or after the one before it, and never an edge with no time",
+                    "default": null,
+                    "advanced": true
                 }
             ],
             "scopeInput": "subgraph",

@@ -4,7 +4,7 @@
  * per-card Weight and Direction design; until then a run takes the element's default, which
  * computes as these algorithms always have.
  */
-const NOT_YET_DRAWN: Readonly<Record<string, readonly string[]>> = {
+const NOT_YET_DRAWN: Readonly<Partial<Record<string, readonly string[]>>> = {
     closeness: ["weight"],
     hits: ["weight"],
     pagerank: ["directed"],

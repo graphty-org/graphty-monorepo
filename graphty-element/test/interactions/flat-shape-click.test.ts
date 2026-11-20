@@ -63,10 +63,10 @@ async function mounted(viewMode: "2d" | "3d"): Promise<Graphty> {
 }
 
 /**
- * Where a node's centre is drawn, plus an offset in CSS pixels.
+ * Where a node's center is drawn, plus an offset in CSS pixels.
  * @param element - The element.
  * @param id - The node.
- * @param dx - How far right of the centre.
+ * @param dx - How far right of the center.
  * @returns The point.
  */
 function near(element: Graphty, id: string, dx = 0): Point {

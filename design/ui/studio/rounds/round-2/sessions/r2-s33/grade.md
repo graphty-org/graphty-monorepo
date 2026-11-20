@@ -64,5 +64,5 @@ behaved the same as the session.
 | 8   | 0   | opinion      | Color and size now repeat the same measure; she did not choose the color, it "just happened".                                                                                                                                                                                                                       | 13.png; debrief                                                                                                                                            |
 
 What worked, for the record: the hint "Analyze (flask) in the toolbar (Shift+A)" pointed her to
-Analyze; the attribute list greys out id and name with "Holds groups, not amounts"; the legend
+Analyze; the attribute list grays out id and name with "Holds groups, not amounts"; the legend
 gains a "Size: Influence" row with its range; the node panel gives "0.1458, #1 of 15".

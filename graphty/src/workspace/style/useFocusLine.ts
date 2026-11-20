@@ -156,7 +156,7 @@ export function focusSectionNext(session: GraphSession, from: Element, channel: 
     const section = from.closest<HTMLElement>("[data-section]")?.dataset.section;
     ask(
         session,
-        section === null || section === undefined
+        section === undefined
             ? null
             : `[data-section="${section}"]:not(:has([data-line="${channel}"] [aria-label^="Remove"])) [data-plus]`,
     );

@@ -1,7 +1,7 @@
 # Session r1-s02 -- Tom (the recipe recipient), task T15, prompt A (Les Miserables)
 
 Participant: Tom, 52, cell-biology lab manager. He does not build networks, reads headings,
-numbers and legends, skips small grey text, and gives up after about two dead ends.
+numbers and legends, skips small gray text, and gives up after about two dead ends.
 Start: empty app. Tool: `design/ui/studio/tool/real.mjs`; all commands were run from
 `design/ui/studio`, and `S=rounds/round-1/sessions/r1-s02`.
 
@@ -29,7 +29,7 @@ Tom: "There it is. 77 nodes, the same 77 characters. Part one, on screen: done."
 
 ### 03 -- looking for "which matter most"
 
-Hesitated: no word on screen says "important" or "matter". He ignored the grey line at the
+Hesitated: no word on screen says "important" or "matter". He ignored the gray line at the
 bottom left ("Analyze (Shift+A) to add results here"). He went for the bar of icons at the
 bottom and picked the flask, because a flask means "experiment" to him.
 
@@ -118,7 +118,7 @@ There's a chain-link icon next to it. One more go, then I'm done with sizes."
 `--step $S --key Escape --click-at 1380,256` (button "Size by attribute")
 
 Saw: a list, "Find an attribute": Influence, Influence rank, Influence percentile. Below it,
-greyed out: "Cannot be used: Holds groups, not amounts" -- id, name.
+grayed out: "Cannot be used: Holds groups, not amounts" -- id, name.
 
 `--step $S --click-at 1193,324` (option "Influence")
 
@@ -140,7 +140,7 @@ Tom: "id or name. Names."
 `--step $S --click-at 1117,454` (option "name")
 
 Saw: small names above most dots (Myriel, Fantine, Cosette, Napoleon...). Under the Label
-row, in small grey text: "77 labels, 6 hidden to avoid overlap".
+row, in small gray text: "77 labels, 6 hidden to avoid overlap".
 
 Tom: "Names, yes. Tiny though. I need my glasses. I can read Myriel, Fantine, Cosette. The
 big one in the middle I'd guess is Valjean, but his name is buried in the ball. Names on the

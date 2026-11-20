@@ -231,9 +231,16 @@ describe("the Project package", () => {
     });
 
     it("words a file that does not open from the element's code", () => {
-        const error = (code: "E_BAD_DOCUMENT" | "E_UNSUPPORTED_VERSION" | "E_TOO_LARGE"): GraphtyError =>
-            new GraphtyError({ code, message: code, source: "data" });
+        const error = (
+            code: "E_BAD_DOCUMENT" | "E_UNSUPPORTED_VERSION" | "E_TOO_LARGE" | "E_UNKNOWN_FORMAT" | "E_UNSUPPORTED",
+        ): GraphtyError => new GraphtyError({ code, message: code, source: "data" });
         assert.equal(problemSentence("a.json", error("E_BAD_DOCUMENT")), "a.json is not a graphty project file.");
+        assert.equal(problemSentence("a.bin", error("E_UNKNOWN_FORMAT")), "a.bin is not a file graphty can open.");
+        assert.equal(
+            problemSentence("a.json", error("E_UNSUPPORTED")),
+            "a.json needs a part this graphty cannot read yet.",
+        );
+        assert.equal(saveProblemSentence("Karate", new Error("x")), "Karate could not be saved.");
         assert.equal(
             problemSentence("a.json", error("E_UNSUPPORTED_VERSION")),
             "a.json was saved by a newer graphty. Update graphty to open it.",

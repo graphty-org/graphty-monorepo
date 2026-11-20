@@ -40,7 +40,7 @@ Accepted (they drive the revision):
   A second promise adds the unhandled-rejection, cancellation and batch-hang questions and gives
   no timing a read could not give. The revision is a synchronous read.
 - **The three lists cannot express what happens today.** The cases they miss: a batch member that
-  is coalesced away (autoApply.ts:296-307); `style: false`; a failed or cancelled run (:288-289);
+  is coalesced away (autoApply.ts:296-307); `style: false`; a failed or canceled run (:288-289);
   a refusal, which today goes only to `style:problem` (`GraphSession.ts:2163-2176`); a run with
   nothing to suggest; and a session with no style stack (`RunsApi.ts:1296-1299` falls back to
   "paint nothing"). In every one of these cases the three lists come back empty, so they cannot be

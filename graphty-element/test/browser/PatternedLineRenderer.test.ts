@@ -107,8 +107,8 @@ test("a shape override picks the alternating pattern's other shape", () => {
 });
 
 // Issue #444: every element used to be a mesh with a material of its own. Elements of one shape
-// now share one batch -- in 3D whatever their colour or width, since the billboard shader reads
-// both per slot; in 2D the colour is the material's, so it splits the batch.
+// now share one batch -- in 3D whatever their color or width, since the billboard shader reads
+// both per slot; in 2D the color is the material's, so it splits the batch.
 test("elements of one shape share one batch, and 2D splits it only by what its material holds", () => {
     const { scene, cleanup } = createTestScene();
 

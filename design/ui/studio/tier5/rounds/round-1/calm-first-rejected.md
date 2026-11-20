@@ -51,7 +51,7 @@ card at rest, 20, stands in) and the 50,000-node screens.
 | 4   | 2   | The preview key is drawn over the drawing and covers a node.                                                                                                                                             | 13, 14; 1280 05                    |
 | 5   | 2   | An Or group repeats every control per group: two "No nodes / All nodes" toggles, two add rows ("Keep", "Add"), two checkboxes and two "..." beside the counts.                                         | 13, 14; 1280 05                    |
 | 6   | 2   | Controls out of line with their rows: verb icons, the "Keep" add row and the chips "A: role staff" and "B: Degree No test" each start at a different indent; the rule's chips wrap their icons inline. | 13, 14, 17, 18                     |
-| 7   | 2   | Drawn at rest that nothing needs: "Select", "Filter to" and "Filter out" in 8 px grey on every filter card at rest (also a bar 6 word violation), and the inspector switched to a selection summary.   | 20                                 |
+| 7   | 2   | Drawn at rest that nothing needs: "Select", "Filter to" and "Filter out" in 8 px gray on every filter card at rest (also a bar 6 word violation), and the inspector switched to a selection summary.   | 20                                 |
 | 8   | 2   | The whole canvas fades as soon as a new card opens, before anything is chosen: a pane of washed-out nodes the step does not use yet.                                                                    | 17, 18                             |
 
 Progressive disclosure: this build has no Advanced; every option a step has is drawn or in its

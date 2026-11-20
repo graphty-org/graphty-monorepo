@@ -403,7 +403,7 @@ export class WindowCounter {
             const end = rowPtr[row + 1];
             slideCounters.rows += end - rowPtr[row];
             const counted = direction === 0 ? -1 : row;
-            // No branch on the bytes: hub nodes' neighbours pass at random, which no predictor follows.
+            // No branch on the bytes: hub nodes' neighbors pass at random, which no predictor follows.
             for (let arc = rowPtr[row]; arc < end; arc++) {
                 const other = colIdx[arc];
                 showing += passing[other] & own[arcToEdge[arc]] & (other === counted ? 0 : 1);

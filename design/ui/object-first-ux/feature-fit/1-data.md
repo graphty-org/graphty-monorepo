@@ -48,11 +48,11 @@ object states and the paint precedence.
 | 2 | Open from a URL (shipped) | Import dialog, URL tab; file menu > Open | natural | `el.loadFromUrl(url, options)` | as row 1 |
 | 3 | Paste data (shipped) | Import dialog, Paste tab; Ctrl+V on the canvas opens it with the clipboard text in the field; Welcome sheet row "Paste data..." | natural | `el.setData` / `el.addDataFromSource("json", {data})` | as row 1 |
 | 4 | Inline data: node and edge arrays from a host page (shipped) | not on the everyday screen; a consumer API | natural | `el.nodeData`, `el.edgeData`, `el.setData` | none |
-| 5 | Load from a named source by type (shipped) | the Import dialog's format select is fed by the catalogue; a registered source with its own inputs (a server, a service) becomes a tab or a row in that select | natural | `el.addDataFromSource(type, opts)`, `session.catalog.formats()` | as row 1 |
+| 5 | Load from a named source by type (shipped) | the Import dialog's format select is fed by the catalog; a registered source with its own inputs (a server, a service) becomes a tab or a row in that select | natural | `el.addDataFromSource(type, opts)`, `session.catalog.formats()` | as row 1 |
 | 6 | Sample datasets (app-side today) | Welcome sheet list; file menu > Open sample. A sample's hint ("Try Find groups") is a second action on the row, "Open and find groups", which is a two-step recipe the reader chose; nothing runs unasked | natural | gap: a `data.sample` command in the element (design 4.11) so a third-party consumer gets the same samples; today `graphty/src/data/sampleManifest.ts` | as row 12, then one Grouping row when the hint is used |
 | 7 | Recent files (drawn, empty today) | file menu > Open recent (the last ten names; a File System Access handle when the browser grants one, else the name only and a "Choose again" path) | natural | none needed (reader preference, app chrome) | none |
-| 8 | Import formats: JSON dialects, CSV dialects, GraphML, GEXF, GML, DOT, Pajek (shipped, 7 importers) | Import dialog, "Format [Auto v]" select, listed from the catalogue with the plain name and extensions | natural | `session.catalog.formats()` | none |
-| 9 | More readers: SIF, CX2, STRING, BioGRID, Neo4j APOC (proposed #306, #307, #308, #303, #304) | the same select once registered; STRING and BioGRID are fetches from a service, so they are a "Service" tab in the Import dialog with the service's own fields (species, score cutoff) | natural for SIF and CX2; awkward for the services (note A) | gap: the readers themselves; for services, a source descriptor that declares its fields so the app can draw them from the catalogue rather than hard-code a form | as row 1 |
+| 8 | Import formats: JSON dialects, CSV dialects, GraphML, GEXF, GML, DOT, Pajek (shipped, 7 importers) | Import dialog, "Format [Auto v]" select, listed from the catalog with the plain name and extensions | natural | `session.catalog.formats()` | none |
+| 9 | More readers: SIF, CX2, STRING, BioGRID, Neo4j APOC (proposed #306, #307, #308, #303, #304) | the same select once registered; STRING and BioGRID are fetches from a service, so they are a "Service" tab in the Import dialog with the service's own fields (species, score cutoff) | natural for SIF and CX2; awkward for the services (note A) | gap: the readers themselves; for services, a source descriptor that declares its fields so the app can draw them from the catalog rather than hard-code a form | as row 1 |
 | 10 | Import options per format: separator, file shape, id column, endpoint fields (shipped) | Import dialog, an "Options" group under the format select, drawn from the format's option descriptors, collapsed unless detection is unsure; after a load, Dataset overflow > "Import options..." reopens the dialog on the current values | natural before the load; awkward after (note B) | `FormatDescriptor.options` | after a load, changing an option is a re-import: row 12 |
 | 11 | Known-field mapping: id, label, weight, time, type, edge source / target / id (shipped) | Import dialog, the mapping rows, shown only when detection is unsure; otherwise a one-line "Detected: id, source, target, weight" with "Change"; after a load, Dataset > Made by prints the mapping and "Change..." reopens the dialog | natural before; awkward after (note B) | `DataConfig.knownFields`, `el.nodeIdPath` and friends | a re-import: row 12 |
 | 12 | Replace the dataset with a new file (app clears first today) | Import dialog, "Replace" (the default when a dataset is loaded and the file is not the same one); a confirmation names the count: "Replace 'Karate Club' and delete its 6 objects?" | awkward (note C) | gap: a load mode on the element (`{mode: "replace"}`) so a consumer does not call `clearData` and then load, and so the element can keep the tree and re-run it when the reader asks (note C) | clears the tree; with "Keep the objects" (note C) every row is re-created by recipe replay and runs by the stale rule |
@@ -72,8 +72,8 @@ object states and the paint precedence.
 | 26 | Update attributes after load (proposed #297) | the Table dock: an attribute cell is editable in place (Figma's Variables table is the precedent); commit on Enter | awkward (note E) | gap: #297 | a data change: the stale rule on objects that read that attribute |
 | 27 | Node merging: combine selected nodes into one (proposed, designloom `node-merging`) | none (note E) | does not fit | gap: a mutation API with inverses (design 9.3) | would rewrite members of every object |
 | 28 | Clear / close the dataset (shipped) | Dataset overflow > "Close dataset"; file menu; confirms with the object count | natural | `el.clearData()`, `session.styles.removeBySource` | deletes the whole tree; the app returns to the Welcome sheet |
-| 29 | Expand a node's neighbourhood from a server (shipped, `layoutBehavior.fetchNodes`) | node inspector overflow and right-click "Expand from server", drawn only when a server source is configured (Import dialog > Service tab, "Keep the connection for expanding"); after the fetch the node's Neighbours section grows and the Dataset's Made by lists the fetches | awkward (note F) | `el.layoutBehavior = {fetchNodes, fetchEdges}`; gap: the fetch source should be a registered data source with a descriptor, not a pair of callbacks a consumer writes | a data change each time: the stale rule; the Dataset row shows "34 nodes (+12 fetched)" |
-| 30 | Attribute catalogue: type, completeness, unique count, range, origin (shipped) | Dataset > Attributes (collapsed): one 32 px row per column with type glyph, name, completeness, and a "..." with Colour by, Size by, Filter by, Group by, Label by, Set as time, Set as type | natural | `session.data.attributes()` | Colour by / Size by make a Measure row; Group by makes a Grouping row; Filter by makes a Set row |
+| 29 | Expand a node's neighborhood from a server (shipped, `layoutBehavior.fetchNodes`) | node inspector overflow and right-click "Expand from server", drawn only when a server source is configured (Import dialog > Service tab, "Keep the connection for expanding"); after the fetch the node's Neighbors section grows and the Dataset's Made by lists the fetches | awkward (note F) | `el.layoutBehavior = {fetchNodes, fetchEdges}`; gap: the fetch source should be a registered data source with a descriptor, not a pair of callbacks a consumer writes | a data change each time: the stale rule; the Dataset row shows "34 nodes (+12 fetched)" |
+| 30 | Attribute catalog: type, completeness, unique count, range, origin (shipped) | Dataset > Attributes (collapsed): one 32 px row per column with type glyph, name, completeness, and a "..." with Color by, Size by, Filter by, Group by, Label by, Set as time, Set as type | natural | `session.data.attributes()` | Color by / Size by make a Measure row; Group by makes a Grouping row; Filter by makes a Set row |
 | 31 | Graph statistics: counts, density, parts, self-loops, degree range (shipped) | Dataset > Summary (counts, direction, density, mean links, parts, self-loops when non-zero, weighted) and Findings (diameter and other computed facts) | natural | `session.data.statistics()` | none |
 | 32 | Status counts (shipped, O(1)) | the status bar: "34 nodes 78 edges", "showing 12 of 34" | natural | `session.status.counts` | none |
 | 33 | Topology fingerprint (shipped) | not on screen; used by the element to know whether a recipe or a project file was made on the same graph | natural, invisible | `session.fingerprint()` | none |
@@ -110,7 +110,7 @@ object states and the paint precedence.
 query (species, score cutoff, a seed gene list). The Import dialog can hold a Service tab, but
 the fields differ per service, and the app must not hard-code them. The fit works only if a
 registered data source publishes its inputs as option descriptors (the same
-`OptionDescriptor` shape algorithms use), so the tab is drawn from the catalogue. The model's
+`OptionDescriptor` shape algorithms use), so the tab is drawn from the catalog. The model's
 section 10 already lists external enrichment services as a rough edge; this is the same edge.
 Fit once descriptors exist; awkward until then.
 
@@ -156,7 +156,7 @@ inverse (design 9.3's mutation API) the element does not have. They are listed a
 below. The knowledge-engineer and enrichment-map workflows that need them are next-phase, as
 `../object-model.md` section 10 already says.
 
-**F. Expanding from a server.** A double-click that fetches neighbours is a data load
+**F. Expanding from a server.** A double-click that fetches neighbors is a data load
 triggered from one node. It fits the node inspector and the context menu as a verb, but two
 things bend: the Dataset now has more than one source (Made by must list every fetch, with
 counts), and every fetch is a data change that fires the stale rule, so a reader expanding
@@ -188,7 +188,7 @@ object with undrawn members ("12 of 40 members not drawn"). Progressive loading 
 problem over time: while chunks arrive the Dataset's member list is changing, and the stale
 rule would re-run every cheap object on every chunk. Rule proposed: while the Dataset row is
 computing, the tools are disabled (as they are before a load); objects are created only once
-the load is current. That keeps the model simple at the cost of not analysing a half-loaded
+the load is current. That keeps the model simple at the cost of not analyzing a half-loaded
 graph, which no persona asked for.
 
 **I. Video.** The model's Share menu does not mention video, and the inventory lists it as a
@@ -217,7 +217,7 @@ before it, not even as a tracked workaround.
 
 **L. Style presets and templates.** `applyTemplate` replaces the whole style stack, and in the
 model the style stack IS the tree's Fills. Applying "Print" would overwrite every object's
-colour. So a preset in the object model can only touch what no object owns: the Dataset's
+color. So a preset in the object model can only touch what no object owns: the Dataset's
 default look (the locked base layers) and the default palettes new objects pick up. That is
 "Look [Default v]" in the Canvas section, and it is a smaller thing than today's five-row
 Styles section promises. Exporting the stack as a document survives only as a palette
@@ -235,7 +235,7 @@ to. The element needs a template scope ("base and palettes only") to make the pr
   capture API takes a camera path. Camera-path video does fit, on the Views list.
 - **A style preset that restyles objects** (note L): a template applied to the whole stack
   overwrites every Fill; only a base-look preset fits.
-- **Analysing a half-loaded graph** (note H): objects cannot be created while the Dataset is
+- **Analyzing a half-loaded graph** (note H): objects cannot be created while the Dataset is
   loading in pieces without re-running on every chunk.
 - **A project file before the element owns the tree** (note K): fits as a menu item, cannot be
   built until the objects API exists.

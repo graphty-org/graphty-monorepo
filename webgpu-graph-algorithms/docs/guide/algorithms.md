@@ -29,10 +29,10 @@ graph goes away: nothing is freed by garbage collection.
 | Function                                      | Result                 | Notes                                                                                                      |
 | --------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `pageRank(ctx, s, options)`                   | `GpuPageRankResult`    | NetworkX's iteration; `dampingFactor` (0.85), `maxIterations` (100), `tolerance` (1e-6), `weighted` (true) |
-| `personalizedPageRank(ctx, s, bias, options)` | `GpuPageRankResult`    | the teleport vector is `bias`, one non-negative weight per node, normalised for you                        |
+| `personalizedPageRank(ctx, s, bias, options)` | `GpuPageRankResult`    | the teleport vector is `bias`, one non-negative weight per node, normalized for you                        |
 | `hits(ctx, s, options)`                       | `GpuHitsResult`        | hub and authority scores, each summing to 1; direction matters                                             |
-| `eigenvectorCentrality(ctx, s, options)`      | `GpuScoresResult`      | power iteration, L2-normalised                                                                             |
-| `katzCentrality(ctx, s, options)`             | `GpuScoresResult`      | `alpha` (0.1) attenuates each step, `beta` (1) is every node's floor; L2-normalised                        |
+| `eigenvectorCentrality(ctx, s, options)`      | `GpuScoresResult`      | power iteration, L2-normalized                                                                             |
+| `katzCentrality(ctx, s, options)`             | `GpuScoresResult`      | `alpha` (0.1) attenuates each step, `beta` (1) is every node's floor; L2-normalized                        |
 | `closenessCentrality(ctx, s, options)`        | `GpuClosenessResult`   | exact, or sampled from `sources`                                                                           |
 | `betweennessCentrality(ctx, s, options)`      | `GpuBetweennessResult` | exact, or sampled with `k` or `sources` (the sum over the sources run, not extrapolated)                   |
 | `edgeBetweennessCentrality(ctx, s, options)`  | `GpuEdgeScoresResult`  | one score per edge                                                                                         |

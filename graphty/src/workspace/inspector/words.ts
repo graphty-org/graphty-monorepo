@@ -12,6 +12,7 @@ import type {
     GraphtyErrorCode,
     Measurement,
     MultipleTestingCorrection,
+    ResultShape,
     SelectionAttributeStatistics,
     StaleNote,
     SummaryGroup,
@@ -58,8 +59,24 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     source: "Source",
 };
 
-/** The kind word of a path run's row, which is a measure row by shape but not a measure to a reader. */
-export const PATH_WORD = "Path";
+/**
+ * The kind word of a run row that publishes no groups, by what graphty-element says its result
+ * holds (its shape): an edge set is headed for its edges, not Groups. A run that publishes groups
+ * keeps the run row's word.
+ */
+export const RUN_SHAPE_WORDS: Readonly<Record<ResultShape, string>> = {
+    "node-metric": "Measure",
+    "edge-metric": "Measure",
+    community: "Groups",
+    "layered-grouping": "Levels",
+    "category-table": "Categories",
+    path: "Path",
+    "node-set": "Node set",
+    "edge-set": "Edge set",
+    "pair-list": "Pairs",
+    temporal: "Series",
+    fact: "Facts",
+};
 
 /**
  * The property token Why this look shows for each channel. Two channels may share one word. Every
@@ -139,6 +156,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelFitImage": "Shape",
     "node.labelFitImagePadding": "Shape",
     "edge.color": "Color",
+    "edge.colorFrom": "Color",
     "edge.width": "Width",
     "edge.opacity": "Opacity",
     "edge.style": "Line",
@@ -192,6 +210,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shaders": "Shaders",
     "edge.shaders": "Shaders",
     "edge.taper": "Line",
+    "edge.taperSource": "Line",
     "edge.lift": "Line",
     "edge.labelWrapWidth": "Label",
     "edge.labelLetterSize": "Label",
@@ -219,6 +238,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelLineHeight": "Label",
     "node.labelLineBox": "Label",
     "node.labelBorderAlign": "Label",
+    "node.labelBorderStyle": "Label",
     "node.labelBackgroundShape": "Label",
     "node.labelOffsetX": "Label",
     "node.labelOffsetY": "Label",
@@ -235,6 +255,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.xlabelLocation": "Outside label",
     "node.xlabelOffsetX": "Outside label",
     "node.xlabelOffsetY": "Outside label",
+    "node.xlabelTextAlign": "Outside label",
     "edge.xlabel": "Outside label",
     "edge.xlabelStyle": "Outside label",
     "edge.xlabelLocation": "Outside label",
@@ -359,6 +380,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.wavePeriod": "Wave period",
     "edge.dashLength": "Dash length",
     "edge.dashGap": "Dash gap",
+    "edge.dashArray": "Dash array",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",
@@ -434,6 +456,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelLineHeight": "Label",
     "edge.labelLineBox": "Label",
     "edge.labelBorderAlign": "Label",
+    "edge.labelBorderStyle": "Label",
     "edge.labelBackgroundShape": "Label",
     "edge.labelOffsetX": "Label",
     "edge.labelOffsetY": "Label",
@@ -649,7 +672,7 @@ export function selectedNameWords(session: GraphSession): string {
 }
 
 /**
- * What Frame selection says once the camera has moved: "Framed Ava", "Framed 3 nodes".
+ * What Fit selection says once the camera has moved: "Framed Ava", "Framed 3 nodes".
  * @param session - the session.
  * @returns the words.
  */
@@ -813,6 +836,7 @@ const RUN_FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
     E_SOFTWARE_ONLY: "the graphics card could not run it",
     E_DEVICE_INCORRECT: "the graphics card gave a wrong answer",
     E_DEVICE_LOST: "the graphics card stopped during the run",
+    E_GPU_TIMEOUT: "the graphics card stopped answering",
     E_UNSUPPORTED: "this analysis cannot run here",
 };
 

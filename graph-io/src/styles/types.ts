@@ -149,10 +149,12 @@ export type StyleArrowShape =
 export type StyleArrowSide = "left" | "right";
 
 /**
- * Label font weights.
+ * Label font weights: `normal` (CSS 400), `bold` (CSS 700), or another CSS numeric weight from 100 (thin) to 900
+ * (black). A relative weight in a file (`lighter`, `bolder`) is read against the normal weight its label inherits:
+ * `lighter` is `100` and `bolder` is `bold`.
  * @category Styles
  */
-export type StyleLabelWeight = "normal" | "bold";
+export type StyleLabelWeight = "normal" | "bold" | "100" | "200" | "300" | "500" | "600" | "800" | "900";
 
 /**
  * Where a node's label sits relative to the node: `center` in its middle, a side or corner (`top`, `bottom-left`, ...)
@@ -515,6 +517,8 @@ export interface NodeStyleValues {
     readonly xlabelOffsetX: number;
     /** How far down from the node's center the middle of `xlabel` is drawn (a length). */
     readonly xlabelOffsetY: number;
+    /** How the lines of `xlabel` line up with one another; unset, as the label's (`labelTextAlign`). */
+    readonly xlabelTextAlign: StyleLabelTextAlign;
     /** The label's font family, as the file names it. */
     readonly labelFont: string;
     /** The label's font weight. */
@@ -611,6 +615,11 @@ export interface NodeStyleValues {
      * `center`, centered on the edge, as Cytoscape.js strokes it. Unset, `outside`.
      */
     readonly labelBorderAlign: string;
+    /**
+     * How the line round the box behind the label's words is drawn: `solid`, one line; `double`, the line drawn again
+     * inside it, one line's width in, as Cytoscape.js draws `text-border-style: double`. Unset, `solid`.
+     */
+    readonly labelBorderStyle: string;
     /**
      * The shape of the box behind the label's words and its line: `rectangle` (rounded by `labelCornerRadius`), or
      * `circle`, a disc whose diameter is the box's shorter side, centered on it (Cytoscape.js
@@ -969,6 +978,13 @@ export interface EdgeStyleValues {
      * Cytoscape.js's `curve-style: straight-triangle`).
      */
     readonly taper: number;
+    /**
+     * The line's width at the source as a multiple of `width`: 1 (the default) leaves the source end at `width`, 0
+     * narrows the line to a point there (Graphviz's `style=tapered`, `dir=back`). When it and `taper` are both below
+     * 1, the line is `width` wide at its middle and narrows straight to each end (`dir=both`); otherwise it runs
+     * straight from its width at the source to its width at the target.
+     */
+    readonly taperSource: number;
     /** The arrow at the source end. */
     readonly sourceArrow: StyleArrowShape;
     /** The arrow at the target end. */
@@ -1177,6 +1193,11 @@ export interface EdgeStyleValues {
      * `center`, centered on the edge, as Cytoscape.js strokes it. Unset, `outside`.
      */
     readonly labelBorderAlign: string;
+    /**
+     * How the line round the box behind the label's words is drawn: `solid`, one line; `double`, the line drawn again
+     * inside it, one line's width in, as Cytoscape.js draws `text-border-style: double`. Unset, `solid`.
+     */
+    readonly labelBorderStyle: string;
     /**
      * The shape of the box behind the label's words and its line: `rectangle` (rounded by `labelCornerRadius`), or
      * `circle`, a disc whose diameter is the box's shorter side, centered on it (Cytoscape.js

@@ -51,7 +51,7 @@ the panel to the workspace's Cancel; Enter.
 - Cancel removes the new card: "Filter not added", focus on Add filter, the Degree card stays at
   112 of 549 (touched-14/58.png).
 - Control+Z then undoes the participant's own last step, not the Cancel: toast "Undid editing the
-  filter "Degree 10 or more".", spoken "Filter on: 549 of 549 nodes, 2,084 edges"; the cancelled
+  filter "Degree 10 or more".", spoken "Filter on: 549 of 549 nodes, 2,084 edges"; the canceled
   Largest component card does not come back (touched-14/59.png). The spoken count keeps the
   thousands separator and names the count after the undo.
 - Control+Shift+Z redoes it: spoken "Filter on: 112 of 549 nodes, 896 edges" (60.png). A second

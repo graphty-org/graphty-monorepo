@@ -208,7 +208,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
     readonly stages: typeof FORCE_STAGES = FORCE_STAGES;
     /** Fa2Params: the per-iteration uniform block (the simulation writes the shared fields into it). */
     readonly params: UniformBlock = FA2_PARAMS;
-    /** Fa2State: the state header block (the simulation allocates and initialises it through this layout). */
+    /** Fa2State: the state header block (the simulation allocates and initializes it through this layout). */
     readonly state: UniformBlock = FA2_STATE;
     /** Fa2Trace: one record per iteration of a batch. */
     readonly trace: UniformBlock = FA2_TRACE;

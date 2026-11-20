@@ -363,7 +363,7 @@ async function prAnswer(number, pushed, view, issues = []) {
     const required = Object.entries(rec.required ?? {});
     if (gaps.length) return { missing: [...fix, ...gaps] };
     if (fix.length) return { missing: fix, fixable: true };
-    // A cancelled check is no result yet: githerd re-runs it, or someone pushes again.
+    // A canceled check is no result yet: githerd re-runs it, or someone pushes again.
     if (required.some(([, s]) => s === "PENDING" || s === "MISSING" || s === "CANCELLED"))
         return { ciPending: rec.headSha };
     return rec.baseRef !== (view.state.master?.branch ?? "master") ? { holds: true, stacked: true } : { holds: true };
@@ -683,7 +683,7 @@ function deferredAnswer(job, report) {
 
 /**
  * The issues whose jobs joined this one (`job.joinedIssues`, board.mjs joinJob): their jobs were
- * cancelled for it, so its fix is theirs too, and its pull request must name each (issue #2499).
+ * canceled for it, so its fix is theirs too, and its pull request must name each (issue #2499).
  * @param {any} job the job
  * @returns {number[]} the issue numbers
  */
@@ -1446,7 +1446,7 @@ export function doneIo({
         pull: (n) => get(`repos/${repo}/pulls/${n}`),
         async npmLatest(name) {
             try {
-                const res = await fetchFn(`https://registry.npmjs.org/${name.replace("/", "%2f")}`, {
+                const res = await fetchFn(`https://registry.npmjs.org/${name.replaceAll("/", "%2f")}`, {
                     headers: { accept: "application/vnd.npm.install-v1+json" },
                     signal: AbortSignal.timeout(15_000),
                 });

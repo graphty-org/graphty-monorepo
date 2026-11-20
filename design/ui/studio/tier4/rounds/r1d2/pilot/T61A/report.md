@@ -57,7 +57,7 @@ None of the routes the fixes touched belongs to T61: they are routes of T64, T65
 ## Success path by keyboard (k3-keyboard, keys only, screen-reader mode): reached
 
 The first 85 steps matched the earlier walk (start screen, file load, Data, Add source, the join
-screen's Tab order, Escape cancelling the join, F6 cycling). From the second opening of
+screen's Tab order, Escape canceling the join, F6 cycling). From the second opening of
 deliveries.csv:
 
 - Enter > Enter > deliveries.csv: focus on button "Join"; live region "19 of 19 rows".
@@ -269,7 +269,7 @@ T68) and are walked by those tasks' pilots.
 ### Success path by keyboard (s3-keyboard): reached
 
 - Steps 1-105 matched the earlier walk: start screen, file load, Data, Add source, the join
-  screen's Tab order, Escape cancelling the join (77.png), F6 cycling, the second opening, Join
+  screen's Tab order, Escape canceling the join (77.png), F6 cycling, the second opening, Join
   (focus on "deliveries.csv 17 of 19 rows joined 13 nodes, 18 edges", 89.png), the issue dialog,
   the Edges tab, the Target header, sort, Control+Z and Control+Shift+Z.
 - Step 106 differed only because the "Redid joining deliveries.csv." notice was still up: its

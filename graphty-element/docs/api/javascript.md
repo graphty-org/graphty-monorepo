@@ -107,7 +107,7 @@ every one of them addresses a layer by the id the element minted for it:
 | `explain(target)`           | `StyleExplanation`        | Which layer decided each channel         |
 
 A write verb returns a `Run` rather than resolving to a value, so a layer edit on a large graph
-can report progress and be cancelled. The stack moves only once the repaint has succeeded.
+can report progress and be canceled. The stack moves only once the repaint has succeeded.
 
 ### Notes
 

@@ -1,0 +1,62 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-data/v2.json",
+    "kind": "graphty-data",
+    "version": 2,
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "id": "minimal-referenced-data",
+    "build": "01JCC0000000000000000000AB",
+    "directed": false,
+    "sources": [
+        {
+            "id": "src_01JCC0000000000000000000AC",
+            "label": "friends.csv",
+            "kind": "url",
+            "format": "csv",
+            "options": {
+                "styles": "none"
+            },
+            "origin": {
+                "copy": "sha256:bf7c2a9d7c32b6e31e6a4e5e7a0d0a3f28ef3dbf0b5db3e2d2b1f6c7b1a4e2c9",
+                "url": "friends.csv",
+                "size": 22
+            },
+            "mapping": {
+                "nodes": {
+                    "key": "id",
+                    "space": "source:src_01JCC0000000000000000000AC"
+                },
+                "edges": {
+                    "source": "source",
+                    "sourceSpace": "source:src_01JCC0000000000000000000AC",
+                    "target": "target",
+                    "targetSpace": "source:src_01JCC0000000000000000000AC"
+                }
+            },
+            "settings": {
+                "duplicateIds": "first",
+                "unmatched": "add"
+            },
+            "columns": {
+                "nodes": {
+                    "id": { "name": "id", "dtype": "string", "nullable": false }
+                },
+                "edges": {
+                    "source": { "name": "source", "dtype": "string", "nullable": false },
+                    "target": { "name": "target", "dtype": "string", "nullable": false }
+                }
+            }
+        }
+    ],
+    "types": [],
+    "joins": [{ "op": "join.add", "source": "src_01JCC0000000000000000000AC" }],
+    "graph": {
+        "directed": false,
+        "multigraph": false,
+        "graph": {},
+        "nodes": [],
+        "links": []
+    }
+}

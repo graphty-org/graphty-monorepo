@@ -57,7 +57,7 @@ little clock-like icon. My work survived. I'll click PageRank to see how to redo
     node ../tool/real.mjs --step $S --click "PageRank"   -> 09.png
 
 09: The run's panel says "Data changed since this run" with a blue "Rerun" button. The top ten is
-still the old one (Farah 0.06394), ran Oct 9, 8:35:24 PM -- clearly labelled old. Rerun it is.
+still the old one (Farah 0.06394), ran Oct 9, 8:35:24 PM -- clearly labeled old. Rerun it is.
 
     node ../tool/real.mjs --step $S --click "Rerun"   -> 10.png
 

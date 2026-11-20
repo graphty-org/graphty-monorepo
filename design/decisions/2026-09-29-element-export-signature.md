@@ -15,7 +15,7 @@ Changes: graphty-element's public API. Adds `exportGraph` on `<graphty-element>`
 ## The decision
 
 1. **`exportGraph(format, options?) -> Promise<ExportResult>`**, on the element and on `Graph`.
-   `format` is a catalogue format id. `options` is the writer's own options plus graph-io's
+   `format` is a catalog format id. `options` is the writer's own options plus graph-io's
    `sanitizeIds` and `onMixedDirection`.
 2. **`ExportResult` is `{ format, lossNotes, text(), bytes }`**. `lossNotes` is computed when
    `exportGraph` resolves, from the exporter's `check()` plus any note the element raised while
@@ -49,26 +49,26 @@ Changes: graphty-element's public API. Adds `exportGraph` on `<graphty-element>`
    one the element stores (through `edgeWeightPath`, the legacy `value` key and the
    `repeatedEdges` fold), written as the weight role.
 6. **A Neo4j admin-import file is `exportGraph("csv", { variant: "neo4j" })`**, not a ninth
-   catalogue id. The element reads Neo4j files as the CSV variant of the same name, so the
-   catalogue keeps one entry and the option name matches the reader's.
+   catalog id. The element reads Neo4j files as the CSV variant of the same name, so the
+   catalog keeps one entry and the option name matches the reader's.
 7. **The built-in CSV writer defaults to graph-io's plain dialect** (`source,target,weight`)
    instead of graph-io's own choice of the Gephi dialect for a directed graph. The element's CSV
-   reader reads the Gephi headers back under their capitalised names (`Weight`, `Type`), so a
+   reader reads the Gephi headers back under their capitalized names (`Weight`, `Type`), so a
    Gephi-dialect export read back into the element renames every column. `{ dialect: "gephi" }`
    still writes the other.
-8. **Every writer's options are declared and checked.** Each built-in format's catalogue entry
+8. **Every writer's options are declared and checked.** Each built-in format's catalog entry
    lists what `exportGraph` accepts for it in `writerOptions` (graph-io's own option names, plus
    `sanitizeIds` and `onMixedDirection`); a registered writer's entry lists its own
    `writerOptions` plus those two. An option not listed is `E_UNKNOWN_OPTION` and a value outside
    an option's choices `E_OPTION_RANGE`, the same for both. `csv` with `{ variant: "neo4j" }` is
    checked against graph-io's Neo4j writer options.
-9. **CSV neutralises formula cells by default**, as the specification's section 8.1 item 4
+9. **CSV neutralizes formula cells by default**, as the specification's section 8.1 item 4
    requires: a text cell, id or header starting with `=`, `+`, `-`, `@`, tab or carriage return
    gets a leading apostrophe; numbers and texts in the JSON number grammar are never touched.
    `{ neutraliseFormulas: false }` turns it off. It is done by the element while it builds the
-   snapshot, because graph-io's CSV writer neutralises nothing.
+   snapshot, because graph-io's CSV writer neutralizes nothing.
 10. **A reader's own descriptor still may not say `canExport: true`.** Writing is registered
-    separately with `registerFormatWriter`, which marks the catalogue entry; a flag on a reader
+    separately with `registerFormatWriter`, which marks the catalog entry; a flag on a reader
     with no writer behind it would offer a "Save as" that fails.
 
 ## The arguments rejected
@@ -78,7 +78,7 @@ Changes: graphty-element's public API. Adds `exportGraph` on `<graphty-element>`
   the result carries both a string and a byte stream. Computing the text eagerly would also make
   the notes-only preview pay for the whole document.
 - **A ninth format id, `neo4j`.** It would need a reader registered under that id too, or it
-  would be a catalogue entry whose files every drop target claims as `csv`; the variant option
+  would be a catalog entry whose files every drop target claims as `csv`; the variant option
   says the same thing without either.
 - **Result columns named `<algorithm>.<field>`** or by the run's label. Two runs of one algorithm
   would collide, and a label is not unique. The run id is, and it is the name the rest of the

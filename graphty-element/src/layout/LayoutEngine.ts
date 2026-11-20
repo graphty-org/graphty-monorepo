@@ -1634,6 +1634,18 @@ export const SimpleLayoutConfig = z.looseObject({
 export type SimpleLayoutConfigType = z.infer<typeof SimpleLayoutConfig>;
 export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
 
+/**
+ * The configuration fields a geometric layout that runs in 2D or 3D around a center shares
+ * (circular, spiral): no entry point exports it.
+ */
+export const centeredLayoutConfigShape = {
+    ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(80),
+    scale: z.number().positive().default(1),
+    center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
+    dim: z.number().default(2),
+};
+
 /** What a static engine reads the graph through: the element's data manager, or nothing. */
 interface GraphSource {
     getSnapshot(): GraphSnapshot;

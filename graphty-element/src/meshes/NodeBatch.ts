@@ -868,6 +868,16 @@ export class NodeBatches {
     }
 
     /**
+     * Whether a batch can draw a look in the current view, so its source is hidden while it does.
+     * A held node of a look no batch draws keeps sharing its source, in its place in the draw order.
+     * @param style - The look.
+     * @returns True when a batch can draw it.
+     */
+    batches(style: NodePaint["style"]): boolean {
+        return batchableOf({ style }, this.view);
+    }
+
+    /**
      * Whether a batch draws this node now, rather than its own mesh.
      * @param node - The node.
      * @returns True when it does.
@@ -1216,6 +1226,10 @@ export class NodeBatches {
         if (view.flatOutline !== this.view.flatOutline || view.sizeSpace !== this.view.sizeSpace) {
             this.view = view;
             this.syncAll();
+            // A held node draws from its look's source or one of its own by whether the view batches its look.
+            for (const node of this.host.nodes()) {
+                node.holdOffBatch();
+            }
         }
 
         for (const family of this.families.values()) {

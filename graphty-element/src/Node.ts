@@ -3021,7 +3021,8 @@ export class Node implements ModelUser {
     }
 
     /**
-     * Move a held node's instance onto its own source mesh ({@link Node.sourceArgs}), if it is not there.
+     * Move a held node's instance onto the source {@link Node.sourceArgs} names for it (its own, or its
+     * look's when no batch draws that look), if it is not there.
      */
     private drawFromOwnSource(): void {
         const mesh = this.#mesh;
@@ -3052,11 +3053,14 @@ export class Node implements ModelUser {
 
     /**
      * Whether this node draws from a source of its own: a consumer holds its mesh while node batches
-     * draw, which hide the shared source. The objects path keeps sharing.
+     * draw its look, which hides the shared source. The objects path keeps sharing, and so does a
+     * look no batch draws (a border, a model, a picture): its source stays drawn, and the node keeps
+     * its place among its look's instances, as on the objects path.
+     * @param o - The resolved style.
      * @returns True when it does.
      */
-    private drawsOwnSource(): boolean {
-        return this.#meshHeld && !this.disposed && (this.context.getNodeBatches?.() ?? null) !== null;
+    private drawsOwnSource(o: NodeStyleConfig): boolean {
+        return this.#meshHeld && !this.disposed && this.context.getNodeBatches?.()?.batches(o) === true;
     }
 
     /**
@@ -3075,7 +3079,7 @@ export class Node implements ModelUser {
     ): [Parameters<typeof NodeMesh.source>[1], Parameters<typeof NodeMesh.source>[2]] {
         // A source mesh with its picture is another source mesh than the one drawn while it loads.
         const shared = `${meshKey}${image === null ? "" : "|image"}`;
-        const held = this.drawsOwnSource();
+        const held = this.drawsOwnSource(o);
         return [
             {
                 styleId: held ? `${shared}|held` : shared,

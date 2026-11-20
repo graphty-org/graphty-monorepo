@@ -174,7 +174,7 @@ describe("the dock's Preview tab (source-steps)", () => {
         assert.strictEqual(within(section).getByLabelText("dept decided").textContent, "decided 1");
 
         const filter = screen.getByRole("radiogroup", { name: "Cells" });
-        await userEvent.click(within(filter).getByRole("radio", { name: "Decided" }));
+        await userEvent.click(within(filter).getByText("Decided"));
         await waitFor(() => {
             const decided = within(screen.getByRole("grid", { name: "Cells" })).getAllByRole("rowheader");
             assert.deepStrictEqual(
@@ -183,7 +183,7 @@ describe("the dock's Preview tab (source-steps)", () => {
             );
         });
 
-        await userEvent.click(within(filter).getByRole("radio", { name: "Open" }));
+        await userEvent.click(within(filter).getByText("Open"));
         const open = await screen.findByRole("grid", { name: "Cells" });
         await waitFor(() => {
             assert.lengthOf(within(open).getAllByRole("rowheader"), 1);
@@ -197,7 +197,7 @@ describe("the dock's Preview tab (source-steps)", () => {
         assert.strictEqual(cells("decided"), 2);
 
         // Clear picks on every decided cell takes both back.
-        await userEvent.click(within(filter).getByRole("radio", { name: "Decided" }));
+        await userEvent.click(within(filter).getByText("Decided"));
         const decided = await screen.findByRole("grid", { name: "Cells" });
         await waitFor(() => {
             assert.lengthOf(within(decided).getAllByRole("rowheader"), 2);

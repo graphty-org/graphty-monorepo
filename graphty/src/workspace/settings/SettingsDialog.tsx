@@ -224,7 +224,7 @@ function Privacy(): React.JSX.Element {
                 </Text>
                 {analytics && !on ? (
                     <Text size="xs">
-                        Anonymous counts: while Share is off, with no cookies or stored id (PostHog, EU).
+                        Anonymous counts: while Share is off, with no cookies or stored id (PostHog, US).
                     </Text>
                 ) : null}
                 {analytics ? (

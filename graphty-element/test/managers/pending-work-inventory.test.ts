@@ -96,9 +96,11 @@ const INVENTORY: Record<string, Covered> = {
     },
     "src/models/TextureCache.ts": { count: 1, kind: "picture", reason: "a node's picture decoded into a texture" },
     "src/meshes/pictureSize.ts": {
-        count: 2,
+        count: 4,
         kind: "picture",
-        reason: "a picture read for its own size, which a node or a table cell is sized by, until the node is refitted",
+        reason:
+            "a picture read for its own size, which a node or a table cell is sized by, until the node is refitted; " +
+            "and a picture a label draws, until it has loaded and the label is painted again",
     },
     "src/meshes/AnnotationMeshes.ts": {
         count: 3,

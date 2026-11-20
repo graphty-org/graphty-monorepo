@@ -178,6 +178,18 @@ free; count from labels, `gh issue list -l bug --json number,labels`, never titl
 the counts in the round's last line. Every free bug must have a reason, a job or a diagnosis. On
 2026-11-01 a round reported an empty queue while 33 open bugs were unclaimed and six of them were takeable.
 
+**Count every red pull request, every round, whatever `jobs` prints.** One GraphQL query over all open pull
+requests (number, author, draft, `mergeStateStatus`, the last commit's date and `statusCheckRollup.state`) gives
+the graphty-agent ones that are red (`FAILURE`) or conflicting (`DIRTY`). Each with no head commit for 6 hours and
+no running fix job is a fix-red job to start this round, whoever opened it, at its issue's priority, after
+"Inherited failures" in the shared file (a pull request red only on a break master already has waits on that
+break's fix). The round's last line names the count (`red agent pull requests 45, 10 sent back`). A claim is not
+live work just because an open pull request names its issue: one whose pull request is red or conflicting with no
+commit for 6 hours is an abandoned claim. Never report the queue as empty, or the idle line's `startable` count as
+the work left, while this count has untaken entries. On 2026-11-19 about 45 agent pull requests sat red or
+conflicting for 1 to 5 days while `jobs` offered one fix-red job and the rounds reported 4 startable jobs; the
+owner found it from a drop in token use (#9136).
+
 **The round's last line reports the burn-down**, whatever ended the round, for example
 `issue-round: 24 h closed 9, opened 6; open bugs 41 (critical 3, in-progress 12, blocked 5, owner-only 2, free 19);
 claims without a pull request 8, longest idle #6123 31 h; ready queue 4; blocked by nothing; top of queue #6201

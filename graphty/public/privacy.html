@@ -118,7 +118,7 @@
 
             <h2 id="always">Anonymous counts, while Share usage data is off</h2>
             <p>
-                These counts go to PostHog (EU region), in its cookieless mode. PostHog stores nothing in your browser
+                These counts go to PostHog (US region), in its cookieless mode. PostHog stores nothing in your browser
                 for them (when it starts, its library writes one test value and removes it at once, to check that
                 storage works), and no id is sent from your browser; the app's own visit record is described under
                 Visits. Each event below is sent at most once per page load.
@@ -333,9 +333,9 @@
             <h2 id="where">Where it goes</h2>
             <ul>
                 <li>
-                    <b>PostHog, EU region</b> (<code>eu.i.posthog.com</code>): the anonymous counts while Share usage
+                    <b>PostHog, US region</b> (<code>us.i.posthog.com</code>): the anonymous counts while Share usage
                     data is off and, only with Share usage data, everything listed under it, plus
-                    <code>eu-assets.i.posthog.com</code>
+                    <code>us-assets.i.posthog.com</code>
                     for its settings. Every visitor's browser downloads PostHog's code after the page has loaded; until
                     you choose Share it sends only the anonymous counts.
                 </li>
@@ -355,7 +355,7 @@
                 </li>
                 <li>
                     The anonymous counts have no switch in the app. Do Not Track or Global Privacy Control stops the
-                    visit record; a content blocker that blocks <code>eu.i.posthog.com</code> stops the counts, and
+                    visit record; a content blocker that blocks <code>us.i.posthog.com</code> stops the counts, and
                     Share usage data with them.
                 </li>
             </ul>

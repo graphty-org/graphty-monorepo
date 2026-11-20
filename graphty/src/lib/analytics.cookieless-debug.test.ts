@@ -46,7 +46,7 @@ describe("a link with PostHog's debug parameter", () => {
         const site = {
             site: "production",
             features: ["usage-analytics"],
-            analytics: { posthogKey: KEY, posthogHost: "https://eu.i.posthog.com" },
+            analytics: { posthogKey: KEY, posthogHost: "https://us.i.posthog.com" },
         };
         const config = await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
         globalThis.history.replaceState(null, "", "?__posthog_debug=true&ref=x");

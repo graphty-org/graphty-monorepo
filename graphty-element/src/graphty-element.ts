@@ -482,7 +482,8 @@ export class Graphty extends LitElement {
 
     /**
      * Save the project (`session.project.save`) and hand it to the reader as a download named
-     * `<project name>.graphty.json`. Lives on the element, not the session, because the session
+     * `<project name>.graphty.json`, or `<project name>.graphty-<section>.json` for a version 2
+     * section file (`form: "section"`). Lives on the element, not the session, because the session
      * also runs in Node, where there is nothing to download to.
      * @param options - What to leave out, your own extensions, how to keep models named by URL,
      *     the file's name, and `markSaved: false` for a copy that leaves `project.dirty` as it was.
@@ -502,9 +503,13 @@ export class Graphty extends LitElement {
             ...saveOptions,
             markSaved: options.markSaved !== false,
         });
+        // A version 2 section file is named and typed by its section (spec 2.4).
+        const section = options.form === "section" ? options.sections?.[0] : undefined;
         downloadBlob(
-            new Blob([text], { type: PROJECT_FILE.mediaType }),
-            fileName ?? projectFileName(this.session.project.name),
+            new Blob([text], {
+                type: section === undefined ? PROJECT_FILE.mediaType : `application/vnd.graphty.${section}+json`,
+            }),
+            fileName ?? projectFileName(this.session.project.name, section === undefined ? {} : { section }),
         );
         return report;
     }

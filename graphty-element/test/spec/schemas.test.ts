@@ -374,12 +374,115 @@ const MUTATIONS: Mutation[] = [
         section: "data",
         change: (data) => Object.assign(sourceAt(data, 2).origin as JsonObject, { mediaType: "application/json" }),
     },
+    ...(["compare", "membership", "action"] as const).map((member): Mutation => ({
+        name: `the reserved join step member ${member}`,
+        section: "data",
+        change: (data) => Object.assign(first(data.joins), { [member]: {} }),
+    })),
+    {
+        name: "the reserved mapping.many on a join step",
+        section: "data",
+        change: (data) =>
+            (data.joins as JsonObject[]).push({
+                op: "join.node-values",
+                source: text(sourceAt(data, 1).id),
+                mapping: { many: true },
+            }),
+    },
+    {
+        name: "a space beginning graph:",
+        section: "data",
+        change: (data) => {
+            const mapping = sourceAt(data, 1).mapping as Record<string, JsonObject>;
+            Object.assign(mapping.nodes, { space: "graph:people" });
+        },
+    },
+    {
+        name: "the reserved reader merge",
+        section: "data",
+        change: (data) => {
+            const reader = (data.sources as JsonObject[]).find((each) => each.kind === "reader") as JsonObject;
+            ((reader.copy as JsonObject).operations as JsonObject[]).push({
+                op: "merge",
+                into: { space: "account", key: "acct-7" },
+                from: { space: "account", key: "acct-8" },
+            });
+        },
+    },
+    {
+        name: "graphty.types as a binding path",
+        section: "style",
+        change: (style) => {
+            const layer = (style.layers as JsonObject[]).find((each) => each.encode !== undefined) as JsonObject;
+            Object.assign((layer.encode as Record<string, JsonObject>)["node.color"], { by: "graphty.types" });
+        },
+    },
+    {
+        name: "unmapped on a binding with no map",
+        section: "style",
+        change: (style) => {
+            const layer = (style.layers as JsonObject[]).find((each) => each.encode !== undefined) as JsonObject;
+            Object.assign((layer.encode as Record<string, JsonObject>)["node.color"], { unmapped: "skip" });
+        },
+    },
+    {
+        name: "a reserved named member on a source leaf",
+        section: "view",
+        change: (view) =>
+            Object.assign(view.visibility as JsonObject, {
+                filter: { kind: "source", sources: ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"], named: true },
+            }),
+    },
     {
         name: "a style selector that names an element",
         section: "style",
         change: (style) => Object.assign(first(style.layers), { selector: { match: "ids", nodes: [] } }),
     },
 ];
+
+describe("readable paths, map bindings and several graphs", () => {
+    it("take a readable path and unmapped: skip on a map", () => {
+        const { style } = sectionsOf(cardFraud());
+        const layer = (style.layers as JsonObject[]).find((each) => each.encode !== undefined) as JsonObject;
+        (layer.encode as Record<string, Json>)["node.color"] = {
+            by: "graphty.type",
+            scale: "passthrough",
+            map: { account: "#0072b2" },
+            unmapped: "skip",
+        };
+        assert.strictEqual(errorsOf(style), "");
+    });
+
+    it("write graphs only with two or more, the first naming the top-level graph", () => {
+        const two = readJson(new URL("examples/minimal/minimal-graphs.graphty.json", SPEC));
+        assert.strictEqual(errorsOf(two), "");
+        const graphs = two.graphs as JsonObject[];
+        for (const [what, change] of [
+            ["one graph", (doc: JsonObject) => (doc.graphs = [graphs[0]])],
+            ["sections on the first", (doc: JsonObject) => (doc.graphs = [{ ...graphs[0], sections: {} }, graphs[1]])],
+            [
+                "a later graph without sections",
+                (doc: JsonObject) => (doc.graphs = [graphs[0], { id: graphs[1].id, name: graphs[1].name }]),
+            ],
+            [
+                "an id that is no graph_ ULID",
+                (doc: JsonObject) => (doc.graphs = [{ ...graphs[0], id: "people" }, graphs[1]]),
+            ],
+            [
+                "a style section in a later graph",
+                (doc: JsonObject) =>
+                    (doc.graphs = [
+                        graphs[0],
+                        { ...graphs[1], sections: { ...(graphs[1].sections as JsonObject), style: {} } },
+                    ]),
+            ],
+        ] as const) {
+            const copy = JSON.parse(JSON.stringify(two)) as JsonObject;
+            change(copy);
+            assert.notStrictEqual(errorsOf(copy), "", what);
+        }
+    });
+});
 
 describe("the schemas refuse what the design removed", () => {
     for (const mutation of MUTATIONS) {

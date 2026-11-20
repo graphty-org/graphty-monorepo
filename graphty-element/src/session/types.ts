@@ -1539,10 +1539,28 @@ export interface SessionDataApi {
      * await session.data.import({ type: "csv", config: { data: messages }, name: "messages.csv" }, { mode: "merge" });
      * session.data.sources().map((each) => [each.name, each.added.edges]); // [["friends.csv", 41], ["messages.csv", 23]]
      * ```
+     *
+     * While the source-steps experiment is on, a staged source ({@link stage}) is no part of the
+     * graph and is left out; {@link staged} lists it, and `staged: true` lists it here too.
+     * @param options - What to list besides the loads in the graph.
+     * @param options.staged - `true` lists staged sources too, in their place. Experimental (source-steps).
      * @returns the loads, or an empty list when no import loaded the graph
      * @since 3.30.0
      */
-    sources(): readonly LoadedSource[];
+    sources(options?: { readonly staged?: boolean }): readonly LoadedSource[];
+    /**
+     * The staged sources ({@link stage}), oldest first: held, read by no step, and no part of the
+     * graph until a step adds or joins them.
+     *
+     * ```ts
+     * await session.data.stage({ type: "csv", config: { data: visitors }, name: "visitors.csv" });
+     * session.data.staged().map((each) => each.name); // ["visitors.csv"]
+     * session.data.sources().some((each) => each.name === "visitors.csv"); // false
+     * ```
+     * @returns The staged sources; empty while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    staged(): readonly LoadedSource[];
     /**
      * Hold a source's rows without building anything from them: a staged source, which no step
      * reads, is saved and listed with `state: "staged"`. It is no undo step of its own: it joins the
@@ -4628,6 +4646,11 @@ export interface SourceSpaceRow {
     readonly nodes: number;
     /** The sources whose rows built or named its nodes. */
     readonly sources: readonly SourceKey[];
+    /**
+     * For a source's own space, the one its rows are keyed in when no space is named: that source.
+     * Absent for a space a consumer named.
+     */
+    readonly ownedBy?: SourceKey;
 }
 
 /**

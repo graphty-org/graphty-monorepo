@@ -1235,6 +1235,7 @@ export const READ_ONLY: readonly string[] = [
     "SessionDataApi.cell",
     "SessionDataApi.conflicts",
     "SessionDataApi.spaces",
+    "SessionDataApi.staged",
     "SessionDataApi.steps",
     "SessionDataApi.currentDraft",
     "SessionDataApi.draft",

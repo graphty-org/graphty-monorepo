@@ -270,7 +270,7 @@ describe("source-steps: save and reopen", () => {
         );
         await session.data.import({ source: "save-reopen-network", config: {} }, { mode: "merge" });
         const [load] = session.data.loads().map((l) => l.key);
-        const network = session.data.sources().at(-1)?.key ?? "";
+        const network = session.data.sources({ staged: true }).at(-1)?.key ?? "";
         // The save writes each record's load under its source's key, as the member's loads entry is.
         const graph = graphOf(session).replaceAll(`\\"${load}\\"`, `\\"${network}\\"`);
         const { q, text: saved, problems } = await reopen(session);
@@ -291,7 +291,7 @@ describe("source-steps: save and reopen", () => {
         assert.strictEqual(graphOf(q), graph);
         // The staged source's own rows come back with it.
         await q.data.add(a);
-        assert.strictEqual(q.data.sources().find((each) => each.key === a)?.counts.nodes, 2);
+        assert.strictEqual(q.data.sources({ staged: true }).find((each) => each.key === a)?.counts.nodes, 2);
         q.dispose();
     });
 
@@ -325,7 +325,7 @@ describe("source-steps: save and reopen", () => {
         }
         const joined = session.data.joins()[0]?.source ?? "";
         await session.data.removeStep(session.data.steps().findIndex((s) => s.source === joined));
-        assert.strictEqual(session.data.sources().find((s) => s.key === joined)?.state, "staged");
+        assert.strictEqual(session.data.sources({ staged: true }).find((s) => s.key === joined)?.state, "staged");
         const graph = graphOf(session);
         const { q, text, problems } = await reopen(session);
         type Saved = { op: string; source: string; off?: boolean; read?: Record<string, unknown> };
@@ -365,7 +365,7 @@ describe("source-steps: save and reopen", () => {
         await session.data.removeStep(session.data.steps().findIndex((s) => s.source === joined));
         const staged = graphOf(session);
         const { q } = await reopen(session);
-        const state = (): string | undefined => q.data.sources().find((s) => s.key === joined)?.state;
+        const state = (): string | undefined => q.data.sources({ staged: true }).find((s) => s.key === joined)?.state;
         assert.strictEqual(state(), "off");
         const at = q.data.steps().findIndex((s) => s.source === joined);
         await q.data.setStepOff(at, false);
@@ -401,7 +401,7 @@ describe("source-steps: save and reopen", () => {
             { key: "account_id" },
         );
         const { q } = await reopen(session);
-        assert.strictEqual(q.data.sources().find((s) => s.key === a)?.state, "staged");
+        assert.strictEqual(q.data.sources({ staged: true }).find((s) => s.key === a)?.state, "staged");
         const again = members((await q.project.save()).text)["graphty-sources"];
         assert.isTrue((again.sources as { id: string }[]).some((s) => s.id === a));
         q.dispose();
@@ -463,7 +463,7 @@ describe("source-steps: save and reopen", () => {
         const deleteThenAdd = async (s: GraphSession, a: string): Promise<number> => {
             await s.data.removeStep(s.data.steps().findIndex((x) => x.op === "join.merge" && x.source === a));
             await s.data.removeStep(s.data.steps().findIndex((x) => x.op === "join.add" && x.source === a));
-            assert.strictEqual(s.data.sources().find((x) => x.key === a)?.state, "staged");
+            assert.strictEqual(s.data.sources({ staged: true }).find((x) => x.key === a)?.state, "staged");
             await s.data.add(a, { overlap: "merge" });
             return spaces(s).account ?? 0;
         };
@@ -531,7 +531,7 @@ describe("source-steps: save and reopen", () => {
             { type: "csv", config: { data: "a,b\nn1,n2\n" }, name: "edges.csv" },
             { edges: { from: { column: "a", space: "person" }, to: { column: "b", space: "person" } } },
         );
-        const id = session.data.sources()[0]?.key;
+        const id = session.data.sources({ staged: true })[0]?.key;
         const { text } = await session.project.save();
         const { nodes } = members(text)["graphty-data"].graph as { nodes: Record<string, unknown>[] };
         assert.strictEqual(nodes.length, 2);
@@ -635,7 +635,7 @@ describe("source-steps: save and reopen", () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await session.data.import({ source: "save-reopen-network", config: {} });
         const [load] = session.data.loads().map((l) => l.key);
-        const [key] = session.data.sources().map((s) => s.key);
+        const [key] = session.data.sources({ staged: true }).map((s) => s.key);
         // The save writes each record's load under its source's key, as the member's loads entry is.
         const graph = graphOf(session).replaceAll(`\\"${load}\\"`, `\\"${key}\\"`);
         const steps = session.data.steps().map((s) => [s.op, s.source]);
@@ -662,7 +662,7 @@ describe("source-steps: save and reopen", () => {
         await session.data.import({ source: "save-reopen-resume", config: {} });
         const steps = session.data.steps().map((s) => s.op);
         const { q, text } = await reopen(session);
-        const [key] = q.data.sources().map((s) => s.key);
+        const [key] = q.data.sources({ staged: true }).map((s) => s.key);
         assert.deepStrictEqual(
             q.data.loads().map((l) => l.key),
             [key],
@@ -690,7 +690,7 @@ describe("source-steps: save and reopen", () => {
             steps,
             "still exactly one join.add",
         );
-        assert.lengthOf(q.data.sources(), 1);
+        assert.lengthOf(q.data.sources({ staged: true }), 1);
         assert.deepStrictEqual(q.data.pendingSourceLoads(), []);
         resumeNodes = ["a", "b", "c", "d"];
         await q.data.refresh(key);
@@ -716,7 +716,7 @@ describe("source-steps: save and reopen", () => {
         );
         assert.deepStrictEqual(q.data.pendingSourceLoads(), []);
         resumeNodes = ["a", "b", "c", "d"];
-        await q.data.refresh(q.data.sources()[0]?.key ?? "");
+        await q.data.refresh(q.data.sources({ staged: true })[0]?.key ?? "");
         assert.sameMembers(
             q.data.nodes({ scope: "graph" }).map((n) => n.id),
             ["a", "b", "c", "d"],
@@ -768,7 +768,7 @@ describe("source-steps: save and reopen", () => {
             const { q, problems } = await reopen(off);
             assert.deepStrictEqual(problems, []);
             assert.deepStrictEqual(
-                q.data.sources().map((s) => s.key),
+                q.data.sources({ staged: true }).map((s) => s.key),
                 ["s1", "s2"],
             );
             return q;
@@ -802,14 +802,14 @@ describe("source-steps: save and reopen", () => {
     it("a renamed source keeps its name after save and reopen", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" }, name: "one.csv" });
-        await session.data.renameSource("Mine", session.data.sources()[0]?.key);
+        await session.data.renameSource("Mine", session.data.sources({ staged: true })[0]?.key);
         assert.deepStrictEqual(
-            session.data.sources().map((s) => s.name),
+            session.data.sources({ staged: true }).map((s) => s.name),
             ["Mine"],
         );
         const { q } = await reopen(session);
         assert.deepStrictEqual(
-            q.data.sources().map((s) => s.name),
+            q.data.sources({ staged: true }).map((s) => s.name),
             ["Mine"],
         );
         q.dispose();
@@ -847,7 +847,7 @@ describe("source-steps: save and reopen", () => {
         await on.data.add(key);
         const graph = graphOf(on);
         const steps = on.data.steps().map((s) => [s.op, s.source]);
-        const state = on.data.sources().find((s) => s.key === key);
+        const state = on.data.sources({ staged: true }).find((s) => s.key === key);
         assert.isDefined(state);
         const { q, problems } = await reopen(on);
         assert.deepStrictEqual(problems, []);
@@ -857,7 +857,7 @@ describe("source-steps: save and reopen", () => {
             steps,
         );
         assert.deepStrictEqual(
-            q.data.sources().find((s) => s.key === key),
+            q.data.sources({ staged: true }).find((s) => s.key === key),
             state,
         );
         q.dispose();

@@ -135,7 +135,7 @@ describe("source-steps drafts: the key-overlap question", () => {
                     },
                 ]);
             }
-            const added = session.data.sources().find((s) => s.key === b);
+            const added = session.data.sources({ staged: true }).find((s) => s.key === b);
             assert.deepStrictEqual(added?.issues, [
                 { code: "W_SPACE_OVERLAP", params: { space: "account", count: 2, of: 4 } },
             ]);
@@ -198,7 +198,7 @@ describe("source-steps drafts: the key-overlap question", () => {
             );
             const asked = await addAs(session, b, way);
             assert.deepStrictEqual(asked, []);
-            assert.isUndefined(session.data.sources().find((s) => s.key === b)?.issues);
+            assert.isUndefined(session.data.sources({ staged: true }).find((s) => s.key === b)?.issues);
             assert.deepStrictEqual(spaces(session), {
                 account: 4,
                 merchant: 4,
@@ -220,7 +220,7 @@ describe("source-steps drafts: the key-overlap question", () => {
             );
             const asked = await addAs(session, a, way);
             assert.deepStrictEqual(asked, []);
-            assert.isUndefined(session.data.sources().find((s) => s.key === a)?.issues);
+            assert.isUndefined(session.data.sources({ staged: true }).find((s) => s.key === a)?.issues);
             session.dispose();
         });
 
@@ -229,7 +229,7 @@ describe("source-steps drafts: the key-overlap question", () => {
                 const staged = await stagedBankB();
                 const session = reopen ? await reopened(staged.session) : staged.session;
                 const asked = await addAs(session, staged.b, way);
-                const issues = session.data.sources().find((s) => s.key === staged.b)?.issues ?? [];
+                const issues = session.data.sources({ staged: true }).find((s) => s.key === staged.b)?.issues ?? [];
                 assert.isTrue(
                     issues.some((i) => i.code === "W_SPACE_OVERLAP"),
                     `reopened=${String(reopen)}: the question is asked`,
@@ -282,7 +282,11 @@ describe("source-steps drafts: the key-overlap question", () => {
         await d.commit();
         assert.strictEqual(spaces(session).account, 5);
         await session.undo();
-        assert.strictEqual(session.data.sources().find((s) => s.key === b)?.state, "staged", "one undo step");
+        assert.strictEqual(
+            session.data.sources({ staged: true }).find((s) => s.key === b)?.state,
+            "staged",
+            "one undo step",
+        );
         session.dispose();
     });
 
@@ -341,7 +345,7 @@ describe("source-steps drafts: the key-overlap question", () => {
      * @returns Its issues.
      */
     function issuesOf(session: GraphSession, id: string): unknown {
-        return session.data.sources().find((s) => s.key === id)?.issues;
+        return session.data.sources({ staged: true }).find((s) => s.key === id)?.issues;
     }
 
     it("two overlapping sources in one draft: an answer recounts the later question, and the commit matches data.add", async () => {

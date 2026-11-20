@@ -6642,7 +6642,9 @@ export interface SessionDataApi {
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
     sourceInput(key: SourceKey): DataSourceInput | undefined;
-    sources(): readonly LoadedSource[];
+    sources(options?: {
+        readonly staged?: boolean;
+    }): readonly LoadedSource[];
     sourceSettings(key: SourceKey): SourceSettings | undefined;
     sourcesOf(id: NodeId_2 | EdgeId, options?: {
         readonly kind?: "node" | "edge";
@@ -6650,6 +6652,7 @@ export interface SessionDataApi {
     sourceTable(source: SourceKey): SourceTable;
     spaces(): readonly SourceSpaceRow[];
     stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
+    staged(): readonly LoadedSource[];
     statistics(options?: {
         readonly scope?: "all" | "visible";
     } & SourceElementsFilter): GraphStatistics;
@@ -8168,6 +8171,7 @@ export interface SourceSpaceOverlap {
 // @public
 export interface SourceSpaceRow {
     readonly nodes: number;
+    readonly ownedBy?: SourceKey;
     readonly sources: readonly SourceKey[];
     readonly space: SourceSpaceName;
 }

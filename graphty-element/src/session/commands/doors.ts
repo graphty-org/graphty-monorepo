@@ -2846,6 +2846,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // writes are refused with E_FEATURE_OFF on every session these rows run on, and with the
             // experiment on dispatch data.steps-set (GESTURE_DOORS).
             steps: READ,
+            staged: READ,
             spaces: READ,
             types: READ,
             edits: READ,

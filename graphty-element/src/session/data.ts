@@ -1113,6 +1113,12 @@ export class SessionData implements SessionDataApi {
         readonly state: IssueState;
         readonly byRecord: Readonly<Record<"node" | "edge", ReadonlyMap<NodeId | EdgeId, readonly IssueId[]>>>;
     } | null = null;
+    /** `sources()` without the staged sources, and the full list it was filtered from. */
+    private inGraphMemo: { readonly all: readonly LoadedSource[]; readonly result: readonly LoadedSource[] } | null =
+        null;
+    /** `staged()`, and the full list it was filtered from. */
+    private stagedMemo: { readonly all: readonly LoadedSource[]; readonly result: readonly LoadedSource[] } | null =
+        null;
     /** `sources()` with its counts, and what they were counted from. */
     private sourcesMemo: {
         readonly stored: readonly LoadedSource[];
@@ -1886,7 +1892,7 @@ export class SessionData implements SessionDataApi {
         const canFetch = sourceDescriptors().find((entry) => entry.id === load.source)?.features.expand === true;
         return Object.freeze({
             loadKey: load.key,
-            source: this.sources().find((each) => each.loadKey === load.key)?.key ?? null,
+            source: this.listed().find((each) => each.loadKey === load.key)?.key ?? null,
             // A node is worth expanding until an expansion found all of it, or the source says
             // every neighbor is already here.
             canExpand: canFetch && facts.expansion !== "complete" && hidden !== 0,
@@ -2018,7 +2024,7 @@ export class SessionData implements SessionDataApi {
      * @returns the settings, or undefined for a source that is not a network load.
      */
     sourceSettings(key: SourceKey): SourceSettings | undefined {
-        const load = this.sources().find((each) => each.key === key)?.loadKey;
+        const load = this.listed().find((each) => each.key === key)?.loadKey;
         const record = this.ledger.loads().find((each) => each.key === load);
         if (record === undefined) {
             return undefined;
@@ -2100,7 +2106,7 @@ export class SessionData implements SessionDataApi {
      */
     sourceFile(): SourcesWrite {
         const write = writeSourcesMember({
-            sources: this.sources(),
+            sources: this.listed(),
             loads: this.loads(),
             facts: this.loadFacts,
             waiting: [...this.pendingLoads],
@@ -2251,13 +2257,13 @@ export class SessionData implements SessionDataApi {
             expansions: this.expansions,
             ceilings: () => writes.ceilings?.overrides,
             loads: () => this.loads(),
-            sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
+            sourceKeyOf: (load) => this.listed().find((each) => each.loadKey === load)?.key,
             ...(this.stepsOn()
                 ? { refreshSteps: (load: string, tables: CopyTables) => this.refreshStepsSource(load, tables) }
                 : {}),
             labelPath: () => this.readConfig().knownFields.nodeLabelPath,
             credentialSlotOf: (load) => {
-                const key = this.sources().find((each) => each.loadKey === load)?.key;
+                const key = this.listed().find((each) => each.loadKey === load)?.key;
                 return key === undefined ? undefined : this.loadFacts.get(key)?.credentialSlot;
             },
             node: (id) => this.node(id),
@@ -3279,7 +3285,7 @@ export class SessionData implements SessionDataApi {
                 code: "E_SOURCE_UNKNOWN",
                 message: `No load still in the graph has key ${JSON.stringify(key)}.`,
                 source: "data",
-                details: { key, known: this.sources().map((each) => each.key) },
+                details: { key, known: this.listed().map((each) => each.key) },
             });
         }
 
@@ -3319,11 +3325,50 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Every load still in the graph, oldest first, as the `graph` slice keeps them.
+     * Every load still in the graph, oldest first. While the source-steps experiment is on, a
+     * staged source is left out unless `staged` asks for it: it is no part of the graph yet.
+     * @param options - `staged: true` lists staged sources too, in their place.
+     * @param options.staged - Whether staged sources are listed.
      * @returns the loads, or an empty list when no import loaded the graph
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    sources(): readonly LoadedSource[] {
+    sources(options?: { readonly staged?: boolean }): readonly LoadedSource[] {
+        this.requireLive("sources");
+        const all = this.listed();
+        if (options?.staged === true || !this.stepsOn()) {
+            return all;
+        }
+
+        if (this.inGraphMemo?.all !== all) {
+            this.inGraphMemo = { all, result: Object.freeze(all.filter((each) => each.state !== "staged")) };
+        }
+
+        return this.inGraphMemo.result;
+    }
+
+    /**
+     * The staged sources, oldest first: held, read by no step, and no part of the graph.
+     * @returns The staged sources; empty while the source-steps experiment is off.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    staged(): readonly LoadedSource[] {
+        this.requireLive("staged");
+        const all = this.listed();
+        if (this.stagedMemo?.all !== all) {
+            this.stagedMemo = {
+                all,
+                result: Object.freeze(this.stepsOn() ? all.filter((each) => each.state === "staged") : []),
+            };
+        }
+
+        return this.stagedMemo.result;
+    }
+
+    /**
+     * Every load the `graph` slice keeps, staged ones included, oldest first.
+     * @returns the loads, or an empty list when no import loaded the graph
+     */
+    private listed(): readonly LoadedSource[] {
         this.requireLive("sources");
         const stored = (this.writes.slice().values.get(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
         const provenance = this.provenance();
@@ -4610,7 +4655,7 @@ export class SessionData implements SessionDataApi {
         if (this.stepsHold(key)) {
             return this.removeStepsSource(key);
         }
-        const sources = this.sources();
+        const sources = this.listed();
         const entry = sources.find((each) => each.key === key);
         if (entry === undefined) {
             throw new GraphtyError({
@@ -4683,7 +4728,7 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for a source the steps do not hold.
      */
     private async removeStepsSource(key: SourceKey): Promise<RemoveSourceResult> {
-        const entry = this.sources().find((each) => each.key === key);
+        const entry = this.listed().find((each) => each.key === key);
         const value = this.stepsValue();
         if (entry === undefined || value.sources[key] === undefined) {
             throw new GraphtyError({
@@ -5039,7 +5084,7 @@ export class SessionData implements SessionDataApi {
      *   experiment, or one whose steps were set aside on open), so the caller merges it as before.
      */
     private async refreshStepsSource(load: string, tables: CopyTables): Promise<SourceRefreshReport | undefined> {
-        const key = this.sources().find((each) => each.loadKey === load)?.key;
+        const key = this.listed().find((each) => each.loadKey === load)?.key;
         if (key === undefined || this.stepsValue().sources[key] === undefined) {
             return undefined;
         }
@@ -5172,14 +5217,14 @@ export class SessionData implements SessionDataApi {
         this.requireLive("replaceSource");
         const send = this.sender("replace a load");
         const stored = this.storedSources();
-        const at = this.sources().findIndex((each) => each.key === key);
+        const at = this.listed().findIndex((each) => each.key === key);
         const entry = stored[at] as LoadedSource | undefined;
         if (entry === undefined) {
             throw new GraphtyError({
                 code: "E_SOURCE_UNKNOWN",
                 message: `No load still in the graph has key ${JSON.stringify(key)}.`,
                 source: "data",
-                details: { key, known: this.sources().map((each) => each.key) },
+                details: { key, known: this.listed().map((each) => each.key) },
             });
         }
 
@@ -5340,7 +5385,7 @@ export class SessionData implements SessionDataApi {
         choices: LoadChoices & SourceLoadOptions,
     ): Promise<ReplaceReport> {
         const send = this.sender("replace a load");
-        const old = this.sources().find((each) => each.key === key)?.loadKey;
+        const old = this.listed().find((each) => each.key === key)?.loadKey;
         const record = this.ledger.loads().find((each) => each.key === old);
         const mode = record?.options.mode as SourceLoadOptions["mode"] | undefined;
         // The settings were shown redacted (sourceSettings): a key the load was read with stays.
@@ -5620,7 +5665,7 @@ export class SessionData implements SessionDataApi {
         }
 
         return this.afterLoads(async () => {
-            const known = this.sources().map((each) => each.key);
+            const known = this.listed().map((each) => each.key);
             const key = options.source ?? (known.length === 1 ? known[0] : undefined);
             if (key === undefined) {
                 throw new GraphtyError({
@@ -5654,7 +5699,7 @@ export class SessionData implements SessionDataApi {
      */
     private async reloadSourceNow(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
-        const entry = this.sources().find((each) => each.key === key);
+        const entry = this.listed().find((each) => each.key === key);
         const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
             ?.input;
         const input = token === undefined ? undefined : this.kept.get(token);
@@ -5663,7 +5708,7 @@ export class SessionData implements SessionDataApi {
                 code: "E_SOURCE_UNKNOWN",
                 message: `No load still in the graph has key ${JSON.stringify(key)}.`,
                 source: "data",
-                details: { key, known: this.sources().map((each) => each.key) },
+                details: { key, known: this.listed().map((each) => each.key) },
             });
         }
 
@@ -5759,7 +5804,7 @@ export class SessionData implements SessionDataApi {
      */
     joins(): readonly JoinRecord[] {
         this.requireLive("joins");
-        return Object.freeze(this.sources().flatMap((each) => (each.join === undefined ? [] : [each.join])));
+        return Object.freeze(this.listed().flatMap((each) => (each.join === undefined ? [] : [each.join])));
     }
 
     /**

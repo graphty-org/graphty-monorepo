@@ -398,6 +398,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             root: "SessionDataApi",
             members: [
                 "steps",
+                "staged",
                 "spaces",
                 "types",
                 "edits",

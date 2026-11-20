@@ -1101,6 +1101,8 @@ export interface SpaceRow {
     readonly nodes: number;
     /** The sources whose rows built or named its nodes. */
     readonly sources: readonly string[];
+    /** For a source's own space (its rows keyed with no space named): that source. */
+    readonly ownedBy?: string;
 }
 
 /**
@@ -1120,9 +1122,15 @@ export function spaceRows(result: BuildResult): readonly SpaceRow[] {
         n.loads.forEach((s) => row.sources.add(s));
         n.named.forEach((s) => row.sources.add(s));
     }
-    return [...out].map(([space, row]) =>
-        Object.freeze({ space, nodes: row.nodes, sources: Object.freeze([...row.sources]) }),
-    );
+    return [...out].map(([space, row]) => {
+        const ownedBy = [...row.sources].find((id) => ownSpace(id) === space);
+        return Object.freeze({
+            space,
+            nodes: row.nodes,
+            sources: Object.freeze([...row.sources]),
+            ...(ownedBy === undefined ? {} : { ownedBy }),
+        });
+    });
 }
 
 /** One reader operation as `data.edits()` lists it. */

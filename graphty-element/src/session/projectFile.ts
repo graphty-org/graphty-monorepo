@@ -913,7 +913,8 @@ export function dataMember(
     }));
     // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
     const source = session.data.source();
-    const sources = session.data.sources();
+    // A staged source is saved with the rest, though no part of the graph yet.
+    const sources = session.data.sources({ staged: true });
     // What each load supplied: nodes by id, edges by their position in `links`, as a run's are.
     const provenance: Record<string, { nodes: NodeId[]; edges: number[] }> = {};
     const entry = (key: string): { nodes: NodeId[]; edges: number[] } => (provenance[key] ??= { nodes: [], edges: [] });

@@ -44,7 +44,7 @@ const VISITORS = csv("visitors.csv", "badge,name", "B1,Ann", "V1,Val");
 async function withPeople(): Promise<{ session: GraphSession; people: string }> {
     const session = createGraphSession({ features: ["source-steps"] });
     await session.data.import(PEOPLE, { key: "badge", type: "person" });
-    return { session, people: session.data.sources()[0]?.key ?? "" };
+    return { session, people: session.data.sources({ staged: true })[0]?.key ?? "" };
 }
 
 describe("source-steps: a source's tables and profiles", () => {
@@ -126,7 +126,7 @@ describe("source-steps: a source's tables and profiles", () => {
         const { session, people } = await withPeople();
         const again = await session.data.stage(PEOPLE, { key: "badge" });
         const entries = await session.data.stage(ENTRIES, { key: "entry" });
-        const byKey = new Map(session.data.sources().map((s) => [s.key, s]));
+        const byKey = new Map(session.data.sources({ staged: true }).map((s) => [s.key, s]));
         assert.strictEqual(byKey.get(again)?.sameName, people);
         assert.isUndefined(byKey.get(people)?.sameName, "a built source names none");
         assert.isUndefined(byKey.get(entries)?.sameName, "no committed source is named entries.csv");
@@ -195,7 +195,7 @@ describe("source-steps: a staged source's mapping outside a draft", () => {
         assert.deepInclude(session.data.matchCounts(into), { matched: 0, only1: 2 }, "keyed by name, no badge meets");
 
         await session.data.setMapping(visitors, { nodes: { key: "badge" }, type: "person" });
-        const visitorsRow = session.data.sources().find((s) => s.key === visitors);
+        const visitorsRow = session.data.sources({ staged: true }).find((s) => s.key === visitors);
         assert.strictEqual(visitorsRow?.state, "staged", "still staged");
         assert.strictEqual(session.history.steps.length, steps, "it joins the step before it");
         const person = session.data.types().find((t) => t.name === "person");
@@ -285,7 +285,7 @@ describe("source-steps: a staged source's mapping outside a draft", () => {
             { matched: 2, only1: 1, only2: 2 },
             "B9 and b3 meet no one",
         );
-        assert.strictEqual(session.data.sources().find((s) => s.key === entries)?.state, "staged");
+        assert.strictEqual(session.data.sources({ staged: true }).find((s) => s.key === entries)?.state, "staged");
 
         await session.data.setMapping(entries, { rows: "both", nodes: { key: "entry" } });
         assert.deepStrictEqual(tablesOf(), ["nodes", "edges"]);
@@ -331,7 +331,7 @@ describe("source-steps: a staged source's mapping outside a draft", () => {
             ["edges"],
         );
         assert.strictEqual(session.data.count().edges, 6, "one edge per entry");
-        assert.isDefined(session.data.sources().find((s) => s.key === people));
+        assert.isDefined(session.data.sources({ staged: true }).find((s) => s.key === people));
         session.dispose();
     });
 });

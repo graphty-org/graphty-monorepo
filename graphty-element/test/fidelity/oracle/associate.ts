@@ -5889,6 +5889,9 @@ export interface RasterDrawing {
     }[];
 }
 
+/** How tall a raster oracle draws a label's line: sigma's default `labelSize`. */
+const RASTER_LABEL_PX = 14;
+
 /** A label the raster oracle names but does not place: only its words are judged (`labelGeometry: false`). */
 const wordsAt = (content: string, x: number, y: number): PText => ({
     content,
@@ -5904,6 +5907,23 @@ const wordsAt = (content: string, x: number, y: number): PText => ({
     color: "#000000",
     opacity: 1,
 });
+
+/**
+ * A node's label as a raster oracle draws it, which its record names but does not place: a line as tall as sigma's
+ * default `labelSize` where the label starts, beside the disc (sigma's drawDiscNodeLabel: x + size + 3), its length
+ * unknown. Where the words are matters when the node is not drawn and its label is a free text (a node painted over,
+ * json-graphology-synth n13, n41 and n53, whose labels start right of where the nodes are).
+ * @param content - the words
+ * @param n - the node as the program recorded it
+ * @param n.x - its center's x
+ * @param n.y - its center's y
+ * @param n.r - its radius
+ * @returns the label
+ */
+function nodeLabelAt(content: string, n: { x: number; y: number; r: number }): PText {
+    const at = wordsAt(content, n.x + Math.max(0, n.r) + 3, n.y);
+    return { ...at, box: { ...at.box, y0: n.y - RASTER_LABEL_PX / 2, y1: n.y + RASTER_LABEL_PX / 2 } };
+}
 
 /**
  * The rows that make a node's body a table: all of them, where the table they make with the body is the node's height
@@ -6050,9 +6070,14 @@ export function rasterScene(
             shape: "ellipse",
             fill: color === null || n.r <= 0 ? null : { color, opacity, gradient: null },
             stroke: null,
-            label: n.label === null ? null : wordsAt(n.label, n.x, n.y),
+            label: n.label === null ? null : nodeLabelAt(n.label, n),
         };
     });
+    // A node painted over still has its label drawn, over every node (sigma draws its labels after its nodes), as a
+    // free text it owns, as graphty's side keeps a hidden node's label (json-graphology-synth n13, under n12 and n14)
+    const paintedOver = drawing.nodes
+        .filter((n) => !seen.includes(n) && n.label !== null && n.label !== "")
+        .map((n): PText => ({ ...nodeLabelAt(n.label ?? "", n), owner: n.id }));
     // Each edge the program recorded with its paint and width, a straight line between its nodes' centers (sigma.js
     // draws every edge type it reads as one); none drawn fully transparent. A record without them (an older oracle)
     // judges no edge, and then what graphty draws besides nodes cannot be told extra.
@@ -6095,7 +6120,7 @@ export function rasterScene(
         nodes: nodes.sort((a, b) => compareIds(a.id, b.id)),
         edges: edges.sort((a, b) => compareIds(a.id, b.id)),
         groups: [],
-        texts: [],
+        texts: paintedOver,
         strays: [],
         labelGeometry: false,
         nodesOnly: !painted,

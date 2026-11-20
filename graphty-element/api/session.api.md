@@ -4552,7 +4552,10 @@ export type PartAnswer =
     readonly name: string;
     readonly use: string;
 }
-/** Draw without this part. Pictures and `.mtl` files only; never a `.bin` or other geometry. */
+/**
+* Draw without this part, missing or ambiguous. Pictures and `.mtl` files only; never a `.bin`
+* or other geometry.
+*/
 | {
     readonly name: string;
     readonly skip: true;

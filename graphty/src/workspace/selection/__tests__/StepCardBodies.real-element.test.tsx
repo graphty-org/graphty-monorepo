@@ -119,6 +119,19 @@ async function openOn(name: string): Promise<void> {
     await userEvent.keyboard(`${name}{Enter}`);
 }
 
+/**
+ * The layer's workspace on a Degree step, with one of the step's settings picked.
+ * @param setting - the setting's words.
+ * @returns the session and the reader's layer.
+ */
+async function degreeSetting(setting: string): Promise<{ session: GraphSession; layer: Layer }> {
+    const opened = await openLayer();
+    await openOn("Degree");
+    await userEvent.click(await screen.findByRole("button", { name: "Settings for Degree" }));
+    await userEvent.click(within(await screen.findByRole("dialog", { name: "Degree" })).getByText(setting));
+    return opened;
+}
+
 describe("a category step's values in the Styled preview", () => {
     it("show the color the graph draws each value in", async () => {
         await openLayer();
@@ -163,12 +176,7 @@ describe("a Data source step", () => {
 
 describe("an edge value under Edges where ...", () => {
     it("switches to By position, keeping its card for the count, and back to By value with its range kept", async () => {
-        const { session, layer } = await openLayer();
-        await openOn("Degree");
-        await userEvent.click(await screen.findByRole("button", { name: "Settings for Degree" }));
-        await userEvent.click(
-            within(await screen.findByRole("dialog", { name: "Degree" })).getByText("Edges where ..."),
-        );
+        const { session, layer } = await degreeSetting("Edges where ...");
         await userEvent.click(await screen.findByRole("button", { name: "Edge value: none" }));
         await screen.findByRole("combobox", { name: /^Find edge attributes/ });
         await userEvent.keyboard("weight{Enter}");
@@ -196,6 +204,49 @@ describe("an edge value under Edges where ...", () => {
         await userEvent.click(await screen.findByRole("option", { name: "By value" }));
         await waitFor(() => {
             assert.strictEqual(held()?.min, 3, "By value brings the range back");
+        });
+    });
+});
+
+describe("a number step By position", () => {
+    it("counts from either end, in nodes or a percent of them, and refuses a percent above 100", async () => {
+        const { session, layer } = await degreeSetting("By position");
+        const count = await screen.findByRole("textbox", { name: "Degree: how many" });
+        await userEvent.click(count);
+        await userEvent.keyboard("{Control>}a{/Control}2{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(firstStep(session, layer.id)?.mode, "top");
+            assert.include(JSON.stringify(firstStep(session, layer.id)?.rule), '"top":2');
+        });
+
+        await userEvent.click(screen.getByRole("combobox", { name: "Degree: which end" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Bottom" }));
+        await waitFor(() => {
+            assert.strictEqual(firstStep(session, layer.id)?.mode, "top low", "it counts from the bottom");
+        });
+
+        await userEvent.click(screen.getByRole("combobox", { name: "Degree: count or percent" }));
+        await userEvent.click(await screen.findByRole("option", { name: "% of nodes" }));
+        const percent = await screen.findByRole("textbox", { name: "Degree: what percent" });
+        await waitFor(() => {
+            assert.strictEqual(firstStep(session, layer.id)?.mode, "top low percent");
+        });
+
+        await userEvent.click(percent);
+        await userEvent.keyboard("{Control>}a{/Control}150{Enter}");
+        const alert = await screen.findByRole("alert");
+        assert.include(alert.textContent ?? "", "Type a percent above 0, up to 100.");
+        assert.notInclude(JSON.stringify(firstStep(session, layer.id)?.rule), '"percentile":150', "nothing is written");
+
+        await userEvent.click(percent);
+        await userEvent.keyboard("{Control>}a{/Control}50{Enter}");
+        await waitFor(() => {
+            assert.include(
+                JSON.stringify(firstStep(session, layer.id)?.rule),
+                '"percentile":50',
+                "a percent is a percentile",
+            );
+            assert.isNull(screen.queryByRole("alert"), "the refusal goes");
         });
     });
 });

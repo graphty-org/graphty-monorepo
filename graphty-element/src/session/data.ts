@@ -51,7 +51,7 @@ import type {
     StructureValue,
 } from "../catalog/types";
 import { isPairConfig } from "../data/CSVDataSource";
-import { edgeCounterOf, edgeIdOf, pairKey as pairKeyOf } from "../data/edgeIdentity";
+import { edgeCounterOf, edgeIdOf, pairKey as pairKeyOf, recordType, type RepeatGroup } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
@@ -120,7 +120,6 @@ import {
 } from "./commands/derive";
 import {
     byTableId,
-    type ByTableMapping,
     Draft,
     draftStyles,
     fileName,
@@ -215,6 +214,7 @@ import { expressionPaths } from "./styles/predicate";
 import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
 import { columnsOf, layersReadingOnly } from "./styles/staleLayers";
 import type {
+    ByTableMapping,
     ColumnHistogram,
     ColumnRole,
     DatasetLoadOptions,
@@ -330,6 +330,8 @@ interface DataWrites {
     progress?(change: ProgressChange): void;
     /** The session's load line, shared with the graph's own loads, so loads land in call order. */
     readonly loadLine: LoadLine;
+    /** The weight meaning an edge was stored under, from the ingest that stored it. */
+    edgeMeaning?(counter: number): string | null | undefined;
     /** Dispatch any command: the network-source loads and expansions dispatch their own ops. */
     send?(command: SessionCommand, stamp?: LoadStamp): Promise<unknown>;
     /** Publish a session event: the network-source expansions publish theirs. */
@@ -1057,6 +1059,9 @@ function withStartMode(source: string, config: Record<string, unknown>): Record<
     return declared.values?.some((each) => each.value === asked) === true ? { ...config, mode: asked } : config;
 }
 
+/** Refreshes a source a version 2 open held, or gives undefined for a key it does not hold. */
+type HeldRefresh = (load: string, options: SourceLoadOptions) => Promise<SourceRefreshReport | undefined>;
+
 /**
  * The session's view of the graph data.
  *
@@ -1142,6 +1147,7 @@ export class SessionData implements SessionDataApi {
         readonly result: ReadonlyMap<string, readonly SourceKey[]>;
     } | null = null;
     private disposed = false;
+    private heldRefresh: HeldRefresh | undefined;
     /** The records of the loads from network sources; see `loads()`. Internal: the type is not published. */
     readonly ledger = new SourceLedger();
     /** The keys of the loads an opened project holds that have not run since it opened. */
@@ -1999,11 +2005,25 @@ export class SessionData implements SessionDataApi {
      * @param options - The credential and the endpoint.
      * @returns What was added, removed and updated.
      */
-    refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
+    async refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
         this.requireLive("refresh");
 
+        // A source a version 2 open held is read again from its bytes; any other is a network load.
+        const held = await this.heldRefresh?.(load, options);
+        if (held !== undefined) {
+            return held;
+        }
+
         const host = this.sourceHost();
-        return import("./sources/load").then((module) => module.refreshSource(host, load, options));
+        return (await import("./sources/load")).refreshSource(host, load, options);
+    }
+
+    /**
+     * Let `refresh` read a source a version 2 open held (the session lends what it needs).
+     * @param refresh - Refreshes a held source, or gives undefined for a key it does not hold.
+     */
+    setHeldRefresh(refresh: HeldRefresh): void {
+        this.heldRefresh = refresh;
     }
 
     /**
@@ -2373,13 +2393,27 @@ export class SessionData implements SessionDataApi {
                 graph: () => {
                     const slice = this.writes.slice();
                     const snapshot = this.current();
-                    const pairs = new Set<string>();
+                    const pairs = new Map<string, RepeatGroup[]>();
+                    const note = (key: string, group: RepeatGroup): void => {
+                        const held = pairs.get(key) ?? [];
+                        held.push(group);
+                        pairs.set(key, held);
+                    };
                     for (let edge = 0; edge < snapshot.edgeCount; edge++) {
                         const source = snapshot.ids.idOf(snapshot.edgeSource(edge));
                         const target = snapshot.ids.idOf(snapshot.edgeTarget(edge));
-                        pairs.add(pairKeyOf(source, target));
+                        // Its type and meaning, so the report reduces repeats as the load will.
+                        const counter = snapshot.edges.value(EDGE_ID_COLUMN, edge);
+                        const group: RepeatGroup =
+                            typeof counter === "number"
+                                ? {
+                                      type: recordType(slice.edges.get(edgeIdOf(counter))),
+                                      meaning: this.writes.edgeMeaning?.(counter),
+                                  }
+                                : { type: undefined, meaning: undefined };
+                        note(pairKeyOf(source, target), group);
                         if (!snapshot.directed) {
-                            pairs.add(pairKeyOf(target, source)); // eslint-disable-line sonarjs/arguments-order -- the reverse pair, so an undirected edge matches either way
+                            note(pairKeyOf(target, source), group); // eslint-disable-line sonarjs/arguments-order -- the reverse pair, so an undirected edge matches either way
                         }
                     }
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
@@ -5381,7 +5415,7 @@ export class SessionData implements SessionDataApi {
 
     /**
      * The columns a join brought, by `<kind>:<name>`: the names each join still in the graph wrote,
-     * less a column it wrote over or kept (a clash set to `"overwrite"` or `"keep"`), which was the
+     * less a column it wrote over, kept or computed (any clash rule but `"both"`), which was the
      * graph's before the join.
      * @returns the columns
      */
@@ -5394,8 +5428,10 @@ export class SessionData implements SessionDataApi {
 
             const kind = join.shape === "node-values" || join.shape === "merge" ? "node" : "edge";
             for (const name of join.columns) {
-                const rule = join.choices.clash?.[name];
-                if (rule !== "overwrite" && rule !== "keep") {
+                // ponytail: a record keeps no list of the columns that clashed, so only a column with
+                // a rule of its own, or under "*", counts as the graph's; record clashes to tell them apart.
+                const rule = join.choices.clash?.[name] ?? join.choices.clash?.["*"];
+                if (rule === undefined || rule === "both") {
                     out.add(`${kind}:${name}`);
                 }
             }
@@ -7401,6 +7437,7 @@ export function headlessDataService(
         },
         import: (command, draft, signal) =>
             ingest.oneAtATime(() => ingest.importSource(command, dispatcher.graph.writer(draft, store), signal)),
+        edgeMeaning: (counter) => ingest.meaningAt(counter),
         values: (values, draft) => {
             dispatcher.graph.writer(draft, store).setGraphValues(values);
         },

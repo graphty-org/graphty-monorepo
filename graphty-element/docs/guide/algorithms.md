@@ -244,6 +244,22 @@ it is cut off. `cutOffShare` is the share of the remaining nodes cut off, read t
 interpretation bands: `none`, `minor` (any), `severe` (more than a tenth). Pieces are weak: an
 edge joins its two nodes whichever way it was declared.
 
+#### Single points of failure
+
+`articulation-points` finds the nodes, and `bridges` the edges, whose removal would split their
+piece of the graph. Each flagged node or edge carries `in: true`, which the suggested highlight
+layer paints; nothing else is touched. Each run also reports how many it found, and what share of
+the nodes (or edges) that is.
+
+```typescript
+const points = await element.session.runs.start("articulation-points");
+// How many cut points, and the fraction of the nodes they are.
+const { count, share } = points.graph;
+```
+
+Both read the graph as undirected. Two edges between the same pair of nodes back each other up, so
+neither is a bridge.
+
 ### Traversal Algorithms
 
 Explore the graph systematically:
@@ -273,6 +289,36 @@ Find optimal paths between nodes:
 await graph.runAlgorithm("graphty", "dijkstra", {
     algorithmOptions: { source: "node1", target: "node5" },
 });
+```
+
+`shortest-path` also takes four choices. Each is off by default, so a run that sets none of them
+reads every edge either way and finds the same route it always did:
+
+- `direction`: `"out"` follows a directed edge from its source to its target, `"in"` against it,
+  and `"all"` (the default) either way.
+- `weight`: the edge column to read, and what it means. A distance is the cost of crossing the
+  edge. A strength is left unread unless `invertStrength: true`, which crosses each edge at
+  1 / weight, so the route prefers strong connections.
+- `timeOrder`: an edge column holding each edge's time. The route then only takes edges in time
+  order, each at or after the one before it, and never an edge with no time. A number, a date or a
+  date string is a time.
+- The result's `tiedRoutes` says how many routes share the cheapest cost: 1 when the route is the
+  only one, 0 when the target is unreached. It is absent from a time-ordered run.
+
+```typescript
+const route = await element.run("shortest-path", {
+    source: "alice",
+    target: "dave",
+    direction: "out",
+    weight: { attribute: "trust", meaning: "strength" },
+    invertStrength: true,
+    timeOrder: "sentAt",
+});
+const { cost, tiedRoutes } = route.graph;
+console.log(cost, tiedRoutes);
+for (const id of ["alice", "bob", "carol", "dave"]) {
+    console.log(id, route.node(id)?.onPath, route.node(id)?.order);
+}
 ```
 
 `astar` takes the same `source` and `target` as `dijkstra`, and a `heuristic`. The default,

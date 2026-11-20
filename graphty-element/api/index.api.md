@@ -4270,8 +4270,9 @@ export type GraphtyErrorCode =
 /**
 * A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
 * incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
-* `details.column` and `details.rule` name them, and `details.step` the step when a source step's
-* merge refuses it (the source-steps experiment). The caller picks another rule for that column.
+* `details.column` and `details.rule` name them. The caller picks another rule for that column.
+* Under the source-steps experiment a step's merge refuses the same way, and `details.step`
+* also names the step.
 */
 | "E_CLASH_RULE_TYPE"
 /**
@@ -4887,6 +4888,7 @@ export interface GraphtyErrorDetailsMap {
     E_CLASH_RULE_TYPE: {
         readonly column: string;
         readonly rule: string;
+        readonly step?: number;
     };
     E_DUPLICATE_ID: {
         readonly id?: string | number;

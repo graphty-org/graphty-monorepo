@@ -68,17 +68,32 @@ const ENDS = [
 ] as const;
 
 describe("source-steps: today's joins give the graph they give with the experiment off", () => {
-    it("keeps the graph's own value when the reader picks no clash rule", async () => {
+    it("keeps only the graph's value both ways when the reader picks no clash rule", async () => {
         const base = "id,score,label\na,5,A\nb,6,B";
-        const load = { join: { keys: [{ file: "id", graph: "id" }] } };
+        const { off, on } = await both(base, "id,score\na,1\nb,2", { join: { keys: [{ file: "id", graph: "id" }] } });
+        for (const session of [off, on]) {
+            assert.strictEqual(session.data.node("a")?.score, 5);
+            assert.isEmpty(
+                Object.keys(session.data.node("a") ?? {}).filter((name) => name.startsWith("score (")),
+                "no clash column",
+            );
+            session.dispose();
+        }
+    });
+
+    it("keeps a clashing value both ways when the reader asks to keep both", async () => {
+        const base = "id,score,label\na,5,A\nb,6,B";
+        const load = { join: { keys: [{ file: "id", graph: "id" }], clash: { "*": "both" as const } } };
         const { off, on } = await both(base, "id,score\na,1\nb,2", load);
         assert.strictEqual(off.data.node("a")?.score, 5);
-        assert.isUndefined(off.data.node("a")?.["score (values.csv)"]);
+        assert.strictEqual(off.data.node("a")?.["score (values.csv)"], 1);
         const key = on.data.joins()[0]?.source;
         assert.strictEqual(on.data.node("a")?.score, 5, "the graph's own value stays");
-        assert.isUndefined(on.data.node("a")?.[`score (${key})`], "and no second column, as with it off");
+        // Design 3.3: the clash column is named by the source id; the app labels it.
+        assert.strictEqual(on.data.node("a")?.[`score (${key})`], 1, "the joined value is kept too");
         const merged = await joined(true, base, "id,score\na,1\nq,3", { join: { ...load.join, shape: "merge" } });
-        assert.strictEqual(merged.data.node("a")?.score, 5, "a merge keeps it too");
+        const mergeKey = merged.data.joins()[0]?.source;
+        assert.strictEqual(merged.data.node("a")?.[`score (${mergeKey})`], 1, "a merge keeps both too");
         for (const session of [off, on, merged]) {
             session.dispose();
         }

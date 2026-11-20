@@ -1231,7 +1231,6 @@ function withStartMode(source: string, config: Record<string, unknown>): Record<
 
 /** The session edge ids of a graph no step built an edge of. */
 const NO_EDGE_IDS: Readonly<Record<string, EdgeId>> = Object.freeze({});
-
 /** Refreshes a source a version 2 open held, or gives undefined for a key it does not hold. */
 type HeldRefresh = (load: string, options: SourceLoadOptions) => Promise<SourceRefreshReport | undefined>;
 
@@ -1397,8 +1396,8 @@ export class SessionData implements SessionDataApi {
             ...(writes.send === undefined
                 ? {}
                 : {
-                      send: (command: SessionCommand) =>
-                          (writes.send as NonNullable<DataWrites["send"]>)(compiled(command)),
+                      send: (command: SessionCommand, stamp?: LoadStamp) =>
+                          (writes.send as NonNullable<DataWrites["send"]>)(compiled(command), stamp),
                   }),
         };
         this.loadLine = writes.loadLine;

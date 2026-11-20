@@ -2132,8 +2132,9 @@ export type GraphtyErrorCode =
 /**
 * A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
 * incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
-* `details.column` and `details.rule` name them, and `details.step` the step when a source step's
-* merge refuses it (the source-steps experiment). The caller picks another rule for that column.
+* `details.column` and `details.rule` name them. The caller picks another rule for that column.
+* Under the source-steps experiment a step's merge refuses the same way, and `details.step`
+* also names the step.
 */
 | "E_CLASH_RULE_TYPE"
 /**
@@ -2749,6 +2750,7 @@ export interface GraphtyErrorDetailsMap {
     E_CLASH_RULE_TYPE: {
         readonly column: string;
         readonly rule: string;
+        readonly step?: number;
     };
     E_DUPLICATE_ID: {
         readonly id?: string | number;
@@ -8530,52 +8532,6 @@ export interface SourceStepRow {
 export type SourceStorage = "embedded" | "referenced";
 
 // @public
-export interface SourceTable {
-    profile(column: string, options?: {
-        readonly table?: "nodes" | "edges";
-    }): SourceColumnProfile;
-    readonly source: SourceKey;
-    summary(): SourceTableFacts;
-}
-
-// @public
-export interface SourceTableFacts {
-    readonly delimiter?: DraftTable["delimiter"];
-    readonly format?: string;
-    readonly loadedAt?: string;
-    readonly mapping: SourceTableMapping;
-    readonly origin: string;
-    readonly size?: number;
-    readonly tables: readonly SourceTablePart[];
-}
-
-// @public
-export interface SourceTableMapping {
-    readonly edges?: {
-        readonly source: string;
-        readonly target: string;
-        readonly sourceSpace?: SourceSpaceName;
-        readonly targetSpace?: SourceSpaceName;
-        readonly edgeId?: string;
-    };
-    readonly endTypes?: {
-        readonly source?: SourceTypeName;
-        readonly target?: SourceTypeName;
-    };
-    readonly key?: string;
-    readonly rows: "nodes" | "edges" | "both";
-    readonly space?: SourceSpaceName;
-    readonly type?: SourceTypeName;
-}
-
-// @public
-export interface SourceTablePart {
-    readonly columns: readonly string[];
-    readonly rows: number;
-    readonly table: "nodes" | "edges";
-}
-
-// @public
 export interface SourceTypeEntry {
     readonly kind: "node" | "edge";
     readonly name: SourceTypeName;
@@ -8629,11 +8585,6 @@ export interface StabilityResult extends BatchResult {
     readonly correlation: number | undefined;
     readonly pairs: readonly ResultComparison[];
     readonly rows: readonly SweepRow[];
-}
-
-// @public
-export interface StageOptions extends ImportOptions {
-    readonly guess?: "names" | "values";
 }
 
 // @public

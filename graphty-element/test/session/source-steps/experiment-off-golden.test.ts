@@ -88,7 +88,7 @@ describe("source-steps off: nothing changes", () => {
             session.styles.tree().map((each) => each.name),
             ["Everything", "Selected", "Hovered"],
         );
-        assert.notInclude(JSON.stringify(rows), "graphty:draft");
+        assert.notInclude(JSON.stringify(rows), "graphty:source-draft");
         // Taken with the experiment off: the rows as every consumer gets them today.
         const digest = createHash("sha256").update(JSON.stringify(rows)).digest("hex");
         assert.strictEqual(digest, "9d21404bf9d223b6fcdf0ee1ea1ae9a30a5c5fff1d77731f903a6e38f5e4a551");

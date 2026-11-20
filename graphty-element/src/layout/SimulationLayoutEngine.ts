@@ -717,6 +717,51 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#publish(false);
     };
 
+    /** The transform the owed publish writes the rows with: the one its landing drew with. */
+    #owedTransform: DrawnTransform | null = null;
+    /** `#landed` when the publish was owed: a later landing has rewritten the simulation's rows. */
+    #owedLanded = -1;
+
+    /**
+     * One row as the owed publish writes it (`#writeRows` for that row alone), so a frame that draws
+     * a few rows from the CPU -- a label, an arrowhead -- reads them without writing every row.
+     * @param row - The element's row.
+     * @param out - Written with the row's place.
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     * @returns False when the publish leaves the row as it is, null when it cannot say for one row.
+     */
+    readonly #owedRow = (row: number, out: { x: number; y: number; z: number }): boolean | null => {
+        const via = this.#owedTransform;
+        const simPositions = this.#simPositions;
+        // A batch that landed after the owe has rewritten the simulation's rows, and the publish that
+        // would carry it has not run: only the whole publish knows what to write now.
+        if (via === null || simPositions === null || this.#owedLanded !== this.#landed) {
+            return null;
+        }
+
+        const sim = this.#simRow(row);
+        if (!this.#hasRow(sim)) {
+            return false;
+        }
+
+        if (this.#fixedRows.has(sim)) {
+            // a fixed row the lane has placed is left where it is kept
+            const lane = this.#dataManager[WRITABLE_LANE].unsettledView();
+            if (isStorableCoordinate(lane[POSITION_COMPONENTS * row])) {
+                return false;
+            }
+        }
+
+        const { scale, center, target } = via;
+        // the lane is f32: answer what it will hold
+        out.x = Math.fround((simPositions[3 * sim] - center[0]) * scale + target[0]);
+        out.y = Math.fround((simPositions[3 * sim + 1] - center[1]) * scale + target[1]);
+        out.z = Math.fround((simPositions[3 * sim + 2] - center[2]) * scale + target[2]);
+        return true;
+    };
+
     /** The box {@link SimulationLayoutEngine.publishedBounds} answers while a publish is owed. */
     #owedBox: Float64Array | null = null;
     /** The box of the rows the last envelope measured, in the simulation's units, or empty for none. */
@@ -1459,6 +1504,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const store = this.#dataManager[WRITABLE_LANE];
         store.forgive(this.#owedPublish);
         this.#owedBox = null;
+        this.#owedTransform = null;
         const snapshot = this.#snapshot;
         const simPositions = this.#simPositions;
         if (snapshot === null || simPositions === null) {
@@ -1482,7 +1528,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
             const box = this.holdsAny ? null : this.#keepFixedIn(this.#rowsBox(viaCard));
             this.#owedBox = box !== null && box[0] <= box[3] ? box : null;
-            store.owe(this.#owedPublish);
+            this.#owedTransform = viaCard;
+            this.#owedLanded = this.#landed;
+            store.owe(this.#owedPublish, this.#owedRow);
             return;
         }
 

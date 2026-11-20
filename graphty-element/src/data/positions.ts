@@ -26,6 +26,16 @@ function requireRowCount(value: number, what: string): number {
 }
 
 /**
+ * One row as an owed publish would write it ({@link ElementPositions.owe}).
+ * @param index - The row.
+ * @param out - Written with the row's scene-unit coordinates when the publish writes the row.
+ * @returns False when the publish leaves the row as it is, null when it cannot say for one row (the
+ *     reader then writes the whole publish).
+ * @internal
+ */
+export type OwedRow = (index: number, out: { x: number; y: number; z: number }) => boolean | null;
+
+/**
  * Whether a coordinate can be STORED, not merely whether it is finite as a double.
  *
  * The backing array is a Float32Array, so the guard has to be f32-shaped: 1e39 passes
@@ -127,6 +137,9 @@ export class ElementPositions {
     private changeCount = 0;
     /** A publish a layout owes the rows: see {@link ElementPositions.owe}. */
     private owed: (() => void) | null = null;
+    /** Answers one row as the owed publish would write it: see {@link ElementPositions.owe}. */
+    private owedRow: OwedRow | null = null;
+    private readonly owedScratch = { x: 0, y: 0, z: 0 };
 
     /**
      * Allocate the backing array, every row unplaced and unpinned.
@@ -191,11 +204,17 @@ export class ElementPositions {
      * for it, so a frame that only checks whether the lane moved writes nothing. Owing moves
      * `generation`, since the coordinates a reader would get have changed; `changes` moves when the
      * publish is written.
+     *
+     * A reader of one row need not write them all: `row` answers one row as the publish would write
+     * it, so a frame that draws a few rows from the CPU (a label, an arrowhead) costs those rows, not
+     * every row of the graph.
      * @param publish - Writes the rows; null to owe nothing.
+     * @param row - Answers one row as `publish` would write it, or null when every read settles.
      * @internal
      */
-    owe(publish: (() => void) | null): void {
+    owe(publish: (() => void) | null, row: OwedRow | null = null): void {
         this.owed = publish;
+        this.owedRow = publish === null ? null : row;
         if (publish !== null) {
             this.moves++;
         }
@@ -230,7 +249,51 @@ export class ElementPositions {
     forgive(publish: () => void): void {
         if (this.owed === publish) {
             this.owed = null;
+            this.owedRow = null;
         }
+    }
+
+    /**
+     * Whether a publish is owed that {@link ElementPositions.readOwed} can read one row at a time.
+     * @returns True when it can.
+     * @internal
+     */
+    get owesRows(): boolean {
+        return this.owed !== null && this.owedRow !== null;
+    }
+
+    /**
+     * Read one row as it will stand once the owed publish is written, without writing it: what a
+     * reader of a few rows calls while a publish is owed.
+     * @param index - node index
+     * @param out - the object to fill
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     * @returns False when nothing is owed, or the publish cannot answer one row: read the row as usual,
+     *     which writes the publish.
+     * @internal
+     */
+    readOwed(index: number, out: { x: number; y: number; z: number }): boolean {
+        const row = this.owedRow;
+        if (this.owed === null || row === null || !Number.isInteger(index) || index < 0 || index >= this.rows) {
+            return false;
+        }
+
+        const written = row(index, out);
+        if (written === null) {
+            return false;
+        }
+
+        if (!written) {
+            // the publish leaves this row as it is
+            const base = POSITION_COMPONENTS * index;
+            out.x = this.array[base] ?? Number.NaN;
+            out.y = this.array[base + 1] ?? Number.NaN;
+            out.z = this.array[base + 2] ?? Number.NaN;
+        }
+
+        return true;
     }
 
     /**
@@ -245,6 +308,7 @@ export class ElementPositions {
         }
 
         this.owed = null;
+        this.owedRow = null;
         publish();
         return true;
     }
@@ -479,6 +543,11 @@ export class ElementPositions {
      * @returns true when the row is inside the live count AND carries a storable x
      */
     isPlaced(index: number): boolean {
+        // one row of an owed publish is read without writing the rest
+        if (this.readOwed(index, this.owedScratch)) {
+            return isStorableCoordinate(this.owedScratch.x);
+        }
+
         this.settle();
         if (!Number.isInteger(index) || index < 0 || index >= this.rows) {
             return false;
@@ -497,6 +566,10 @@ export class ElementPositions {
      * @throws RangeError when `index` is not an integer in `[0, count)`
      */
     read(index: number, out: { x: number; y: number; z: number }): void {
+        if (this.readOwed(index, out)) {
+            return;
+        }
+
         this.settle();
         const base = this.rowBase(index);
         // The fallbacks are unreachable past rowBase(), and NaN rather than 0 so that a future

@@ -1,4 +1,4 @@
-// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [glyphs] [curves] [3d] [no-still] [no-move]
+// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [label-<k>] [arrows] [sampled] [glyphs] [curves] [3d] [no-still] [no-move]
 // lib: cosmos|graphty; mode: default|lean; accel: on|off. Appends one JSON line to BENCH_RESULTS.
 // dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
 // unset, the element keeps its default. BENCH_ANTIALIAS=false sets antialias="false". See RUNBOOK.md for the others.
@@ -38,6 +38,10 @@ const skip = flags.includes("skip-layout"),
     // graphty-element loads through session.data.importColumns with the typed arrays cosmos.gl gets,
     // not nodeData/edgeData records (cosmos-gap G8)
     columns = flags.includes("columns"),
+    // label only the first k nodes (label-1, label-1000): what a few labels cost a GPU layout's landings
+    labelFirst = Number(flags.find((f) => /^label-\d+$/.test(f))?.slice(6) ?? 0),
+    // every edge drawn with an arrowhead (the lean mode draws none)
+    arrows = flags.includes("arrows"),
     noStill = flags.includes("no-still"),
     noMove = flags.includes("no-move");
 const N = Number(n),
@@ -197,6 +201,8 @@ try {
                 accel,
                 dpr: DPR,
                 labels,
+                labelFirst,
+                arrows,
                 sampled,
                 glyphs,
                 curves,

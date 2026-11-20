@@ -11,6 +11,7 @@ import { assert, describe, it } from "vitest";
 
 import { WRITABLE_LANE } from "../../src/data/lane";
 import { click } from "../helpers/real-input";
+import { edgeBetween } from "../helpers/testSetup";
 import {
     adapterSays,
     copied,
@@ -68,12 +69,71 @@ describe("the layout filling the row table on a shared device", () => {
         // yet the public generation says the coordinates moved, once a landing
         assert.isAtLeast(lane.generation - generation, 3);
 
-        // a read publishes the rows the card shows
+        // a read of one node answers where the card shows it and writes no row; a read of the table writes them
         const at = graph.getNode("n0")?.getPosition();
         assert.isTrue(Number.isFinite(at?.x));
-        assert.isAbove(lane.changes - written, 0);
+        assert.strictEqual(lane.changes - written, 0);
         assert.isBelow((await textureDiff(graph)).worst, 1e-5);
+        assert.isAbove(lane.changes - written, 0);
     });
+
+    for (const renderer of ["webgpu", "webgl"] as const) {
+        for (const which of ["one labeled node", "one arrowed edge"] as const) {
+            it(`writes no row per landing with ${which}, and draws it where the card does (${renderer})`, async () => {
+                const graph = await running("batched", undefined, renderer);
+                const { styles } = graph.getSession();
+                if (which === "one labeled node") {
+                    await styles.add({
+                        name: "one label",
+                        target: "node",
+                        selector: { match: "ids", nodes: ["n0"] },
+                        set: { "node.label": "n0" },
+                    });
+                } else {
+                    const edge = edgeBetween(graph, "n0", "n1");
+                    assert.isDefined(edge);
+                    await styles.add({
+                        name: "one arrow",
+                        target: "edge",
+                        selector: { match: "ids", edges: [edge.id] },
+                        set: { "edge.arrowHead": "normal" },
+                    });
+                }
+
+                await landed(graph);
+                await landed(graph);
+                const lane = graph.getDataManager()[WRITABLE_LANE];
+                const engine = layoutOf(graph);
+                const table = graph.getRowTable();
+                assert.isNotNull(table);
+                const written = lane.changes;
+                const walked = engine.rowsWalked;
+                const { repackedRows } = table;
+                const landings = engine.landedBatchesPublished;
+                for (let i = 0; i < 4; i++) {
+                    await landed(graph);
+                }
+
+                // the labeled node and the arrowed edge's ends were drawn each landing, yet no landing was
+                // written, walked or repacked on the CPU
+                assert.isAtLeast(engine.landedBatchesPublished - landings, 4);
+                assert.strictEqual(lane.changes - written, 0);
+                assert.strictEqual(engine.rowsWalked - walked, 0);
+                assert.strictEqual(table.repackedRows - repackedRows, 0);
+
+                // where n0 is drawn now is where the owed publish puts it
+                graph.engine.stopRenderLoop();
+                const drawn = graph.getNode("n0")?.drawnPosition.clone();
+                assert.isDefined(drawn);
+                lane.settle();
+                table.flush();
+                const settled = table.centerOf(graph.getNode("n0")?.index ?? -1);
+                assert.isBelow(drawn.subtract(settled).length(), 1e-4, `${drawn.toString()} ${settled.toString()}`);
+                // and the lines the touched rows sent carried the landing the card holds, not an older one
+                assert.isBelow((await textureDiff(graph)).worst, 1e-5);
+            });
+        }
+    }
 
     it("hands a snapshot read while a landing is owed the coordinates the card shows", async () => {
         const graph = await running("batched");

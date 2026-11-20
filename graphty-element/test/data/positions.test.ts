@@ -477,6 +477,74 @@ describe("ElementPositions", () => {
         assert.deepStrictEqual(Array.from(view), [0, 1, 0]);
         assert.throws(() => p.pinnedView(4), RangeError, undefined, "a short lane is never handed out silently");
     });
+
+    it("reads one row of an owed publish without writing the rest", () => {
+        const p = new ElementPositions(8);
+        p.grow(4);
+        p.write(3, 9, 9, 9);
+        let publishes = 0;
+        let rowsAnswered = 0;
+        const publish = (): void => {
+            publishes++;
+            for (let row = 0; row < 3; row++) {
+                p.write(row, row, 10 * row, 100 * row);
+            }
+        };
+        // rows 0-2 are the publish's; row 3 it leaves where it is
+        p.owe(publish, (row, out) => {
+            rowsAnswered++;
+            if (row === 3) {
+                return false;
+            }
+
+            out.x = row;
+            out.y = 10 * row;
+            out.z = 100 * row;
+            return true;
+        });
+        const { changes } = p;
+        const out = { x: 0, y: 0, z: 0 };
+
+        p.read(2, out);
+        assert.deepStrictEqual(out, { x: 2, y: 20, z: 200 });
+        assert.isTrue(p.isPlaced(1));
+        p.read(3, out);
+        assert.deepStrictEqual(out, { x: 9, y: 9, z: 9 }, "a row the publish leaves reads as the lane holds it");
+        assert.strictEqual(publishes, 0, "a one-row read writes no row");
+        assert.strictEqual(p.changes, changes);
+        assert.strictEqual(rowsAnswered, 3);
+        assert.throws(() => {
+            p.read(4, out);
+        }, RangeError);
+
+        // a whole-lane read writes the publish, and after it a row is read from the lane again
+        p.view(4);
+        assert.strictEqual(publishes, 1);
+        assert.isFalse(p.owesRows);
+        p.read(2, out);
+        assert.deepStrictEqual(out, { x: 2, y: 20, z: 200 });
+        assert.strictEqual(rowsAnswered, 3);
+    });
+
+    it("forgets the one-row reader with the publish it came with", () => {
+        const p = new ElementPositions(8);
+        p.grow(2);
+        const publish = (): void => {
+            p.write(0, 1, 1, 1);
+        };
+        p.owe(publish, () => null);
+        assert.isTrue(p.owesRows);
+        assert.isFalse(p.isPlaced(1), "a reader that cannot say for one row writes the publish");
+        assert.isFalse(p.owesRows);
+        p.owe(publish, () => true);
+        assert.isTrue(p.owesRows);
+        p.forgive(publish);
+        assert.isFalse(p.owesRows);
+        p.owe(publish);
+        assert.isFalse(p.owesRows, "a publish owed with no reader is settled by every read");
+        assert.isFalse(p.isPlaced(1));
+        assert.isTrue(p.isPlaced(0));
+    });
 });
 
 describe("ElementPositions against graph-format 1.0.0", () => {

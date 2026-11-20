@@ -615,6 +615,10 @@ export class JsonDataSource extends DataSource {
     ): AsyncGenerator<DataSourceChunk, void, unknown> {
         const idKey = this.nodeIdKey(rawNodes);
         const endpoints = this.endpointKeys(rawEdges);
+        // Unset before graph-io checks the ends, so an end the missing option names leaves out that
+        // edge alone (as a CSV row), rather than reaching the element with no end to resolve.
+        unsetMissing(rawNodes, this.opts.missing);
+        unsetMissing(rawEdges, this.opts.missing);
 
         // graph-io is handed only what it checks -- each record's id or endpoints -- plus the
         // record's position, and the records the element receives are the file's own, so every

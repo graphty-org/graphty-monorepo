@@ -43,6 +43,19 @@ describe("a workbook source", () => {
         session.dispose();
     });
 
+    it("records no sheet beside a graphIndex that chose it, so the recorded config reads again", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "xlsx", config: { data: BOOK, graphIndex: 1 } });
+        const [source] = session.data.sources();
+        assert.isUndefined(source.config?.sheet);
+        assert.strictEqual(source.config?.graphIndex, 1);
+        const again = createGraphSession();
+        await again.data.import({ type: "xlsx", config: { ...source.config, data: BOOK } });
+        assert.strictEqual(again.data.edges().length, 3);
+        session.dispose();
+        again.dispose();
+    });
+
     it("prepares a sheet named by sheet, and loads it", async () => {
         const session = createGraphSession();
         const draft = await session.data.prepare({ type: "xlsx", config: { data: BOOK, sheet: "Links" } });

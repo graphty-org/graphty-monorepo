@@ -218,6 +218,26 @@ describe("missing: cell texts read as unset", () => {
         session.dispose();
     });
 
+    it("leaves out an edge whose end missing unsets, as a CSV row, and loads the rest", async () => {
+        const session = createGraphSession();
+        await session.data.import({
+            type: "json",
+            config: {
+                data: JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ source: "a", target: "N/A" }] }),
+                missing: ["N/A"],
+            },
+        });
+        assert.deepStrictEqual(
+            session.data
+                .nodes()
+                .map((node) => node.id)
+                .sort(),
+            ["a", "b"],
+        );
+        assert.strictEqual(session.data.edges().length, 0);
+        session.dispose();
+    });
+
     it("unsets a collection's matching values, in a draft too", async () => {
         const session = createGraphSession();
         const draft = await session.data.prepare({

@@ -1237,12 +1237,17 @@ export abstract class DataSource {
                     { firstDeclarationWins: true },
                 );
                 const { snapshot, report } = imported;
-                // A declared option the load left out that the importer reports the value of.
+                // A declared option the load left out that the importer reports the value of. A
+                // workbook's sheet chosen by graphIndex or graphName is not left out: recording it
+                // beside them would choose the sheet twice, which the importer refuses.
                 const passed = this.#config as unknown as Record<string, unknown>;
+                const graphChosen = passed.graphIndex !== undefined || passed.graphName !== undefined;
                 const settled = Object.fromEntries(
                     Object.entries(report.resolved ?? {}).filter(
                         ([name]) =>
-                            passed[name] === undefined && described.options.some((option) => option.name === name),
+                            passed[name] === undefined &&
+                            !(name === "sheet" && graphChosen) &&
+                            described.options.some((option) => option.name === name),
                     ),
                 );
                 if (Object.keys(settled).length > 0) {

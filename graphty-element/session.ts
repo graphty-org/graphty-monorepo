@@ -611,6 +611,7 @@ export type {
     FilterResult,
     FilterSelectWithin,
     FilterStep,
+    FilterStepCount,
     HiddenNotDrawn,
     RuleTree,
     StepCounts,

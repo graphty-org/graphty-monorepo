@@ -88,6 +88,7 @@ export default defineConfig({
                         { text: "Computed Columns", link: "/guide/computed-columns" },
                         { text: "What a Run Painted", link: "/guide/run-painting" },
                         { text: "Filter Conditions", link: "/guide/filter-conditions" },
+                        { text: "Filter Steps", link: "/guide/filter-steps" },
                         { text: "Hidden Nodes", link: "/guide/hidden-nodes" },
                         { text: "Selections Built From Steps", link: "/guide/selection-steps" },
                         { text: "Rectangle and Lasso Selection", link: "/guide/region-select" },

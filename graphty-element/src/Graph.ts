@@ -5867,8 +5867,8 @@ export class Graph implements GraphContext {
             return ids;
         }
 
-        const project = screenProjector(this.scene);
-        const view = this.scene.getViewMatrix().m;
+        const project = screenProjector(this.scene, camera);
+        const view = camera.getViewMatrix().m;
         for (const node of this.dataManager.nodes.values()) {
             regionWork.nodes++;
             if (node.getRenderState() !== "visible") {
@@ -7277,11 +7277,12 @@ export class Graph implements GraphContext {
      * @returns Screen coordinates {x, y}
      */
     worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
-        if (!this.scene.activeCamera?.viewport) {
+        const camera = this.scene.activeCamera;
+        if (!camera?.viewport) {
             return { x: 0, y: 0 };
         }
 
-        return screenProjector(this.scene)(worldPos);
+        return screenProjector(this.scene, camera)(worldPos);
     }
 
     /**
@@ -7344,7 +7345,7 @@ export class Graph implements GraphContext {
         const { x, y } = this.worldToScreen(centre);
 
         // Distance in front of the camera along its view axis; the same test LabelDeclutter uses.
-        const view = this.scene.getViewMatrix().m;
+        const view = camera.getViewMatrix().m;
         const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
         const inDepth = depth >= camera.minZ && (camera.maxZ <= 0 || depth <= camera.maxZ);
 
@@ -7355,7 +7356,7 @@ export class Graph implements GraphContext {
 
         // The largest half-extent projected: the projection's y scale over the clip w (the depth in
         // perspective, 1 in orthographic), in pixels.
-        const projection = this.scene.getProjectionMatrix().m;
+        const projection = camera.getProjectionMatrix().m;
         const w = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depth;
         const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
 

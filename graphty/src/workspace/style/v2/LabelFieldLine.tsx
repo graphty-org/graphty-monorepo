@@ -136,13 +136,13 @@ function valueOf(style: Readonly<LabelStyle>, field: LabelField): unknown {
  */
 function numberControl({ label, line, field, descriptor, name, split }: LineControlArgs): React.ReactNode {
     const percent = field.endsWith("pacity");
-    const one = (which: LabelField, glyph: React.ReactNode, words: string): React.JSX.Element => (
+    const one = (which: LabelField, letter: string | undefined, words: string): React.JSX.Element => (
         <NumberLine
             descriptor={describedField(label, which) ?? descriptor}
             label={words}
             percent={percent}
             value={valueOf(label.style, which)}
-            glyph={glyph}
+            letter={letter}
             onWrite={(next) => {
                 label.write({ [which]: next });
             }}
@@ -162,29 +162,27 @@ function numberControl({ label, line, field, descriptor, name, split }: LineCont
                 />
             );
         }
-        // Top | right, bottom | left, each with its side's glyph (R17).
+        // Top | right, bottom | left, each with its side's initial (R17, E674: a letter, never an icon).
         const [top, right, bottom, left] = sides;
-        const sideOf = (which: LabelField, glyph: keyof typeof GLYPHS): React.JSX.Element => {
-            const Glyph = GLYPHS[glyph];
+        const sideOf = (which: LabelField, letter: string): React.JSX.Element => {
             const word = labelFieldDescriptor(which)?.plainName ?? which;
-            return one(which, <Glyph size={12} aria-hidden />, `${label.title} ${word.toLowerCase()}`);
+            return one(which, letter, `${label.title} ${word.toLowerCase()}`);
         };
         return (
             <Stack gap={4}>
                 <Group grow gap={4} wrap="nowrap">
-                    {sideOf(top, "arrowUpToLine")}
-                    {sideOf(right, "arrowRightToLine")}
+                    {sideOf(top, "T")}
+                    {sideOf(right, "R")}
                 </Group>
                 <Group grow gap={4} wrap="nowrap">
-                    {sideOf(bottom, "arrowDownToLine")}
-                    {sideOf(left, "arrowLeftToLine")}
+                    {sideOf(bottom, "B")}
+                    {sideOf(left, "L")}
                 </Group>
             </Stack>
         );
     }
     if (line.pair === undefined) {
-        const Glyph = line.glyph === undefined ? undefined : GLYPHS[line.glyph];
-        return one(field, Glyph === undefined ? undefined : <Glyph size={12} aria-hidden />, name);
+        return one(field, undefined, name);
     }
     const [a, b] = line.letters ?? ["", ""];
     const second = labelFieldDescriptor(line.pair)?.plainName ?? line.pair;

@@ -35,8 +35,6 @@ export interface LineSpec {
     readonly letters?: readonly [string, string];
     /** R6 sides on a pair: one number writes both until the sides toggle splits them. */
     readonly sides?: boolean;
-    /** The in-field glyph of a number (a stroke width's weight). */
-    readonly glyph?: keyof typeof GLYPHS;
     /** Channels standing for the same quantity in another unit: the line edits whichever is set. */
     readonly units?: readonly Channel[];
     /** A Unit line (R8): each unit's name and the channel holding the value in that unit. */
@@ -385,9 +383,9 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             {
                 name: "Strokes",
                 lines: [
-                    { channel: "node.chartLineWidth", name: "Line width", glyph: "weight" },
+                    { channel: "node.chartLineWidth", name: "Line width" },
                     { channel: "node.chartBorderColor", name: null },
-                    { channel: "node.chartBorderWidth", name: "Border", glyph: "weight" },
+                    { channel: "node.chartBorderWidth", name: "Border" },
                     { channel: "node.chartBackgroundColor", name: null },
                     { channel: "node.chartBackgroundOpacity", name: "Background" },
                 ],
@@ -395,7 +393,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     border: {
-        common: [{ channel: "node.borderWidth", name: "Width", glyph: "weight", units: ["node.borderScreenWidth"] }],
+        common: [{ channel: "node.borderWidth", name: "Width", units: ["node.borderScreenWidth"] }],
         main: [
             { channel: "node.borderWidth", name: "Unit", unit: BORDER_UNIT },
             { channel: "node.borderOpacity", name: "Opacity" },
@@ -418,7 +416,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     rings: {
         common: [{ channel: "node.outerBorderCount", name: "Count" }],
         main: [
-            { channel: "node.outerBorderWidth", name: "Width", glyph: "weight" },
+            { channel: "node.outerBorderWidth", name: "Width" },
             { channel: "node.outerBorderOffset", name: "Offset" },
             { channel: "node.outerBorderStyle", name: "Style", rule: "R10" },
             { channel: "node.outerBorderOpacity", name: "Opacity" },
@@ -430,17 +428,17 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { channel: "node.raisedBorderDarkColor", name: "Dark" },
         ],
     },
-    outline: { common: [{ channel: "node.outlineWidth", name: "Width", glyph: "weight" }], main: [] },
+    outline: { common: [{ channel: "node.outlineWidth", name: "Width" }], main: [] },
     innerLines: {
         // The lines themselves are the list editor's (R15, `ItemList.tsx`), under Main.
         rowOwns: ["node.shapeLines"],
-        main: [{ channel: "node.shapeLineWidth", name: "Width", glyph: "weight" }],
+        main: [{ channel: "node.shapeLineWidth", name: "Width" }],
         groups: [
             {
                 name: "Halo",
                 lines: [
                     { channel: "node.shapeLineHaloColor", name: null },
-                    { channel: "node.shapeLineHaloWidth", name: "Width", glyph: "weight" },
+                    { channel: "node.shapeLineHaloWidth", name: "Width" },
                 ],
             },
         ],
@@ -494,7 +492,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
  */
 const LINE_MAIN: readonly LineSpec[] = [
     { channel: "edge.taper", name: "Taper" },
-    { channel: "edge.minScreenWidth", name: "Min width", glyph: "weight" },
+    { channel: "edge.minScreenWidth", name: "Min width" },
     { channel: "edge.blending" },
     // Lift draws only in 3D: dimmed in 2D from graphty-element's view fact, like every one-view line.
     { channel: "edge.lift", name: "Lift" },
@@ -544,7 +542,7 @@ function edgeEnd(end: EdgeEnd): ThingRubric {
             {
                 name: "Open caps",
                 lines: [
-                    { channel: at("OutlineWidth"), name: "Outline", glyph: "weight" },
+                    { channel: at("OutlineWidth"), name: "Outline" },
                     { channel: at("FillColor"), name: null },
                 ],
             },
@@ -573,12 +571,12 @@ function edgeEnd(end: EdgeEnd): ThingRubric {
  */
 export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     line: {
-        common: [{ channel: "edge.width", name: "Width", glyph: "weight" }],
+        common: [{ channel: "edge.width", name: "Width" }],
         main: LINE_MAIN,
         groups: LINE_GROUPS,
     },
     "line:edge.gradientColors": {
-        common: [{ channel: "edge.width", name: "Width", glyph: "weight" }],
+        common: [{ channel: "edge.width", name: "Width" }],
         rowOwns: ["edge.gradientStops"],
         main: [
             { channel: "edge.gradientKind", name: "Kind", rule: "R8" },
@@ -589,13 +587,13 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     },
     band: {
         main: [
-            { channel: "edge.bandWidth", name: "Width", glyph: "weight" },
+            { channel: "edge.bandWidth", name: "Width" },
             { channel: "edge.bandOpacity", name: "Opacity" },
         ],
     },
     outline: {
         main: [
-            { channel: "edge.outlineWidth", name: "Width", glyph: "weight" },
+            { channel: "edge.outlineWidth", name: "Width" },
             { channel: "edge.outlineOpacity", name: "Opacity" },
             { channel: "edge.outlineStyle", name: "Style", rule: "R10" },
         ],

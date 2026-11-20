@@ -41,8 +41,6 @@ export interface LabelLineSpec {
     readonly pair?: LabelField;
     /** The letters in a pair's two fields' glyph slots. */
     readonly letters?: readonly [string, string];
-    /** The in-field glyph of a number (a stroke width's weight). */
-    readonly glyph?: keyof typeof GLYPHS;
     /** Fields standing for the same quantity in another unit: the line edits whichever is set. */
     readonly units?: readonly LabelField[];
     /** A Unit line: which unit's field holds the value; picking one moves it there. */
@@ -177,7 +175,7 @@ export const LABEL_RUBRIC: LabelRubric = {
         {
             name: "Border",
             lines: [
-                { field: "borderWidth", name: "Width", glyph: "weight" },
+                { field: "borderWidth", name: "Width" },
                 { field: "borderColor", name: null },
                 { field: "borderOpacity", name: "Opacity" },
                 { field: "borderAlign", name: "Align", rule: "R8" },
@@ -244,7 +242,7 @@ export const LABEL_RUBRIC: LabelRubric = {
             name: "Outline",
             lines: [
                 { field: "outline", name: null },
-                { field: "outlineWidth", name: "Width", glyph: "weight" },
+                { field: "outlineWidth", name: "Width" },
                 { field: "outlineOpacity", name: "Opacity" },
             ],
         },

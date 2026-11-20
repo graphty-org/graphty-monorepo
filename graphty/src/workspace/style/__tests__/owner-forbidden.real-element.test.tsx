@@ -33,6 +33,8 @@ interface Seen {
     readonly selectors: Set<string>;
     /** Every number field with no scrub slot, by its line (E181, E330: a number is Figma's number input). */
     readonly unscrubbed?: Set<string>;
+    /** Every scrub slot that is not one letter, by its line (E674: every number line's slot is its letter). */
+    readonly oddSlots?: Set<string>;
     /** How many number fields the walk saw. */
     numbers?: number;
     /** Every row whose settings "..." is not its last control (E550: always at the far right). */
@@ -96,11 +98,20 @@ function look(seen: Seen, root: HTMLElement): void {
             seen.settingsNotLast?.add(row.getAttribute("data-line") ?? more.getAttribute("aria-label") ?? "?");
         }
     }
-    for (const input of root.querySelectorAll('input[role="spinbutton"]')) {
+    // A number field set or unset: an unset one has no spinbutton role yet, only its decimal input mode.
+    for (const input of root.querySelectorAll('input[role="spinbutton"], input[inputmode="decimal"]')) {
+        if (input.closest(".cm-paint-opacity") !== null) {
+            continue; // counted below, with its "%" handle
+        }
         seen.numbers = (seen.numbers ?? 0) + 1;
         const line = input.closest(".ws-row, [data-line]") ?? input.parentElement;
         if (line?.querySelector("[data-scrub]") === null || line === null) {
             seen.unscrubbed?.add(line?.getAttribute("data-line") ?? input.getAttribute("aria-label") ?? "?");
+        }
+    }
+    for (const slot of root.querySelectorAll<HTMLElement>(".cm-scrub-slot[data-scrub]")) {
+        if (!/^[A-Z]$/.test(slot.textContent.trim()) || slot.querySelector("svg") !== null) {
+            seen.oddSlots?.add(slot.closest("[data-line]")?.getAttribute("data-line") ?? slot.innerHTML);
         }
     }
     // A color's opacity is Figma's paint row (design/ui/figma/components.md section 28): no letter slot, its "%"
@@ -282,6 +293,7 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
             lines: new Set(),
             selectors: new Set(),
             unscrubbed: new Set(),
+            oddSlots: new Set(),
             settingsNotLast: new Set(),
             unapproved: new Set(),
         };
@@ -294,6 +306,7 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
         assert.isAbove(seen.lines.size, 10, "the walk reached the rows' lines");
         assert.isAbove(seen.numbers ?? 0, 10, "the walk reached number fields");
         assert.deepEqual([...(seen.unscrubbed ?? [])], [], "every number field has a scrub slot (E181, E330)");
+        assert.deepEqual([...(seen.oddSlots ?? [])], [], "every number field's slot is one letter, no icon (E674)");
         assert.isAbove(seen.settingsRows ?? 0, 5, "the walk reached rows with a settings button");
         assert.deepEqual(
             [...(seen.settingsNotLast ?? [])],

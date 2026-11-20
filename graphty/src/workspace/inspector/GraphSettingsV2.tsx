@@ -26,7 +26,7 @@ import {
     LIGHTING_VALUES,
 } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Checkbox, Group } from "@mantine/core";
+import { Checkbox, Stack } from "@mantine/core";
 import React, { useEffect, useReducer, useRef, useState } from "react";
 
 import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
@@ -38,7 +38,7 @@ import { AddButton } from "../style/Section";
 import { V2_LABELS } from "../style/v2/rubric";
 import { LineFrame, SegmentsLine } from "../style/v2/RubricLine";
 import { RowSettings } from "../style/v2/ThingLine";
-import { failureWords } from "../style/words";
+import { failureWords, scrubLetter } from "../style/words";
 import { LIGHTING_WORDS, useNotInEffect } from "./graphSettingReads";
 import { BackgroundImage } from "./GraphSettings";
 
@@ -89,7 +89,8 @@ function useProjectVersion(session: GraphSession | null): void {
 }
 
 /**
- * A number field (R5): no caret, empty when unset; clearing it unsets.
+ * A number field (R5), Figma's number input as every v2 number line is (E183, E330): a letter slot, its name's
+ * initial, is the scrub handle; the arrow keys step; no caret, empty when unset; clearing it unsets.
  * @param props - Component props
  * @param props.label - its name
  * @param props.value - the value, if set
@@ -114,6 +115,7 @@ function NumberField({
             width="100%"
             numeric
             options={[]}
+            glyph={scrubLetter(label)}
             value={value ?? ""}
             min={min}
             onChange={(next) => {
@@ -508,8 +510,9 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                 "minMarkSize",
                                 "Smallest",
                                 "R5",
-                                // One pair, node | edge (design 4.3).
-                                <Group grow gap={4} wrap="nowrap">
+                                // One pair, node over edge (design 4.3): side by side, each field's letter slot left
+                                // too little room to type in the sidebar's width.
+                                <Stack gap={4}>
                                     {(["node", "edge"] as const).map((which) => (
                                         <NumberField
                                             key={which}
@@ -521,7 +524,7 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                             }}
                                         />
                                     ))}
-                                </Group>,
+                                </Stack>,
                                 minMarkSize !== undefined,
                                 () => {
                                     session.config.set({ minMarkSize: undefined }).catch(fail("Smallest mark"));

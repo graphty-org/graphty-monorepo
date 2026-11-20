@@ -47,7 +47,7 @@ export function PointPair({
                     label={`${label} ${letter.toLowerCase()}`}
                     percent={false}
                     value={at === 0 ? point?.x : point?.y}
-                    glyph={letter}
+                    letter={letter}
                     onWrite={(next) => {
                         write(at === 0 ? "x" : "y", next);
                     }}

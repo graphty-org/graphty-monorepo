@@ -103,4 +103,9 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         ledger: "E210",
         check: "only-plus-adds",
     },
+    {
+        what: "a line under a row drawing an icon the other lines lack: a number's scrub slot is a letter, never a per-field icon",
+        ledger: "E674, E183",
+        selector: ".cm-scrub-slot[data-scrub] svg",
+    },
 ];

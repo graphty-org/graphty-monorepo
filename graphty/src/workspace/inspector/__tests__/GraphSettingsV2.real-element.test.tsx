@@ -13,6 +13,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
+import { dragAcross } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { picture, pixelsApart } from "../../style/__tests__/v2Harness";
@@ -186,5 +187,27 @@ describe("Graph settings v2", () => {
         });
         // One cell covers the canvas: one node's label is built, the other's is not.
         assert.isAbove(pixelsApart(canvas, await picture(element)), 0, "sampling leaves a label out");
+    });
+
+    it("every number is Figma's number input: a letter slot that scrubs, as on the Node and Edge tabs (E183, E330, E674)", async () => {
+        const { element, panel } = await openGraphSettings();
+        const numbers = [...panel.querySelectorAll<HTMLInputElement>('input[inputmode="decimal"]')];
+        assert.isAtLeast(numbers.length, 4, "Rotation, Padding, Smallest node and edge, Sample");
+        for (const input of numbers) {
+            const name = input.getAttribute("aria-label") ?? "?";
+            const slot = input.closest("[data-line]")?.querySelector<HTMLElement>(".cm-scrub-slot[data-scrub]");
+            assert.isDefined(slot ?? undefined, `${name} has a scrub slot`);
+            assert.match(slot?.textContent.trim() ?? "", /^[A-Z]$/, `${name}'s slot is one letter`);
+            assert.isNull(slot?.querySelector("svg") ?? null, `${name}'s slot has no icon`);
+        }
+        const padding = panel.querySelector<HTMLElement>('[data-line="framing.padding"] .cm-scrub-slot[data-scrub]');
+        assert.isNotNull(padding);
+        if (padding === null) {
+            return;
+        }
+        await dragAcross(padding, 20);
+        await waitFor(() => {
+            assert.strictEqual(element.session.config.framing?.padding, 10, "20 px right scrubs Padding to 10");
+        });
     });
 });

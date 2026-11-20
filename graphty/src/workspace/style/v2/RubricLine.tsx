@@ -44,7 +44,8 @@ export interface RowSlots {
 
 /**
  * A number field as the rubric draws one (R5), Figma's number input (design/ui/figma, "Scrubbable number
- * input"): its slot at the left -- the line's glyph, else its name's initial -- is the scrub handle, the arrow
+ * input"): its slot at the left -- a letter, as Figma's "W" and "X", never an icon (E674: no line carries a glyph
+ * the others lack) -- is the scrub handle, the arrow
  * keys step by 1 and Shift by 10, typing applies on Enter, Tab or blur; no caret, no stepper buttons, empty
  * when unset; clearing it unsets.
  * @param props - Component props
@@ -52,7 +53,7 @@ export interface RowSlots {
  * @param props.label - its accessible name, when not its channel's
  * @param props.percent - reads and types as a percent, when not its channel's say
  * @param props.value - the value set, if any
- * @param props.glyph - its in-field glyph or letter, else its name's initial
+ * @param props.letter - its slot's letter (a pair's "X" or "W"), else its name's initial
  * @param props.onWrite - writes a number, or undefined to unset
  * @returns The field
  */
@@ -61,14 +62,14 @@ export function NumberLine({
     label,
     percent,
     value,
-    glyph,
+    letter,
     onWrite,
 }: Readonly<{
     descriptor: ChannelDescriptor;
     label?: string;
     percent?: boolean;
     value: unknown;
-    glyph?: React.ReactNode;
+    letter?: string;
     onWrite: (value: number | undefined) => void;
 }>): React.JSX.Element {
     const scale = (percent ?? isPercent(descriptor)) ? 100 : 1;
@@ -89,7 +90,7 @@ export function NumberLine({
                 width="100%"
                 numeric
                 options={[]}
-                glyph={glyph ?? scrubLetter(name)}
+                glyph={letter ?? scrubLetter(name)}
                 value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : ""}
                 suffix={scale === 100 ? "%" : undefined}
                 min={min === undefined ? undefined : min * scale}
@@ -311,12 +312,10 @@ function numberControl(args: ControlArgs): React.ReactNode {
         );
     }
     if (line.pair === undefined) {
-        const Glyph = line.glyph === undefined ? undefined : GLYPHS[line.glyph];
         return (
             <NumberLine
                 descriptor={descriptor}
                 value={value}
-                glyph={Glyph === undefined ? undefined : <Glyph size={12} aria-hidden />}
                 onWrite={(next) => {
                     write(channel, next);
                 }}
@@ -330,7 +329,7 @@ function numberControl(args: ControlArgs): React.ReactNode {
             <NumberLine
                 descriptor={descriptor}
                 value={value}
-                glyph={a === "" ? undefined : a}
+                letter={a === "" ? undefined : a}
                 onWrite={(next) => {
                     write(channel, next);
                 }}
@@ -339,7 +338,7 @@ function numberControl(args: ControlArgs): React.ReactNode {
                 <NumberLine
                     descriptor={second}
                     value={lineIn(ctx, second.channel)?.value}
-                    glyph={b === "" ? undefined : b}
+                    letter={b === "" ? undefined : b}
                     onWrite={(next) => {
                         write(second.channel, next);
                     }}
@@ -494,12 +493,7 @@ function pointControl(args: ControlArgs): React.ReactNode {
 }
 
 /** A frame's four sides, in the element's order, with their glyphs (R17). */
-const SIDES = [
-    ["Top", "arrowUpToLine"],
-    ["Right", "arrowRightToLine"],
-    ["Bottom", "arrowDownToLine"],
-    ["Left", "arrowLeftToLine"],
-] as const;
+const SIDES = ["Top", "Right", "Bottom", "Left"] as const;
 
 /**
  * A set of sides (R17, `node.stripeFrame`: four fractions "top right bottom left"): top | right,
@@ -529,8 +523,7 @@ function SidesLines({
     const sides = typeof raw === "string" ? raw.trim().split(/\s+/) : [];
     const number = { ...descriptor, accepts: "number" as const, min: 0, max: 1, step: 0.05 };
     const field = (at: number): React.JSX.Element => {
-        const [side, glyph] = SIDES[at];
-        const Glyph = GLYPHS[glyph];
+        const side = SIDES[at];
         const now = Number(sides[at]);
         return (
             <NumberLine
@@ -539,7 +532,6 @@ function SidesLines({
                 label={`${line.name ?? channelWord(descriptor.channel)} ${side.toLowerCase()}`}
                 percent={false}
                 value={sides[at] === undefined || !Number.isFinite(now) ? undefined : now}
-                glyph={<Glyph size={12} aria-hidden />}
                 onWrite={(next) => {
                     const typed = next === undefined ? "" : String(next);
                     const all = SIDES.map((_, i) => (i === at ? typed : (sides[i] ?? "")));

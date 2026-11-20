@@ -148,6 +148,17 @@ export function Workspace({
             askAboveMs: 1000,
             branchPalette: cardPalette(session.catalog.palettes()),
         });
+        // The app's starting cameras for every project (design/ui/camera-views-tours-and-capture.md,
+        // section 3.3): ordinary saved cameras the element writes once into a project that never had
+        // them, with no undo step, and never again once the reader changed them. Handed to every new
+        // element before its first load, whatever opens it.
+        const starting = session.views.setStartingCameras([
+            { name: "Top", follows: "topView", key: "7" },
+            { name: "Bottom", follows: "bottomView" },
+            { name: "Front", follows: "frontView", key: "1" },
+            { name: "Side", follows: "sideView", key: "3" },
+            { name: "Isometric", follows: "isometric" },
+        ]);
         // The reader's name from Settings, which graphty-element stamps on each note and never
         // saves in a project file, so each opened project is told it again.
         const author = readAuthor();
@@ -171,8 +182,9 @@ export function Workspace({
                       callerKey: APP_CALLER_KEY,
                   })
                 : session.config.set(patch);
-        const defaults =
-            project?.id === startProjectId || Object.keys(patch).length === 0 ? Promise.resolve() : writeDefaults();
+        const defaults = starting.then(() =>
+            project?.id === startProjectId || Object.keys(patch).length === 0 ? undefined : writeDefaults(),
+        );
         if (opening === null) {
             // Nothing waits on the app's starting choices here; a refusal is logged, not shown.
             void defaults.catch((error: unknown) => {

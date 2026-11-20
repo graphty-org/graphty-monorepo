@@ -245,6 +245,7 @@ export interface GraphtyElementJSXProps {
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
     "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
+    "onreduced-motion-changed"?: (event: CustomEvent<EventOfType<"reduced-motion-changed">>) => void;
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
     "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
@@ -255,6 +256,9 @@ export interface GraphtyElementJSXProps {
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     "onstats-update"?: (event: CustomEvent<EventOfType<"stats-update">>) => void;
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
+    "ontour-ended"?: (event: CustomEvent<EventOfType<"tour-ended">>) => void;
+    "ontour-progress"?: (event: CustomEvent<EventOfType<"tour-progress">>) => void;
+    "onviews-changed"?: (event: CustomEvent<EventOfType<"views-changed">>) => void;
     "onxr-session-ended"?: (event: CustomEvent<EventOfType<"xr-session-ended">>) => void;
     "onxr-session-started"?: (event: CustomEvent<EventOfType<"xr-session-started">>) => void;
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;

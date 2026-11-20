@@ -480,6 +480,7 @@ describe("view codec: the live camera and playhead", () => {
         // What a renderer gives the session: where its camera is now.
         dispatcherOf(session).services.camera = {
             move: () => Promise.resolve(),
+            current: () => ({ position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } }),
             state: () => ({ position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } }),
         };
         const saved = await save(session);
@@ -603,9 +604,11 @@ describe("view codec: opening", () => {
             { code: "W_CAMERA_CONTROLLER_UNKNOWN", params: { section: "view", controller: "fly" } },
         ]);
         assert.deepEqual(opened.views.get("Fly"), {
-            position: { x: 1, y: 2, z: 3 },
-            target: { x: 0, y: 0, z: 0 },
-            fov: 0.5,
+            camera: {
+                position: { x: 1, y: 2, z: 3 },
+                target: { x: 0, y: 0, z: 0 },
+                fov: 0.5,
+            },
         });
     });
 

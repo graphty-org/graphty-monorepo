@@ -617,6 +617,7 @@ export const GRAPH_SETTING_HOMES: Readonly<Record<string, Home>> = {
     twoD: no("deprecated: View sets it"),
     addDefaultStyle: no("ignored by graphty-element"),
     startingRows: no("a project setting, not a style"),
+    startingCamerasWritten: no("a project record, not a style"),
     startingCameraDistance: no("not a style: the camera"),
     layout: no("not a style: the toolbar's Layout"),
     layoutOptions: no("not a style: the toolbar's Layout"),

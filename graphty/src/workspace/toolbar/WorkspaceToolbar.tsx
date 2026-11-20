@@ -1,22 +1,26 @@
 import "./toolbar.css";
 
 import { MenuCheckItem, MenuItemDescription, MenuShortcut, Toolbar, ToolButton } from "@graphty/compact-mantine";
+import type { TourProgressEvent } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Menu, Popover, Text } from "@mantine/core";
-import React, { forwardRef, useRef } from "react";
+import React, { forwardRef, useEffect, useReducer, useRef } from "react";
 
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
+import type { PaletteRow } from "../commands/registry";
 import { tabStops } from "../frame/focus";
 import { CommandMenuItem, Sections } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { focusPathValuesNext } from "../inspector/reads";
 import { ariaKey, formatKey } from "../keys/keys";
 import { LayoutPopover } from "../layout/LayoutPopover";
+import { errorWords } from "../project/words";
 import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { immersiveMode, reducedMotion } from "./commands";
+import { immersiveMode, savedViewRows } from "./commands";
 import { openers, type ToolbarPopover } from "./popover";
 import { QuickActionsPalette } from "./QuickActionsPalette";
+import { cameraViewName } from "./viewWords";
 
 /** Props for CommandTool. */
 interface CommandToolProps {
@@ -188,100 +192,178 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
 }
 
 /**
- * The reader's saved views on the Camera menu: a row each that moves the camera there, then a
- * Remove view submenu naming them. Nothing while none is saved.
+ * One Camera menu row for a saved camera (a Quick actions row too), with its key: disabled with
+ * its reason, and a failure becomes a notice.
  * @param props - Component props
- * @param props.session - The element's session
+ * @param props.row - The row
+ * @returns The menu row
+ */
+function RowItem({ row }: Readonly<{ row: PaletteRow }>): React.JSX.Element {
+    const workspace = useWorkspace();
+    return (
+        <CommandMenuItem
+            label={row.label}
+            shortcut={row.keys?.[0]}
+            reason={row.disabled?.(workspace) ?? null}
+            onRun={() => {
+                const outcome = row.run(workspace);
+                if (outcome instanceof Promise) {
+                    outcome.catch((error: unknown) => {
+                        workspace.store.set({ notice: { message: errorWords(`${row.label} failed`, error) } });
+                    });
+                }
+            }}
+        />
+    );
+}
+
+/**
+ * The reader's cameras on the Camera menu, every one in project order with its key;
+ * nothing (and no divider) with none. Cameras are managed in the Views place, never here.
  * @returns The rows
  */
-function SavedViewRows({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element | null {
-    const names = [...session.views.keys()];
-    if (names.length === 0) {
+function CameraRows(): React.JSX.Element | null {
+    const workspace = useWorkspace();
+    const rows = savedViewRows(workspace);
+    if (rows.length === 0) {
         return null;
     }
     return (
         <>
-            {names.map((name) => (
-                <Menu.Item
-                    key={name}
-                    onClick={() => {
-                        void session.execute({ op: "view.camera", preset: name, animate: true });
-                    }}
-                >
-                    {name}
-                </Menu.Item>
+            {rows.map((row) => (
+                <RowItem key={row.id} row={row} />
             ))}
-            <Menu.Sub>
-                <Menu.Sub.Target>
-                    <Menu.Sub.Item>Remove view</Menu.Sub.Item>
-                </Menu.Sub.Target>
-                <Menu.Sub.Dropdown>
-                    {names.map((name) => (
-                        <Menu.Item
-                            key={name}
-                            onClick={() => {
-                                void session.views.remove([name]);
-                            }}
-                        >
-                            {name}
-                        </Menu.Item>
-                    ))}
-                </Menu.Sub.Dropdown>
-            </Menu.Sub>
+            <Menu.Divider />
         </>
     );
 }
 
 /**
- * The Camera menu: Fit and Frame selection; the four standard views, disabled with their reason in
- * 2D; the saved views and Save view; zoom in and out in 2D; the Auto-rotate and Follow selection
- * switches; then Export image and Record video, which reads Stop recording while it records.
+ * The Camera menu's Auto-rotate and Focus selected switches.
+ * @returns The rows
+ */
+function CameraSwitchRows(): React.JSX.Element {
+    const autoRotate = useWorkspaceState((state) => state.autoRotate);
+    const followSelection = useWorkspaceState((state) => state.followSelection);
+    const { element } = useWorkspace();
+    return (
+        <>
+            <CheckItem
+                command="view.auto-rotate"
+                label="Auto-rotate"
+                checked={autoRotate && element?.isMotionReduced() !== true}
+                shortcut="9"
+                radio={false}
+            />
+            <CheckItem command="view.follow-selection" label="Focus selected" checked={followSelection} radio={false} />
+        </>
+    );
+}
+
+/**
+ * The Camera menu (design/ui/camera-views-tours-and-capture.md,
+ * section 3.2): every camera, Fit and Fit selection, Zoom in and Zoom out in 2D, then the
+ * Auto-rotate and Focus selected switches.
  * @param props - Component props
  * @param props.session - The element's session, or null
  * @returns The menu's rows
  */
-function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
+function CameraViewsMenuRows({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
     const flat = session?.layout.dimension === "2d";
-    const autoRotate = useWorkspaceState((state) => state.autoRotate);
-    const followSelection = useWorkspaceState((state) => state.followSelection);
-    const recording = useWorkspaceState((state) => state.recording);
-    const record = useCommand("view.record-video");
     return (
         <>
+            {session === null ? null : <CameraRows />}
             <Sections
-                sections={[
-                    ["view.fit", "view.frame-selection"],
-                    ["view.front", "view.side", "view.top", "view.isometric"],
-                ]}
+                sections={[["view.fit", "view.frame-selection", ...(flat ? ["view.zoom-in", "view.zoom-out"] : [])]]}
             />
             <Menu.Divider />
-            {session === null ? null : <SavedViewRows session={session} />}
-            <Sections sections={[["view.save"], ...(flat ? [["view.zoom-in", "view.zoom-out"]] : [])]} />
-            <Menu.Divider />
-            <CheckItem
-                command="view.auto-rotate"
-                label="Auto-rotate"
-                checked={autoRotate && !reducedMotion()}
-                shortcut="9"
-                radio={false}
-            />
-            <CheckItem
-                command="view.follow-selection"
-                label="Follow selection"
-                checked={followSelection}
-                radio={false}
-            />
-            <Menu.Divider />
-            <Sections sections={[["view.export-image"]]} />
-            {record === null ? null : (
-                <CommandMenuItem
-                    label={recording ? "Stop recording" : record.command.label}
-                    shortcut={record.command.keys?.[0]}
-                    reason={record.disabledReason}
-                    onRun={record.run}
-                />
-            )}
+            <CameraSwitchRows />
         </>
+    );
+}
+
+/**
+ * A tour's stop as the status line says it: "Stop 3 of 4, Port nodes".
+ * @param session - The element's session.
+ * @param progress - The `tour-progress` event's detail.
+ * @param progress.stop - The stop, 0-based.
+ * @param progress.stops - How many stops the tour has.
+ * @param progress.view - The saved view the stop flies to, if any.
+ * @param progress.phase - Whether it flies, holds or pauses.
+ * @returns The words.
+ */
+function stopWords(session: GraphSession, { stop, stops, view, phase }: TourProgressEvent): string {
+    const lead = `Stop ${String(stop + 1)} of ${String(stops)}`;
+    if (view === undefined) {
+        return phase === "pause" ? `${lead}, Pause` : lead;
+    }
+    return `${lead}, ${cameraViewName(view, session.catalog.cameras().find(({ id }) => id === view)?.plainName)}`;
+}
+
+/**
+ * Follows graphty-element's camera facts the toolbar draws from: the tour playing (`tour-progress`,
+ * `tour-ended`, kept in the store: the Camera tool is Stop while one plays) and a redraw whenever what
+ * `viewProblem` and `planTour` read changes (`views-changed`) or motion is reduced or no longer.
+ * @param element - The element, or null.
+ */
+function useCameraFacts(element: ReturnType<typeof useWorkspace>["element"]): void {
+    const { store } = useWorkspace();
+    const [, redraw] = useReducer((n: number) => n + 1, 0);
+    useEffect(() => {
+        if (element === null) {
+            return undefined;
+        }
+        const progress = ({ detail }: CustomEvent<TourProgressEvent>): void => {
+            const { tour, stop, stops } = detail;
+            const before = store.get().tourProgress;
+            const moved = before?.tour !== tour || before.stop !== stop;
+            store.set({
+                tourProgress: { tour, stop, stops },
+                // The polite status line says each stop once, as it is reached, never a phase or a tick.
+                ...(moved ? { announcement: stopWords(element.session, detail) } : {}),
+            });
+        };
+        const ended = (): void => {
+            store.set({ tourProgress: null });
+        };
+        element.addEventListener("tour-progress", progress);
+        element.addEventListener("tour-ended", ended);
+        element.addEventListener("views-changed", redraw);
+        element.addEventListener("reduced-motion-changed", redraw);
+        return () => {
+            element.removeEventListener("tour-progress", progress);
+            element.removeEventListener("tour-ended", ended);
+            element.removeEventListener("views-changed", redraw);
+            element.removeEventListener("reduced-motion-changed", redraw);
+        };
+    }, [element, store]);
+}
+
+/**
+ * The Camera tool while a tour plays outside a recording: Stop, in the Camera tool's place and
+ * size, so nothing shifts and Escape has a visible button exactly while it applies.
+ * @param props - Component props
+ * @param props.onStop - called as the button stops the tour
+ * @returns The tool, or nothing when Stop tour is not built
+ */
+function StopTourTool({ onStop }: Readonly<{ onStop: () => void }>): React.JSX.Element | null {
+    const door = useCommand("tour.stop");
+    if (door === null) {
+        return null;
+    }
+    const key = door.command.whileShownKeys?.[0];
+    return (
+        <ToolButton
+            data-command="tour.stop"
+            label={door.command.label}
+            icon={<GLYPHS.stop size={20} />}
+            shortcut={key === undefined ? undefined : formatKey(key)}
+            aria-keyshortcuts={key === undefined ? undefined : ariaKey(key)}
+            onClick={() => {
+                onStop();
+                door.run();
+            }}
+        />
     );
 }
 
@@ -324,14 +406,18 @@ function viewMode(session: GraphSession | null): keyof typeof MODE_WORDS {
  * @returns The toolbar
  */
 export function WorkspaceToolbar(): React.JSX.Element {
-    const { session, store } = useWorkspace();
+    const { session, store, element } = useWorkspace();
     useSessionEvents(session, TOOLBAR_EVENTS);
+    useCameraFacts(element);
     const dialog = useWorkspaceState((state) => state.dialog);
     // Pressed while a key is drawn, or while the reader asked for one over nothing (the card then
     // says nothing is styled yet); a switch that is on by default over nothing reads as off.
     const legendShown = useWorkspaceState((state) => state.legendShown && (state.keyHasEntries || state.legendAsked));
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const timelineOpen = useWorkspaceState((state) => state.timelineOpen);
+    // While a tour plays the Camera tool is Stop; while a recording plays one, the Export dialog
+    // covers the toolbar and holds its own Stop, so the tool stays Camera.
+    const touring = useWorkspaceState((state) => state.tourProgress !== null && state.dialog !== "export");
     const mode = viewMode(session);
     // The button each popover opened from. Mantine's own returnFocus records the element focused
     // when the popover opens, but the Filter box and the Quick actions search focus themselves as
@@ -340,6 +426,14 @@ export function WorkspaceToolbar(): React.JSX.Element {
     const anchor = (id: ToolbarPopover) => (button: HTMLButtonElement | null) => {
         anchors.current[id] = button;
     };
+    // Stop tour pressed on the toolbar hands focus to the Camera tool that comes back in its place.
+    const focusCamera = useRef(false);
+    useEffect(() => {
+        if (!touring && focusCamera.current) {
+            focusCamera.current = false;
+            anchors.current.camera?.focus();
+        }
+    }, [touring]);
     const close = (): void => {
         store.set((state) => (state.dialog === dialog ? { dialog: null } : {}));
     };
@@ -353,7 +447,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
             },
             position: "top",
             offset: 8,
-            // Closing (Esc, Run, a pick, a menu row such as Frame selection) unmounts the focused
+            // Closing (Esc, Run, a pick, a menu row such as Fit selection) unmounts the focused
             // control; focus goes back to the popover's button, unless the reader has already put
             // it somewhere else.
             onClose: () => {
@@ -455,14 +549,22 @@ export function WorkspaceToolbar(): React.JSX.Element {
                     )}
                 </Popover.Dropdown>
             </Popover>
-            <Menu {...popoverProps("camera")}>
-                <Menu.Target>
-                    <CommandTool ref={anchor("camera")} command="view.camera" icon={<GLYPHS.camera size={20} />} />
-                </Menu.Target>
-                <Menu.Dropdown aria-label="Camera">
-                    <CameraMenuRows session={session} />
-                </Menu.Dropdown>
-            </Menu>
+            {touring ? (
+                <StopTourTool
+                    onStop={() => {
+                        focusCamera.current = true;
+                    }}
+                />
+            ) : (
+                <Menu {...popoverProps("camera")}>
+                    <Menu.Target>
+                        <CommandTool ref={anchor("camera")} command="view.camera" icon={<GLYPHS.camera size={20} />} />
+                    </Menu.Target>
+                    <Menu.Dropdown aria-label="Camera">
+                        <CameraViewsMenuRows session={session} />
+                    </Menu.Dropdown>
+                </Menu>
+            )}
             <Menu {...popoverProps("view")}>
                 <Menu.Target>
                     <CommandTool

@@ -1,0 +1,98 @@
+/* The Views place (design/ui/camera-views-tours-and-capture.md, section 3.1): no heading, Cameras
+   then Video tours, scrolling as one column; the lists never scroll on their own. Spacing on the
+   4 px grid; CardList keeps its own. */
+.vp {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding-top: 8px;
+    overflow-y: auto;
+}
+
+/* The last card to the next section's header. */
+.vp-cameras {
+    margin-bottom: 8px;
+}
+
+.vp-key,
+.vp-length {
+    font-variant-numeric: tabular-nums;
+}
+
+/* An unfolded camera: its read-only values (2 px apart), then its Key and Update to current camera
+   4 px apart. */
+.vp-inspect {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* Key and Update share the data rows' edges: DataRow's 16 px start and 8 px end inset. */
+.vp-inspect > .vp-key-select {
+    margin-top: 2px;
+    padding-inline: 16px 8px;
+}
+
+.vp-inspect > .vp-key-select ~ * {
+    margin-top: 2px;
+    padding-inline: 16px 8px;
+}
+
+/* A stop's body and a tour's foot: one labeled field per row, 4 px apart. */
+.vp-stop-body,
+.vp-tour-foot {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.vp-stop-body {
+    padding: 4px 6px;
+}
+
+/* One 48 px label column; every field starts at its edge and fills the rest. */
+.vp-field {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: center;
+}
+
+.vp-field-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vp-field-input {
+    min-width: 0;
+}
+
+/* The stop playing now wears the active row's fill. */
+.vp-stop-playing {
+    background: var(--cm-bg-selected, var(--mantine-color-default-hover));
+}
+
+.vp-add-stops {
+    display: flex;
+    gap: 8px;
+}
+
+/* A folded camera stop: its camera gives way, with an ellipsis, before its two times. */
+.vp-stop-summary {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+}
+
+.vp-stop-summary-camera {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vp-stop-summary-times {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+}

@@ -23,28 +23,18 @@ import {
     SegmentedControl,
     TargetTooltip,
 } from "@graphty/compact-mantine";
-import type {
-    GraphSession,
-    RuleTree,
-    ScopeEdit,
-    StepReading,
-    StepsReading,
-    UnionBranch,
-    UnionLeaf,
-    UnionStep,
-} from "@graphty/graphty-element/session";
 import {
-    ActionIcon,
-    Button,
-    Group,
-    InputBase,
-    Loader,
-    Menu,
-    Stack,
-    Text,
-    Tooltip,
-    UnstyledButton,
-} from "@mantine/core";
+    type GraphSession,
+    isGraphtyError,
+    type RuleTree,
+    type ScopeEdit,
+    type StepReading,
+    type StepsReading,
+    type UnionBranch,
+    type UnionLeaf,
+    type UnionStep,
+} from "@graphty/graphty-element/session";
+import { ActionIcon, Button, Group, InputBase, Loader, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -71,7 +61,7 @@ import {
     removeStep,
     type Verb,
 } from "./model";
-import { type SelectionMenuItem, SelectionMenuItems } from "./SelectionMenu";
+import { RowMore, type SelectionMenuItem } from "./SelectionMenu";
 import { StepPane } from "./StepPane";
 import { StyleOpenLine } from "./StyleOpenLine";
 import { useSteps } from "./useSteps";
@@ -179,6 +169,17 @@ function afterPaint(work: () => void): void {
             setTimeout(work, 0);
         });
     });
+}
+
+/**
+ * Leave the camera where it is when the element refuses a move: the drawing mode changed (2D and
+ * 3D, or a headset) since the move was asked for. Anything else is a real failure.
+ * @param error - Why the move was rejected.
+ */
+function cameraRefused(error: unknown): void {
+    if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED") {
+        throw error;
+    }
 }
 
 /**
@@ -979,11 +980,13 @@ export function SelectionEditor({
             icon: "maximize",
             group: "edit",
             onRun: () => {
-                void element?.applyCameraView("fitToGraph", {
-                    scope: reading.result,
-                    params: { keepAngle: true },
-                    animate: true,
-                });
+                void element
+                    ?.applyCameraView("fitToGraph", {
+                        scope: reading.result,
+                        params: { keepAngle: true },
+                        animate: true,
+                    })
+                    .catch(cameraRefused);
             },
         },
         {
@@ -1311,7 +1314,7 @@ export function SelectionEditor({
                                 }}
                             />
                         ),
-                    menu: <PaneMenu name={letter} items={cardItems(branch, at)} />,
+                    menu: <RowMore name={letter} items={cardItems(branch, at)} />,
                     children: (
                         <>
                             {/* Its own line in the open card, named: beside the count "No nodes" read as
@@ -1506,7 +1509,8 @@ export function SelectionEditor({
                     requestAnimationFrame(fit);
                 });
             } else if (camera !== undefined) {
-                void element?.setCameraState(camera);
+                // Switched to 2D or 3D, or into a headset, while open: the old camera no longer fits.
+                void element?.setCameraState(camera).catch(cameraRefused);
             }
         };
         // The canvas is placed once per opening; its observer follows the cell from there.
@@ -1677,7 +1681,7 @@ export function SelectionEditor({
                                           setColors(value === "colors");
                                       }}
                                   />
-                                  <PaneMenu name={wsTitle} items={titleItems} />
+                                  <RowMore name={wsTitle} items={titleItems} />
                                   <span className="sel-ws-gap" />
                                   <Button
                                       size="compact-xs"
@@ -2123,30 +2127,6 @@ function AddCard({
                 </Text>
             )}
         </div>
-    );
-}
-
-/**
- * A "..." menu of a pane.
- * @param props - Component props
- * @param props.name - what it is for
- * @param props.items - its items
- * @returns The menu
- */
-function PaneMenu({ name, items }: Readonly<{ name: string; items: readonly SelectionMenuItem[] }>): React.JSX.Element {
-    return (
-        <Menu position="bottom-end" withinPortal>
-            <Menu.Target>
-                <TargetTooltip label="More">
-                    <ActionIcon variant="subtle" size="sm" aria-label={`More for ${name}`}>
-                        <GLYPHS.more size={14} aria-hidden />
-                    </ActionIcon>
-                </TargetTooltip>
-            </Menu.Target>
-            <Menu.Dropdown data-portal="">
-                <SelectionMenuItems items={items} />
-            </Menu.Dropdown>
-        </Menu>
     );
 }
 

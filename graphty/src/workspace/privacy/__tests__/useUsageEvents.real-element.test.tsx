@@ -535,7 +535,7 @@ describe("usage counts from the real element", () => {
         const fit = next("command_run");
         // Fit from the canvas menu, opened over an empty corner.
         await userEvent.click(canvas, { button: "right", position: { x: 8, y: 8 } });
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Fit/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Fit(?! selection)/ }));
         assert.strictEqual((await fit).command, "view.fit");
 
         const actionsBefore = actionOps().length;
@@ -563,20 +563,26 @@ describe("usage counts from the real element", () => {
 
     it("counts each export pressed exactly once, by kind, format and destination only", async () => {
         const downloads = catchDownloads();
-        await loadedProject("SECRET_PROJECT");
+        const { session } = await loadedProject("SECRET_PROJECT");
+        await session.views.save([{ name: "Overview" }]);
 
-        // An image, from the Export dialog.
-        await userEvent.keyboard("{Control>}e{/Control}");
-        let dialog = await screen.findByRole("dialog", { name: "Export" });
+        // An image, from a camera's row menu in the Views place.
+        await userEvent.click(
+            within(screen.getByRole("toolbar", { name: "Places" })).getByRole("button", { name: "Views" }),
+        );
+        const place = await screen.findByRole("region", { name: "Views place" });
+        await userEvent.click(within(place).getByRole("button", { name: "More for Overview" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Export image/ }));
+        let dialog = await screen.findByRole("dialog", { name: "Export image" });
         await within(dialog).findByRole("img", {});
         const image = next("export_done");
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
         assert.deepEqual({ ...(await image) }, { kind: "image", format: "png", destination: "download" });
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("dialog", { name: "Export" }));
+            assert.isNull(screen.queryByRole("dialog", { name: "Export image" }));
         });
 
-        // The project, from the same dialog.
+        // The project, from the Export dialog.
         await userEvent.keyboard("{Control>}e{/Control}");
         dialog = await screen.findByRole("dialog", { name: "Export" });
         await userEvent.click(

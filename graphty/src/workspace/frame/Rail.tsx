@@ -25,10 +25,38 @@ function AssistantGlyph({ waiting }: Readonly<{ waiting: boolean }>): React.JSX.
 }
 
 /**
+ * The rail's Views button.
+ * @param props - Component props
+ * @param props.active - Whether the Views place is showing
+ * @returns The button
+ */
+function ViewsButton({ active }: Readonly<{ active: boolean }>): React.JSX.Element | null {
+    const { store } = useWorkspace();
+    const views = useCommand("place.views");
+    if (views === null) {
+        return null;
+    }
+    return (
+        <RailButton
+            icon={<GLYPHS.camera size={20} aria-hidden />}
+            label="Views"
+            active={active}
+            aria-current={active ? "page" : undefined}
+            onClick={() => {
+                views.run();
+                // A rail click keeps focus on the rail; only the other doors move it in.
+                store.set({ viewsFocus: null });
+            }}
+        />
+    );
+}
+
+/**
  * The rail (tier1-design.md section 2.2): Graph, Data and Notes, with Settings pinned to its foot
- * as the classic shell's activity rail pins it, and Assistant after Data while the element has the
- * assistant experiment on, with a neutral dot while a request waits for the reader. Views is not drawn until it is built. Icon buttons with the shared
- * tooltip; only Settings and Assistant have a key. Pressing the active Assistant closes it.
+ * as the classic shell's activity rail pins it; Views after Data, wearing the Camera tool's glyph (design/ui/camera-views-tours-and-capture.md,
+ * section 3.1); and Assistant after them while the element has the assistant experiment on, with a
+ * neutral dot while a request waits for the reader. Icon buttons
+ * with the shared tooltip; only Settings and Assistant have a key. Pressing the active Assistant closes it.
  * @returns The rail
  */
 export function Rail(): React.JSX.Element {
@@ -78,6 +106,7 @@ export function Rail(): React.JSX.Element {
                     run("place.data");
                 }}
             />
+            <ViewsButton active={place === "views"} />
             {assistant === null ? null : (
                 <RailButton
                     icon={<AssistantGlyph waiting={waiting} />}

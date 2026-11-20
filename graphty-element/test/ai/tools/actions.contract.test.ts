@@ -44,6 +44,7 @@ const RENDERER = {
             metadata: { width: 10, height: 10, format: "webm", duration: 1000 },
         }),
     cancelAnimationCapture: () => false,
+    playTour: () => Promise.resolve({ reason: "finished" }),
     stopAnimationCapture: () => false,
     isVRSupported: () => Promise.resolve(false),
     isARSupported: () => Promise.resolve(false),
@@ -371,6 +372,26 @@ const ROWS: Record<string, Row> = {
         setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 } }]),
     },
     "view.list_saved": { args: { action: "list_saved" } },
+    "view.rename": {
+        args: { action: "rename", name: "kept", to: "hub" },
+        setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 } }]),
+    },
+    "tour.list": {
+        args: { action: "list" },
+        setup: (s) => s.tours.save([{ name: "intro", tour: { stops: [{ view: "fitToGraph" }] } }]),
+    },
+    "tour.save": {
+        args: {
+            action: "save",
+            name: "intro",
+            stops: [{ view: "fitToGraph", hold: 500 }, { pause: 250 }],
+            easing: "linear",
+        },
+    },
+    "tour.play": {
+        args: { action: "play", name: "intro" },
+        setup: (s) => s.tours.save([{ name: "intro", tour: { stops: [{ view: "fitToGraph" }] } }]),
+    },
     "edit_data.add_nodes": { args: { action: "add_nodes", records: [{ id: "f", type: "client" }] } },
     "edit_data.add_edges": { args: { action: "add_edges", records: [{ source: "Alpha", target: "e" }] } },
     "edit_data.update_nodes": {
@@ -780,6 +801,35 @@ describe("every generated action", () => {
         assert.strictEqual(refused.params.path, "result.op");
     });
 
+    it("saves a keyed following view and a tour with a pause, and lists both back", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        await assistant.say("save", [
+            { tool: "view", args: { action: "save", name: "above", preset: "topView", key: "7" } },
+            {
+                tool: "tour",
+                args: { action: "save", name: "walk", stops: [{ view: "above", hold: 100 }, { pause: 400 }] },
+            },
+        ]);
+        assert.deepStrictEqual(
+            assistant.lastResults().map((each) => each.code),
+            ["AI_OK", "AI_OK"],
+        );
+        assert.deepStrictEqual(session.views.get("above"), { follows: "topView", key: "7" });
+
+        await assistant.say("list", [
+            { tool: "view", args: { action: "list_saved" } },
+            { tool: "tour", args: { action: "list" } },
+        ]);
+        const [views, tours] = assistant.lastResults();
+        const listed = views.data as { following: Record<string, string>; keys: Record<string, string> };
+        assert.deepStrictEqual(listed.following, { above: "topView" });
+        assert.deepStrictEqual(listed.keys, { above: "7" });
+        assert.deepStrictEqual(tours.data, {
+            tours: [{ name: "walk", stops: [{ view: "above", hold: 100 }, { pause: 400 }] }],
+        });
+    });
+
     it("describes an entry by its name alone when only one kind has it", async () => {
         const session = await assistantSession();
         const assistant = new ScriptedAssistant(session);
@@ -975,6 +1025,12 @@ const MORE: Record<string, Row[]> = {
         },
     ],
     "view.camera": [{ args: { action: "camera", preset: "topView", options: {} } }],
+    "capture.animation": [
+        {
+            args: { action: "animation", tour: "intro" },
+            setup: (s) => s.tours.save([{ name: "intro", tour: { stops: [{ view: "fitToGraph" }] } }]),
+        },
+    ],
     "results.summary": [
         {
             args: { action: "summary", run: "degree" },

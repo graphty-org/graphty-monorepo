@@ -311,7 +311,7 @@ export const KNOWN_PALETTE_IDS = [
 export type PaletteId = (typeof KNOWN_PALETTE_IDS)[number] | (string & {});
 
 /** The built-in camera views. */
-export const KNOWN_CAMERA_IDS = ["fitToGraph", "topView", "sideView", "frontView", "isometric"] as const;
+export const KNOWN_CAMERA_IDS = ["fitToGraph", "topView", "sideView", "frontView", "isometric", "bottomView"] as const;
 
 /** A camera view id: a built-in name, or a plugin's. */
 export type CameraId = (typeof KNOWN_CAMERA_IDS)[number] | (string & {});

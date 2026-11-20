@@ -48,7 +48,7 @@ export function useWorkspaceState<T>(select: (state: WorkspaceState) => T): T {
 }
 
 /** A door's view of one command. */
-interface CommandDoor {
+export interface CommandDoor {
     readonly command: Command;
     /** Why it cannot run now, or null. */
     readonly disabledReason: string | null;

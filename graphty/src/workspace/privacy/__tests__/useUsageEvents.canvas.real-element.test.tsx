@@ -276,7 +276,7 @@ describe("usage counts from the reader's hands on the canvas", () => {
 
         // The Camera button is a command of its own (view.camera); Fit is the row it opens.
         await userEvent.click(screen.getByRole("button", { name: /^Camera/ }));
-        const row = await screen.findByRole("menuitem", { name: /^Fit/ });
+        const row = await screen.findByRole("menuitem", { name: /^Fit(?! selection)/ });
         const fit = next("command_run");
         await userEvent.click(row);
         assert.strictEqual((await fit).command, "view.fit");

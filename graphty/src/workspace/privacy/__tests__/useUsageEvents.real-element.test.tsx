@@ -630,7 +630,12 @@ describe("usage counts from the real element", () => {
         await userEvent.keyboard("{Control>}s{/Control}");
         const save = await screen.findByRole("dialog", { name: /^Save .* as$/ });
         await userEvent.clear(within(save).getByRole("textbox", { name: "Name" }));
-        await userEvent.type(within(save).getByRole("textbox", { name: "Name" }), "SECRET_SAVED{Enter}");
+        await userEvent.type(within(save).getByRole("textbox", { name: "Name" }), "SECRET_SAVED");
+        // Enter submits only once Save is enabled (with save files version 2 on, after graphty-element's verdict).
+        await waitFor(() => {
+            assert.isFalse(within(save).getByRole<HTMLButtonElement>("button", { name: "Save" }).disabled);
+        });
+        await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
         });

@@ -7,8 +7,9 @@
  *
  * Runs in the `browser-bench` project, never under coverage:
  *   npx vitest run --project=browser-bench test/browser/single-edit.bench.test.ts
- * VITE_SINGLE_EDIT_SIZES picks the sizes as `nodes/edges,...` (default 1000/10000, 10000/100000 and
- * 99000/990000, just under the default ceilings so an add is not refused) and VITE_SINGLE_EDIT_PATHS
+ * VITE_SINGLE_EDIT_SIZES picks the sizes as `nodes/edges,...` (default 1000/10000, 9000/90000 and
+ * 99000/990000: clear of the 10,000-node detail threshold, and just under the default ceilings so an add
+ * is not refused) and VITE_SINGLE_EDIT_PATHS
  * the paths (default `objects,batched`). Each edit prints, as `[single-edit]`, the time until its
  * promise resolves, the time until the frame that draws it has been updated (once the graph is
  * loaded and at rest the render loop is stopped and `graph.update()` drives the frames, so the
@@ -28,7 +29,9 @@ import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { Node } from "../../src/Node";
 import { dispatcherOf } from "../../src/session/GraphSession";
 
-const SIZES = String(import.meta.env.VITE_SINGLE_EDIT_SIZES ?? "1000/10000,10000/100000,99000/990000")
+// Below 10,000 nodes or well above: an add or removal that crosses `largeGraphThreshold` (10,000) changes how
+// every node is drawn, and repaints the whole graph by design.
+const SIZES = String(import.meta.env.VITE_SINGLE_EDIT_SIZES ?? "1000/10000,9000/90000,99000/990000")
     .split(",")
     .map((size) => size.split("/").map(Number) as [number, number]);
 const PATHS = String(import.meta.env.VITE_SINGLE_EDIT_PATHS ?? "objects,batched").split(",") as (

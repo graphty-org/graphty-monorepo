@@ -263,8 +263,8 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
             return;
         }
         await userEvent.click(within(shaders).getByRole("button", { name: /^Add to node shaders/ }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^(Custom shader|New shader\.\.\.)$/ }));
-        const dialog = await screen.findByRole("dialog", { name: /shader/i });
+        await userEvent.click(await screen.findByRole("button", { name: "New shader..." }));
+        const dialog = await screen.findByRole("dialog", { name: /^(New|Edit) shader$/ });
         await userEvent.click(within(dialog).getByRole("combobox", { name: /^Place/ }));
         const options = (await screen.findAllByRole("option")).map((option) => option.textContent.trim());
         assert.isNotEmpty(options);

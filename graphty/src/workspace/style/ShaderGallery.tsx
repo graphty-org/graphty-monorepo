@@ -1,7 +1,7 @@
 import { ContextMenu } from "@graphty/compact-mantine";
 import { shaderAnimates, type ShaderDescriptor, type ShaderPlace } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Chip, Group, Menu, Text, TextInput, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
+import { Menu, Text, TextInput, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import React, { useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -12,7 +12,6 @@ import {
     layersWord,
     matchesWordStart,
     OPTION_TILE_WORDS,
-    ORIGIN_FILTERS,
     placeWords,
     SHADER_FACT_WORDS,
     shaderMatches,
@@ -153,20 +152,6 @@ function onTab(descriptor: ShaderDescriptor, tab: ShaderTab): boolean {
 }
 
 /**
- * Whether a shader passes the origin filter.
- * @param descriptor - the catalog's entry.
- * @param origin - the chip picked.
- * @returns true when it shows.
- */
-function inOrigin(descriptor: ShaderDescriptor, origin: string): boolean {
-    const catalogId = catalogIdOf(descriptor);
-    if (origin === "builtIn") {
-        return catalogId !== undefined && !catalogId.includes("/");
-    }
-    return origin === "project" ? catalogId === undefined : true;
-}
-
-/**
  * The catalog entry a shader is filed with: a project copy's (`copyOf`), a catalog entry's own id,
  * nothing for the project's own text.
  * @param descriptor - the catalog's entry.
@@ -174,20 +159,6 @@ function inOrigin(descriptor: ShaderDescriptor, origin: string): boolean {
  */
 function catalogIdOf(descriptor: ShaderDescriptor): string | undefined {
     return descriptor.copyOf ?? (descriptor.origin === "pasted" ? undefined : descriptor.id);
-}
-
-/**
- * Where a shader that is not built in came from: "This project", or its registrant's namespace (a
- * registered id is `<namespace>/<name>`, a preset's is bare).
- * @param descriptor - the catalog's entry.
- * @returns the words, or undefined for a built-in shader.
- */
-function originWords(descriptor: ShaderDescriptor): string | undefined {
-    const catalogId = catalogIdOf(descriptor);
-    if (catalogId === undefined) {
-        return GALLERY_WORDS.project;
-    }
-    return catalogId.includes("/") ? catalogId.split("/")[0] : undefined;
 }
 
 /** Props for ShaderGallery. */
@@ -252,7 +223,6 @@ export function ShaderGallery({
     places,
 }: Readonly<ShaderGalleryProps>): React.JSX.Element {
     const [query, setQuery] = useState("");
-    const [origin, setOrigin] = useState("all");
     const root = useRef<HTMLDivElement>(null);
     // The tile that is the gallery's one Tab stop: the last one focused, else the first.
     const [stop, setStop] = useState<string | null>(null);
@@ -263,7 +233,6 @@ export function ShaderGallery({
                 onTab(descriptor, tab) &&
                 (exclude === undefined || descriptor.place !== exclude) &&
                 (places === undefined || (descriptor.place !== undefined && places.includes(descriptor.place))) &&
-                inOrigin(descriptor, origin) &&
                 shaderMatches(descriptor, query),
         );
     const found = query.trim() === "" ? [] : options.filter((option) => matchesWordStart(option.label, query));
@@ -314,7 +283,6 @@ export function ShaderGallery({
             used ? GALLERY_WORDS.inUse : undefined,
             tab === "background" ? undefined : placeWords(descriptor.place, tab),
             ...factsOf(descriptor).map((fact) => fact.words),
-            reason === undefined ? originWords(descriptor) : undefined,
         ]
             .filter((part) => part !== undefined)
             .join(", ");
@@ -333,7 +301,7 @@ export function ShaderGallery({
                     )
                 }
                 facts={bare ? undefined : <ShaderFacts descriptor={descriptor} />}
-                second={bare ? undefined : (reason ?? originWords(descriptor))}
+                second={bare ? undefined : reason}
                 quiet={bare}
                 dimmed={bare ? shaderViewDim(session, descriptor.views) : undefined}
                 description={description}
@@ -405,23 +373,6 @@ export function ShaderGallery({
                     }
                 }}
             />
-            {/* Style panel v2's gallery holds tiles only: no filter chips (#8739). */}
-            {bare ? null : (
-                <Chip.Group
-                    value={origin}
-                    onChange={(value) => {
-                        setOrigin(typeof value === "string" ? value : "all");
-                    }}
-                >
-                    <Group gap={4} wrap="wrap" role="radiogroup" aria-label={GALLERY_WORDS.origin} data-filter="origin">
-                        {ORIGIN_FILTERS.map((each) => (
-                            <Chip key={each.key} value={each.key} size="xs" variant="outline">
-                                {each.label}
-                            </Chip>
-                        ))}
-                    </Group>
-                </Chip.Group>
-            )}
             <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming a two-column grid of tile buttons; a fieldset would draw its own border and legend
                 className="ws-gallery-grid"
                 role="group"

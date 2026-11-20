@@ -1,93 +1,23 @@
 /**
  * A shader use's row in Style panel v2 (design/ui/style-panel-v2/design.md, sections 2.4 and 7.1,
  * 7.2): a thing row like every other. A use in the Shaders section shows its preset, which opens the
- * gallery of its place to draw another. Its settings pop-over holds Place where the shader draws in more
- * than one (R8f), and its parameters, each empty until
+ * Shaders list to draw another. Its settings pop-over holds its parameters, each empty until
  * the layer writes it, with a "-" that takes it off the use. The row's "-" takes the use off.
  */
 
-import { PanelField } from "@graphty/compact-mantine";
-import type { ShaderPlace } from "@graphty/graphty-element/catalog";
 import React, { useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import type { RowContext } from "../PropertyRow";
 import type { Fail } from "../ShaderRow";
-import {
-    paramsOf,
-    pickedShader,
-    placeOf,
-    removeShader,
-    type ShaderEntry,
-    swapShader,
-    writePlace,
-} from "../shaderSlots";
-import { dialogPlaceWords, failureWords } from "../words";
+import { paramsOf, pickedShader, removeShader, type ShaderEntry, swapShader } from "../shaderSlots";
+import { failureWords, LISTED_PLACES } from "../words";
 import { ReplaceGallery } from "./MemberMenu";
-import { LINE_WIDTHS, segmentsWidth } from "./rubric";
-import { LineFrame, SegmentsLine } from "./RubricLine";
+import { LineFrame } from "./RubricLine";
 import { RowSettings } from "./ThingLine";
 import { PopoverShell } from "./ThingPopover";
 import { UseParams } from "./ThingRow";
 import { ValueButton } from "./ValueButton";
-
-/**
- * A strip, or a select named `name` where the options' words do not fit the pop-over's line.
- * @param props - Component props
- * @param props.line - what the line edits, for `data-line`
- * @param props.name - the select's name
- * @param props.options - the options
- * @param props.value - the option in force
- * @param props.set - whether the use sets it, so it has a "-"
- * @param props.onPick - writes an option
- * @param props.onRemove - takes it off the use
- * @returns The line
- */
-function ChoiceLine({
-    line,
-    name,
-    options,
-    value,
-    set,
-    onPick,
-    onRemove,
-}: Readonly<{
-    line: string;
-    name: string;
-    options: readonly { readonly value: string; readonly name: string }[];
-    value: string;
-    set: boolean;
-    onPick: (value: string) => void;
-    onRemove?: () => void;
-}>): React.JSX.Element {
-    const fits = segmentsWidth(options) <= LINE_WIDTHS.popoverFull;
-    const control = fits ? (
-        <SegmentsLine label={name} options={options} value={value} onPick={onPick} />
-    ) : (
-        <PanelField
-            label={name}
-            kind="select"
-            width="fill"
-            data={options.map((option) => ({ value: option.value, label: option.name }))}
-            value={value}
-            onChange={(next) => {
-                onPick(String(next));
-            }}
-        />
-    );
-    return (
-        <LineFrame
-            line={line}
-            name={fits ? null : name}
-            set={set}
-            rule={fits ? "R8f" : "R9"}
-            control={control}
-            modifier={null}
-            removeName={set && onRemove !== undefined ? `Remove ${name.toLowerCase()}` : undefined}
-            onRemove={onRemove ?? (() => undefined)}
-        />
-    );
-}
 
 /**
  * A value field that opens a picker: the row's main control.
@@ -146,8 +76,6 @@ export function ShaderUseRow({ ctx, entry }: Readonly<{ ctx: RowContext; entry: 
         store.set({ notice: { message: failureWords(name, verb, error), error: true } });
     };
     const params = paramsOf(entry);
-    const place = placeOf(entry);
-    const places = descriptor?.places ?? [];
     const catalogId = descriptor?.copyOf ?? use.shader;
 
     const swap = (id: string): void => {
@@ -155,30 +83,13 @@ export function ShaderUseRow({ ctx, entry }: Readonly<{ ctx: RowContext; entry: 
             .then((picked) => swapShader(ctx, entry, picked, []))
             .catch(fail("changed"));
     };
-    const placeLine =
-        places.length > 1 ? (
-            <ChoiceLine
-                key="place"
-                line={`${entry.key}.place`}
-                name="Place"
-                options={places.map((each) => ({ value: each, name: dialogPlaceWords(each, ctx.side) }))}
-                value={use.place ?? ""}
-                set={use.place !== undefined}
-                onPick={(next) => {
-                    writePlace(ctx, entry, next as ShaderPlace).catch(fail("changed"));
-                }}
-                onRemove={() => {
-                    writePlace(ctx, entry, undefined).catch(fail("changed"));
-                }}
-            />
-        ) : null;
     const paramRows = descriptor === undefined ? null : <UseParams key="params" ctx={ctx} entry={entry} />;
     const settings =
         descriptor === undefined || use.off === true ? null : (
             <RowSettings
                 label={`${title} settings`}
                 title={title}
-                changed={Object.keys(params).length > 0 || use.place !== undefined}
+                changed={Object.keys(params).length > 0}
                 opened={open}
                 onOpenChange={setOpen}
             >
@@ -188,7 +99,7 @@ export function ShaderUseRow({ ctx, entry }: Readonly<{ ctx: RowContext; entry: 
                     groups={[]}
                     isSet={() => false}
                     onUnset={() => undefined}
-                    main={[placeLine, paramRows].filter((line) => line !== null)}
+                    main={paramRows === null ? [] : [paramRows]}
                     others={[]}
                     linesOf={() => null}
                     first={null}
@@ -224,7 +135,7 @@ export function ShaderUseRow({ ctx, entry }: Readonly<{ ctx: RowContext; entry: 
                     ctx={ctx}
                     anchor={box}
                     title={title}
-                    places={place === undefined ? undefined : [place]}
+                    places={LISTED_PLACES[ctx.side]}
                     onPick={(id) => {
                         setGallery(false);
                         if (id !== catalogId && id !== use.shader) {

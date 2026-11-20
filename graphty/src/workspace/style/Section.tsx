@@ -1,5 +1,5 @@
 import { ControlSection, PanelField, Popout, TargetTooltip } from "@graphty/compact-mantine";
-import { type ChannelDescriptor, channelsFor, type ShaderPlace } from "@graphty/graphty-element/catalog";
+import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
@@ -22,6 +22,7 @@ import {
     channelWord,
     failureWords,
     fieldName,
+    LISTED_PLACES,
     OPACITY_OF,
     PICTURE_WORD,
     type SectionSpec,
@@ -545,7 +546,6 @@ export function WireframeRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
 function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: SectionSpec }>): React.JSX.Element {
     const { store } = useWorkspace();
     const [gallery, setGallery] = useState(false);
-    const [places, setPlaces] = useState<readonly ShaderPlace[] | undefined>(undefined);
     const [code, setCode] = useState<PasteInit | null>(null);
     const sectionBox = useRef<HTMLDivElement>(null);
     const tab = ctx.side;
@@ -573,35 +573,19 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
         await addShader(ctx, await pickedShader(ctx.session, id));
         store.set({ announcement: `${name} added` });
     };
-    const add =
-        spec.shapeOwnsReplace === true ? (
-            // Style panel v2 (design 4.1, 4.2): the places first, then the gallery of that place.
-            <AddButton
-                kind={ctx.side}
-                title={spec.title}
-                groups={V2_SHADER_ADDS[tab].map((group) => [{ key: group.key, label: group.label }])}
-                alwaysMenu
-                expanded={gallery}
-                onAdd={(key) => {
-                    if (key === CUSTOM_SHADER) {
-                        setCode({});
-                        return;
-                    }
-                    setPlaces(V2_SHADER_ADDS[tab].find((group) => group.key === key)?.places);
-                    setGallery(true);
-                }}
-            />
-        ) : (
-            <AddButton
-                kind={ctx.side}
-                title={spec.title}
-                options={[{ key: "shader:gallery", label: `${spec.title}...` }]}
-                expanded={gallery}
-                onAdd={() => {
-                    setGallery(true);
-                }}
-            />
-        );
+    // "+" opens ONE list of the tab's shaders, built-in and custom alike, "New shader..." first; in Style panel v2
+    // a place is chosen only when a shader is created, in the code dialog (E368, E381).
+    const add = (
+        <AddButton
+            kind={ctx.side}
+            title={spec.title}
+            options={[{ key: "shader:gallery", label: `${spec.title}...` }]}
+            expanded={gallery}
+            onAdd={() => {
+                setGallery(true);
+            }}
+        />
+    );
     const rows = entries.map((entry) =>
         spec.renderRow === undefined ? (
             <ShaderRow
@@ -676,15 +660,11 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                             marked={entries.map((entry) => entry.use.shader)}
                             exclude={spec.shapeOwnsReplace === true ? "replace" : undefined}
                             bare={spec.shapeOwnsReplace === true}
-                            places={spec.shapeOwnsReplace === true ? places : undefined}
-                            onNew={
-                                spec.shapeOwnsReplace === true
-                                    ? undefined
-                                    : () => {
-                                          setGallery(false);
-                                          setCode({});
-                                      }
-                            }
+                            places={spec.shapeOwnsReplace === true ? LISTED_PLACES[tab] : undefined}
+                            onNew={() => {
+                                setGallery(false);
+                                setCode({});
+                            }}
                             onPick={(id) => {
                                 setGallery(false);
                                 pick(id).catch(fail("added"));
@@ -724,25 +704,6 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
         </div>
     );
 }
-
-/** Style panel v2's Shaders "+" item that opens the code dialog. */
-const CUSTOM_SHADER = "shader:custom";
-
-/** Style panel v2's Shaders "+" menu (design 4.1, 4.2): each place group, then Custom shader. */
-const V2_SHADER_ADDS: Readonly<
-    Record<"node" | "edge", readonly { key: string; label: string; places?: readonly ShaderPlace[] }[]>
-> = {
-    node: [
-        { key: "shader:around", label: "Around", places: ["over", "around", "behind"] },
-        { key: "shader:material", label: "Material", places: ["paint"] },
-        { key: CUSTOM_SHADER, label: "Custom shader" },
-    ],
-    edge: [
-        { key: "shader:along", label: "Along", places: ["along"] },
-        { key: "shader:material", label: "Material", places: ["paint"] },
-        { key: CUSTOM_SHADER, label: "Custom shader" },
-    ],
-};
 
 /**
  * Control+V (Command+V) with focus on a control of the Shaders section, not in a text field: opens

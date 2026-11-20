@@ -64,4 +64,17 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         ledger: "E420, E422",
         channel: /^node\.(zIndex|drawOrder|group[A-Z]\w*)$/,
     },
+    {
+        what: "custom shaders apart from built-in ones: a Custom shader entry, a place split (Around / Material / Along) or origin chips",
+        ledger: "E366, E373, E377, E380, E381, E382",
+        text: /^(Custom shader|Custom shader\.\.\.|Around|Material|Along|Built in|This project)$/,
+        selector: '[data-filter="origin"]',
+        source: /ORIGIN_FILTERS|V2_SHADER_ADDS|includes\("\/"\)/,
+    },
+    {
+        what: "choosing a place when using a shader: a Place line in a shader use's pop-over",
+        ledger: "E368",
+        channel: /^node\.shaders.*\.place$|^edge\.shaders.*\.place$/,
+        source: /writePlace/,
+    },
 ];

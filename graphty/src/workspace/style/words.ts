@@ -1518,13 +1518,6 @@ export function placeWords(place: ShaderPlace | undefined, tab: ShaderTab = "nod
     }
 }
 
-/** The gallery's origin filter: every shader, the element's own, or those added to this project. */
-export const ORIGIN_FILTERS = [
-    { key: "all", label: "All" },
-    { key: "builtIn", label: "Built in" },
-    { key: "project", label: "This project" },
-] as const;
-
 /** The place a tab's "New shader..." starts at: the tab's first place. */
 export const FIRST_PLACE: Readonly<Record<ShaderTab, ShaderPlace | undefined>> = {
     node: "paint",
@@ -1538,6 +1531,15 @@ export const DIALOG_PLACES: Readonly<Record<ShaderTab, readonly ShaderPlace[]>> 
     node: ["paint", "over", "replace", "around", "behind"],
     edge: ["paint", "along"],
     background: [],
+};
+
+/**
+ * Style panel v2's one Shaders list per tab: every place a shader is created at in the code dialog, but the
+ * shapes' place (those are the Shape menu's, design 4.1). Built-in and custom shaders alike (E381).
+ */
+export const LISTED_PLACES: Readonly<Record<"node" | "edge", readonly ShaderPlace[]>> = {
+    node: DIALOG_PLACES.node.filter((place) => place !== "replace"),
+    edge: DIALOG_PLACES.edge.filter((place) => place !== "replace"),
 };
 
 /**

@@ -124,8 +124,8 @@ vec4 shade(NodeInput n) { return n.color; }
         const tab = await openStyle("Key people");
         const shaders = sectionOf(tab, "node-shaders");
         const open = async (): Promise<HTMLElement> => {
+            // "+" opens the one list of the node's shaders (E381).
             await userEvent.click(within(shaders).getByRole("button", { name: /^Add to node shaders/ }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Around" }));
             return waitFor(() => {
                 const found = document.querySelector<HTMLElement>('.ws-gallery-tile[data-shader="user/lamp"]');
                 assert.isNotNull(found, "the custom shader is in the gallery");

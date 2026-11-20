@@ -51,7 +51,7 @@ import type {
     StructureValue,
 } from "../catalog/types";
 import { isPairConfig } from "../data/CSVDataSource";
-import { edgeCounterOf, edgeIdOf, pairKey as pairKeyOf } from "../data/edgeIdentity";
+import { edgeCounterOf, edgeIdOf, pairKey as pairKeyOf, recordType, type RepeatGroup } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
@@ -119,6 +119,7 @@ import {
     type ValuesWhere,
 } from "./commands/derive";
 import {
+    byTableId,
     Draft,
     draftStyles,
     fileName,
@@ -174,7 +175,7 @@ import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
-import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
+import { ExpansionState, type HostEdge, type LoadStamp, type SourceHost } from "./sources/host";
 import { isSourceFactKey, SOURCE_ATTR, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
 import {
@@ -213,6 +214,7 @@ import { expressionPaths } from "./styles/predicate";
 import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
 import { columnsOf, layersReadingOnly } from "./styles/staleLayers";
 import type {
+    ByTableMapping,
     ColumnHistogram,
     ColumnRole,
     DatasetLoadOptions,
@@ -242,7 +244,7 @@ import type {
     LoadedSource,
     LoadedSourceKind,
     LoadedWeight,
-    LoadMapping,
+    LoadMappingRead,
     MergeNodesOptions,
     Neighbor,
     NeighborOptions,
@@ -253,6 +255,7 @@ import type {
     OverRepresentedOptions,
     OverRepresentedValues,
     PageColumn,
+    PreparePageControl,
     RecordMatch,
     RecordPage,
     RecordPageOptions,
@@ -271,6 +274,7 @@ import type {
     SessionEventMap,
     SessionGraphStore,
     SessionRecordSource,
+    SourceLoaded,
     TableMapping,
     TypeChangePreview,
     ValueCounts,
@@ -296,8 +300,16 @@ interface DataWrites {
     /**
      * Where a `data.import` made now would go -- the session, or the transaction a routed verb
      * runs in -- held for a verb that dispatches it after an await.
+     * @param options - The load's signal, and the caller's key its journal entries carry.
+     * @param options.signal - Withdraws the load.
+     * @param options.callerKey - Echoed on the load's journal entries.
+     * @param options.trigger - `"load"` for a load door: stamped on the load's journal entries.
      */
-    importer(signal?: AbortSignal): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
+    importer(options?: {
+        readonly signal?: AbortSignal;
+        readonly callerKey?: string;
+        readonly trigger?: "load";
+    }): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
     /** The ceilings in force, which a read-first load is refused above. */
     readonly ceilings?: RenderLimits;
     /** The `graph` slice now. */
@@ -318,8 +330,10 @@ interface DataWrites {
     progress?(change: ProgressChange): void;
     /** The session's load line, shared with the graph's own loads, so loads land in call order. */
     readonly loadLine: LoadLine;
+    /** The weight meaning an edge was stored under, from the ingest that stored it. */
+    edgeMeaning?(counter: number): string | null | undefined;
     /** Dispatch any command: the network-source loads and expansions dispatch their own ops. */
-    send?(command: SessionCommand): Promise<unknown>;
+    send?(command: SessionCommand, stamp?: LoadStamp): Promise<unknown>;
     /** Publish a session event: the network-source expansions publish theirs. */
     emit?<K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]): void;
     /** The style stack and the finished runs now: what reads a column. */
@@ -581,22 +595,56 @@ function rowInScope(
     return target === "node" ? members.nodes.has(snapshot.ids.idOf(index)) : members.edges.has(space.idOf(index));
 }
 
+/** How long `data.preparePage` works before it hands the thread back, in ms. */
+const PREPARE_SLICE_MS = 12;
+
+/** The share of a sorted order's progress its scan of the rows is counted as. */
+const SCAN_SHARE = 0.1;
+
+/** How many rows of work an order does between two of its steps. */
+const ORDER_STEP = 4096;
+
+/** The rows a sort leaves in place before it merges them: short runs sort fastest by insertion. */
+const SORT_RUN = 32;
+
+/** Counts a sort's work and says when it has done enough since its last pause. */
+class SortWork {
+    #done = 0;
+    #pause = ORDER_STEP;
+    readonly #total: number;
+
+    /**
+     * Start counting.
+     * @param total - the units of work in all
+     */
+    constructor(total: number) {
+        this.#total = Math.max(1, total);
+    }
+
+    /**
+     * Count some work.
+     * @param units - how many units were just done
+     * @returns how far the work has got when it is time to pause, else null
+     */
+    add(units: number): number | null {
+        this.#done += units;
+        if (this.#done < this.#pause) {
+            return null;
+        }
+        this.#pause = this.#done + ORDER_STEP;
+        return this.#done / this.#total;
+    }
+}
+
 /**
- * Sort rows by a value, absent values last, keeping graph order among equals.
- * @param rows - the rows, in graph order
- * @param sort - the direction and what a row sorts by
- * @param sort.descending - true to sort largest first
- * @param sort.value - what a row sorts by
- * @returns the sorted rows
+ * The comparison a sort uses: absent values last, then by value, then by graph order.
+ * @param values - each position's value
+ * @param descending - true for largest first
+ * @returns compares two positions
  */
-function sortRows(
-    rows: readonly number[],
-    sort: { readonly descending: boolean; value(index: number): unknown },
-): Uint32Array {
-    const values = rows.map((index) => sort.value(index));
-    const direction = sort.descending ? -1 : 1;
-    const positions = rows.map((_row, position) => position);
-    positions.sort((x, y) => {
+function positionOrder(values: readonly unknown[], descending: boolean): (x: number, y: number) => number {
+    const direction = descending ? -1 : 1;
+    return (x, y) => {
         const a = values[x];
         const b = values[y];
         const absentA = isAbsent(a);
@@ -610,8 +658,156 @@ function sortRows(
         }
 
         return direction * compareSortValues(a, b) || x - y;
+    };
+}
+
+/**
+ * Sort each short run of positions in place, by insertion.
+ * @param positions - the positions
+ * @param compare - the comparison
+ * @param work - the work count
+ * @yields how far the work has got, from 0 to 1
+ */
+function* sortRuns(
+    positions: Uint32Array,
+    compare: (x: number, y: number) => number,
+    work: SortWork,
+): Generator<number, void, void> {
+    for (let start = 0; start < positions.length; start += SORT_RUN) {
+        const end = Math.min(start + SORT_RUN, positions.length);
+        for (let at = start + 1; at < end; at++) {
+            const moving = positions[at] ?? 0;
+            let before = at - 1;
+            while (before >= start && compare(positions[before] ?? 0, moving) > 0) {
+                positions[before + 1] = positions[before] ?? 0;
+                before--;
+            }
+            positions[before + 1] = moving;
+        }
+        const fraction = work.add(end - start);
+        if (fraction !== null) {
+            yield fraction;
+        }
+    }
+}
+
+/**
+ * Merge two sorted neighboring runs of `from` into the same place in `to`.
+ * @param from - the positions, sorted in runs
+ * @param to - where the merged run goes
+ * @param range - where the left run starts, where the right run starts, and where it ends
+ * @param range.start - the left run's first place
+ * @param range.middle - the right run's first place
+ * @param range.end - one past the right run's last place
+ * @param compare - the comparison
+ * @param work - the work count
+ * @yields how far the work has got, from 0 to 1
+ */
+function* mergeRuns(
+    from: Uint32Array,
+    to: Uint32Array,
+    range: { readonly start: number; readonly middle: number; readonly end: number },
+    compare: (x: number, y: number) => number,
+    work: SortWork,
+): Generator<number, void, void> {
+    const { start, middle, end } = range;
+    let left = start;
+    let right = middle;
+    for (let out = start; out < end; out++) {
+        const takeLeft = right >= end || (left < middle && compare(from[left] ?? 0, from[right] ?? 0) <= 0);
+        to[out] = (takeLeft ? from[left++] : from[right++]) ?? 0;
+        const fraction = work.add(1);
+        if (fraction !== null) {
+            yield fraction;
+        }
+    }
+}
+
+/**
+ * Sort rows by a value, absent values last, keeping graph order among equals.
+ *
+ * A merge sort that pauses every few thousand rows, yielding how far it has got from 0 to 1, so
+ * `data.preparePage` can spread a long sort over many tasks; drained at once, it is the sort a page
+ * reads. The comparison breaks every tie by graph order, so the order is the same however it is run.
+ * @param rows - the rows, in graph order
+ * @param sort - the direction and what a row sorts by
+ * @param sort.descending - true to sort largest first
+ * @param sort.value - what a row sorts by
+ * @yields how far the sort has got, from 0 to 1
+ * @returns the sorted rows
+ */
+function* sortRows(
+    rows: readonly number[],
+    sort: { readonly descending: boolean; value(index: number): unknown },
+): Generator<number, Uint32Array, void> {
+    const count = rows.length;
+    const passes = count <= SORT_RUN ? 0 : Math.ceil(Math.log2(count / SORT_RUN));
+    // Reading the values, sorting the runs, then one unit per row per merge pass.
+    const work = new SortWork(count * (2 + passes));
+    const values: unknown[] = Array.from({ length: count });
+    for (let position = 0; position < count; position++) {
+        values[position] = sort.value(rows[position] ?? 0);
+        const fraction = work.add(1);
+        if (fraction !== null) {
+            yield fraction;
+        }
+    }
+
+    const compare = positionOrder(values, sort.descending);
+    let from = Uint32Array.from(rows, (_row, position) => position);
+    yield* sortRuns(from, compare, work);
+    let to = new Uint32Array(count);
+    for (let width = SORT_RUN; width < count; width *= 2) {
+        for (let start = 0; start < count; start += 2 * width) {
+            const range = { start, middle: Math.min(start + width, count), end: Math.min(start + 2 * width, count) };
+            yield* mergeRuns(from, to, range, compare, work);
+        }
+        [from, to] = [to, from];
+    }
+
+    return Uint32Array.from(from, (position) => rows[position] ?? 0);
+}
+
+/**
+ * Run an order's steps to the end at once.
+ * @param steps - the order's steps
+ * @returns the order
+ */
+function drain<T>(steps: Generator<number, T, void>): T {
+    for (;;) {
+        const step = steps.next();
+        if (step.done === true) {
+            return step.value;
+        }
+    }
+}
+
+/**
+ * An order with its rows ranked by how well they match, keeping the order within a rank (the
+ * sort is stable).
+ * @param steps - the order's steps
+ * @param ranked - the best match of each row
+ * @yields the progress of the order underneath
+ * @returns the ranked order
+ */
+function* rankFirst(
+    steps: Generator<number, Uint32Array, void>,
+    ranked: (index: number) => RecordMatch | undefined,
+): Generator<number, Uint32Array, void> {
+    const rows = yield* steps;
+    const place = { exact: 0, "starts-with": 1, contains: 2 } as const;
+    const rankOf = (row: number): number => place[ranked(row)?.rank ?? "contains"];
+    return Uint32Array.from(Array.from(rows).sort((a, b) => rankOf(a) - rankOf(b)));
+}
+
+/**
+ * Hand the thread back to the host for one task, so input and drawing run between two slices.
+ * @returns settles on the next task
+ */
+function nextTask(): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, 0);
     });
-    return Uint32Array.from(positions, (position) => rows[position] ?? 0);
 }
 
 /**
@@ -863,6 +1059,9 @@ function withStartMode(source: string, config: Record<string, unknown>): Record<
     return declared.values?.some((each) => each.value === asked) === true ? { ...config, mode: asked } : config;
 }
 
+/** Refreshes a source a version 2 open held, or gives undefined for a key it does not hold. */
+type HeldRefresh = (load: string, options: SourceLoadOptions) => Promise<SourceRefreshReport | undefined>;
+
 /**
  * The session's view of the graph data.
  *
@@ -948,6 +1147,7 @@ export class SessionData implements SessionDataApi {
         readonly result: ReadonlyMap<string, readonly SourceKey[]>;
     } | null = null;
     private disposed = false;
+    private heldRefresh: HeldRefresh | undefined;
     /** The records of the loads from network sources; see `loads()`. Internal: the type is not published. */
     readonly ledger = new SourceLedger();
     /** The keys of the loads an opened project holds that have not run since it opened. */
@@ -1247,7 +1447,15 @@ export class SessionData implements SessionDataApi {
 
             // Taken before the first await: a transaction routes only what a verb dispatches
             // synchronously, and detecting the format may have to read the file or fetch the URL.
-            await this.importVia(this.keeping(this.writes.importer(signal), source), source, options, turn);
+            await this.importVia(
+                this.keeping(
+                    this.writes.importer({ ...(signal === undefined ? {} : { signal }), ...loadStampOf(options) }),
+                    source,
+                ),
+                source,
+                options,
+                turn,
+            );
         } catch (error) {
             // The dispatcher rejects a withdrawn command with its own AbortError.
             throw signal?.aborted === true ? signal.reason : error;
@@ -1293,7 +1501,7 @@ export class SessionData implements SessionDataApi {
      */
     async generate(name: string, params: GeneratorParams = {}, options: ImportOptions = {}): Promise<void> {
         this.requireLive("generate");
-        const send = this.writes.importer();
+        const send = this.writes.importer(loadStampOf(options));
         const descriptor = GENERATOR_CATALOG.find((each) => each.name === name);
         if (descriptor === undefined) {
             throw new GraphtyError({
@@ -1331,6 +1539,7 @@ export class SessionData implements SessionDataApi {
             await this.importVia(send, load.source, options, turn, {
                 ...load,
                 facts: { generator: name, params: { ...params } },
+                catalog: { generatorId: name },
             });
         } finally {
             turn.leave();
@@ -1345,7 +1554,7 @@ export class SessionData implements SessionDataApi {
      */
     async loadDataset(name: string, options: DatasetLoadOptions = {}): Promise<void> {
         this.requireLive("loadDataset");
-        const send = this.writes.importer();
+        const send = this.writes.importer(loadStampOf(options));
         const { baseUrl, signal, ...load } = options;
         // The element names no host of its own: the caller says where the files are published
         // (graph-samples exports its own default as `DEFAULT_DATASET_BASE_URL`).
@@ -1388,6 +1597,7 @@ export class SessionData implements SessionDataApi {
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
                 facts: { dataset: name, baseUrl },
+                catalog: { datasetId: name },
                 url: {
                     sha256: await sha256Hex(joined(await Promise.all(bodies))),
                     fetchedAt: new Date().toISOString(),
@@ -1449,7 +1659,11 @@ export class SessionData implements SessionDataApi {
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing" | "signal">,
         turn: LoadTurn,
-        sample?: SampleLoad & { readonly facts: LoadFacts["sample"]; readonly url?: LoadFacts["url"] },
+        sample?: SampleLoad & {
+            readonly facts: LoadFacts["sample"];
+            readonly catalog: NonNullable<SourceLoaded["sample"]>;
+            readonly url?: LoadFacts["url"];
+        },
     ): Promise<void> {
         let resolvedConfig: Readonly<Record<string, unknown>> = source.config;
         const origin: LoadedSourceKind | undefined = sample === undefined ? undefined : "sample";
@@ -1464,6 +1678,10 @@ export class SessionData implements SessionDataApi {
                           ...(sample.url === undefined ? {} : { url: sample.url }),
                       }),
             choiceOptions(options),
+            {
+                ...(sample === undefined ? {} : { sample: sample.catalog }),
+                ...callerKeyOf(options),
+            },
         );
         const mark = historyMark(options);
         const send = (command: DataImportCommand | BatchCommand): ReturnType<typeof noted> =>
@@ -1530,12 +1748,14 @@ export class SessionData implements SessionDataApi {
      * @param send - The dispatch, taken when the verb was called.
      * @param read - What the load's bytes were, read once it is in the graph.
      * @param options - The import choices given beside the source's own configuration.
+     * @param loaded - What the load door knows beside the source list, for `source:loaded`.
      * @returns The dispatch.
      */
     private noting(
         send: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
         read: () => Promise<Partial<LoadFacts>>,
-        options?: Readonly<Record<string, unknown>>,
+        options: Readonly<Record<string, unknown>> | undefined,
+        loaded: DoorFacts,
     ): (command: DataImportCommand | BatchCommand) => Promise<unknown> {
         return async (command) => {
             // Read before the dispatch, which takes its turn as soon as it is called.
@@ -1552,10 +1772,66 @@ export class SessionData implements SessionDataApi {
                 for (const each of added) {
                     this.loadFacts.set(each.key, facts);
                 }
+                this.publishAdded(before, facts.mode, loaded);
             }
 
             return result;
         };
+    }
+
+    /**
+     * Run a load the renderer dispatches itself -- `Graph.addDataFromSource`, `loadFromFile` and
+     * `loadFromUrl`, and so the `data-source` attribute -- and publish `source:loaded` for every
+     * source it added, as this surface's own load doors do.
+     * @param mode - Whether the load replaces the graph or merges into it.
+     * @param load - The load; it dispatches before it returns its promise.
+     * @returns What the load settled with.
+     */
+    async announcing<T>(mode: "replace" | "merge", load: () => Promise<T>): Promise<T> {
+        const before = new Set(this.storedSources().map((each) => each.key));
+        const result = await load();
+        this.publishAdded(before, mode, {});
+        return result;
+    }
+
+    /**
+     * Publish `source:loaded` for one source a load door added (or `replaceSource` and
+     * `reloadSource` replaced in place), once its load committed. Only the doors (and the
+     * renderer's loads, through `announcing`) call it: a project open, undo, redo, restore and `runPendingSourceLoad` never do.
+     * @param record - The source as `sources()` lists it, so the event never disagrees with it.
+     * @param mode - Whether the load replaced the graph or merged into it.
+     * @param facts - What the door knows beside the source list.
+     */
+    private publishLoaded(record: LoadedSource, mode: "replace" | "merge", facts: DoorFacts): void {
+        const { kind, type } = record;
+        const format = (kind === "file" || kind === "url") && type !== undefined && type !== "" ? type : undefined;
+        const loaded: SourceLoaded = {
+            source: record.key,
+            kind,
+            mode,
+            ...(format === undefined ? {} : { format }),
+            ...(facts.sourceId === undefined ? {} : { sourceId: facts.sourceId }),
+            ...(facts.sample === undefined ? {} : { sample: Object.freeze({ ...facts.sample }) }),
+            ...(facts.callerKey === undefined ? {} : { callerKey: facts.callerKey }),
+            ...(facts.replaced === undefined ? {} : { replaced: facts.replaced }),
+        };
+        this.writes.emit?.("source:loaded", Object.freeze(loaded));
+    }
+
+    /**
+     * Publish `source:loaded` for every source the graph lists now and did not list before.
+     * @param before - The keys listed before the load dispatched.
+     * @param mode - Whether the load replaced the graph or merged into it.
+     * @param facts - What the door knows beside the source list.
+     */
+    private publishAdded(before: ReadonlySet<SourceKey>, mode: "replace" | "merge", facts: DoorFacts): void {
+        const listed = this.sources();
+        for (const each of this.storedSources()) {
+            const record = before.has(each.key) ? undefined : listed.find((entry) => entry.key === each.key);
+            if (record !== undefined) {
+                this.publishLoaded(record, mode, facts);
+            }
+        }
     }
 
     /**
@@ -1729,11 +2005,25 @@ export class SessionData implements SessionDataApi {
      * @param options - The credential and the endpoint.
      * @returns What was added, removed and updated.
      */
-    refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
+    async refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
         this.requireLive("refresh");
 
+        // A source a version 2 open held is read again from its bytes; any other is a network load.
+        const held = await this.heldRefresh?.(load, options);
+        if (held !== undefined) {
+            return held;
+        }
+
         const host = this.sourceHost();
-        return import("./sources/load").then((module) => module.refreshSource(host, load, options));
+        return (await import("./sources/load")).refreshSource(host, load, options);
+    }
+
+    /**
+     * Let `refresh` read a source a version 2 open held (the session lends what it needs).
+     * @param refresh - Refreshes a held source, or gives undefined for a key it does not hold.
+     */
+    setHeldRefresh(refresh: HeldRefresh): void {
+        this.heldRefresh = refresh;
     }
 
     /**
@@ -1901,10 +2191,10 @@ export class SessionData implements SessionDataApi {
         return {
             ...host,
             waitTurn: () => turn.wait(),
-            dispatch: (command) =>
+            dispatch: (command, stamp) =>
                 hold
-                    ? (turn.wait()?.then(() => host.dispatch(command)) ?? host.dispatch(command))
-                    : turn.take(() => host.dispatch(command)),
+                    ? (turn.wait()?.then(() => host.dispatch(command, stamp)) ?? host.dispatch(command, stamp))
+                    : turn.take(() => host.dispatch(command, stamp)),
         };
     }
 
@@ -2030,7 +2320,7 @@ export class SessionData implements SessionDataApi {
             },
             positionScale: () => this.readConfig().knownFields.positionScale,
             directed: () => this.current().directed,
-            dispatch: (command) =>
+            dispatch: (command, stamp) =>
                 writes.send === undefined
                     ? Promise.reject(
                           new GraphtyError({
@@ -2039,8 +2329,12 @@ export class SessionData implements SessionDataApi {
                               message: "This session cannot dispatch a source command.",
                           }),
                       )
-                    : writes.send(command),
+                    : writes.send(command, stamp),
             emit: (event, detail) => writes.emit?.(event, detail),
+            sourceKeys: () => new Set(this.storedSources().map((each) => each.key)),
+            loaded: (before, mode, facts) => {
+                this.publishAdded(before, mode, facts);
+            },
         };
     }
 
@@ -2099,20 +2393,37 @@ export class SessionData implements SessionDataApi {
                 graph: () => {
                     const slice = this.writes.slice();
                     const snapshot = this.current();
-                    const pairs = new Set<string>();
+                    const pairs = new Map<string, RepeatGroup[]>();
+                    const note = (key: string, group: RepeatGroup): void => {
+                        const held = pairs.get(key) ?? [];
+                        held.push(group);
+                        pairs.set(key, held);
+                    };
                     for (let edge = 0; edge < snapshot.edgeCount; edge++) {
                         const source = snapshot.ids.idOf(snapshot.edgeSource(edge));
                         const target = snapshot.ids.idOf(snapshot.edgeTarget(edge));
-                        pairs.add(pairKeyOf(source, target));
+                        // Its type and meaning, so the report reduces repeats as the load will.
+                        const counter = snapshot.edges.value(EDGE_ID_COLUMN, edge);
+                        const group: RepeatGroup =
+                            typeof counter === "number"
+                                ? {
+                                      type: recordType(slice.edges.get(edgeIdOf(counter))),
+                                      meaning: this.writes.edgeMeaning?.(counter),
+                                  }
+                                : { type: undefined, meaning: undefined };
+                        note(pairKeyOf(source, target), group);
                         if (!snapshot.directed) {
-                            pairs.add(pairKeyOf(target, source)); // eslint-disable-line sonarjs/arguments-order -- the reverse pair, so an undirected edge matches either way
+                            note(pairKeyOf(target, source), group); // eslint-disable-line sonarjs/arguments-order -- the reverse pair, so an undirected edge matches either way
                         }
                     }
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
                 },
-                inLine: async (run) => {
-                    const send = this.noting(this.keeping(this.writes.importer(), source), () =>
-                        bytesFacts(source.config),
+                inLine: async (run, choices) => {
+                    const send = this.noting(
+                        this.keeping(this.writes.importer(loadStampOf(choices ?? {})), source),
+                        () => bytesFacts(source.config),
+                        undefined,
+                        callerKeyOf(choices ?? {}),
                     );
                     const turn = this.loadLine.join();
                     try {
@@ -2132,7 +2443,11 @@ export class SessionData implements SessionDataApi {
                           joinGraph: () => this.joinGraph(),
                           joiner: () => {
                               const send = this.sender("join a table");
-                              return (table, choices, shape) => this.applyJoin(send, table, choices, shape);
+                              return async (table, choices, shape, callerKey) => {
+                                  const before = new Set(this.storedSources().map((each) => each.key));
+                                  await this.applyJoin(send, table, choices, shape);
+                                  this.publishAdded(before, "merge", callerKeyOf({ callerKey }));
+                              };
                           },
                       }
                     : {}),
@@ -2416,6 +2731,75 @@ export class SessionData implements SessionDataApi {
         return this.page(snapshot, "edge", this.scoped(options), "edgePage", (index) =>
             this.edgeAt(snapshot, index, space.idOf(index)),
         );
+    }
+
+    /**
+     * Compute a page's order in slices, so a later page read with the same options returns at once.
+     * @param kind - nodes or edges
+     * @param options - the scope, the order and the node, as the page read will pass them
+     * @param control - a signal that stops the work, and a callback told how far it has got
+     * @returns settles once the order is ready
+     * @throws The signal's reason once it aborts; `E_UNKNOWN_RUN`, `E_UNKNOWN_ATTRIBUTE` or
+     *     `E_BAD_COMMAND` as the page read would; `E_DISPOSED` once disposed.
+     */
+    async preparePage(
+        kind: "node" | "edge",
+        options: EdgePageOptions = {},
+        control: PreparePageControl = {},
+    ): Promise<void> {
+        const { signal, onProgress } = control;
+        // An edit while it waited makes the rows it read stale: it starts again on the new graph.
+        // ponytail: restarts on every revision move; a graph edited faster than one sort never
+        // settles, so bound the restarts if a host streams edits while a table sorts.
+        while (!(await this.prepareOnce(kind, options, signal, onProgress))) {
+            // Started again.
+        }
+    }
+
+    /**
+     * One attempt at {@link preparePage} on the graph as it is now.
+     * @param kind - nodes or edges
+     * @param options - the scope, the order and the node
+     * @param signal - stops the work
+     * @param onProgress - told how far the work has got
+     * @returns true once the order is kept, false when the graph moved under it
+     */
+    private async prepareOnce(
+        kind: "node" | "edge",
+        options: EdgePageOptions,
+        signal: AbortSignal | undefined,
+        onProgress: ((fraction: number) => void) | undefined,
+    ): Promise<boolean> {
+        signal?.throwIfAborted();
+        const snapshot = this.current();
+        const at = this.orders.now();
+        const request = this.orderRequest(snapshot, kind, this.scoped(options), "preparePage");
+        if (request === null || this.orders.has(request.key)) {
+            onProgress?.(1);
+            return true;
+        }
+
+        const steps = request.steps();
+        let sliceEnd = performance.now() + PREPARE_SLICE_MS;
+        let step = steps.next();
+        while (step.done !== true) {
+            if (performance.now() >= sliceEnd) {
+                onProgress?.(step.value);
+                await nextTask();
+                signal?.throwIfAborted();
+                if (!this.orders.isCurrent(at)) {
+                    return false;
+                }
+                sliceEnd = performance.now() + PREPARE_SLICE_MS;
+            }
+            step = steps.next();
+        }
+
+        if (!this.orders.put(request.key, step.value, at)) {
+            return false;
+        }
+        onProgress?.(1);
+        return true;
     }
 
     /**
@@ -2739,6 +3123,24 @@ export class SessionData implements SessionDataApi {
         options: EdgePageOptions,
         verb: string,
     ): Uint32Array | null {
+        const request = this.orderRequest(snapshot, target, options, verb);
+        return request === null ? null : this.orders.get(request.key, () => drain(request.steps()));
+    }
+
+    /**
+     * What a page's order is cached under, and the steps that compute it.
+     * @param snapshot - the current snapshot
+     * @param target - nodes or edges
+     * @param options - the scope, the order and the node
+     * @param verb - the verb, for an error
+     * @returns the key and the steps, or null for every row in graph order
+     */
+    private orderRequest(
+        snapshot: GraphSnapshot,
+        target: "node" | "edge",
+        options: EdgePageOptions,
+        verb: string,
+    ): { readonly key: string; steps(): Generator<number, Uint32Array, void> } | null {
         const scope = options.scope === "graph" ? undefined : options.scope;
         const touching = target === "edge" ? options.touching : undefined;
         const { sort } = options;
@@ -2767,7 +3169,7 @@ export class SessionData implements SessionDataApi {
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
         const ranked = this.rankedMatch(target, options);
         const key = JSON.stringify([target, scope, sortKey, touching, matching, where, issueKey, names, !!ranked]);
-        return this.orders.get(key, () => {
+        const steps = (): Generator<number, Uint32Array, void> => {
             const space = edgeSpaceOf(snapshot);
             const order =
                 sort === undefined
@@ -2784,14 +3186,9 @@ export class SessionData implements SessionDataApi {
                       };
             const matches = this.rowFilter(snapshot, target, matching, issue, where, names);
             const rows = this.computeOrder(snapshot, target, scope, touching, order, matches);
-            if (ranked === undefined) {
-                return rows;
-            }
-            // Rank first, keeping the order within a rank: the sort is stable.
-            const place = { exact: 0, "starts-with": 1, contains: 2 } as const;
-            const rankOf = (row: number): number => place[ranked(row)?.rank ?? "contains"];
-            return Uint32Array.from(Array.from(rows).sort((a, b) => rankOf(a) - rankOf(b)));
-        });
+            return ranked === undefined ? rows : rankFirst(rows, ranked);
+        };
+        return { key, steps };
     }
 
     /**
@@ -2842,40 +3239,52 @@ export class SessionData implements SessionDataApi {
      * @param touching - for edges, the node one end must be
      * @param sort - the direction and what a row sorts by, or undefined for graph order
      * @param matches - keeps only the rows matching a page's text, or null for every row
+     * @yields how far the work has got, from 0 to 1
      * @returns the rows
      */
-    private computeOrder(
+    private *computeOrder(
         snapshot: GraphSnapshot,
         target: "node" | "edge",
         scope: ScopeInput | undefined,
         touching: NodeId | undefined,
         sort: { readonly descending: boolean; value(index: number): unknown } | undefined,
         matches: ((index: number) => boolean) | null,
-    ): Uint32Array {
+    ): Generator<number, Uint32Array, void> {
         const space = edgeSpaceOf(snapshot);
         const members = scope === undefined ? null : this.pages.resolve(scope);
         const count = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const end = touching === undefined ? INVALID_INDEX : rowOfEitherSpelling(snapshot.ids, touching);
+        const keeps = (index: number): boolean =>
+            (touching === undefined || edgeTouches(snapshot, index, end)) &&
+            (matches === null || matches(index)) &&
+            (members === null || rowInScope(snapshot, space, members, target, index));
         const rows: number[] = [];
+        // The share of the work the scan is counted as: all of it with no sort to follow.
+        const share = sort === undefined ? 1 : SCAN_SHARE;
         // ponytail: `touching` scans every edge once per revision; read the undirected CSR if a
         // host pages the edges of many nodes per revision.
         for (let index = 0; index < count; index++) {
-            if (touching !== undefined && !edgeTouches(snapshot, index, end)) {
-                continue;
+            if (index % ORDER_STEP === ORDER_STEP - 1) {
+                yield (index / count) * share;
             }
 
-            if (matches !== null && !matches(index)) {
-                continue;
+            if (keeps(index)) {
+                rows.push(index);
             }
-
-            if (members !== null && !rowInScope(snapshot, space, members, target, index)) {
-                continue;
-            }
-
-            rows.push(index);
         }
 
-        return sort === undefined ? Uint32Array.from(rows) : sortRows(rows, sort);
+        if (sort === undefined) {
+            return Uint32Array.from(rows);
+        }
+
+        const sorting = sortRows(rows, sort);
+        for (;;) {
+            const step = sorting.next();
+            if (step.done === true) {
+                return step.value;
+            }
+            yield share + step.value * (1 - share);
+        }
     }
 
     /**
@@ -3534,7 +3943,40 @@ export class SessionData implements SessionDataApi {
     ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
 
-        return this.afterLoads(() => this.replaceSourceNow(key, source, choices));
+        return this.afterLoads(() =>
+            this.replacing(key, "replaceSource", source, choices, () => this.replaceSourceNow(key, source, choices)),
+        );
+    }
+
+    /**
+     * Run a replacement of one load in place and publish `source:loaded` for it once it is in,
+     * under its key, with `mode: "merge"` and how it was replaced.
+     * @param key - the load's key
+     * @param replaced - which verb replaced it
+     * @param input - what it is read from now, for a network source's id
+     * @param choices - the caller's choices
+     * @param choices.callerKey - the caller's key, echoed on the event
+     * @param run - the replacement
+     * @returns what the replacement returns
+     */
+    private async replacing(
+        key: SourceKey,
+        replaced: NonNullable<SourceLoaded["replaced"]>,
+        input: DataSourceInput | undefined,
+        choices: { readonly callerKey?: string },
+        run: () => Promise<ReplaceReport>,
+    ): Promise<ReplaceReport> {
+        const report = await run();
+        const record = this.sources().find((each) => each.key === key);
+        if (record !== undefined) {
+            this.publishLoaded(record, "merge", {
+                ...(input?.source === undefined ? {} : { sourceId: input.source }),
+                ...callerKeyOf(choices),
+                replaced,
+            });
+        }
+
+        return report;
     }
 
     /**
@@ -3550,7 +3992,7 @@ export class SessionData implements SessionDataApi {
         choices: LoadChoices & SourceLoadOptions = {},
     ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
-        const send = this.sender("replace a load");
+        const send = this.sender("replace a load", loadStampOf(choices));
         const stored = this.storedSources();
         const at = this.sources().findIndex((each) => each.key === key);
         const entry = stored[at] as LoadedSource | undefined;
@@ -3719,7 +4161,7 @@ export class SessionData implements SessionDataApi {
         source: SourceInput,
         choices: LoadChoices & SourceLoadOptions,
     ): Promise<ReplaceReport> {
-        const send = this.sender("replace a load");
+        const send = this.sender("replace a load", loadStampOf(choices));
         const old = this.sources().find((each) => each.key === key)?.loadKey;
         const record = this.ledger.loads().find((each) => each.key === old);
         const mode = record?.options.mode as SourceLoadOptions["mode"] | undefined;
@@ -3974,7 +4416,7 @@ export class SessionData implements SessionDataApi {
      */
     async reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
-        return this.afterLoads(() => this.reloadSourceNow(key, choices));
+        return this.afterLoads(() => this.reloading(key, choices));
     }
 
     /**
@@ -4007,7 +4449,7 @@ export class SessionData implements SessionDataApi {
                 });
             }
 
-            return await this.reloadSourceNow(key, { mapping });
+            return await this.reloading(key, { mapping });
         });
     }
 
@@ -4020,6 +4462,18 @@ export class SessionData implements SessionDataApi {
         const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
             ?.input;
         return token === undefined ? undefined : this.kept.get(token);
+    }
+
+    /**
+     * reloadSource, publishing `source:loaded` once it is in.
+     * @param key - as reloadSource takes it
+     * @param choices - as reloadSource takes it
+     * @returns what reloadSource returns
+     */
+    private reloading(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
+        return this.replacing(key, "reloadSource", this.sourceInput(key), choices, () =>
+            this.reloadSourceNow(key, choices),
+        );
     }
 
     /**
@@ -4052,7 +4506,7 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        return this.replaceSourceNow(key, input, overChoices(withReadRoles(entry), choices));
+        return this.replaceSourceNow(key, input, overChoices(withReadRoles(entry), choices, entry.mapping));
     }
 
     /**
@@ -4208,9 +4662,10 @@ export class SessionData implements SessionDataApi {
     /**
      * The session's dispatch, taken now, or a refusal for a session that cannot dispatch.
      * @param verb - the verb asking, for the error
+     * @param stamp - for a load door: what its journal entries carry
      * @returns the dispatch
      */
-    private sender(verb: string): (command: SessionCommand) => Promise<unknown> {
+    private sender(verb: string, stamp?: LoadStamp): (command: SessionCommand) => Promise<unknown> {
         const send = this.writes.send?.bind(this.writes);
         if (send === undefined) {
             throw new GraphtyError({
@@ -4220,7 +4675,7 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        return send;
+        return (command) => send(command, stamp);
     }
 
     /**
@@ -4960,7 +5415,7 @@ export class SessionData implements SessionDataApi {
 
     /**
      * The columns a join brought, by `<kind>:<name>`: the names each join still in the graph wrote,
-     * less a column it wrote over or kept (a clash set to `"overwrite"` or `"keep"`), which was the
+     * less a column it wrote over, kept or computed (any clash rule but `"both"`), which was the
      * graph's before the join.
      * @returns the columns
      */
@@ -4973,8 +5428,10 @@ export class SessionData implements SessionDataApi {
 
             const kind = join.shape === "node-values" || join.shape === "merge" ? "node" : "edge";
             for (const name of join.columns) {
-                const rule = join.choices.clash?.[name];
-                if (rule !== "overwrite" && rule !== "keep") {
+                // ponytail: a record keeps no list of the columns that clashed, so only a column with
+                // a rule of its own, or under "*", counts as the graph's; record clashes to tell them apart.
+                const rule = join.choices.clash?.[name] ?? join.choices.clash?.["*"];
+                if (rule === undefined || rule === "both") {
                     out.add(`${kind}:${name}`);
                 }
             }
@@ -6514,9 +6971,10 @@ function withReadRoles(entry: LoadedSource): LoadChoices {
  * are laid over the earlier mapping's role by role (per table when either names tables).
  * @param earlier - What the load was read with.
  * @param later - What changes.
+ * @param reading - What each table's rows were read as, so a mapping named by side finds its table.
  * @returns The choices to read it with now.
  */
-function overChoices(earlier: LoadChoices, later: LoadChoices): LoadChoices {
+function overChoices(earlier: LoadChoices, later: LoadChoices, reading: LoadMappingRead | undefined): LoadChoices {
     const { mode: _mode, join: _join, ...rest } = later;
     const a = earlier.mapping;
     const b = rest.mapping;
@@ -6524,7 +6982,7 @@ function overChoices(earlier: LoadChoices, later: LoadChoices): LoadChoices {
         return { ...earlier, ...rest, ...(a === undefined && b === undefined ? {} : { mapping: b ?? a }) };
     }
 
-    return { ...earlier, ...rest, mapping: overMapping(a, b) };
+    return { ...earlier, ...rest, mapping: overMapping(byTableId(a, reading), byTableId(b, reading)) };
 }
 
 /**
@@ -6533,13 +6991,22 @@ function overChoices(earlier: LoadChoices, later: LoadChoices): LoadChoices {
  * @param b - The later mapping.
  * @returns The mapping to read with now.
  */
-function overMapping(a: LoadMapping, b: LoadMapping): LoadMapping {
+function overMapping(a: ByTableMapping, b: ByTableMapping): ByTableMapping {
     const lone = "tables" in a && !("tables" in b) ? Object.keys(a.tables) : [];
     if (lone.length === 1) {
         // A bare mapping names a load of one table, so it is laid over that table's roles.
         const [id] = lone;
         const roles = (a as { tables: Record<string, TableMapping> }).tables[id];
-        return { tables: { [id]: movesRows(roles, b as TableMapping) ? b : { ...roles, ...b } } } as LoadMapping;
+        const bare = b as TableMapping;
+        return { tables: { [id]: movesRows(roles, bare) ? bare : { ...roles, ...bare } } };
+    }
+
+    const named = "tables" in b && !("tables" in a) ? Object.entries(b.tables) : [];
+    if (named.length === 1) {
+        // A bare earlier mapping read the load's one table, so the table named now is that one.
+        const [[id, roles]] = named;
+        const earlier = a as TableMapping;
+        return { tables: { [id]: movesRows(earlier, roles) ? roles : { ...earlier, ...roles } } };
     }
 
     if ("tables" in a || "tables" in b) {
@@ -6557,7 +7024,7 @@ function overMapping(a: LoadMapping, b: LoadMapping): LoadMapping {
  * @param b - The later mapping.
  * @returns The mapping to read with now.
  */
-function overTables(a: LoadMapping, b: LoadMapping): LoadMapping {
+function overTables(a: ByTableMapping, b: ByTableMapping): ByTableMapping {
     const tables: Record<string, TableMapping> = "tables" in a && "tables" in b ? { ...a.tables } : {};
     for (const [id, roles] of Object.entries("tables" in b ? b.tables : {})) {
         tables[id] = { ...(movesRows(tables[id], roles) ? {} : tables[id]), ...roles };
@@ -6568,6 +7035,9 @@ function overTables(a: LoadMapping, b: LoadMapping): LoadMapping {
 
 /** The error limit the JSON source reads a sample's records with, by default. */
 const SAMPLE_ERROR_LIMIT = 100;
+
+/** What a load door knows of its load beside what `sources()` records: for `source:loaded`. */
+type DoorFacts = Pick<SourceLoaded, "sourceId" | "sample" | "callerKey" | "replaced">;
 
 /** What a generated graph or a dataset loads as; see `SessionData.sampleLoad`. */
 interface SampleLoad {
@@ -6967,6 +7437,7 @@ export function headlessDataService(
         },
         import: (command, draft, signal) =>
             ingest.oneAtATime(() => ingest.importSource(command, dispatcher.graph.writer(draft, store), signal)),
+        edgeMeaning: (counter) => ingest.meaningAt(counter),
         values: (values, draft) => {
             dispatcher.graph.writer(draft, store).setGraphValues(values);
         },
@@ -7260,6 +7731,27 @@ async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Pa
     }
 
     return {};
+}
+
+/**
+ * A caller's `callerKey`, as `{ callerKey }`, or nothing when it gave none.
+ * @param options - The load's options.
+ * @param options.callerKey - The caller's key.
+ * @returns `{ callerKey }` or `{}`.
+ */
+function callerKeyOf(options: { readonly callerKey?: string }): { callerKey?: string } {
+    return options.callerKey === undefined ? {} : { callerKey: options.callerKey };
+}
+
+/**
+ * A load door's journal stamp, so a consumer can tell the commands a load ran (the configuration
+ * it settled as well as the import) from the ones a reader asked for.
+ * @param options - The load's options.
+ * @param options.callerKey - The caller's key.
+ * @returns `{ trigger: "load" }`, with the caller's key when it gave one.
+ */
+function loadStampOf(options: { readonly callerKey?: string }): LoadStamp {
+    return { trigger: "load", ...callerKeyOf(options) };
 }
 
 /**

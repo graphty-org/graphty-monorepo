@@ -13,11 +13,11 @@ import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
-import type { Edge, EdgeCapEnd } from "../Edge";
+import { type Edge, type EdgeCapEnd, edgeInternals } from "../Edge";
 import type { DrawnNodeSpot, Graph, NodeScreenPosition } from "../Graph";
 import { dataManagerInternals } from "../managers/DataManager";
 import type { ArrowCap } from "../meshes/ArrowCapBatch";
-import type { RichTextLabel } from "../meshes/RichTextLabel";
+import type { PanelGradientShape, RichTextLabel } from "../meshes/RichTextLabel";
 import { pixelsPerUnit } from "../meshes/screenSize";
 import { convexHull, flatShapeOutline, isFlatShape, type Point2 } from "../meshes/shapeOutlines";
 import { type Node, nodeInternals } from "../Node";
@@ -69,7 +69,7 @@ export type FigureShape = (
     opacity: number;
 };
 
-/** One label's lines of text, centered on its point, over its panel when it has a solid one. */
+/** One label's lines of text, centered on its point, over its panel when it has one. */
 export interface FigureText {
     x: number;
     y: number;
@@ -79,9 +79,21 @@ export interface FigureText {
     weight: string;
     style: string;
     color: string;
-    /** The panel drawn behind the words, in screen pixels. */
-    background?: { x: number; y: number; w: number; h: number; radius: number; fill: string; opacity: number };
+    /** The panel drawn behind the words, in screen pixels, filled with `fill` or, when it has one, its gradient. */
+    background?: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        radius: number;
+        fill: string;
+        opacity: number;
+        gradient?: FigureGradient;
+    };
 }
+
+/** A gradient in screen pixels: its line or circle, its colors and where each sits, 0 to 1. */
+export type FigureGradient = PanelGradientShape & { colors: readonly string[]; stops: readonly number[] };
 
 /** One mark of the key: a box, a color ramp, a filled outline or a line of text centered on its `y`. */
 export type FigureMark =
@@ -100,7 +112,8 @@ export interface FigureDrawing {
     width: number;
     height: number;
     background?: string;
-    edges: readonly { x1: number; y1: number; x2: number; y2: number; color: string; opacity: number; width: number }[];
+    /** Each edge's line through the points the canvas draws it through: two for a straight line, more for a curve. */
+    edges: readonly { points: readonly Point2[]; color: string; opacity: number; width: number }[];
     /** The arrow caps, drawn over the nodes, as the canvas draws a cap over its node's border. */
     caps: readonly FigureShape[];
     /** The nodes, far first, each followed by its border and outer border. */
@@ -217,6 +230,22 @@ function shapeSvg(shape: FigureShape): string {
 }
 
 /**
+ * A gradient as an SVG paint server, in the figure's own pixels.
+ * @param g - The gradient.
+ * @param id - Its id.
+ * @returns The element.
+ */
+function gradientSvg(g: FigureGradient, id: string): string {
+    const stops = g.colors.map((c, i) => `<stop offset="${num(g.stops[i] ?? 0)}" stop-color="${esc(c)}"/>`).join("");
+    const at =
+        g.kind === "linear"
+            ? `x1="${num(g.x1)}" y1="${num(g.y1)}" x2="${num(g.x2)}" y2="${num(g.y2)}"`
+            : `cx="${num(g.cx)}" cy="${num(g.cy)}" r="${num(g.r)}"`;
+    const tag = g.kind === "linear" ? "linearGradient" : "radialGradient";
+    return `<${tag} id="${id}" gradientUnits="userSpaceOnUse" ${at}>${stops}</${tag}>`;
+}
+
+/**
  * A point as a path takes it.
  * @param point - The point.
  * @returns `x y`.
@@ -239,11 +268,14 @@ function figureSvg(drawing: FigureDrawing, key: readonly FigureMark[]): string {
     if (drawing.background !== undefined) {
         out.push(`<rect width="100%" height="100%" fill="${esc(drawing.background)}"/>`);
     }
-    out.push(`<g stroke-linecap="round">`);
+    out.push(`<g fill="none" stroke-linecap="round" stroke-linejoin="round">`);
     for (const e of drawing.edges) {
+        const paint = `stroke="${esc(e.color)}" stroke-width="${num(e.width)}"${opacityAttr("stroke-opacity", e.opacity)}`;
+        const [[x1, y1], [x2, y2]] = e.points;
         out.push(
-            `<line x1="${num(e.x1)}" y1="${num(e.y1)}" x2="${num(e.x2)}" y2="${num(e.y2)}" stroke="${esc(e.color)}" ` +
-                `stroke-width="${num(e.width)}"${opacityAttr("stroke-opacity", e.opacity)}/>`,
+            e.points.length > 2
+                ? `<polyline points="${pointList(e.points)}" ${paint}/>`
+                : `<line x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}" ${paint}/>`,
         );
     }
     // One push per shape: spreading a million shapes into one call overflows the stack (#9034).
@@ -256,10 +288,15 @@ function figureSvg(drawing: FigureDrawing, key: readonly FigureMark[]): string {
         out.push(shapeSvg(c));
     }
     out.push(`</g><g text-anchor="middle" dominant-baseline="central">`);
-    for (const t of drawing.texts) {
+    drawing.texts.forEach((t, i) => {
         if (t.background !== undefined) {
             const bg = t.background;
-            out.push(rectSvg(bg, `fill="${esc(bg.fill)}"${opacityAttr("fill-opacity", bg.opacity)}`));
+            const id = `graphty-panel-${String(i)}`;
+            const fill = bg.gradient === undefined ? esc(bg.fill) : `url(#${id})`;
+            if (bg.gradient !== undefined) {
+                out.push(`<defs>${gradientSvg(bg.gradient, id)}</defs>`);
+            }
+            out.push(rectSvg(bg, `fill="${fill}"${opacityAttr("fill-opacity", bg.opacity)}`));
         }
         const first = t.y - ((t.lines.length - 1) * t.size * 1.2) / 2;
         const spans = t.lines
@@ -269,7 +306,7 @@ function figureSvg(drawing: FigureDrawing, key: readonly FigureMark[]): string {
             `<text font-family="${esc(t.font)}" font-size="${num(t.size)}" font-weight="${esc(t.weight)}" ` +
                 `font-style="${esc(t.style)}" fill="${esc(t.color)}">${spans}</text>`,
         );
-    }
+    });
     out.push(`</g>`);
     if (key.length > 0) {
         out.push(
@@ -461,7 +498,7 @@ function labelText(
 function labelPanel(label: RichTextLabel, mesh: Mesh, graph: Graph): FigureText["background"] {
     const { panel } = label;
     const color = panel === undefined ? null : toColorValue(panel.color);
-    if (panel === undefined || color === null || color.a <= 0) {
+    if (panel === undefined || color === null || (panel.gradient === undefined && color.a <= 0)) {
         return undefined;
     }
     const corners = mesh.getBoundingInfo().boundingBox.vectorsWorld.map((c) => graph.worldToScreen(c));
@@ -471,16 +508,24 @@ function labelPanel(label: RichTextLabel, mesh: Mesh, graph: Graph): FigureText[
     const top = Math.min(...ys);
     const w = Math.max(...xs) - left;
     const h = Math.max(...ys) - top;
-    // ponytail: a pointer, a border or a gradient panel is drawn as its solid box only.
-    return {
+    // ponytail: a pointer or a border is drawn as the panel's box only.
+    const box = {
         x: left + panel.left * w,
         y: top + panel.top * h,
         w: (panel.right - panel.left) * w,
         h: (panel.bottom - panel.top) * h,
         radius: panel.radius * w,
         fill: rgb(color),
-        opacity: color.a,
     };
+    const g = panel.gradient;
+    if (g === undefined) {
+        return { ...box, opacity: color.a };
+    }
+    const shape: PanelGradientShape =
+        g.kind === "linear"
+            ? { kind: "linear", x1: left + g.x1 * w, y1: top + g.y1 * h, x2: left + g.x2 * w, y2: top + g.y2 * h }
+            : { kind: "radial", cx: left + g.cx * w, cy: top + g.cy * h, r: g.r * w };
+    return { ...box, opacity: g.opacity, gradient: { ...shape, colors: g.colors, stops: g.stops } };
 }
 
 /**
@@ -605,11 +650,20 @@ function edgeLines(
         if (px <= 0) {
             continue;
         }
+        // Where the canvas draws the line: along its curve, bends or bundle, or straight and stopped at
+        // its arrowheads; a line drawn with no slot of its own runs between its nodes' centers.
+        const path = edge === undefined ? null : edgeInternals.lineInWorld(edge);
+        const points =
+            path?.map((p): Point2 => {
+                const at = graph.worldToScreen(p);
+                return [at.x, at.y];
+            }) ??
+            ([
+                [src.at.x, src.at.y],
+                [dst.at.x, dst.at.y],
+            ] as const);
         edges.push({
-            x1: src.at.x,
-            y1: src.at.y,
-            x2: dst.at.x,
-            y2: dst.at.y,
+            points,
             color: typeof line.color === "string" ? line.color : "#a9a9a9",
             opacity: line.opacity ?? 1,
             width: px,

@@ -520,10 +520,10 @@ describe("the USD checks", () => {
         });
     });
 
-    it("measure OpenEXR and Radiance HDR pictures, and count none of them: OpenUSD draws neither", async () => {
+    it("measure OpenEXR and Radiance HDR pictures, and count both: each is decoded and drawn", async () => {
         const ascii = (text: string): number[] => Array.from(text, (c) => c.codePointAt(0) ?? 0);
         const int32 = (...values: number[]): number[] => [...new Uint8Array(Int32Array.from(values).buffer)];
-        // A long attribute first (an image history), then the data window, 8192 x 8192.
+        // A long attribute first (an image history), then the data window, 1024 x 2048.
         const history = ascii("x".repeat(70_000));
         const exr = Uint8Array.from([
             ...[0x76, 0x2f, 0x31, 0x01, 2, 0, 0, 0],
@@ -531,14 +531,13 @@ describe("the USD checks", () => {
             ...int32(history.length),
             ...history,
             ...ascii("dataWindow\0box2i\0"),
-            ...int32(16, 0, 0, 8191, 8191),
+            ...int32(16, 0, 0, 1023, 2047),
             0,
         ]);
         const hdr = new TextEncoder().encode("#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 8192 +X 4096\n");
-        assert.deepStrictEqual(imageSize(exr), { width: 8192, height: 8192 });
+        assert.deepStrictEqual(imageSize(exr), { width: 1024, height: 2048 });
         assert.deepStrictEqual(imageSize(hdr), { width: 4096, height: 8192 });
 
-        // Counted as drawn, the two would be over the 1 GiB texture limit.
         const layer = (file: string): string =>
             `def Material "M_${file.replace(".", "_")}" {\n` +
             `    token outputs:surface.connect = </M_${file.replace(".", "_")}/S.outputs:surface>\n` +
@@ -558,7 +557,11 @@ describe("the USD checks", () => {
                 ["maps/sky.hdr", hdr],
             ]),
         );
-        assert.strictEqual(summary.textureBytes, 0);
+        // Both are drawn, counted as their float pixels are while they are decoded.
+        assert.strictEqual(
+            summary.textureBytes,
+            Math.ceil((1024 * 2048 * 16 * 4) / 3) + Math.ceil((4096 * 8192 * 16 * 4) / 3),
+        );
         assert.sameMembers(
             (summary.pictures ?? []).map((p) => p.name),
             ["maps/ground.exr", "maps/sky.hdr"],

@@ -3,7 +3,7 @@ import { circular } from "@graphty/layout";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { centeredLayoutConfigShape, layoutDim } from "./LayoutEngine";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
@@ -40,11 +40,7 @@ const circularLayoutOptionsSchema = defineOptions({
 
 // Legacy Zod config (kept for backward compatibility)
 const CircularLayoutConfig = z.strictObject({
-    ...SimpleLayoutConfig.shape,
-    scalingFactor: z.number().default(80),
-    scale: z.number().positive().default(1),
-    center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
-    dim: z.number().default(2),
+    ...centeredLayoutConfigShape,
 });
 type CircularLayoutConfigType = z.infer<typeof CircularLayoutConfig>;
 type CircularLayoutOpts = Partial<CircularLayoutConfigType>;
@@ -72,15 +68,6 @@ export class CircularLayout extends SnapshotLayoutEngine {
         super(opts);
         this.config = CircularLayoutConfig.parse(opts);
         this.dimensions = layoutDim(this.config.dim);
-    }
-
-    /**
-     * Get dimension-specific options for circular layout
-     * @param dimension - The desired dimension (2 or 3)
-     * @returns Options object with dim parameter
-     */
-    static getOptionsForDimension(dimension: 2 | 3): object {
-        return { dim: dimension };
     }
 
     /**

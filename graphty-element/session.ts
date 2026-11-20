@@ -874,6 +874,7 @@ export {
     quotePath,
     renamePaths,
     rulePath,
+    ruleValuePath,
     selectorRule,
     selectorStates,
 } from "./src/session/styles";

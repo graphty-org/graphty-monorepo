@@ -134,12 +134,6 @@ export const LEAN_TEMPLATE_OF: readonly number[] = [1, 2, 7, 6];
 export const LEAN_TEMPLATE_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
 
 /**
- * A pulled piece's draw slot and the piece it draws (`PulledLineBatch`): the draw is unindexed, so
- * `gl_VertexID / corners` is the slot. While pieces of two widths interleave, `edgeOrder` names the
- * piece each slot draws, four slots to a texel, so they draw in the object path's order; otherwise
- * (`edgeOrdered` 0) a slot draws the piece of its own number and the table is never read.
- */
-/**
  * A GLSL function that reads texel `i` of a pulled batch's table at whatever width the batch made it, a power of two
  * (`PulledLineBatch`'s `tableShape`), read from the texture itself. One function a table: WebGPU's GLSL takes no
  * sampler as an argument.
@@ -157,6 +151,12 @@ vec4 ${name}(int i) {
 `;
 }
 
+/**
+ * A pulled piece's draw slot and the piece it draws (`PulledLineBatch`): the draw is unindexed, so
+ * `gl_VertexID / corners` is the slot. While pieces of two widths interleave, `edgeOrder` names the
+ * piece each slot draws, four slots to a texel, so they draw in the object path's order; otherwise
+ * (`edgeOrdered` 0) a slot draws the piece of its own number and the table is never read.
+ */
 export const PULLED_ORDER_GLSL = `
 uniform float edgeOrdered;
 uniform highp sampler2D edgeOrder;

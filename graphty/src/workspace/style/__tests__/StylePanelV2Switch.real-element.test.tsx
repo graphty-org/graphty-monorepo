@@ -211,9 +211,14 @@ describe("Style panel v2's Switch to", () => {
             assert.match(String(written(session, id, "node.color")), /^#E8590C$/i, "Solid brings the color back");
             assert.isUndefined(written(session, id, "node.gradientColors"));
         });
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await waitFor(() => {
+            assert.isString(written(session, id, "node.gradientColors"), "one Undo reverses the switch back");
+            assert.isUndefined(written(session, id, "node.color"));
+        });
     });
 
-    it("no row, pop-over or Graph settings line uses the sliders glyph", async () => {
+    it("no row or pop-over uses the sliders glyph (Graph settings: GraphSettingsV2's test)", async () => {
         await openStar();
         const tab = await openStyle("Key people");
         const row = await rowOf(sectionOf(tab, "node-shape"), "shape");

@@ -24,7 +24,7 @@ import {
     LABEL_STYLE_FIELDS,
     textFieldOf,
 } from "@graphty/graphty-element/catalog";
-import { fileStyleChannels } from "@graphty/graphty-element/session";
+import { fileStyleChannels, type GraphSettingKey } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -32,14 +32,13 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import graphSettingsSource from "../../inspector/GraphSettingsV2.tsx?raw";
 import { startForOrNone } from "../row";
-import labelLineSource from "../v2/LabelFieldLine.tsx?raw";
 import { LABEL_COVERED, LABEL_OPTION_NAMES, LABEL_RUBRIC, type LabelField, TEXT_THINGS } from "../v2/labelRubric";
 import { ruleOf } from "../v2/lineWrites";
 import { ITEM_LISTS, LISTS } from "../v2/lists";
 import { EDGE_RUBRIC, type LineSpec, NODE_RUBRIC, segmentOptions, SHAPE_REPLACE_RUBRIC } from "../v2/rubric";
 import { SECTIONS, type ThingSpec } from "../v2/things";
 import { BASE_CHANNELS, BASE_LABEL_FIELDS, OWNER_REQUESTED } from "./allowed-styles";
-import { openProject, openStyle, sectionOf } from "./v2Harness";
+import { openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 type Side = "node" | "edge";
 const SIDES: readonly Side[] = ["node", "edge"];
@@ -171,7 +170,7 @@ const KNOWN_CHANNEL_GAPS: readonly string[] = [
 ];
 
 /** Check 1: graph-wide style settings with no line in Graph settings. */
-const KNOWN_GRAPH_SETTING_GAPS: readonly string[] = ["labels.labelText", "labels.sampleCell"];
+const KNOWN_GRAPH_SETTING_GAPS: readonly string[] = ["node.outlineWidth", "labels.labelText", "labels.sampleCell"];
 
 /** Check 2: label style fields, per text kind (`<style channel>.<field>`), with no line or no By data. */
 const KNOWN_LABEL_FIELD_GAPS: readonly string[] = [
@@ -485,23 +484,62 @@ const KNOWN_FILE_STYLE_GAPS: readonly string[] = [
 ];
 
 /**
- * Graph-wide style settings: graphty-element's graph background, lighting, rotation, highlight, framing and
- * label settings that change what the graph looks like (the Graph settings v2 lines).
+ * graphty-element's graph settings (`GraphSettingKey`, what `session.config.inEffect` answers for). Typed as a
+ * record over the element's type, so a setting graphty-element adds fails the typecheck until it is listed.
+ */
+const ELEMENT_GRAPH_SETTINGS: Readonly<Record<GraphSettingKey, true>> = {
+    background: true,
+    lighting: true,
+    "node.sizeSpace": true,
+    "node.outlineWidth": true,
+    "labels.declutter": true,
+    "labels.avoidNodesAndEdges": true,
+};
+
+/**
+ * The project settings in graphty-element's `session.config` that do not change what the graph looks like, so
+ * have no Graph settings line. Every other key of `session.config` must be a graph-wide style setting: a key
+ * graphty-element adds fails check 1 until it joins one list or the other.
+ */
+const CONFIG_NOT_LOOKS: readonly string[] = [
+    "acceleration",
+    "author",
+    "backgroundColor",
+    "data",
+    "editableBase",
+    "layoutBehavior",
+    "layoutTransition",
+    "name",
+    "pinnedStyle",
+    "runAlgorithmsOnLoad",
+    "runPlacement",
+    "selectionStyle",
+    "startingRows",
+    "timelineHiddenAdded",
+    "timelineHiddenLook",
+];
+
+/**
+ * Graph-wide style settings: graphty-element's graph settings, and its graph background, lighting, rotation,
+ * highlight, framing and label settings that change what the graph looks like (the Graph settings v2 lines).
  */
 const GRAPH_SETTINGS: readonly string[] = [
-    "background",
-    "background.shader",
-    "lighting",
-    "viewRotation",
-    "highlightColor",
-    "framing.extent",
-    "framing.padding",
-    "node.sizeSpace",
-    "minMarkSize",
-    "labels.declutter",
-    "labels.avoidNodesAndEdges",
-    "labels.labelText",
-    "labels.sampleCell",
+    ...new Set([
+        ...Object.keys(ELEMENT_GRAPH_SETTINGS),
+        "background",
+        "background.shader",
+        "lighting",
+        "viewRotation",
+        "highlightColor",
+        "framing.extent",
+        "framing.padding",
+        "node.sizeSpace",
+        "minMarkSize",
+        "labels.declutter",
+        "labels.avoidNodesAndEdges",
+        "labels.labelText",
+        "labels.sampleCell",
+    ]),
 ];
 
 // ------------------------------------------------------------------------------------------------
@@ -589,8 +627,12 @@ function thingsOf(side: Side): readonly ThingSpec[] {
     return SECTIONS[side].flatMap((section) => section.groups.flat());
 }
 
-/** Whether the label field line draws a By data control for a field's own channel. */
-const LABEL_LINE_VARIES = labelLineSource.includes("VarySlot");
+/**
+ * The label fields (`<style channel>.<field>`) whose line offers By data on the field's own channel, each
+ * listed once its line draws one (a real-element check of the drawn line comes with that control). Today no
+ * label line offers By data, so every field with its own channel is a gap.
+ */
+const LABEL_FIELDS_VARYING: ReadonlySet<string> = new Set<string>([]);
 
 /**
  * Whether a text kind's field has a normal visible control: a label rubric line, and By data on its own
@@ -601,7 +643,10 @@ const LABEL_LINE_VARIES = labelLineSource.includes("VarySlot");
  * @returns true when covered.
  */
 function fieldCovered(side: Side, style: Channel, field: LabelField): boolean {
-    return LABEL_COVERED.has(field) && (flatChannel(side, style, field) === undefined || LABEL_LINE_VARIES);
+    return (
+        LABEL_COVERED.has(field) &&
+        (flatChannel(side, style, field) === undefined || LABEL_FIELDS_VARYING.has(`${style}.${field}`))
+    );
 }
 
 /**
@@ -673,7 +718,13 @@ describe("Style panel v2's style inventory", () => {
         assertGaps(missing, KNOWN_CHANNEL_GAPS, "KNOWN_CHANNEL_GAPS");
     });
 
-    it("1. every graph-wide style setting has a line in Graph settings", () => {
+    it("1. every graph-wide style setting has a line in Graph settings", async () => {
+        const { session } = await openProject();
+        const config = session.config as unknown as Record<string, unknown>;
+        const unlisted = Object.keys(config)
+            .filter((key) => typeof config[key] !== "function" && !CONFIG_NOT_LOOKS.includes(key))
+            .filter((key) => !GRAPH_SETTINGS.some((setting) => setting === key || setting.startsWith(`${key}.`)));
+        assert.deepEqual(unlisted, [], "every session.config key is a listed graph setting or not a look");
         const lines = new Set([...graphSettingsSource.matchAll(/line\(\s*"([\w.]+)"/g)].map(([, key]) => key));
         for (const match of graphSettingsSource.matchAll(/line="([\w.:]+)"/g)) {
             lines.add(match[1]);
@@ -827,6 +878,25 @@ vec4 shade(NodeInput n) {
             }
         }
         assertGaps(missing, KNOWN_SWITCH_ON_GAPS, "KNOWN_SWITCH_ON_GAPS");
+
+        // The model above against the panel: Glow added through its real "+" writes what it predicts.
+        const glow = renderable("node").find((descriptor) => descriptor.channel === "node.glow");
+        assert.isDefined(glow);
+        const predicted = glow === undefined ? undefined : startForOrNone(ctx, glow);
+        const { id } = session.styles.list().find((each) => each.name === "Key people") ?? { id: "" };
+        const tab = await openStyle("Key people");
+        await userEvent.click(
+            within(sectionOf(tab, "node-effects")).getByRole("button", { name: "Add to node effects" }),
+        );
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Glow" }));
+        await waitFor(() => {
+            assert.deepEqual(
+                written(session, id, "node.glow"),
+                predicted,
+                "Glow's '+' writes the start the check uses",
+            );
+        });
+        assert.notDeepEqual(predicted, glow?.off, "Glow starts drawn");
     });
 
     it("5. v2 writes only styles graphty-element had, graph-io writes or the owner asked for", () => {
@@ -836,8 +906,13 @@ vec4 shade(NodeInput n) {
             ...OWNER_REQUESTED.map(({ channel }) => channel),
         ]);
         const fields = new Set<string>(BASE_LABEL_FIELDS);
+        // What v2 writes: every channel it has a control for, and the companions a "+" starts with.
+        const writes = (side: Side): readonly string[] => [
+            ...HOMED[side],
+            ...thingsOf(side).flatMap((thing) => Object.keys(thing.starts ?? {})),
+        ];
         const extraneous = [
-            ...SIDES.flatMap((side) => [...HOMED[side]].filter((channel) => !allowed.has(channel))),
+            ...SIDES.flatMap((side) => [...new Set(writes(side))].filter((channel) => !allowed.has(channel))),
             ...[...LABEL_COVERED].filter((field) => !fields.has(field)).map((field) => `label field ${field}`),
         ];
         assertGaps(extraneous, KNOWN_EXTRANEOUS, "KNOWN_EXTRANEOUS");

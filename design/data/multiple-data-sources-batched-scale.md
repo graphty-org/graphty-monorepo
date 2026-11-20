@@ -4,7 +4,7 @@ What graphty-element on master needed so a graph built from several data sources
 sizes the `"batched"` render path draws (100,000 nodes, 1,000,000 edges), and what the
 multiple-data-sources experiment must still change before it leaves the experiment. The experiment
 is `feat/element-sources-steps` and `feat/element-source-drafts` (tracking issue #8928); its design
-is `multiple-data-sources-design.md` in this folder.
+document, `multiple-data-sources-design.md`, is not yet committed anywhere.
 
 ## What master changed (issue #9169)
 
@@ -31,9 +31,19 @@ second source:
   it for the rest of the session, a second copy of the whole graph. The store now lets it go again
   at the end of every load (edits still keep it, as before).
 
-Measured with `graphty-element/test/session/multi-source-scale.bench.test.ts` (headless) and
-`graphty-element/test/browser/multi-source-scale.bench.test.ts` (both render paths); the numbers
-are in the pull request.
+Measured with `graphty-element/test/session/multi-source-scale.bench.test.ts` (headless) at
+100,000 nodes and 1,000,000 edges, merging a second source of 1,000 nodes and 10,000 edges, before
+and after this change on the same machine. Heap is what each step kept after a collection; the times
+were taken on a loaded machine and show the direction only:
+
+| Step                      | Heap kept before | Heap kept after | Time before | Time after |
+| ------------------------- | ---------------- | --------------- | ----------- | ---------- |
+| Second source merged      | 256 MB           | 8 MB            | 3.4 s       | 1.5 s      |
+| `sources()` after an edit | 33 MB            | 5 MB            | 2.2 s       | 1.5 s      |
+| `sourcesOf` one edge      | 226 MB           | 56 MB           | 0.8 s       | 0.7 s      |
+
+`graphty-element/test/browser/multi-source-scale.bench.test.ts` times the same two loads in an
+element on both render paths.
 
 ## What the experiment branches must change
 

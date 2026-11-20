@@ -180,7 +180,8 @@ export const ITEM_LISTS: Partial<Readonly<Record<Channel, ItemList>>> = Object.f
             },
             { channel: "node.shapePoints", kind: "points", name: "Points", item: "Point", fresh: "0,0" },
             { channel: "edge.bends", kind: "points", name: "Bends", item: "Bend", fresh: "0.5,0" },
-            { channel: "node.shapeTexts", kind: "texts", name: "Fields", item: "Field", fresh: '[[0,0,""]]' },
+            // A field with no point: graphty-element places it a line below the one before.
+            { channel: "node.shapeTexts", kind: "texts", name: "Fields", item: "Field", fresh: '[[""]]' },
             {
                 channel: "edge.labelTable",
                 kind: "table",

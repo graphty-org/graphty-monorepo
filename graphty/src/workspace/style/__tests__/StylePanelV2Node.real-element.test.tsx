@@ -239,7 +239,7 @@ describe("Style panel v2's node things", () => {
         await userEvent.click(words);
         await userEvent.keyboard("Hello{Enter}");
         await waitFor(() => {
-            assert.deepEqual(JSON.parse(String(written(session, id, "node.shapeTexts"))), [[0, 0, "Hello"]]);
+            assert.deepEqual(JSON.parse(String(written(session, id, "node.shapeTexts"))), [["Hello"]], "no point");
         });
         await userEvent.keyboard("{Escape}");
         assert.isNotNull(await rowOf(text, "record"), "the Record row stays");

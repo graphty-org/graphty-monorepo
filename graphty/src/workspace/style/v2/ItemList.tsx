@@ -225,7 +225,8 @@ function textsKind(args: KindArgs): { lines: React.ReactNode; add: () => void } 
     };
     return {
         add: () => {
-            put([...texts, { ...ORIGIN, text: "" }]);
+            // No point: graphty-element places a field a line below the one before (the app places none).
+            put([...texts, { text: "" }]);
         },
         lines: texts.flatMap((field, at) => {
             const name = `${list.item} ${String(at + 1)}`;

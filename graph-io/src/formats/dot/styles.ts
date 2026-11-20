@@ -2099,14 +2099,16 @@ function isLength(value: number): boolean {
  * @param cx - its names and direction
  * @param put - receives the values
  * @param at - the sites
+ * @param routed - its `pos`, when its route is written as its bends: its color bands are placed along that route
  */
-function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
+function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At, routed: string | null = null): void {
     const tokens = styleTokens(get("style"), at("visible"));
     const scheme = get("colorscheme");
     readCommon(get, tokens, scheme, cx.names, put, at);
     readColor(nonEmpty(get("color")), scheme, "edge", "color", "opacity", put, at);
-    readEdgeSegments(nonEmpty(get("color")), scheme, put, at);
+    readEdgeSegments(nonEmpty(get("color")), scheme, put, at, routed === null ? null : bandLengthShare(routed));
     readEdgeLine(get, tokens, cx, put, at);
+    readEdgeStrands(get, tokens, scheme, put, at);
     readEdgeArrows(get, cx, put, at);
     for (const [attribute, property] of [
         [LABEL_ATTRIBUTE, "label"],
@@ -2195,15 +2197,23 @@ function readEndLabelFace(get: Attr, scheme: string | null, put: Put, at: At): v
 /**
  * Reads an edge's colored segments: a color list with a `;fraction` in it (`red;0.3:blue`) draws the line in one piece
  * per color along its length, which is a linear gradient with a hard switch at each band's end. A list with no
- * fraction draws parallel lines, which graphty does not draw (the line is in the first color). Graphviz draws the head's
+ * fraction draws parallel lines (`readEdgeStrands`), the line's `color` its first. Graphviz draws the head's
  * arrow in the last band's color (emit.c `emit_edge_graphics`: `headcolor`), the tail's in the first, which the line
- * already has.
+ * already has. Graphviz ends each band at a share of its spline's Bezier measure (`bandLengthShare`), which on a route
+ * the file stores is turned into the share of the route's length the drawn line ends it at.
  * @param list - the edge's `color`
  * @param scheme - its color scheme
  * @param put - receives the values
  * @param at - the sites
+ * @param share - where a share of the route's Bezier measure lies, as a share of its length; null keeps the measure
  */
-function readEdgeSegments(list: string | null, scheme: string | null, put: Put, at: At): void {
+function readEdgeSegments(
+    list: string | null,
+    scheme: string | null,
+    put: Put,
+    at: At,
+    share: ((measure: number) => number) | null = null,
+): void {
     if (list === null || !list.includes(":") || !list.includes(";")) {
         return;
     }
@@ -2216,13 +2226,85 @@ function readEdgeSegments(list: string | null, scheme: string | null, put: Put, 
     let start = 0;
     for (const band of bands) {
         colors.push(band.color, band.color);
-        stops.push(num6(start), num6(Math.min(1, start + band.size)));
+        const end = Math.min(1, start + band.size);
+        stops.push(num6(share?.(start) ?? start), num6(share?.(end) ?? end));
         start += band.size;
     }
     put("gradientKind", "linear");
     put("gradientColors", colors.join(" "));
     put("gradientStops", stops.join(" "));
     put("targetArrowColor", bands.at(-1)?.color ?? null);
+}
+
+/** How far apart Graphviz draws the parallel lines of an edge's color list with no fractions, in points (emit.c `SEP`). */
+const GRAPHVIZ_STRAND_SEP = 2;
+
+/**
+ * Reads an edge's parallel lines: a color list with no fraction in it (`red:green:blue`) draws one line per color, each
+ * the pen's width, their middles 2 points apart whatever the pen (emit.c `SEP`), the first on the right of the line's
+ * direction and the last on its left, each over the one before (emit.c `emit_edge_graphics`). An empty color is
+ * Graphviz's default, black.
+ * @param get - the edge's attributes
+ * @param tokens - its style tokens
+ * @param scheme - its color scheme
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEdgeStrands(get: Attr, tokens: readonly string[], scheme: string | null, put: Put, at: At): void {
+    const list = nonEmpty(get("color"));
+    if (list === null || !list.includes(":") || list.includes(";")) {
+        return;
+    }
+    const colors = list
+        .split(":")
+        .flatMap(
+            (part) =>
+                canonColor(part.trim() || "black", "graphviz", at("strandColors"), { scheme, use: "edge" })?.color ??
+                [],
+        );
+    if (colors.length < 2) {
+        return;
+    }
+    put("strandColors", colors.join(" "));
+    const raw = nonEmpty(get("penwidth")) ?? setLineWidth(tokens);
+    const unset = tokens.includes("bold") ? 2 : 1;
+    const pen = raw === null ? unset : Number(raw.trim());
+    if (Number.isFinite(pen) && pen > 0) {
+        put("strandSpacing", num6(GRAPHVIZ_STRAND_SEP / pen));
+    }
+}
+
+/**
+ * Where Graphviz ends a color band on a route a `pos` stores, as a share of the route's length: Graphviz ends it at a
+ * share of the spline's Bezier measure (emit.c `splitBSpline`, {@link graphvizPosCurve}), which the drawn line, its
+ * colors spread by length, reaches at this share. The arrow tips are left out: the line ends where the spline does.
+ * @param pos - the edge's `pos` text
+ * @returns the share of the length at a share of the measure, or null for a `pos` that is not a spline of some length
+ */
+function bandLengthShare(pos: string): ((measure: number) => number) | null {
+    const route = routePoints(parsePos(pos).splines);
+    if (route === null) {
+        return null;
+    }
+    const { points, params } = route;
+    const run = [0];
+    for (let i = 1; i < points.length; i++) {
+        run.push(run[i - 1] + Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]));
+    }
+    const total = run.at(-1) ?? 0;
+    if (total <= 0) {
+        return null;
+    }
+    return (measure) => {
+        for (let i = 1; i < points.length; i++) {
+            const span = params[i] - params[i - 1];
+            if (span > 0 && measure <= params[i]) {
+                const f = Math.max(0, (measure - params[i - 1]) / span);
+                return (run[i - 1] + f * (run[i] - run[i - 1])) / total;
+            }
+        }
+        return Math.min(1, measure);
+    };
 }
 
 /**
@@ -2972,6 +3054,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         const gone = leftOutOfEdges.get(e);
         const get: Attr = (name) => (gone?.has(name) ? null : cellText(snapshot.edges, name, e));
         const at: At = (property) => ({ notes, target: "edge", property, element: e, budget: context.budget });
+        const stored = splineBends(snapshot, e, get(POS_ATTRIBUTE));
         readEdge(
             get,
             cx.edge(e),
@@ -2979,6 +3062,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
                 edge.put(e, p, v);
             },
             at,
+            stored === null ? null : get(POS_ATTRIBUTE),
         );
         if (noEdges) {
             edge.put(e, "visible", false);
@@ -2986,7 +3070,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         const put: Put = (p, v) => {
             edge.put(e, p, v);
         };
-        readEdgeRoute(splineBends(snapshot, e, get(POS_ATTRIBUTE)), () => loops.routeOf(e, get), get, put);
+        readEdgeRoute(stored, () => loops.routeOf(e, get), get, put);
         readLabelPlaces(snapshot, places, e, get, put, cx.edge(e).directed);
     }
     const graph = graphBackground(snapshot, notes);

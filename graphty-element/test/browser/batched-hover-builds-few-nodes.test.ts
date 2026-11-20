@@ -33,6 +33,7 @@ const FEW = 1;
  * @param shape - The nodes' shape, when not the default sphere.
  * @param edges - What a layer paints on every edge, if anything.
  * @param count - How many nodes.
+ * @param view - The view mode.
  * @returns The element.
  */
 async function mounted(
@@ -40,6 +41,7 @@ async function mounted(
     shape?: string,
     edges?: Record<string, unknown>,
     count = COUNT,
+    view: "2d" | "3d" = "2d",
 ): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderPath = "batched";
@@ -52,7 +54,7 @@ async function mounted(
         element.remove();
     });
     await element.updateComplete;
-    await element.setViewMode("2d");
+    await element.setViewMode(view);
     await operationQueueOf(element.graph).waitForCompletion();
     if (shape !== undefined) {
         await element.session.styles.add({
@@ -82,7 +84,7 @@ async function mounted(
     await element.session.data.addEdges(
         Array.from({ length: count - 1 }, (_, i) => ({ src: `n${String(i)}`, dst: `n${String(i + 1)}` })),
     );
-    await element.graph.setLayout("fixed", { dim: 2 });
+    await element.graph.setLayout("fixed", { dim: view === "2d" ? 2 : 3 });
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForSettled();
     await element.waitForStableFrame();
@@ -169,8 +171,8 @@ describe("one node acted on in a 10,000-node connected batched graph builds that
 
     // every pointer move that misses a node measures the edges under it, and a click or `elementAt` there measures
     // every edge: each must read the edges' ends from their rows, not build their Nodes
-    it("a real hover and a click on an edge, and on empty canvas", async () => {
-        const element = await mounted(true);
+    it.each(["2d", "3d"] as const)("a real hover and a click on an edge, and on empty canvas (%s)", async (view) => {
+        const element = await mounted(true, undefined, undefined, COUNT, view);
         assert.equal(built(element), 0, "the load builds no Node");
         const middle = Number(middleOf(COUNT).slice(1));
         const a = element.nodeScreenPosition(`n${String(middle)}`);

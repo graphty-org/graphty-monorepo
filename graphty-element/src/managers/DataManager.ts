@@ -197,18 +197,28 @@ function setAsideAndDispose<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, tea
 }
 
 /**
+ * Release, in one teardown, the meshes of the nodes whose new paint rebuilds them.
+ * @param painted - Each node and the paint it is about to take.
+ * @returns The nodes whose mesh was released.
+ */
+export function releaseRebuiltMeshes(painted: readonly [Node, NodePaint][]): Node[] {
+    const rebuilt = painted.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
+    disposeReleased(rebuilt, [], () => {
+        for (const node of rebuilt) {
+            releaseNodeMesh(node);
+        }
+    });
+    return rebuilt;
+}
+
+/**
  * Paint `Node`s just built for rows a batch drew: the meshes their paint rebuilds go in one teardown,
  * then each takes its paint and is drawn at its place, which a frame's update would otherwise write
  * only at the next frame.
  * @param built - Each `Node` and its paint.
  */
 function paintBuilt(built: readonly [Node, NodePaint][]): void {
-    const rebuilt = built.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
-    disposeReleased(rebuilt, [], () => {
-        for (const node of rebuilt) {
-            releaseNodeMesh(node);
-        }
-    });
+    releaseRebuiltMeshes(built);
     for (const [node, paint] of built) {
         node.applySessionPaint(paint);
         node.update();

@@ -25,7 +25,7 @@ import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesFreeing, texturesLoading } from "../models/TextureCache";
-import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
+import { collectResizedNodes, type Node, type NodeRenderState } from "../Node";
 import { DEFAULT_NODE_SCREEN_REFERENCE, type SizeView, viewSizeScale } from "../render/nodeSizeSpace";
 import type { RowTable } from "../render/RowTable";
 import type { ElementMask } from "../session/scope/index";
@@ -34,7 +34,7 @@ import type { GraphFraming } from "../session/types";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import { inXR } from "../xr/inXR";
 import { mapCorners } from "./BasemapManager";
-import { type DataManager, dataManagerInternals, disposeReleased } from "./DataManager";
+import { type DataManager, dataManagerInternals, releaseRebuiltMeshes } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
@@ -2327,12 +2327,7 @@ export class UpdateManager implements Manager {
      *     rebuilt mesh has to be stretched over its members again).
      */
     private paintNodes(painted: readonly [Node, NodePaint][]): { resized: ReadonlySet<Node>; rebuilt: boolean } {
-        const rebuilt = painted.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
-        disposeReleased(rebuilt, [], () => {
-            for (const node of rebuilt) {
-                releaseNodeMesh(node);
-            }
-        });
+        const rebuilt = releaseRebuiltMeshes(painted);
         const resized = collectResizedNodes(() => {
             for (const [node, paint] of painted) {
                 const own = node.togglesOwnMeshes();

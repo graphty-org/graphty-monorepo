@@ -526,6 +526,46 @@ describe("ElementPositions", () => {
         assert.strictEqual(rowsAnswered, 3);
     });
 
+    it("writes an owed publish once reading it row by row would cost more than writing it", () => {
+        const p = new ElementPositions(8);
+        p.grow(4);
+        let publishes = 0;
+        let rowsAnswered = 0;
+        const publish = (): void => {
+            publishes++;
+            for (let row = 0; row < 4; row++) {
+                p.write(row, row, row, row);
+            }
+        };
+        const answer = (row: number, out: { x: number; y: number; z: number }): boolean => {
+            rowsAnswered++;
+            out.x = out.y = out.z = row;
+            return true;
+        };
+        p.owe(publish, answer);
+        const out = { x: 0, y: 0, z: 0 };
+        // as many one-row reads as the lane has rows are answered by the reader
+        for (let i = 0; i < 4; i++) {
+            p.read(i % 2, out);
+        }
+
+        assert.strictEqual(publishes, 0);
+        assert.strictEqual(rowsAnswered, 4);
+        // the next writes the publish, and every read after it is the lane's own
+        p.read(1, out);
+        p.read(0, out);
+        assert.strictEqual(publishes, 1);
+        assert.strictEqual(rowsAnswered, 4);
+        assert.deepStrictEqual(out, { x: 0, y: 0, z: 0 });
+
+        // a new landing owed starts the count again, and owedWrites says only what the publish writes
+        p.owe(publish, (row, at) => (row === 3 ? false : answer(row, at)));
+        assert.isTrue(p.owedWrites(2, out));
+        assert.isFalse(p.owedWrites(3, out));
+        assert.strictEqual(publishes, 1);
+        assert.strictEqual(rowsAnswered, 5);
+    });
+
     it("forgets the one-row reader with the publish it came with", () => {
         const p = new ElementPositions(8);
         p.grow(2);

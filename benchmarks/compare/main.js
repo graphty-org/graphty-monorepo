@@ -531,11 +531,15 @@ async function graphtyAdapter({
             selector: { match: "everything" },
             encode: { "node.label": { by: "data.id", scale: "passthrough" } },
         });
+    // spread evenly over the rows, so the labeled rows fall in as many texture lines as they can
     if (labelFirst > 0)
         await el.session.styles.add({
-            name: "first labels",
+            name: "spread labels",
             target: "node",
-            selector: { match: "ids", nodes: Array.from({ length: labelFirst }, (_, i) => i) },
+            selector: {
+                match: "ids",
+                nodes: Array.from({ length: labelFirst }, (_, i) => Math.floor((i * G.n) / labelFirst)),
+            },
             encode: { "node.label": { by: "data.id", scale: "passthrough" } },
         });
     if (arrows)

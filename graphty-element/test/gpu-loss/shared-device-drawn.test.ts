@@ -77,16 +77,21 @@ describe("the layout filling the row table on a shared device", () => {
         assert.isAbove(lane.changes - written, 0);
     });
 
+    // Two labels three texture lines apart (1024 rows a line): a frame that sent every line between them
+    // would bring thousands of rows up to the owed landing one at a time.
+    const SPREAD = 2100;
     for (const renderer of ["webgpu", "webgl"] as const) {
-        for (const which of ["one labeled node", "one arrowed edge"] as const) {
+        for (const which of ["one labeled node", "two labels far apart", "one arrowed edge"] as const) {
             it(`writes no row per landing with ${which}, and draws it where the card does (${renderer})`, async () => {
-                const graph = await running("batched", undefined, renderer);
+                const spread = which === "two labels far apart";
+                const graph = await running("batched", undefined, renderer, spread ? SPREAD : undefined);
                 const { styles } = graph.getSession();
-                if (which === "one labeled node") {
+                if (which !== "one arrowed edge") {
+                    const nodes = spread ? ["n0", `n${String(SPREAD - 1)}`] : ["n0"];
                     await styles.add({
-                        name: "one label",
+                        name: "labels",
                         target: "node",
-                        selector: { match: "ids", nodes: ["n0"] },
+                        selector: { match: "ids", nodes },
                         set: { "node.label": "n0" },
                     });
                 } else {
@@ -108,7 +113,7 @@ describe("the layout filling the row table on a shared device", () => {
                 assert.isNotNull(table);
                 const written = lane.changes;
                 const walked = engine.rowsWalked;
-                const { repackedRows } = table;
+                const { repackedRows, owedRowsCaughtUp } = table;
                 const landings = engine.landedBatchesPublished;
                 for (let i = 0; i < 4; i++) {
                     await landed(graph);
@@ -120,6 +125,8 @@ describe("the layout filling the row table on a shared device", () => {
                 assert.strictEqual(lane.changes - written, 0);
                 assert.strictEqual(engine.rowsWalked - walked, 0);
                 assert.strictEqual(table.repackedRows - repackedRows, 0);
+                // nor brought up to it row by row: a labeled node put where the card draws it sends nothing
+                assert.strictEqual(table.owedRowsCaughtUp - owedRowsCaughtUp, 0);
 
                 // where n0 is drawn now is where the owed publish puts it
                 graph.engine.stopRenderLoop();

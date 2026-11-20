@@ -38,7 +38,7 @@ const skip = flags.includes("skip-layout"),
     // graphty-element loads through session.data.importColumns with the typed arrays cosmos.gl gets,
     // not nodeData/edgeData records (cosmos-gap G8)
     columns = flags.includes("columns"),
-    // label only the first k nodes (label-1, label-1000): what a few labels cost a GPU layout's landings
+    // label k nodes spread evenly over the graph (label-1, label-1000): what a few labels cost a GPU layout's landings
     labelFirst = Number(flags.find((f) => /^label-\d+$/.test(f))?.slice(6) ?? 0),
     // every edge drawn with an arrowhead (the lean mode draws none)
     arrows = flags.includes("arrows"),

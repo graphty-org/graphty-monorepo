@@ -139,6 +139,8 @@ export class ElementPositions {
     private owed: (() => void) | null = null;
     /** Answers one row as the owed publish would write it: see {@link ElementPositions.owe}. */
     private owedRow: OwedRow | null = null;
+    /** Rows `owedRow` answered since the publish was owed: past one per row, writing the publish is cheaper. */
+    private owedReads = 0;
     private readonly owedScratch = { x: 0, y: 0, z: 0 };
 
     /**
@@ -207,7 +209,8 @@ export class ElementPositions {
      *
      * A reader of one row need not write them all: `row` answers one row as the publish would write
      * it, so a frame that draws a few rows from the CPU (a label, an arrowhead) costs those rows, not
-     * every row of the graph.
+     * every row of the graph. Once as many rows were read that way as the lane has, the next read writes
+     * the publish instead, so a landing never costs more than about twice the publish.
      * @param publish - Writes the rows; null to owe nothing.
      * @param row - Answers one row as `publish` would write it, or null when every read settles.
      * @internal
@@ -215,6 +218,7 @@ export class ElementPositions {
     owe(publish: (() => void) | null, row: OwedRow | null = null): void {
         this.owed = publish;
         this.owedRow = publish === null ? null : row;
+        this.owedReads = 0;
         if (publish !== null) {
             this.moves++;
         }
@@ -275,22 +279,52 @@ export class ElementPositions {
      * @internal
      */
     readOwed(index: number, out: { x: number; y: number; z: number }): boolean {
-        const row = this.owedRow;
-        if (this.owed === null || row === null || !Number.isInteger(index) || index < 0 || index >= this.rows) {
-            return false;
-        }
-
-        const written = row(index, out);
-        if (written === null) {
-            return false;
-        }
-
-        if (!written) {
+        const written = this.owedAnswer(index, out);
+        if (written === false) {
             // the publish leaves this row as it is
             this.copyRow(POSITION_COMPONENTS * index, out);
         }
 
-        return true;
+        return written !== null;
+    }
+
+    /**
+     * Whether the owed publish writes this row, read without writing it: a row it writes is one a landing
+     * on the card already draws there.
+     * @param index - node index
+     * @param out - the object to fill with the row's place when the publish writes it
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     * @returns True when the publish writes the row; false when nothing is owed, the publish leaves the
+     *     row, or it cannot answer one row.
+     * @internal
+     */
+    owedWrites(index: number, out: { x: number; y: number; z: number }): boolean {
+        return this.owedAnswer(index, out) === true;
+    }
+
+    /**
+     * Ask the owed publish about one row, within the reads it is worth.
+     * @param index - node index
+     * @param out - the object to fill
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     * @returns What {@link OwedRow} answers, or null when it is not asked.
+     */
+    private owedAnswer(index: number, out: { x: number; y: number; z: number }): boolean | null {
+        const row = this.owedRow;
+        if (this.owed === null || row === null || !Number.isInteger(index) || index < 0 || index >= this.rows) {
+            return null;
+        }
+
+        // Reading every row one at a time costs more than writing them: past that, write the publish.
+        if (++this.owedReads > this.rows) {
+            return null;
+        }
+
+        return row(index, out);
     }
 
     /**

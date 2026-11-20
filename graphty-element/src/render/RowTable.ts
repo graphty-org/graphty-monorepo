@@ -635,7 +635,13 @@ export class RowTable {
         }
 
         const lane = this.laneRow;
-        this.lane().read(row, lane);
+        const laneRows = this.lane();
+        // A row the owed landing writes is one the card already draws there (the layout copied it in)
+        const onCard = laneRows.owedWrites(row, lane);
+        if (!onCard) {
+            laneRows.read(row, lane);
+        }
+
         const atLane =
             Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (this.twoD ? 0 : lane.z);
         const flags = this.flags[row] ?? 0;
@@ -649,6 +655,12 @@ export class RowTable {
         floats[base] = bounds[base] = x;
         floats[base + 1] = bounds[base + 1] = y;
         floats[base + 2] = bounds[base + 2] = z;
+        // ...so a node put exactly there, drawn whole, sends nothing: a labeled node following a running
+        // layout costs its own row each frame, and no texture line goes up to be caught up.
+        if (onCard && atLane && Math.fround(z) === lane.z && flags === 0 && floats[base + 3] === 1) {
+            return;
+        }
+
         if ((flags & (HIDDEN | SHRUNK)) === 0) {
             this.writeW(row, 1);
         } else {

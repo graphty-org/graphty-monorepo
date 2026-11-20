@@ -15,8 +15,8 @@ import { mounted, unmount } from "./device-helpers";
 
 export { countUncaptured, deviceOf, mounted, unmount } from "./device-helpers";
 
-const NODES = Array.from({ length: 200 }, (_, i) => ({ id: `n${String(i)}` }));
-const EDGES = NODES.map((_, i) => ({ src: `n${String(i)}`, dst: `n${String((i * 7 + 1) % 200)}` }));
+/** Nodes in the graph a layout runs on, unless a test asks for more. */
+const NODE_COUNT = 200;
 
 afterEach(() => {
     unmount();
@@ -105,9 +105,10 @@ export async function nextFrame(): Promise<void> {
  * Starts a layout that will not come to rest during the test, and waits for its batches to land.
  * @param graph - The graph.
  * @param maxIter - Iterations before it rests; by default more than any test waits for.
+ * @param nodeCount - Nodes in the graph.
  */
-export async function startLayout(graph: Graph, maxIter = 1_000_000): Promise<void> {
-    await submitLayout(graph, maxIter);
+export async function startLayout(graph: Graph, maxIter = 1_000_000, nodeCount = NODE_COUNT): Promise<void> {
+    await submitLayout(graph, maxIter, undefined, nodeCount);
     await landed(graph);
 }
 
@@ -117,8 +118,14 @@ export async function startLayout(graph: Graph, maxIter = 1_000_000): Promise<vo
  * @param graph - The graph.
  * @param maxIter - Iterations before it rests; by default more than any test waits for.
  * @param seed - The layout's seed, for a test that compares two runs; unseeded by default.
+ * @param nodeCount - Nodes in the graph, each with one edge.
  */
-export async function submitLayout(graph: Graph, maxIter = 1_000_000, seed?: number): Promise<void> {
+export async function submitLayout(
+    graph: Graph,
+    maxIter = 1_000_000,
+    seed?: number,
+    nodeCount = NODE_COUNT,
+): Promise<void> {
     // Boxes and no arrowheads, not the default icosphere and arrows: on SwiftShader with two cores the
     // icosphere's 960 vertices a node cost about 70 ms of a 90 ms frame and the arrows another 15, and
     // the device queue runs some 300 frames behind the page, so every landing waited out 300 of those
@@ -135,8 +142,9 @@ export async function submitLayout(graph: Graph, maxIter = 1_000_000, seed?: num
         selector: { match: "everything" },
         set: { "edge.arrowHead": "none" },
     });
-    await graph.addNodes(NODES);
-    await graph.addEdges(EDGES);
+    const nodes = Array.from({ length: nodeCount }, (_, i) => ({ id: `n${String(i)}` }));
+    await graph.addNodes(nodes);
+    await graph.addEdges(nodes.map((_, i) => ({ src: `n${String(i)}`, dst: `n${String((i * 7 + 1) % nodeCount)}` })));
     await graph.setLayout("forceatlas2", seed === undefined ? { maxIter } : { maxIter, seed });
     while (!layoutOf(graph).isAccelerated || layoutOf(graph).iterationsDone === 0) {
         await nextFrame();
@@ -187,17 +195,19 @@ export function errorsOf(graph: Graph): Error[] {
  * @param path - The render path.
  * @param maxIter - Iterations before the layout rests; by default more than any test waits for.
  * @param renderer - The renderer: WebGPU shares the layout's device, WebGL does not.
+ * @param nodeCount - Nodes in the graph.
  * @returns The graph.
  */
 export async function running(
     path: "objects" | "batched",
     maxIter?: number,
     renderer: "webgpu" | "webgl" = "webgpu",
+    nodeCount = NODE_COUNT,
 ): Promise<Graph> {
     adapterSays("test-hardware");
     const graph = await open("auto", renderer);
     graph.setRenderPath(path);
-    await startLayout(graph, maxIter);
+    await startLayout(graph, maxIter, nodeCount);
     assert.strictEqual(graph.rendererStatus?.layoutDevice, renderer === "webgpu" ? "shared" : "separate");
     return graph;
 }

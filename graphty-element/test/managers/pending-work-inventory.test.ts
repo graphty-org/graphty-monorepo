@@ -136,9 +136,11 @@ const INVENTORY: Record<string, Covered> = {
         reason: "a line pattern texture; a mesh whose texture is loading is not ready, which holds the frame",
     },
     "src/meshes/NodeDecorationMesh.ts": {
-        count: 1,
+        count: 3,
         kind: "shader",
-        reason: "a decoration's texture; a mesh whose texture is loading is not ready, which holds the frame",
+        reason:
+            "a decoration's texture; a mesh whose texture is loading is not ready, which holds the frame; a picture " +
+            "the engine could not decode, redrawn through an image, is held as a picture token until its texture starts",
     },
     "src/managers/BasemapManager.ts": {
         count: 3,

@@ -10,7 +10,8 @@ as it would without that experiment's code.
 <graphty-element features="file-styles location-map"></graphty-element>
 ```
 
-- `features` takes space-separated ids. `all` switches on every experiment this build has.
+- `features` takes space-separated ids. `all` switches on every experiment this build has except
+  `source-steps`, which is switched on only by its own id.
 - From a framework, set the property: `element.features = ["file-styles"]`.
 - Without a browser: `createGraphSession({ features: ["file-styles"] })` from
   `@graphty/graphty-element/session`.
@@ -86,6 +87,78 @@ With it off:
 
 A layer that writes one of the experiment's channels or values directly is still accepted and
 drawn, and a project saved with the experiment on opens with the styles it was saved with.
+
+### `source-steps`
+
+Several data sources in one graph: each source keeps its rows as read, and the graph is rebuilt
+from an ordered list of steps that add, merge and connect them. Work in progress. With it on:
+
+- every load (`import`, `generate`, `loadDataset`, `loadExample`, `importColumns`, a draft's
+  `load()` without a join, a network source) becomes one source plus a step that adds it; a
+  replacing load takes every source out first, so opening a file works as before;
+- each source's keys live in an id space: its own unless the load names `space` or `type`, so two
+  loads with no options never merge their nodes. A NodeId is the key when one space holds it, else
+  `<space>:<key>`;
+- `addNodes` and the other direct edits are the reader's own edits (`data.edits()`,
+  `data.removeEdit(id)`); `mergeNodes` is refused with `E_UNSUPPORTED` (`reason: "later"`);
+- `data.stage`, `data.steps`, `data.spaces`, `data.types`, `data.declareType` and `data.ref` read
+  and write the sources and steps.
+
+```ts
+await session.data.import(
+    { type: "csv", config: { data: accounts }, name: "accounts.csv" },
+    { key: "id", type: "account" },
+);
+await session.data.import({ type: "csv", config: { data: more } }, { mode: "merge", key: "id", type: "account" });
+session.data.sources()[1].issues; // [{ code: "W_SPACE_OVERLAP", params: { space: "account", count: 12, of: 40 } }]
+```
+
+Removing a source gives back the graph without it, and lists the steps that went with it
+(`W_STEP_REMOVED` in the result's `issues`). `replaceSource`, `reloadSource` and a network
+`refresh` keep the source's id and swap its rows; the same rows again record no undo step. A step
+reading a column the new rows lack is held (`E_COLUMN_MISSING`, or `E_READ_ROLE_MISSING` for a
+weight, time or location role) until `data.resolveStep` names a column for it or the column comes
+back. A reader edit whose value moved underneath reads `state: "source-changed"` in `data.edits()`
+(`W_EDIT_SOURCE_CHANGED`), and `data.settleEdit(id, "follow" | "keep" | "drop")` settles it. A
+note, pin or reader edit on an element a removal, replace or refresh left out is kept and listed
+as `W_REFERENCE_UNBOUND` with the element's `ref`; Undo binds it again. A replace's `unbound`
+lists the style layers, filter and joins that read a column no node or edge carries any more:
+
+```ts
+const report = await session.data.replaceSource(key, { type: "csv", config: { data: newer } });
+for (const issue of report.issues ?? []) {
+    if (issue.code === "W_EDIT_SOURCE_CHANGED") {
+        await session.data.settleEdit(issue.params.edit, "keep");
+    }
+}
+```
+
+To bring a second source in on purpose, stage it (`data.stage` reads it but builds nothing yet),
+then `data.merge` it into the nodes it names or `data.connect` it to them as edges. Where both
+sources hold a value for the same cell, the first one held is kept unless the merge's `clash`
+names another rule per column (`overwrite`, `both`, `min`, `max`, `mean`, `vote`); `min`, `max`
+and `mean` on a column whose values are not numbers (or dates, for `min` and `max`) are refused
+with `E_CLASH_RULE_TYPE`. `data.conflicts()` lists each cell that differs, each `data.steps()` row
+counts them per column (`W_VALUES_DIFFER` in `valuesDiffer`), and `data.pick` settles one cell as
+a reader edit naming the source:
+
+```ts
+await session.data.import({ type: "csv", config: { data: crm }, name: "crm.csv" }, { key: "id", type: "person" });
+const erp = await session.data.stage({ type: "csv", config: { data: more }, name: "erp.csv" }, { key: "id" });
+await session.data.merge({
+    from: { source: erp, field: "id" },
+    into: { space: "person" },
+    clash: { amount: "max" },
+});
+for (const conflict of session.data.conflicts({ only: "open" })) {
+    await session.data.pick(conflict.ref, conflict.column, erp);
+}
+```
+
+`expand`, `more` and `collapse` work only while the network source is the only source. Saving
+keeps the sources (their rows, or where a referenced one is read from) and the steps in the
+project file's `graphty-sources` member, and opening the file rebuilds the same graph. With it
+off, loads, joins, removal, refresh and saved files are as before.
 
 ### `source-references`
 

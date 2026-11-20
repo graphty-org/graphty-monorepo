@@ -6,7 +6,7 @@
  * lists one row per thing the layer sets or the reader just added.
  */
 
-import { LabelsProvider } from "@graphty/compact-mantine";
+import { ControlGroup, LabelsProvider } from "@graphty/compact-mantine";
 import { type Channel, writeChannelList } from "@graphty/graphty-element/catalog";
 import React, { useRef, useState } from "react";
 
@@ -32,7 +32,7 @@ import { FIT_TO_LABEL, lineFor, V2_LABELS } from "./rubric";
 import { RubricLine } from "./RubricLine";
 import { ShaderUseRow } from "./ShaderUseRow";
 import { ThingRow } from "./ThingRow";
-import { mainOf, SECTIONS, type SectionThings, setOn, type ThingSpec } from "./things";
+import { byKind, mainOf, SECTIONS, type SectionThings, setOn, type ThingSpec } from "./things";
 import { sectionsOf } from "./valueSections";
 
 /** Words Find a setting finds a setting by in this panel only: the names its things give them. */
@@ -287,9 +287,8 @@ function ThingSection({
                     )
                 }
             >
-                {shown
-                    .flatMap(({ thing, channels }) => rowsOf(ctx, thing, channels))
-                    .map(({ thing, channels, kind }) => (
+                {byKind(shown.flatMap(({ thing, channels }) => rowsOf(ctx, thing, channels))).map((run) => {
+                    const drawn = run.rows.map(({ thing, channels, kind }) => (
                         <ThingRow
                             key={kind === undefined ? thing.id : `${thing.id}:${kind.id}`}
                             ctx={ctx}
@@ -305,7 +304,15 @@ function ThingSection({
                                 setWaiting((now) => now.filter((each) => each !== thing.id));
                             }}
                         />
-                    ))}
+                    ));
+                    return run.legend === undefined ? (
+                        drawn
+                    ) : (
+                        <ControlGroup key={run.legend} label={run.legend}>
+                            {drawn}
+                        </ControlGroup>
+                    );
+                })}
             </PlusList>
         </div>
     );

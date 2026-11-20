@@ -328,3 +328,30 @@ export function mainOf(ctx: RowContext, thing: ThingSpec, channels: readonly Cha
     const first = thing.start !== undefined && mains.includes(thing.start) ? [thing.start] : [];
     return [...first, ...mains].map((channel) => offered(channel, false)).find((d) => d !== undefined);
 }
+
+/** How many rows a section draws before it separates them by kind (design 6.7). */
+const LONG_SECTION = 8;
+
+/**
+ * A section's rows, and in a long section the same rows in runs of one thing each under that thing's name as an
+ * always-open legend (a divider only, never a second collapsible level; feedback ledger items 25 and 56).
+ * @param rows - the rows, in the section's order.
+ * @returns the runs: one with no legend for a short section.
+ */
+export function byKind<T extends { readonly thing: ThingSpec }>(
+    rows: readonly T[],
+): readonly { readonly legend?: string; readonly rows: readonly T[] }[] {
+    if (rows.length <= LONG_SECTION) {
+        return [{ rows }];
+    }
+    const runs: { legend: string; rows: T[] }[] = [];
+    for (const row of rows) {
+        const last = runs.at(-1);
+        if (last?.legend === row.thing.name) {
+            last.rows.push(row);
+        } else {
+            runs.push({ legend: row.thing.name, rows: [row] });
+        }
+    }
+    return runs;
+}

@@ -6,7 +6,7 @@
 import { assert, describe, it } from "vitest";
 
 import { itemChannels, PARTS } from "../parts/parts";
-import { SECTIONS } from "../v2/things";
+import { byKind, SECTIONS, type ThingSpec } from "../v2/things";
 
 describe("Style panel v2's sections", () => {
     for (const side of ["node", "edge"] as const) {
@@ -49,4 +49,41 @@ describe("Style panel v2's sections", () => {
             }
         });
     }
+});
+
+describe("a long section", () => {
+    const thing = (name: string): ThingSpec => ({ id: name.toLowerCase(), name, items: [], main: [] });
+    const rows = (names: readonly string[]): { thing: ThingSpec }[] => names.map((name) => ({ thing: thing(name) }));
+
+    it("draws up to 8 rows as they are, with no legend", () => {
+        const runs = byKind(rows(["Label", "Label", "Tooltip", "Record", "Label", "Tooltip", "Record", "Label"]));
+        assert.deepEqual(
+            runs.map((run) => run.legend),
+            [undefined],
+        );
+    });
+
+    it("separates 9 rows by kind under one always-open legend each, in the section's order", () => {
+        const runs = byKind(
+            rows([
+                "Label",
+                "Label",
+                "Label",
+                "Label",
+                "External label",
+                "External label",
+                "Tooltip",
+                "Tooltip",
+                "Tooltip",
+            ]),
+        );
+        assert.deepEqual(
+            runs.map((run) => [run.legend, run.rows.length]),
+            [
+                ["Label", 4],
+                ["External label", 2],
+                ["Tooltip", 3],
+            ],
+        );
+    });
 });

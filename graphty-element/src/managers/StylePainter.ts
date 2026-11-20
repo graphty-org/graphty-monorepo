@@ -516,6 +516,30 @@ export interface DrawnLabel {
 }
 
 /**
+ * The further labels (`node.labels`, `edge.labels`) a resolved style draws: the blocks resolved into
+ * `style.labels` that have words to draw.
+ * @param style - The resolved node or edge style.
+ * @returns The drawn labels, in order.
+ */
+export function drawnLabelsOf(style: object): readonly DrawnLabel[] {
+    const wanted = (style as { labels?: readonly DrawnLabel[] }).labels ?? [];
+    return wanted.filter(({ block }) => drawnText(block) !== undefined);
+}
+
+/**
+ * A key for the further labels drawn, which changes only when what they draw changes.
+ * @param drawn - The drawn labels ({@link drawnLabelsOf}).
+ * @param textOf - How the node or edge turns a block into its words.
+ * @returns The key, or undefined when there are none.
+ */
+export function drawnLabelsKey(
+    drawn: readonly DrawnLabel[],
+    textOf: (block: DrawnLabel["block"]) => unknown,
+): string | undefined {
+    return drawn.length === 0 ? undefined : JSON.stringify(drawn.map(({ id, block }) => [id, textOf(block), block]));
+}
+
+/**
  * Write a label list (`node.labels`, `edge.labels`) into the style being built, once every other
  * channel is in: the entry with id {@link MAIN_LABEL_ID} restyles (or with `off` hides) the label
  * `style.label` draws, and every other drawn entry becomes a block of `style.labels`, the label's

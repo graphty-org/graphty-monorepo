@@ -2132,6 +2132,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isDisposed: READ,
             modelDrawn: READ,
             imageDrawn: READ,
+            labelsBuilt: READ,
             getRenderState: READ,
             setRenderState: RENDER,
             isSelected: READ,
@@ -2238,6 +2239,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             label: RENDER,
             xlabelLabel: RENDER,
             extraLabels: RENDER,
+            // What the edge hands the bundler: its end positions and bundle options, read only.
+            forceBundleInput: READ,
             arrowHeadText: RENDER,
             arrowTailText: RENDER,
             parallelRank: RENDER,
@@ -2432,6 +2435,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clear: calls([], [CLEAR]),
             startLabelAnimations: RENDER,
             getStats: READ,
+            // The bundled route's shared bends, worked out from the drawn edges; a cache, never saved.
+            forceBundles: RENDER,
         },
     },
     {
@@ -4425,6 +4430,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isRunning: READ,
             setRunning: IN_FLIGHT,
         },
+    },
+    {
+        name: "ForceBundles",
+        file: "src/meshes/edgeBundling.ts",
+        half: "renderer",
+        whole: RENDER,
     },
     {
         name: "LabelDeclutter",

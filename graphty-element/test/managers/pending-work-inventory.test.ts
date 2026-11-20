@@ -219,9 +219,9 @@ const INVENTORY: Record<string, Covered> = {
         reason: "the edge shader renderer module, loaded inside the token a resolving edge shader holds",
     },
     "src/managers/RenderManager.ts": {
-        count: 3,
+        count: 2,
         kind: "shader",
-        reason: "the background, group outline and bloom passes a shader names, each loaded under a token",
+        reason: "the background and bloom passes a shader names, each loaded under a token",
     },
     "src/catalog/shaderRegistry.ts": {
         count: 2,
@@ -231,7 +231,7 @@ const INVENTORY: Record<string, Covered> = {
             "the resolving drawing holds; read for editing it draws nothing",
     },
     "src/shaders/presets/bodies.ts": {
-        count: 35,
+        count: 33,
         kind: "shader",
         reason: "each built-in shader's text, loaded through shaderRegistry; see that row",
     },

@@ -35,7 +35,8 @@ import {
     batchableOf,
     type BatchView,
     bootstrapNodePaint,
-    type DrawnLabel,
+    drawnLabelsKey,
+    drawnLabelsOf,
     type NodePaint,
     type NodeSizeSpace,
     shaderPartOf,
@@ -4178,11 +4179,8 @@ export class Node implements ModelUser {
      */
     private syncExtraLabels(o: NodeStyleConfig, rebuild: boolean): void {
         // Held back with the label, by label sampling (see syncOwnLabel).
-        const drawn = this.labelsWithheld ? [] : extraLabelsOf(o);
-        const key =
-            drawn.length === 0
-                ? undefined
-                : JSON.stringify(drawn.map(({ id, block }) => [id, this.extractLabelText(block), block]));
+        const drawn = this.labelsWithheld ? [] : drawnLabelsOf(o);
+        const key = drawnLabelsKey(drawn, (block) => this.extractLabelText(block));
         if (!rebuild && key === this.drawnExtraLabels) {
             return;
         }
@@ -4240,7 +4238,7 @@ export class Node implements ModelUser {
             this.#anchor.getScene(),
             this.context,
             this,
-            wanted !== undefined || extraLabelsOf(o).length > 0,
+            wanted !== undefined || drawnLabelsOf(o).length > 0,
         );
         this.labelsWithheld = withheld;
 
@@ -4682,15 +4680,4 @@ function hashText(text: string): string {
         h = (Math.imul(h, 33) + (text.codePointAt(i) ?? 0)) >>> 0;
     }
     return h.toString(36);
-}
-
-/**
- * The further labels (`node.labels`) a resolved style draws: the blocks `StylePainter` resolved into
- * `style.labels` that have words to draw.
- * @param o - The resolved style.
- * @returns The drawn labels, in order.
- */
-function extraLabelsOf(o: NodeStyleConfig): readonly DrawnLabel[] {
-    const wanted = (o as NodeStyleConfig & { labels?: readonly DrawnLabel[] }).labels ?? [];
-    return wanted.filter(({ block }) => drawnText(block) !== undefined);
 }

@@ -171,6 +171,19 @@ function setLinesOf(ctx: RowContext, rubric: ThingRubric | undefined, main: Chan
     );
 }
 
+/** What a thing row's main line is drawn from: see `MainLine`. */
+interface MainLineProps {
+    ctx: RowContext;
+    thing: ThingSpec;
+    main: ChannelDescriptor;
+    row: LineSpec | undefined;
+    replacing: string | undefined;
+    pending: boolean;
+    onCancel: () => void;
+    slots: RowSlots;
+    hint?: string;
+}
+
 /**
  * A thing row's main line: a shader drawn in the shapes' place, a gradient Fill's bar (today's
  * gradient editor, design 7.1), the rubric's own line for the row, else today's field.
@@ -186,19 +199,7 @@ function setLinesOf(ctx: RowContext, rubric: ThingRubric | undefined, main: Chan
  * @param props.hint - what its control takes, as its tooltip, for a kind's row
  * @returns The line
  */
-function MainLine(
-    props: Readonly<{
-        ctx: RowContext;
-        thing: ThingSpec;
-        main: ChannelDescriptor;
-        row: LineSpec | undefined;
-        replacing: string | undefined;
-        pending: boolean;
-        onCancel: () => void;
-        slots: RowSlots;
-        hint?: string;
-    }>,
-): React.JSX.Element {
+function MainLine(props: Readonly<MainLineProps>): React.JSX.Element {
     // A row graphty-element draws nothing for now (Order in 3D) is dimmed, its tooltip saying why.
     // A rubric line drawing the row dims itself.
     const dimmed =
@@ -236,17 +237,7 @@ function MainControl({
     onCancel,
     slots,
     hint,
-}: Readonly<{
-    ctx: RowContext;
-    thing: ThingSpec;
-    main: ChannelDescriptor;
-    row: LineSpec | undefined;
-    replacing: string | undefined;
-    pending: boolean;
-    onCancel: () => void;
-    slots: RowSlots;
-    hint?: string;
-}>): React.JSX.Element {
+}: Readonly<MainLineProps>): React.JSX.Element {
     // A thing its section does not name (Pie, Stripes, Inner lines) keeps its name column (design 2.4).
     const name = thing.unnamed === true ? null : thing.name;
     const frame = (line: string, rule: string, control: React.ReactNode): React.JSX.Element => (

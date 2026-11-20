@@ -5123,6 +5123,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         min: 1,
         max: 500,
         step: 1,
+        integer: true,
         stylePath: "line.bundleIterations",
         renderable: true,
         caveat:

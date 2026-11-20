@@ -24,7 +24,7 @@ import type { LocationMapFrame } from "./layout/locationMap/place";
 import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
-import { bootstrapEdgePaint, type DrawnLabel, type EdgePaint } from "./managers/StylePainter";
+import { bootstrapEdgePaint, drawnLabelsKey, drawnLabelsOf, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
 import type { JoinedPatternKind } from "./meshes/CustomLineRenderer";
@@ -3428,12 +3428,8 @@ export class Edge {
      * @returns True when they were rebuilt.
      */
     private syncExtraLabels(style: EdgeStyleConfig, rebuild: boolean): boolean {
-        const wanted = (style as EdgeStyleConfig & { labels?: readonly DrawnLabel[] }).labels ?? [];
-        const drawn = wanted.filter(({ block }) => drawnText(block) !== undefined);
-        const key =
-            drawn.length === 0
-                ? undefined
-                : JSON.stringify(drawn.map(({ id, block }) => [id, this.extractLabelText(block), block]));
+        const drawn = drawnLabelsOf(style);
+        const key = drawnLabelsKey(drawn, (block) => this.extractLabelText(block));
         if (!rebuild && key === this.drawnExtraLabels) {
             return false;
         }

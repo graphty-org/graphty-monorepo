@@ -3137,8 +3137,27 @@ function prepareListItemBinding(item: ListItemTarget, options: PrepareBindingOpt
         prepared = prepareRule(descriptor, binding, options);
     }
 
+    const patch = sharedPatches((value) => listItemPatch(item.index, value));
+
+    return {
+        ...prepared,
+        channel: item.channel,
+        paint: (value) => patch(prepared.paint(value)),
+        paintIgnoringHidden: (value) => patch(prepared.paintIgnoringHidden(value)),
+    };
+}
+
+/**
+ * Turn each value a prepared binding paints into a partial value, one shared object per distinct
+ * value (a color by its hex), so equal values share one patch.
+ * @param make - Builds the patch for one value.
+ * @returns The patching function; undefined stays undefined.
+ */
+function sharedPatches(
+    make: (value: EncodedValue) => EncodedValue,
+): (value: EncodedValue | undefined) => EncodedValue | undefined {
     const patches = new Map<unknown, EncodedValue>();
-    const patch = (value: EncodedValue | undefined): EncodedValue | undefined => {
+    return (value) => {
         if (value === undefined) {
             return undefined;
         }
@@ -3146,18 +3165,11 @@ function prepareListItemBinding(item: ListItemTarget, options: PrepareBindingOpt
         const key = typeof value === "object" && value !== null && "hex" in value ? value.hex : value;
         let made = patches.get(key);
         if (made === undefined) {
-            made = listItemPatch(item.index, value);
+            made = make(value);
             patches.set(key, made);
         }
 
         return made;
-    };
-
-    return {
-        ...prepared,
-        channel: item.channel,
-        paint: (value) => patch(prepared.paint(value)),
-        paintIgnoringHidden: (value) => patch(prepared.paintIgnoringHidden(value)),
     };
 }
 
@@ -3180,21 +3192,7 @@ function prepareLabelFieldBinding(target: LabelFieldTarget, options: PrepareBind
     }
 
     const prepared = prepareBinding({ ...options, channel: descriptor.channel });
-    const patches = new Map<unknown, EncodedValue>();
-    const patch = (value: EncodedValue | undefined): EncodedValue | undefined => {
-        if (value === undefined) {
-            return undefined;
-        }
-
-        const key = typeof value === "object" && value !== null && "hex" in value ? value.hex : value;
-        let made = patches.get(key);
-        if (made === undefined) {
-            made = labelEntryPatch(target, value);
-            patches.set(key, made);
-        }
-
-        return made;
-    };
+    const patch = sharedPatches((value) => labelEntryPatch(target, value));
 
     return {
         ...prepared,

@@ -210,6 +210,33 @@ from it. Options the sweep does not vary go in `params`; `scope`, `seed`, `label
 undo takes the whole sweep away. A cancelled sweep keeps the values that finished, and their rows
 say so.
 
+#### How much the seed matters
+
+A randomized algorithm, such as Louvain, can find a different answer with a different seed.
+`runs.stability()` runs it once per seed, as one batch, and compares every pair of seeds:
+
+```typescript
+const stability = await element.session.runs.stability("louvain", [1, 2, 3, 4, 5]);
+
+console.log(stability.agreement); // 1 = every seed found the same groups
+console.log(stability.adjustedMutualInformation);
+for (const pair of stability.pairs) {
+    console.log(pair.a.runId, pair.b.runId, pair.kind === "partition" ? pair.agreement : pair.correlation);
+}
+```
+
+`agreement` and `adjustedMutualInformation` are the means of each pair's adjusted Rand index and
+adjusted mutual information, as `results.compare()` reports them; an algorithm whose result is a
+ranking gives `correlation`, the mean Spearman correlation, instead. `pairs` holds
+each comparison in full, and `rows` one row per seed, as a sweep's rows (`value` is the seed). Each
+seed is a listed run with the id `<algorithm>_seed_<seed>` (`louvain_seed_1`); `params`, `field` (the
+result field to compare), `scope`, `style`, `label`, `signal` and `onProgress` are as `sweep()`
+takes them.
+
+A rerun of the same algorithm keeps its groups' numbers: each new group takes the number of the old
+group it shares most members with, so a layer or a saved view that names "group 3" still means the
+same members.
+
 ### Component Analysis
 
 Find connected subgraphs:
@@ -244,6 +271,22 @@ it is cut off. `cutOffShare` is the share of the remaining nodes cut off, read t
 interpretation bands: `none`, `minor` (any), `severe` (more than a tenth). Pieces are weak: an
 edge joins its two nodes whichever way it was declared.
 
+#### Single points of failure
+
+`articulation-points` finds the nodes, and `bridges` the edges, whose removal would split their
+piece of the graph. Each flagged node or edge carries `in: true`, which the suggested highlight
+layer paints; nothing else is touched. Each run also reports how many it found, and what share of
+the nodes (or edges) that is.
+
+```typescript
+const points = await element.session.runs.start("articulation-points");
+// How many cut points, and the fraction of the nodes they are.
+const { count, share } = points.graph;
+```
+
+Both read the graph as undirected. Two edges between the same pair of nodes back each other up, so
+neither is a bridge.
+
 ### Traversal Algorithms
 
 Explore the graph systematically:
@@ -273,6 +316,36 @@ Find optimal paths between nodes:
 await graph.runAlgorithm("graphty", "dijkstra", {
     algorithmOptions: { source: "node1", target: "node5" },
 });
+```
+
+`shortest-path` also takes four choices. Each is off by default, so a run that sets none of them
+reads every edge either way and finds the same route it always did:
+
+- `direction`: `"out"` follows a directed edge from its source to its target, `"in"` against it,
+  and `"all"` (the default) either way.
+- `weight`: the edge column to read, and what it means. A distance is the cost of crossing the
+  edge. A strength is left unread unless `invertStrength: true`, which crosses each edge at
+  1 / weight, so the route prefers strong connections.
+- `timeOrder`: an edge column holding each edge's time. The route then only takes edges in time
+  order, each at or after the one before it, and never an edge with no time. A number, a date or a
+  date string is a time.
+- The result's `tiedRoutes` says how many routes share the cheapest cost: 1 when the route is the
+  only one, 0 when the target is unreached. It is absent from a time-ordered run.
+
+```typescript
+const route = await element.run("shortest-path", {
+    source: "alice",
+    target: "dave",
+    direction: "out",
+    weight: { attribute: "trust", meaning: "strength" },
+    invertStrength: true,
+    timeOrder: "sentAt",
+});
+const { cost, tiedRoutes } = route.graph;
+console.log(cost, tiedRoutes);
+for (const id of ["alice", "bob", "carol", "dave"]) {
+    console.log(id, route.node(id)?.onPath, route.node(id)?.order);
+}
 ```
 
 `astar` takes the same `source` and `target` as `dijkstra`, and a `heuristic`. The default,

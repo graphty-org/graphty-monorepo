@@ -551,7 +551,7 @@ export class CSVDataSource extends DataSource {
                 ...(nodes === undefined ? {} : { nodes }),
             }),
         );
-        // A node row with a blank id comes back empty, so the element keeps it as a keyless node.
+        // A node row with a blank id comes back empty, so the element leaves it out and counts it.
         const keyed = imported.nodes.map((node) =>
             typeof node.id === "string" && node.id.startsWith(BLANK_ID_PREFIX) ? { ...node, id: "" } : node,
         );

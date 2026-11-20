@@ -64,7 +64,7 @@ the existing semver ranges, or none. An agent adds its fresh review by running `
 | `dependency-review.yml`, `dependabot-automerge.yml`             | Advisories against the dependencies a pull request changes; auto-merge for Dependabot's security updates                                                                                                                                                                                           |
 | `results-service.yml`                                           | Deploys the results store, the release scheduler and the nx remote cache Workers from master                                                                                                                                                                                                       |
 | `pipeline-health.yml`, `pipeline-health-pages.yml`              | Tests the pipeline health backend; publishes https://health.graphty.app                                                                                                                                                                                                                            |
-| `render-proof.yml`                                              | By dispatch on a branch: the whole of the `render-parity` and `forced-batched` test projects (design/rendering/row-renderer.md 7); gates nothing                                                                                                                                                   |
+| `render-proof.yml`                                              | By dispatch on a branch: the whole of the `render-parity` and `forced-batched` test projects (design/rendering/row-renderer.md 7); gates nothing (the full run runs both)                                                                                                                          |
 | `restricted-cpu-stress.yml`                                     | Weekly: every gating shard under half the runner's CPU; files one issue per load-sensitive test                                                                                                                                                                                                    |
 | `gpu-weekly-paired.yml`                                         | Weekly: the paired T4 benchmark, master against the latest release                                                                                                                                                                                                                                 |
 | `links-weekly.yml`                                              | Weekly: every external link (one `dead-links` issue) and every network source example (one `dead-network-examples` issue)                                                                                                                                                                          |
@@ -189,8 +189,11 @@ only the selected test files where `test-select-rules.json` allows file-level se
 of them (31 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
 nx.json's `sharedGlobals` affects every package; a `pnpm-lock.yaml` change affects only the packages whose
 resolved dependencies changed. `graphty-element-lifecycle`, `graphty-element-fidelity-1` to `-4` (the style
-fidelity gate over every oracle, in four slices) and `graphty-element-forced-batched-1` to `-12` (the browser and
-interaction tests on the batched render path) run only in the full run.
+fidelity gate over every oracle, in four slices), `graphty-element-batched-webgpu` (the tests that need a GPU, on
+the batched render path on WebGPU) and `graphty-element-render-parity-webgl`, `-webgpu` and `-webkit` (every
+captured story drawn on both render paths and compared pixel for pixel) run only in the full run.
+`graphty-element-forced-batched-1` to `-12` (the browser and interaction tests on the batched render path) run on
+a pull request exactly as the browser shards do: the selected files, or every file when graphty-element runs whole.
 
 ## Visual review
 

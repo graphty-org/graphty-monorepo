@@ -40,7 +40,7 @@ import {
     isStandIn,
     judgeDrawing,
     type JudgeInputs,
-    ORACLE_CANVAS,
+    oracleCanvas,
     type OracleComparison,
     oracleFormatOptions,
     oracleGraphName,
@@ -163,7 +163,7 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     const meta = oracleMeta(id);
     const { element, sha256, command } = await mountSample(
         sample,
-        ORACLE_CANVAS,
+        oracleCanvas(meta, sample.format),
         oracleGraphName(meta),
         oracleFormatOptions(meta, sample.format),
     );

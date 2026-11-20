@@ -871,6 +871,13 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "style.patch", action: "deleteRow", id: "folder:fixture-folder_1" },
     },
     {
+        name: "style.patch duplicateRow",
+        variant: "duplicateRow",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: { op: "style.patch", action: "duplicateRow", id: "fixture-a_1" },
+    },
+    {
         name: "style.patch addDefaultRows",
         variant: "addDefaultRows",
         tags: BOTH,

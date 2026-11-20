@@ -724,8 +724,7 @@ export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsStep
     const space = translation?.mapping.space ?? field?.space ?? spaceOfKeys(value, copies, keyValues, id);
     const options = defined({
         columns: choices.columns,
-        // Today's join keeps a clashing value both ways unless the reader says otherwise (section 10 item 23).
-        clash: { "*": "both" as const, ...choices.clash },
+        clash: { "*": defaultClash(choices), ...choices.clash },
         repeated: choices.repeated === "both" ? undefined : (choices.repeated ?? "first"),
         ignoreCase: choices.ignoreCase,
         ignoreSpaces: choices.ignoreSpaces,
@@ -929,7 +928,7 @@ function compileEdgeValues(value: SourceSteps, copies: Copies, join: JoinAsSteps
         read: { table: "nodes", edgeId: key.file },
         ...defined({
             columns: choices.columns,
-            clash: { "*": "both" as const, ...choices.clash },
+            clash: { "*": defaultClash(choices), ...choices.clash },
             repeated: choices.repeated === "both" ? undefined : choices.repeated,
             ignoreCase: choices.ignoreCase,
             ignoreSpaces: choices.ignoreSpaces,
@@ -998,4 +997,14 @@ function edgesStepOf(
         read: { table: "edges", source: files[0], sourceSpace: space, target: files[1], targetSpace: space },
         ...options,
     };
+}
+
+/**
+ * The clash rule of a column no rule of a join names, as today's join reads it: `"keep"`, or
+ * `"both"` for a comparing merge.
+ * @param choices - The join.
+ * @returns The rule.
+ */
+function defaultClash(choices: JoinChoices): "keep" | "both" {
+    return choices.compare === true ? "both" : "keep";
 }

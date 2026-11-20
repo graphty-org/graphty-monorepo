@@ -54,6 +54,7 @@ import {
 } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import type { RunEntry } from "../project/state";
+import { compareResults, type ResultComparison } from "../results/compare";
 import { elementIdsOf } from "../results/RunResult";
 import { RESULT_ROOT, type RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
@@ -118,6 +119,8 @@ import {
     type RunScopeFacts,
     type RunSpec,
     type RunStyle,
+    type StabilityOptions,
+    type StabilityResult,
     type StaleNote,
     type StartOptions,
     type SuggestionOutcome,
@@ -534,6 +537,54 @@ function addedOutcome(suggestion: StyleSuggestion, outcome: unknown, stack: read
  */
 function refusedOutcome(suggestion: StyleSuggestion, error: unknown): SuggestionOutcome {
     return Object.freeze({ outcome: "refused", suggestion, code: isGraphtyError(error) ? error.code : "E_INTERNAL" });
+}
+
+/**
+ * One batch member per value of a series (a sweep's values, a stability run's seeds), each its own
+ * listed run named `<algorithm>_<option>_<value>`.
+ * @param algorithm - Which algorithm.
+ * @param option - What the series varies, for the run ids.
+ * @param values - The values, in order.
+ * @param shared - The scope and style every member takes.
+ * @param shared.scope - The scope.
+ * @param shared.style - The style; off when absent.
+ * @param vary - What each value sets on its member.
+ * @returns The members.
+ */
+function seriesSpecs<V>(
+    algorithm: AlgorithmKey,
+    option: string,
+    values: readonly V[],
+    shared: { readonly scope: ScopeInput | undefined; readonly style: RunStyle | undefined },
+    vary: (value: V) => Pick<RunSpec, "params" | "seed">,
+): RunSpec[] {
+    const taken = new Set<string>();
+    return values.map((value, index): RunSpec => {
+        const named = sweepRunId(algorithm, option, value);
+        // Two values that spell the same id (0.5 and "0.5") still get a run each.
+        const id = taken.has(named) ? `${named}_${String(index + 1)}` : named;
+        taken.add(id);
+
+        return {
+            algorithm,
+            ...vary(value),
+            as: assertRunId(id),
+            ...(shared.scope === undefined ? {} : { scope: shared.scope }),
+            // Off unless asked: a series is read as a table, and its runs painting over each other
+            // would show only the last.
+            style: shared.style ?? false,
+        };
+    });
+}
+
+/**
+ * The mean of the defined values.
+ * @param values - The values.
+ * @returns The mean, or undefined when none is defined.
+ */
+function meanOf(values: readonly (number | undefined)[]): number | undefined {
+    const defined = values.filter((value): value is number => value !== undefined);
+    return defined.length === 0 ? undefined : defined.reduce((sum, value) => sum + value, 0) / defined.length;
 }
 
 const DEFAULT_CAVEATS: Caveats = Object.freeze({
@@ -1041,24 +1092,10 @@ class Runs implements SessionRunsApi {
         options: SweepOptions = {},
     ): Run<SweepResult> {
         const { params, scope, seed, style, ...batchOptions } = options;
-        const taken = new Set<string>();
-        const specs = values.map((value, index): RunSpec => {
-            const named = sweepRunId(algorithm, option, value);
-            // Two values that spell the same id (0.5 and "0.5") still get a run each.
-            const id = taken.has(named) ? `${named}_${String(index + 1)}` : named;
-            taken.add(id);
-
-            return {
-                algorithm,
-                params: { ...params, [option]: value },
-                as: assertRunId(id),
-                ...(scope === undefined ? {} : { scope }),
-                ...(seed === undefined ? {} : { seed }),
-                // Off unless asked: a sweep is read as a table, and its runs painting over each
-                // other would show only the last.
-                style: style ?? false,
-            };
-        });
+        const specs = seriesSpecs(algorithm, option, values, { scope, style }, (value) => ({
+            params: { ...params, [option]: value },
+            ...(seed === undefined ? {} : { seed }),
+        }));
 
         return this.batchRun(specs, batchOptions, (result) =>
             Object.freeze({
@@ -1067,6 +1104,47 @@ class Runs implements SessionRunsApi {
                 rows: Object.freeze(result.steps.map((step) => this.sweepRow(step, values[step.index]))),
             }),
         );
+    }
+
+    /**
+     * Run one algorithm once per seed, as one batch, and compare what the seeds found.
+     * @param algorithm - Which algorithm.
+     * @param seeds - The seeds, in order.
+     * @param options - The parameters, the field to compare, the scope, the style, the label and
+     *   the ordinary run options.
+     * @returns A run over the batch, resolving to the rows, the pairs and their means.
+     */
+    stability(algorithm: AlgorithmKey, seeds: readonly number[], options: StabilityOptions = {}): Run<StabilityResult> {
+        const { params, scope, style, field, ...batchOptions } = options;
+        const specs = seriesSpecs(algorithm, "seed", seeds, { scope, style }, (seed) => ({
+            ...(params === undefined ? {} : { params }),
+            seed,
+        }));
+
+        return this.batchRun(specs, batchOptions, (result) => {
+            const rows = result.steps.map((step) => this.sweepRow(step, seeds[step.index]));
+            const finished = rows.flatMap((row) => {
+                const found = row.ok && row.runId !== undefined ? this.runs.get(row.runId)?.result : undefined;
+                return found === undefined ? [] : [found];
+            });
+            const pairs: ResultComparison[] = [];
+            for (let i = 0; i < finished.length; i++) {
+                for (let j = i + 1; j < finished.length; j++) {
+                    pairs.push(compareResults(finished[i], finished[j], field, field));
+                }
+            }
+            const partitions = pairs.filter((pair) => pair.kind === "partition");
+            const rankings = pairs.filter((pair) => pair.kind === "ranking");
+
+            return Object.freeze({
+                ...result,
+                rows: Object.freeze(rows),
+                pairs: Object.freeze(pairs),
+                agreement: meanOf(partitions.map((pair) => pair.agreement)),
+                adjustedMutualInformation: meanOf(partitions.map((pair) => pair.adjustedMutualInformation)),
+                correlation: meanOf(rankings.map((pair) => pair.correlation)),
+            });
+        });
     }
 
     /**

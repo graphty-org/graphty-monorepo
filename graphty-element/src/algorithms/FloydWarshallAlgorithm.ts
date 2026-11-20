@@ -39,8 +39,8 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
      * radius, ride along as facts about the whole graph.
      *
      * THE SHAPE IS WHAT MAKES IT PAINTABLE. A shape of "fact" declares no per-element field, so
-     * the element would have had nothing to colour by and a consumer asking to encode
-     * eccentricity on node colour would have been refused -- with no way to do it by hand
+     * the element would have had nothing to color by and a consumer asking to encode
+     * eccentricity on node color would have been refused -- with no way to do it by hand
      * either, which is the case that has to be fixed here rather than worked around outside.
      * @param context - What the element gave the run.
      * @returns The all-pairs measurement, or null when there are no nodes to measure.

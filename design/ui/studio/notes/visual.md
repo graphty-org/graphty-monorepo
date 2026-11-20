@@ -123,7 +123,7 @@ Last updated: 2026-11-06 (tier 6 round 2 closed). Summarized on 2026-10-21, 2026
   now on each rating cites the decided line it breaks, or the gap it proposes to fill.
 - **2026-11-03 (tier 5 round 1 walk):** Rated nothing 3. Rated the No match chit 2, not 1: on a
   filter card it sits one row under the card's real on box with the same shape, and with one group
-  nothing else in the outline has a chit (measured: grey 206 vs the canvas's lavender 209/210/232,
+  nothing else in the outline has a chit (measured: gray 206 vs the canvas's lavender 209/210/232,
   so it is not a legend either). Fix proposed: the preview's non-member color, no edge.
 - **2026-11-03:** Rated the sidebar Except row 2 and named what would make it 3 (a reader who
   applies Except to both groups). Reason: spec 3.1 says the same rows draw both outlines; the

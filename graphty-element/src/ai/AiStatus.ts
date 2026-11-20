@@ -61,7 +61,7 @@ export interface AiStatus {
     canRetry?: boolean;
 
     // Control
-    /** Whether the current operation can be cancelled */
+    /** Whether the current operation can be canceled */
     canCancel: boolean;
 
     /** What waits on the reader: open approval requests and questions. Absent when nothing does. */

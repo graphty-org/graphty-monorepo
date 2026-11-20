@@ -2,7 +2,8 @@ id: main-sidebar
 name: Main Sidebar
 category: navigation
 description: Collapsible sidebar containing tool panels. Manages panel visibility and provides navigation between analysis tools.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/frame/Rail.tsx and Frame.tsx."
 implements_capabilities: []
 used_in_workflows:
     - W02

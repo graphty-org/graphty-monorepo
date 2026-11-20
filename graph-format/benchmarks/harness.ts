@@ -52,7 +52,7 @@ interface BenchOptions {
 interface BenchCase<T> {
     /** Build the input (not timed). Called once per measured run. */
     readonly setup: () => T;
-    /** The timed body; its return value is kept alive until the timing ends so it cannot be optimised away. */
+    /** The timed body; its return value is kept alive until the timing ends so it cannot be optimized away. */
     readonly run: (input: T) => unknown;
 }
 

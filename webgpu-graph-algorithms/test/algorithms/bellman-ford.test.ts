@@ -5,7 +5,7 @@
  * non-negative ones, cross-checked bitwise against `sssp`), a directed DAG with negative arcs, a planted negative
  * cycle reachable from the source (the gate's item), the same cycle unreachable (the flag must be FALSE: the case a
  * naive implementation gets wrong), a zero-weight cycle (false), an undirected graph with a negative edge (a
- * negative cycle of length two: TRUE), `cutoff` on the non-negative fixtures exactly as P8-T9 normalises it (`NaN`
+ * negative cycle of length two: TRUE), `cutoff` on the non-negative fixtures exactly as P8-T9 normalizes it (`NaN`
  * refused before any device work, -1 the source alone, Infinity no cap, an integer attained exactly), the `weights`
  * override on an unweighted snapshot (never dropped, PD-22) and an asymmetric override on an undirected snapshot
  * (refused before any device work, because the kernel reads one weight per logical edge), the directed identity
@@ -16,7 +16,6 @@
  */
 
 import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
 import {
     bellmanFord,
@@ -61,7 +60,7 @@ import { assertCheckPasses, withSabotage } from "../helpers/sabotage.js";
 import { absorbPath, distBits, relSpread, ssspTolerance, weightedEdges, zeroPlateau } from "../helpers/sssp.js";
 import { expectPredArcAttains, expectTriangleInequality } from "../helpers/traversal-check.js";
 import { bellmanFordOracle, bfsOracle, dijkstraOracle } from "../oracle/traversal.js";
-import { acquire, acquireRaw, requireGpu } from "../setup/gpu.js";
+import { acquireRaw, requireGpu, sharedContext } from "../setup/gpu.js";
 
 /** One fixture: its edges, an optional node count and the sources to run from (`-1` = the last index). */
 interface Fixture {
@@ -180,14 +179,7 @@ function symmetricIntegerOverride(s: GraphSnapshot, seed: number): F32 {
 }
 
 describe("bellmanFord (design 8.4 / 9.7; P8-T10)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "bellman-ford" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "bellman-ford" });
 
     /**
      * The differential of one run: twice through the tuning entry; the flag against the oracle's; without a negative

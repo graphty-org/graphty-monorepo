@@ -49,7 +49,7 @@ const SECOND_GRAPH = JSON.stringify({
 let mounted: Graphty | null = null;
 
 /**
- * Mounts a graphty-element and waits for it to initialise.
+ * Mounts a graphty-element and waits for it to initialize.
  * @returns the element.
  */
 async function createGraphtyElement(): Promise<Graphty> {
@@ -200,7 +200,7 @@ describe("graphty-element.clearData", () => {
         // The old engine kept the first graph's two disposed nodes beside the three new ones.
         // Under renderPath "batched" a row has no `Node` until one is asked for, and the engine
         // lists only `Node`s: asking builds each, on the body the engine already holds for it.
-        assert.strictEqual([...graph.getDataManager().nodes.keys()].length, 3);
+        assert.strictEqual([...graph.getDataManager().nodes.values()].length, 3);
         const layoutNodes = [...graph.getLayoutManager().nodes].map((node) => node.id).sort();
         assert.deepStrictEqual(layoutNodes, ["x", "y", "z"]);
         assert.isTrue(graph.getLayoutManager().isSettled);
@@ -211,7 +211,7 @@ describe("graphty-element.clearData", () => {
 
         await loadInline(element, FIRST_GRAPH);
 
-        // Both setters call the initialiser; the guard is what stops the second call
+        // Both setters call the initializer; the guard is what stops the second call
         // loading the same data again on top of the first.
         assert.strictEqual(element.graph?.getDataManager().nodes.size, 2);
         assert.strictEqual(element.graph?.getDataManager().edges.size, 1);

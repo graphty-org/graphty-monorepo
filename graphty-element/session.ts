@@ -7,13 +7,13 @@
  *
  * A session is a graph with no view attached: data, runs, scopes, selection and style layers,
  * usable in Node, in a worker and in a test, and bindable to one or more views in a browser.
- * The model exists so that a headless test, a server-side check and two synchronised views all
+ * The model exists so that a headless test, a server-side check and two synchronized views all
  * fall out of one structure instead of four, and so that "compare these two graphs" is two
  * sessions rather than a second element.
  *
  * **What is here today.** `createGraphSession` and the session it builds: the graph data -- the
  * store, the snapshot, node and edge lookup by id, the attribute listing and the graph
- * statistics -- the node coordinates, the O(1) status facts, the catalogue of everything the
+ * statistics -- the node coordinates, the O(1) status facts, the catalog of everything the
  * element can offer, the configuration and what the machine can do. On top of those, runs: start
  * one and get back an object with an identity, a label, progress, a cancel and a promise that
  * resolves to the result; address what it produced at `results.<runId>.<field>`; and ask, before
@@ -46,7 +46,7 @@
  * no algorithm executor -- every algorithm this package ships is built from the renderer -- so
  * `runs.start` on a standalone session answers `E_UNSUPPORTED` unless one was handed in; and the
  * style stack resolves what every element shows without anything yet DRAWING it, so a layer
- * added here changes the model and does not change the screen. The catalogue is here with its
+ * added here changes the model and does not change the screen. The catalog is here with its
  * five static tables and `metrics()`, which says which metrics this graph can support, what each
  * would cost and which have already been run; what an option's bounds resolve to over a scope,
  * and whether an expression references anything real, still wait on the query engine.
@@ -63,6 +63,7 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import { englishReading, type ReadingOptions, type RunResult } from "./src/session/results";
 import type { SelectionOp } from "./src/session/selection";
 
+export type { EasingName, Tour, TourPause, TourStop } from "./src/camera/tour";
 export type { FeatureId } from "./src/features/registry";
 export type { EnabledFeatures } from "./src/features/resolve";
 export type {
@@ -157,6 +158,7 @@ export type {
     NodeRecord,
     NodeRecordInput,
     OverRepresentedGroup,
+    OverRepresentedOptions,
     OverRepresentedValue,
     OverRepresentedValues,
     PageColumn,
@@ -167,6 +169,8 @@ export type {
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    RecordMatch,
+    RecordMatchRank,
     RecordPage,
     RecordPageOptions,
     RecordSort,
@@ -183,6 +187,9 @@ export type {
     RowReasonCode,
     RowUpdate,
     RunPlacement,
+    SavedView,
+    ScoreTerm,
+    SessionAnnotations,
     SessionAttributes,
     SessionCapabilities,
     SessionCatalogApi,
@@ -197,9 +204,11 @@ export type {
     SessionPositions,
     SessionRunsOptions,
     SessionStatus,
+    SessionTours,
     SessionViews,
     SettingEffect,
     SettingEffectCode,
+    StartingCamera,
     StyleProblem,
     TableMapping,
     TableMappingRead,
@@ -210,7 +219,10 @@ export type {
     ValueCounts,
     ValueType,
 } from "./src/session";
+export type { DrawnAnnotation, DrawnAnnotations } from "./src/session";
+export type { KeymapOptions, KeymapReport, KeymapRoot, KeymapSession } from "./src/session";
 export { createGraphSession } from "./src/session";
+export { attachKeymap } from "./src/session";
 
 /**
  * What the element has to say about a load, once the load is over: which record keys named the
@@ -261,6 +273,9 @@ export type {
     AssetState,
     BuiltInModelFormat,
     ModelCompression,
+    ModelDefaultChannel,
+    ModelDefaults,
+    ModelDefaultsPatch,
     ModelEncoding,
     ModelFormat,
     ModelGeometry,
@@ -268,11 +283,12 @@ export type {
     ModelPart,
     ModelPartRole,
     ModelPartState,
+    ModelPicture,
     ModelSummary,
     NamedBlob,
     PartAnswer,
 } from "./src/session";
-export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
+export { DEFAULT_MODEL_LIMITS, isAssetId, MODEL_DEFAULT_CHANNELS } from "./src/session";
 
 /**
  * The fetches the page's code did not ask for -- a model URL from a project file, an AI command or
@@ -307,38 +323,24 @@ export { recommendLayout } from "./src/session";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    ExportFlattenReason,
     ExportStyleLossCode,
     FileStyleCode,
-    FileStyleColumnValues,
-    FileStyleKind,
-    FileStyleLoadValues,
-    FileStyleMappingKind,
-    FileStyleMeaning,
     FileStyleNote,
     FileStyleNoteCode,
     FileStyleOptions,
-    FileStyleOrigin,
-    FileStyleReason,
-    FileStyleRole,
-    FileStyleRuleOrigin,
-    FileStyleScalar,
-    FileStyleShapeTable,
     FileStyleSummary,
-    FileStyleTool,
     FileStyleTranslationCode,
     LoadStyleReport,
 } from "./src/session";
 export { COLUMN_ROLES, LOAD_ROLES } from "./src/session";
 export {
+    EXPORT_FLATTEN_REASONS,
     EXPORT_LOSS_CODES,
     EXPORT_STYLE_LOSS_CODES,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,
-    FILE_STYLE_REASONS,
-    FILE_STYLE_SHAPES,
     FILE_STYLE_TRANSLATION_ISSUE,
-    fileStyleOf,
-    fileStyleWords,
 } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
@@ -439,7 +441,8 @@ export type {
     SummaryGroup,
     TopRanking,
 } from "./src/session/results";
-export { RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
+export type { PathParts } from "./src/session/results";
+export { pathParts, RESULT_FIELD_NAMES, RESULT_ROOT, RESULT_SHAPE_CONTRACTS, resultPath } from "./src/session/results";
 
 /**
  * Write one English sentence saying what a result means: the sentence `result.reading()` returns,
@@ -531,6 +534,8 @@ export { browserProjects } from "./src/session";
 export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./src/session";
 export type {
     AssetStorage,
+    DocumentCode,
+    DocumentSection,
     ProjectApi,
     ProjectAssetChoice,
     ProjectOpenOptions,
@@ -541,6 +546,7 @@ export type {
     ProjectSource,
     ProjectStatus,
     SavedProject,
+    SourceStorage,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 // Autosaved work read and deleted without an element (a start screen that offers it first).
@@ -651,7 +657,15 @@ export type {
 // Asking what something would do and cost, before doing it
 // ---------------------------------------------------------------------------------------------
 
-export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type { AlgorithmRunCommand, AssetCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type {
+    SavedTour,
+    TourCommand,
+    TourMoveCommand,
+    TourRemoveCommand,
+    TourRenameCommand,
+    TourSaveCommand,
+} from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
     CostBasis,

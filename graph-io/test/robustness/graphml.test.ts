@@ -9,7 +9,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MAX_HINT_RESERVE } from "../../src/common/xml.js";
 import { GRAPHML_ISSUE } from "../../src/formats/graphml/constants.js";
-import { codes, graphml, GRAPHML_NS, ids, issuesOf, load } from "./xml-helpers.js";
+import { codes, ids } from "./helpers.js";
+import { graphml, GRAPHML_NS, issuesOf, load } from "./xml-helpers.js";
 
 /**
  * A GraphML document whose graph is undirected.
@@ -30,7 +31,7 @@ describe("GraphML namespaces", () => {
                 `<node id="a"/><x:node xmlns:x="urn:other" id="z"/><x:edge xmlns:x="urn:other" source="a" target="z"/>`,
             ),
         );
-        expect(ids({ snapshot })).toEqual(["a"]);
+        expect(ids(snapshot)).toEqual(["a"]);
         expect(snapshot.edgeCount).toBe(0);
         expect(codes(report)).toEqual([GRAPHML_ISSUE.UNKNOWN_ELEMENT]);
         expect(report.issues[0].element).toBe("x:node");
@@ -95,7 +96,7 @@ describe("GraphML edges", () => {
         );
         expect(codes(report)).toEqual([GRAPHML_ISSUE.GRAPH_ENDPOINT]);
         expect(report.issues[0].message).toContain('"g1" names a <graph>');
-        expect(ids({ snapshot })).toEqual(["a", "c", "b", "g1"]);
+        expect(ids(snapshot)).toEqual(["a", "c", "b", "g1"]);
         expect(snapshot.edgeCount).toBe(1);
     });
 
@@ -129,7 +130,7 @@ describe("GraphML nodes", () => {
             graphml(`<node><graph id="g" edgedefault="directed"><node id="c"/></graph></node>`),
         );
         expect(codes(report)).toEqual([GRAPHML_ISSUE.MISSING_ID, GRAPHML_ISSUE.UNKNOWN_PARENT]);
-        expect(ids({ snapshot })).toEqual(["c"]);
+        expect(ids(snapshot)).toEqual(["c"]);
         expect(snapshot.nodes.get("parent")).toBeNull();
     });
 
@@ -144,13 +145,13 @@ describe("GraphML nodes", () => {
         );
         expect(codes(late.report)).toEqual([GRAPHML_ISSUE.ORIGINAL_ID_IGNORED]);
         expect(late.report.issues[0].message).toMatch(/after the node's nested <graph>/);
-        expect(ids(late)).toEqual(["n1", "c"]);
+        expect(ids(late.snapshot)).toEqual(["n1", "c"]);
         const nested = await load("graphml", graphml(`<node id="n1"><data key="o"><b>x</b></data></node>`, keys));
         expect(codes(nested.report)).toEqual([GRAPHML_ISSUE.ORIGINAL_ID_IGNORED]);
-        expect(ids(nested)).toEqual(["n1"]);
+        expect(ids(nested.snapshot)).toEqual(["n1"]);
         const ok = await load("graphml", graphml(`<node id="n1"><data key="o">real id</data></node>`, keys));
         expect(ok.report.issues).toEqual([]);
-        expect(ids(ok)).toEqual(["real id"]);
+        expect(ids(ok.snapshot)).toEqual(["real id"]);
     });
 });
 
@@ -368,7 +369,7 @@ describe("GraphML ports", () => {
         );
         expect(codes(report)).toEqual([GRAPHML_ISSUE.EDGE_GRAPH_DROPPED]);
         expect(report.counts).toMatchObject({ nodes: 2, edges: 1, skippedNodes: 2, skippedEdges: 1 });
-        expect(ids({ snapshot })).toEqual(["a", "b"]);
+        expect(ids(snapshot)).toEqual(["a", "b"]);
     });
 });
 
@@ -408,7 +409,7 @@ describe("GraphML hyperedges", () => {
             const strict = await load("graphml", graphml(`${two}${hyper}`), { hyperedges, addMissingNodes: false });
             expect(codes(strict.report), hyperedges).toEqual([GRAPHML_ISSUE.UNKNOWN_NODE]);
             expect(strict.snapshot.edgeCount, hyperedges).toBe(0);
-            expect(ids(strict), hyperedges).toEqual(["a", "b"]);
+            expect(ids(strict.snapshot), hyperedges).toEqual(["a", "b"]);
             const lenient = await load("graphml", graphml(`${two}${hyper}`), { hyperedges });
             expect(lenient.report.issues, hyperedges).toEqual([]);
             expect(lenient.report.counts.nodes, hyperedges).toBe(lenient.snapshot.nodeCount);

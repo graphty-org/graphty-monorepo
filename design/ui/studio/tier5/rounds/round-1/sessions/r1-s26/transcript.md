@@ -24,7 +24,7 @@ Screenshot 05.png. Left side now shows A (telemetry yes, 7) "or" B (0). A list o
 
 ## Step 5
 Command: --step <session> --click-at 1196,268 (option depth_cm)
-Screenshot 06.png. Now a slider 48 to 210 with two boxes "48 to 210" (looks like grey hints), "0 so far", and "Not measured: 1". I want 140 and up, so I'll type 140 in the first box.
+Screenshot 06.png. Now a slider 48 to 210 with two boxes "48 to 210" (looks like gray hints), "0 so far", and "Not measured: 1". I want 140 and up, so I'll type 140 in the first box.
 
 ## Step 6
 Command: --step <session> --click-at 1203,274 --type "140" --key Tab
@@ -54,7 +54,7 @@ Ease: 5 of 7.
 What confused me:
 - Clicking the filter card the first time did nothing visible except swap the "7 of 11" count for an "Edit" button; I had to click again.
 - In the filter, "A 7 or B 3" but the total is 9. I worked out one gauge must be in both, but nothing on screen says so; I'd want to be sure I didn't lose one.
-- The depth boxes showed 48 and 210 in grey; I wasn't sure whether those were already set or just hints. Typing 140 worked.
+- The depth boxes showed 48 and 210 in gray; I wasn't sure whether those were already set or just hints. Typing 140 worked.
 - I wasn't sure if "140 cm or deeper" counted exactly 140; I only knew because Cedar Bend (140) showed up in the list.
 - For the orange I had to translate "up to the end of 2004" into "before 2005" myself; I'd have been nervous if a gauge had been put in on a date in late 2004.
 - There's a "With issues 9" chip and a warning sign by "station" in the table. Nobody told me what the issue is; I left it alone.

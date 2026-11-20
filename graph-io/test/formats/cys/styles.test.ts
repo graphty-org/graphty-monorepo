@@ -15,7 +15,7 @@ import { cysImporter } from "../../../src/formats/cys/index.js";
 import type { SessionStyleSource } from "../../../src/formats/cys/styles.js";
 import { cellAtt } from "../../../src/formats/cys/tables.js";
 import { createRegistry } from "../../../src/registry.js";
-import { type ExtractedStyles, resolveStyles, type StyleRule } from "../../../src/styles/internal.js";
+import { type ExtractedStyles, resolveStyles, type StyleRule, unsettledStyles } from "../../../src/styles/internal.js";
 import type { StyleProperty } from "../../../src/styles/types.js";
 import { changeSessionEntry } from "../../styles/formats/cytoscape-xml.js";
 
@@ -39,7 +39,7 @@ async function load(
 }
 
 const rules = (x: ExtractedStyles | null | undefined): StyleRule[] =>
-    JSON.parse(JSON.stringify(x?.styles.rules ?? [])) as StyleRule[];
+    JSON.parse(JSON.stringify(x === null || x === undefined ? [] : unsettledStyles(x).styles.rules)) as StyleRule[];
 
 describe("reading session styles", () => {
     it("reads the style the view names, with Cytoscape's renderer fallbacks beneath it", async () => {

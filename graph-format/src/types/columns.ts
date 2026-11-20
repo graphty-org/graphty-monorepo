@@ -145,9 +145,12 @@ export type ColumnDomain = "node" | "edge" | "graph" | "extension";
 export type GpuEligibility = "direct" | "packed" | "convert" | "none";
 
 /**
- * The format-neutral roles the package and its importers recognise (design section 5.5): what a
+ * The format-neutral roles the package and its importers recognize (design section 5.5): what a
  * column means, independent of its name, so consumers find "the position column" without per-format
  * knowledge and exporters map roles back to reserved fields. At most one column per role per table.
+ * `position` is a numeric multi-component column whose `meta.coordinates` says what its values are
+ * (read it with coordinateSystemOf()); `fixed` is a node `bool` column, true where the source pins
+ * the node's position (Graphviz `pos="x,y!"`, a locked node) so a layout keeps it where it is.
  */
 export type KnownColumnRole =
     | "id"
@@ -216,6 +219,46 @@ export interface ColumnOrigin {
 export type ColumnOriginInput = Loose<ColumnOrigin>;
 
 /**
+ * What kind of coordinates a position column holds (design section 5.2): "cartesian" drawing
+ * coordinates (x, y, z) or "geographic" ones (longitude, latitude, altitude).
+ */
+export type CoordinateKind = "cartesian" | "geographic";
+
+/**
+ * The unit of a position column's values: "file" (the source's own drawing units), "scene" (the
+ * renderer's units) or "degrees" (geographic longitude and latitude; altitude in meters).
+ */
+export type CoordinateUnits = "file" | "scene" | "degrees";
+
+/**
+ * The coordinate system of a position column (design section 5.2), so a consumer reads it without
+ * knowing the source format. Every field is present; null where it does not apply.
+ */
+export interface CoordinateSystem {
+    /** Cartesian drawing coordinates or geographic longitude / latitude / altitude. */
+    readonly kind: CoordinateKind;
+    /** How many components the source stored per node: 2, or 3 when it had a z or an altitude. */
+    readonly dims: 2 | 3;
+    /** "file" or "scene" for cartesian, always "degrees" for geographic. */
+    readonly units: CoordinateUnits;
+    /** Cartesian only: which way y grows ("up" is math order, "down" screen order); null for geographic. */
+    readonly yAxis: "up" | "down" | null;
+    /** Geographic only: the reference datum, "WGS84" unless declared; null for cartesian. */
+    readonly datum: string | null;
+    /** Geographic only: the coordinate reference system's name when known (Neo4j "wgs-84-3d"); null otherwise. */
+    readonly crs: string | null;
+    /** What each component means, in storage order: x, y, z or longitude, latitude, altitude. */
+    readonly order: readonly ["x", "y", "z"] | readonly ["longitude", "latitude", "altitude"];
+}
+
+/**
+ * Input form of CoordinateSystem: every field optional. Defaults: kind "cartesian", dims from
+ * `extra.sourceDims` or 3, units "file" (cartesian) or "degrees" (geographic), yAxis "up"
+ * (cartesian), datum "WGS84" (geographic), crs null. `order` follows from `kind`.
+ */
+export type CoordinateSystemInput = Loose<Omit<CoordinateSystem, "order">>;
+
+/**
  * Input shape for declaring a column through declareNodeColumn / declareEdgeColumn / set() (design
  * section 5.5). Optional fields take their documented defaults; ColumnMeta is the resolved output.
  */
@@ -250,8 +293,10 @@ export interface ColumnDecl {
     origin?: ColumnOriginInput | undefined;
     /** GEXF dynamic attribute: values live in a temporal extension table (design section 5.10). */
     dynamic?: boolean | undefined;
-    /** Anything an importer wants to survive; must be JSON-serialisable. */
+    /** Anything an importer wants to survive; must be JSON-serializable. */
     extra?: Readonly<Record<string, unknown>> | undefined;
+    /** What kind of coordinates the column holds (design section 5.2); numeric columns with 2+ components only. */
+    coordinates?: CoordinateSystemInput | undefined;
 }
 
 /** Patch form of ColumnDecl: every field, including name and dtype, optional. */
@@ -294,8 +339,10 @@ export interface ColumnMeta {
     readonly origin: ColumnOrigin | null;
     /** Whether the column is a GEXF dynamic attribute. */
     readonly dynamic: boolean;
-    /** Importer-owned JSON-serialisable extras; an empty object when none. */
+    /** Importer-owned JSON-serializable extras; an empty object when none. */
     readonly extra: Readonly<Record<string, unknown>>;
+    /** The declared coordinate system, or null; coordinateSystemOf() reads it with the defaults. */
+    readonly coordinates: CoordinateSystem | null;
 }
 
 /**
@@ -366,7 +413,7 @@ export interface ColumnBase<D extends Dtype> {
      */
     isSet(row: number): boolean;
     /**
-     * Typed read honouring meta.default; components > 1 returns a subarray view.
+     * Typed read honoring meta.default; components > 1 returns a subarray view.
      * @param row - the row index; E_INDEX_RANGE when out of range
      * @returns the value, the declared default for an unset row, or undefined for an unset row without a default
      */
@@ -499,7 +546,7 @@ export interface DictColumn extends ColumnBase<"dict"> {
 
 /** string column: an Arrow Utf8 store (offsets + utf8) with a lazily decoded per-row cache (design section 5.1). */
 export interface StringColumn extends ColumnBase<"string"> {
-    /** rows + 1 offsets into utf8, non-decreasing; materialised lazily from the decoded cache when needed. */
+    /** rows + 1 offsets into utf8, non-decreasing; materialized lazily from the decoded cache when needed. */
     readonly offsets: U32;
     /** The UTF-8 bytes of every row, concatenated. */
     readonly utf8: U8;
@@ -530,7 +577,7 @@ export interface ListColumn extends ColumnBase<"list"> {
     sliceOf(row: number): readonly unknown[];
 }
 
-/** json column: one JS value per row, serialised as JSON text on the wire (design section 5.1). */
+/** json column: one JS value per row, serialized as JSON text on the wire (design section 5.1). */
 export interface JsonColumn extends ColumnBase<"json"> {
     /** One value per row; undefined in unset rows. */
     readonly values: readonly unknown[];
@@ -611,7 +658,7 @@ export interface AttributeTableContract extends Iterable<Column> {
      */
     byRole(role: ColumnRole): Column | null;
     /**
-     * Typed read of one cell honouring the column's declared default.
+     * Typed read of one cell honoring the column's declared default.
      * @param name - the column name
      * @param row - the row index; E_INDEX_RANGE when out of range
      * @returns the value, the default for an unset row, or undefined for an unset row without a default
@@ -707,7 +754,7 @@ export interface GraphMeta {
     readonly declaredMultigraph: boolean | null;
     /** Declared source type of the weight (design section 3.7). */
     readonly weightOrigin: ColumnOrigin | null;
-    /** JSON-serialisable extras; reserved per-format keys in design section 8.5. */
+    /** JSON-serializable extras; reserved per-format keys in design section 8.5. */
     readonly extra: Readonly<Record<string, unknown>>;
 }
 
@@ -719,7 +766,7 @@ export type GraphMetaPatch = Loose<GraphMeta>;
 /**
  * Packed node bitmap: ceil(n / 32) words, bit i set means node i is included; the same layout as
  * validity bitmaps and bool columns (design section 7.4). No kernel or algorithm is required to
- * honour a mask; it is an input to inducedSubgraph() and an algorithm-internal scratch shape.
+ * honor a mask; it is an input to inducedSubgraph() and an algorithm-internal scratch shape.
  */
 export type NodeMask = U32;
 

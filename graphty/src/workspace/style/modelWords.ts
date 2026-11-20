@@ -1,11 +1,11 @@
 /**
- * What the Style panel's model and picture controls (the node-models experiment) call each problem
+ * What the Style panel's model and picture controls call each problem
  * graphty-element reports on a model or a picture (node-models design 13.6): a chip's one or two
  * words, and the tooltip's one line of detail. No sentences: the chip sits next to the control that
  * caused it. A notice's sentences are `modelWords` in words.ts.
  */
 
-import type { CodedFact, GraphtyErrorCode, GraphtyWarningCode, ModelPart } from "@graphty/graphty-element/session";
+import type { CodedFact, GraphtyErrorCode, GraphtyWarningCode, ModelChange } from "@graphty/graphty-element/session";
 
 import { formatCount } from "../settings/numberFormat";
 
@@ -47,6 +47,15 @@ function amount(value: CodedFact["params"][string] | undefined): string {
 }
 
 /**
+ * Bytes as a reader reads a file's size: "12.4 MB", "640 KB".
+ * @param bytes - how many.
+ * @returns the words.
+ */
+export function megabytes(bytes: number): string {
+    return bytes < 1_000_000 ? `${formatCount(Math.ceil(bytes / 1000))} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+/**
  * Two words joined when both are there: "example.com 404".
  * @param parts - the words.
  * @returns them, with a space between.
@@ -83,25 +92,54 @@ function notLoaded(tip: string): () => ModelChipWords {
     return () => ({ word: "Not loaded", tip });
 }
 
-/** What each limit of `E_MODEL_TOO_LARGE` counts (`params.what`), in a reader's words. */
-const LIMIT_WORDS: Readonly<Record<string, string>> = {
-    bytes: "bytes",
-    unzipped: "bytes unzipped",
-    triangles: "triangles",
-    textureBytes: "picture bytes",
-    textureSize: "px picture",
-    decodedBytes: "bytes decoded",
-    sessionBytes: "bytes in this session",
-    documentBytes: "bytes in the project file",
-    count: "models",
+/**
+ * What each limit of `E_MODEL_TOO_LARGE` measures (`params.what`), in a reader's words, and
+ * whether it is bytes (said as a size). A count names what it counted in `params.item`.
+ */
+const LIMIT_WORDS: Readonly<Partial<Record<string, { readonly word: string; readonly bytes?: true }>>> = {
+    bytes: { word: "", bytes: true },
+    unzipped: { word: "unzipped", bytes: true },
+    triangles: { word: "triangles" },
+    textureBytes: { word: "of pictures", bytes: true },
+    textureSize: { word: "px picture" },
+    decodedBytes: { word: "decoded", bytes: true },
+    sessionBytes: { word: "in this session", bytes: true },
+    documentBytes: { word: "in the project file", bytes: true },
 };
+
+/**
+ * An `E_MODEL_TOO_LARGE` in a few words: "148 materials over 64", "271.7 MB in this session over 268.4 MB".
+ * @param p - the params.
+ * @returns the tip.
+ */
+function tooLargeTip(p: CodedFact["params"]): string {
+    const what = said(p.what);
+    const limit = LIMIT_WORDS[what];
+    const size = (value: CodedFact["params"][string] | undefined): string =>
+        limit?.bytes === true && typeof value === "number" ? megabytes(value) : amount(value);
+    const word = what === "count" ? said(p.item) : (limit?.word ?? what);
+    return both(size(p.found), word, "over", size(p.limit));
+}
+
+/**
+ * Whether a refusal is of Gaussian splats (graphty-element says so with `params.kind`). No other
+ * format is worth suggesting for one, since every splat is refused.
+ * @param fact - the refusal.
+ * @returns true for splats.
+ */
+export function isSplatRefusal(fact: CodedFact): boolean {
+    return fact.code === "E_MODEL_FORMAT_UNSUPPORTED" && fact.params.kind === "splat";
+}
 
 /** What a reader of `E_MODEL_STRUCTURE` is told, by `params.rule`; any other rule is a damaged file. */
 const STRUCTURE_TIPS: Readonly<Record<string, string>> = {
     delayLoad: "meshes kept in other files",
     ply: "PLY data damaged",
-    splat: "splat data damaged",
     babylon: ".babylon data damaged",
+    fbx: "FBX data damaged",
+    usd: "USD data damaged",
+    usdz: "USDZ package damaged",
+    empty: "nothing to draw in this file",
 };
 
 /**
@@ -130,21 +168,29 @@ const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWor
         word: `${String((Array.isArray(p.candidates) ? p.candidates.length : 0) + (typeof p.more === "number" ? p.more : 0))} models`,
         tip: said(p.candidates),
     }),
-    E_MODEL_FORMAT_UNSUPPORTED: (p) =>
-        p.assetKind === "image"
-            ? { word: "Picture", tip: "this file is a picture" }
-            : { word: `${said(p.format).toUpperCase()} not read`, tip: "Export as GLB" },
+    E_MODEL_FORMAT_UNSUPPORTED: (p) => {
+        if (p.assetKind === "image") {
+            return { word: "Picture", tip: "this file is a picture" };
+        }
+        if (isSplatRefusal({ code: "E_MODEL_FORMAT_UNSUPPORTED", params: p })) {
+            return { word: "Not loaded", tip: "Gaussian splats are not supported" };
+        }
+        return { word: `${said(p.format).toUpperCase()} not read`, tip: said(p.extension) || "Export as GLB" };
+    },
     E_MODEL_WEB_PAGE: (p) => ({ word: "Web page", tip: hostOf(p) }),
     E_MODEL_FETCH: (p) => ({
         word: "Not reached",
         tip: both(hostOf(p), typeof p.status === "number" ? String(p.status) : "no answer"),
     }),
     E_MODEL_URL_BLOCKED: (p) => ({ word: "Blocked", tip: hostOf(p) }),
-    E_MODEL_TOO_LARGE: (p) => ({
-        word: "Too large",
-        tip: both(amount(p.found), LIMIT_WORDS[said(p.what)] ?? said(p.what), "over", amount(p.limit)),
+    E_MODEL_TOO_LARGE: (p) => ({ word: "Too large", tip: tooLargeTip(p) }),
+    E_MODEL_STRUCTURE: (p) => ({
+        word: "Not loaded",
+        tip:
+            p.rule === "image"
+                ? both("picture not read:", said(p.name))
+                : (STRUCTURE_TIPS[said(p.rule)] ?? "file damaged"),
     }),
-    E_MODEL_STRUCTURE: (p) => ({ word: "Not loaded", tip: STRUCTURE_TIPS[said(p.rule)] ?? "file damaged" }),
     E_MODEL_FORMAT_UNKNOWN: (p) => ({ word: "Not loaded", tip: both(said(p.fileName), "not a 3D model") }),
     E_MODEL_EXTERNAL_URL: notLoaded("parts on another site; export as GLB"),
     E_MODEL_DECODER_UNAVAILABLE: (p) => ({ word: "Not loaded", tip: decoderTip(p) }),
@@ -157,7 +203,10 @@ const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWor
     E_MODEL_PART_REQUIRED: (p) => ({ word: "Needed", tip: said(p.name) }),
     W_MODEL_UP_GUESSED: () => ({ word: "Guessed", tip: "up axis guessed from the file" }),
     W_MODEL_POINTS_APPROXIMATED: () => ({ word: "Approximated", tip: "points are drawn as small solids" }),
-    W_MODEL_HAS_ANIMATIONS: () => ({ word: "Animated", tip: "set Animation to play a clip" }),
+    W_MODEL_HAS_ANIMATIONS: () => ({
+        word: "Animated",
+        tip: "Animation in Model settings plays a clip or holds a pose",
+    }),
     W_MODEL_EXTENSION_IGNORED: (p) => ({ word: "Drawn opaque", tip: both(said(p.extension), "not drawn") }),
     W_MODEL_ANIMATION_UNKNOWN: (p) => ({ word: "No such clip", tip: both(said(p.name), "not in the file") }),
     W_MODEL_ANIMATION_REDUCED: (p) => ({ word: "Animation reduced", tip: both(amount(p.fps), "frames a second") }),
@@ -170,7 +219,7 @@ const CHIPS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => ModelChipWor
     W_MODEL_NOT_EMBEDDED: () => ({ word: "Not saved", tip: "named by address only" }),
     W_MODEL_CHANGED: (p) => ({ word: "Changed", tip: said(p.url) }),
     W_MODEL_PART_SUBSTITUTED: (p) => ({ word: "Substituted", tip: `used ${said(p.used)} for ${said(p.name)}` }),
-    W_MODEL_PART_SKIPPED: (p) => ({ word: "Without 1", tip: said(p.name) }),
+    W_MODEL_PART_SKIPPED: (p) => ({ word: "Drawn without", tip: said(p.name) }),
     W_MODEL_PART_UNUSED: (p) => ({ word: "Not needed", tip: said(p.fileName) }),
     W_MODEL_NOT_KEPT_BY_URL: (p) => ({ word: "Saved files", tip: both(said(p.url), "parts from several places") }),
 };
@@ -188,12 +237,12 @@ export function modelChip(fact: CodedFact): ModelChipWords {
 }
 
 /**
- * Several facts of one kind as one chip: "2 missing" with every name, "Without 2".
+ * Several facts of one kind as one line: "2 missing" with every name, "Without 2".
  * @param facts - the facts, all one kind (parts, or skipped parts).
  * @returns the chip, or undefined for none.
  */
 export function countChip(facts: readonly CodedFact[]): ModelChipWords | undefined {
-    const [first] = facts;
+    const first = facts.at(0);
     if (first === undefined) {
         return undefined;
     }
@@ -217,6 +266,40 @@ export function chipLine(fact: CodedFact): string {
 }
 
 /**
+ * The warnings worth a line on the Shape field's Model settings tooltip; the rest belong to Model settings. A
+ * substituted part is worth knowing, not worth a line on a model that draws as it should.
+ */
+const FIELD_WARNINGS = new Set(["W_MODEL_PART_UNUSED"]);
+
+/**
+ * The parts a model waits for: a rejected model's part problems.
+ * @param change - the model's state.
+ * @returns the parts.
+ */
+export function waitingParts(change: ModelChange | undefined): readonly CodedFact[] {
+    return change?.state === "rejected" ? change.problems.filter((p) => PART_CODES.has(p.code)) : [];
+}
+
+/**
+ * What graphty-element reports on the model a layer names, one short line each ("Not loaded: file damaged",
+ * "Without 1: a.png"), for the Model settings button's tooltip: the Style sidebar draws no chip or note (#8739).
+ * The parts a model waits for are not here: the Parts button says them.
+ * @param change - the model's state, if any.
+ * @returns the lines.
+ */
+export function modelProblemLines(change: ModelChange | undefined): readonly string[] {
+    const problems = change?.problems ?? [];
+    const waiting = waitingParts(change).length > 0;
+    const skipped = countChip(problems.filter((p) => p.code === "W_MODEL_PART_SKIPPED"));
+    const refusal = waiting ? undefined : problems.find((p) => p.code.startsWith("E_"));
+    return [
+        ...(skipped === undefined ? [] : [`${skipped.word}: ${skipped.tip}`]),
+        ...(refusal === undefined ? [] : [chipLine(refusal)]),
+        ...problems.filter((p) => FIELD_WARNINGS.has(p.code)).map((fact) => chipLine(fact)),
+    ];
+}
+
+/**
  * What a part is, by the element's `role`: one word.
  * @param role - `params.role`, an open union.
  * @returns the word.
@@ -235,31 +318,6 @@ export function roleWord(role: CodedFact["params"][string] | undefined): string 
             return "Texture";
         default:
             return "Part";
-    }
-}
-
-/**
- * A model part's state chip (node-models design 14.6), or none for a part found as named, found
- * under its own file name in another folder, or a file nothing names (its role says "Not used").
- * @param part - the part, from the element's `record.parts`.
- * @returns the chip's words, or undefined.
- */
-export function partChip(part: ModelPart): ModelChipWords | undefined {
-    const file = part.name.split("/").pop() ?? part.name;
-    switch (part.state) {
-        case "missing":
-            return { word: "Missing", tip: `${file} is not among the files` };
-        case "ambiguous":
-            return { word: "Which file?", tip: `more than one file could be ${file}` };
-        case "substituted":
-            // The file the model names, found elsewhere in the set: matched, nothing to flag.
-            return (part.file ?? "").split("/").pop() === file
-                ? undefined
-                : { word: "Substituted", tip: `used ${part.file ?? ""} for ${part.name}` };
-        case "skipped":
-            return { word: "Skipped", tip: `drawn without ${file}` };
-        default:
-            return undefined;
     }
 }
 

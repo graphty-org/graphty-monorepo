@@ -144,7 +144,7 @@ bottom; I'll try that for a route.
 `--step --click-at 680,624` (button "Analyze") -> 17.png
 
 A long list: Degree, Betweenness, Closeness, PageRank... all ranking things. "Depth-first order --
-Select a node first" is greyed. I want a route between two stops. There's a filter box at the top
+Select a node first" is grayed. I want a route between two stops. There's a filter box at the top
 with the cursor in it; I'll type "route".
 
 ### 18. Type "route"
@@ -152,7 +152,7 @@ with the cursor in it; I'll type "route".
 `--step --type "route"` -> 18.png
 
 Two hits: "Shortest path -- The fewest steps, or the shortest route by weight, between two nodes"
-and "Guided route -- Select 2 nodes first" (greyed). Shortest path by weight is what I want. Click it.
+and "Guided route -- Select 2 nodes first" (grayed). Shortest path by weight is what I want. Click it.
 
 ### 19. Shortest path
 

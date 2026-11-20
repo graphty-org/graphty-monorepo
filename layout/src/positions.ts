@@ -10,8 +10,11 @@ import type { PositionMap } from "./types/index.js";
 
 /** The output of an index-based layout: `n` rows of `dim` components in node-index order, in layout units (not scene units). */
 export interface LayoutResult {
+    /** `dim` numbers per node, in node-index order. */
     readonly positions: F32;
+    /** Numbers per node: 2 or 3. */
     readonly dim: 2 | 3;
+    /** The number of nodes (rows). */
     readonly n: number;
 }
 
@@ -66,10 +69,10 @@ export function fromPositionMap(
 
 /**
  * The stride-3 scene-unit column of a layout result: `v * scale + center[k]` per component; a 2D row's z is the
- * centre's z (0 without a centre).
+ * center's z (0 without a center).
  * @param r - the layout result
  * @param scale - scene units per layout unit
- * @param center - the scene-unit centre (missing components are 0), or null for the origin
+ * @param center - the scene-unit center (missing components are 0), or null for the origin
  * @param out - the owner's array to write into (at least `3 * n` long); a new one when absent
  * @returns the column
  */
@@ -91,7 +94,7 @@ export function toPositionColumn(r: LayoutResult, scale: number, center: ArrayLi
  * @param column - the stride-3 scene-unit column
  * @param dim - components per output row
  * @param scale - scene units per layout unit
- * @param center - the scene-unit centre (missing components are 0), or null for the origin
+ * @param center - the scene-unit center (missing components are 0), or null for the origin
  * @param out - the array to write into (at least `dim * n` long); a new one when absent
  * @returns the layout-unit positions
  */
@@ -159,13 +162,13 @@ function maxNanDistance(positions: F32 | F64, n: number, dim: number, mean: Floa
 }
 
 /**
- * `rescaleLayout` over a flat array, in place: centre the positions on their mean, scale the farthest to `scale`
+ * `rescaleLayout` over a flat array, in place: center the positions on their mean, scale the farthest to `scale`
  * and move them to `center`. A NaN component is skipped by the mean and the distance and stays NaN; when every
- * position coincides, each non-NaN component becomes the centre's. Scratch is f64.
+ * position coincides, each non-NaN component becomes the center's. Scratch is f64.
  * @param positions - `dim`-stride positions, rewritten in place
  * @param dim - components per row
- * @param scale - the distance of the farthest position from the centre after rescaling
- * @param center - the target centre (missing components are 0)
+ * @param scale - the distance of the farthest position from the center after rescaling
+ * @param center - the target center (missing components are 0)
  * @returns `positions`
  */
 export function rescaleInPlace<T extends F32 | F64>(
@@ -181,7 +184,7 @@ export function rescaleInPlace<T extends F32 | F64>(
     for (let i = 0; i < n * dim; i++) {
         const v = positions[i];
         const c = center?.[i % dim] ?? 0;
-        // NaN stays NaN; with no spread every other component is the centre's, even an infinite one
+        // NaN stays NaN; with no spread every other component is the center's, even an infinite one
         if (!Number.isNaN(v)) {
             positions[i] = factor === 0 ? c : (v - mean[i % dim]) * factor + c;
         }
@@ -191,17 +194,21 @@ export function rescaleInPlace<T extends F32 | F64>(
 
 /** A target rectangle in the caller's units: the corner with the lowest coordinates, then the width and height. */
 export interface Box {
+    /** The lowest x of the rectangle. */
     readonly x: number;
+    /** The lowest y of the rectangle. */
     readonly y: number;
+    /** The width. */
     readonly w: number;
+    /** The height. */
     readonly h: number;
 }
 
 /**
  * A layout result fitted into a rectangle, for a renderer that places nodes in its own units (pixels, a viewport):
  * one factor scales every axis, so the drawing keeps its shape; the bounding box of the placed nodes fills the box
- * along its tighter side and is centred along the other. In 3D, z is scaled by the same factor about its midpoint,
- * so it ends centred on 0. Coincident nodes land on the box's centre, and an unplaced node (NaN) stays unplaced.
+ * along its tighter side and is centered along the other. In 3D, z is scaled by the same factor about its midpoint,
+ * so it ends centered on 0. Coincident nodes land on the box's center, and an unplaced node (NaN) stays unplaced.
  * The input is not modified.
  * @param r - the layout result, in layout units
  * @param box - the target rectangle

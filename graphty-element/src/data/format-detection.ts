@@ -25,7 +25,7 @@ import type { FormatId } from "../catalog/types";
  * @param filename - The file name, or "" when there is none.
  * @param content - The first bytes of the file as text, or "" when they have not been read.
  * @returns The format's name, or null when neither the element nor any registered format
- * recognises the file.
+ * recognizes the file.
  */
 export function detectFormat(filename: string, content: string): FormatId | null {
     return detectFromInput({ filename, sample: content });

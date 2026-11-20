@@ -235,7 +235,7 @@ describe("what each kind of step retains, at the largest graph a session holds",
         });
         assert.isAtMost(history.bytes, history.limitBytes, "within the budget once it could be evicted");
         assert.notInclude(
-            history.steps.map((step) => step.label),
+            history.steps.map((step) => step.fact.params.label),
             "Loaded json",
             "the replacing import went",
         );

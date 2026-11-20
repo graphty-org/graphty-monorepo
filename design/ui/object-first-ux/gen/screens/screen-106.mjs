@@ -3,7 +3,7 @@
 // whole-graph look, the paint order (every object that paints, top wins, a
 // channel lost to a higher row struck through), labels, the legend, the
 // library and the style files. A Bridges Measure has been run and holds a
-// colour ramp, but Communities above it colours every node, so its Colour is
+// color ramp, but Communities above it colors every node, so its Color is
 // struck (and its chip faded). Insets: the tooltip that explains the struck word, and the
 // Library's Palettes list.
 //

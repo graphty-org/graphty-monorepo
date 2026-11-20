@@ -121,6 +121,7 @@ export class PajekDataSource extends DataSource {
                     kind === "edge" && column.meta.name === "value" ? "weight" : copiedPath(kind, column),
             },
             this,
+            this.config.styles,
         );
 
         yield* this.chunkData(nodes, edges);

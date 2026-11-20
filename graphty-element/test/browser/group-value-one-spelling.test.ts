@@ -2,7 +2,7 @@
  * @file A run's group is spelled one way everywhere the element reports it (#906): the run
  * summary, the `sizes` table, the legend swatch and a selection made from the swatch.
  *
- * Runs the real Louvain on a real element with the run's own suggested colours, the path a
+ * Runs the real Louvain on a real element with the run's own suggested colors, the path a
  * consumer takes, rather than a stubbed executor.
  */
 

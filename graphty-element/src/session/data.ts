@@ -39,6 +39,7 @@ import type {
     AttributeType,
     AttributeUse,
     EdgeId,
+    LayerId,
     Measurement,
     MeasurementDeclaration,
     Path,
@@ -55,7 +56,16 @@ import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ImportReport, LoadReport } from "../data/report";
-import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
+import {
+    DETECTION_SAMPLE,
+    fetchBytes,
+    isSourceData,
+    sampleOf,
+    takeFetched,
+    toSourceInput,
+    urlTail,
+    validatorsOf,
+} from "../data/source-bytes";
 import { GraphtyError } from "../errors";
 import { featureOff } from "../features/resolve";
 import { bestRole, cachedGazetteer, gazetteerGeneration } from "../layout/locationMap/gazetteer";
@@ -100,7 +110,14 @@ import {
     SOURCE_VALUE,
     SOURCES_VALUE,
 } from "./commands/data";
-import { type DataDeriveCommand, derivedColumnsOf, derivedRows, type ValuesWhere } from "./commands/derive";
+import {
+    type DataDeriveCommand,
+    derivedColumnsOf,
+    derivedRows,
+    isTerms,
+    scoreExpression,
+    type ValuesWhere,
+} from "./commands/derive";
 import {
     Draft,
     draftStyles,
@@ -111,6 +128,7 @@ import {
     LOAD_ROLES,
     type ReadSource,
     readSource,
+    weightAmong,
 } from "./draft";
 import type { LaneStore } from "./GraphSession";
 import { RESTORE as GROUP_RESTORE } from "./groups";
@@ -193,6 +211,7 @@ import { asksFileStyles } from "./styles/fileStyles/apply";
 import type { CompiledLayer } from "./styles/Layer";
 import { expressionPaths } from "./styles/predicate";
 import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
+import { columnsOf, layersReadingOnly } from "./styles/staleLayers";
 import type {
     ColumnHistogram,
     ColumnRole,
@@ -231,9 +250,11 @@ import type {
     NodeName,
     NodeRecord,
     NodeRecordInput,
+    OverRepresentedOptions,
     OverRepresentedValues,
     PageColumn,
     PreparePageControl,
+    RecordMatch,
     RecordPage,
     RecordPageOptions,
     RecordSort,
@@ -244,6 +265,7 @@ import type {
     ResultColumn,
     ResultColumnDescriptor,
     RowUpdate,
+    ScoreTerm,
     SessionAttributes,
     SessionDataApi,
     SessionDataConfig,
@@ -255,7 +277,7 @@ import type {
     ValueCounts,
     ValueType,
 } from "./types";
-import { valueLabelsAt } from "./valueLabels";
+import { typedValueLabelsAt, valueLabelsAt } from "./valueLabels";
 import { wholeGraph } from "./working/graphs";
 import type { WorkingGraph, WorkingScope, WorkingView } from "./working/view";
 
@@ -342,6 +364,19 @@ interface PageSources {
         only?: readonly Path[],
     ): (index: number) => boolean;
     /**
+     * Which field of one record a text matches best, by row: a ranked page's `matching`.
+     * @param text - What was typed, its mode prefix already read
+     * @param mode - How to match it
+     * @param target - Nodes or edges
+     * @returns The best match of each row, or undefined for one that does not match
+     */
+    textMatch(
+        text: string,
+        mode: SelectionTextMode,
+        target: "node" | "edge",
+        only?: readonly Path[],
+    ): (index: number) => RecordMatch | undefined;
+    /**
      * The ids an expression matches: a page's `where`, over the query engine.
      * @param where - The expression
      * @param target - Nodes or edges
@@ -384,10 +419,10 @@ interface PageSources {
      */
     timeParsed?(kind: "node" | "edge", column: string): number | undefined;
     /**
-     * Whether the timeline experiment is on; absent reads on.
-     * @returns true when it is
+     * The columns whose values read as time, most read first (`session.time.candidates()`).
+     * @returns the candidates
      */
-    timeline?(): boolean;
+    timeCandidates?(): readonly { readonly kind: "node" | "edge"; readonly column: string }[];
     /**
      * Whether the file styles experiment is on; absent reads on.
      * @returns true when it is
@@ -732,6 +767,24 @@ function drain<T>(steps: Generator<number, T, void>): T {
             return step.value;
         }
     }
+}
+
+/**
+ * An order with its rows ranked by how well they match, keeping the order within a rank (the
+ * sort is stable).
+ * @param steps - the order's steps
+ * @param ranked - the best match of each row
+ * @yields the progress of the order underneath
+ * @returns the ranked order
+ */
+function* rankFirst(
+    steps: Generator<number, Uint32Array, void>,
+    ranked: (index: number) => RecordMatch | undefined,
+): Generator<number, Uint32Array, void> {
+    const rows = yield* steps;
+    const place = { exact: 0, "starts-with": 1, contains: 2 } as const;
+    const rankOf = (row: number): number => place[ranked(row)?.rank ?? "contains"];
+    return Uint32Array.from(Array.from(rows).sort((a, b) => rankOf(a) - rankOf(b)));
 }
 
 /**
@@ -1295,7 +1348,7 @@ export class SessionData implements SessionDataApi {
      */
     async clear(): Promise<void> {
         this.requireLive("clear");
-        // A load still reading when the clear is asked for is cancelled: it rejects with
+        // A load still reading when the clear is asked for is canceled: it rejects with
         // E_SUPERSEDED and adds nothing, so the cleared graph does not come back (issue #3524). An
         // edit still waiting resolves and adds nothing either.
         const send = this.writes.applier();
@@ -1310,7 +1363,7 @@ export class SessionData implements SessionDataApi {
      * lands on what they load instead of under them (issue #3526).
      * A clear asked for while it waits cancels it: it resolves without applying.
      * @param mutation - The edit.
-     * @returns Settles once it is applied, or cancelled by a clear.
+     * @returns Settles once it is applied, or canceled by a clear.
      */
     private edit(mutation: DataMutation): Promise<unknown> {
         checkMutation(mutation);
@@ -1415,9 +1468,9 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Load a generated graph from the catalogue, as one undoable step.
+     * Load a generated graph from the catalog, as one undoable step.
      * @param name - The generator's name.
-     * @param params - Its parameters; each one left out takes its catalogue default.
+     * @param params - Its parameters; each one left out takes its catalog default.
      * @param options - Whether to replace the graph (the default) or add to it.
      * @returns Settles once the graph is loaded.
      */
@@ -1468,7 +1521,7 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Download a sample dataset from the catalogue and load it, as one undoable step.
+     * Download a sample dataset from the catalog and load it, as one undoable step.
      * @param name - The dataset's name.
      * @param options - The import mode, a mirror to download from, and a signal.
      * @returns Settles once the graph is loaded.
@@ -1498,9 +1551,15 @@ export class SessionData implements SessionDataApi {
             let snapshot: GraphSnapshot;
             // The status of the answer, kept here so a failure can say whether a retry could help.
             let status: number | undefined;
+            // Every body read, in order, so the dataset's copy id is the digest of its bytes.
+            const bodies: Promise<ArrayBuffer>[] = [];
             const watched: typeof fetch = async (input, init) => {
                 const response = await fetch(input, init);
                 ({ status } = response);
+                if (response.ok) {
+                    bodies.push(response.clone().arrayBuffer());
+                }
+
                 return response;
             };
             try {
@@ -1512,6 +1571,10 @@ export class SessionData implements SessionDataApi {
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
                 facts: { dataset: name, baseUrl },
+                url: {
+                    sha256: await sha256Hex(joined(await Promise.all(bodies))),
+                    fetchedAt: new Date().toISOString(),
+                },
             });
         } finally {
             turn.leave();
@@ -1569,14 +1632,20 @@ export class SessionData implements SessionDataApi {
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing" | "signal">,
         turn: LoadTurn,
-        sample?: SampleLoad & { readonly facts: LoadFacts["sample"] },
+        sample?: SampleLoad & { readonly facts: LoadFacts["sample"]; readonly url?: LoadFacts["url"] },
     ): Promise<void> {
         let resolvedConfig: Readonly<Record<string, unknown>> = source.config;
         const origin: LoadedSourceKind | undefined = sample === undefined ? undefined : "sample";
         const chosenOrigin = origin ?? options.origin;
         const noted = this.noting(
             dispatch,
-            () => (sample === undefined ? bytesFacts(resolvedConfig) : Promise.resolve({ sample: sample.facts })),
+            () =>
+                sample === undefined
+                    ? bytesFacts(resolvedConfig)
+                    : Promise.resolve({
+                          sample: sample.facts,
+                          ...(sample.url === undefined ? {} : { url: sample.url }),
+                      }),
             choiceOptions(options),
         );
         const mark = historyMark(options);
@@ -1939,6 +2008,16 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * What a load read: its bytes' digest, size and media type, a URL's validators, a sample's
+     * dataset. Internal: the version 2 data section writes a source's origin and copy id from it.
+     * @param key - The load's key.
+     * @returns The facts, or undefined for a load with none recorded.
+     */
+    loadFactsOf(key: SourceKey): LoadFacts | undefined {
+        return this.loadFacts.get(key);
+    }
+
+    /**
      * What a project file writes about the loads: the `graphty-sources` member (null when the graph
      * holds no load), what the save left out, and how each record's `_source.loads` is written.
      * Internal: the project file writes it.
@@ -2019,7 +2098,7 @@ export class SessionData implements SessionDataApi {
      * clear asked for while it waits cancels it: it resolves with `skipped`, or by default
      * rejects with `E_SUPERSEDED`, since what it names is gone.
      * @param run - The door's work.
-     * @param skipped - What a cancelled door resolves with; rejects when not given.
+     * @param skipped - What a canceled door resolves with; rejects when not given.
      * @returns What `run` returned.
      */
     private afterLoads<T>(run: () => Promise<T>, skipped?: () => T): Promise<T> {
@@ -2089,7 +2168,6 @@ export class SessionData implements SessionDataApi {
             loads: () => this.loads(),
             sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
             labelPath: () => this.readConfig().knownFields.nodeLabelPath,
-            readDates: () => this.timelineOn,
             credentialSlotOf: (load) => {
                 const key = this.sources().find((each) => each.loadKey === load)?.key;
                 return key === undefined ? undefined : this.loadFacts.get(key)?.credentialSlot;
@@ -2156,21 +2234,25 @@ export class SessionData implements SessionDataApi {
      * @param options.signal - Abandons the read.
      * @param options.onto - `"graph"` holds the rows as a table to join onto the graph.
      * @param options.guess - `"values"` also reads the values when no header names the roles.
+     * @param options.onProgress - Called with each change the read publishes.
      * @returns The draft.
      * @throws What `import` would reject with while reading, with the same code.
      */
     async prepare(
         source: DataSourceInput,
-        options: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" } = {},
+        options: {
+            readonly signal?: AbortSignal;
+            readonly onto?: "graph";
+            readonly guess?: "names" | "values";
+            readonly onProgress?: (change: ProgressChange) => void;
+        } = {},
     ): Promise<Draft> {
         this.requireLive("prepare");
         this.draft?.dispose();
-        const read = await readWithProgress(
-            source,
-            options.signal,
-            (change) => this.writes.progress?.(change),
-            this.pages.timeline?.() === true,
-        );
+        const read = await readWithProgress(source, options.signal, (change) => {
+            this.writes.progress?.(change);
+            options.onProgress?.(change);
+        });
         this.reads.set(source, read);
         return this.draftOf(source, read, options);
     }
@@ -2197,7 +2279,6 @@ export class SessionData implements SessionDataApi {
             read,
             {
                 config: () => this.readConfig(),
-                timeline: () => this.timelineOn,
                 graph: () => {
                     const slice = this.writes.slice();
                     const snapshot = this.current();
@@ -2863,8 +2944,15 @@ export class SessionData implements SessionDataApi {
         const rowCount = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const total = rows === null ? rowCount : rows.length;
         const records: TRecord[] = [];
+        const ranked = this.rankedMatch(target, options);
+        const matches: RecordMatch[] = [];
         for (let position = offset; position < Math.min(total, offset + limit); position++) {
-            records.push(recordAt(rows === null ? position : (rows[position] ?? position)));
+            const row = rows === null ? position : (rows[position] ?? position);
+            records.push(recordAt(row));
+            const match = ranked?.(row);
+            if (match !== undefined) {
+                matches.push(Object.freeze(match));
+            }
         }
 
         // Finding the issues reads every record once per revision, so only a page that asks does.
@@ -2877,6 +2965,7 @@ export class SessionData implements SessionDataApi {
             total,
             revision: String(revision),
             ...(marked ? { issues: Object.freeze(records.map((record) => marks.get(record.id) ?? NO_ISSUES)) } : {}),
+            ...(ranked === undefined ? {} : { matches: Object.freeze(matches) }),
         };
         if (columns === undefined) {
             return Object.freeze(page);
@@ -2925,18 +3014,7 @@ export class SessionData implements SessionDataApi {
         const { sort } = options;
         const matching = matchingOf(options.matching);
         // By name only: the id, and for a node the label column data.name reads.
-        const labelPath = this.readConfig().knownFields.nodeLabelPath;
-        let names: readonly Path[] | undefined;
-        if (options.matching?.names === true) {
-            // A node's name is its label column; a graph with none names its nodes in its other
-            // columns (a "name" column the table shows), so every searchable value is read, as
-            // without `names`. An edge is named by its id and its ends' ids.
-            if (target === "edge") {
-                names = [];
-            } else if (labelPath !== null) {
-                names = [labelPath];
-            }
-        }
+        const names = this.namesOf(target, options);
         const { where, issue } = options;
         if (
             scope === undefined &&
@@ -2957,7 +3035,8 @@ export class SessionData implements SessionDataApi {
         // resolved to, never by the run handle it was given.
         const sortKey =
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
-        const key = JSON.stringify([target, scope, sortKey, touching, matching, where, issueKey, names]);
+        const ranked = this.rankedMatch(target, options);
+        const key = JSON.stringify([target, scope, sortKey, touching, matching, where, issueKey, names, !!ranked]);
         const steps = (): Generator<number, Uint32Array, void> => {
             const space = edgeSpaceOf(snapshot);
             const order =
@@ -2974,9 +3053,50 @@ export class SessionData implements SessionDataApi {
                                   : rowReader(resultSortValue(result, target), snapshot, target),
                       };
             const matches = this.rowFilter(snapshot, target, matching, issue, where, names);
-            return this.computeOrder(snapshot, target, scope, touching, order, matches);
+            const rows = this.computeOrder(snapshot, target, scope, touching, order, matches);
+            return ranked === undefined ? rows : rankFirst(rows, ranked);
         };
         return { key, steps };
+    }
+
+    /**
+     * The best match of each row for a page asked with `matching.rank`, reading what its text
+     * match reads.
+     * @param target - nodes or edges
+     * @param options - what the caller asked for
+     * @returns the match by row, or undefined when the page is not ranked
+     */
+    private rankedMatch(
+        target: "node" | "edge",
+        options: EdgePageOptions,
+    ): ((index: number) => RecordMatch | undefined) | undefined {
+        const matching = matchingOf(options.matching);
+        if (matching === undefined || options.matching?.rank !== true) {
+            return undefined;
+        }
+
+        return this.pages.textMatch(matching.text, matching.mode, target, this.namesOf(target, options));
+    }
+
+    /**
+     * The columns a page's text match reads when it searches names only: the id, and for a node
+     * the label column `data.name` reads.
+     * @param target - nodes or edges
+     * @param options - what the caller asked for
+     * @returns the paths, or undefined to read every searchable value
+     */
+    private namesOf(target: "node" | "edge", options: EdgePageOptions): readonly Path[] | undefined {
+        if (options.matching?.names !== true) {
+            return undefined;
+        }
+        // A node's name is its label column; a graph with none names its nodes in its other
+        // columns (a "name" column the table shows), so every searchable value is read, as
+        // without `names`. An edge is named by its id and its ends' ids.
+        if (target === "edge") {
+            return [];
+        }
+        const labelPath = this.readConfig().knownFields.nodeLabelPath;
+        return labelPath === null ? undefined : [labelPath];
     }
 
     /**
@@ -3178,7 +3298,16 @@ export class SessionData implements SessionDataApi {
                 if (loadKey !== undefined) {
                     taken.add(loadKey);
                 }
-                const { input, ...entry } = each as LoadedSource & { readonly input?: string };
+                const {
+                    input,
+                    drawn: _drawn,
+                    readBy: _readBy,
+                    ...entry
+                } = each as LoadedSource & {
+                    readonly input?: string;
+                    readonly drawn?: unknown;
+                    readonly readBy?: unknown;
+                };
                 return Object.freeze({
                     ...entry,
                     key,
@@ -3611,6 +3740,7 @@ export class SessionData implements SessionDataApi {
         }
 
         const before = { nodes: snapshot.nodeCount, edges: snapshot.edgeCount };
+        const stale = this.staleLayers(goingNodes, goingEdges);
         await this.writes.send({
             op: "batch",
             label: `Removed ${entry.name ?? key}`,
@@ -3625,6 +3755,7 @@ export class SessionData implements SessionDataApi {
                     sources: left,
                     provenance: going.reduce((held, each) => withoutSource(held, each.key), provenance),
                 },
+                ...stale.map((id) => ({ op: "style.patch" as const, action: "remove" as const, id })),
             ],
         });
         const after = this.current();
@@ -3636,6 +3767,31 @@ export class SessionData implements SessionDataApi {
                 edges: edges.filter((id) => edgeSpaceOf(after).indexOf(id) !== INVALID_INDEX).length,
             }),
             alsoRemoved: Object.freeze(going.map((each) => each.key).filter((each) => each !== key)),
+        });
+    }
+
+    /**
+     * The layers that read only columns the removed nodes and edges held and no element left holds.
+     * @param nodes - The nodes going.
+     * @param edges - The edges going.
+     * @returns The layers to remove with them.
+     */
+    private staleLayers(nodes: readonly NodeId[], edges: readonly EdgeId[]): LayerId[] {
+        const { nodes: nodeRecords, edges: edgeRecords } = this.writes.slice();
+        const goneOf = <K>(records: ReadonlyMap<K, GraphRecord>, going: readonly K[]): Set<string> => {
+            const leaving = new Set(going);
+            const gone = columnsOf(
+                going.flatMap((id): GraphRecord[] => {
+                    const record = records.get(id);
+                    return record === undefined ? [] : [record];
+                }),
+            );
+            const staying = columnsOf([...records].filter(([id]) => !leaving.has(id)).map(([, record]) => record));
+            return new Set([...gone].filter((column) => !staying.has(column)));
+        };
+        return layersReadingOnly(this.writes.readers().styles, {
+            node: goneOf(nodeRecords, nodes),
+            edge: goneOf(edgeRecords, edges),
         });
     }
 
@@ -4183,7 +4339,7 @@ export class SessionData implements SessionDataApi {
      */
     async matchesSource(source: DataSourceInput): Promise<SourceKey | null> {
         this.requireLive("matchesSource");
-        const read = await readWithProgress(source, undefined, () => undefined, this.pages.timeline?.() === true);
+        const read = await readWithProgress(source, undefined, () => undefined);
         if (read.tables.every((held) => held.table.fixed)) {
             return null;
         }
@@ -4230,7 +4386,8 @@ export class SessionData implements SessionDataApi {
         snapshot: GraphSnapshot,
         space: ReturnType<typeof edgeSpaceOf>,
     ): Set<string> {
-        const columns = new Set<string>();
+        // The id and end columns are read into the graph's structure, not its records.
+        const columns = new Set<string>(roleColumns(entry));
         const nodeRows = (entry.tableRows ?? []).includes("nodes");
         for (const id of supplied.nodes) {
             const row = snapshot.ids.indexOf(id);
@@ -4833,14 +4990,6 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Whether the timeline experiment is on; a session built without the switch reads on.
-     * @returns True when it is on.
-     */
-    private get timelineOn(): boolean {
-        return this.pages.timeline?.() !== false;
-    }
-
-    /**
      * Every attribute the graph's records carry.
      * @returns the descriptors, node attributes first
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
@@ -4866,7 +5015,7 @@ export class SessionData implements SessionDataApi {
         // and so is what a collapsed group keeps for its expand.
         const described = this.attributeCache.get("", () =>
             Object.freeze(
-                describeAttributes(snapshot, this.records, this.timelineOn).filter(
+                describeAttributes(snapshot, this.records).filter(
                     (each) => !isSourceFactKey(each.name) && each.name !== GROUP_RESTORE,
                 ),
             ),
@@ -4912,7 +5061,6 @@ export class SessionData implements SessionDataApi {
             joined,
             parsed,
             snapshot,
-            timeline: this.timelineOn,
         };
         const result =
             declarations.size === 0 &&
@@ -4945,7 +5093,7 @@ export class SessionData implements SessionDataApi {
             return held.shown;
         }
 
-        const shown = describeShownFigures(whole, this.current(), this.records, view, this.timelineOn);
+        const shown = describeShownFigures(whole, this.current(), this.records, view);
         this.viewColumns.set(view, { whole, shown });
         return shown;
     }
@@ -5296,6 +5444,48 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * The column the element would read a role from, when one is obvious; see the public docs.
+     * @param kind - nodes or edges
+     * @param role - the role
+     * @returns the column's name, or null
+     */
+    roleCandidate(kind: "node" | "edge", role: ColumnRole): string | null {
+        // A column that already plays a role, or that a run or a formula made, is never offered.
+        const free = this.attributes().filter(
+            (a) =>
+                a.kind === kind &&
+                a.roles === undefined &&
+                a.hidden !== true &&
+                (a.origin === "imported" || a.origin === "joined"),
+        );
+        const has = (name: string): boolean => free.some((a) => a.name === name);
+        const times = (this.pages.timeCandidates?.() ?? []).filter((each) => each.kind === kind);
+        if (role === "time") {
+            return times.find((each) => has(each.column))?.column ?? null;
+        }
+
+        if (role === "label") {
+            const text = free.filter((a) => a.type === "string" || a.type === "category");
+            return LABEL_COLUMNS.find((name) => text.some((a) => a.name === name)) ?? null;
+        }
+
+        if (role === "weight" && kind === "edge") {
+            // As a load reads one, and a load reads a weight for edges only.
+            return weightAmong(
+                free
+                    .filter(
+                        (a) =>
+                            (a.type === "number" || a.type === "integer") &&
+                            !times.some((each) => each.column === a.name),
+                    )
+                    .map((a) => a.name),
+            );
+        }
+
+        return null;
+    }
+
+    /**
      * Give a column a role, or take its roles away, as one undoable step.
      * @param column - the column
      * @param role - the role, or null for none
@@ -5303,10 +5493,6 @@ export class SessionData implements SessionDataApi {
      */
     async setRole(column: ColumnRef, role: ColumnRole | null): Promise<void> {
         this.requireLive("setRole");
-        if (role === "time" && !this.timelineOn) {
-            throw featureOff("timeline", "data.setRole");
-        }
-
         const { kind, name } = resolveColumn(this.columns(), column);
         const fields = ROLE_FIELDS[kind];
         const snapshot = this.current();
@@ -5575,7 +5761,7 @@ export class SessionData implements SessionDataApi {
         pushLayerRenames(steps, styles, rename);
         pushVisibilityRenames(steps, visibility, rename);
         // The names given to its values.
-        for (const [value, label] of valueLabelsAt(this.writes.valueLabels(), `data.${from}`)) {
+        for (const { value, label } of typedValueLabelsAt(this.writes.valueLabels(), `data.${from}`)) {
             steps.push(
                 { op: "data.label", path: `data.${name}`, value, label },
                 { op: "data.label", path: `data.${from}`, value, label: null },
@@ -5616,6 +5802,43 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Add a score: a computed column whose values are its terms' rescaled values, weighted and summed.
+     * @param name - the column's name
+     * @param terms - the columns and their weights
+     * @param options - nodes or edges
+     * @returns settles once the step is recorded
+     */
+    async deriveScore(name: string, terms: readonly ScoreTerm[], options: DeriveOptions = {}): Promise<void> {
+        this.requireLive("deriveScore");
+        // Checked as unknown: a caller's terms may break their type, and narrowing `terms` itself
+        // would leave it an any[].
+        const given: unknown = terms;
+        if (!Array.isArray(given) || given.length === 0) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "A score has at least one term.",
+                source: "data",
+                details: { reason: "no-terms", column: name },
+            });
+        }
+
+        if (!isTerms(terms)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "Each term of a score is a path with a finite weight, or none.",
+                source: "data",
+                details: { reason: "bad-weight", column: name, terms },
+            });
+        }
+
+        const score = terms.map((term) => Object.freeze({ path: term.path, weight: term.weight ?? 1 }));
+        return this.afterLoads(
+            () => this.deriveNow(name, scoreExpression(score), options.kind ?? "node", score),
+            () => undefined,
+        );
+    }
+
+    /**
      * Every computed column.
      * @returns the columns, in the order they were added
      */
@@ -5644,9 +5867,15 @@ export class SessionData implements SessionDataApi {
      * @param name - as derive takes it
      * @param expression - as derive takes it
      * @param kind - nodes or edges
+     * @param score - a score's terms, for deriveScore; absent for derive
      * @returns what derive returns
      */
-    private async deriveNow(name: string, expression: Query, kind: "node" | "edge"): Promise<void> {
+    private async deriveNow(
+        name: string,
+        expression: Query,
+        kind: "node" | "edge",
+        score?: readonly ScoreTerm[],
+    ): Promise<void> {
         this.requireLive("derive");
         const refuse = (reason: string, message: string): GraphtyError =>
             new GraphtyError({
@@ -5688,7 +5917,8 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        const column: DerivedColumn = { kind, name, expression };
+        const column: DerivedColumn =
+            score === undefined ? { kind, name, expression } : { kind, name, expression, score };
         const columns = replacing
             ? existing.map((each) => (each.kind === kind && each.name === name ? column : each))
             : [...existing, column];
@@ -5844,11 +6074,10 @@ export class SessionData implements SessionDataApi {
     /**
      * Per group, the node values that occur in the group more often than chance.
      * @param groupBy - the path holding each node's group
-     * @param options - which columns to test
-     * @param options.columns - the node column paths; by default every categorical one
+     * @param options - which columns to test and how to correct
      * @returns every group, largest first, with its over-represented values
      */
-    overRepresented(groupBy: Path, options: { readonly columns?: readonly Path[] } = {}): OverRepresentedValues {
+    overRepresented(groupBy: Path, options: OverRepresentedOptions = {}): OverRepresentedValues {
         const snapshot = this.current();
         const paths =
             options.columns ??
@@ -5873,6 +6102,7 @@ export class SessionData implements SessionDataApi {
                 path,
                 valueAt: (index: number) => this.pages.valueAt("node", rowOf(index), path),
             })),
+            options.correction,
         );
     }
 
@@ -5886,10 +6116,10 @@ export class SessionData implements SessionDataApi {
     groupTable(groupBy: Path, options: GroupTableOptions = {}): GroupTable {
         const summaries = Object.entries(options.summaries ?? {});
         for (const [path, asked] of summaries) {
-            const unknown = (Array.isArray(asked) ? asked : [asked]).find(
-                (each) => !GROUP_SUMMARIES.includes(each as GroupSummary),
-            );
-            if (!Array.isArray(asked) || unknown !== undefined) {
+            const given: unknown = asked;
+            const list: readonly unknown[] = Array.isArray(given) ? given : [given];
+            const unknown = list.find((each) => !GROUP_SUMMARIES.includes(each as GroupSummary));
+            if (!Array.isArray(given) || unknown !== undefined) {
                 throw new GraphtyError({
                     code: "E_OPTION_RANGE",
                     message: `summaries of ${path} must be a list of ${GROUP_SUMMARIES.join(", ")}`,
@@ -6118,6 +6348,19 @@ function sameColumns(columns: readonly string[], header: ReadonlySet<string>): b
 }
 
 /**
+ * The columns a load read as node ids or edge ends.
+ * @param entry - The load.
+ * @returns The column names; none when the load kept no mapping (a graph file, a plain `import`).
+ */
+function roleColumns(entry: LoadedSource): string[] {
+    return Object.values(entry.mapping?.tables ?? {}).flatMap((table) =>
+        [table.key, table.source, table.target].flatMap((role) =>
+            role === undefined || role === null ? [] : [typeof role === "string" ? role : role.column],
+        ),
+    );
+}
+
+/**
  * Whether a header covers a load's columns.
  * ponytail: the graph keeps the last load's edge ends apart from the records, so the header may
  * name up to two columns more; read the draft's ends if that misleads.
@@ -6184,8 +6427,6 @@ function unboundFactsOf(
 
 /** What `attributes()` lays over the described columns. */
 interface AttributeOverlay {
-    /** Whether the timeline experiment is on, so a time role measures time. */
-    readonly timeline: boolean;
     readonly declarations: ReadonlyMap<string, MeasurementDeclaration>;
     readonly roles: ReadonlyMap<string, AttributeRole[]>;
     readonly uses: ReadonlyMap<string, AttributeUse[]>;
@@ -6208,7 +6449,6 @@ interface ColumnOverlay {
     readonly isJoined: boolean;
     readonly times: number | undefined;
     readonly rows: number;
-    readonly timeline: boolean;
 }
 
 /**
@@ -6229,7 +6469,6 @@ function overlaidAttribute(each: AttributeDescriptor, overlay: AttributeOverlay)
         isJoined: overlay.joined.has(key),
         times: overlay.parsed.get(each),
         rows: each.kind === "node" ? overlay.snapshot.nodeCount : overlay.snapshot.edgeCount,
-        timeline: overlay.timeline,
     };
     return facts.declared === undefined &&
         facts.played === undefined &&
@@ -6250,7 +6489,7 @@ function overlaidAttribute(each: AttributeDescriptor, overlay: AttributeOverlay)
  * @returns The fields.
  */
 function overlayFields(each: AttributeDescriptor, facts: ColumnOverlay): Partial<AttributeDescriptor> {
-    const { declared, played, used, from, typed, isHidden, isJoined, times, rows, timeline } = facts;
+    const { declared, played, used, from, typed, isHidden, isJoined, times, rows } = facts;
     return {
         ...(isJoined ? { origin: "joined" as const } : {}),
         ...(typed === undefined ? {} : typedFields(each, typed)),
@@ -6262,7 +6501,7 @@ function overlayFields(each: AttributeDescriptor, facts: ColumnOverlay): Partial
                   measurementSource: "declared" as const,
               }),
         // Designating a column as the time field makes it time.
-        ...(timeline && declared === undefined && played?.includes("time") === true
+        ...(declared === undefined && played?.includes("time") === true
             ? { measurement: "time" as const, measurementSource: "declared" as const }
             : {}),
         ...(played === undefined ? {} : { roles: Object.freeze(played) }),
@@ -6970,7 +7209,7 @@ export function headlessDataService(
         ceilings: () => ceilings?.overrides,
         dataConfig: readConfig,
         hasNode: (id) => dispatcher.graph.slice.nodes.has(id),
-        nodeCount: () => store.builder.nodeCount,
+        nodeCount: () => store.reads.nodeCount,
         edgesBetween: (source, target) => {
             const { builder } = store;
             if (!builder.hasNode(source) || !builder.hasNode(target)) {
@@ -6981,7 +7220,7 @@ export function headlessDataService(
                 edgeIndex,
             }));
         },
-        edgeAt: (edgeIndex) => (store.builder.hasEdge(edgeIndex) ? { edgeIndex } : null),
+        edgeAt: (edgeIndex) => (store.reads.hasEdge(edgeIndex) ? { edgeIndex } : null),
         replaceEdgeRecord: () => undefined,
         rowsRemoved: () => undefined,
         cleared: () => undefined,
@@ -6995,7 +7234,6 @@ export function headlessDataService(
         loadComplete: () => undefined,
         loadFailed: () => undefined,
         progress: (change) => dispatcher.services.progress?.(change),
-        timeline: () => dispatcher.services.timeline?.() === true,
         batched: () => dispatcher.services.batched?.() === true,
     });
 
@@ -7087,7 +7325,6 @@ function fileOf(
  * @param source - What `prepare` takes.
  * @param signal - Abandons the read.
  * @param publish - Where the progress goes.
- * @param timeline - Whether the timeline experiment is on, so the reader keeps the time data it reads.
  * @returns What was read.
  * @throws What reading throws, after the end is published.
  */
@@ -7095,7 +7332,6 @@ async function readWithProgress(
     source: DataSourceInput,
     signal: AbortSignal | undefined,
     publish: (change: ProgressChange) => void,
-    timeline = false,
 ): Promise<Awaited<ReturnType<typeof readSource>>> {
     const named = progressSource(source.config, source.name);
     let completed = 0;
@@ -7124,7 +7360,6 @@ async function readWithProgress(
                 fraction = share ?? null;
                 change("progress");
             },
-            timeline,
         );
         change("end", { outcome: "succeeded" });
         return read;
@@ -7153,7 +7388,7 @@ function pairName(config: Readonly<Record<string, unknown>>): string | undefined
  * @param source - The source as the caller named it.
  * @param signal - Cancels reading the file's head or fetching the URL.
  * @returns The source the `data.import` command carries.
- * @throws A `GraphtyError` with `E_UNKNOWN_FORMAT` when nothing recognises the data, and
+ * @throws A `GraphtyError` with `E_UNKNOWN_FORMAT` when nothing recognizes the data, and
  *     `E_FETCH_FAILED` when the URL cannot be read.
  */
 /**
@@ -7262,18 +7497,23 @@ function nextSourceKey(stored: readonly LoadedSource[], provenance: Provenance |
 
 /**
  * What a load's bytes were, for its project-file entry: a file's name, size, media type and
- * SHA-256, inline data's size and SHA-256, a URL's SHA-256 when its body was read here. Nothing
- * for anything else (a pair of files, a URL its reader fetched itself).
- * ponytail: a URL load that names its type is fetched by its reader, so its body is not hashed;
- * fetch it here, as an undetected one is, if every URL entry must carry its digest.
+ * SHA-256, inline data's size and SHA-256, a URL body's SHA-256, size and the validators its
+ * response carried. Nothing for anything else (a pair of files).
  * @param config - The source's options as the load read them.
  * @returns The facts.
  */
 async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Partial<LoadFacts>> {
     const { data, file, url } = config;
     if (typeof url === "string") {
-        const sha256 = data instanceof Uint8Array ? await sha256Hex(data) : undefined;
-        return { url: { ...(sha256 === undefined ? {} : { sha256 }), fetchedAt: new Date().toISOString() } };
+        const fetchedAt = new Date().toISOString();
+        if (data instanceof Uint8Array) {
+            const sha256 = await sha256Hex(data);
+            return { url: { sha256, size: data.byteLength, ...validatorsOf(data), fetchedAt } };
+        }
+
+        // A URL whose type was named is fetched by its reader, which kept what it read.
+        const read = takeFetched(url);
+        return read === undefined ? { url: { fetchedAt } } : { url: { ...read, sha256: await read.sha256, fetchedAt } };
     }
 
     const blob = fileOf(file);
@@ -7297,6 +7537,22 @@ async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Pa
     }
 
     return {};
+}
+
+/**
+ * Bodies as one run of bytes, in order.
+ * @param bodies - The bodies.
+ * @returns Their bytes, joined.
+ */
+function joined(bodies: readonly ArrayBuffer[]): Uint8Array {
+    const bytes = new Uint8Array(bodies.reduce((size, body) => size + body.byteLength, 0));
+    let at = 0;
+    for (const body of bodies) {
+        bytes.set(new Uint8Array(body), at);
+        at += body.byteLength;
+    }
+
+    return bytes;
 }
 
 /**

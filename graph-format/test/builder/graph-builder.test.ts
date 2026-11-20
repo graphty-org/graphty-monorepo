@@ -8,22 +8,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX, MAX_COUNT } from "../../src/constants.js";
-import { GraphFormatError, type GraphFormatErrorCode } from "../../src/errors.js";
+import { GraphFormatError } from "../../src/errors.js";
 import { equalsTopology } from "../../src/snapshot/graph-snapshot.js";
 import { type ColumnHandle } from "../../src/types/index.js";
+import { thrownCode } from "../helpers/errors.js";
 import { assertInvariants } from "../helpers/invariants.js";
-
-function code(fn: () => unknown): GraphFormatErrorCode | null {
-    try {
-        fn();
-    } catch (err) {
-        if (err instanceof GraphFormatError) {
-            return err.code;
-        }
-        throw err;
-    }
-    return null;
-}
 
 function details(fn: () => unknown): Readonly<Record<string, unknown>> {
     try {
@@ -77,13 +66,23 @@ describe("GraphBuilder options", () => {
     });
 
     it("rejects option values outside their documented sets with E_UNSUPPORTED", () => {
-        expect(code(() => new GraphBuilder({ directed: "yes" as unknown as boolean }))).toBe("E_UNSUPPORTED");
-        expect(code(() => new GraphBuilder({ directed: true, duplicateEdges: "avg" as never }))).toBe("E_UNSUPPORTED");
-        expect(code(() => new GraphBuilder({ directed: true, selfLoops: "ignore" as never }))).toBe("E_UNSUPPORTED");
-        expect(code(() => new GraphBuilder({ directed: true, weightDtype: "f16" as never }))).toBe("E_UNSUPPORTED");
-        expect(code(() => new GraphBuilder({ directed: true, weighted: "maybe" as never }))).toBe("E_UNSUPPORTED");
-        expect(code(() => new GraphBuilder({ directed: true, expectedNodes: -1 }))).toBe("E_UNSUPPORTED");
-        expect(code(() => new GraphBuilder({ directed: true, addMissingNodes: 1 as never }))).toBe("E_UNSUPPORTED");
+        expect(thrownCode(() => new GraphBuilder({ directed: "yes" as unknown as boolean }))).toBe("E_UNSUPPORTED");
+        expect(thrownCode(() => new GraphBuilder({ directed: true, duplicateEdges: "avg" as never }))).toBe(
+            "E_UNSUPPORTED",
+        );
+        expect(thrownCode(() => new GraphBuilder({ directed: true, selfLoops: "ignore" as never }))).toBe(
+            "E_UNSUPPORTED",
+        );
+        expect(thrownCode(() => new GraphBuilder({ directed: true, weightDtype: "f16" as never }))).toBe(
+            "E_UNSUPPORTED",
+        );
+        expect(thrownCode(() => new GraphBuilder({ directed: true, weighted: "maybe" as never }))).toBe(
+            "E_UNSUPPORTED",
+        );
+        expect(thrownCode(() => new GraphBuilder({ directed: true, expectedNodes: -1 }))).toBe("E_UNSUPPORTED");
+        expect(thrownCode(() => new GraphBuilder({ directed: true, addMissingNodes: 1 as never }))).toBe(
+            "E_UNSUPPORTED",
+        );
     });
 });
 
@@ -115,12 +114,12 @@ describe("GraphBuilder nodes", () => {
 
     it("rejects illegal ids with E_INVALID_ID and leaves lookups total", () => {
         const b = new GraphBuilder({ directed: true });
-        expect(code(() => b.addNode(Number.NaN))).toBe("E_INVALID_ID");
-        expect(code(() => b.addNode(Infinity))).toBe("E_INVALID_ID");
-        expect(code(() => b.addNode(null as unknown as string))).toBe("E_INVALID_ID");
-        expect(code(() => b.addNode(undefined as unknown as string))).toBe("E_INVALID_ID");
-        expect(code(() => b.addNode({} as unknown as string))).toBe("E_INVALID_ID");
-        expect(code(() => b.addNode(10n as unknown as string))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => b.addNode(Number.NaN))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => b.addNode(Infinity))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => b.addNode(null as unknown as string))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => b.addNode(undefined as unknown as string))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => b.addNode({} as unknown as string))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => b.addNode(10n as unknown as string))).toBe("E_INVALID_ID");
         expect(details(() => b.addNode("\ud800")).reason).toBe("lone surrogate");
         expect(b.hasNode(Number.NaN)).toBe(false);
         expect(b.indexOf(null as unknown as string)).toBe(INVALID_INDEX);
@@ -135,7 +134,7 @@ describe("GraphBuilder nodes", () => {
         const given = new Uint32Array(4);
         expect(b.addNodes(new Set(["b", "c"]), given)).toBe(given);
         expect(Array.from(given)).toEqual([2, 3, 0, 0]);
-        expect(code(() => b.addNodes(["d", "e"], new Uint32Array(1)))).toBe("E_COLUMN_LENGTH");
+        expect(thrownCode(() => b.addNodes(["d", "e"], new Uint32Array(1)))).toBe("E_COLUMN_LENGTH");
         expect(b.nodeBound).toBe(4);
     });
 
@@ -169,19 +168,19 @@ describe("GraphBuilder nodes", () => {
 
     it("addAnonymousNodes validates its count (E_INDEX_RANGE, E_TOO_LARGE)", () => {
         const b = new GraphBuilder({ directed: true });
-        expect(code(() => b.addAnonymousNodes(-1))).toBe("E_INDEX_RANGE");
-        expect(code(() => b.addAnonymousNodes(1.5))).toBe("E_INDEX_RANGE");
-        expect(code(() => b.addAnonymousNodes(MAX_COUNT + 1))).toBe("E_TOO_LARGE");
+        expect(thrownCode(() => b.addAnonymousNodes(-1))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.addAnonymousNodes(1.5))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.addAnonymousNodes(MAX_COUNT + 1))).toBe("E_TOO_LARGE");
         expect(b.nodeBound).toBe(0);
     });
 
     it("idOf throws E_INDEX_RANGE for out-of-range and removed indices", () => {
         const b = new GraphBuilder({ directed: true });
         b.addNode("a");
-        expect(code(() => b.idOf(1))).toBe("E_INDEX_RANGE");
-        expect(code(() => b.idOf(-1))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.idOf(1))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.idOf(-1))).toBe("E_INDEX_RANGE");
         b.removeNode("a");
-        expect(code(() => b.idOf(0))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.idOf(0))).toBe("E_INDEX_RANGE");
     });
 
     it("reserve grows capacity and validates its arguments", () => {
@@ -189,8 +188,8 @@ describe("GraphBuilder nodes", () => {
         const before = b.byteLength();
         b.reserve(1000, 5000);
         expect(b.byteLength()).toBeGreaterThan(before);
-        expect(code(() => b.reserve(-1))).toBe("E_TOO_LARGE");
-        expect(code(() => b.reserve(1, MAX_COUNT + 1))).toBe("E_TOO_LARGE");
+        expect(thrownCode(() => b.reserve(-1))).toBe("E_TOO_LARGE");
+        expect(thrownCode(() => b.reserve(1, MAX_COUNT + 1))).toBe("E_TOO_LARGE");
         b.reserve();
     });
 });
@@ -214,10 +213,10 @@ describe("GraphBuilder removal and revival", () => {
         expect(b.hasEdge(4)).toBe(true);
         expect(b.nodeBound).toBe(3);
         expect(b.edgeBound).toBe(5);
-        expect(code(() => b.removeNode("b"))).toBe("E_UNKNOWN_NODE");
-        expect(code(() => b.removeNode("nope"))).toBe("E_UNKNOWN_NODE");
+        expect(thrownCode(() => b.removeNode("b"))).toBe("E_UNKNOWN_NODE");
+        expect(thrownCode(() => b.removeNode("nope"))).toBe("E_UNKNOWN_NODE");
         expect(details(() => b.removeNodeByIndex(1)).index).toBe(1);
-        expect(code(() => b.removeNodeByIndex(9))).toBe("E_UNKNOWN_NODE");
+        expect(thrownCode(() => b.removeNodeByIndex(9))).toBe("E_UNKNOWN_NODE");
     });
 
     it("removeNodeByIndex works for anonymous nodes", () => {
@@ -294,18 +293,18 @@ describe("GraphBuilder edges", () => {
         b.addNode("a");
         const m = b.mutationCount;
         expect(details(() => b.addEdge("a", "b")).id).toBe("b");
-        expect(code(() => b.addEdge("z", "a"))).toBe("E_UNKNOWN_NODE");
+        expect(thrownCode(() => b.addEdge("z", "a"))).toBe("E_UNKNOWN_NODE");
         b.addNode("b");
         b.removeNode("b");
-        expect(code(() => b.addEdge("a", "b"))).toBe("E_UNKNOWN_NODE");
+        expect(thrownCode(() => b.addEdge("a", "b"))).toBe("E_UNKNOWN_NODE");
         expect(b.edgeBound).toBe(0);
         expect(b.mutationCount).toBe(m + 2);
     });
 
     it("rejects a NaN weight with E_INVALID_WEIGHT and accepts every other number", () => {
         const b = new GraphBuilder({ directed: true });
-        expect(code(() => b.addEdge("a", "b", Number.NaN))).toBe("E_INVALID_WEIGHT");
-        expect(code(() => b.addEdge("a", "b", "3" as unknown as number))).toBe("E_INVALID_WEIGHT");
+        expect(thrownCode(() => b.addEdge("a", "b", Number.NaN))).toBe("E_INVALID_WEIGHT");
+        expect(thrownCode(() => b.addEdge("a", "b", "3" as unknown as number))).toBe("E_INVALID_WEIGHT");
         expect(b.edgeBound).toBe(0);
         b.addEdge("a", "b", 0);
         b.addEdge("a", "b", -2);
@@ -319,10 +318,10 @@ describe("GraphBuilder edges", () => {
     it("a builder declared unweighted never allocates weights and refuses a weight other than 1", () => {
         const b = new GraphBuilder({ directed: true, weighted: false });
         b.addEdge("a", "b", 1);
-        expect(code(() => b.addEdge("a", "b", 2))).toBe("E_INVALID_WEIGHT");
-        expect(code(() => b.setEdgeWeight(0, 0.5))).toBe("E_INVALID_WEIGHT");
+        expect(thrownCode(() => b.addEdge("a", "b", 2))).toBe("E_INVALID_WEIGHT");
+        expect(thrownCode(() => b.setEdgeWeight(0, 0.5))).toBe("E_INVALID_WEIGHT");
         b.setEdgeWeight(0, 1);
-        expect(code(() => b.addEdges(new Uint32Array([0]), new Uint32Array([1]), new Float32Array([2])))).toBe(
+        expect(thrownCode(() => b.addEdges(new Uint32Array([0]), new Uint32Array([1]), new Float32Array([2])))).toBe(
             "E_INVALID_WEIGHT",
         );
         b.addEdges(new Uint32Array([0]), new Uint32Array([1]), new Float32Array([1]));
@@ -347,18 +346,18 @@ describe("GraphBuilder edges", () => {
         b.addAnonymousNodes(2);
         expect(b.addEdgeByIndex(0, 1, 3)).toBe(0);
         expect(details(() => b.addEdgeByIndex(0, 2)).index).toBe(2);
-        expect(code(() => b.addEdgeByIndex(-1, 0))).toBe("E_UNKNOWN_NODE");
+        expect(thrownCode(() => b.addEdgeByIndex(-1, 0))).toBe("E_UNKNOWN_NODE");
         b.removeNodeByIndex(1);
         expect(details(() => b.addEdgeByIndex(1, 0)).index).toBe(1);
-        expect(code(() => b.addEdgeByIndex(0, 0, Number.NaN))).toBe("E_INVALID_WEIGHT");
+        expect(thrownCode(() => b.addEdgeByIndex(0, 0, Number.NaN))).toBe("E_INVALID_WEIGHT");
         expect(b.edgeBound).toBe(1);
     });
 
     it("addEdges validates everything before pushing anything", () => {
         const b = new GraphBuilder({ directed: true });
         b.addAnonymousNodes(3);
-        expect(code(() => b.addEdges(new Uint32Array([0, 1]), new Uint32Array([1])))).toBe("E_COLUMN_LENGTH");
-        expect(code(() => b.addEdges(new Uint32Array([0]), new Uint32Array([1]), new Float32Array(2)))).toBe(
+        expect(thrownCode(() => b.addEdges(new Uint32Array([0, 1]), new Uint32Array([1])))).toBe("E_COLUMN_LENGTH");
+        expect(thrownCode(() => b.addEdges(new Uint32Array([0]), new Uint32Array([1]), new Float32Array(2)))).toBe(
             "E_COLUMN_LENGTH",
         );
         expect(details(() => b.addEdges(new Uint32Array([0, 5]), new Uint32Array([1, 1]))).index).toBe(5);
@@ -381,10 +380,10 @@ describe("GraphBuilder edges", () => {
 
     it("addEdgesByIds validates ids and weights before adding any node or edge", () => {
         const b = new GraphBuilder({ directed: false });
-        expect(code(() => b.addEdgesByIds(["a", "b"], ["b"]))).toBe("E_COLUMN_LENGTH");
-        expect(code(() => b.addEdgesByIds(["a"], ["b"], [1, 2]))).toBe("E_COLUMN_LENGTH");
-        expect(code(() => b.addEdgesByIds(["a", "b"], ["b", Number.NaN]))).toBe("E_INVALID_ID");
-        expect(code(() => b.addEdgesByIds(["a", "b"], ["b", "c"], [1, Number.NaN]))).toBe("E_INVALID_WEIGHT");
+        expect(thrownCode(() => b.addEdgesByIds(["a", "b"], ["b"]))).toBe("E_COLUMN_LENGTH");
+        expect(thrownCode(() => b.addEdgesByIds(["a"], ["b"], [1, 2]))).toBe("E_COLUMN_LENGTH");
+        expect(thrownCode(() => b.addEdgesByIds(["a", "b"], ["b", Number.NaN]))).toBe("E_INVALID_ID");
+        expect(thrownCode(() => b.addEdgesByIds(["a", "b"], ["b", "c"], [1, Number.NaN]))).toBe("E_INVALID_WEIGHT");
         expect(b.nodeBound).toBe(0);
         expect(b.addEdgesByIds(["a", "b"], ["b", "c"], [2, 3])).toBe(0);
         expect(b.addEdgesByIds(["c"], ["a"])).toBe(2);
@@ -392,7 +391,7 @@ describe("GraphBuilder edges", () => {
         expect(b.edgeWeight(1)).toBe(3);
         const strict = new GraphBuilder({ directed: true, addMissingNodes: false });
         strict.addNode("a");
-        expect(code(() => strict.addEdgesByIds(["a", "a"], ["a", "b"]))).toBe("E_UNKNOWN_NODE");
+        expect(thrownCode(() => strict.addEdgesByIds(["a", "a"], ["a", "b"]))).toBe("E_UNKNOWN_NODE");
         expect(strict.edgeBound).toBe(0);
         expect(strict.addEdgesByIds(["a"], ["a"])).toBe(0);
     });
@@ -400,15 +399,15 @@ describe("GraphBuilder edges", () => {
     it("edgeEndpoints / edgeWeight / setEdgeWeight check the edge (E_INDEX_RANGE)", () => {
         const b = new GraphBuilder({ directed: true });
         b.addEdge("a", "b");
-        expect(code(() => b.edgeEndpoints(1))).toBe("E_INDEX_RANGE");
-        expect(code(() => b.edgeWeight(-1))).toBe("E_INDEX_RANGE");
-        expect(code(() => b.setEdgeWeight(1, 2))).toBe("E_INDEX_RANGE");
-        expect(code(() => b.setEdgeWeight(0, Number.NaN))).toBe("E_INVALID_WEIGHT");
+        expect(thrownCode(() => b.edgeEndpoints(1))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.edgeWeight(-1))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.setEdgeWeight(1, 2))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.setEdgeWeight(0, Number.NaN))).toBe("E_INVALID_WEIGHT");
         b.setEdgeWeight(0, 4);
         expect(b.edgeWeight(0)).toBe(4);
         b.removeEdge(0);
-        expect(code(() => b.edgeEndpoints(0))).toBe("E_INDEX_RANGE");
-        expect(code(() => b.edgeWeight(0))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.edgeEndpoints(0))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.edgeWeight(0))).toBe("E_INDEX_RANGE");
     });
 
     it("setEdgeWeight allocates the weight array and back-fills earlier edges with 1", () => {
@@ -439,9 +438,9 @@ describe("GraphBuilder edges", () => {
         expect(Array.from(b.findEdges(1, 0))).toEqual([]);
         expect(Array.from(b.findEdges(0, 0))).toEqual([3]);
         expect(Array.from(b.findEdges(2, 0))).toEqual([2]);
-        expect(code(() => b.outEdgesOf(3))).toBe("E_INDEX_RANGE");
-        expect(code(() => b.inEdgesOf(-1))).toBe("E_INDEX_RANGE");
-        expect(code(() => b.findEdges(0, 9))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.outEdgesOf(3))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.inEdgesOf(-1))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.findEdges(0, 9))).toBe("E_INDEX_RANGE");
         b.removeNode("a");
         expect(Array.from(b.outEdgesOf(0))).toEqual([]);
         expect(Array.from(b.inEdgesOf(1))).toEqual([]);
@@ -539,7 +538,7 @@ describe("GraphBuilder direction", () => {
         const undirected = new GraphBuilder({ directed: false });
         undirected.addEdge("a", "b");
         expect(details(() => undirected.setDirected(true)).reason).toBe("expand required");
-        expect(code(() => undirected.setDirected(true, { expand: false }))).toBe("E_DIRECTED");
+        expect(thrownCode(() => undirected.setDirected(true, { expand: false }))).toBe("E_DIRECTED");
         expect(undirected.directed).toBe(false);
         undirected.lockDirected();
         expect(details(() => undirected.setDirected(true, { expand: true })).reason).toBe("locked");
@@ -610,11 +609,15 @@ describe("GraphBuilder columns", () => {
         expect(b.nodeColumn("score")).toBe(h);
         expect(b.nodeColumn("missing")).toBe(INVALID_INDEX);
         expect(b.edgeColumn("score")).toBe(INVALID_INDEX);
-        expect(code(() => b.declareNodeColumn({ name: "score", dtype: "f32" }))).toBe("E_COLUMN_EXISTS");
-        expect(code(() => b.declareNodeColumn({ name: "score", dtype: "f64", components: 2 }))).toBe("E_COLUMN_EXISTS");
-        expect(code(() => b.declareNodeColumn({ name: "other", dtype: "u32", role: "rank" }))).toBe("E_DUPLICATE_ROLE");
-        expect(code(() => b.declareNodeColumn({ name: "", dtype: "u32" }))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.declareEdgeColumn({ name: "bad", dtype: "nope" as never }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.declareNodeColumn({ name: "score", dtype: "f32" }))).toBe("E_COLUMN_EXISTS");
+        expect(thrownCode(() => b.declareNodeColumn({ name: "score", dtype: "f64", components: 2 }))).toBe(
+            "E_COLUMN_EXISTS",
+        );
+        expect(thrownCode(() => b.declareNodeColumn({ name: "other", dtype: "u32", role: "rank" }))).toBe(
+            "E_DUPLICATE_ROLE",
+        );
+        expect(thrownCode(() => b.declareNodeColumn({ name: "", dtype: "u32" }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.declareEdgeColumn({ name: "bad", dtype: "nope" as never }))).toBe("E_COLUMN_TYPE");
         expect(b.declareEdgeColumn({ name: "w", dtype: "f32" })).toBe(0);
     });
 
@@ -626,10 +629,10 @@ describe("GraphBuilder columns", () => {
         const h = b.declareNodeColumn({ name: "score", dtype: "f64" });
         b.setNodeValue(h, 0, 1.5);
         b.setNodeValue("score", 1, 2.5);
-        expect(code(() => b.setNodeValue(h, 2, 1))).toBe("E_INDEX_RANGE");
-        expect(code(() => b.setNodeValue(7 as ColumnHandle, 0, 1))).toBe("E_UNKNOWN_COLUMN");
-        expect(code(() => b.setEdgeValue(3 as ColumnHandle, 0, 1))).toBe("E_UNKNOWN_COLUMN");
-        expect(code(() => b.setEdgeValue("x", 1, 1))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.setNodeValue(h, 2, 1))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.setNodeValue(7 as ColumnHandle, 0, 1))).toBe("E_UNKNOWN_COLUMN");
+        expect(thrownCode(() => b.setEdgeValue(3 as ColumnHandle, 0, 1))).toBe("E_UNKNOWN_COLUMN");
+        expect(thrownCode(() => b.setEdgeValue("x", 1, 1))).toBe("E_INDEX_RANGE");
         b.setEdgeValue("x", 0, "v");
         const s = b.freeze();
         expect(s.nodes.value("score", 0)).toBe(1.5);
@@ -671,8 +674,8 @@ describe("GraphBuilder columns", () => {
         const s = b.freeze();
         expect(s.nodes.require("v").dtype).toBe("f64");
         expect(s.nodes.value("v", 1)).toBe(3);
-        expect(code(() => b.setNodeValue("v", 0, 10n))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("w", 0, "\ud800"))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("v", 0, 10n))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("w", 0, "\ud800"))).toBe("E_COLUMN_TYPE");
     });
 
     it("declared columns reject values they cannot hold (E_COLUMN_TYPE) and accept every dtype", () => {
@@ -689,19 +692,19 @@ describe("GraphBuilder columns", () => {
         b.declareNodeColumn({ name: "spells", dtype: "list", itemDtype: "f64", itemComponents: 2 });
         b.declareNodeColumn({ name: "blob", dtype: "json" });
         b.declareNodeColumn({ name: "solid", dtype: "u32", nullable: false });
-        expect(code(() => b.setNodeValue("f", 0, "no"))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("i", 0, 1.5))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("u", 0, 300))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("pos", 0, [1, 2]))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("pos", 0, [1, 2, "3"]))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("flag", 0, 1))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("cat", 0, {}))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("name", 0, {}))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("tags", 0, "x"))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("tags", 0, [1]))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("spells", 0, [[1]]))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("blob", 0, () => 1))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeValue("solid", 0, undefined))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("f", 0, "no"))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("i", 0, 1.5))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("u", 0, 300))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("pos", 0, [1, 2]))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("pos", 0, [1, 2, "3"]))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("flag", 0, 1))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("cat", 0, {}))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("name", 0, {}))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("tags", 0, "x"))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("tags", 0, [1]))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("spells", 0, [[1]]))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("blob", 0, () => 1))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeValue("solid", 0, undefined))).toBe("E_COLUMN_TYPE");
         b.setNodeValue("f", 0, 1.5);
         b.setNodeValue("f", 1, true);
         b.setNodeValue("i", 0, -4);
@@ -769,23 +772,23 @@ describe("GraphBuilder columns", () => {
         const b = new GraphBuilder({ directed: true });
         b.addNodes(["a", "b", "c"]);
         b.addEdge("a", "b");
-        expect(code(() => b.setNodeColumn("x", new Float32Array(2)))).toBe("E_COLUMN_LENGTH");
-        expect(code(() => b.setNodeColumn("x", new Float32Array(3), { dtype: "i32" }))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setNodeColumn("x", new Float32Array(3), { dtype: "string" }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeColumn("x", new Float32Array(2)))).toBe("E_COLUMN_LENGTH");
+        expect(thrownCode(() => b.setNodeColumn("x", new Float32Array(3), { dtype: "i32" }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setNodeColumn("x", new Float32Array(3), { dtype: "string" }))).toBe("E_COLUMN_TYPE");
         const data = new Float32Array([1, 2, 3]);
         b.setNodeColumn("x", data);
         data[0] = 99;
         b.setNodeColumn("pos", new Float64Array(6), { components: 2 });
         b.setNodeColumn("flags", new Uint32Array([0b101]), { dtype: "bool" });
         b.setNodeColumn("cat", new Uint32Array([1, 0, 1]), { dtype: "dict", options: ["p", "q"] });
-        expect(code(() => b.setNodeColumn("bad", new Uint32Array([2, 0, 1]), { dtype: "dict", options: ["p"] }))).toBe(
-            "E_COLUMN_TYPE",
-        );
+        expect(
+            thrownCode(() => b.setNodeColumn("bad", new Uint32Array([2, 0, 1]), { dtype: "dict", options: ["p"] })),
+        ).toBe("E_COLUMN_TYPE");
         b.setNodeColumn("bytes", new Uint8Array([1, 2, 3]), { nullable: true });
         b.setEdgeColumn("w", new Int32Array([7]));
         b.setNodeColumn("x", new Float32Array([4, 5, 6]));
         b.declareNodeColumn({ name: "r", dtype: "u32", role: "rank" });
-        expect(code(() => b.setNodeColumn("x", new Float32Array(3), { role: "rank" }))).toBe("E_DUPLICATE_ROLE");
+        expect(thrownCode(() => b.setNodeColumn("x", new Float32Array(3), { role: "rank" }))).toBe("E_DUPLICATE_ROLE");
         const s = b.freeze();
         assertInvariants(s);
         expect(Array.from(s.nodes.requireTyped("x", "f32").data)).toEqual([4, 5, 6]);
@@ -813,21 +816,21 @@ describe("GraphBuilder columns", () => {
         b.setGraphValue("count", 3, { dtype: "i32" });
         b.setGraphValue("nothing", undefined);
         b.setGraphValue("title", "again");
-        expect(code(() => b.setGraphValue("bad", () => 1))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setGraphValue("bad", 1, { dtype: "nope" as never }))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setGraphValue("bad", "x", { dtype: "i32" }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setGraphValue("bad", () => 1))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setGraphValue("bad", 1, { dtype: "nope" as never }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setGraphValue("bad", "x", { dtype: "i32" }))).toBe("E_COLUMN_TYPE");
         b.setMeta({ name: "g", keywords: ["a"], idType: "string", extra: { k: [1, 2] } });
         b.setMeta({
             description: "d",
             weightOrigin: { format: "gexf", id: null, title: null, type: "double", namespace: null },
         });
-        expect(code(() => b.setMeta({ name: 5 as never }))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setMeta({ keywords: [1] as never }))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setMeta({ idType: "float" as never }))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setMeta({ mode: "x" as never }))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setMeta({ declaredMultigraph: "no" as never }))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setMeta({ weightOrigin: 1 as never }))).toBe("E_COLUMN_TYPE");
-        expect(code(() => b.setMeta({ weightOrigin: { format: 2 } as never }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setMeta({ name: 5 as never }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setMeta({ keywords: [1] as never }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setMeta({ idType: "float" as never }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setMeta({ mode: "x" as never }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setMeta({ declaredMultigraph: "no" as never }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setMeta({ weightOrigin: 1 as never }))).toBe("E_COLUMN_TYPE");
+        expect(thrownCode(() => b.setMeta({ weightOrigin: { format: 2 } as never }))).toBe("E_COLUMN_TYPE");
         expect(details(() => b.setMeta({ extra: { f: () => 1 } })).field).toBe("extra");
         const s = b.freeze();
         expect(s.graph.value("title", 0)).toBe("again");
@@ -848,7 +851,7 @@ describe("GraphBuilder columns", () => {
         const b = new GraphBuilder({ directed: true });
         b.setGraphValue("a", 1, { role: "rank" });
         b.setGraphValue("b", 2, { role: "rank" });
-        expect(code(() => b.freeze())).toBe("E_DUPLICATE_ROLE");
+        expect(thrownCode(() => b.freeze())).toBe("E_DUPLICATE_ROLE");
     });
 
     it("builds extension tables row by row and rewrites their references through compaction", () => {
@@ -860,9 +863,9 @@ describe("GraphBuilder columns", () => {
             { name: "value", dtype: "f64" },
         ]);
         expect(t).toBe(0);
-        expect(code(() => b.addExtensionTable("temporal:node:price", []))).toBe("E_COLUMN_EXISTS");
+        expect(thrownCode(() => b.addExtensionTable("temporal:node:price", []))).toBe("E_COLUMN_EXISTS");
         expect(
-            code(() =>
+            thrownCode(() =>
                 b.addExtensionTable("dup", [
                     { name: "x", dtype: "u32" },
                     { name: "x", dtype: "u32" },
@@ -870,7 +873,7 @@ describe("GraphBuilder columns", () => {
             ),
         ).toBe("E_COLUMN_EXISTS");
         expect(
-            code(() =>
+            thrownCode(() =>
                 b.addExtensionTable("dup", [
                     { name: "x", dtype: "u32", role: "start" },
                     { name: "y", dtype: "u32", role: "start" },
@@ -880,8 +883,8 @@ describe("GraphBuilder columns", () => {
         expect(b.addExtensionRow(t, [0, 1, 10])).toBe(0);
         expect(b.addExtensionRow(t, [1, 2, 20])).toBe(1);
         expect(b.addExtensionRow(t, [2, 3, 30])).toBe(2);
-        expect(code(() => b.addExtensionRow(t, [1, 2]))).toBe("E_COLUMN_LENGTH");
-        expect(code(() => b.addExtensionRow(5 as never, [1, 2, 3]))).toBe("E_INDEX_RANGE");
+        expect(thrownCode(() => b.addExtensionRow(t, [1, 2]))).toBe("E_COLUMN_LENGTH");
+        expect(thrownCode(() => b.addExtensionRow(5 as never, [1, 2, 3]))).toBe("E_INDEX_RANGE");
         b.removeNode("b");
         const s = b.freeze();
         assertInvariants(s);
@@ -901,8 +904,8 @@ describe("GraphBuilder columns", () => {
         expect(b.addEdgeRecord("a", "b", { weight: null, kind: "j" })).toBe(1);
         expect(b.addEdgeRecord("a", "b", { w: 4, weight: 9 }, "w")).toBe(2);
         expect(b.addEdgeRecord("a", "b", { weight: 7 }, null)).toBe(3);
-        expect(code(() => b.addEdgeRecord("a", "b", { weight: "heavy" }))).toBe("E_INVALID_WEIGHT");
-        expect(code(() => b.addEdgeRecord("a", "b", { weight: Number.NaN }))).toBe("E_INVALID_WEIGHT");
+        expect(thrownCode(() => b.addEdgeRecord("a", "b", { weight: "heavy" }))).toBe("E_INVALID_WEIGHT");
+        expect(thrownCode(() => b.addEdgeRecord("a", "b", { weight: Number.NaN }))).toBe("E_INVALID_WEIGHT");
         expect(b.edgeCount).toBe(4);
         const s = b.freeze();
         expect(s.nodes.value("color", 0)).toBe("red");
@@ -929,14 +932,14 @@ describe("GraphBuilder columns", () => {
         b.removeNode("d");
         const bound = b.nodeBound;
         const d = details(() => b.freeze());
-        expect(code(() => b.freeze())).toBe("E_DUPLICATE_EDGE_ID");
+        expect(thrownCode(() => b.freeze())).toBe("E_DUPLICATE_EDGE_ID");
         expect(d.rows).toEqual([0, 1]);
         expect(b.nodeBound).toBe(bound);
         expect(b.nodeCount).toBe(3);
         b.setEdgeValue("id", 1, "e2");
         b.setNodeValue("key", 0, 1);
         b.setNodeValue("key", 1, 1);
-        expect(code(() => b.freeze())).toBe("E_DUPLICATE_ID");
+        expect(thrownCode(() => b.freeze())).toBe("E_DUPLICATE_ID");
         b.setNodeValue("key", 1, 2);
         const s = b.freeze();
         expect(s.edgeIndexOf("e2")).toBe(1);
@@ -1039,14 +1042,14 @@ describe("GraphBuilder lifecycle", () => {
             () => b.lockDirected(),
         ];
         for (const call of calls) {
-            expect(code(call)).toBe("E_BUILDER_DISPOSED");
+            expect(thrownCode(call)).toBe("E_BUILDER_DISPOSED");
         }
         // the getters too (design section 6.1: every further call)
-        expect(code(() => b.options)).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.directed)).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.directedLocked)).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.nodeCount)).toBe("E_BUILDER_DISPOSED");
-        expect(code(() => b.dirty)).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.options)).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.directed)).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.directedLocked)).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.nodeCount)).toBe("E_BUILDER_DISPOSED");
+        expect(thrownCode(() => b.dirty)).toBe("E_BUILDER_DISPOSED");
     });
 
     it("byteLength reports typed staging only", () => {
@@ -1160,7 +1163,7 @@ describe("GraphBuilder composition", () => {
 
         const strict = new GraphBuilder({ directed: true });
         strict.addGraph(one);
-        expect(code(() => strict.addGraph(two, { onDuplicateNode: "error" }))).toBe("E_DUPLICATE_ID");
+        expect(thrownCode(() => strict.addGraph(two, { onDuplicateNode: "error" }))).toBe("E_DUPLICATE_ID");
         strict.addGraph(two, { onDuplicateNode: "merge" });
         expect(strict.nodeCount).toBe(3);
     });

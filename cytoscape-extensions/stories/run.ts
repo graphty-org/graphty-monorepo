@@ -50,7 +50,7 @@ export function placeByGroup(cy: Core, field: string): void {
         members.push(n);
         groups.set(v, members);
     });
-    // one and a half node widths between neighbours: the demo draws a node 8 * max(0.25, sqrt(2,000 / n)) units wide
+    // one and a half node widths between neighbors: the demo draws a node 8 * max(0.25, sqrt(2,000 / n)) units wide
     const unit = 12 * Math.max(0.25, Math.sqrt(2_000 / cy.nodes().length));
     const columns = Math.ceil(Math.sqrt(groups.size));
     const spacing = 2.4 * unit * Math.sqrt(Math.max(...[...groups.values()].map((g) => g.length)));
@@ -1140,7 +1140,7 @@ export function colorBy(cy: Core, field: string | null, lone = false): void {
                     groups.set(v, groups.size);
                 }
                 const i = groups.get(v) ?? 0;
-                // past the palette, hues a golden angle apart, so neighbouring groups never share a color
+                // past the palette, hues a golden angle apart, so neighboring groups never share a color
                 n.data("color", i < PALETTE.length ? PALETTE[i] : `hsl(${Math.round((i * 137.5) % 360)}, 60%, 55%)`);
             }
         });

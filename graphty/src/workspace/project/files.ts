@@ -4,6 +4,7 @@
  * Nothing here reads what is in a file.
  */
 
+import { pickFiles } from "@graphty/compact-mantine";
 import { PROJECT_FILE } from "@graphty/graphty-element/session";
 
 /** The file type a project is saved as, for the pickers: graphty-element's project file. */
@@ -32,7 +33,7 @@ function pickers(): FileAccessWindow {
 }
 
 /**
- * Whether an error is the reader cancelling a picker.
+ * Whether an error is the reader canceling a picker.
  * @param error - what a picker threw.
  * @returns true for a cancel.
  */
@@ -63,7 +64,7 @@ export async function readHandle(handle: FileSystemFileHandle): Promise<File | n
 /**
  * Asks the reader for a project file (Locate...): the file picker that keeps a handle where the
  * browser has one, else a plain file input.
- * @returns the file and, where the browser keeps them, its handle; undefined when cancelled.
+ * @returns the file and, where the browser keeps them, its handle; undefined when canceled.
  */
 export async function locateFile(): Promise<{ file: File; handle?: FileSystemFileHandle } | undefined> {
     const { showOpenFilePicker } = pickers();
@@ -78,17 +79,7 @@ export async function locateFile(): Promise<{ file: File; handle?: FileSystemFil
             throw error;
         }
     }
-    return new Promise((resolve) => {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.accept = ".json,application/json";
-        input.addEventListener("change", () => {
-            const file = input.files?.[0];
-            resolve(file === undefined ? undefined : { file });
-        });
-        input.addEventListener("cancel", () => {
-            resolve(undefined);
-        });
-        input.click();
-    });
+    // compact-mantine's picker keeps its input alive while Safari's file panel is open.
+    const file = (await pickFiles({ accept: ".json,application/json" })).at(0);
+    return file === undefined ? undefined : { file };
 }

@@ -13,12 +13,12 @@ Code: `openWebGPUEngine` and `RendererStatus` in `src/managers/RenderManager.ts`
 
 Before this change the element always drew with WebGL. `RenderManager` could build a Babylon.js
 `WebGPUEngine` behind a `useWebGPU` flag, but nothing set it, and the flag could not have worked:
-a scene cannot be built on a WebGPU engine until the engine's asynchronous initialisation has
+a scene cannot be built on a WebGPU engine until the engine's asynchronous initialization has
 finished, and the element builds its scene synchronously in its constructor.
 
 So the element still builds its scene on WebGL when it is constructed, and chooses the renderer
 once, at the start of `init()` -- after every attribute has been read and before any manager has
-initialised, so nothing has drawn or attached yet. When WebGPU is asked for and opens, the scene,
+initialized, so nothing has drawn or attached yet. When WebGPU is asked for and opens, the scene,
 the cameras, the input manager and the update manager's frame watcher are rebuilt on a fresh
 canvas (a canvas that has had a WebGL context cannot hand out a WebGPU one). When it does not
 open, WebGL draws and `rendererStatus.reason` says why. The renderer never changes after that.
@@ -31,7 +31,7 @@ Each of these was found by drawing the same styled scene with both renderers and
   `RawTexture`; WebGPU has no three-channel format and Babylon refuses one there. The texture is
   now RGBA.
 - **Animated edges failed to bind on a page with two engines.** Babylon's greased line binds one
-  empty colours texture shared by every engine on the page, created on whichever engine asked
+  empty colors texture shared by every engine on the page, created on whichever engine asked
   first and disposed with whichever engine is disposed first. WebGL tolerated the stale binding;
   WebGPU refused the draw. The element now gives each animated line its own, created on that
   line's scene and disposed with it.

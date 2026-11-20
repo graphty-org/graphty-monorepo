@@ -2,7 +2,7 @@
  * `LAYOUTS` is only worth having if it is true and complete, so every claim in it is checked by running the
  * layout: on a directed and an undirected graph, on a weighted graph and its unweighted twin, without and with its
  * required options, and as a simulation on the CPU and through an accelerator. A new layout export that is not
- * catalogued fails the completeness test.
+ * cataloged fails the completeness test.
  */
 
 import assert from "node:assert";

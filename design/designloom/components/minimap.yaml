@@ -2,7 +2,8 @@ id: minimap
 name: Minimap
 category: display
 description: Overview minimap showing entire graph with viewport indicator. Supports click-to-navigate and drag-to-pan.
-status: planned
+status: implemented
+notes: "Ships: the element's minimap attribute (graphty-element/src/graphty-element.ts)."
 implements_capabilities:
     - overview-minimap
 used_in_workflows:

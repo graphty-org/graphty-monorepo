@@ -9,22 +9,18 @@ import { loadSiteConfig } from "./siteConfig";
 let loading: Promise<void> | null = null;
 
 /**
- * Defines `<graphty-element>` and switches on its optional GPU peer, the first time it is called.
- * @returns Settles once the tag is defined. It does not wait for the GPU peer, and a GPU peer
- * that fails to load does not reject it: the graph is drawn either way. It rejects when the element
- * itself could not be loaded, and the next call tries again.
+ * Defines `<graphty-element>`, the first time it is called.
+ *
+ * GPU acceleration needs nothing here: this app installs `@graphty/webgpu-graph-algorithms`, and
+ * the element finds and loads it itself the first time it probes, then reports the outcome on
+ * `capabilities.acceleration`. Nothing in this application touches WebGPU.
+ * @returns Settles once the tag is defined. It rejects when the element itself could not be
+ * loaded, and the next call tries again.
  */
 export function loadGraphtyElement(): Promise<void> {
     // The site's configuration first, so the element's first session has the site's experiments.
     loading ??= loadSiteConfig().then(async () => {
         await import("@graphty/graphty-element");
-        // The element's optional GPU peer, switched on. This is the whole integration: the
-        // element probes, constructs, attaches, applies its threshold and recovers, and reports
-        // through `capabilities.acceleration` -- including a peer that never loaded, as
-        // `E_NO_ACCELERATOR_REGISTERED`. Nothing in this application touches WebGPU.
-        import("@graphty/graphty-element/webgpu").catch((error: unknown) => {
-            console.error("[graphty] the WebGPU accelerator could not be loaded:", error);
-        });
     });
     // A failed load is not kept: the next call (a Retry) loads again.
     loading.catch(() => {

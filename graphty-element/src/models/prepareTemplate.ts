@@ -14,33 +14,36 @@
  *   material blends, and merged within each group, so draw calls grow with the groups and never
  *   with the nodes.
  * - Materials reflect the scene's environment, or the bundled neutral one when it has none, are
- *   compiled for instances with the instanced colour buffer, and frozen before any node draws them.
+ *   compiled for instances with the instanced color buffer, and frozen before any node draws them.
  *
  * Reached only through the model chunk (src/models/chunk.ts), so it costs the main entry nothing.
  */
 
-import "@babylonjs/core/Meshes/instancedMesh.js";
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
 import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
-import type { Material } from "@babylonjs/core/Materials/material.js";
+import { Material } from "@babylonjs/core/Materials/material.js";
+import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial.js";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
 import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import type { Scene } from "@babylonjs/core/scene.js";
+import { drawsWithoutPicture } from "babylonjs-models";
 
 import { type AnimatedPart, bakeAnimation, type TemplateAnimation } from "./animateTemplate";
 import type { ModelTemplate, TemplateOptions } from "./ModelCache";
 
 /**
  * The rotation that turns the file's up axis to +Y, then turns the model about +Y. A turn of 0 faces
- * the model's front (+Z in a glTF file, after the loader's change of handedness) toward -Z, where
- * the element's default camera stands, so a model shows its front rather than its back.
+ * the model's front (+Z in a glTF file, after the loader's change of handedness; babylonjs-models
+ * gives every format in that convention) toward -Z, where the element's default camera stands, so a
+ * model shows its front rather than its back.
  * @param up - The file's up axis.
  * @param turnDegrees - The turn about the up axis, in degrees.
  * @returns The matrix.
@@ -111,7 +114,8 @@ function ownVertices(mesh: Mesh): VertexData {
         data.indices = Array.from({ length: mesh.getTotalVertices() }, (_, i) => i);
     }
 
-    if (data.normals === null && data.positions !== null && data.indices !== null) {
+    // A primitive with no NORMAL attribute comes out with `normals` undefined, not null (Fox.glb).
+    if ((data.normals?.length ?? 0) === 0 && data.positions !== null && data.indices !== null) {
         const normals: number[] = [];
         VertexData.ComputeNormals(data.positions, data.indices, normals);
         data.normals = normals;
@@ -150,7 +154,9 @@ function skinAtRest(mesh: Mesh, data: VertexData): void {
         }
     };
     const posed = Array.from(positions);
-    const posedNormals = normals === null ? null : Array.from(normals);
+    // Undefined, not null, for a primitive with no NORMAL attribute.
+    const givenNormals = normals ?? null;
+    const posedNormals = givenNormals === null ? null : Array.from(givenNormals);
     for (let v = 0; v * 3 < positions.length; v++) {
         skin.reset();
         for (let k = 0; k < 4; k++) {
@@ -189,6 +195,24 @@ function placeAt(data: VertexData, world: Matrix): VertexData {
 }
 
 /**
+ * Vertex data with all-white vertex colors dropped. White vertex colors (a USD exporter's default
+ * `displayColor`, SoC-ElephantWithMonochord) change nothing a material draws and state no color:
+ * without them the part can still take the node's color once its pictures are gone.
+ * @param data - The vertex data, changed in place.
+ * @returns The same data.
+ */
+function withoutWhiteColors(data: VertexData): VertexData {
+    const colors = data.colors ?? [];
+    for (let i = 0; i < colors.length; i++) {
+        if (colors[i] !== 1) {
+            return data;
+        }
+    }
+    data.colors = null;
+    return data;
+}
+
+/**
  * Bake every drawable part of the container into world-space vertex data, turned upright.
  * @param container - The loaded model.
  * @param turn - The orientation to bake in.
@@ -196,30 +220,136 @@ function placeAt(data: VertexData, world: Matrix): VertexData {
  * @returns The parts.
  */
 function bakeParts(container: AssetContainer, turn: Matrix, animated: boolean): Part[] {
-    const parts: Part[] = [];
-    for (const mesh of container.meshes) {
-        if (!(mesh instanceof Mesh) || mesh.getTotalVertices() === 0 || mesh.getIndices() === null) {
-            continue;
+    return container.meshes.flatMap((node) => {
+        // A glTF mesh used by several nodes is loaded as one Mesh and an InstancedMesh for each
+        // further use (ABeautifulGame's second rook and its pawns): each is baked from its source's
+        // vertices, placed by its own world matrix.
+        if (node instanceof InstancedMesh) {
+            return bakeMesh(node.sourceMesh, node.computeWorldMatrix(true), turn, false);
         }
 
-        const data = restPose(mesh);
-        const { material } = mesh;
-        const signature = [data.uvs, data.uvs2, data.colors, data.tangents].map((a) => (a ? 1 : 0)).join("");
-        const blend = material?.needAlphaBlendingForMesh(mesh) === true ? "b" : "o";
-        const key = `${signature}|${material?.uniqueId ?? -1}|${blend}`;
-        const placed = mesh.computeWorldMatrix(true).multiply(turn);
-        // A thin instance's matrix places it in the mesh's own space, before the mesh's world matrix.
-        // ponytail: per-instance colors (`_COLOR_0`) are not carried over; bake them as vertex colors if a file needs them.
-        const instances = mesh.thinInstanceGetWorldMatrices();
-        // ponytail: a GPU-instanced part (EXT_mesh_gpu_instancing) is drawn still; give each copy a bone if a file animates one.
-        const movable = animated && instances.length === 0 ? { mesh, local: ownVertices(mesh) } : {};
-        for (const instance of instances.length === 0 ? [Matrix.Identity()] : instances) {
-            const copy = instances.length > 1 ? data.clone() : data;
-            parts.push({ vertices: placeAt(copy, instance.multiply(placed)), material, key, ...movable });
-        }
+        return node instanceof Mesh ? bakeMesh(node, node.computeWorldMatrix(true), turn, animated) : [];
+    });
+}
+
+/**
+ * A mesh's slices by material: one per sub-mesh when a MultiMaterial colors its sub-meshes
+ * (a USD mesh's GeomSubsets, each bound to its own material: the USD Mini Car Kit's sedan drew
+ * all over in its first subset's front-light yellow), else the whole mesh in its one material.
+ * @param mesh - The mesh.
+ * @returns Each slice's material and, for a sub-mesh, its range of the mesh's indices.
+ */
+function slicesOf(mesh: Mesh): { material: Material | null; range?: [number, number] }[] {
+    const { material } = mesh;
+    if (!(material instanceof MultiMaterial) || mesh.subMeshes.length < 2) {
+        return [{ material: material instanceof MultiMaterial ? material.subMaterials[0] : material }];
     }
 
-    return parts;
+    return mesh.subMeshes.map((sub) => ({
+        material: material.subMaterials[sub.materialIndex] ?? null,
+        range: [sub.indexStart, sub.indexStart + sub.indexCount],
+    }));
+}
+
+/** Every per-vertex array of a VertexData. */
+const PER_VERTEX = [
+    "positions",
+    "normals",
+    "tangents",
+    "uvs",
+    "uvs2",
+    "uvs3",
+    "uvs4",
+    "uvs5",
+    "uvs6",
+    "colors",
+    "matricesIndices",
+    "matricesWeights",
+    "matricesIndicesExtra",
+    "matricesWeightsExtra",
+] as const;
+
+/**
+ * The vertices a range of a mesh's indices draws, in the order it first names them.
+ * @param indices - The mesh's indices.
+ * @param range - The range.
+ * @returns The mesh's index of each vertex kept.
+ */
+function verticesIn(indices: ArrayLike<number>, range: [number, number]): number[] {
+    const seen = new Set<number>();
+    for (let i = range[0]; i < range[1]; i++) {
+        seen.add(indices[i]);
+    }
+    return [...seen];
+}
+
+/**
+ * Vertex data cut to a range of its indices, keeping only the vertices that range draws, so a
+ * mesh sliced into many materials holds each vertex once, not once a slice.
+ * @param data - The data.
+ * @param range - The range of its indices.
+ * @param kept - The vertices kept ({@link verticesIn}), by their index in `data`.
+ * @returns The cut copy.
+ */
+function cut(data: VertexData, range: [number, number], kept: readonly number[]): VertexData {
+    const count = (data.positions?.length ?? 0) / 3;
+    const copy = new VertexData();
+    for (const kind of PER_VERTEX) {
+        const from = data[kind];
+        if (from === null || from === undefined || count === 0) {
+            continue;
+        }
+        const stride = from.length / count;
+        const to = new Float32Array(kept.length * stride);
+        for (const [v, old] of kept.entries()) {
+            for (let k = 0; k < stride; k++) {
+                to[v * stride + k] = from[old * stride + k];
+            }
+        }
+        copy[kind] = to;
+    }
+    const at = new Map(kept.map((old, v) => [old, v]));
+    copy.indices = Array.from(data.indices ?? [])
+        .slice(range[0], range[1])
+        .map((old) => at.get(old) ?? 0);
+    return copy;
+}
+
+/**
+ * Bake one mesh, placed by a world matrix, into parts: one per material slice, and one per thin
+ * instance.
+ * @param mesh - The mesh whose vertices and materials are baked.
+ * @param world - Where it stands: its own world matrix, or that of an instance of it.
+ * @param turn - The orientation to bake in.
+ * @param animated - Whether the part keeps its own vertices and its mesh, to animate.
+ * @returns The parts.
+ */
+function bakeMesh(mesh: Mesh, world: Matrix, turn: Matrix, animated: boolean): Part[] {
+    if (mesh.getTotalVertices() === 0 || mesh.getIndices() === null) {
+        return [];
+    }
+
+    const whole = withoutWhiteColors(restPose(mesh));
+    const signature = [whole.uvs, whole.uvs2, whole.colors, whole.tangents].map((a) => (a ? 1 : 0)).join("");
+    const placed = world.multiply(turn);
+    // A thin instance's matrix places it in the mesh's own space, before the mesh's world matrix.
+    // ponytail: per-instance colors (`_COLOR_0`) are not carried over; bake them as vertex colors if a file needs them.
+    const instances = mesh.thinInstanceGetWorldMatrices();
+    // ponytail: a GPU-instanced part (EXT_mesh_gpu_instancing) or a reused mesh's copy is drawn still; give each copy a bone if a file animates one.
+    const local = animated && instances.length === 0 ? withoutWhiteColors(ownVertices(mesh)) : undefined;
+    return slicesOf(mesh).flatMap(({ material, range }) => {
+        const kept = range === undefined ? undefined : verticesIn(whole.indices ?? [], range);
+        const slice = (all: VertexData): VertexData =>
+            range === undefined || kept === undefined ? all : cut(all, range, kept);
+        const data = slice(whole);
+        const blend = material?.needAlphaBlendingForMesh(mesh) === true ? "b" : "o";
+        const key = `${signature}|${material?.uniqueId ?? -1}|${blend}`;
+        const movable = local === undefined ? {} : { mesh, local: slice(local), from: kept };
+        return (instances.length === 0 ? [Matrix.Identity()] : instances).map((instance) => {
+            const copy = instances.length > 1 ? data.clone() : data;
+            return { vertices: placeAt(copy, instance.multiply(placed)), material, key, ...movable };
+        });
+    });
 }
 
 /**
@@ -288,7 +418,18 @@ interface Fit {
  * @returns The fit.
  */
 function fitOf(parts: readonly Part[], options: TemplateOptions): Fit {
-    const { min, max } = boundsOf(parts);
+    return fitBox(boundsOf(parts), options);
+}
+
+/**
+ * Work out how to center a box and scale it into the unit box.
+ * @param box - The box.
+ * @param box.min - Its low corner.
+ * @param box.max - Its high corner.
+ * @param options - The geometry options.
+ * @returns The fit.
+ */
+function fitBox({ min, max }: { readonly min: Vector3; readonly max: Vector3 }, options: TemplateOptions): Fit {
     const extent = max.subtract(min);
     const center = options.center === "bounds" ? min.add(max).scale(0.5) : Vector3.Zero();
     const largest = Math.max(extent.x, extent.y, extent.z, 1e-9);
@@ -348,35 +489,181 @@ function hasPicture(material: Material): boolean {
     );
 }
 
+/** Babylon's glTF loader names the material it gives a primitive the file gives none. */
+const GLTF_DEFAULT_MATERIAL = "__GLTFLoader._default";
+
+/**
+ * Whether a material states no color of its own: the glTF loader's stand-in for a primitive with
+ * no material, or a material left at its defaults -- white, no picture or other map, no glow. A
+ * glTF material with no `baseColorFactor` and an MTL with no `Kd` load as exactly that.
+ * @param material - The material.
+ * @returns True when the part should draw in the node's color.
+ */
+function statesNoColor(material: Material): boolean {
+    if (material.name === GLTF_DEFAULT_MATERIAL) {
+        return true;
+    }
+
+    const white = (c: Color3): boolean => c.r === 1 && c.g === 1 && c.b === 1;
+    const dark = (c: Color3): boolean => c.r === 0 && c.g === 0 && c.b === 0;
+    // A see-through white (a watch's glass) states its look: drawn in the opaque flat material, it
+    // covered the ChronographWatch's dial and hands with a disc of the node's color.
+    if (material.getActiveTextures().length > 0 || material.alpha < 1) {
+        return false;
+    }
+
+    if (material instanceof PBRMaterial) {
+        return white(material.albedoColor) && dark(material.emissiveColor);
+    }
+
+    if (material instanceof StandardMaterial) {
+        return white(material.diffuseColor) && dark(material.emissiveColor);
+    }
+
+    return false;
+}
+
+/**
+ * Whether a material is a plain shade of gray: no picture or other map, no glow, opaque, not
+ * metallic, and a base color whose red, green and blue are equal (within one 8-bit step).
+ * Exporters write such a material where the author gave the model none of their own (Blender's
+ * default is 0.8 gray, metallic 0). A chrome or a see-through gray is a look, and is kept.
+ * @param material - The material.
+ * @returns True for a plain gray (or white or black) material.
+ */
+function plainGray(material: Material): boolean {
+    if (material.alpha !== 1 || (material.transparencyMode ?? Material.MATERIAL_OPAQUE) !== Material.MATERIAL_OPAQUE) {
+        return false;
+    }
+
+    let base: Color3;
+    let glow: Color3;
+    if (material instanceof PBRMaterial) {
+        if (material.metallic !== 0) {
+            return false;
+        }
+
+        base = material.albedoColor;
+        glow = material.emissiveColor;
+    } else if (material instanceof StandardMaterial) {
+        base = material.diffuseColor;
+        glow = material.emissiveColor;
+    } else {
+        return false;
+    }
+
+    const step = 1 / 255;
+    const gray = Math.abs(base.r - base.g) <= step && Math.abs(base.g - base.b) <= step;
+    return gray && glow.r + glow.g + glow.b === 0 && material.getActiveTextures().length === 0;
+}
+
+/**
+ * Whether a model states no color of its own: every part has no material, one left at its
+ * defaults, or a plain gray one. A model with one colored or pictured part keeps its grays (a car's
+ * black tires stay black beside its red body); a model of grays alone is shaded, not colored, so it
+ * draws in the node's color.
+ * @param groups - The parts by group key.
+ * @returns True when every part should draw in the node's color.
+ */
+function allPlainGray(groups: ReadonlyMap<string, Part[]>): boolean {
+    for (const list of groups.values()) {
+        for (const { material } of list) {
+            if (material !== null && !statesNoColor(material) && !plainGray(material)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Whether every picture that colored the model is gone (it was added without them, or drawn
+ * without them by `hiddenTextures`): then the model has no look of its own left, and its parts
+ * colored only by a base color take the node's color too (#8613, #8614). False while any picture
+ * still colors a part, so drawing without some pictures recolors only the parts that lost one.
+ * @param groups - The parts by group key.
+ * @returns True when at least one part lost its picture and none still draws one.
+ */
+function picturesAllGone(groups: ReadonlyMap<string, Part[]>): boolean {
+    let lost = false;
+    for (const list of groups.values()) {
+        for (const { material } of list) {
+            if (material === null) {
+                continue;
+            }
+
+            if (hasPicture(material)) {
+                return false;
+            }
+
+            lost ||= drawsWithoutPicture(material);
+        }
+    }
+
+    return lost;
+}
+
 /**
  * The material a merged group draws with, and whether it takes the node's color whatever
- * `node.modelTint` says: a part the file gives no material, no picture and no vertex colors
- * states no color of its own, and under "untextured" a part with no picture and no vertex colors
+ * `node.modelTint` says: a part the file gives no material (or one left at its defaults, see
+ * `statesNoColor`) or one that lost the picture that was its color, no picture and no vertex
+ * colors states no color of its own, and under "untextured" a part with no picture and no vertex colors
  * gives its color up too. Under "replace" every part draws in the flat material.
  * @param first - The group's first part.
  * @param colored - Whether the group carries vertex colors.
+ * @param gray - Whether the whole model states no color of its own (`allPlainGray`) and no layer
+ *   set `node.modelTint` to false.
  * @param options - The template options.
- * @param flat - The template's flat material, made on first use.
+ * @param flat - The template's flat material, made on first use, two-sided for a part whose own
+ *   material draws both sides (a thin strip seen from behind vanished in a one-sided one).
+ * @param bare - Whether every picture that colored the model is gone (`picturesAllGone`) and no
+ *   layer set `node.modelTint` to false: every part takes the node's color, a see-through one
+ *   keeping its own see-through material.
  * @returns The material, and whether the group follows the node's color.
  */
 function lookOf(
     first: Part,
     colored: boolean,
+    gray: boolean,
     options: TemplateOptions,
-    flat: () => PBRMaterial,
+    flat: (twoSided: boolean) => PBRMaterial,
+    bare = false,
 ): { material: Material; follows: boolean } {
+    const { material } = first;
+    const twoSided = material?.backFaceCulling === false;
     if (options.replace) {
-        return { material: flat(), follows: true };
+        return { material: flat(twoSided), follows: true };
     }
 
-    const { material } = first;
     if (colored) {
         // Vertex colors state the part's color; with no material they draw in the flat one.
-        return { material: material ?? flat(), follows: false };
+        return { material: material ?? flat(false), follows: false };
     }
 
-    if (material === null || (options.untextured === true && !hasPicture(material))) {
-        return { material: flat(), follows: true };
+    if (
+        material === null ||
+        gray ||
+        statesNoColor(material) ||
+        // Added or drawn without the picture that was its color: no look of its own is left (#8614).
+        drawsWithoutPicture(material) ||
+        (bare && material.alpha >= 1) ||
+        (options.untextured === true && !hasPicture(material))
+    ) {
+        return { material: flat(twoSided), follows: true };
+    }
+
+    if (bare) {
+        // A see-through part (a watch's glass) takes the node's color too, and stays see-through:
+        // its own material, its base color white, so the node's color is what shows through it.
+        // Drawn flat and opaque, it would cover what is under it.
+        if (material instanceof PBRMaterial) {
+            material.albedoColor = Color3.White();
+        } else if (material instanceof StandardMaterial) {
+            material.diffuseColor = Color3.White();
+        }
+
+        return { material, follows: true };
     }
 
     return { material, follows: false };
@@ -388,7 +675,7 @@ function lookOf(
  * @param name - A name for the template's meshes.
  * @param groups - The parts by group key.
  * @param options - The template options.
- * @param flat - The template's flat material, made on first use.
+ * @param flat - The template's flat material, made on first use, one-sided or two-sided.
  * @param made - Where each material and mesh goes as it is made, and the groups that follow the
  *   node's color.
  */
@@ -397,10 +684,12 @@ function mergeGroups(
     name: string,
     groups: ReadonlyMap<string, Part[]>,
     options: TemplateOptions,
-    flat: () => PBRMaterial,
+    flat: (twoSided: boolean) => PBRMaterial,
     made: Made,
 ): void {
     const { used, meshes, follows } = made;
+    const gray = options.ownColors !== true && allPlainGray(groups);
+    const bare = options.ownColors !== true && picturesAllGone(groups);
     for (const [key, list] of groups) {
         const [first, ...rest] = list;
         const vertices = list.reduce((sum, part) => sum + (part.vertices.positions?.length ?? 0) / 3, 0);
@@ -420,7 +709,7 @@ function mergeGroups(
         meshes.push(mesh);
         merged.applyToMesh(mesh);
         const colored = (merged.colors?.length ?? 0) > 0;
-        const look = lookOf(first, colored, options, flat);
+        const look = lookOf(first, colored, gray, options, flat, bare);
         mesh.material = look.material;
         used.add(look.material);
 
@@ -431,7 +720,7 @@ function mergeGroups(
         mesh.isVisible = false;
         mesh.isPickable = false;
         mesh.metadata = { graphtyModelGroup: key };
-        // The instanced colour is always there, white by default: tint is then one write per
+        // The instanced color is always there, white by default: tint is then one write per
         // instance, and no node's tint can change the template's shader. Babylon names it
         // "color", the same kind as per-vertex colors, so a group with vertex colors registers
         // Babylon's "instanceColor", which its shaders multiply into the vertex colors
@@ -681,25 +970,36 @@ async function build(
         throw new Error("graphty-element: the model has no triangles to draw");
     }
 
-    const fit = fitOf(parts, options);
-    const grouped = fitAndGroup(parts, fit.matrix);
+    const rest = fitOf(parts, options);
+    const grouped = fitAndGroup(parts, rest.matrix);
     const { groups, triangles } = grouped;
     let { radius } = grouped;
     const { used, meshes, follows } = made;
+    // An animated model is fitted again by the poses its clips draw (see bakeAnimation).
+    let fit = rest;
     const animation =
-        options.animated === true ? bakeAnimation(scene, container, parts, turn.multiply(fit.matrix), name) : null;
+        options.animated === true
+            ? bakeAnimation(scene, container, parts, turn.multiply(rest.matrix), name, (box) => {
+                  fit = fitBox(box, options);
+                  return fit.matrix;
+              })
+            : null;
     made.animation = animation;
-    let flatMaterial: PBRMaterial | null = null;
-    const flat = (): PBRMaterial => {
-        if (flatMaterial === null) {
-            flatMaterial = new PBRMaterial(`${name}-flat`, scene);
-            used.add(flatMaterial);
-            flatMaterial.albedoColor = Color3.White();
-            flatMaterial.metallic = 0;
-            flatMaterial.roughness = 1;
+    const flatMaterials = new Map<boolean, PBRMaterial>();
+    const flat = (twoSided: boolean): PBRMaterial => {
+        let material = flatMaterials.get(twoSided);
+        if (material === undefined) {
+            material = new PBRMaterial(`${name}-flat${twoSided ? "-two-sided" : ""}`, scene);
+            used.add(material);
+            material.albedoColor = Color3.White();
+            material.metallic = 0;
+            material.roughness = 1;
+            material.backFaceCulling = !twoSided;
+            material.twoSidedLighting = twoSided;
+            flatMaterials.set(twoSided, material);
         }
 
-        return flatMaterial;
+        return material;
     };
 
     mergeGroups(scene, name, groups, options, flat, made);
@@ -735,8 +1035,10 @@ async function build(
     // the model's triangles (section 3.8), and a group is culled only when the whole model is.
     const size = lockBounds(meshes, fit, animation?.bounds);
     if (animation !== null) {
-        const { min, max } = animation.bounds;
-        radius = Math.max(radius, min.length(), max.length());
+        // From the posed vertices themselves: the corners of their box would be its diagonal. The
+        // in-place reach over every frame, not a traveling clip's path, which would shrink the model
+        // to a speck, nor the rest pose, which no node draws.
+        ({ radius } = animation);
     }
 
     disposeLeftovers(container, used);

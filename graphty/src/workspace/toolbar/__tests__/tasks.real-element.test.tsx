@@ -316,7 +316,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.equal(session.layout.id, before);
     });
 
-    it("names the view mode on the Mode tool, shows it as words, and offers 2D, 3D and VR or AR", async () => {
+    it("names the view mode on the Mode tool, shows it as words, and offers 2D, 3D, VR and AR", async () => {
         const session = await openKarate();
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
         // Named with the mode its face shows (WCAG 2.5.3).
@@ -335,17 +335,13 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // Key 5 is shown on the row it switches to, not on the current one.
         assert.include(twoD.textContent, "5");
         assert.notInclude(threeD.textContent, "5");
-        // Without a headset (the test browser), VR and AR are drawn, disabled, with a reason.
-        await waitFor(() => {
-            const xr = within(menu)
-                .getAllByRole("menuitemradio")
-                .filter((row) => /^(VR|AR)/.test(row.textContent));
-            assert.isAbove(xr.length, 0);
-            for (const row of xr) {
-                assert.equal(row.getAttribute("aria-disabled"), "true");
-                assert.notInclude(row.textContent, "Checking");
-            }
-        });
+        // Without a headset (the test browser), VR and AR are a row each, disabled, saying only
+        // "Not available".
+        for (const name of [/^VR/, /^AR/]) {
+            const row = within(menu).getByRole("menuitemradio", { name });
+            assert.equal(row.getAttribute("aria-disabled"), "true");
+            assert.equal(row.textContent, `${name.source.slice(1)}Not available`);
+        }
         // The camera moves are the Camera tool's, not here.
         assert.isNull(within(menu).queryByRole("menuitem", { name: /^Front/ }));
         // The workspace turns XR on (graphty-element leaves it off unless a page asks), so a
@@ -389,7 +385,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         };
 
         let menu = await open();
-        for (const name of [/^Fit/, /^Frame selection/, /^Front/, /^Side/, /^Top/, /^Isometric/]) {
+        for (const name of [/^Fit(?! selection)/, /^Fit selection/, /^Front/, /^Side/, /^Top/, /^Isometric/]) {
             assert.isNotNull(within(menu).getByRole("menuitem", { name }));
         }
         // Each standard view shows its key on its row.
@@ -399,6 +395,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNull(within(menu).queryByRole("menuitem", { name: /^Zoom in/ }));
         const rotate = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
         assert.equal(rotate.getAttribute("aria-checked"), "false");
+        // Auto-rotate shows its key, 9, on its row.
+        assert.equal(rotate.getAttribute("aria-keyshortcuts"), "9");
         assert.equal(element.autoRotate, 0);
         await userEvent.click(rotate);
         await waitFor(() => {
@@ -413,13 +411,25 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.equal(element.autoRotate, 0);
         });
 
+        // 9 turns it on and off from the keyboard.
+        await userEvent.keyboard("9");
+        await waitFor(() => {
+            assert.isAbove(element.autoRotate, 0);
+        });
+        await userEvent.keyboard("9");
+        await waitFor(() => {
+            assert.equal(element.autoRotate, 0);
+        });
+
         await session.layout.setDimension("2d");
         menu = await open();
-        // In 2D the 3D views and Auto-rotate stay, disabled with their reason; zoom is offered.
-        for (const name of [/^Front/, /^Side/, /^Top/, /^Isometric/]) {
+        // In 2D the starting cameras that follow 3D-only views, and Auto-rotate, stay, disabled
+        // with their reason; Top works in 2D; zoom is offered.
+        assert.notEqual(within(menu).getByRole("menuitem", { name: /^Top/ }).getAttribute("aria-disabled"), "true");
+        for (const name of [/^Front/, /^Side/, /^Isometric/]) {
             const row = within(menu).getByRole("menuitem", { name });
             assert.equal(row.getAttribute("aria-disabled"), "true");
-            assert.include(row.textContent, "Only in 3D");
+            assert.include(row.textContent, "3D only");
         }
         const flatRotate = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
         assert.equal(flatRotate.getAttribute("aria-disabled"), "true");
@@ -428,14 +438,46 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom out/ }));
     });
 
-    it("frames a selected edge's two ends with Frame selection, and disables it with nothing selected", async () => {
+    it("turns Focus selected off, leaving the camera where it is on a pick", async () => {
         const session = await openKarate();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
         if (element === null) {
             return;
         }
-        // Frame selection frames the ends where they are when it is pressed, and the layout is
+        await element.waitForStableFrame();
+        const camera = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+            name: "Camera",
+        });
+        const open = async (): Promise<HTMLElement> => {
+            await userEvent.click(camera);
+            return screen.findByRole("menu", { name: /^Camera/ });
+        };
+
+        // Focus selected is on, and turning it off leaves the camera where it is on a pick.
+        const follow = within(await open()).getByRole("menuitemcheckbox", { name: /^Focus selected/ });
+        assert.equal(follow.getAttribute("aria-checked"), "true");
+        await userEvent.click(follow);
+        await waitFor(() => {
+            assert.isFalse(element.layoutBehavior?.camera?.pivotOnSelection);
+        });
+        await element.waitForStableFrame();
+        const before = element.getCameraState();
+        await session.selection.apply({ nodes: [session.data.nodes()[0].id] }, "replace", { cause: "user" });
+        await element.waitForStableFrame();
+        assert.deepEqual(element.getCameraState().target, before.target);
+        const off = within(await open()).getByRole("menuitemcheckbox", { name: /^Focus selected/ });
+        assert.equal(off.getAttribute("aria-checked"), "false");
+    });
+
+    it("frames a selected edge's two ends with Fit selection, and disables it with nothing selected", async () => {
+        const session = await openKarate();
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        if (element === null) {
+            return;
+        }
+        // Fit selection frames the ends where they are when it is pressed, and the layout is
         // still moving them after the queue empties: wait for the drawing to stop.
         await element.waitForStableFrame();
         const view = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
@@ -444,7 +486,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const frameRow = async (): Promise<HTMLElement> => {
             await userEvent.click(view);
             const menu = await screen.findByRole("menu", { name: /^Camera/ });
-            return within(menu).getByRole("menuitem", { name: /^Frame selection/ });
+            return within(menu).getByRole("menuitem", { name: /^Fit selection/ });
         };
 
         assert.equal((await frameRow()).getAttribute("aria-disabled"), "true", "nothing selected");
@@ -544,7 +586,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNull(screen.queryByRole("radiogroup", { name: "Follow" }));
         // The neighborhood has one home: no Grow by one hop in its "...".
         await userEvent.click(screen.getByRole("button", { name: "Neighborhood actions" }));
-        await screen.findByRole("menuitem", { name: /Frame selection/ });
+        await screen.findByRole("menuitem", { name: /Fit selection/ });
         assert.isNull(screen.queryByRole("menuitem", { name: /Grow by one hop/ }));
         await userEvent.keyboard("{Escape}");
 

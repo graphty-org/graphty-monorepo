@@ -48,7 +48,7 @@
  * Why a rise must also clear 2.5 milliseconds (2026-09-23): the first run under the 1.35 threshold, GPU lane run
  * 35828560733 on the Tesla T4, failed the build on `layout-exact/ms/iteration (profiler) n=1024 [1k]` -- 0.424 ms
  * against a pinned 0.293, x1.45 on the median AND x1.45 on the minimum, so the noisy-median rule below could not
- * save it. Its neighbouring wall row at the same size moved x1.21 and every larger rung of that ladder moved
+ * save it. Its neighboring wall row at the same size moved x1.21 and every larger rung of that ladder moved
  * between x1.00 and x1.09: the move is a tenth of a millisecond on the smallest rung of the ladder, which is what
  * NVIDIA's power management costs when it drops the SM clock to its 210 MHz idle state under sparse
  * sub-millisecond dispatches (finding G3-F1; the group's warm-up burst is the countermeasure and it does not

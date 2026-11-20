@@ -35,7 +35,7 @@ Workflows are cited by their titles from `design/designloom/workflows/`.
 supersedes 1.5 (earlier runs reachable by undo), 1.7 (a path as a set), 1.9 (filters combined
 by AND), 1.12 (note targets), 1.16 (the whole loaded graph as default scope), 1.17 (degree at rest
 over the loaded graph only), 1.19 (positions as two slots a view points at), 1.21 (cost or
-strength), 4.5 (measures in the catalogue panel), 4.11 (notes and views in the tree of analysis
+strength), 4.5 (measures in the catalog panel), 4.11 (notes and views in the tree of analysis
 results) and section 7 (departures from Figma, now in the model's own departure table).
 
 ---
@@ -72,9 +72,9 @@ the owner's decision that sets share one vocabulary across the published session
 
 The practical payoff is one inspector template. The inspector for the whole graph, a kept set,
 a community, a component and the currently visible graph are the same sections in the same
-order; a proper subset adds a Boundary section (cut edges, conductance, outside neighbours) and a
+order; a proper subset adds a Boundary section (cut edges, conductance, outside neighbors) and a
 comparison with its parent (`graph-analysis.md` 6.1 and 7, item 8). Saket et al.'s group-level
-tasks (size, internal density, extremes, neighbours) are that template's content.
+tasks (size, internal density, extremes, neighbors) are that template's content.
 
 - Bears on: ontology, information architecture.
 
@@ -128,7 +128,7 @@ must keep pointing at the same measure through a tuning re-run.
 
 The rule the research converges on: tuning revises the measure in place (the earlier run is a
 step in the history, reachable by undo); "Run as new" with a name keeps both; a partition whose
-groups the reader has labelled, noted or kept is not revised in place -- a re-run lands beside
+groups the reader has labeled, noted or kept is not revised in place -- a re-run lands beside
 it (`graph-analysis.md` 6.28). Style layers, rules and notes reference the measure, not the run
 (`graph-analysis.md` 6.29). This needs an element operation that rebinds a stable id to a new
 definition atomically; today an author-assigned id can be rebound only by remove-then-start,
@@ -136,7 +136,7 @@ which destroys the old result (`graphty-today.md` 7.22).
 
 - Bears on: ontology, vocabulary (the measure id is a published name).
 
-### 1.6 A set has one attribute that carries two behaviours: fixed or rule
+### 1.6 A set has one attribute that carries two behaviors: fixed or rule
 
 Every tool that handles subsets well separates a set picked by hand from a set defined by a rule
 (KeyLines `combine()` against `parentId`, Linkurious selection against rule; `graph-tools.md`
@@ -147,7 +147,7 @@ topological cluster (`graph-analysis.md` 1.1).
 So a set has a **definition**: a member list (fixed) or a rule (a query, which follows the
 data). Where a set came from (a hand selection, a run's group, a path search, an intersection of
 two top-10 lists) is its **origin**, a reference, and a set can have several origins
-(`design-method.md` 3.7). One word covering two behaviours without naming them is Jackson's
+(`design-method.md` 3.7). One word covering two behaviors without naming them is Jackson's
 overloading flaw (`design-method.md` 1, item 2), so the ontology must name both.
 
 What Keep stores follows from this:
@@ -227,7 +227,7 @@ ids and drops edges (`graphty-today.md` 7.18). Rule-made sets routinely exceed t
 design target (`graph-analysis.md` 6.3).
 
 Figma's container mechanics solve this (`figma.md` 4.6): clicking a set's row selects the set
-as an object; every command (colour, hide, run within, export, keep) targets the set itself and
+as an object; every command (color, hide, run within, export, keep) targets the set itself and
 is never truncated; only Enter ("Select members") produces an element selection and is subject to
 the cap, saying so when it truncates. The catch is that the element's selection holds only nodes
 and edges (`graphty-today.md` 7.20). Whether an object selection is presentation state the app
@@ -320,12 +320,12 @@ fields is additive to the published contract.
 ### 1.16 An unscoped run computes over the whole loaded graph; the visible graph is a named scope
 
 Gephi scopes silently to the filtered graph and its own issue tracker documents the harm: a
-column mixing values from two different filtered graphs (issue 636), and a colour scale that
+column mixing values from two different filtered graphs (issue 636), and a color scale that
 moved with the filter until Gephi switched the default to global (issue 541) (`graph-tools.md`
 20.31; `graph-analysis.md` 6.14). Code-first libraries and Cytoscape never scope implicitly.
 graphty-element already computes every run over the whole loaded graph -- it only records the
 word "visible" (`graphty-today.md` 6, item 10). So choosing "whole loaded graph" corrects a label,
-while choosing "visible" would change every algorithm's behaviour.
+while choosing "visible" would change every algorithm's behavior.
 
 The rule: unqualified, "the graph" means the whole loaded graph for statistics, runs and
 encoding scales; "the visible graph", a set, "within each group" of a partition and a time window
@@ -415,14 +415,14 @@ cut edge, and a high-betweenness node is neither a bridge nor an edge. "Weakest 
 cut and "Separate pieces" for components have the same problem (`graphty-today.md` 1.9;
 `graph-analysis.md` 3.2). The element's reading sentences interpret through the same names ("has
 the highest bridging") and the app goes further ("Main bridge") (`graph-analysis.md` 6.23). The
-fix is in the element's catalogue data, a content change rather than a breaking rename
+fix is in the element's catalog data, a content change rather than a breaking rename
 (`graphty-today.md` 6, item 4): a reading uses the technical term and gives the number its scale;
 the (i) text defines what is computed.
 
 Use unchanged: node, edge, attribute, degree, in-degree, out-degree, weighted degree,
 betweenness, closeness, PageRank, eigenvector, connected component, community, partition,
 modularity, density, clustering coefficient, diameter, average path length, assortativity,
-k-core, neighbourhood, filter, statistics, view, project (`graph-analysis.md` 7, item 3;
+k-core, neighborhood, filter, statistics, view, project (`graph-analysis.md` 7, item 3;
 `graph-tools.md` 19). Where two standard names exist, prefer the one Gephi and Cytoscape show.
 
 - Bears on: vocabulary, principles.
@@ -553,7 +553,7 @@ than strong. graphty-element already records `Caveats` (exact, sampleSize, seed,
 direction, weight). The owner's "(i) icons, not verbose help" rule and Figma's minimal chrome
 could push that record behind an icon. It must not be hidden there: an estimate needs a compact,
 always-visible mark at the value (for example a "~" prefix and a short word), with detail behind
-the (i) icon. The same concept, qualification, serves the analyst's own judgement ("confidence
+the (i) icon. The same concept, qualification, serves the analyst's own judgment ("confidence
 and limitations", "Iterative Analysis Cycle"), so no separate "confidence" feature is needed.
 
 - Bears on: principles, vocabulary, information architecture.
@@ -565,7 +565,7 @@ from a number whether it is current; NN/g observed a distant status message miss
 twice; GOV.UK pairs every summary with a mark at each item (`design-method.md` 3.6). So
 "out of date", "computing", "failed", "estimated" and "computed on the visible graph" are marks on
 the value itself: the result's row, the inspector field, the legend. One aggregate line in the
-whole-graph summary links to each mark. In graphty the canvas colour usually IS the data, so the
+whole-graph summary links to each mark. In graphty the canvas color usually IS the data, so the
 mark is a symbol plus words, and the canvas is never desaturated to signal staleness.
 
 - Bears on: principles, information architecture.
@@ -599,25 +599,25 @@ workarounds.
 
 - Bears on: principles.
 
-### 3.6 One reserved colour means "selected", and no data palette may use it
+### 3.6 One reserved color means "selected", and no data palette may use it
 
 Figma's "one accent means selected" rule does not hold in graphty today in any of its parts: the
 canvas selection gold is 2.8 to 3.8 OKLab units (times 100) from the top of viridis and inferno
 and from Okabe-Ito yellow, against the element's own "measurably apart" threshold of about 15; the
-default highlight IS Okabe-Ito vermilion; and the app's chrome accent is a third colour
-(`graphty-today.md` 7.17). On a node coloured by a measure, a selected low-value node can read as
-an unselected top-value node. Because selection is drawn over data colour, this is a principle
-with an element test (every shipped palette measured against the reserved colour), not a
+default highlight IS Okabe-Ito vermilion; and the app's chrome accent is a third color
+(`graphty-today.md` 7.17). On a node colored by a measure, a selected low-value node can read as
+an unselected top-value node. Because selection is drawn over data color, this is a principle
+with an element test (every shipped palette measured against the reserved color), not a
 visual-language detail.
 
 - Bears on: principles.
 
-### 3.7 Colour follows the category, never its position in a sorted list
+### 3.7 Color follows the category, never its position in a sorted list
 
-graphty-element colours categories by size rank, so an edit that swaps two groups' sizes swaps
-their colours, and a named imported category changes colour whenever its rank changes. Gephi Lite
-stores a value-to-colour map; Qu and Hullman find inconsistent encodings make reading "slow and
-error-prone" (`design-method.md` 3.8). Named categories keep a stored colour per value; algorithm
+graphty-element colors categories by size rank, so an edit that swaps two groups' sizes swaps
+their colors, and a named imported category changes color whenever its rank changes. Gephi Lite
+stores a value-to-color map; Qu and Hullman find inconsistent encodings make reading "slow and
+error-prone" (`design-method.md` 3.8). Named categories keep a stored color per value; algorithm
 partitions get canonical labels from the element (numbered by size on a first run).
 
 - Bears on: principles, ontology.
@@ -701,14 +701,14 @@ but one home, one organizing principle per place, and structure that holds ten t
 content (`design-method.md` 1, item 11). The algorithms package already has 98 or more
 algorithms. Applied to the contested homes:
 
-- **Running an algorithm.** Candidate homes were the toolbar (`figma.md` 5.4), a catalogue rail
+- **Running an algorithm.** Candidate homes were the toolbar (`figma.md` 5.4), a catalog rail
   panel (`figma.md` 5.5, on Figma's Tools precedent), and one run dialog with a scope field
   (`design-method.md` 6.6; `graph-tools.md` 20.23). No graph tool runs measures from a toolbar
-  (`graph-tools.md` 20.8). The coherent reading: the catalogue is the home (search, categories,
+  (`graph-tools.md` 20.8). The coherent reading: the catalog is the home (search, categories,
   one row per algorithm with a cost hint); running opens one parameters popover whose scope field
   is always visible; the toolbar carries one Run entry because Run is the top task, the palette
   a second door, and a set's inspector a third that pre-fills the scope. Layouts are a separate
-  section of that catalogue with their own verb (`graph-tools.md` 20.27).
+  section of that catalog with their own verb (`graph-tools.md` 20.27).
 - **The attribute table.** A full-width dock below the canvas, linked to the canvas selection,
   opened from the view menu, a shortcut, the palette and every "N more" or "Show in table" row
   (`graph-analysis.md` 6.10; `figma.md` 5.4). Until edges can be picked it is also the only
@@ -718,7 +718,7 @@ algorithms. Applied to the contested homes:
   the result (1.9). Filter, search and saved filters collapse into one place.
 - **Time.** No rail slot: a dock that appears only when the data has a time attribute, like
   Figma's Motion timeline (`figma.md` 5.4).
-- **Neighbourhood expansion.** A visible command on the selection (node inspector, context menu,
+- **Neighborhood expansion.** A visible command on the selection (node inspector, context menu,
   with depth and direction), with double-click and a shortcut (`graph-tools.md` 20.21). It is
   the one top task in the search-first path that had no home.
 - **Export.** The last section of whatever is selected (the whole graph when nothing is), plus
@@ -733,17 +733,17 @@ algorithms. Applied to the contested homes:
 ### 4.5 Rail buttons are collections of nouns, earned by Figma's three tests
 
 Figma gives a secondary collection a rail button only if its items are inserted onto the canvas
-(Assets), it is a large runnable catalogue (Tools), or it is a table too wide for a panel
+(Assets), it is a large runnable catalog (Tools), or it is a table too wide for a panel
 (Variables) (`figma.md` 2.5, 5.5). Activities ("Analyze", "Style", "Present", "Explore") fail by
 construction, so the app's current activity list fails entirely. Applying the tests: the
 graph's objects (sets, paths) are the left panel's primary list; the algorithm and layout
-catalogue earns a button; notes, style layers and views do not.
+catalog earns a button; notes, style layers and views do not.
 
 The measures a project holds (1.3, 1.4) sit between these. The research placed them as a group
 of the left panel (`graph-analysis.md` 6.25) and as popover-only definitions with no row
 (`figma.md` 5.5). Figma's Assets panel offers a precedent neither note used: it lists "created in
-this file" above the library. The catalogue panel can list the project's measures above the
-catalogue, giving measures a list of their own that is not interleaved with sets, and keeping
+this file" above the library. The catalog panel can list the project's measures above the
+catalog, giving measures a list of their own that is not interleaved with sets, and keeping
 "what I have run" next to "what I can run". This is a hypothesis for the IA document to test
 against the workflows.
 
@@ -782,7 +782,7 @@ partitions would list four memberships and a multi-level run thirty (`figma.md` 
 
 - Bears on: information architecture, ontology.
 
-### 4.8 Style layers look like Figma's stacked Fill list, and editing a colour writes one override layer
+### 4.8 Style layers look like Figma's stacked Fill list, and editing a color writes one override layer
 
 No Figma surface draws an ordered list of rules across many objects; graphty's rules overlap, so
 precedence exists and must be drawn (`figma.md` 5.5). The stack borrows the Fill list's row shape:
@@ -790,7 +790,7 @@ the top wins, an eye per row, newest added at the top, drag to reorder. The elem
 bottom-first internally; the display simply inverts it (`graph-tools.md` 18, item 2). Interaction
 state (selection, hover) is drawn above data styling in every tool.
 
-Editing a selected node's Colour row cannot write to the node (the style-layer rule in
+Editing a selected node's Color row cannot write to the node (the style-layer rule in
 `CLAUDE.md`). The row shows the layer that paints it, as a Figma row shows its style; clicking
 opens that layer's editor; "Override" records the value in one collected override layer per graph
 (a map from element id to channel values), with a count, "Select overridden" and "Clear all" on
@@ -815,7 +815,7 @@ must give it a non-canvas route until picking lands.
 ### 4.10 Progress lives on the result's row; the toast only announces completion
 
 Figma runs one long operation at a time and reports it in one global toast (`figma.md` 4.9).
-graphty's runs queue and run side by side, so progress (queued, running, done, failed, cancelled,
+graphty's runs queue and run side by side, so progress (queued, running, done, failed, canceled,
 with Cancel) is on the result's own row and inspector; a toast keeps only Figma's completion role
 with one action ("Show result"). There is no "jobs" or "history" place, which keeps an activity
 button off the rail.
@@ -872,7 +872,7 @@ graphty-element changes. Stated as ordering constraints, not app concerns:
 9. **One mutation path.** Data edits, layout, camera, view mode and pins bypass the session, so
    neither undo nor the project file can see them (`graphty-today.md` 7.14).
 10. **Attribute writes through the session**, before notes ship, so the note schema need not
-    carry judgement fields (`graphty-today.md` 7.26).
+    carry judgment fields (`graphty-today.md` 7.26).
 11. **The seed and version defects.** The published `seed` option reaches no algorithm, and every
     run record states the 1.x package versions (`graphty-today.md` 7.9, 7.22). Provenance the
     file shows must be true before it is published.
@@ -881,8 +881,8 @@ graphty-element changes. Stated as ordering constraints, not app concerns:
     (`graphty-today.md` 7.23). The "Compute (about N s)" rows proposed for the graph inspector
     describe a capability that does not exist, and today the wait is dominated by the default
     paint of a result, not its computation.
-13. **Reserved selection colour and palette test** (3.6); **canonical partition labels and stored
-    category colours** (3.7); **the catalogue's plain names and readings** (2.1).
+13. **Reserved selection color and palette test** (3.6); **canonical partition labels and stored
+    category colors** (3.7); **the catalog's plain names and readings** (2.1).
 
 ---
 
@@ -892,15 +892,15 @@ These transfer unchanged or with only their content changed (`figma.md` 5.1 to 5
 
 **The frame**
 - Nav rail on the left choosing what the left panel lists; left panel answers "what exists?";
-  canvas at the centre with nothing floating at rest except the toolbar and Help; right inspector
-  answers "what is this?"; floating bottom-centre toolbar that does not change with the
+  canvas at the center with nothing floating at rest except the toolbar and Help; right inspector
+  answers "what is this?"; floating bottom-center toolbar that does not change with the
   selection; command palette (Ctrl+K) as a route to everything and the home of nothing.
-- Panels hold their width (240 px) and the canvas shrinks; the toolbar stays centred on the
+- Panels hold their width (240 px) and the canvas shrinks; the toolbar stays centered on the
   window; Minimize UI gives the canvas the whole window, which is also the natural VR and AR
   state.
 - A secondary bar above the toolbar for an armed tool's options (for example picking a path's
   two endpoints), gone when the tool finishes.
-- Popovers opening to the left of the inspector for one property's detail (colour pickers,
+- Popovers opening to the left of the inspector for one property's detail (color pickers,
   algorithm parameters, export settings).
 - Context menus with only what applies to the clicked thing, plus a keyboard route.
 - A view menu for display toggles (labels, arrows, legend, minimap), not the canvas.
@@ -941,9 +941,9 @@ These transfer unchanged or with only their content changed (`figma.md` 5.1 to 5
 - The tree holds only things with a body; shared definitions live in their own place and are
   applied from a property row; commentary is a mode with pins; history is off the working screen;
   output is a property (`figma.md` 2.4).
-- A secondary collection earns a rail button only if it is inserted, a large runnable catalogue,
+- A secondary collection earns a rail button only if it is inserted, a large runnable catalog,
   or table-shaped.
-- A large catalogue has a browsable rail panel with search and category filters plus the palette
+- A large catalog has a browsable rail panel with search and category filters plus the palette
   as a second route; nothing runnable is palette-only.
 - Inspector tabs, if used, hold whole domains, stick across selections and never give one
   property two homes.
@@ -973,7 +973,7 @@ Each departure is justified by the graph domain, not by taste (`figma.md` 5.5, 5
 | A set's body is its members; hovering a set's row outlines them | graph objects have no bounding box of their own |
 | Find is a visible field, not an icon, and searches attribute values and queries | starting from a known entity is a top task in the investigation workflows; NN/g found a visible search field raised search use by 91 percent (`design-method.md` 6.5) |
 | Keep on a query stores a rule; Keep on a result group stores members plus origin | Figma only keeps what is selected; graphty's sets come mostly from rules and results and exceed the selection cap |
-| The nothing-selected inspector carries whole-graph statistics | understanding the whole graph is a key task; Figma's page section holds only colour and export |
+| The nothing-selected inspector carries whole-graph statistics | understanding the whole graph is a key task; Figma's page section holds only color and export |
 | A global, ordered style-layer stack is drawn | graphty's rules overlap on the same nodes; Figma's styles never do |
 | Hovering a style-layer or measure row outlines what it paints | "which nodes does this touch?" is a constant question |
 | A Notes section in each target's inspector | notes are findings read beside values, not a conversation about a region |
@@ -995,15 +995,15 @@ controls; the import flow (`figma.md` 5.7).
 These are not settled by the research and each has evidence on both sides:
 
 1. **Where the list of measures lives**: a group of the left panel (`graph-analysis.md` 6.25),
-   popover-only definitions (`figma.md` 5.5), or the catalogue panel's "in this project" list
+   popover-only definitions (`figma.md` 5.5), or the catalog panel's "in this project" list
    (4.5 above).
-2. **Automatic label and colour matching across re-runs.** `design-method.md` 3.8 matches each new
+2. **Automatic label and color matching across re-runs.** `design-method.md` 3.8 matches each new
    group to the previous version's group by member overlap and carries its label, name and
-   colour. `graph-tools.md` 20.17 and `graph-analysis.md` 6.28 say the element must never promise
+   color. `graph-tools.md` 20.17 and `graph-analysis.md` 6.28 say the element must never promise
    that a new community is an old one, and should offer a carry-over table instead. A reading that
-   satisfies both: overlap matching may carry canonical numbers and colours while a partition is
-   being tuned and is unlabelled, and for following partitions such as components; the reader's
-   names are never carried automatically, because a labelled partition is re-run beside, not
+   satisfies both: overlap matching may carry canonical numbers and colors while a partition is
+   being tuned and is unlabeled, and for following partitions such as components; the reader's
+   names are never carried automatically, because a labeled partition is re-run beside, not
    revised.
 3. **What a deleted run's dependents keep after a reload.** Restore run needs the removed run's
    values; the undo journal is session-scoped, so after a reload Restore is impossible unless the
@@ -1032,7 +1032,7 @@ graphty-element or the project file:
 1. **The analysis tree's row kind**: kept outputs grouped by kind with references (the research's
    recommendation, 4.11), a list of runs, or graph states in a branching history.
 2. **The measure identity above `RunId`** and the revise-in-place default, which changes the
-   element's derived-id behaviour (1.5); selectors and rules referencing the measure, not the run.
+   element's derived-id behavior (1.5); selectors and rules referencing the measure, not the run.
 3. **The set's published name**: rename `Scope` to set in a major version, or add beside it (2.3).
 4. **The set definition arms**: fixed, rule, and ordered edge sequence for a path; the group
    address "result plus value"; the labels map on a partition (1.6 to 1.8).

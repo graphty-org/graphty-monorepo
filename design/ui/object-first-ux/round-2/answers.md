@@ -13,7 +13,7 @@ number per node: a centrality), a **Grouping** (one label per node: communities)
 panel. A **tool** is a toolbar verb that makes an object; **arming** a tool turns it blue and
 opens a one-line dark **secondary bar** above the toolbar that says what will happen, on what,
 at what cost, with the one button that does it. A **channel** is one visual property (node
-colour, edge width); a **style layer** is one rule in graphty-element's style stack; an
+color, edge width); a **style layer** is one rule in graphty-element's style stack; an
 **encoding** binds a value to a channel through a scale and a palette. The **mask** is what is
 showing; **Focus** masks to one object's members; a **time window** masks to a span of a time
 column.
@@ -51,7 +51,7 @@ four framings, reset, save view), none with state to edit, so it is the framing 
 the mode switch, the keys and the short Views list.
 
 **Evidence.** The table in `revision.md` 1.2 lists every rail candidate with the rows it
-would actually hold and whether that is a panel. Layout's rows are itemised in 2.4 (Layout
+would actually hold and whether that is a panel. Layout's rows are itemized in 2.4 (Layout
 tab, 11 rows at most); camera's in 6.2 (Views).
 
 **Where to look.** Screen 2 shows the Dataset's tab strip (Overview, Layout, Canvas, Data);
@@ -68,7 +68,7 @@ attribute and per object. One object, two views of it; neither gets a rail item.
 activity) (`revision.md` 1.2, "Why Data and Table were two things"). The comparison document
 counted duplicate homes against the current app; a rail item for either would be one.
 
-**Where to look.** Screen 10 (the Dataset on its Data tab: the attribute catalogue, the Time
+**Where to look.** Screen 10 (the Dataset on its Data tab: the attribute catalog, the Time
 role) and screen 9 (the Table dock open under the canvas, the selected node's row tinted,
 object columns headed by their style chips).
 
@@ -101,11 +101,11 @@ screen 11 (every button, every flyout, every bar sentence on one sheet).
 ### 5. "'highlights are exclusive' -- paths are just edge styles, they should layer just like node styles..."
 
 **Decision: adopted, and it is the design's rule for every Set.** A Path is an edge Set whose
-Style tab has an EDGES section (Colour, Width, Pattern, Arrows, Animation, Opacity, Curve,
-Label) and a NODES section (an Outline in the path's colour by default, not a fill, so the
-community colour under it stays visible). Every Set is its own row, its own layer, its own
-colour from a highlight palette the element ships disjoint from every categorical palette.
-Where two paths share an edge the per-channel rule decides: the higher row's Colour wins, but
+Style tab has an EDGES section (Color, Width, Pattern, Arrows, Animation, Opacity, Curve,
+Label) and a NODES section (an Outline in the path's color by default, not a fill, so the
+community color under it stays visible). Every Set is its own row, its own layer, its own
+color from a highlight palette the element ships disjoint from every categorical palette.
+Where two paths share an edge the per-channel rule decides: the higher row's Color wins, but
 the lower row's Width or Pattern still shows if the higher row does not write it. The
 element's "a highlight is exclusive" rule is retired (the objects API passes `exclusive:
 false`); a run-backed Set's selector is the value test `results.<run>.onPath == true`, never
@@ -119,10 +119,10 @@ rest" verb that makes a visible, movable Set), never a suggested style, per the 
 
 **Where to look.** Screen 8: two Paths in the tree, 12 -> 30 in 3 px dashed purple and
 1 -> 34 in 5 px solid magenta with arrowheads, the shared edge purple and dashed with the lower
-route's arrowhead still showing, every node keeping its community colour, the legend listing
+route's arrowhead still showing, every node keeping its community color, the legend listing
 both routes with their line swatches, and the selected Path's Style tab with NODES (Outline 2
-px) and EDGES (Colour, Width, Pattern) and the sentence "Shares 1 edge with Path: 1 -> 34;
-this path wins Colour, Width and Pattern on it".
+px) and EDGES (Color, Width, Pattern) and the sentence "Shares 1 edge with Path: 1 -> 34;
+this path wins Color, Width and Pattern on it".
 
 ### 6. "'Does the element own the tree' -- yes"
 
@@ -132,7 +132,7 @@ an objects-changed event), built over the runs, saved scopes and layers it alrea
 saved shape is the project file (#301). The app draws the tree and nothing more. Undo goes
 with it: the objects API keeps the journal (#145) and exposes undo and redo, because the state
 an undo restores (a replaced run's result, a removed row's layers) is held only by the
-element. Pass 3 adds two behaviours to the same API: a reload that keeps the objects by
+element. Pass 3 adds two behaviors to the same API: a reload that keeps the objects by
 replaying their definitions (screen 15), and naming a repeated run by what differs.
 
 **Where to look.** `revision.md` settled decision 1; `decisions.md` S1. Screen 15 shows the
@@ -187,7 +187,7 @@ computing), 6 (Measure, Style), 7 (Grouping, Style), 8 (Set, Style), 9 (Node, Ab
 label, key, what it does and whether it exists today.** Left to right: Select (V) with a
 flyout (Select, Lasso, Front only); Hand (H, or Space held); a divider; Filter (F: By values,
 By range, By connections, By rule, By id list, Largest connected part, Pattern; Target Nodes
-or Edges); Neighbours (E); Path (P: Shortest route, All routes, Most that can flow, Weakest
+or Edges); Neighbors (E); Path (P: Shortest route, All routes, Most that can flow, Weakest
 link between two, Weakest link anywhere, Best pairing); Groups (G: Communities and its
 variants, Steps away from a node, By attribute..., Several..., Sweep...); Rank (R:
 Connections, Bridges, Reach, Influence, Influence by association, Influence at a distance,
@@ -196,13 +196,13 @@ Several...); Structure (S: Separate pieces, Densest shells, Bridge edges and cut
 Cheapest connecting network, Cheapest network from a node, How far from everything, Distances,
 Likely missing links); a divider; Note (N); Ask (backtick); a divider; the 2D | 3D | VR | AR
 mode switch (5 toggles 2D and 3D; VR and AR drawn only when the browser reports support). The
-bar is 725 px, 56 px tall, with 40 px labelled buttons (Select and Hand 32 px, unlabelled), so
+bar is 725 px, 56 px tall, with 40 px labeled buttons (Select and Hand 32 px, unlabeled), so
 it fits the 800 px canvas of a 1280 px window with 37 px to spare each side. Every flyout row's
 left icon is the kind of tree row it will make; the bold row is the face a plain click runs;
 the cost from the element's estimate sits at the right; a proposed row is absent from the app
 until its capability is registered. The placement rule: the flyout is chosen by the question
 the algorithm answers (who matters, what groups, how are A and B joined, what is the
-skeleton); the result shape decides what it hands back; a plugin lands by its catalogue
+skeleton); the result shape decides what it hands back; a plugin lands by its catalog
 category.
 
 **Evidence.** `revision.md` 3.3 (the button table), 3.4 (every flyout with each row's
@@ -223,39 +223,39 @@ begins with its channel name.
 
 A **continuous value** (a Measure) paints through an **encoding block** per channel, drawn as
 an accordion (one open at a time): the header "Colour v [ramp]" with an eye and a minus; Scale
-[Even steps v] (the catalogue's nine scales by plain name: Even steps, By order of magnitude,
-By significance, By area, Curved, Equal ranges, Equal counts, One colour per value, Use the
+[Even steps v] (the catalog's nine scales by plain name: Even steps, By order of magnitude,
+By significance, By area, Curved, Equal ranges, Equal counts, One color per value, Use the
 value as it is; only the scales that suit the value's kind are offered); Palette (the ramp
 itself as the select's face); Values from | to (the bounds the scale maps, scrubbable);
 Reset, Reverse, Clamp outliers (cuts at the 2nd and 98th percentiles and says so in the
-legend); Midpoint when the palette is diverging; Missing (the colour for an element with no
+legend); Midpoint when the palette is diverging; Missing (the color for an element with no
 value); Sizes from | to instead of a palette on a size, width or opacity channel; a legend
 preview. "Colour and size" in the "+" adds both blocks in one click.
 
-A **group value** (a Grouping) paints through a Colour block whose rows are the palette
+A **group value** (a Grouping) paints through a Color block whose rows are the palette
 (categorical: Okabe-Ito, Tol, Pastel, Carbon, custom, each with its capacity and a
-colour-blind-safe mark), one swatch row per Group in size order (five, then "and N more"),
-Other (the overflow colour), Overflow (Other, Shape, Extend) and Largest (how many Groups get
-their own colour and their own tree row; the rest collapse to one "Other" row in the tree and
+color-blind-safe mark), one swatch row per Group in size order (five, then "and N more"),
+Other (the overflow color), Overflow (Other, Shape, Extend) and Largest (how many Groups get
+their own color and their own tree row; the rest collapse to one "Other" row in the tree and
 the legend). Clicking a Group's swatch writes an **override** on that Group: a layer inserted
 directly above the Grouping's in the element's stack, marked by a dot on the chip, removable
-with its minus; a Group's own Style tab shows the override row above the inherited row "Colour
+with its minus; a Group's own Style tab shows the override row above the inherited row "Color
 [chit] From Communities". Children paint above their parent, so an override wins on that
 group's members and nowhere else. Precedence between objects is the tree order per channel;
 a covered object's Style tab says "Covered by Influence on 12 of 12 members".
 
 The first paint is the element's suggestion and takes the first free channel in a per-kind
-order (Measure: Colour, Size, Opacity; Grouping: Colour, Outline, Shape; Set: Outline, Colour,
-Glow), and since pass 3 a Grouping created while a Measure holds Colour takes Colour and moves
+order (Measure: Color, Size, Opacity; Grouping: Color, Outline, Shape; Set: Outline, Color,
+Glow), and since pass 3 a Grouping created while a Measure holds Color takes Color and moves
 the Measure to Size, so the picture no longer depends on which button was pressed first.
 
 **Evidence.** `revision.md` 5.1 to 5.7; the element work is listed in 5.7 (eleven items, ten
 small). Looks (base presets), saved styles (an object's rows as a preset) and palettes are
 three different things with one home each (5.6).
 
-**Where to look.** Screen 6 (Influence on the viridis ramp: the open Colour block, Values
+**Where to look.** Screen 6 (Influence on the viridis ramp: the open Color block, Values
 from and to, Clamp and Reverse, Missing, the legend preview, Size collapsed to its header),
-screen 7 (Conference: the nine-colour palette as the select's face, five swatch rows with
+screen 7 (Conference: the nine-color palette as the select's face, five swatch rows with
 conference 4's override dot, Other, Overflow, Largest), screen 3 (Group 2's override row above
 its inherited row).
 
@@ -290,23 +290,23 @@ legends, acceleration status, and a Settings sheet (screen 13, specified) for th
 capabilities that are preferences.
 
 **Where to look.** Screen 10: the Email network with the window 2019-03 to 2019-05, the
-transport bar, the gear popover open, the whole-year communities keeping their colours, the
+transport bar, the gear popover open, the whole-year communities keeping their colors, the
 Data tab with the time role on `sent`, and the status bar's window mask. Screen 11 for the
-algorithm catalogue; `coverage.md` for the table.
+algorithm catalog; `coverage.md` for the table.
 
 ---
 
 ## What is still open for the owner
 
 Three of the pass-3 choices are recorded as open in `decisions.md` because they touch the
-element's published behaviour or a measured trade-off, and each has a recommendation:
+element's published behavior or a measured trade-off, and each has a recommendation:
 
 1. **Tool labels: 8 px at 40 px buttons (as drawn) or 9 px at 44 px (a 750 px bar).** The 8
    px labels are below the kit's own 11 px minimum; the 0 ms tooltip is the readable form. The
    recommendation is to keep 40 px and test both with two readers, since 44 px still fits the
    1280 px canvas.
-2. **The first-paint rule as element behaviour** ("first free channel in a per-kind order,
-   categorical wins Colour, never drops itself") replaces the element's auto-apply rule that
+2. **The first-paint rule as element behavior** ("first free channel in a per-kind order,
+   categorical wins Color, never drops itself") replaces the element's auto-apply rule that
    drops a suggestion when an authored layer holds the channel. A consumer relying on that rule
    would notice. Recommendation: yes; without it the second algorithm never paints once the
    objects API creates every layer as authored.

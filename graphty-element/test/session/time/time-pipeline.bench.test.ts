@@ -37,10 +37,9 @@ import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
 
 import { mulberry32 } from "@graphty/algorithms";
-import { afterAll, assert, beforeAll, describe, it } from "vitest";
+import { afterAll, assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../../session";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { TimeField, TimeStepEvent } from "../../../src/session/time/TimeApi";
 import { type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
 
@@ -313,11 +312,6 @@ async function bytesAdded(
 
 describe("the timeline at 1,000,000 edges", () => {
     const worst = new Map<Measure, Timing & { name: string }>();
-
-    beforeAll(() => {
-        // The timeline is an experiment: this file's sessions switch it on.
-        setDefaultFeatures(["timeline"]);
-    });
 
     afterAll(() => {
         for (const [measure, timing] of worst) {

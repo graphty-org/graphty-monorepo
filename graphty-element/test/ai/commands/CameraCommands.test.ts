@@ -8,14 +8,14 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { setCameraPosition, zoomToNodes } from "../../../src/ai/commands/CameraCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockContext, createTestGraph } from "../../helpers/test-graph";
+import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
 
 describe("CameraCommands", () => {
     let graph: Graph;
     let context: CommandContext;
 
     beforeEach(() => {
-        graph = createTestGraph();
+        graph = createMockTestGraph();
         context = createMockContext(graph);
     });
 
@@ -68,6 +68,12 @@ describe("CameraCommands", () => {
                 },
                 context,
             );
+
+            assert.strictEqual(result.success, true);
+        });
+
+        it("applies camera preset 'bottomView'", async () => {
+            const result = await setCameraPosition.execute(graph, { preset: "bottomView" }, context);
 
             assert.strictEqual(result.success, true);
         });

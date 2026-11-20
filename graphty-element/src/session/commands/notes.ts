@@ -173,7 +173,7 @@ function sourceName(command: NoteMergeCommand): string | undefined {
     }
 
     const { document } = command;
-    const name =
+    const name: unknown =
         typeof document === "object" && document !== null
             ? Object.getOwnPropertyDescriptor(document, "name")?.value
             : undefined;

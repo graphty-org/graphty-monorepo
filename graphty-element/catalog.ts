@@ -17,7 +17,7 @@
  * Zod across a package boundary makes the consumer's Zod version part of this package's API and
  * forces it to read Zod internals to recover a type, a default and a range.
  *
- * The descriptor barrel is re-exported wholesale on purpose: the catalogue module's own public
+ * The descriptor barrel is re-exported wholesale on purpose: the catalog module's own public
  * list is the single declaration of what a descriptor is, and restating it here would guarantee
  * the two drift. The tables are listed by name, because a table is a thing a consumer asks for
  * by name.
@@ -233,7 +233,13 @@ export type {
     ChannelGroup,
     ChannelValueKind,
 } from "./src/session/styles/channels";
-export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
+export {
+    CHANNEL_DESCRIPTORS,
+    channelDescriptor,
+    CHANNELS,
+    channelsFor,
+    PRIMARY_CHANNELS,
+} from "./src/session/styles/channels";
 // Every value of an enum channel with a default name and picture (`catalog.channelValues`), and the
 // one reader and writer of a list channel's items (`ChannelDescriptor.listOf`).
 export type { ChannelValueDescriptor } from "./src/catalog/channelValues";

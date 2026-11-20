@@ -55,7 +55,10 @@ type Story = StoryObj<typeof CardList>;
  * @param props.start - the first titles
  * @returns The list
  */
-function Cards({ start }: Readonly<{ start: readonly string[] }>): React.JSX.Element {
+function Cards({
+    start,
+    keyboardReorder,
+}: Readonly<{ start: readonly string[]; keyboardReorder?: boolean }>): React.JSX.Element {
     const [cards, setCards] = useState(start.map((title, at) => ({ id: `c${String(at)}`, title })));
     const [next, setNext] = useState(start.length);
     const items: CardListItem[] = cards.map((card, at) => ({
@@ -81,6 +84,7 @@ function Cards({ start }: Readonly<{ start: readonly string[] }>): React.JSX.Ele
             <CardList
                 label="Groups"
                 items={items}
+                keyboardReorder={keyboardReorder}
                 empty={<p>No cards yet</p>}
                 add={
                     <Button
@@ -138,4 +142,9 @@ export const AddFoldsTheOthers: Story = {
 /** With no cards, the empty slot. */
 export const Empty: Story = {
     render: () => <Cards start={[]} />,
+};
+
+/** With keyboardReorder, a focused grip moves its card with Alt+ArrowUp and Alt+ArrowDown. */
+export const KeyboardReorder: Story = {
+    render: () => <Cards start={["A", "B", "C"]} keyboardReorder />,
 };

@@ -1341,7 +1341,9 @@ function carryParamReferences(draft: ShaderTextDraft, from: string, to: string |
         const values = Object.entries(preview.params).filter(([key]) => key !== from || to !== undefined);
         next.preview = {
             ...preview,
-            params: Object.fromEntries(values.map(([key, value]) => [key === from ? to : key, value])),
+            params: Object.fromEntries(
+                values.map(([key, value]): [string, unknown] => [key === from && to !== undefined ? to : key, value]),
+            ),
         };
     }
 

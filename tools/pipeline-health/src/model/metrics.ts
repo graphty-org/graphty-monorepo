@@ -53,7 +53,7 @@ export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minut
 export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys-merge-ratio-cohort-slice-saturated-designed-rerun-clean-file-runs-group-member-time`;
 
 /**
- * When a job started on a runner, or undefined when it never did. GitHub gives a job cancelled before any runner
+ * When a job started on a runner, or undefined when it never did. GitHub gives a job canceled before any runner
  * took it (runner_id 0, no steps) a started_at equal to its created_at, so its queue time until the cancel would
  * otherwise read as runner time, and its wait as zero. A job a runner took starts at least a second after it was
  * created: of 27,000 pull request jobs over 10-27..10-30, none that succeeded started in the second it was created.
@@ -86,10 +86,10 @@ export const fileRunKey = (family: string, file: string): string =>
 
 const FINISHED = new Set(["success", "failure", "timed_out", "startup_failure"]);
 const isMaster = (base: string): boolean => base === "master" || base === "main";
-/** A finished job's own verdict: cancelled and skipped jobs say nothing about the job. */
+/** A finished job's own verdict: canceled and skipped jobs say nothing about the job. */
 const JOB_PASS = new Set(["success"]);
 const JOB_FAIL = new Set(["failure", "timed_out", "startup_failure"]);
-/** A test job that ran its tests: cancelled, skipped and startup failures post no shard run. */
+/** A test job that ran its tests: canceled, skipped and startup failures post no shard run. */
 const JOB_POSTS = new Set(["success", "failure", "timed_out"]);
 
 /**

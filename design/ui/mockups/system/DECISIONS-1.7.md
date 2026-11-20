@@ -1,7 +1,7 @@
 # Decisions for spec revision 1.7
 
 The ratified outcome of five design tracks run against spec revision 1.6:
-import flow, pop-outs, save and load, analysis as style, and the bottom-centre
+import flow, pop-outs, save and load, analysis as style, and the bottom-center
 toolbar. This document supersedes the proposals those tracks returned. Where a
 track proposal and this document disagree, this document wins.
 
@@ -86,15 +86,15 @@ both-open offset is therefore 342, and DataTableDrawer's slider padding changes
 from `6px 12px 2px` to `6px 12px 1px` and its overlay offset from 344 to 342.
 
 **The gap the tracks left open, closed here:** when the Graph / Table control
-maximises the drawer to the full canvas height there is no canvas left to
+maximizes the drawer to the full canvas height there is no canvas left to
 navigate, so the toolbar hides with the minimap and legend and returns when the
-drawer is restored. Graph / Table stays at top centre and is the way back. This
+drawer is restored. Graph / Table stays at top center and is the way back. This
 is the only condition under which the toolbar is not drawn, and it is not a
 disappearing item set -- the whole bar leaves, which reads as "there is no
 canvas", not as "an item vanished".
 
 **Graph / Table never enters the toolbar.** The bar's item set is fixed, because
-a centred container that changes width moves every item under the pointer.
+a centered container that changes width moves every item under the pointer.
 
 ### A2. A pop-out is a container, not an eleventh row type
 
@@ -210,12 +210,12 @@ Section 3 gives data export one home, Present. That rule is about _the graph_.
 Export of a saved thing is export of _settings that name attributes_ -- a
 selector, an expression, a column name, an algorithm name, a checklist -- and it
 travels with the kind's own library section. Section 3's row is amended to say
-so, so the next pass does not re-centralise these into Present and re-bury them.
+so, so the next pass does not re-centralize these into Present and re-bury them.
 
 **The one exception, named so it is not re-litigated:** `Run a recipe...` stays
 in Data tier 1 and on Welcome. It is not a save-or-load verb, it is the front
 door of an empty app, and it is the one place where the list is not on screen,
-so a verb is needed to open it. `Import and replay` is retired in its favour.
+so a verb is needed to open it. `Import and replay` is retired in its favor.
 
 ### A6. The import entry clause: restored as a name, not as an explanation
 
@@ -244,7 +244,7 @@ distinguished four boards from each other.
    even when the two share a word -- 'delimited file' is why this dialog
    opened, 'CSV, 98% confidence' is what the parser found."
 
-**And 1.6's "the default does not render" is honoured, not overridden.** There
+**And 1.6's "the default does not render" is honored, not overridden.** There
 is no default entry state: all seven clauses name a condition that is a
 departure from "the file simply loaded". Rule 7a deletes controls sitting at
 their default; it has nothing to delete here. The rule and the clause do not
@@ -359,7 +359,7 @@ operationally: **evaluate the list from the end; the first match wins.**
 | ImportAddToGraph              | `devices-batch2.csv, 8 KB -- second file, data already loaded` |
 | ImportParseError (new, IMP-9) | `malformed-export.csv, 1.2 MB -- parse error`                  |
 
-Note the correction track 1 found: ImportOptions was mislabelled even before
+Note the correction track 1 found: ImportOptions was mislabeled even before
 the deletion. It has a guessed type column, and `guessed column` sits later in
 the trigger list than `delimited file`, so the tie-break gives it `guessed
 column`. Its file comment records which trigger won and which it beat.
@@ -400,13 +400,13 @@ item 2's banner render; does item 3's picker render; what item 6's Load control
 defaults to; the primary button's label.
 
 Three sentences of composition law follow, because the tables cannot carry
-them: conditions combine and do not exclude one another; a recognised export
+them: conditions combine and do not exclude one another; a recognized export
 above the ceiling draws the banner and the warning and the pre-selected subset
 and takes the ceiling's clause, because the clause names the trigger and not
 the contents; only five of seven clauses are drawn as boards, and the boards
 are samples of the table.
 
-**The two numbers get their division of labour stated explicitly**, because
+**The two numbers get their division of labor stated explicitly**, because
 they are 1,500 lines apart today and one board's comment and its own title
 disagree about which applies: "Crossing the large-graph threshold opens the
 dialog and turns on Performance mode after import. Crossing the render ceiling
@@ -428,11 +428,11 @@ its freeform OPENS paragraph with the same four-line extract from the table.
 
 **Decision.** `ImportFlow.dc.html`, 1440 x 900, no shell chrome, five regions:
 a header band; WAYS IN (the seven triggers in list order with their clauses and
-an arrow up the left edge labelled "evaluated from the end; first match wins");
+an arrow up the left edge labeled "evaluated from the end; first match wins");
 THE DIALOG (one reduced outline with its nine items as bands, the five
 always-present ones solid and the four conditional ones tinted with their
 render conditions on leader lines); WAYS OUT (the primary verbs with their
-destination states and boards, then Cancel with its two behaviours, and Esc and
+destination states and boards, then Cancel with its two behaviors, and Esc and
 the title-row X noted as the same action); WAYS BACK IN (the seven reopen paths
 as arrows curving back in, each with its scroll target). Below, the decision
 table of IMP-2 at 11 px with eight example files, including the two rows no
@@ -461,7 +461,7 @@ paragraph.
 to make four existing boards legible, which is a net reduction in what a reader
 has to hold in their head.
 
-### IMP-4 The recognised state becomes a run record and becomes reversible (screen)
+### IMP-4 The recognized state becomes a run record and becomes reversible (screen)
 
 **Decision.** The nine-word banner becomes an RT-7 action row spanning the
 dialog width, under the interpretation row, in the floor-3 form: `Recognized a
@@ -502,7 +502,7 @@ consequence line elsewhere in the dialog."
 ### IMP-5 Symmetric arithmetic on the large-file options; three Everything doors become one (screen)
 
 **Decision.** Three edits to ImportLargeFile. (1) The Everything radio gains the
-same two-line block Busiest nodes has, at the same indent and colour: `Draws
+same two-line block Busiest nodes has, at the same indent and color: `Draws
 1.0M nodes and 10M edges. Edges beyond 500,000 are hidden until zoomed in.` and,
 with the warning glyph, `About 2.4 GB. May be slow or run out of memory.` (2)
 The warning line loses the inline `Import everything anyway` link and loses the
@@ -619,7 +619,7 @@ existing 108 px field), zero words. Restores a navigation affordance.
 
 **Decision.** The four canvas titles become one sentence pattern with one
 variable: `Import options -- guessed column`, `Import options -- delimited file
-(recognised export)`, `Import options -- above the render ceiling`, `Import
+(recognized export)`, `Import options -- above the render ceiling`, `Import
 options -- second file, data already loaded`. The variable half is the same
 clause the title row now draws, so the gallery label and the screen agree word
 for word. Each file comment's CANVAS TITLE line is updated and loses its
@@ -643,7 +643,7 @@ Title row `Import options  malformed-export.csv, 1.2 MB -- parse error`. The
 summary is replaced by item 8's error block: the plain-language statement, the
 offending line quoted in the monospace face with its line number, and the count
 (`Row 1,284 has 7 values where the header has 5. 3 more rows like this.`). The
-grid renders as far as it parsed with the offending row in the warning colour
+grid renders as far as it parsed with the offending row in the warning color
 and a `Show the 4 bad rows` action. **The Parsing group is drawn open with
 Separator focused**, because the separator and the quote character fix this
 class of file. Footer: Cancel at the left, never disabled; the note slot carries
@@ -728,7 +728,7 @@ to do. A dialog is only for a commit the canvas must wait on."
   home-panel row. Escape closes and returns focus to the opener. F6 cycles the
   open pop-out immediately after the region that owns it. Up and Down on a
   driving list re-target an open pop-out rather than closing it.
-- **The nesting limit.** A pop-out may open a menu, an info circle, a colour or
+- **The nesting limit.** A pop-out may open a menu, an info circle, a color or
   gradient picker, or a 3b dialog which replaces and closes it. **A pop-out may
   never open a second pop-out.** Figma's text-style bug -- floating panels that
   close when the details icon is clicked
@@ -757,7 +757,7 @@ anchor, not the pixel.
 
 **Header** is 32 px: the member's own name, the technical name dimmed beside it
 per 6.3, a pin toggle, and the register's close X titled `Close (Esc)`. **Pin**
-is generalised from what 5.3 Style already gives three popouts: pinned ignores
+is generalized from what 5.3 Style already gives three popouts: pinned ignores
 click-outside, survives selection change, and its dragged position is remembered
 per pop-out type under 6.5. That is the feature Figma scoped and dropped
 (https://forum.figma.com/t/persistent-color-picker-when-unpinned-from-right-panel/203),
@@ -765,7 +765,7 @@ and we get it for free by specifying it before shipping.
 
 **Multiplicity: one per region** -- at most one in the activity panel, one in
 the inspector, one on the canvas overlay. Below 1280 px and on iPad a pop-out is
-a second sheet over its panel at full panel width with a back chevron, honouring
+a second sheet over its panel at full panel width with a back chevron, honoring
 5.2's one-overlay-at-a-time rule.
 
 **6.9's change is in A2 and is two clauses. There is still no eleventh row
@@ -778,7 +778,7 @@ family and is re-run.
 **Artboards.** SHELL-SKELETON.html gains the pop-out shell so every board
 inherits one drawing.
 
-**Direction.** Neutral by itself. It is the licence the removals below spend.
+**Direction.** Neutral by itself. It is the license the removals below spend.
 
 ### POP-1 Step through time: the settings pop out, the scrubber does not (screen)
 
@@ -844,7 +844,7 @@ a second pop-out.
 **Spec text.** 5.3 Explore tier 2 restates the builder; the sentence "the
 Builder and Expression switch is a trailing door on that row rather than a
 resident tab pair" is amended, since the row it referred to no longer exists.
-COMPACTION-1.6.md line 128's door catalogue takes the same edit.
+COMPACTION-1.6.md line 128's door catalog takes the same edit.
 
 **Artboards.** FilterBuilderExpert (draws the pop-out), ExplorePanel, Main,
 TimeSlider, ExploreNotesList, ExplorerLargeGraph, StylePanel, StyleDiverging.
@@ -897,7 +897,7 @@ actions. The 228 px Group 1 block leaves the column entirely and becomes a 360
 pop-out anchored to the clicked row, headed `Group 1` with `Communities
 (Louvain)` dimmed beside it: over-represented values as a four-column table,
 internal hubs as RT-6 rows, edges to other groups as RT-9 micro-bars per
-neighbouring group rather than three bare numbers, and the group-scoped actions.
+neighboring group rather than three bare numbers, and the group-scoped actions.
 The Group 1 row carries the selected-row fill so the tether is visible. **Up and
 Down on the table re-target the pop-out without closing it.**
 
@@ -928,7 +928,7 @@ spec.
 **Decision.** 5.3 Analyze already puts the Advanced block behind a gear as a
 collapsed block inside the parameters section, explicitly "not a dialog". It
 becomes a 280 3a pop-out anchored to the parameters row, so Advanced stops
-pushing Run below the fold. **The gear draws in the primary colour, not dimmed,
+pushing Run below the fold. **The gear draws in the primary color, not dimmed,
 whenever any hidden option deviates from its default** -- 6.11's stub
 obligation. Pinned Advanced fields keep working: a pinned field renders inline
 and does not render in the pop-out.
@@ -1081,7 +1081,7 @@ MultiSelection keep their inspector Notes sections inline and unchanged.
 
 **Decision.** The second deliberate no. The three applied policies are
 provenance with a Change link whose home is the Import options dialog, and a
-pop-out would give a control a second home, which 6.4 and the one-behaviour-
+pop-out would give a control a second home, which 6.4 and the one-behavior-
 one-home discipline both refuse. The real fix is already written in the spec's
 own Row types in Data paragraph and has not been applied: a policy is a noun and
 a value in one field, not a sentence. `Repeats` holding `Combine + sum`,
@@ -1092,7 +1092,7 @@ only where it deviates from the default per Rule 7a.
 **Spec text.** No new rule. One line in 6.11's worked examples recording that
 import policies were considered and rejected, because **a control whose home is
 a dialog may not acquire a second home as a pop-out.** This is the proposal that
-keeps 6.11 from becoming a licence to pop everything out.
+keeps 6.11 from becoming a license to pop everything out.
 
 **Artboards.** DataPanelLoaded; ImportOptions unchanged.
 
@@ -1112,9 +1112,9 @@ duration) with its sparkline and pairwise agreement: 480 from the Sweep summary
 card. (d) Neighborhood expansion type checkboxes with their counts and the
 "Adds about 37 nodes" preview: already described in the spec as opened by the
 split button's arrow, so this names an existing pop-out rather than adding one.
-(e) The rich text label editor, gradient editor, colour picker and pattern
+(e) The rich text label editor, gradient editor, color picker and pattern
 editor: already popouts in 5.3 Style, now inheriting 6.11's shell, pin and
-nesting rules -- the pattern editor is the precedent 6.11 generalises.
+nesting rules -- the pattern editor is the precedent 6.11 generalizes.
 
 **Cut, and reclassified as a menu.** Selection sets. See A3, cut 2: five verbs
 per row is a row context menu, matching SAV-7's row treatment, not a pop-out. A
@@ -1232,7 +1232,7 @@ file into the library; `Export <kind> (JSON)` writes one entry to a file; apply
 is the row click. The ellipsis is load-bearing: it means a dialog that will ask
 for a name.
 
-**Normalisations.** Style gains `Save as style...`. `Export analysis recipe
+**Normalizations.** Style gains `Save as style...`. `Export analysis recipe
 (JSON)` becomes `Export recipe (JSON)`. `Import and replay` becomes `Import
 recipe...`, and the imported row is run by clicking it. `Save selection as
 set...` keeps its longer form, because "selection" names the source and the
@@ -1309,8 +1309,8 @@ and a selection set hold node ids, and a bookmark holds a camera; both are bound
 to the dataset that produced them and neither can reconstruct a graph.
 
 **Rationale.** Twelve kinds are about to get save verbs and someone will
-reasonably ask whether that is a project file arriving by instalments. It is
-not, and the reason generalises the argument section 3 already accepted for
+reasonably ask whether that is a project file arriving by installments. It is
+not, and the reason generalizes the argument section 3 already accepted for
 recipes ("a recipe stores steps, not data"). Cytoscape draws the identical line
 in its own manual -- styles export "in a file separate from the session file"
 (https://manual.cytoscape.org/en/stable/Styles.html) -- and Figma's split is the
@@ -1391,7 +1391,7 @@ absent. On SavedItems those rows group under a dimmed `For graphs you do not
 have open` header with a count.
 
 **The carve-out's limit.** Only rows carrying a user-supplied name. Rule 7c is
-unchanged everywhere else, and COMPACTION-1.6's defence of it stands.
+unchanged everywhere else, and COMPACTION-1.6's defense of it stands.
 
 **Spec text.** Floor item 2 gains "and, when a saved thing is applied, what in
 it did not bind: the layers, rows, columns or ids that found nothing, named."
@@ -1425,7 +1425,7 @@ job.
 **Delete gets a toast with Undo for 10 seconds and no confirmation dialog.**
 5.1's rule is that any action undoable from the top bar gets no confirmation,
 only a toast; a library delete is not undoable from the top bar, so read
-strictly it would need a dialog. The toast-local undo is the better behaviour
+strictly it would need a dialog. The toast-local undo is the better behavior
 and the **one-clause exception must be stated, not assumed**: it is not an entry
 in the fifty-deep history store, and 5.1's undo scope does not grow.
 
@@ -1492,7 +1492,7 @@ moment the dataset closes, and the only way to carry it forward is to save an
 entire recipe.
 
 **Overlap with the recipe, stated rather than hidden.** The recipe already
-serialises computed-attribute formulas, so two artifacts can now carry a
+serializes computed-attribute formulas, so two artifacts can now carry a
 formula. That is acceptable: the recipe is the whole session as steps, the
 formula is one reusable expression, and a recipe applies formulas as part of a
 replay while the Formulas library applies one on demand.
@@ -1540,7 +1540,7 @@ existing fingerprint question in section 12.
 TableJoin.
 
 **Direction.** Adds one 33 px section header to Data. Makes an existing silent
-behaviour visible, which is the point.
+behavior visible, which is the point.
 
 ### SAV-11 Cmd+S is unbound: point it at the honest answer (rule)
 
@@ -1695,7 +1695,7 @@ proposed rendering the run's whole parameter set inline. Instead: **Rule 7a
 already decides this. A parameter at its default is not drawn.** The layer's
 resident parameter rows are the ones that deviate -- typically the one the run
 name carries -- and everything else lives behind the layer row's gear as POP-5's
-280 pop-out, with the gear drawn in the primary colour whenever a hidden
+280 pop-out, with the gear drawn in the primary color whenever a hidden
 parameter deviates.
 
 **Measured, not estimated.** Rendered privately at a 280 px column width, the
@@ -1776,7 +1776,7 @@ whose result paints nothing simply has no suggestedStyles method. The category
 is descriptive and derived from writes, not the other way round.
 
 **One mismatch found and fixed in 5.8.** FloydWarshallAlgorithm declares category
-`path` while colouring a per-node eccentricity, against a spec shape of Fact.
+`path` while coloring a per-node eccentricity, against a spec shape of Fact.
 Resolution: Farthest apart stays a Fact whose supporting nodes are the centers,
 and the per-node eccentricity it already computes is exposed as an ordinary node
 metric in the Not computed yet group, so it can be encoded like any other metric
@@ -1842,7 +1842,7 @@ only the entry point differs.
 
 **Turning the value.** A scrub does not run. On release, on Enter or on blur the
 layer goes dirty: the canvas keeps the completed run's picture, the field shows
-the new value at value colour with a 12 px reset x (Rule 7a's deviation form),
+the new value at value color with a 12 px reset x (Rule 7a's deviation form),
 and the gate appears beneath. **Nothing on the canvas ever shows a
 half-computed state.**
 
@@ -1859,7 +1859,7 @@ section 3 warning line.
 
 **While it runs**, Source shows `Computing Groups (Markov clustering)... 42%
 Cancel`, the layer row shows Running resident, the canvas keeps the previous
-colours, and the status bar mirrors the run then the restyle -- two phases, two
+colors, and the status bar mirrors the run then the restyle -- two phases, two
 strings, both already specified, and never a third.
 
 **Replace in place.** A re-run from a Source row replaces this run and repaints
@@ -1872,7 +1872,7 @@ contradict each other. A parameter row inside an object edits that object; Run
 and `Run again with changes` are the verbs that make a new one, and Run as sweep
 exists for holding 2.5 and 3.0 side by side.
 
-**Two consequences stated rather than absorbed.** Per-value colour overrides are
+**Two consequences stated rather than absorbed.** Per-value color overrides are
 dropped when the re-run changes the value set, because a group id is not stable
 across granularities; the toast says so and Undo restores them. Consecutive
 re-runs of the same parameter on the same layer **coalesce into one history
@@ -1885,10 +1885,10 @@ already batches inspector style edits behind an Apply button, and a Source edit
 now batches a run and then a restyle. The Apply button and the `Run and use it`
 verb must become **one gate on that path**, not two buttons in sequence.
 
-**Artboards.** StyleDiverging (its existing gate relabelled in a comment as the
+**Artboards.** StyleDiverging (its existing gate relabeled in a comment as the
 same construction reached from the other direction); new board
 `StyleFromAnalysis` draws the mid-edit state with the canvas still showing the
-2.5 colours.
+2.5 colors.
 
 **Direction.** Adds 11 words while a re-run is pending and nothing at rest.
 Floor 4.
@@ -1915,7 +1915,7 @@ what has been computed. Neither is where a picture is edited, and that is the
 sentence that keeps Analyze from growing a style panel inside it.
 
 **The residual tension, unresolved by design.** A novice who now finds the
-picture in Style has one more reason never to open the Analyze catalogue. The
+picture in Style has one more reason never to open the Analyze catalog. The
 mitigation is unchanged -- the Insights strip, `+ Analysis`, the picker, the
 palette -- and section 12's "Discovery loss in Analyze" check still applies as
 written.
@@ -1988,12 +1988,12 @@ which is floor 4.
 ## G. Track 5 -- The canvas toolbar
 
 Track IDs renumbered TB-n from the track's T5-n. The 5.6 navigation cluster
-rotates 90 degrees and moves to the bottom centre of the canvas rect.
+rotates 90 degrees and moves to the bottom center of the canvas rect.
 
-### TB-1 The navigation cluster becomes a bottom-centre canvas toolbar (rule + screen)
+### TB-1 The navigation cluster becomes a bottom-center canvas toolbar (rule + screen)
 
 **Decision.** The vertical 56 px cluster at the canvas's left edge is deleted
-and its contents become one horizontal floating bar centred on the live canvas
+and its contents become one horizontal floating bar centered on the live canvas
 rect. Order, left to right, by how long the effect lasts: **[2D | 3D]
 segmented** (5 toggles it); divider; **Zoom out (-), Zoom in (=), Zoom to fit
 (0), Zoom to selection (F)**; divider; **Views** (cube plus an up-caret, opening
@@ -2005,15 +2005,15 @@ horizontally magnitude should increase rightward -- vertically, in-above-out was
 already correct.
 
 **The item set is fixed.** Nothing appears or disappears with selection or
-state, because a centred container that changes width moves every item under the
+state, because a centered container that changes width moves every item under the
 pointer. Zoom to selection is therefore permanently drawn and merely disables,
 with the register's exact disabled title `Zoom to selection (F). Select
 something first` -- floor 4, the reason a disabled control is disabled. The
-Graph / Table segmented control stays at top centre and never enters the bar
+Graph / Table segmented control stays at top center and never enters the bar
 (A1).
 
 **Rationale.** The user's reason is aesthetic and it is a real one: a control in
-the optical centre of the bottom edge reads as the viewer's own instrument,
+the optical center of the bottom edge reads as the viewer's own instrument,
 while a 56 px column stuck to the left edge above the minimap reads as leftover
 chrome. Figma's reason was space and reach -- moving the toolbar to the bottom
 "frees up more canvas space" and puts tools "closer to where your hands
@@ -2022,7 +2022,7 @@ naturally rest", with muscle-memory parity with FigJam
 The grouping logic is Figma's: modal tools, then the mode control, then one-shot
 actions, then the menu
 (https://help.figma.com/hc/en-us/articles/360041064174). And the resulting
-composition -- minimap left, toolbar centre, legend right, one baseline -- is
+composition -- minimap left, toolbar center, legend right, one baseline -- is
 exactly tldraw's bottom zone (https://tldraw.dev/sdk-features/ui-components),
 which is why it reads as designed rather than dropped in.
 
@@ -2043,7 +2043,7 @@ sentence must be re-pointed or the deletion loses its justification.
 should be done by one script in `canvas/tmp`, the way the 1.5 register pass was;
 only DataTableDrawer, TimeSlider, CompareSplit, ViewsMenu, IpadPanel and
 IpadInspector need hand attention afterwards. **CompareSplit keeps one toolbar**,
-centred on the full two-view canvas, because its views are linked.
+centered on the full two-view canvas, because its views are linked.
 
 **Direction.** Neutral on words. Removes a 56 x 160 column of chrome from the
 canvas edge.
@@ -2075,13 +2075,13 @@ Views 40, dividers and gaps unchanged, giving `3 + 68 + 12 + (32*4 + 2*3) + 12 +
 (Track 5's 316 and 352 include the rejected pointer pair; its 254 fallback is
 arithmetically 246. The numbers above are the ones to draw.)
 
-**Tokens.** Background `#1f2428`, border 1 px `#48525c`, item colour `#a3a8b1`,
+**Tokens.** Background `#1f2428`, border 1 px `#48525c`, item color `#a3a8b1`,
 hover `#2a3035` / `#d5d7da`, disabled `#5f6873`, divider a 12 px box holding a
 1 px x 16 px rule in `#48525c`. The segmented control's selected half uses the
 neutral raised fill `#374047`, **not the accent**, because choosing a view is not
 an armed state.
 
-**The one new visual behaviour, deliberate.** The bar carries the existing
+**The one new visual behavior, deliberate.** The bar carries the existing
 tooltip shadow token `0 8px 24px rgba(0,0,0,.45)` and is **the only canvas
 overlay that does**. Lift is the mechanism that makes it read as an instrument;
 the minimap and legend stay flat, which correctly sorts them as content boxes.
@@ -2129,15 +2129,15 @@ CanvasToolbar, as a 600-wide canvas slice.
 ### TB-4 The bottom stack (rule)
 
 **Decision.** As A1, in full: the order, the four offsets (12 / 82 / 272 / 342),
-the slider normalised to 70 px, and the toolbar hiding with the minimap and
-legend when the drawer is maximised to full canvas height.
+the slider normalized to 70 px, and the toolbar hiding with the minimap and
+legend when the drawer is maximized to full canvas height.
 
 **Do not merge the toolbar into the time slider bar.** The slider exists only
 when a Time role is assigned, so a merged bar would change size and position the
 moment a user maps a timestamp column, and the toolbar would inherit the
 slider's conditional life. Two objects, 12 px apart.
 
-**The failure mode we are buying into, named.** Figma's bottom-centre bar
+**The failure mode we are buying into, named.** Figma's bottom-center bar
 occludes canvas content there and cannot be moved, docked or hidden, a request
 years old
 (https://forum.figma.com/t/new-ui-issue-bottom-center-toolbar-is-getting-in-the-way/83144,
@@ -2146,15 +2146,15 @@ Our exposure is smaller -- a 246 x 36 bar over a force-directed layout occludes
 no measurement label -- and TB-8 gives the escape Figma never shipped.
 
 **The one adjacency someone will argue about, answered in advance.** With the
-drawer open the canvas shows Graph / Table at top centre and the toolbar at
-bottom centre, two centred controls on one screen. That is acceptable -- opposite
+drawer open the canvas shows Graph / Table at top center and the toolbar at
+bottom center, two centered controls on one screen. That is acceptable -- opposite
 edges, only one conditional -- and it is the strongest argument anyone will make
 for folding Graph / Table into the toolbar. The counter-argument is the fixed
 item set, and it must be written where the next drafter will find it.
 
 **Artboards.** DataTableDrawer (bottom 342, slider height 70, padding
 `6px 12px 1px`), TimeSlider (bottom 82), Main, and CanvasToolbar draws the full
-three-way stack once as a labelled slice.
+three-way stack once as a labeled slice.
 
 **Direction.** Neutral.
 
@@ -2162,7 +2162,7 @@ three-way stack once as a labelled slice.
 
 **Decision.** This case resolves itself, which is the best evidence the placement
 is right. 5.2 says overlays do not resize the canvas, so the rect stays 1132
-wide and the toolbar centres on it. At its 274 px narrow width its edges land 149
+wide and the toolbar centers on it. At its 274 px narrow width its edges land 149
 px clear of a 280 px panel overlay on the left and 149 px clear of a 280 px
 inspector overlay on the right -- no special case, no reflow, at either overlay
 or with both closed. Its lower edge sits 36 px above the window bottom, above the
@@ -2239,7 +2239,7 @@ toolbar at bottom offset 12 and the status bar 24 px directly beneath, the
 percentage renders about 12 px below the Zoom in and Zoom out buttons -- already
 adjacent, already grouped by proximity, at zero cost. (c) **A numeric readout
 would change the bar's width** as the graph is zoomed from 10% to 1000%, which
-is precisely the width instability a centred bar cannot tolerate.
+is precisely the width instability a centered bar cannot tolerate.
 
 **One consequential edit.** The status bar's overflow rule drops slots right to
 left in the order AI status, zoom, layout name, Viewing -- so zoom is the second
@@ -2257,7 +2257,7 @@ to the bar.
 ### TB-8 The Views menu opens upward, gains a Toolbar row, and the bar can be turned off (rule)
 
 **Decision.** The menu re-anchors so its bottom edge sits 4 px above the
-toolbar's top edge, centred on the Views button, **clamped 12 px inside the
+toolbar's top edge, centered on the Views button, **clamped 12 px inside the
 canvas's left, right and top edges** and scrolling internally if the stack pushes
 it up -- the clamp is real, not theoretical: on iPad with the drawer and slider
 open the menu's top would otherwise land 3 px above the canvas top. The trigger's
@@ -2319,8 +2319,8 @@ Eight, taking the set from 40 to 48.
 | `GroupProfilePopout` | A 360 inspector pop-out anchored to a table row, with the re-targeting tether                                                                                                | The browsable-detail case, and the left-opening anchor                                                                                                                          |
 | `StyleLibrary`       | The Styles section at rest and hovered, plus the Save as style dialog with its two off-by-default checkboxes and the destination line                                        | It is the only place the section overflow is drawn open anywhere in the set, and the checkboxes are the schema decision made visible                                            |
 | `SavedItems`         | Settings > Data management with every kind grouped, storage used, origins, and the dimmed "For graphs you do not have open" group                                            | The housekeeping list is a different job from the working lists and must be seen to be different                                                                                |
-| `StyleFromAnalysis`  | The user's own example -- MCL granularity 2.5 on the 318-node ovarian dataset -- with the Source section and the granularity mid-edit showing the cost gate                  | The whole of track 4 in one picture, including the canvas holding the last good colours while a re-run is pending                                                               |
-| `CanvasToolbar`      | The bar at both sizes, the three-way bottom stack as a labelled slice, and the two-line minimap/legend state                                                                 | A new component with a shadow, a concentric radius and four vertical offsets                                                                                                    |
+| `StyleFromAnalysis`  | The user's own example -- MCL granularity 2.5 on the 318-node ovarian dataset -- with the Source section and the granularity mid-edit showing the cost gate                  | The whole of track 4 in one picture, including the canvas holding the last good colors while a re-run is pending                                                                |
+| `CanvasToolbar`      | The bar at both sizes, the three-way bottom stack as a labeled slice, and the two-line minimap/legend state                                                                  | A new component with a shadow, a concentric radius and four vertical offsets                                                                                                    |
 
 `canvas.json` takes one deliberate coordinated edit: eight new entries, the four
 Import retitles of IMP-8, and the group-2 annotation count from (7) to (9). Every
@@ -2344,7 +2344,7 @@ the edit is now made.
    run record line into the layer row's title, which is legal under floor item 3
    only if the Details chevron survives.
 3. **Five library sections could become a habit.** SAV-1 is a treatment, not a
-   licence. POP-11's rule -- a control whose home is a dialog may not acquire a
+   license. POP-11's rule -- a control whose home is a dialog may not acquire a
    second home -- is the guard, and 6.11's worked-examples table is where the
    next drafter must look before adding a sixth.
 4. **One pop-out per region will surprise someone.** Opening a run record's
@@ -2352,9 +2352,9 @@ the edit is now made.
    it is the kind of rule discovered by frustration rather than by reading.
 5. **The discovery risk in Analyze is unchanged and now has one more reason to
    fire.** A novice who finds the picture in Style has one less reason to open
-   the Analyze catalogue. Section 12's existing check still applies as written;
+   the Analyze catalog. Section 12's existing check still applies as written;
    this revision does not improve it.
-6. **The toolbar occludes the canvas bottom centre and always will.** TB-8's
+6. **The toolbar occludes the canvas bottom center and always will.** TB-8's
    Toolbar row is the escape, and its way back is a palette row a user must know
    exists. That is a real, small, permanent cost, accepted knowingly.
 7. **`metadata.source` is a forward-compatibility bet.** It is verified against
@@ -2363,7 +2363,7 @@ the edit is now made.
    every exported analysis-backed layer. 5.8 must record the dependency, not just
    the feature.
 8. **The header signature is a weak key.** SAV-10 makes an existing silent
-   behaviour visible and thereby makes its collisions visible too. Naming the
+   behavior visible and thereby makes its collisions visible too. Naming the
    mapping after its originating file is the minimum fix, not the whole fix, and
    the question belongs beside section 12's fingerprint question.
 9. **Two spec numbers are now doing similar work.** 6.9's RT-1 door rule and

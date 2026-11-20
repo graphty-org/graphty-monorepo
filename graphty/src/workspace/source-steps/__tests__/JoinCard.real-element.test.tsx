@@ -13,7 +13,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, SourceMatchPair } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -31,6 +31,8 @@ const ENTRIES = "entry,badge,door\nE1,B1,D1\nE2,B1,D2\nE3,B2,D1\nE4,B9,D1\nE5,b3
  * @returns the store, the session and the staged entries' key.
  */
 async function foundingProject(): Promise<{ store: WorkspaceStore; session: GraphSession; entries: string }> {
+    // A desktop window: the dock's Fields tab needs room beside the Data panel the card widens.
+    await page.viewport(1440, 900);
     const { store, session } = await emptyProject();
     await session.data.import(
         { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
@@ -126,7 +128,7 @@ describe("the Join card (source-steps)", () => {
         const merge = within(card).getByRole<HTMLInputElement>("radio", { name: "Merge 2 into 1" });
         assert.isFalse(edge.checked || merge.checked, "no act until the reader picks one");
         await userEvent.click(edge);
-        assert.isNotNull(within(card).getByRole("textbox", { name: "Edge type" }), "Make an edge asks its type");
+        assert.isNotNull(within(card).getByRole("combobox", { name: "Edge type" }), "Make an edge asks its type");
         await userEvent.keyboard("{ArrowDown}");
         await waitFor(() => {
             assert.isTrue(merge.checked);
@@ -142,14 +144,17 @@ describe("the Join card (source-steps)", () => {
         assert.isNotNull(screen.queryByRole("form", { name: "Join" }), "the card stays open");
 
         // Esc closes it, writing nothing, and gives the dock back.
-        const before = session.data.store.getSnapshot();
+        const undoSteps = session.history.steps.length;
+        const steps = session.data.steps().length;
         merge.focus();
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("form", { name: "Join" }));
         });
         assert.isFalse(store.get().dockOpen, "the dock closes again");
-        assert.strictEqual(session.data.store.getSnapshot(), before, "nothing was written");
+        assert.strictEqual(session.history.steps.length, undoSteps, "nothing was written");
+        assert.isNull(session.data.currentDraft(), "no draft was opened");
+        assert.lengthOf(session.data.steps(), steps, "no step was added");
         assert.strictEqual(session.data.staged()[0]?.key, entries, "entries stays staged");
     });
 

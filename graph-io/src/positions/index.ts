@@ -20,5 +20,6 @@ export type {
     PositionNote,
     PositionReadContext,
     ViewerFit,
+    ViewerFrame,
     YAxis,
 } from "./types.js";

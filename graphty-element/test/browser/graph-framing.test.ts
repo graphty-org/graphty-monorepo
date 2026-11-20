@@ -115,4 +115,16 @@ describe("the framing setting", () => {
         const back = await framed(element);
         assert.closeTo(back.a.x, before.a.x, 1, "the element's own framing is back");
     });
+
+    it("frames a fixed box edge to edge whatever the nodes' extent", async () => {
+        const element = await mounted();
+        // a box twice the centers' box each way, as tall as the canvas's shape: the nodes fill its middle half
+        await element.session.config.set({
+            framing: { extent: "centers", padding: 0, box: { min: [-200, -150], max: [200, 150] } },
+        });
+        const { a, b } = await framed(element);
+        assert.closeTo(a.x, WIDTH / 4, 1, "a's center is a quarter in from the left");
+        assert.closeTo(b.x, (WIDTH * 3) / 4, 1, "b's center is a quarter in from the right");
+        assert.closeTo((a.y + b.y) / 2, HEIGHT / 2, 1, "the box is centered up and down");
+    });
 });

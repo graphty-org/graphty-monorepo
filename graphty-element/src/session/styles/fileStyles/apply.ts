@@ -24,6 +24,7 @@ import type { LoadReport } from "../../../data/report";
 import type { DataImportCommand } from "../../commands/data";
 import type { UndoableContext } from "../../project/Dispatcher";
 import type { TimeField } from "../../time/TimeApi";
+import type { GraphFraming } from "../../types";
 import { channelDescriptor } from "../channels";
 import type { CompiledLayer, LayerProblem } from "../Layer";
 import { quotePath } from "../predicate";
@@ -64,6 +65,11 @@ export interface FileStylesRead {
      * that its stored positions are fitted to the canvas; absent when it states none.
      */
     readonly framingPadding?: number;
+    /**
+     * The box of stored positions the file's own viewer fits to its canvas whatever the nodes' extent (Pajek's 0..1
+     * square), in the unit of the stored positions; absent when it fits the nodes.
+     */
+    readonly framingBox?: { readonly min: readonly [number, number]; readonly max: readonly [number, number] };
 }
 
 /** What a data source gives a load about the styles of what it read. */
@@ -219,13 +225,11 @@ export async function applyFileStyles(
     }
 
     // The file states that its node centers are fitted into the canvas: framed the same, the drawing fills the canvas
-    // as the file's own viewer does. A file that states no padding returns to the element's own framing.
+    // as the file's own viewer does. A file whose viewer fits a fixed box (Pajek's 0..1 square) has that box framed,
+    // edge to edge, in the unit its stored positions are drawn in. A file that states neither returns to the element's
+    // own framing.
     if (options.framing === "file" && replacing) {
-        const padding = read?.framingPadding;
-        await ctx.inline({
-            op: "config.set",
-            values: { framing: padding === undefined ? undefined : { extent: "centers", padding } },
-        });
+        await ctx.inline({ op: "config.set", values: { framing: fileFraming(read, sceneScale ?? 1) } });
     }
 
     const report: LoadReport = Object.freeze({
@@ -238,6 +242,27 @@ export async function applyFileStyles(
     });
     ctx.services.data?.values?.({ importReport: report }, ctx.draft);
     return sceneScale;
+}
+
+/**
+ * How a file's own viewer frames it, as the project setting `framing`.
+ * @param read - The file's styles, or null.
+ * @param k - The scene units one unit of the stored positions is drawn as.
+ * @returns The framing, or undefined for the element's own.
+ */
+function fileFraming(read: FileStylesRead | null, k: number): GraphFraming | undefined {
+    const padding = read?.framingPadding;
+    const box = read?.framingBox;
+    if (box === undefined) {
+        return padding === undefined ? undefined : { extent: "centers", padding };
+    }
+
+    // ponytail: the fixed layout's scale only; a positionScale the reader set is not applied to the box
+    return {
+        extent: "centers",
+        padding: padding ?? 0,
+        box: { min: [box.min[0] * k, box.min[1] * k], max: [box.max[0] * k, box.max[1] * k] },
+    };
 }
 
 /**

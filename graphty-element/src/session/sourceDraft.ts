@@ -549,13 +549,18 @@ export class SourceDraftHandle implements SourceDraft {
 /**
  * The refusal of a write made while a draft is open.
  * @param draft - The draft's id.
- * @returns `E_DRAFT_OPEN { draft }`.
+ * @param side - `"after"` when the write is refused because the draft's After is drawn, which
+ *     showing Before lifts.
+ * @returns `E_DRAFT_OPEN { draft }`, or `E_DRAFT_OPEN { draft, side: "after" }`.
  */
-export function draftOpenError(draft: string): GraphtyError {
+export function draftOpenError(draft: string, side?: "after"): GraphtyError {
     return new GraphtyError({
         code: "E_DRAFT_OPEN",
-        message: "A draft of the sources and steps is open: commit or discard it first.",
+        message:
+            side === undefined
+                ? "A draft of the sources and steps is open: commit or discard it first."
+                : "A draft's After is drawn, which is not the project's graph: show Before first.",
         source: "data",
-        details: { draft },
+        details: side === undefined ? { draft } : { draft, side },
     });
 }

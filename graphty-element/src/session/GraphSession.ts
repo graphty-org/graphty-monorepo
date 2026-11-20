@@ -3232,6 +3232,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let draftDrawn = (): Promise<void> => Promise.resolve();
     // True while a drawn draft's After dispatches its own writes, which the open draft lets through.
     let drawingAfter = false;
+    // True while a draft's After is drawn: the graph is the draft's, and a reader's command that
+    // reads or names its elements is refused until Before shows.
+    let afterDrawn = false;
     // Moves whenever the selection, the filter, or an element's state a `{match:"state"}` layer reads, moves:
     // the style stack keeps its readings until it does.
     let stateRevision = 0;
@@ -3423,6 +3426,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         }
         if (drawingAfter) {
             return null;
+        }
+        const refused = afterDrawn ? data.afterRefusal(command) : null;
+        if (refused !== null) {
+            return refused;
         }
         return command.op.startsWith("data.") && command.op !== "data.derive" ? data.draftRefusal(command) : null;
     };
@@ -4312,10 +4319,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     };
     // A drawn draft's After (design 5.3): the graph its commit would leave, drawn by writing what the
     // commit would remove, patch and add -- the graph's rows only, never the sources and steps --
-    // inside a transaction that is never recorded. Taking After off aborts it, which puts every row
-    // and the arrangement back, so the history never holds it, and a save takes it off while it
-    // writes. While it is on, everything that reads the graph (statistics, the legend, a count)
-    // reads the draft's. `marks` is what it was drawn for.
+    // inside a transaction that is never recorded nor listed as pending. Taking After off aborts it,
+    // which puts every row and the arrangement back but for the nodes the reader moved meanwhile,
+    // so the history never holds it, and a save takes it off while it writes. While it is on,
+    // statistics, the legend and a count read the draft's graph, and a reader's command that would
+    // measure or name its elements (a run, a pin, a note) is refused. `marks` is what it was drawn for.
     let after: { readonly marks: object; readonly abort: () => void; readonly landed: Promise<void> } | null = null;
     /**
      * Dispatch one of After's writes through its transaction, past the open draft's refusal.
@@ -4344,7 +4352,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             land = resolve;
         });
         const held = dispatcher.transaction(
-            "Drew a draft",
+            "source-draft-after",
             async (tx, signal) => {
                 abort = (): void => {
                     dispatcher.abort(tx);
@@ -4382,10 +4390,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                     );
                 });
             },
-            { moves: true },
+            // Its before-arrangement is where a layout stood before the draft's elements pushed it;
+            // a reader's moves recorded meanwhile are put back over it when it ends.
+            { moves: true, unlisted: true },
         );
         // Aborting it is how it ends; a waiter on the drawing is never left waiting.
         held.catch(() => undefined).finally(land);
+        afterDrawn = true;
         after = {
             marks,
             abort: () => {
@@ -4400,6 +4411,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         }
         const { abort } = after;
         after = null;
+        afterDrawn = false;
         data.drawnAfter(null);
         abort();
         // The abort queues the arrangement it began from for the next pass; a save made now reads it.

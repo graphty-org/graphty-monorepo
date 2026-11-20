@@ -5222,11 +5222,15 @@ export interface SourceDraft {
      * Choose which side of the commit a displayed draft draws. `"before"` draws the graph as it is,
      * where `graphty.draft` reads `"removed"` on what the commit would remove. `"after"` draws the
      * graph the commit would leave: what it removes is gone, what it adds is drawn and reads
-     * `"new"`, and changed elements show their new values. While After is drawn, everything that
-     * reads the graph -- `statistics()`, `legendOf`, style counts, runs started then -- reads the
-     * draft's graph; after an act on the draft it is drawn afresh (await `display(true)` again to
-     * wait for it). View only: nothing is recorded, the history does not move, and a save writes
-     * the committed project. A drawn After is listed in `session.history.pending` until it comes off.
+     * `"new"`, and changed elements show their new values. While After is drawn, `statistics()`,
+     * `legendOf` and style counts read the draft's graph; after an act on the draft it is drawn
+     * afresh (await `display(true)` again to wait for it). View only: nothing is recorded or
+     * listed in `session.history.pending`, the history does not move, and a save writes the
+     * committed project. The draft's graph is not the project's, so while After is drawn a command
+     * that would measure it or name its elements -- a run, a layout change, a pin, a note, a set,
+     * hiding elements, moving a node only the draft has -- is refused with
+     * `E_DRAFT_OPEN { draft, side: "after" }` until Before shows; styles, settings, views, filters
+     * and moving a node the project has go ahead, and a moved node stays where it was moved.
      * @param side - The side.
      * @returns Settles once the graph draws it.
      * @throws A `GraphtyError` with `E_BAD_COMMAND`, reason `side` for any other value, or reason

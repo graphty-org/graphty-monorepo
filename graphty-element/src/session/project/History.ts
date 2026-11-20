@@ -122,6 +122,8 @@ export interface OpenArrangement {
      * when a history call restores the lane.
      */
     readonly provisional: ArrangementCapture | null;
+    /** The number of the first step recorded after it opened. */
+    readonly since: number;
 }
 
 /** A step as the history publishes it. Frozen. */
@@ -197,7 +199,7 @@ export class History<P> {
      */
     private baseline: { capture: ArrangementCapture; owned: boolean } | null = null;
     /** The pending groups holding a before-arrangement, oldest first. */
-    private groups: { before: ArrangementCapture; provisional: ArrangementCapture | null }[] = [];
+    private groups: { before: ArrangementCapture; provisional: ArrangementCapture | null; since: number }[] = [];
     /** What the undos and redos since the last take restore, in order. */
     private arrangementOps: ArrangementOp[] = [];
     /** While above zero, a history move is under way and eviction waits for it to land. */
@@ -502,9 +504,24 @@ export class History<P> {
      * @returns Its handle; the dispatcher records `before` and `provisional` from it.
      */
     open(before: ArrangementCapture): OpenArrangement {
-        const group = { before, provisional: null };
+        const group = { before, provisional: null, since: this.nextId };
         this.groups.push(group);
         return group;
+    }
+
+    /**
+     * What the applied steps recorded since a group opened placed, written over its before: what
+     * the group's rollback writes after its before-arrangement, so a node moved by a step of its
+     * own meanwhile (a drag beside a long-open transaction) stays where that step put it.
+     * @param group - The group's handle.
+     * @returns The ops, oldest step first; empty when nothing was recorded since.
+     */
+    since(group: OpenArrangement): ArrangementOp[] {
+        return this.entries
+            .slice(0, this.cursor)
+            .flatMap((step, index) =>
+                Number(step.id.slice("step-".length)) >= group.since ? this.redoOps(index) : [],
+            );
     }
 
     /**

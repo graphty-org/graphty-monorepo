@@ -246,11 +246,7 @@ describe("source-steps drafts: drawing a draft", () => {
         const saved = (await session.project.save()).text.replaceAll(CLOCK, '"T"');
         assert.strictEqual(saved, before.saved, "a save while After shows writes the committed project");
         assert.strictEqual(session.history.steps.length, steps, "nothing recorded");
-        assert.deepStrictEqual(
-            session.history.pending.map((each) => each.fact.code),
-            ["transaction"],
-            "After is pending, never recorded",
-        );
+        assert.deepStrictEqual(session.history.pending, [], "After is neither pending nor recorded");
 
         await d.show("before");
         await session.styles.settled();

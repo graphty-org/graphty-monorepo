@@ -576,6 +576,31 @@ interface NeighborList {
     readonly missing: number;
 }
 
+/**
+ * The ops a reader may dispatch while a draft's After is drawn, by prefix: they read and name no
+ * node or edge of the graph. Anything not listed is refused then, so a new op is safe until it is.
+ */
+const AFTER_ALLOWS = [
+    "batch",
+    "style.",
+    "config.",
+    "shader.",
+    "view.camera",
+    "view.save",
+    "view.remove",
+    "view.immersive",
+    "visibility.set",
+    "visibility.window",
+    "visibility.context",
+    "visibility.steps",
+    "visibility.conditions",
+    "visibility.playback",
+    "layout.transport",
+    "algo.move",
+    "algo.rename",
+    "algo.remove",
+] as const;
+
 /** How many neighbor lists are kept per revision: an inspector re-reads the last few. */
 const NEIGHBOR_LISTS_KEPT = 8;
 
@@ -3624,6 +3649,32 @@ export class SessionData implements SessionDataApi {
             return null;
         }
         return draftOpenError(this.sourceDraft.id);
+    }
+
+    /**
+     * Why a reader's command is refused while the open draft's After is drawn: the graph then is the
+     * draft's, not the project's, so a run would measure it and a pin, a note, a set or a hidden
+     * element could name an element the committed graph lacks. What reads neither goes ahead:
+     * styles, settings, views, filters, the run list's order and names, and moving a node the
+     * committed graph has. Data writes are left to {@link SessionData.draftRefusal}.
+     * @param command - The command.
+     * @param command.op - Its op.
+     * @returns `E_DRAFT_OPEN { draft, side: "after" }`, or null.
+     */
+    afterRefusal(command: { readonly op: string }): GraphtyError | null {
+        const draft = this.sourceDraft;
+        const { op } = command;
+        if (draft === null || op.startsWith("data.") || AFTER_ALLOWS.some((allowed) => op.startsWith(allowed))) {
+            return null;
+        }
+        if (op === "positions.set") {
+            const added = draft.marks()?.nodes;
+            const { entries } = command as unknown as { readonly entries: readonly { readonly id: NodeId }[] };
+            if (entries.every(({ id }) => added?.get(String(id)) !== "new")) {
+                return null;
+            }
+        }
+        return draftOpenError(draft.id, "after");
     }
 
     /**

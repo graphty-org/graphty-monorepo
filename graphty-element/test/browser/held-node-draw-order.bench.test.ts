@@ -1,8 +1,8 @@
 /**
  * @file The cost of drawing nodes whose mesh a consumer read, on both render paths.
  *
- * Under `"batched"`, reading `node.mesh` moves the node onto a source mesh of its own, which the
- * opaque sort draws where its look's shared source sorts (test/browser/held-node-draw-order.test.ts).
+ * Under `"batched"`, reading `node.mesh` keeps a node of a look no batch draws (these ringed circles)
+ * on its look's shared source, in its place in the draw order (test/browser/held-node-draw-order.test.ts).
  * This times what that costs a frame: for each size, 2D ringed circles of two looks are loaded,
  * every node's mesh is read, and `scene.render` is timed over a run of frames, on `"objects"` and on
  * `"batched"`. Numbers go to the console as `[held-node-draw-order]` lines; nothing about speed is

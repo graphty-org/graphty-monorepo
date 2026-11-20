@@ -76,6 +76,7 @@ import { isPositive } from "./meshes/shapeOutlines";
 import { SUPPORT_DEFAULTS, type SupportEdge } from "./meshes/supportPoints";
 import { Node, NodeIdType, XLABEL_UNSHARED } from "./Node";
 import { edgeDrawChanges } from "./render/EdgeIdTarget";
+import { rowScanOf } from "./render/PickService";
 import type { RowMeasure } from "./render/RowTable";
 import { frozenRecord } from "./session/project/draft";
 import { placeOfUse } from "./session/styles/channels";
@@ -5532,9 +5533,11 @@ export class Edge {
      * @returns Intersection points for source, destination, and adjusted endpoint
      */
     private interceptPoints(): InterceptPoint {
-        const fromColumns = this.interceptPointsFromColumns();
-        if (fromColumns !== null) {
-            return fromColumns;
+        // An end drawn with no `Node` is read from its row, and the other end from its row or its `Node`: asking the
+        // edge for a `Node` here would build one, whose own edges would then build their far ends', and so on
+        // through the whole connected component (issue #9166).
+        if (this.columnEnd("source") !== undefined || this.columnEnd("target") !== undefined) {
+            return this.interceptPointsFromRows();
         }
 
         const srcMesh = this.srcNode.drawnPickMesh;
@@ -5696,74 +5699,53 @@ export class Edge {
     }
 
     /**
-     * {@link getInterceptPoints} when no `Node` draws either end and both are round (`"batched"` only): the mirror's
-     * answer from the row table, as the pulled cap's shader reads it, so no `Node` is built for an end.
-     * @returns The points, or null when an end needs its `Node` (a ray, or no row table).
-     */
-    private interceptPointsFromColumns(): InterceptPoint | null {
-        const table = this.context.getRowTable?.() ?? null;
-        const source = this.columnEnd("source");
-        const target = this.columnEnd("target");
-        if (table === null || source === undefined || target === undefined) {
-            return null;
-        }
-
-        const trimEnd = (row: ColumnRow, end: "source" | "target"): TrimEnd | null => {
-            const { round, half } = table.extentOf(row.index);
-            return round === null
-                ? null
-                : {
-                      radius: round,
-                      half,
-                      flat: false,
-                      border: row.borderReach,
-                      gap: this.gapAt(end),
-                      measured: TRIM_CLOSED,
-                      leaves: false,
-                      group: this.endBehindEdges(end),
-                  };
-        };
-        const srcEnd = trimEnd(source, "source");
-        const dstEnd = trimEnd(target, "target");
-        if (srcEnd === null || dstEnd === null) {
-            return null;
-        }
-
-        const { src, dst, lineEnd } = trimEnds({
-            src: table.centerOf(source.index),
-            dst: table.centerOf(target.index),
-            source: srcEnd,
-            target: dstEnd,
-            ...(this.capBack() ?? { capGap: 0, capBack: 0 }),
-        });
-        const point = (at: Xyz | null): Vector3 | null => (at === null ? null : new Vector3(at.x, at.y, at.z));
-        return { srcPoint: point(src), dstPoint: point(dst), newEndPoint: point(lineEnd) };
-    }
-
-    /**
-     * {@link getInterceptPoints} with a batch drawing either end: the mirror's answer, reading no batched row's mesh.
-     * An end only a ray reaches is met by the same ray, through its row, or its own mesh on an object row.
+     * {@link getInterceptPoints} with a batch drawing either end: the mirror's answer, reading no batched row's mesh
+     * and building no `Node` for an end drawn with none. An end only a ray reaches is met by the same ray, through its
+     * row, or its own mesh on an object row.
      * @returns The points.
      */
     private interceptPointsFromRows(): InterceptPoint {
-        const { srcNode, dstNode, ray } = this;
+        const { ray } = this;
         const input = this.trimInput;
-        for (const node of [srcNode, dstNode]) {
-            if (!node.drawnInBatch) {
-                node.drawnWorldMatrix(true);
-            }
-        }
+        const scan = rowScanOf(this.context.getScene());
+        // where an end is in the world, and where a ray meets it: from its row when no `Node` draws it
+        const drawer = (end: "source" | "target"): Node | ColumnRow => {
+            const column = this.columnEnd(end);
+            return column ?? (end === "source" ? this.srcNode : this.dstNode);
+        };
+        const inBatch = (at: Node | ColumnRow): boolean => !(at instanceof Node) || at.drawnInBatch;
+        const worldOf = (at: Node | ColumnRow): Vector3 => {
+            if (at instanceof Node) {
+                if (!at.drawnInBatch) {
+                    at.drawnWorldMatrix(true);
+                }
 
-        const srcWorld = srcNode.drawnWorldPosition;
-        const dstWorld = dstNode.drawnWorldPosition;
-        const worldSpan = Vector3.Distance(srcWorld, dstWorld);
+                return at.drawnWorldPosition;
+            }
+
+            return scan?.worldCenter(at.index) ?? Vector3.Zero();
+        };
+        const hitOf = (at: Node | ColumnRow): Vector3 | null =>
+            at instanceof Node
+                ? at.drawnRayHit(ray)
+                : (scan?.rowRayHitOn(at.index, ray, {
+                      drawnByRowScan: true,
+                      drawnSourceMesh: at.paintedSourceMesh,
+                      drawnScaling: Vector3.OneReadOnly,
+                  }) ?? null);
+        const rayed = input.source.measured === TRIM_NO_HIT || input.target.measured === TRIM_NO_HIT;
+        const srcAt = rayed ? drawer("source") : null;
+        const dstAt = rayed ? drawer("target") : null;
+        const srcWorld = srcAt === null ? null : worldOf(srcAt);
+        const dstWorld = dstAt === null ? null : worldOf(dstAt);
+        const worldSpan = srcWorld === null || dstWorld === null ? 0 : Vector3.Distance(srcWorld, dstWorld);
         const span = Math.hypot(input.dst.x - input.src.x, input.dst.y - input.src.y, input.dst.z - input.src.z);
-        const reach = (end: TrimEnd, node: Node, from: Vector3, to: Vector3): number => {
-            if (end.measured !== TRIM_NO_HIT || worldSpan === 0) {
+        const reach = (end: TrimEnd, at: Node | ColumnRow | null, from: Vector3 | null, to: Vector3 | null): number => {
+            if (end.measured !== TRIM_NO_HIT || worldSpan === 0 || at === null || from === null || to === null) {
                 return end.measured;
             }
 
-            if (this.endsMoving && node.drawnInBatch) {
+            if (this.endsMoving && inBatch(at)) {
                 // ponytail: the box's bounding sphere, so a figure's end floats off it while it moves; a GPU
                 // pass over the shared shape (design section 4.3) would give the exact end at no ray
                 this.context.getUpdateManager?.().endsByRadius(this);
@@ -5772,7 +5754,7 @@ export class Edge {
 
             ray.origin.copyFrom(from);
             to.subtractToRef(from, ray.direction);
-            const hit = node.drawnRayHit(ray);
+            const hit = hitOf(at);
             if (hit === null) {
                 return TRIM_NO_HIT;
             }
@@ -5784,8 +5766,8 @@ export class Edge {
         };
         const { src, dst, lineEnd } = trimEnds({
             ...input,
-            source: { ...input.source, measured: reach(input.source, srcNode, dstWorld, srcWorld) },
-            target: { ...input.target, measured: reach(input.target, dstNode, srcWorld, dstWorld) },
+            source: { ...input.source, measured: reach(input.source, srcAt, dstWorld, srcWorld) },
+            target: { ...input.target, measured: reach(input.target, dstAt, srcWorld, dstWorld) },
         });
         const point = (at: Xyz | null): Vector3 | null => (at === null ? null : new Vector3(at.x, at.y, at.z));
         return { srcPoint: point(src), dstPoint: point(dst), newEndPoint: point(lineEnd) };
@@ -5794,7 +5776,8 @@ export class Edge {
     /**
      * What {@link getInterceptPoints} works from, as numbers, for its mirror (`meshes/edgeTrim.ts`).
      * An end only a ray reaches carries `TRIM_NO_HIT`, for the caller to measure: a shape that is not a
-     * box, and a round end across from a non-round one, which the ray meets on its facets.
+     * box, and a round end across from a non-round one, which the ray meets on its facets. An end drawn
+     * with no `Node` is read from its row, so none is built for it.
      * @returns The numbers.
      * @internal
      */
@@ -5804,15 +5787,48 @@ export class Edge {
             const span = Math.hypot(dx, dy, dz);
             return span > 0 ? { x: dx / span, y: dy / span, z: dz / span } : { x: 0, y: 0, z: 0 };
         };
-        const trimEnd = (node: Node, gap: number, other: Node): TrimEnd => {
+        const table = this.context.getRowTable?.() ?? null;
+        const column = (end: "source" | "target"): ColumnRow | undefined =>
+            table === null ? undefined : this.columnEnd(end);
+        const nodeOf = (end: "source" | "target"): Node => (end === "source" ? this.srcNode : this.dstNode);
+        const radiusOf = (end: "source" | "target"): number | null => {
+            const row = column(end);
+            return row !== undefined && table !== null ? table.extentOf(row.index).round : nodeOf(end).roundRadius;
+        };
+        const src = this.endPosition("source");
+        const dst = this.endPosition("target");
+        const trimEnd = (end: "source" | "target", from: Xyz, to: Xyz, otherRadius: number | null): TrimEnd => {
+            const gap = this.gapAt(end);
+            const row = column(end);
+            if (row !== undefined && table !== null) {
+                // as `Node` measures a batched node, from the row table: a row drawn with no `Node` has no border,
+                // no glyph and no model (`ColumnRow.drawable`)
+                const { round, half } = table.extentOf(row.index);
+                const leaves = row.shapeType === "none";
+                const closed =
+                    leaves ||
+                    (round !== null && otherRadius !== null) ||
+                    Node.closedForm(row.shapeType, row.paint.style.shape?.rotation);
+                return {
+                    radius: round,
+                    half,
+                    flat: row.shapeType === "ellipse" || (row.reachOutline ?? false),
+                    border: row.borderReach,
+                    gap,
+                    measured: closed ? TRIM_CLOSED : TRIM_NO_HIT,
+                    leaves,
+                    group: this.endBehindEdges(end),
+                };
+            }
+
+            const node = nodeOf(end);
             const leaves = node.surfaceIsBox || node.shapeType === "none";
-            const closed =
-                leaves || (node.roundRadius !== null && other.roundRadius !== null) || node.surfaceIsClosedForm;
+            const closed = leaves || (node.roundRadius !== null && otherRadius !== null) || node.surfaceIsClosedForm;
             return {
                 radius: node.roundRadius,
                 half: node.drawnHalfExtents,
                 flat: node.shapeType === "ellipse" || (node.reachOutline ?? false),
-                border: node.borderReachAlong(toward(node.drawnPosition, other.drawnPosition)),
+                border: node.borderReachAlong(toward(from, to)),
                 gap,
                 measured: closed ? TRIM_CLOSED : TRIM_NO_HIT,
                 leaves,
@@ -5820,10 +5836,10 @@ export class Edge {
             };
         };
         return {
-            src: this.srcNode.drawnPosition,
-            dst: this.dstNode.drawnPosition,
-            source: trimEnd(this.srcNode, this.gapAt("source"), this.dstNode),
-            target: trimEnd(this.dstNode, this.gapAt("target"), this.srcNode),
+            src,
+            dst,
+            source: trimEnd("source", src, dst, radiusOf("target")),
+            target: trimEnd("target", dst, src, radiusOf("source")),
             ...(this.capBack() ?? { capGap: 0, capBack: 0 }),
         };
     }

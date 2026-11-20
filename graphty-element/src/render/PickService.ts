@@ -214,6 +214,9 @@ export interface ScannedRow {
     readonly drawnByRowScan: boolean;
 }
 
+/** What a ray against one row reads of what draws it. */
+export type RowShape = Pick<ScannedRow, "drawnByRowScan" | "drawnSourceMesh" | "drawnScaling">;
+
 /** A row a ray hit. */
 export interface RowHit {
     readonly row: number;
@@ -321,16 +324,19 @@ export class RowScan {
      * whose ray starts inside one node and may cross others on its way.
      * @param row - The row.
      * @param ray - The ray.
+     * @param drawn - What draws the row, when the caller has it: a row drawn with no `Node` passes its own source
+     *     mesh, so asking where a ray meets it builds no `Node` (issue #9166).
      * @returns The point, or null for a miss.
      */
-    rowRayHitOn(row: number, ray: Ray): Vector3 | null {
+    rowRayHitOn(row: number, ray: Ray, drawn: RowShape | undefined = this.nodeAt(row)): Vector3 | null {
         const root = this.root?.computeWorldMatrix() ?? this.identity;
         // a closed convex shape (box, cylinder, cone, polyhedron) is met from its face planes, as a node's own mesh is
-        const node = this.nodeAt(row);
         const convex =
-            node?.drawnByRowScan === true ? convexRayHit(node.drawnSourceMesh, ray, this.rowWorld(row, root)) : null;
+            drawn?.drawnByRowScan === true
+                ? convexRayHit(drawn.drawnSourceMesh, ray, this.rowWorld(row, root, drawn))
+                : null;
         return convex === undefined
-            ? (this.narrow(row, root, (world) => this.rayInRow(ray, world))?.pickedPoint ?? null)
+            ? (this.narrow(row, root, (world) => this.rayInRow(ray, world), drawn)?.pickedPoint ?? null)
             : convex;
     }
 
@@ -546,16 +552,21 @@ export class RowScan {
      * @param row - The row.
      * @param root - The matrix rows are placed under.
      * @param rayFor - The ray for a world matrix.
+     * @param node - What draws the row.
      * @returns What Babylon found, or null for a row the scan leaves to Babylon.
      */
-    private narrow(row: number, root: Matrix, rayFor: (world: Matrix) => Ray): PickingInfo | null {
-        const node = this.nodeAt(row);
+    private narrow(
+        row: number,
+        root: Matrix,
+        rayFor: (world: Matrix) => Ray,
+        node: RowShape | undefined = this.nodeAt(row),
+    ): PickingInfo | null {
         if (node?.drawnByRowScan !== true) {
             return null;
         }
 
         return node.drawnSourceMesh.intersects(
-            rayFor(this.rowWorld(row, root)),
+            rayFor(this.rowWorld(row, root, node)),
             false,
             undefined,
             false,
@@ -568,10 +579,10 @@ export class RowScan {
      * Where a row's node is drawn in the world: its bound's center and its scaling, under graph-root.
      * @param row - The row.
      * @param root - {@link RowScan.rootMatrix}.
+     * @param node - What draws the row.
      * @returns The matrix, which the next call overwrites.
      */
-    private rowWorld(row: number, root: Matrix): Matrix {
-        const node = this.nodeAt(row);
+    private rowWorld(row: number, root: Matrix, node: RowShape | undefined = this.nodeAt(row)): Matrix {
         const { rowBounds: bounds } = this.table;
         const at = row * 4;
         const { x, y, z } = node?.drawnScaling ?? { x: 1, y: 1, z: 1 };

@@ -704,13 +704,9 @@ export interface AssistantGateLimits {
 
 // @public
 export interface AttributeHistogramBin {
-    // (undocumented)
     count: number;
-    // (undocumented)
     max: number;
-    // (undocumented)
     min: number;
-    // (undocumented)
     range: string;
 }
 
@@ -917,15 +913,10 @@ export class MockLlmProvider implements LlmProvider {
 
 // @public
 export interface NumericStatistics {
-    // (undocumented)
     avg: number;
-    // (undocumented)
     count: number;
-    // (undocumented)
     max: number;
-    // (undocumented)
     median: number;
-    // (undocumented)
     min: number;
 }
 

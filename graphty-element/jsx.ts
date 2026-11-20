@@ -902,6 +902,10 @@ export interface GraphtyElementJSXProps {
      */
     "onviews-changed"?: (event: CustomEvent<EventOfType<"views-changed">>) => void;
     /**
+     * Emitted when the reader presses an item of the in-headset menu (`xr.menu`).
+     */
+    "onxr-menu-select"?: (event: CustomEvent<EventOfType<"xr-menu-select">>) => void;
+    /**
      * Emitted when a VR or AR session has ended and the graph is back in its 3D view.
      */
     "onxr-session-ended"?: (event: CustomEvent<EventOfType<"xr-session-ended">>) => void;

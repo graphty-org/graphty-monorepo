@@ -151,6 +151,12 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "A route between two nodes, optionally steered by where they are drawn.",
         aliases: ["a*", "astar", "route", "path", "how are they connected"],
     },
+    "all-paths": {
+        name: "Every route",
+        answers:
+            "Every route between two nodes that visits no node twice, and how many run through each node and edge.",
+        aliases: ["all paths", "all routes", "simple paths", "alternatives", "redundancy"],
+    },
     "all-pairs-distance": {
         name: "All-pairs distance",
         answers: "How far each node is from all the others.",
@@ -261,6 +267,8 @@ export const ALGORITHM_DESCRIPTIONS: Readonly<Partial<Record<string, string>>> =
         "Finds the cheapest route from one node to another, and how far every reachable node is from the source.",
     "algorithm.astar":
         "Finds a route from one node to another, optionally steered by how far apart the nodes are drawn. Without that steering it finds the cheapest route.",
+    "algorithm.all-paths":
+        "Finds every route from one node to another that visits no node twice, up to a longest route and a number of routes, and how many of the routes run through each node and edge.",
     "algorithm.all-pairs-distance":
         "Measures the distance between every pair of nodes, and gives each node the distance to the furthest node it can reach.",
     "algorithm.bfs": "Walks outwards from one node a level at a time, recording how many steps away each node is.",

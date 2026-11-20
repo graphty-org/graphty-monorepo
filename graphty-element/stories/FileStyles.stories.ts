@@ -318,6 +318,31 @@ export const Xgmml: Story = {
 };
 
 /**
+ * The same NGSCheckMate file at the positions Cytoscape saved, flat in 2D as Cytoscape draws it.
+ * Look for: a pile of large overlapping rounded boxes stacked in the file's order, "node45" (the
+ * last in the file) on top of all of them, as Cytoscape draws it.
+ */
+export const XgmmlAtFilePositions: Story = {
+    args: {
+        dataSource: "xgmml",
+        features: ["file-styles"],
+        dataSourceConfig: { url: absolute(ngsCheckMateUrl), styles: "file", layout: "recommended" },
+        setup: storySetup({ viewMode: "2d" }),
+    },
+    play: async ({ canvasElement }) => {
+        await drewFileStyles(canvasElement, "XgmmlAtFilePositions", { nodes: 45, edges: 62 }, { "1": "#f3f60e" });
+        const element = await renderedElement(canvasElement, "XgmmlAtFilePositions: no <graphty-element> rendered");
+        const order = (node: string | number): number =>
+            element.session.styles.explain({ node }).merged["node.drawOrder"] ?? -1;
+        const above = element.session.data
+            .nodes()
+            .filter((node) => String(node.id) !== "45" && order(node.id) >= order("45"))
+            .map((node) => String(node.id));
+        await holds(above.length === 0, `XgmmlAtFilePositions: node45 is not drawn on top of ${above.join(", ")}`);
+    },
+};
+
+/**
  * `ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx`, "Schizophrenia risk gene subnetwork with
  * AOP-Wiki" from NDEx (CC BY 4.0, owner pklemmer), its style made in Cytoscape and saved as CX.
  * Look for: nodes colored by their type (red, cyan, pink, green, purple, orange, pale blue) and

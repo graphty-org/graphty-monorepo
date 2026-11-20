@@ -113,6 +113,13 @@ export { kruskalMST, type MstOptions, type MstResult, primMST, type PrimOptions,
 export { pageRank, type PageRankOptions, type PageRankResult, personalizedPageRank } from "./pagerank.js";
 export { astar, type AstarResult, bidirectionalDijkstra, type PathOptions, type PathResult } from "./point-to-point.js";
 export { condensation, type CondensationResult, stronglyConnectedComponents } from "./scc.js";
+export {
+    allSimplePaths,
+    SIMPLE_PATHS_DEFAULT_MAX_PATHS,
+    SIMPLE_PATHS_DEFAULT_MAX_STEPS,
+    type SimplePathsOptions,
+    type SimplePathsResult,
+} from "./simple-paths.js";
 export { type LaplacianType, spectralClustering, type SpectralOptions, type SpectralResult } from "./spectral.js";
 export { arcSourceIn, IndexedMinHeap, IntUnionFind } from "./structures/index.js";
 export { syncClustering, type SyncClusteringOptions, type SyncClusteringResult } from "./sync.js";

@@ -117,6 +117,7 @@ export type {
     XRConfig,
     XRControllerButton,
     XRInputConfig,
+    XRMenuItem,
     XRModeConfig,
     XRUIConfig,
 } from "./src/config/index";
@@ -271,6 +272,7 @@ export type {
     ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
+export type { OperationCategory, PendingWorkProgress } from "./src/managers/OperationQueueManager";
 export type { GroupSummary, GroupTableOptions } from "./src/session/types";
 
 // Error aggregation for data loading
@@ -369,6 +371,7 @@ export type {
     TourEndedEvent,
     TourProgressEvent,
     ViewsChangedEvent,
+    XRMenuSelectEvent,
     XRSessionEndedEvent,
     XRSessionStartedEvent,
 } from "./src/events";

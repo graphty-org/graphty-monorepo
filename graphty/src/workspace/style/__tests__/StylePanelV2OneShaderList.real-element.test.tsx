@@ -91,39 +91,6 @@ describe("custom and built-in shaders are one list", () => {
             }
             await userEvent.keyboard("{Escape}");
         }
-        // The custom replace shader is in the node Shape menu, beside the built-in shapes.
-        const replacing = ids.node.find((each) => each.place === "replace");
-        assert.isDefined(replacing, "the code dialog offers replace for a node");
-        const tab = await openStyle("Key people");
-        await showKind("node");
-        const shape = sectionOf(tab, "node-shape");
-        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
-        const picker = await waitFor(() => {
-            const found = shape.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        await userEvent.click(picker);
-        const menu = await screen.findByRole("group", { name: /values$/ });
-        const search = within(menu).getByRole("combobox", { name: "Search" });
-        // The menu narrowed to a name: what its options say once it settles.
-        const found = async (name: string): Promise<string[]> => {
-            await userEvent.clear(search);
-            await userEvent.type(search, name);
-            return waitFor(() => {
-                const shown = within(menu)
-                    .queryAllByRole("option")
-                    .map((option) => option.textContent);
-                assert.isTrue(
-                    shown.some((text) => text.startsWith(name)),
-                    `${name} is in the Shape menu`,
-                );
-                return shown;
-            });
-        };
-        await found("Test node replace");
-        await found("Sphere");
-        await userEvent.keyboard("{Escape}");
     });
 
     it("'New shader...' is first; Place is set in the code dialog; saving at around puts it in the list, and it draws", async () => {

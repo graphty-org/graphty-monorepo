@@ -2409,16 +2409,26 @@ export class SessionData implements SessionDataApi {
      * @returns the member and its ids
      */
     sourceFile(references?: ReadonlyMap<SourceKey, ReferenceEntry>): SourcesWrite {
+        // With references off every load is written as a copy, so the writer reads the facts without
+        // `copy`. The facts it gives a load that had none go back into the session, so the next save
+        // writes the same loadedAt.
+        const facts = this.referencesOn()
+            ? this.loadFacts
+            : new Map([...this.loadFacts].map(([key, { copy: _copy, ...rest }]) => [key, rest]));
         const write = writeSourcesMember({
             sources: this.listed(),
             loads: this.loads(),
-            facts: this.referencesOn()
-                ? this.loadFacts
-                : new Map([...this.loadFacts].map(([key, { copy: _copy, ...facts }]) => [key, facts])),
+            facts,
             waiting: [...this.pendingLoads],
             provenance: this.provenance(),
             ...(references === undefined || references.size === 0 ? {} : { references }),
         });
+        for (const [key, given] of facts) {
+            if (!this.loadFacts.has(key)) {
+                this.loadFacts.set(key, given);
+            }
+        }
+
         const skipped = this.skippedMember;
         // A member the file held and this release skipped goes back in place while the loads are
         // the ones the file opened with.

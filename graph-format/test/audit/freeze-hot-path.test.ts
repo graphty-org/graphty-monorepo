@@ -14,6 +14,7 @@ import { countSelfLoops, type SortInput, sortIntoCore } from "../../src/builder/
 import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { GraphFormatError } from "../../src/errors.js";
 import { type F32, type F64, type GraphSnapshot, type SnapshotFlags, type U32 } from "../../src/types/index.js";
+import { isShared } from "../../src/util/shared-buffers.js";
 import { assertInvariants } from "../helpers/invariants.js";
 
 const RUNS = Number(process.env.FC_RUNS ?? "60");
@@ -464,10 +465,22 @@ describe("freeze through the builder's resizable-buffer staging (design 6.2) at 
         expect(Array.from(again.colIdx)).toEqual(Array.from(snapshot.colIdx));
         expect(Array.from(again.arcToEdge)).toEqual(Array.from(snapshot.arcToEdge));
         expect(Array.from(again.edgeToArc)).toEqual(Array.from(snapshot.edgeToArc));
-        expect(again.rowPtr).not.toBe(snapshot.rowPtr);
-        expect(again.colIdx.buffer).not.toBe(snapshot.colIdx.buffer);
+        // The same edges are not sorted twice: the second snapshot shares the first one's core,
+        // marked shared so a transferring toWire copies it instead of detaching it from the other.
+        expect(again.colIdx.buffer).toBe(snapshot.colIdx.buffer);
+        expect(isShared(snapshot.colIdx.buffer)).toBe(true);
         expect(snapshot.colIdx.buffer.resizable).toBe(false);
         expect(again.flags).toEqual(snapshot.flags);
+        // Any change to the edges sorts again, into buffers of its own.
+        builder.setEdgeWeight(0, 2.5);
+        const reweighted = builder.freeze();
+        expect(reweighted.colIdx.buffer).not.toBe(snapshot.colIdx.buffer);
+        assertInvariants(reweighted);
+        builder.addEdge(builder.idOf(1), builder.idOf(2));
+        const grown = builder.freeze();
+        expect(grown.colIdx.buffer).not.toBe(reweighted.colIdx.buffer);
+        expect(grown.edgeCount).toBe(reweighted.edgeCount + 1);
+        assertInvariants(grown);
     });
 });
 

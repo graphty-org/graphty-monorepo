@@ -84,6 +84,37 @@ export interface FreezeContext {
     readonly meta: GraphMeta;
     /** The widenings since the previous freeze. */
     readonly widened: readonly Widening[];
+    /** The previous freeze's sort and what it sorted, or null; reused when the edges are the same. */
+    readonly previousSort?: SortCache | null | undefined;
+}
+
+/**
+ * One freeze's sort and its input, kept by the builder so the next freeze of the same edges -- a
+ * freeze after attribute writes only -- reuses the core instead of sorting a million edges again.
+ * The staging's endpoint arrays only ever grow (an edge's ends never change, a removal leaves a
+ * tombstone that the next freeze compacts into a new staging), so the same staging and arrays with
+ * the same bounds hold the same endpoints; the weights can be rewritten in place, so a copy of them
+ * is compared.
+ */
+export interface SortCache {
+    /** The staging sorted. */
+    readonly staging: Staging;
+    /** Its endpoint arrays. */
+    readonly src: unknown;
+    /** Its endpoint arrays. */
+    readonly dst: unknown;
+    /** Its node bound. */
+    readonly nodeCount: number;
+    /** Its edge bound. */
+    readonly edgeCount: number;
+    /** The direction. */
+    readonly directed: boolean;
+    /** Whether the core was laid out in an arena. */
+    readonly useArena: boolean;
+    /** A copy of the per-edge weights sorted, or null when unweighted. */
+    readonly weights: F32 | F64 | null;
+    /** The sort. */
+    readonly result: SortResult;
 }
 
 /** What a freeze produces: the snapshot, its report, and the staging the builder must adopt. */
@@ -94,6 +125,8 @@ interface FreezeOutcome {
     readonly report: FreezeReport;
     /** The staging the builder holds afterwards: the source staging, or the compacted one. */
     readonly staging: Staging;
+    /** This freeze's sort, for the next one; null when a duplicate policy rewrote the edges. */
+    readonly sort: SortCache | null;
 }
 
 /** The name of the shadow weight column the freeze writes (design sections 3.7 and 5.6). */
@@ -866,9 +899,14 @@ export function runFreeze(ctx: FreezeContext, options: FreezeOptions): FreezeOut
     const compaction = compactSource(source, ctx.options.selfLoops);
     clock.lap("compact");
 
-    // steps 3-6: arcs and the two counting sorts
+    // steps 3-6: arcs and the two counting sorts, or the last freeze's when it sorted the same edges
     const nodeCount = compaction.staging.nodeBound;
-    const firstSort = sortIntoCore(sortInputOf(compaction.staging, directed), useArena && policy === "keep");
+    const input = sortInputOf(compaction.staging, directed);
+    const arena = useArena && policy === "keep";
+    const kept = ctx.previousSort ?? null;
+    const reused =
+        kept !== null && policy === "keep" && sameSortInput(kept, compaction.staging, input, arena) ? kept : null;
+    const firstSort = reused?.result ?? sortIntoCore(input, arena);
     clock.lap("sort");
 
     // step 7: duplicate policy
@@ -923,5 +961,54 @@ export function runFreeze(ctx: FreezeContext, options: FreezeOptions): FreezeOut
     clock.lap("snapshot");
     clock.finish();
     const report = freezeReportOf(ctx, compaction, dedup, oldEdgeBound, clock.timings);
-    return { snapshot, report, staging };
+    const sort: SortCache | null =
+        policy !== "keep"
+            ? null
+            : (reused ?? {
+                  staging: compaction.staging,
+                  src: compaction.staging.src,
+                  dst: compaction.staging.dst,
+                  nodeCount: input.nodeCount,
+                  edgeCount: input.edgeCount,
+                  directed,
+                  useArena: arena,
+                  weights: input.weights === null ? null : input.weights.slice(0, input.edgeCount),
+                  result: firstSort,
+              });
+    return { snapshot, report, staging, sort };
+}
+
+/**
+ * Whether a sort input is the one a kept sort sorted: the same staging and endpoint arrays at the
+ * same bounds and direction, and the same weights value for value.
+ * @param kept - the kept sort
+ * @param staging - the staging about to be sorted
+ * @param input - its sort input
+ * @param useArena - whether this freeze lays the core out in an arena
+ * @returns true when the kept core is this input's core
+ */
+function sameSortInput(kept: SortCache, staging: Staging, input: SortInput, useArena: boolean): boolean {
+    if (
+        kept.staging !== staging ||
+        kept.src !== staging.src ||
+        kept.dst !== staging.dst ||
+        kept.nodeCount !== input.nodeCount ||
+        kept.edgeCount !== input.edgeCount ||
+        kept.directed !== input.directed ||
+        kept.useArena !== useArena
+    ) {
+        return false;
+    }
+    const was = kept.weights;
+    const now = input.weights;
+    if (was === null || now === null) {
+        return was === now;
+    }
+    for (let e = 0; e < input.edgeCount; e++) {
+        // Object.is: NaN never reaches here (E_INVALID_WEIGHT), and -0 is stored as given.
+        if (!Object.is(was[e], now[e])) {
+            return false;
+        }
+    }
+    return true;
 }

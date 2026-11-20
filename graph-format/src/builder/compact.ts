@@ -220,6 +220,43 @@ interface WideningStep {
 }
 
 /**
+ * Copy the rows `indexMap` selects from one typed array into another, a run of consecutive source
+ * rows at a time; a source row at or past `sourceRows` is not materialized and keeps the target's fill.
+ * @param target - the gathered column's array, at least `rows * components` long
+ * @param source - the source column's array
+ * @param indexMap - new row -> old row, or null for every row in order
+ * @param rows - the gathered row count
+ * @param sourceRows - the source column's materialized rows
+ * @param components - values per row
+ */
+function gatherRuns(
+    target: TypedArrayData,
+    source: TypedArrayData,
+    indexMap: U32 | null,
+    rows: number,
+    sourceRows: number,
+    components: number,
+): void {
+    let i = 0;
+    while (i < rows) {
+        const first = indexMap === null ? i : indexMap[i];
+        let end = i + 1;
+        while (end < rows && (indexMap === null ? end : indexMap[end]) === first + (end - i)) {
+            end++;
+        }
+        const last = Math.min(first + (end - i), sourceRows);
+        if (last > first) {
+            // One class on both sides (a gathered column keeps its dtype): a plain element copy.
+            (target as Float64Array).set(
+                (source as Float64Array).subarray(first * components, last * components),
+                i * components,
+            );
+        }
+        i = end;
+    }
+}
+
+/**
  * One growable column of the builder (design section 6.2).
  *
  * A DECLARED column stores values in the storage of its dtype (a growable typed array for the numeric
@@ -517,6 +554,12 @@ export class StagingColumn {
         const out = new StagingColumn(this.meta, this.inferred, this.resizable, this.dictionary ?? undefined);
         out.ensureLength(rows);
         const remap = valueRemap !== null && this.meta.refersTo !== null ? valueRemap : null;
+        if (remap === null && this.validity === null && this.typed !== null && out.typed !== null) {
+            // Every row set and nothing rewritten: copy each run of consecutive source rows at once.
+            // A compaction keeps nearly every row, so a million-row column is a handful of copies.
+            gatherRuns(out.typed.array, this.typed.array, indexMap, rows, this.length, this.meta.components);
+            return out;
+        }
         for (let i = 0; i < rows; i++) {
             const old = indexMap === null ? i : indexMap[i];
             if (this.isSet(old) && this.gatherRow(out, i, old, remap) && out.validity !== null) {
@@ -1919,11 +1962,19 @@ function applyMergedWeights(merged: Float64Array, stored: U32, weights: TypedArr
 /**
  * Fill a compacted staging's node ids and id-to-index map from the surviving nodes' old ids.
  * @param ids - the source node ids
+ * @param sourceMap - the source id-to-index map, shared when every node kept its index
  * @param origin - new node -> old node
  * @param out - the compacted staging
  */
-function gatherNodeIds(ids: readonly NodeId[], origin: U32, out: Staging): void {
+function gatherNodeIds(ids: readonly NodeId[], sourceMap: Map<NodeId, number> | null, origin: U32, out: Staging): void {
     const count = origin.length;
+    if (sourceMap !== null && count === ids.length && origin.every((old, i) => old === i)) {
+        // Every node kept its index (only edges were taken out): the same ids and map, as a freeze
+        // with nothing to compact keeps them -- not a map rebuilt over every node.
+        out.ids = ids as NodeId[];
+        out.idToIndex = sourceMap;
+        return;
+    }
     const gathered = new Array<NodeId>(count);
     const map = new Map<NodeId, number>();
     for (let i = 0; i < count; i++) {
@@ -1983,8 +2034,9 @@ function gatherWeightSet(source: Staging, mergedWeightSet: U32 | null, weightSet
 
 /**
  * Gather a new staging through a compaction plan (design section 6.3 step 1). The source is left
- * untouched; the result has no tombstones, fresh `ids` / `idToIndex` objects (or none when every node
- * is anonymous), rebuilt incidence lists, gathered columns with `refersTo` values rewritten, and
+ * untouched; the result has no tombstones, fresh `ids` / `idToIndex` objects when a node was taken out
+ * (the source's own when none was, which nothing then writes but an append; none when every node is
+ * anonymous), rebuilt incidence lists, gathered columns with `refersTo` values rewritten, and
  * extension tables with their `refersTo` values rewritten.
  * @param source - the staging to compact
  * @param plan - the remaps and merge overrides
@@ -1999,13 +2051,13 @@ export function compactStaging(source: Staging, plan: CompactionPlan): Staging {
         expectedEdges: edges.count,
     });
     // nodes: every new node is live with empty incidence lists (what pushNode(null) does, in bulk); ids
-    // and map are fresh objects; anonymous nodes stay anonymous (their ids are their new indices)
+    // and map are fresh objects unless every node kept its index; anonymous nodes stay anonymous (their ids are their new indices)
     out.nodeAlive.resize(nodes.count, true);
     out.firstOut.resize(nodes.count, INVALID_INDEX);
     out.firstIn.resize(nodes.count, INVALID_INDEX);
     out.liveNodeCount = nodes.count;
     if (source.ids !== null) {
-        gatherNodeIds(source.ids, nodes.origin, out);
+        gatherNodeIds(source.ids, source.idToIndex, nodes.origin, out);
     }
     // edges: gathered in new-index order through the backing views (one typed-array pass, design
     // section 6.3 step 1), weights and explicit-weight bits carried, lists rebuilt by pushing every

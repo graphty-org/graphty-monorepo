@@ -180,7 +180,8 @@ describe("session.recipes", () => {
     });
 
     it("is refused without the save-files-v2 experiment", async () => {
-        const session = createGraphSession();
+        // Off explicitly: the "-features-on" projects switch every experiment on by default.
+        const session = createGraphSession({ features: [] });
         for (const call of [() => session.recipes.export(), () => session.recipes.apply("{}")]) {
             try {
                 await call();

@@ -552,7 +552,14 @@ export type OptionType = (typeof OPTION_TYPES)[number];
 /** One choice offered by an option whose type is "enum", or a column `catalog.optionsFor` lists. */
 export interface OptionChoice {
     value: string;
+    /** What to show for it. For a run's field, built from `runField`; an app may write its own words. */
     label: string;
+    /**
+     * The run field this choice names, for a "partition" choice `catalog.optionsFor` lists from a
+     * finished run: the run's id and the field's name. Absent for any other choice.
+     * @since 3.40.0
+     */
+    runField?: { readonly runId: RunId; readonly field: string };
     /**
      * Why this choice does not fit the option, when it does not: a column whose values the
      * option cannot read. A form lists such a choice after the fitting ones, disabled, and writes

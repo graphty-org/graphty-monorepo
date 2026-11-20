@@ -9,7 +9,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { cdp, page, userEvent } from "vitest/browser";
+import { cdp, commands, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
@@ -333,6 +333,90 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         assert.match(changes[0], /^id,code,label,/);
         assert.lengthOf(changes, 2, "one fixed issue under the header");
         assert.include(changes[1], "padded-space");
+    });
+});
+
+describe("Export: the report's image and its saved configurations (issue #187)", () => {
+    it("puts the canvas in the report, and saves the report's shape to load onto another graph", async () => {
+        localStorage.removeItem("graphty.reportConfigs.v1");
+        const saved = catchDownloads();
+        const { unmount } = render(<Workspace initialState={{ project: { name: "Ring", id: 1 } }} />);
+        let session: GraphSession | undefined;
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
+        await session?.data.addNodes(NODES);
+        await session?.data.addEdges(EDGES);
+
+        // The image, from graphty-element's captureScreenshot, inside the Markdown.
+        const dialog = await openExport();
+        await pick(dialog, "Report");
+        const sections = await within(dialog).findByRole("group", { name: "Sections" });
+        assert.isTrue(
+            within(sections).getByRole<HTMLInputElement>("checkbox", { name: "Image (1)" }).checked,
+            "the image is in by default",
+        );
+        await userEvent.click(within(sections).getByRole("checkbox", { name: /^Data tables/ }));
+        await userEvent.click(within(sections).getByRole("checkbox", { name: /^Methods/ }));
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Title" }), "Ring study");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Generate report" }));
+        await screen.findByText("Exported ring_report.md", TOAST);
+        const report = (await saved.find(({ name }) => name === "ring_report.md")?.blob.text()) ?? "";
+        assert.match(report, /## Image\n\n!\[Ring study\]\(data:image\/png;base64,[A-Za-z0-9+/=]{100,}\)/);
+
+        // Saved under its title, and written as a file.
+        const again = await openExport();
+        await pick(again, "Report");
+        await userEvent.click(await within(again).findByRole("button", { name: "Save report" }));
+        assert.equal(within(again).getByRole<HTMLInputElement>("combobox", { name: "Saved" }).value, "Ring study");
+        await userEvent.click(within(again).getByRole("button", { name: "Saved reports" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Export report (JSON)" }));
+        await screen.findByText("Exported ring-study_report.json", TOAST);
+        const fileText = (await saved.find(({ name }) => name === "ring-study_report.json")?.blob.text()) ?? "{}";
+        const file = JSON.parse(fileText) as { name: string; sections: string[] };
+        assert.equal(file.name, "Ring study");
+        assert.notInclude(file.sections, "tables");
+        assert.notInclude(file.sections, "methods");
+        unmount();
+
+        // Another project and another graph: choosing the saved report brings back its shape.
+        render(<Workspace initialState={{ project: { name: "Star", id: 2 } }} />);
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
+        await session?.data.addNodes([{ id: "hub" }, { id: "a" }, { id: "b" }]);
+        await session?.data.addEdges([
+            { source: "hub", target: "a" },
+            { source: "hub", target: "b" },
+        ]);
+        const star = await openExport();
+        await pick(star, "Report");
+        assert.equal((await within(star).findByRole<HTMLInputElement>("textbox", { name: "Title" })).value, "");
+        await userEvent.click(within(star).getByRole("combobox", { name: "Saved" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Ring study" }));
+        assert.equal(within(star).getByRole<HTMLInputElement>("textbox", { name: "Title" }).value, "Ring study");
+        const loaded = within(star).getByRole("group", { name: "Sections" });
+        assert.isFalse(within(loaded).getByRole<HTMLInputElement>("checkbox", { name: /^Data tables/ }).checked);
+        assert.isFalse(within(loaded).getByRole<HTMLInputElement>("checkbox", { name: /^Methods/ }).checked);
+        assert.isTrue(within(loaded).getByRole<HTMLInputElement>("checkbox", { name: /^Notes/ }).checked);
+
+        // Deleted from this browser, then read back from its file.
+        await userEvent.click(within(star).getByRole("button", { name: "Saved reports" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Delete report" }));
+        assert.equal(within(star).getByRole<HTMLInputElement>("combobox", { name: "Saved" }).value, "");
+        await commands.chooseNextFile("ring-study_report.json", "application/json", fileText);
+        await userEvent.click(within(star).getByRole("button", { name: "Saved reports" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Import report..." }));
+        await waitFor(() => {
+            assert.equal(within(star).getByRole<HTMLInputElement>("combobox", { name: "Saved" }).value, "Ring study");
+        });
+        await userEvent.click(within(star).getByRole("button", { name: "Generate report" }));
+        await screen.findByText("Exported star_report.md", TOAST);
+        const starReport = (await saved.find(({ name }) => name === "star_report.md")?.blob.text()) ?? "";
+        assert.include(starReport, "# Ring study\n\n3 nodes, 2 edges");
+        localStorage.removeItem("graphty.reportConfigs.v1");
     });
 });
 

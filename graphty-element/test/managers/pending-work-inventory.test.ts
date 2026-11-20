@@ -67,6 +67,18 @@ const INVENTORY: Record<string, Covered> = {
             "test, list, preview, read and check read a source and draw nothing",
     },
     "src/data/DataSource.ts": { count: 2, kind: "load", reason: "a data source's download, inside a load" },
+    "src/session/projectFile.ts": {
+        count: 5,
+        kind: "load",
+        reason:
+            "a version 2 open's modules, loaded after the open took its place in the load line; " +
+            "save, describe and inspect read the session or a file and draw nothing",
+    },
+    "src/session/GraphSession.ts": {
+        count: 1,
+        kind: "load",
+        reason: "data.refresh of a source a version 2 open held reads its module, as a network refresh does in data.ts",
+    },
     "src/data/source-bytes.ts": {
         count: 1,
         kind: "load",

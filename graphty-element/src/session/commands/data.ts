@@ -31,6 +31,7 @@ import type { RequestedLayout } from "@graphty/graph-io";
 
 import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
+import type { RepeatGroup } from "../../data/edgeIdentity";
 import { searchRecord } from "../../data/endpoints";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
@@ -296,13 +297,14 @@ export interface DataImportCommand {
     /**
      * Count the load instead of refusing it: a limit it passes is recorded in the report, and
      * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
-     * `pairs` holds the graph's edges as `pairKey(source, target)` (both ways on an undirected
-     * graph), so a record repeating one is counted as the real merge counts it.
+     * `pairs` holds the graph's edges by `pairKey(source, target)` (both ways on an undirected
+     * graph), each with its type and weight meaning, so a record repeating one is counted as the
+     * real merge counts it.
      */
     readonly measure?: {
         readonly nodes: ReadonlySet<NodeId>;
         readonly edges: number;
-        readonly pairs?: ReadonlySet<string>;
+        readonly pairs?: ReadonlyMap<string, readonly RepeatGroup[]>;
     };
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
@@ -563,6 +565,12 @@ export interface DataService {
         signal: AbortSignal,
         after?: UndoableContext["after"],
     ): Promise<ImportOutcome | null | undefined>;
+    /**
+     * The weight meaning an edge was stored under, for a draft's report of a merge.
+     * @param counter - The edge's counter.
+     * @returns The meaning, or undefined when unknown.
+     */
+    edgeMeaning?(counter: number): string | null | undefined;
     /**
      * Set graph-level values through `draft`: what a plugin algorithm wrote to `graphResults`, or
      * the data source's new name.

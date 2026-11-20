@@ -1249,12 +1249,52 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         complexity: "O(n + m)",
         legacyKeys: [{ key: "removal-impact" }],
     },
+    {
+        key: "articulation-points",
+        plainName: "Cut points",
+        technicalName: "Articulation points",
+        description:
+            "Finds the nodes whose removal would split their piece of the graph into more pieces: the single points of failure.",
+        category: "structure",
+        keywords: ["single point of failure", "cut vertex", "chokepoint", "vulnerability"],
+        shape: "node-set",
+        fields: setFields("node", "Cut point", {
+            name: "share",
+            plainName: "Share of nodes",
+            technicalName: "share",
+            type: "number",
+        }),
+        options: optionsOf("articulation-points"),
+        costClass: "instant",
+        complexity: "O(n + m)",
+        legacyKeys: [{ key: "articulation-points" }],
+    },
+    {
+        key: "bridges",
+        plainName: "Cut edges",
+        technicalName: "Bridges",
+        description:
+            "Finds the edges whose removal would split their piece of the graph in two: the links nothing else backs up.",
+        category: "structure",
+        keywords: ["single point of failure", "cut edge", "weak link", "vulnerability"],
+        shape: "edge-set",
+        fields: setFields("edge", "Cut edge", {
+            name: "share",
+            plainName: "Share of edges",
+            technicalName: "share",
+            type: "number",
+        }),
+        options: optionsOf("bridges"),
+        costClass: "instant",
+        complexity: "O(n + m)",
+        legacyKeys: [{ key: "bridges" }],
+    },
 ];
 
 /**
  * Every algorithm this package registers, as a plain-JSON descriptor.
  *
- * Thirty-one descriptors for thirty-three registered algorithms: the two single-source
+ * Thirty-three descriptors for thirty-five registered algorithms: the two single-source
  * shortest-path engines are one key with a `method` parameter, and the two component algorithms
  * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
  * replaces and the parameters that reproduce them.

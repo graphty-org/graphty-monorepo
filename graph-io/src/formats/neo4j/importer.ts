@@ -111,6 +111,7 @@ import {
     parseHeaderField,
     startsAsJson,
 } from "./header.js";
+import { neo4jCoordinates, type Neo4jPoint, neo4jPoint } from "./points.js";
 
 /**
  * The format-specific options of the Neo4j importer.
@@ -230,6 +231,13 @@ export const ID_MERGED_CODE = SHARED_ID_MERGED_CODE;
 export const HEADER_OPTION_CODE = "W_NEO4J_HEADER_OPTION_IGNORED";
 
 /**
+ * A point of the position property in another coordinate reference system than the property's first point:
+ * geographic among cartesian points (dropped) or 2D among 3D ones (kept, its missing coordinate 0).
+ * @category Issue and loss codes
+ */
+export const POINT_CRS_CODE = "W_NEO4J_POINT_CRS";
+
+/**
  * You read into a graph builder that already has the labels, type or id space attribute, so this file's one is kept
  * without its role.
  * @category Issue and loss codes
@@ -339,6 +347,8 @@ interface PropertySlot {
     companion: ColumnHandle;
     /** The item count a `vector{dimensions:n}` property requires, or null. */
     readonly dimensions: number | null;
+    /** For the node point property read as the position: the crs its header's `{crs:...}` option names. */
+    readonly position?: { readonly headerCrs: string | undefined };
 }
 
 /** A node section: the header interpreted. */
@@ -662,6 +672,15 @@ class Neo4jImportSession {
     /** Whether any node row was read. */
     private nodeRows = false;
 
+    /** The node point property read as the position column (the first one a header declares), or null. */
+    private positionName: string | null = null;
+
+    /** The position column, declared on the first point (whose coordinate system it takes). */
+    private positionHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
+
+    /** The first point of the position column. */
+    private firstPoint: Neo4jPoint | null = null;
+
     /** The ids of the APOC JSON relationships read, so one repeated in query records is read once. */
     private readonly apocRelationships = new Set<string>();
 
@@ -929,7 +948,7 @@ class Neo4jImportSession {
             for (const [key, value] of field.options) {
                 if (key === "label" && field.kind === "ID") {
                     extraLabels.push(value);
-                } else if (!isVectorOption(field, key)) {
+                } else if (!isVectorOption(field, key) && !(key === "crs" && this.isPositionField(field))) {
                     this.report.warning(
                         "unsupported",
                         HEADER_OPTION_CODE,
@@ -1133,6 +1152,27 @@ class Neo4jImportSession {
         const { sink, report } = this;
         const { listSyntax } = this.options;
         const vector = vectorOf(field);
+        if (domain === "node" && this.isPositionField(field)) {
+            this.positionName = field.name;
+            return {
+                cell,
+                name: field.name,
+                handle: INVALID_INDEX as ColumnHandle,
+                spec: declareAttribute({
+                    format: NEO4J,
+                    id: field.name,
+                    title: null,
+                    type: field.type,
+                    namespace: null,
+                    listSyntax,
+                    long: this.common.long,
+                }).spec,
+                companionDecl: null,
+                companion: INVALID_INDEX as ColumnHandle,
+                dimensions: null,
+                position: { headerCrs: field.options.get("crs") },
+            };
+        }
         const input: AttributeDeclarationInput = {
             format: NEO4J,
             id: field.name,
@@ -1658,7 +1698,81 @@ class Neo4jImportSession {
             values[slot.cell] = parseDeclaredValue(text, spec, this.options.listSyntax);
             checkNeo4jRange(spec, values[slot.cell], text);
             checkDimensions(slot, values[slot.cell], text);
+            if (slot.position !== undefined) {
+                const point = neo4jPoint(values[slot.cell], slot.position.headerCrs);
+                if (point === null) {
+                    throw new GraphFormatError(
+                        "E_COLUMN_TYPE",
+                        `"${text}" is not a point of a coordinate reference system Neo4j has`,
+                        { value: text, kind: "point" },
+                    );
+                }
+                values[slot.cell] = point;
+            }
         }
+    }
+
+    /**
+     * Whether a header field is the node point property read as the position: the first point property a node
+     * header declares, and the same name in a later header.
+     * @param field - the header field
+     * @returns true for that property
+     */
+    private isPositionField(field: HeaderField): boolean {
+        return (
+            field.kind === "PROPERTY" &&
+            field.type?.trim().toLowerCase() === "point" &&
+            (this.positionName === null || this.positionName === field.name)
+        );
+    }
+
+    /**
+     * Write a point into the position column, declaring it on the first point with that point's coordinate system.
+     * A point of the other kind (geographic or cartesian) is dropped; one of other dimensions is kept.
+     * @param row - the node
+     * @param point - the point
+     * @param name - the property name
+     * @param where - the row's line and element, for issues
+     * @param where.line - the line
+     * @param where.element - the element
+     */
+    private writePosition(
+        row: number,
+        point: Neo4jPoint,
+        name: string,
+        where: { line: number; element: string },
+    ): void {
+        const first = this.firstPoint;
+        if (first === null) {
+            this.firstPoint = point;
+            this.positionHandle = this.declareReserved("node", {
+                name,
+                dtype: "f64",
+                components: 3,
+                role: "position",
+                nullable: true,
+                mutable: true,
+                origin: { format: NEO4J, id: name, type: "point" },
+                extra: { sourceDims: point.dims },
+                coordinates: neo4jCoordinates(point),
+            });
+        } else if (first.geographic !== point.geographic) {
+            this.report.warning(
+                "validation-error",
+                POINT_CRS_CODE,
+                `a ${point.geographic ? "geographic" : "cartesian"} point among ${first.geographic ? "geographic" : "cartesian"} ones; dropped`,
+                where,
+            );
+            return;
+        } else if (first.dims !== point.dims) {
+            this.report.warnOnce(
+                "validation-error",
+                POINT_CRS_CODE,
+                `points mix ${first.dims} and ${point.dims} dimensions; the position column records ${first.dims}, each point keeps its own coordinates`,
+                where,
+            );
+        }
+        this.sink.setNodeValue(this.positionHandle, row, point.xyz);
     }
 
     /**
@@ -1683,6 +1797,12 @@ class Neo4jImportSession {
                 continue;
             }
             const text = texts[slot.cell];
+            if (slot.position !== undefined) {
+                this.guarded(line, `${element} ${slot.name}`, () => {
+                    this.writePosition(row, value as Neo4jPoint, slot.name, { line, element });
+                });
+                continue;
+            }
             // a value the sink refuses is recorded on the row's line; the other properties are written
             this.guarded(line, `${element} ${slot.name}`, () => {
                 if (text !== null && slot.companion === INVALID_INDEX && slot.companionDecl !== null) {

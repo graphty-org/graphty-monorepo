@@ -485,16 +485,14 @@ const OFF_SHARDS = [
     // The batched render path on WebGPU and in WebKit, which no other shard draws it on: the forced-batched shards
     // launch Chromium with no WebGPU, and the browser shards draw objects (#9165). Full run only, like the fidelity
     // slices. "batched-webgpu" runs the forced-batched project's files that run only where the run asked for a GPU
-    // (they read GRAPHTY_BROWSER_GPU or navigator.gpu; listed when the job runs, so a new one joins by itself), but
-    // webgpu-layout.test.ts, which tests the layout on the device rather than drawing, and whose 3D "force" case
-    // fails on a device spread twice the CPU's that differs between runs (#9174): put it back when that is fixed.
+    // (they read GRAPHTY_BROWSER_GPU or navigator.gpu; listed when the job runs, so a new one joins by itself).
     // "render-parity-<engine>" draws every captured story under "objects" twice and "batched" once and fails on a
     // pixel that differs (test/render-parity/stories.test.ts, design/rendering/row-renderer.md 7): on WebGL and on
     // WebGPU in Chromium (SwiftShader), and in WebKit's WebGL2, the engine an iPad draws with.
     {
         shard: "graphty-element-batched-webgpu",
         package: "graphty-element",
-        "test-command": String.raw`cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader-unthrottled pnpm exec vitest run --project=forced-batched $(grep -rlE 'GRAPHTY_BROWSER_GPU|navigator\.gpu' test/browser test/interactions --include='*.test.ts' | grep -v -e '\.bench\.' -e webgpu-layout) ${ELEMENT_REPORTERS}`,
+        "test-command": String.raw`cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader-unthrottled pnpm exec vitest run --project=forced-batched $(grep -rlE 'GRAPHTY_BROWSER_GPU|navigator\.gpu' test/browser test/interactions --include='*.test.ts' | grep -v '\.bench\.') ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
         "full-run-only": true,
         local: "never",

@@ -114,6 +114,8 @@ interface CommandServices {
     batched?: () => boolean;
     /** Whether the file styles experiment is on; absent reads on, as a store with no session has no switch. */
     fileStyles?: () => boolean;
+    /** Whether the source-steps experiment is on; absent reads on, as a store with no session has no switch. */
+    sourceSteps?: () => boolean;
     /**
      * The text to copy into the project for a shader id a write names that the project does not
      * hold: a catalog entry's canonical text, the problem when its body has not loaded, or

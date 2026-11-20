@@ -629,6 +629,17 @@ const CASES: readonly Case[] = [
             };
         },
     },
+    {
+        method: "StylesApi.duplicateRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.duplicateRow(id);
+                await session.styles.settled();
+            };
+        },
+    },
     // Notes: one note per node, so a write that walks every note grows with the graph. The write
     // itself does not (#1890, test/session/notes/scaling.test.ts), nor does the commit after it,
     // which no longer republishes the whole step list (#2733).

@@ -24,6 +24,7 @@
 import {
     type Column,
     type ColumnMeta,
+    coordinateSystemOf,
     type Dtype,
     GraphFormatError,
     type GraphSnapshot,
@@ -44,10 +45,12 @@ import { formatTemporal, type TemporalKind } from "../../common/temporal.js";
 import { jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import { respelledPositions } from "../../positions/convert.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import { checkRecordSyntax, type RecordSyntax } from "../csv/records.js";
 import { formatHeaderField } from "./header.js";
 import { ID_SPACE_COLUMN, LABELS_COLUMN, TYPE_COLUMN } from "./importer.js";
+import { formatNeo4jPoint } from "./points.js";
 
 /**
  * The format-specific options of the Neo4j exporter.
@@ -193,7 +196,8 @@ export const NEO4J_CAPABILITIES: ExportCapabilities = capabilities({
     hierarchy: false,
     temporal: "none",
     graphAttributes: false,
-    positions: false,
+    // written as points (pointPosition())
+    positions: true,
     viz: false,
 });
 
@@ -385,6 +389,12 @@ class ExportPlan {
     /** The pair folding (design section 3.6): the mirror halves of undirected pairs are not written. */
     readonly folding: PairFolding;
 
+    /** The node position column, written as Neo4j points the importer reads back as the position, or null. */
+    readonly position: Column | null;
+
+    /** The position column's rows y up (a y-down column respelled), or null to write it as stored. */
+    private readonly positionRows: Float64Array | null;
+
     /**
      * Build the plan.
      * @param snapshot - the snapshot
@@ -399,6 +409,9 @@ class ExportPlan {
         this.originalId = [...snapshot.nodes].find((column) => isIdText(column.meta)) ?? null;
         this.labels = snapshot.nodes.byRole("labels");
         this.kind = snapshot.edges.byRole("kind");
+        this.position = pointPosition(snapshot.nodes.byRole("position"));
+        // Neo4j's cartesian points have no screen direction: written y up, as the importer reads them
+        this.positionRows = this.position === null ? null : respelledPositions(snapshot, this.position, {});
         for (const column of snapshot.nodes) {
             if (isStoredId(column.meta)) {
                 this.idColumns.push(column);
@@ -409,8 +422,15 @@ class ExportPlan {
             roleNames: ROLE_NAMES,
             temporalText: true,
             weights: options.weightColumn !== null,
+            positionDtype: "f64",
         });
         this.planColumns("node", snapshot.nodes, this.nodeColumns);
+        // the importer reads the first point property as the position, so the position's header comes before any other
+        const at = this.nodeColumns.findIndex((plan) => plan.column === this.position);
+        const firstPoint = this.nodeColumns.findIndex((plan) => plan.scalar.kind === "point");
+        if (at > firstPoint) {
+            this.nodeColumns.splice(firstPoint, 0, ...this.nodeColumns.splice(at, 1));
+        }
         this.planColumns("edge", snapshot.edges, this.edgeColumns);
         this.weights = this.planWeightSource();
         this.folding = pairFolding(snapshot);
@@ -556,6 +576,16 @@ class ExportPlan {
      */
     private planColumn(column: Column, companion: Column | null): ColumnPlan {
         const { meta } = column;
+        if (column === this.position) {
+            const scalar: ScalarPlan = { type: "point", kind: "point", temporal: null };
+            return {
+                column,
+                header: formatHeaderField(meta.name, "point", null),
+                scalar,
+                list: false,
+                companion: null,
+            };
+        }
         const declared = meta.origin?.type ?? null;
         const mapped = declared === null ? null : mapDeclaredType(NEO4J, declared, "f64");
         const label = `${meta.domain} column "${meta.name}"`;
@@ -568,6 +598,15 @@ class ExportPlan {
         const visual = meta.role === "position" || (meta.role !== null && isVizRole(meta.role));
         if (visual) {
             this.noteVisualColumn(column, scalar, label);
+        }
+        if (meta.role === "position" && meta.domain === "node") {
+            // not points (pointPosition()): a plain property
+            this.note(
+                LOSS.POSITIONS,
+                `${label} is not 2 or 3 numbers and is written as a plain property; its role is lost on re-import`,
+                meta.name,
+                column.length - column.nullCount,
+            );
         }
         if (meta.components > 1) {
             if (visual) {
@@ -1220,6 +1259,13 @@ class ExportPlan {
         if (plan.list) {
             return this.listText(plan, row);
         }
+        if (column === this.position) {
+            const rows = this.positionRows;
+            return formatNeo4jPoint(
+                coordinateSystemOf(column.meta),
+                rows === null ? (column.value(row) as ArrayLike<number>) : rows.subarray(3 * row, 3 * row + 3),
+            );
+        }
         const text = companion?.isSet(row) ? textOf(companion, row) : null;
         return formatScalar(column.dtype === "json" ? column.values[row] : column.value(row), scalar, text);
     }
@@ -1246,6 +1292,16 @@ class ExportPlan {
         }
         return texts.join(this.options.arrayDelimiter);
     }
+}
+
+/**
+ * The position column when it can be written as Neo4j points: numeric, of 2 or 3 components.
+ * @param column - the node position role column, or null
+ * @returns the column, or null
+ */
+function pointPosition(column: Column | null): Column | null {
+    const numeric = column?.dtype === "f64" || column?.dtype === "f32" || column?.dtype === "i32";
+    return numeric && column.meta.components >= 2 && column.meta.components <= 3 ? column : null;
 }
 
 /**

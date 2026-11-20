@@ -331,17 +331,17 @@ export async function inBrowserZone(zone: string, run: () => Promise<void>): Pro
  * @param distance - How far the finger moves down before the cancel, in CSS pixels.
  */
 export async function touchDragCancelled(element: Element, distance: number): Promise<void> {
-    const session = cdp() as unknown as { send: Send };
-    const { x, y } = middleOf(element);
+    const send = cdpSend();
+    const { x, y } = topPagePoint(element);
     const steps = 10;
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
-    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    await send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
     for (let step = 1; step <= steps; step++) {
-        await session.send("Input.dispatchTouchEvent", {
+        await send("Input.dispatchTouchEvent", {
             type: "touchMove",
             touchPoints: [{ x, y: y + (distance * step) / steps }],
         });
     }
-    await session.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
-    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+    await send("Emulation.setTouchEmulationEnabled", { enabled: false });
 }

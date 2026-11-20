@@ -14,8 +14,9 @@
  * The estimate is files x (FILE_MS + the family's per-file overhead) + jobs x JOB_SETUP_MIN, fitted to the full
  * run of 2026-11-19 (release.yml run 44596884333): its twelve forced-batched jobs ran 106 runner minutes, 88 of them
  * in the test step, over 629 files (8.4 s a file with its overhead, 1.5 min of setup a job).
- * The import graphs are built once, from the checkout, not per merged commit; only graphty-element's shards are
- * planned.
+ * The import graphs are built once, from the checkout, not per merged commit (build the packages first, as CI
+ * does); only graphty-element's shards are planned, and it counts as affected whenever the selector selects any of
+ * its tests.
  */
 
 import { execFileSync } from "node:child_process";
@@ -50,11 +51,16 @@ const merges = git("log", "--first-parent", "--merges", `-${values.last}`, "--fo
     .map((l) => /^(\w+) Merge pull request #(\d+)/u.exec(l))
     .filter(Boolean);
 
-const graphs = await sel.buildGraphs(root, ["graphty-element"], shards);
+// graphty-element's and every other package's but the graphty app's (which depends on it, so cannot change its
+// selection): a package with no graph answers "all", and a dependency's "all" runs graphty-element whole
+const dirs = [...new Set(SHARDS.map((s) => s.package))].filter((d) => d !== "graphty");
+const graphs = await sel.buildGraphs(root, dirs, SHARDS);
 const rows = [];
 for (const [, sha, pr] of merges) {
     const changed = sel.changedFiles(root, `${sha}^1`, `${sha}^2`);
-    const selection = await sel.selectChange(root, changed, shards, graphs);
+    // every package's shards, so a change to another package's file is that package's, not a root file
+    const selection = await sel.selectChange(root, changed, SHARDS, graphs);
+    selection.shards = selection.shards.filter((s) => s.package === "graphty-element");
     const light = sel.lightPlan(root, shards, selection.shards, durations);
     const affected = selection.shards.some((s) => s.mode !== "none") ? ["graphty-element"] : [];
     const matrix = plan(affected, undefined, light, true, SHARDS);

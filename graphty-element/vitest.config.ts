@@ -1150,7 +1150,7 @@ const config = defineConfig({
                 // dispatches the whole of both.
                 define: { ...define },
                 plugins: [rawModelWorkers()],
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_PARITY_BROWSER"],
                 resolve: {
                     alias: {
                         "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
@@ -1162,7 +1162,11 @@ const config = defineConfig({
                 test: {
                     name: "render-parity",
                     setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
-                    include: ["test/render-parity/**/*.test.ts", "test/browser/node-batch.test.ts"],
+                    // node-batch.test.ts drives input over the Chrome DevTools protocol, which WebKit has not got
+                    include:
+                        process.env.GRAPHTY_PARITY_BROWSER === "webkit"
+                            ? ["test/render-parity/**/*.test.ts"]
+                            : ["test/render-parity/**/*.test.ts", "test/browser/node-batch.test.ts"],
                     fileParallelism: false,
                     browser: {
                         enabled: true,

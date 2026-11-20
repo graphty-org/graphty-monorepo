@@ -113,6 +113,7 @@ export type GraphEvent =
     | ViewsChangedEvent
     | XRSessionStartedEvent
     | XRSessionEndedEvent
+    | XRMenuSelectEvent
     | InputPointerEvent
     | InputWheelEvent
     | InputTouchEvent
@@ -840,6 +841,14 @@ export interface XRSessionEndedEvent {
      * when the headset or browser ended it (the system button, taking the headset off).
      */
     cause: "exit" | "device";
+}
+
+/** Emitted when the reader presses an item of the in-headset menu (`xr.menu`). */
+export interface XRMenuSelectEvent {
+    /** The event's name. */
+    type: "xr-menu-select";
+    /** The pressed item's `id`. */
+    id: string;
 }
 
 // Selection events

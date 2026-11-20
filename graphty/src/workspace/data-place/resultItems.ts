@@ -15,7 +15,7 @@ import { methodsWords } from "./words";
  * @param what - what was copied, as the notice names it.
  * @param text - the text, or a reason it cannot be copied.
  */
-function copyText(store: WorkspaceStore, what: string, text: string): void {
+export function copyText(store: WorkspaceStore, what: string, text: string): void {
     navigator.clipboard.writeText(text).then(
         () => {
             store.set({ notice: { message: `Copied ${what}` } });

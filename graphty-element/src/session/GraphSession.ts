@@ -62,6 +62,7 @@ import { type EnabledFeatures, pageDefaultFeatures, resolveFeatures } from "../f
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { GRAPHVIZ_PACKAGE } from "../layout/graphviz/engines";
 import { GraphtyLogger } from "../logging/GraphtyLogger";
+import { eachAdjacentArc } from "./adjacency";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
 import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
@@ -104,6 +105,7 @@ import {
 } from "./planning";
 export { dispatcherOf, sessionRunsOf } from "./dispatchers";
 import { ANNOTATIONS_VALUE, type DrawnAnnotation, type DrawnAnnotations, drawnAnnotationsOf } from "./annotations";
+import { graphsOf, type SessionGraphs } from "./graphs/GraphsApi";
 import { boundaryOf, projectBoundary } from "./project/boundary";
 import { dataDigest } from "./project/digest";
 import {
@@ -206,6 +208,7 @@ import {
     type ElementPaint,
     type ElementRemaps,
     type RepaintEngine,
+    type ResolvedStyle,
 } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
 import { selectorScope } from "./styles/selector";
@@ -598,6 +601,7 @@ class Session implements ElementSession {
     readonly shaders: SessionShaders;
     readonly views: SessionViews;
     readonly tours: SessionTours;
+    readonly graphs: SessionGraphs;
     readonly annotations: SessionAnnotations;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
@@ -819,6 +823,7 @@ class Session implements ElementSession {
             publish(this.watchers, "views:seeded", { names });
         });
         this.tours = toursOf(this.dispatcher);
+        this.graphs = graphsOf(this);
         this.annotations = annotationsOf(this.dispatcher);
         this.runner = new LayoutRunner({
             // The working graph, never the store: a hidden node is not laid out.
@@ -3076,6 +3081,65 @@ function edgeIndexOf(readSnapshot: () => GraphSnapshot): (id: EdgeId) => number 
 }
 
 /**
+ * The renderer's reads of edges, with `edge.colorFrom` resolved: an edge that takes its color from
+ * an end node is handed that node's painted `node.color` as its `edge.color`, and a pass that
+ * repaints a node repaints the edges that follow it, so the line keeps up with the node.
+ * @param engine - The repaint engine.
+ * @param indexedBy - The snapshot whose rows the engine's indices are, or null before the first pass.
+ * @returns The edge style and the edges the last pass painted.
+ */
+function edgeColorsFromNodes(
+    engine: RepaintEngine,
+    indexedBy: () => GraphSnapshot | null,
+): { styleOf: (index: number) => ResolvedStyle; lastPainted: () => ArrayLike<number> } {
+    // Set once any edge has been read with `edge.colorFrom`, so a graph that never uses it pays nothing per node pass.
+    // ponytail: never cleared, so a removed colorFrom layer keeps the O(degree) walk below; clear it when that shows.
+    let followed = false;
+
+    const styleOf = (index: number): ResolvedStyle => {
+        const style = engine.styleOf("edge", index);
+        const from = style["edge.colorFrom"];
+        const graph = indexedBy();
+        if (from === undefined || graph === null || index >= graph.edgeCount) {
+            return style;
+        }
+
+        followed = true;
+        const { src, dst } = graph.edgeList();
+        const node = from === "source" ? src[index] : dst[index];
+        const color = engine.styleOf("node", node)["node.color"];
+
+        return color === undefined ? style : { ...style, "edge.color": color };
+    };
+
+    const lastPainted = (): ArrayLike<number> => {
+        const edges = engine.lastPainted("edge");
+        const nodes = engine.lastPainted("node");
+        const graph = indexedBy();
+        if (!followed || nodes.length === 0 || graph === null) {
+            return edges;
+        }
+
+        const all = new Set<number>(Array.from(edges));
+        const { src, dst } = graph.edgeList();
+        for (let at = 0; at < nodes.length; at++) {
+            const node = nodes[at];
+            eachAdjacentArc(graph, node, "all", (_other, edge) => {
+                const from = engine.styleOf("edge", edge)["edge.colorFrom"];
+                const end = from === "source" ? src[edge] : dst[edge];
+                if (from !== undefined && end === node) {
+                    all.add(edge);
+                }
+            });
+        }
+
+        return all.size === edges.length ? edges : Array.from(all);
+    };
+
+    return { styleOf, lastPainted };
+}
+
+/**
  * Wrap the repaint so that a pass over data that has moved prepares its bindings again.
  *
  * A prepared binding's domain, its percentile clamp and its category list are properties of the
@@ -3126,6 +3190,8 @@ function repaintAgainstCurrentData(
         }
     };
 
+    const edgeColors = edgeColorsFromNodes(engine, () => indexedBy);
+
     return {
         // The renderer's half: reads, plus the first draw. It carries neither `repaint` nor
         // `invalidate`, so a renderer cannot paint behind the stack's back.
@@ -3135,12 +3201,12 @@ function repaintAgainstCurrentData(
 
                 return engine.repaintAll(stack, context);
             },
-            styleOf: (target, index) => engine.styleOf(target, index),
+            styleOf: (target, index) => (target === "edge" ? edgeColors.styleOf(index) : engine.styleOf(target, index)),
             plainText: (target, index, channel) => engine.plainText(target, index, channel),
             meshKeyOf: (target, index) => engine.meshKeyOf(target, index),
             meshStyleOf: (target, key) => engine.meshStyleOf(target, key),
             meshCount: (target) => engine.meshCount(target),
-            lastPainted: (target) => engine.lastPainted(target),
+            lastPainted: (target) => (target === "edge" ? edgeColors.lastPainted() : engine.lastPainted(target)),
             lastPaintRowsOnly: () => engine.lastPaintRowsOnly(),
             onPainted: (listener) => engine.onPainted(listener),
             painting: () => engine.painting(),

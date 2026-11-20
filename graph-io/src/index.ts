@@ -241,6 +241,8 @@ export {
     type CysExportOptions,
     cysImporter,
     type CysImportOptions,
+    type CytoscapeStyleFileOptions,
+    readCytoscapeStyleFile,
 } from "./formats/cys/index.js";
 export {
     type BendPoint,
@@ -256,6 +258,7 @@ export {
     type GraphvizFont,
     graphvizFont,
     graphvizPosBends,
+    graphvizPosCurve,
     RANK_COLUMN,
     RANK_SET_COLUMN,
     type RequestedLayout,

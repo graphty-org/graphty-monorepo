@@ -694,6 +694,41 @@ describe("claims judged by the work that names them (2026-11-18: 18 live claims 
         for (const n of [8604, 8605, 8606, 8311, 7284]) assert.doesNotMatch(sent, new RegExp(`"I_${n}"`));
     });
 
+    it("strands, never releases, a claim whose only evidence is a pull request red or conflicting for 6 h (#9136)", () => {
+        const head = (age, state) => ({
+            nodes: [{ commit: { committedDate: new Date(NOW - age).toISOString(), statusCheckRollup: { state } } }],
+        });
+        const pr = (n, extra) => ({ number: n, headRefName: `fix/${n - 1000}-x`, title: "t", body: "", ...extra });
+        const prs = [
+            pr(9001, { mergeable: "MERGEABLE", commits: head(7 * HOUR, "FAILURE") }),
+            pr(9002, { mergeable: "CONFLICTING", commits: head(30 * HOUR, "SUCCESS") }),
+            pr(9003, { mergeable: "MERGEABLE", commits: head(5 * HOUR, "FAILURE") }),
+            pr(9004, { mergeable: "MERGEABLE", commits: head(30 * HOUR, "PENDING") }),
+        ];
+        const issues = [8001, 8002, 8003, 8004].map((n) => bare(n, 3 * HOUR));
+        // the red branch also has a commit of its own in 24 h: that is the same stale work, no new evidence
+        const recent = { name: "fix/8001-x", messages: "fix: x\n\nFixes #8001\n" };
+        const facts = {
+            ...deadFacts,
+            openPrBranches: new Set(),
+            recentBranches: () => [recent],
+            commitsAhead: () => 2,
+        };
+        const mutations = [];
+        const r = main(["claims", "--fix"], fakeRun(issues, prs, mutations), NOW, undefined, {
+            claims: { dir: mkdtempSync(join(tmpdir(), "claims-")), facts },
+        });
+        const by = new Map(r.claims.map((c) => [c.n, c]));
+        assert.equal(by.get(8001).live, false, "red, head 7 h old");
+        assert.equal(by.get(8002).live, false, "conflicting, head 30 h old");
+        assert.equal(by.get(8003).live, true, "red, but a commit 5 h ago");
+        assert.equal(by.get(8004).live, true, "pending checks, not red");
+        for (const n of [8001, 8002])
+            assert.equal(by.get(n).action, "stranded", `#${n} kept: its pull request names it`);
+        assert.match(by.get(8002).why, /open pull request #9002 names it, red or conflicting with no commit for 6 h/);
+        assert.deepEqual(mutations, [], "no label removed, no release comment");
+    });
+
     it("never removes a label or posts a release comment on an issue an open pull request names", () => {
         const released = {
             ...bare(7284, 9 * HOUR),

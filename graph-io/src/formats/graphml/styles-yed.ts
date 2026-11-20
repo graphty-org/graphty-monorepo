@@ -291,6 +291,8 @@ export interface YedOutline {
     readonly shape: string;
     /** The polygon's corners as neutral `shapePoints` (`x,y` fractions of the half sizes, y up). */
     readonly points?: string;
+    /** False draws the corners where they say, not stretched to the box's sides (`shapePointsStretch`). */
+    readonly stretch?: false;
     /** Its corners at a node's width, where they do not scale with it. */
     readonly pointsAt?: (width: number) => string;
     /** A rounded box's corner radius; `pill` rounds its short sides into half circles. */
@@ -786,6 +788,33 @@ const YED_TYPES: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
     ["fatarrow2", { shape: "polygon", points: "-0.8,1 1,1 0.8,0 1,-1 -0.8,-1 -1,0" }],
     ["triangle2", { shape: "polygon", points: "-1,1 1,1 0,-1" }],
     ["rectangle3d", { shape: "rectangle", borderWidth: 0, raised: true }],
+    // yEd's stars are inscribed in the ellipse of their box, a point straight down (star5, star6) or at each side and
+    // corner (star8), read off yEd 3.25.1's SVG of graphml-synthetic-nodes; graphty-element's own star has five points,
+    // one up, stretched to the box
+    [
+        "star5",
+        {
+            shape: "polygon",
+            points: "0,-1 0.3527,-0.4854 0.9511,-0.309 0.5706,0.1854 0.5878,0.809 0,0.6 -0.5878,0.809 -0.5706,0.1854 -0.9511,-0.309 -0.3527,-0.4854",
+            stretch: false,
+        },
+    ],
+    [
+        "star6",
+        {
+            shape: "polygon",
+            points: "0,-1 0.3,-0.5196 0.866,-0.5 0.6,0 0.866,0.5 0.3,0.5196 0,1 -0.3,0.5196 -0.866,0.5 -0.6,0 -0.866,-0.5 -0.3,-0.5196",
+            stretch: false,
+        },
+    ],
+    [
+        "star8",
+        {
+            shape: "polygon",
+            points: "0,-1 0.2296,-0.5543 0.7071,-0.7071 0.5543,-0.2296 1,0 0.5543,0.2296 0.7071,0.7071 0.2296,0.5543 0,1 -0.2296,0.5543 -0.7071,0.7071 -0.5543,0.2296 -1,0 -0.5543,-0.2296 -0.7071,-0.7071 -0.2296,-0.5543",
+            stretch: false,
+        },
+    ],
 ]);
 
 /**
@@ -801,6 +830,13 @@ export function typeOutline(type: unknown, unknown: string): YedOutline | null {
 }
 
 /**
+ * What a yEd shape type is read as beside its `shape` (`putOutline`): a type drawn as a polygon (yEd's star5, a fat
+ * arrow) gives its corners, so a file graphty wrote compares these with its block's values too, and a shape written
+ * as the nearest yEd type (graphty's star as star5) reads back as the block's.
+ */
+export const YED_OUTLINE_READS: readonly string[] = ["shapePoints", "shapeLines", "shapePointsStretch"];
+
+/**
  * Writes what an outline draws. Reading the width and the height first lets an outline with proportions of its own
  * replace them.
  * @param outline - the outline
@@ -813,6 +849,7 @@ export function putOutline(outline: YedOutline, width: number | null, height: nu
     put("shape", outline.shape);
     put("shapePoints", (width === null ? undefined : outline.pointsAt?.(width)) ?? outline.points ?? null);
     put("shapeLines", outline.lines ?? null);
+    put("shapePointsStretch", outline.stretch ?? null);
     put("borderWidth", outline.borderWidth ?? null);
     put("fillOpacity", outline.hollow === true ? 0 : null);
     put("cornerRadius", typeof cornerRadius === "number" ? cornerRadius : null);
@@ -3370,8 +3407,18 @@ export const YED_SHAPES: ReadonlyMap<string, string> = new Map([
     ["octagon", "octagon"],
     ["parallelogram", "parallelogram"],
     ["trapezoid", "trapezoid"],
-    ["star", "star5"],
 ]);
+
+/**
+ * The yEd ShapeNode type written for a shape yEd has no exact type for: graphty-element's star, five points up and
+ * stretched to its box, as yEd's star5, inscribed in its box's ellipse with a point down (`YED_TYPES`); a vee as a
+ * triangle; anything else as a rectangle.
+ * @param shape - the neutral shape
+ * @returns the yEd type
+ */
+export function yedNearestShape(shape: string): string {
+    return ({ star: "star5", vee: "triangle" } as Partial<Record<string, string>>)[shape] ?? "rectangle";
+}
 
 /** yEd's line types, by the neutral line style each draws exactly. */
 export const YED_LINES: ReadonlyMap<string, string> = new Map([
@@ -3581,8 +3628,8 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
     const node: Tree = {};
     node["y:Geometry"] = geometryTree(get, at);
     const shape = get("shape");
-    const nearest = shape === "vee" ? "triangle" : "rectangle";
-    const yedShape = typeof shape === "string" ? yedSpelled(YED_SHAPES, shape, nearest, "shape", approximate) : null;
+    const yedShape =
+        typeof shape === "string" ? yedSpelled(YED_SHAPES, shape, yedNearestShape(shape), "shape", approximate) : null;
     const fill = get("fill");
     const fillOpacity = get("fillOpacity");
     if (typeof fill === "string") {
@@ -3766,7 +3813,10 @@ export function exactFromBlock(snapshot: GraphSnapshot, text: string, read: YedR
     const notes = new StyleNotes();
     takeFromBlock(snapshot, text, "graphml", (target) => ({
         values: read[target],
-        properties: GRAPHML_STYLE_CAPABILITIES[target],
+        properties:
+            target === "node"
+                ? [...GRAPHML_STYLE_CAPABILITIES.node, ...YED_OUTLINE_READS]
+                : GRAPHML_STYLE_CAPABILITIES[target],
         writes: GRAPHML_STYLE_CAPABILITIES[target],
         readBack: (_i, want) => {
             const back = writtenAndReadBack(target, want, notes);

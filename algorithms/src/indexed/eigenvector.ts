@@ -120,13 +120,18 @@ function powerIterate(
         it++;
         let change = 0;
         let size = 0;
+        let squares = 0;
         for (let v = 0; v < n; v++) {
             change += Math.abs(raw[v] - previous[v]);
             size += Math.abs(raw[v]);
+            squares += raw[v] * raw[v];
         }
         converged = it > 1 && change < tol * size;
-        x.set(raw);
-        scaleToUnitLength(x);
+        // x = raw scaled to unit length, in the one pass (scaleToUnitLength's arithmetic, without a copy first).
+        const norm = squares > 0 ? Math.sqrt(squares) : 1;
+        for (let v = 0; v < n; v++) {
+            x[v] = raw[v] / norm;
+        }
         [raw, previous] = [previous, raw];
     }
     return { it, converged };

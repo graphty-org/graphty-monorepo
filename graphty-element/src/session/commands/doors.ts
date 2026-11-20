@@ -452,6 +452,7 @@ const REPLACE_SOURCE_STEPS: readonly SessionCommand[] = [
         source: DOOR_REPLACE_SOURCE,
         tables: ["door-ships-2.csv"],
         tableRows: ["edges"],
+        delimiter: { value: ",", detected: true },
         mode: "merge",
         held: {
             // An edge table's ends get node rows of their own, so the nodes they make are drawn.
@@ -494,6 +495,7 @@ const RELOAD_SOURCE_STEPS: readonly SessionCommand[] = [
         source: DOOR_SHIPS_SOURCE,
         tables: ["door-ships.csv"],
         tableRows: ["edges"],
+        delimiter: { value: ",", detected: true },
         mode: "merge",
         held: {
             nodes: [{ id: "r1" }, { id: "r2" }, { id: "r3" }],
@@ -993,6 +995,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     shaders: READ,
     views: READ,
     tours: READ,
+    graphs: READ,
     annotations: READ,
     layout: READ,
     positions: READ,
@@ -1089,12 +1092,18 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
 };
 
 /**
- * A door that changes the one condition `c1` (keep degree at least 1), which it adds first.
+ * A door that changes the conditions it adds first: by default the one condition `c1` (keep
+ * degree at least 1).
  * @param args - The arguments.
  * @param conditions - The conditions the call must leave.
+ * @param setup - The conditions added first.
  * @returns The door.
  */
-function conditionDoor(args: readonly unknown[], conditions: readonly unknown[]): Door {
+function conditionDoor(
+    args: readonly unknown[],
+    conditions: readonly unknown[],
+    setup: readonly unknown[] = [{ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }],
+): Door {
     return {
         kind: "dispatches",
         op: "visibility.conditions",
@@ -1103,7 +1112,7 @@ function conditionDoor(args: readonly unknown[], conditions: readonly unknown[])
             args,
             around: async (target) => {
                 const visibility = target as { setConditions(list: unknown[]): Promise<unknown> };
-                await visibility.setConditions([{ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }]);
+                await visibility.setConditions([...setup]);
                 return async () => visibility.setConditions([]);
             },
         },
@@ -1159,6 +1168,18 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     ),
     removeCondition: conditionDoor(["c1"], []),
     conditionCounts: READ,
+    moveStep: conditionDoor(
+        ["c2", 0],
+        [
+            { id: "c2", on: true, effect: "exclude", rule: { kind: "degree", min: 3 } },
+            { id: "c1", on: true, effect: "keep", rule: { kind: "degree", min: 1 } },
+        ],
+        [
+            { id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } },
+            { id: "c2", effect: "exclude", rule: { kind: "degree", min: 3 } },
+        ],
+    ),
+    stepCounts: READ,
     // Opening a draft writes nothing; its commit is `addCondition` or `updateCondition`.
     draft: READ,
 };
@@ -2821,6 +2842,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
+            // Computes and caches a page's order; changes nothing a project holds.
+            preparePage: READ,
             resultColumns: READ,
             neighbors: READ,
             lastImport: READ,
@@ -3937,6 +3960,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ op: "tour.rename", from: "door tour", to: "door renamed" }],
             ),
             move: calls(["door tour", 0], [{ op: "tour.move", name: "door tour", index: 0 }]),
+        },
+    },
+    {
+        name: "SessionGraphs",
+        file: "src/session/graphs/GraphsApi.ts",
+        half: "session",
+        doors: {
+            currentId: READ,
+            list: READ,
+            create: exempt(
+                "Saves the graph shown and opens its copy through project.save and project.open, whose rows " +
+                    "cover them; trimming the copy to its scope is data.removeNodes, then the copy's history starts.",
+            ),
+            switch: exempt(
+                "Saves the graph shown and opens another through project.save and project.open, whose rows cover them.",
+            ),
         },
     },
     {

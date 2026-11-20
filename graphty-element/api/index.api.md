@@ -698,11 +698,9 @@ export interface Capabilities {
 
 // @public
 export interface CapabilityCheck {
-    // (undocumented)
     estimatedMemoryMB: number;
     height?: number;
     reason?: CodedFact<GraphtyErrorCode>;
-    // (undocumented)
     supported: boolean;
     warnings?: CodedFact<ScreenshotWarningCode>[];
     width?: number;
@@ -1260,6 +1258,10 @@ export interface EdgePosition {
     dst: Position;
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
+    laidCurve?: {
+        readonly points: readonly number[];
+        readonly params: readonly number[];
+    };
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
     lineEnds?: {
         readonly source: readonly [along: number, across: number];
@@ -2007,6 +2009,10 @@ export const EdgeStyle: z.ZodObject<{
         dashGap: z.ZodOptional<z.ZodNumber>;
         dashArray: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        colorFrom: z.ZodOptional<z.ZodEnum<{
+            source: "source";
+            target: "target";
+        }>>;
         opacity: z.ZodOptional<z.ZodNumber>;
         fade: z.ZodOptional<z.ZodObject<{
             start: z.ZodOptional<z.ZodNumber>;
@@ -2704,6 +2710,7 @@ export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExpor
     readonly scope?: ExportScope;
     readonly columns?: readonly string[];
     readonly groupTable?: ExportGroupTable;
+    readonly onProgress?: (fact: PendingWorkProgress) => void;
 };
 
 // @public
@@ -3417,7 +3424,7 @@ export interface GraphErrorEvent {
 }
 
 // @public
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public
 export type GraphEventType = GraphEvent["type"];
@@ -5221,23 +5228,14 @@ export class InputManager implements Manager {
     getPointerPosition(): Vector2;
     init(): Promise<void>;
     isPointerDown(button?: MouseButton): boolean;
-    // (undocumented)
     readonly onKeyDown: Observable<KeyboardInfo>;
-    // (undocumented)
     readonly onKeyUp: Observable<KeyboardInfo>;
-    // (undocumented)
     readonly onPointerDown: Observable<PointerInfo>;
-    // (undocumented)
     readonly onPointerMove: Observable<PointerInfo>;
-    // (undocumented)
     readonly onPointerUp: Observable<PointerInfo>;
-    // (undocumented)
     readonly onTouchEnd: Observable<number[]>;
-    // (undocumented)
     readonly onTouchMove: Observable<TouchPoint[]>;
-    // (undocumented)
     readonly onTouchStart: Observable<TouchPoint[]>;
-    // (undocumented)
     readonly onWheel: Observable<WheelInfo>;
     // @internal
     rebind(context: ManagerContext): void;
@@ -5580,13 +5578,9 @@ export interface ManagerConfig {
 
 // @public
 export interface ManagerContext {
-    // (undocumented)
     canvas: HTMLCanvasElement;
-    // (undocumented)
     engine: Engine | WebGPUEngine;
-    // (undocumented)
     eventManager: EventManager;
-    // (undocumented)
     scene: Scene;
 }
 
@@ -7473,6 +7467,9 @@ export interface OperationCancelledEvent {
 }
 
 // @public
+export type OperationCategory = "style-init" | "style-apply" | "style-edit" | "data-add" | "data-remove" | "data-update" | "layout-set" | "layout-update" | "algorithm-run" | "camera-update" | "view-mode" | "render-update";
+
+// @public
 export class OperationQueueManager implements Manager {
     constructor(eventManager: EventManager, options?: {
         concurrency?: number;
@@ -7501,6 +7498,7 @@ export class OperationQueueManager implements Manager {
     init(): Promise<void>;
     markCategoryCompleted(category: OperationCategory): void;
     pause(): void;
+    pendingWork(): PendingWorkProgress;
     queueOperation(category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, options?: Partial<OperationMetadata>): string;
     queueOperationAsync(category: OperationCategory, execute: (context: OperationContext) => Promise<void> | void, options?: Partial<OperationMetadata>): Promise<void>;
     registerTrigger(category: OperationCategory, trigger: (metadata?: OperationMetadata) => {
@@ -7511,6 +7509,7 @@ export class OperationQueueManager implements Manager {
     resume(): void;
     settled(): Promise<void>;
     waitForCompletion(): Promise<void>;
+    watchPendingWork(onProgress: (fact: PendingWorkProgress) => void): () => void;
 }
 
 // @public
@@ -7588,6 +7587,16 @@ export interface PendingSourceLoad {
     readonly isLocalNetwork: boolean;
     readonly params: Readonly<Record<string, unknown>>;
     readonly source: string;
+}
+
+// @public
+export interface PendingWorkProgress {
+    readonly code: "PENDING_WORK";
+    readonly params: {
+        readonly operations: number;
+        readonly category: OperationCategory | null;
+        readonly percent: number | null;
+    };
 }
 
 // @public
@@ -7790,7 +7799,7 @@ export interface QueueableManager extends Manager {
     queueOperation?(category: OperationCategory, fn: () => void | Promise<void>): string;
 }
 
-// @public (undocumented)
+// @public
 export interface QueueableOptions {
     description?: string;
     obsoletes?: OperationCategory[];
@@ -8213,7 +8222,7 @@ export interface RowCounts {
     readonly pulledEdges: number;
 }
 
-// @public (undocumented)
+// @public
 export interface RunAlgorithmOptions extends QueueableOptions {
     algorithmOptions?: AlgorithmSpecificOptions;
     applySuggestedStyles?: boolean;
@@ -8285,6 +8294,7 @@ export interface ScreenshotOptions {
     height?: number;
     legend?: boolean | "auto" | ScreenshotLegendOptions | readonly ScreenshotLegendSection[];
     multiplier?: number;
+    onProgress?: (fact: PendingWorkProgress) => void;
     preset?: "print" | "web-share" | "thumbnail" | "documentation";
     quality?: number;
     showSelection?: boolean;
@@ -9034,6 +9044,7 @@ export interface XRConfig {
     ar: XRModeConfig;
     enabled: boolean;
     input: XRInputConfig;
+    menu?: readonly XRMenuItem[];
     ui: XRUIConfig;
     vr: XRModeConfig;
 }
@@ -9047,6 +9058,18 @@ export interface XRInputConfig {
     handTracking: boolean;
     nearInteraction: boolean;
     zAxisAmplification?: number;
+}
+
+// @public
+export interface XRMenuItem {
+    id: string;
+    label: string;
+}
+
+// @public
+export interface XRMenuSelectEvent {
+    id: string;
+    type: "xr-menu-select";
 }
 
 // @public

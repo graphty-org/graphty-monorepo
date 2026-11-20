@@ -73,6 +73,7 @@ const VALUE_EXPORTS = [
     "dotImporter",
     "graphvizFont",
     "graphvizPosBends",
+    "graphvizPosCurve",
     "RANK_COLUMN",
     "RANK_SET_COLUMN",
     "GEXF_1_2_CAPABILITIES",
@@ -140,6 +141,7 @@ const VALUE_EXPORTS = [
     "CYS_LOSS",
     "cysExporter",
     "cysImporter",
+    "readCytoscapeStyleFile",
     // shared helpers for plugin authors
     "BAD_DEFAULT_CODE",
     "BAD_OPTIONS_CODE",

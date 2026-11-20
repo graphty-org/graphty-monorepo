@@ -46,12 +46,12 @@ interface Covered {
 
 const INVENTORY: Record<string, Covered> = {
     "src/Graph.ts": {
-        count: 11,
+        count: 12,
         kind: "load",
         reason:
             "format detection runs inside a load that holds a place in the load line (a URL's download goes " +
             "through source-bytes' fetchBytes); " +
-            "the rest (screenshot capability, video capture and estimation, AI, the XR camera) draw nothing " +
+            "the rest (screenshot capability, video capture and estimation, AI, the XR camera and menu) draw nothing " +
             "of the graph's picture, or run during an immersive session, when the picture is never final",
     },
     "src/graphty-element.ts": {

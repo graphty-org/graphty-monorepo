@@ -403,6 +403,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     name: "Line",
                     main: ["edge.color", "edge.opacity", "edge.width", "edge.style"],
                     tail: [
+                        "edge.colorFrom",
                         "edge.minScreenWidth",
                         "edge.patternCount",
                         "edge.animationSpeed",

@@ -347,9 +347,10 @@ export function figurePdf(drawing: FigureDrawing, key: readonly FigureMark[]): U
         page.ops.push(`0 0 ${num(drawing.width)} ${num(drawing.height)} re f`);
     }
     for (const e of drawing.edges) {
-        page.ops.push("q", "1 J", `${num(e.width)} w`);
+        page.ops.push("q", "1 J", "1 j", `${num(e.width)} w`);
         page.paint(e.color, true, e.opacity);
-        page.ops.push(`${page.at(e.x1, e.y1)} m ${page.at(e.x2, e.y2)} l S`, "Q");
+        e.points.forEach(([x, y], i) => page.ops.push(`${page.at(x, y)} ${i === 0 ? "m" : "l"}`));
+        page.ops.push("S", "Q");
     }
     for (const shape of [...drawing.nodes, ...drawing.caps]) {
         drawShape(page, shape);

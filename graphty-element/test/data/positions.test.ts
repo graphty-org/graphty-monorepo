@@ -503,7 +503,7 @@ describe("ElementPositions against graph-format 1.0.0", () => {
     });
 
     it("ORPHANS an attached column the moment it grows past its capacity", () => {
-        // The hazard the next phase has to honour: the attach is by reference, so a grow() between
+        // The hazard the next phase has to honor: the attach is by reference, so a grow() between
         // two freezes leaves the snapshot's column pointing at a dead buffer. Nothing here detects
         // it; GraphStore must re-attach on EVERY freeze, and this test is what fails if a later
         // change assumes one attach is enough.

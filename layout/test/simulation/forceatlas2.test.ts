@@ -268,11 +268,66 @@ describe("ForceAtlas2Simulation: the force-law variants (design 7.2)", () => {
         }
     });
 
-    it("accepts and ignores dissuadeHubs, nodeSize, maxInFlight, and seed when every start row is finite", () => {
+    it("accepts and ignores maxInFlight, and seed when every start row is finite", () => {
         const base = run(s, {});
-        const same = run(s, { dissuadeHubs: true, nodeSize: { a: 3 }, seed: 99, maxInFlight: 4 });
+        const same = run(s, { seed: 99, maxInFlight: 4 });
         assert.deepEqual(Array.from(same), Array.from(base));
         assert.deepEqual(Array.from(run(s, { compat: "paper" })), Array.from(base), "paper is the default (D5)");
+    });
+
+    it("dissuadeHubs divides each node's attraction by its degree + 1 (Jacomy et al. 2014, 2.4)", () => {
+        const base = run(s, {});
+        const hubs = run(s, { dissuadeHubs: true });
+        assertFinite(hubs);
+        assert.notDeepEqual(Array.from(hubs), Array.from(base));
+        // the default mass is degree + 1, so with it dissuadeHubs and distributedAction divide by the same numbers
+        assert.deepEqual(Array.from(hubs), Array.from(run(s, { distributedAction: true })));
+        // with a mass of its own, distributedAction divides by the mass, dissuadeHubs still by degree + 1
+        const nodeMass = new Float32Array(s.nodeCount).fill(7);
+        assert.notDeepEqual(
+            Array.from(run(s, { dissuadeHubs: true, nodeMass })),
+            Array.from(run(s, { distributedAction: true, nodeMass })),
+        );
+        assert.deepEqual(Array.from(run(s, { dissuadeHubs: false })), Array.from(base), "off is the default");
+    });
+
+    it("nodeSize keeps nodes from overlapping (Jacomy et al. 2014, 2.6); without it nodes are points", () => {
+        // a star: its leaves crowd round the hub closer than two radii of 5 unless their outlines are kept apart
+        const n = 20;
+        const star = fromEdgeArrays({
+            directed: false,
+            nodeCount: n,
+            src: new Uint32Array(n - 1),
+            dst: Uint32Array.from({ length: n - 1 }, (_, i) => i + 1),
+        });
+        const minDistance = (options: Options) => {
+            const positions = run(star, { maxIter: 2000, ...options }, 2000);
+            assertFinite(positions);
+            let min = Infinity;
+            for (let i = 0; i < n; i++) {
+                for (let j = i + 1; j < n; j++) {
+                    const dx = positions[3 * i] - positions[3 * j];
+                    const dy = positions[3 * i + 1] - positions[3 * j + 1];
+                    min = Math.min(min, Math.hypot(dx, dy));
+                }
+            }
+            return min;
+        };
+        assert.ok(minDistance({}) < 10, "points crowd closer than two radii");
+        assert.ok(minDistance({ nodeSize: new Float32Array(n).fill(5) }) >= 10, "outlines are kept apart");
+        assert.ok(minDistance({ nodeSize: new Float32Array(n).fill(5), linlog: true }) >= 10, "and in linlog");
+        assert.deepEqual(Array.from(run(s, { nodeSize: null })), Array.from(run(s, {})), "null is the default");
+        // Barnes-Hut approximates far nodes as points but stays finite
+        assertFinite(run(s, { nodeSize: new Float32Array(s.nodeCount).fill(1), barnesHutOptimize: true }));
+    });
+
+    it("nodeSize rejects a negative or non-finite radius at load()", () => {
+        for (const bad of [-1, Number.NaN, Infinity]) {
+            const nodeSize = new Float32Array(s.nodeCount).fill(1);
+            nodeSize[3] = bad;
+            const sim = new ForceAtlas2Simulation({ nodeSize });
+            assert.throws(() => sim.load(s, seeded(s, 1)), RangeError);
+        }
     });
 
     it("load() seeds non-finite start rows from the seed option, exactly as seedPositions does (2D and 3D)", () => {
@@ -451,7 +506,7 @@ describe("ForceAtlas2Simulation: the force-law variants (design 7.2)", () => {
         for (let i = 0; i < scaled.length; i++) {
             assert.equal(scaled[i], plain[i] * 4, `component ${i}`);
         }
-        // a general scale and centre: the same trajectory up to the f32 rounding of the scene start
+        // a general scale and center: the same trajectory up to the f32 rounding of the scene start
         const positions = seeded(s, 11, 2);
         for (let i = 0; i < positions.length; i++) {
             positions[i] = positions[i] * 100 + [10, -20, 3][i % 3];
@@ -648,7 +703,7 @@ describe("ForceAtlas2Simulation: settlement, pins and drags (design 7.12, 7.17, 
         assert.deepEqual(Array.from(positions.subarray(12, 15)), [11, -18, 9], "written as given, z included");
         sim.step(3);
         assert.deepEqual(Array.from(positions.subarray(12, 15)), [11, -18, 9], "a fixed row is never written back");
-        // a free node dragged far away pulls its neighbours towards it: the internal position took the drag
+        // a free node dragged far away pulls its neighbors towards it: the internal position took the drag
         const before = Float32Array.from(positions);
         maskSet(mask, 4, false);
         sim.setFixed(mask);
@@ -657,7 +712,7 @@ describe("ForceAtlas2Simulation: settlement, pins and drags (design 7.12, 7.17, 
         assert.ok(positions[3 * 3] > before[3 * 3], "node 3 (a neighbour of 4) moved towards +x");
         assert.equal(positions[3 * 4 + 2], 3, "the write-back puts z = center.z in 2D");
         // 3D: the dragged z reaches the layout too -- a free node dragged to z = 50 is written back near 50 after
-        // one iteration (its neighbours pull it back by a few units at most), not near its seeded z in [-1, 1)
+        // one iteration (its neighbors pull it back by a few units at most), not near its seeded z in [-1, 1)
         const p3 = seeded(s, 9, 3);
         const sim3 = new ForceAtlas2Simulation({ dim: 3, settleThreshold: 0 });
         sim3.load(s, p3);

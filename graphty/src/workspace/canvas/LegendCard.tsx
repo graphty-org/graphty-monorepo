@@ -3,7 +3,6 @@ import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session
 import { ColorSwatch, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { nodeModelsOn, selectionWorkspaceOn } from "../features";
 import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { CatalogGlyph } from "../style/ValueField";
@@ -274,7 +273,7 @@ function useScrolls(ref: React.RefObject<HTMLElement | null>): { scrolls: boolea
 }
 
 /**
- * With the node-models experiment on, a model's or a picture's rows named as the Style panel names
+ * A model's or a picture's rows named as the Style panel names
  * them ("police"), never by the element's asset id or the address a layer names, whose query may
  * hold a signed token.
  * @param session - the session.
@@ -317,7 +316,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
     // The element lists the stack bottom first; the card reads top first, the winner first.
     const names = keyNames(session);
     const sections = keySections(
-        nodeModelsOn(session) ? blocks.map((block) => withAssetNames(session, block)) : blocks,
+        blocks.map((block) => withAssetNames(session, block)),
         names,
     );
     return (
@@ -336,7 +335,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
             <Stack gap="xs">
                 {sections.length === 0 ? (
                     <Text size="xs" c="dimmed">
-                        {selectionWorkspaceOn(session) ? "No styles" : NOTHING_KEYED}
+                        {NOTHING_KEYED}
                     </Text>
                 ) : null}
                 {sections.map(({ title, block, entry, merged, scope, covered }) => {

@@ -9,24 +9,20 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { type BendPoint, canonBends } from "../../styles/canon/bends.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
-import {
-    type CytoscapeDialect,
-    cytoscapeElementProperties,
-    cytoscapeWritableProperties,
-} from "../../styles/cytoscape/emit.js";
+import { nonEmpty } from "../../styles/columns.js";
+import { cytoscapeElementProperties, cytoscapeWritableProperties } from "../../styles/cytoscape/emit.js";
+import { exactFromBlock } from "../../styles/cytoscape/exact.js";
 import { normalizeVisualProperties } from "../../styles/cytoscape/lexicon.js";
 import { type CytoscapeStyle, emptyCytoscapeStyle } from "../../styles/cytoscape/mappings.js";
 import {
     cytoscapeBackground,
     type CytoscapeBypass,
-    type CytoscapeElements,
     edgeEnds,
     resolveCytoscapeBypasses,
 } from "../../styles/cytoscape/resolve.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
-import { takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
-import { StyleNotes } from "../../styles/notes.js";
+import { lossOf, StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     EdgeStyleProperty,
@@ -43,7 +39,6 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { lossOf } from "../cx/styles.js";
 import { GRAPHICS_COLUMN, SUBGRAPH_COLUMN, XGMML_ORIGIN_NAMESPACE } from "./constants.js";
 
 type Table = GraphSnapshot["nodes"];
@@ -248,66 +243,6 @@ export function readXgmmlFileStyles(snapshot: GraphSnapshot, context: StyleReadC
 }
 
 /**
- * For a file graphty wrote: where an element's value is what the writer's nearest Cytoscape value of the
- * `graphty.styles` block's value reads back as (a font family list written as its first family, a shape Cytoscape
- * does not have), the block's exact value is the truth, so a re-import gives the same rules. A value that differs
- * from what graphty wrote (another program edited it) stays the truth.
- * @param snapshot - the graph
- * @param target - nodes or edges
- * @param values - the values per property, changed in place
- * @param dialect - the Cytoscape dialect the file's values are written in
- * @param created - the order desktop creates the elements in, when the file is read with it (CX version 1)
- */
-export function exactFromBlock(
-    snapshot: GraphSnapshot,
-    target: StyleTarget,
-    values: Partial<Record<string, StyleColumn>>,
-    dialect: CytoscapeDialect = "desktop",
-    created?: NonNullable<CytoscapeElements["ends"]>["created"],
-): void {
-    const text = snapshot.graph.has(STYLE_BLOCK_NAME) ? plainCell(snapshot.graph.value(STYLE_BLOCK_NAME, 0)) : null;
-    if (typeof text !== "string") {
-        return;
-    }
-    takeFromBlock(snapshot, text, "xgmml", (t, block) => {
-        if (t !== target) {
-            return null;
-        }
-        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        // What each element's exact values are written as, read back the way the file is read.
-        const written = Array.from({ length: n }, (_v, i) =>
-            cytoscapeElementProperties(
-                target,
-                (property) => block(target, property)[i] ?? null,
-                dialect,
-                () => undefined,
-            ),
-        );
-        // Desktop fans the curved edges between the same two nodes by the nodes' size, as the file is read
-        const ends =
-            target === "edge"
-                ? {
-                      ends: {
-                          ...edgeEnds(snapshot, {
-                              width: block("node", "width"),
-                              height: block("node", "height"),
-                              borderWidth: block("node", "borderWidth"),
-                              shape: block("node", "shape"),
-                          }),
-                          ...(created === undefined ? {} : { created }),
-                      },
-                  }
-                : {};
-        const readBack = resolveCytoscapeBypasses(target, written, { notes: new StyleNotes(), ...ends });
-        return {
-            values,
-            properties: Object.keys(values).filter((p) => values[p] !== undefined && readBack[p] !== undefined),
-            readBack: (i) => (property) => readBack[property]?.[i] ?? null,
-        };
-    });
-}
-
-/**
  * Marks the elements a hidden-state column holds true as not visible.
  * @param table - the node or edge table
  * @param column - the bool column, or null
@@ -473,21 +408,6 @@ function collapsedIn(snapshot: GraphSnapshot, group: number, network: unknown): 
     const collapsed =
         atts !== null && typeof atts === "object" ? (atts as Record<string, unknown>)["__groupCollapsed.SUID"] : null;
     return Array.isArray(collapsed) && collapsed.some((v) => String(v) === network);
-}
-
-/**
- * The properties with at least one value.
- * @param values - per property, each element's value
- * @returns the same without all-null properties
- */
-export function nonEmpty(values: Partial<Record<string, StyleColumn>>): Partial<Record<StyleProperty, StyleColumn>> {
-    const out: Partial<Record<string, StyleColumn>> = {};
-    for (const [p, col] of Object.entries(values)) {
-        if (col?.some((v) => v !== null) === true) {
-            out[p] = col;
-        }
-    }
-    return out;
 }
 
 /**

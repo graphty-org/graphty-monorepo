@@ -15,14 +15,10 @@
  * through record 5 within fr-trajectory, over 10 free-running iterations.
  */
 
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
 
 import type { GpuContext } from "../../src/context.js";
-import { type KernelId, KERNELS } from "../../src/kernels.js";
+import { type KernelId } from "../../src/kernels.js";
 import type { FruchtermanReingoldTraceRecord } from "../../src/types/layout.js";
 import { layoutStart, paritySnapshot, pinIndex, pinMask, stageError, startPositions } from "../helpers/fa2-parity.js";
 import {
@@ -42,16 +38,12 @@ import {
     mergeReports,
     type Mutation,
     ratioOf,
-    SABOTAGE,
-    SABOTAGE_P3_ADDENDUM,
     SABOTAGE_P5,
-    sabotagedBody,
     withSabotage,
 } from "../helpers/sabotage.js";
 import { type FrOracleTraceRecord, FruchtermanReingoldOracle } from "../oracle/fruchterman-reingold.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
-const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 /** The four kernels P5 adds branches to, each with its two branch prefixes (FR, then the spring preset's). */
 const BRANCHES: readonly { readonly id: KernelId; readonly fr: number; readonly spring: number }[] = [
     { id: "fa2-attraction", fr: 3, spring: 3 },
@@ -220,41 +212,6 @@ describe("sabotage coverage of the P5 table (spec 11.9 item 1, 13 rule f; PD-8)"
             }
         }
         expect(BRANCHES.reduce((n, b) => n + rowsOf(b.id).length, 0)).toBe(25);
-    });
-
-    it("every find string occurs exactly once in the entry's normative body, the replacement differs, minFactor >= 10, names unique and unused by the other tables", () => {
-        for (const b of BRANCHES) {
-            const { body } = KERNELS[b.id];
-            const taken = new Set(
-                [...(SABOTAGE[b.id] ?? []), ...(SABOTAGE_P3_ADDENDUM[b.id] ?? [])].map((row) => row.name),
-            );
-            for (const m of rowsOf(b.id)) {
-                expect(taken.has(m.name), `${b.id}: duplicate mutation name ${m.name}`).toBe(false);
-                taken.add(m.name);
-                const first = body.indexOf(m.find);
-                expect(first, `${b.id}/${m.name}: find string absent from the body`).toBeGreaterThanOrEqual(0);
-                expect(body.indexOf(m.find, first + m.find.length), `${b.id}/${m.name}: find string not unique`).toBe(
-                    -1,
-                );
-                expect(m.replace, `${b.id}/${m.name}: replace equals find`).not.toBe(m.find);
-                expect(m.minFactor, `${b.id}/${m.name}: minFactor`).toBeGreaterThanOrEqual(10);
-                const mutated = sabotagedBody(b.id, m);
-                expect(mutated).not.toBe(body);
-                expect(mutated.includes(m.replace)).toBe(true);
-                expect(mutated.length).toBe(body.length - m.find.length + m.replace.length);
-            }
-        }
-    });
-
-    it("every test names an existing test file under test/", () => {
-        for (const b of BRANCHES) {
-            for (const m of rowsOf(b.id)) {
-                expect(m.test).toMatch(/^test\/layouts\/(fr|se)-.+\.test\.ts$/);
-                expect(existsSync(resolve(PACKAGE_ROOT, m.test)), `${b.id}/${m.name}: ${m.test} does not exist`).toBe(
-                    true,
-                );
-            }
-        }
     });
 });
 

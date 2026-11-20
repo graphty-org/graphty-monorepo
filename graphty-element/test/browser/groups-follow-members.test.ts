@@ -11,9 +11,7 @@
 import { Ray, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph, operationQueueOf } from "../../src/Graph";
-import type { RenderManager } from "../../src/managers/RenderManager";
-import type { UpdateManager } from "../../src/managers/UpdateManager";
+import { Graph, operationQueueOf, renderManagerOf } from "../../src/Graph";
 import { fileStylesOn } from "../helpers/file-styles-on";
 
 fileStylesOn();
@@ -106,7 +104,7 @@ describe("a group with no stored position follows its members", () => {
     /**
      * Load a file, then step the force layout a counted number of times: the layout never moves a
      * group (its row is where the element last put it after every step), and once the element
-     * places it, the group sits at the centre of its members' box and its box holds every member.
+     * places it, the group sits at the center of its members' box and its box holds every member.
      * @param type - The data source.
      * @param data - The file.
      * @param groups - Each group and the nodes inside it, an inner group's included.
@@ -310,7 +308,7 @@ describe("a group with no stored position follows its members", () => {
         // frame (or under the minimum-work test mode) the load's repaint is still applied in batches.
         graph.getLayoutManager().running = false;
         await graph.waitForStableFrame();
-        const release = (graph as unknown as { renderManager: RenderManager }).renderManager.holdFrames();
+        const release = renderManagerOf(graph).holdFrames();
         try {
             const group = graph.getDataManager().nodes.get("clusterC");
             assert.isDefined(group);
@@ -332,7 +330,7 @@ describe("a group with no stored position follows its members", () => {
             group.update();
             const nearWidth = group.drawnHalfExtents.x;
             camera.position.z = -1000;
-            const updates = (graph as unknown as { updateManager: UpdateManager }).updateManager;
+            const updates = graph.getUpdateManager();
             updates.update(16);
             const after = group.drawnHalfExtents.x;
             group.update();
@@ -410,10 +408,10 @@ describe("a group with no stored position follows its members", () => {
         await graph.getSession().data.import({ type: "json", config: { data: saved } }, { styles: "file" });
         await operationQueueOf(graph).waitForCompletion();
         // Every frame below is drawn by hand, so the live loop cannot draw one in between.
-        const release = (graph as unknown as { renderManager: RenderManager }).renderManager.holdFrames();
+        const release = renderManagerOf(graph).holdFrames();
         try {
             await graph.setLayout("fixed");
-            const updates = (graph as unknown as { updateManager: UpdateManager }).updateManager;
+            const updates = graph.getUpdateManager();
             const layout = graph.getLayoutManager();
             layout.running = false;
             updates.stepFrames(5);

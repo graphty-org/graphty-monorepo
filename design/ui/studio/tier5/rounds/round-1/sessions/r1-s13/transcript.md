@@ -20,7 +20,7 @@ Screenshot 04.png. A menu: Layer, Folder, Hover highlight, Analyze... "Layer" so
 
 ## Step 5
 Command: --step <folder> --click "Layer"
-Screenshot 05.png. "Layer 1" added above PageRank, its name is selected for typing. Right panel: "Which nodes 24 of 24 / All nodes" and Fill. I'll name it "Top five" so I recognise it next quarter.
+Screenshot 05.png. "Layer 1" added above PageRank, its name is selected for typing. Right panel: "Which nodes 24 of 24 / All nodes" and Fill. I'll name it "Top five" so I recognize it next quarter.
 
 ## Step 6
 Command: --step <folder> --type "Top five" --key Enter

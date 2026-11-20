@@ -17,14 +17,14 @@
  * already built around naming one.
  *
  * WHAT THIS FILE PROVES. Registering is the easy half. What is being bought is that a view a
- * customer wrote does everything the element's own views do: that it is listed in the catalogue so
+ * customer wrote does everything the element's own views do: that it is listed in the catalog so
  * a picker can offer it, that naming it moves the camera to the state it computed, that it can
  * answer differently in 2D than in 3D from one registration, that it is refused -- before it is
- * called -- in a drawing mode it did not declare, that it can be animated to and cancelled part
+ * called -- in a drawing mode it did not declare, that it can be animated to and canceled part
  * way, that it can frame a SUBSET rather than the whole graph, that its options arrive resolved
  * against the defaults it declared, that a screenshot can be framed with it, and that every
  * refusal is a `GraphtyError` with a code rather than a string to match on. Each `it` below
- * asserts an OUTCOME -- where the camera ended up, what the catalogue lists, which code came back.
+ * asserts an OUTCOME -- where the camera ended up, what the catalog lists, which code came back.
  * "It did not throw" is not evidence.
  *
  * TWO VIEWS ARE DEFINED HERE, both written the way a customer would write one, importing only
@@ -91,7 +91,7 @@ const seen: CameraViewInput[] = [];
  * Three-dimensional only, and configurable -- how far out to stand, and which corner to stand at.
  * The arithmetic is deliberately trivial so that a failure names a real problem rather than a
  * rounding argument: the viewer sits `padding` times the longest side of the box away along each
- * axis, and looks at the centre.
+ * axis, and looks at the center.
  */
 const CORNER_VIEW: CameraViewRegistration = {
     descriptor: {
@@ -194,7 +194,7 @@ registerCameraView(FLAT_VIEW);
  * rather than from the numbers written at the top of the file, so a change to how the element
  * places a fixed layout does not turn into a camera failure.
  * @param points - Where the elements being framed are.
- * @returns The centre of the box and its longest side.
+ * @returns The center of the box and its longest side.
  */
 function boxAround(points: readonly Coords[]): { center: Coords; maxDimension: number } {
     const xs = points.map((point) => point.x);
@@ -251,8 +251,8 @@ describe("a third party's camera view", () => {
 
     /**
      * The box every node is drawn in, which is what a view framing the whole graph is handed by
-     * default (issue #6804): each node out to its drawn box, not only its centre.
-     * @returns The centre of the graph and its longest side.
+     * default (issue #6804): each node out to its drawn box, not only its center.
+     * @returns The center of the graph and its longest side.
      */
     function graphBox(): { center: Coords; maxDimension: number } {
         return boxAround(
@@ -265,19 +265,21 @@ describe("a third party's camera view", () => {
     }
 
     /**
-     * Where the element has the named nodes, which is the box a scoped call frames.
+     * The box the named nodes are drawn in, which is the box a scoped call frames by default.
      * @param ids - The nodes to measure over.
-     * @returns The centre of that subset and its longest side.
+     * @returns The center of that subset and its longest side.
      */
     function subsetBox(ids: readonly string[]): { center: Coords; maxDimension: number } {
         return boxAround(
-            ids.map((id) => {
+            ids.flatMap((id) => {
                 const node = graph.getNode(id);
                 if (!node) {
                     throw new Error(`the graph has no node "${id}"`);
                 }
 
-                return placedPosition(node);
+                placedPosition(node);
+                const { min, max } = node.framingBounds();
+                return [min, max];
             }),
         );
     }
@@ -658,7 +660,7 @@ describe("a third party's camera view", () => {
             const destination = { x: center.x + offset, y: center.y + offset, z: center.z + offset };
 
             await graph.setCameraPosition({ x: 1, y: 1, z: 1 });
-            // As above: a step is 16 ms of animation, so cancelling after the first one is part way.
+            // As above: a step is 16 ms of animation, so canceling after the first one is part way.
             graph.getScene().useConstantAnimationDeltaTime = true;
 
             const travelling = graph.applyCameraView("acme-corner", { animate: true, duration: 4000 });
@@ -666,8 +668,8 @@ describe("a third party's camera view", () => {
 
             assert.isTrue(graph.cancelCameraAnimation(), "a camera move was under way to cancel");
 
-            // Cancelling a camera move is not a failure: the element stops the animation where it
-            // is and the caller's await finishes. Rejecting would make every cancelled move an
+            // Canceling a camera move is not a failure: the element stops the animation where it
+            // is and the caller's await finishes. Rejecting would make every canceled move an
             // error a consumer had to catch.
             await travelling;
 
@@ -723,9 +725,9 @@ describe("a third party's camera view", () => {
             assert.closeTo(after.position?.z ?? 0, before.position?.z ?? 0, PLACE_TOLERANCE);
         });
 
-        it("cannot have its name taken by a saved snapshot of wherever the camera happens to be", () => {
+        it("cannot have its name taken by a saved snapshot of wherever the camera happens to be", async () => {
             try {
-                graph.saveCameraPreset("acme-corner");
+                await graph.saveCameraPreset("acme-corner");
                 assert.fail("saving over a registered view should have been refused");
             } catch (error) {
                 // A snapshot is a fixed position; a view is a rule that recomputes itself for the
@@ -744,7 +746,7 @@ describe("a third party's camera view", () => {
                is reserved from process start and can never be shadowed this way, so a registered
                view has to be reached first too. */
             await graph.setCameraPosition({ x: 7, y: 7, z: 7 });
-            graph.saveCameraPreset("acme-latecomer");
+            await graph.saveCameraPreset("acme-latecomer");
 
             registerCameraView({
                 descriptor: {
@@ -786,7 +788,7 @@ describe("a third party's camera view", () => {
             // The command used to resolve the matching ids and then frame everything anyway, with
             // a comment admitting it. A view is handed the box rather than measuring one, so
             // scoping the box is the whole of the fix -- and it is a built-in view being scoped
-            // here, which is what makes it parity rather than a favour to plugins.
+            // here, which is what makes it parity rather than a favor to plugins.
             const subset = subsetBox(["n1", "n2"]);
             const whole = graphBox();
             assert.isAbove(

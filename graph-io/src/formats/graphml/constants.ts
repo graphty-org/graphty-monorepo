@@ -93,12 +93,6 @@ export const EXTENSIONS: readonly string[] = Object.freeze([".graphml", ".xml"])
 export const MIME_TYPES: readonly string[] = Object.freeze(["application/graphml+xml", "application/xml", "text/xml"]);
 
 /**
- * The `attr.name` of the node key that carries ids rewritten by `sanitizeIds: "mangle"`.
- * @category Plugin helpers
- */
-export const ORIGINAL_ID_ATTRIBUTE = "graphty:originalId";
-
-/**
  * The node column that keeps original ids when `restoreMangledIds` is off.
  * @category Plugin helpers
  */

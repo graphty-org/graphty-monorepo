@@ -2,9 +2,17 @@ import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
+import type { NodeIdType } from "../config/GraphBehavior";
 import { writableLane } from "../data/lane";
 import type { Node } from "../Node";
 import type { GraphContext } from "./GraphContext";
+
+/** What a cell is decided on: a candidate's id and whether it is selected, and its `Node` if it has one. */
+interface Pick {
+    readonly id: NodeIdType;
+    readonly selected: boolean;
+    readonly node?: Node;
+}
 
 /** How many numbers {@link LabelSampler} compares to tell a settled view from a moving one. */
 const SEEN = 16 + 16 + 5;
@@ -37,6 +45,8 @@ export class LabelSampler {
 
     private readonly candidates = new Set<Node>();
     private winners = new Set<Node>();
+    /** The rows drawn plain past `limits.objectRows` the last pass picked, by id: each has no `Node` until it wins. */
+    private plainWinners = new Set<NodeIdType>();
     private readonly seen = new Float64Array(SEEN);
     private readonly now = new Float64Array(SEEN);
     private readonly transform = new Matrix();
@@ -84,7 +94,7 @@ export class LabelSampler {
             this.pending = true;
         }
 
-        return !this.winners.has(node);
+        return !this.winners.has(node) && !this.plainWinners.has(node.id);
     }
 
     /**
@@ -127,6 +137,7 @@ export class LabelSampler {
         this.pending = false;
         this.candidates.clear();
         this.winners.clear();
+        this.plainWinners.clear();
         this.unbuilt = 0;
         this.unbuiltHidden = 0;
         for (const node of all) {
@@ -188,36 +199,58 @@ export class LabelSampler {
         }
 
         const dataManager = this.context.getDataManager();
-        const best = new Map<number, Node>();
+        const best = new Map<number, Pick>();
+        const offer = (key: number, pick: Pick): void => {
+            const held = best.get(key);
+            if (key >= 0 && (held === undefined || beats(pick, held, degrees))) {
+                best.set(key, pick);
+            }
+        };
         for (const node of this.candidates) {
             if (dataManager.getNode(node.id) !== node) {
                 this.candidates.delete(node);
                 continue;
             }
 
-            const key = node.isDrawn ? this.cellOf(node, width, height, size, rows) : -1;
-            const held = best.get(key);
-            if (key >= 0 && (held === undefined || beats(node, held, degrees))) {
-                best.set(key, node);
-            }
+            const key = node.isDrawn ? this.cellOf(node.drawnPosition, width, height, size, rows) : -1;
+            offer(key, { id: node.id, selected: node.isSelected(), node });
         }
 
-        this.winners = new Set(best.values());
-        this.build();
+        // A row drawn plain past `limits.objectRows` has no `Node`, so no label, until it wins its cell.
+        const plain = this.context.getUpdateManager?.().plainLabelRows() ?? [];
+        const table = this.context.getRowTable?.() ?? null;
+        for (const { row, id } of plain) {
+            const key =
+                table === null || table.isHidden(row)
+                    ? -1
+                    : this.cellOf(table.centerOf(row), width, height, size, rows);
+            offer(key, { id, selected: false });
+        }
+
+        const picks = [...best.values()];
+        this.winners = new Set(picks.flatMap(({ node }) => (node === undefined ? [] : [node])));
+        this.plainWinners = new Set(picks.flatMap(({ id, node }) => (node === undefined ? [id] : [])));
+        this.build(plain);
     }
 
     /**
      * The screen cell a node's center is in, through {@link transform}.
-     * @param node - The node.
+     * @param position - The node's center, as it is drawn.
      * @param width - The canvas width, in render pixels.
      * @param height - The canvas height, in render pixels.
      * @param size - The cell size, in render pixels.
      * @param rows - Cells down the canvas.
      * @returns The cell's key, or -1 when the node is behind the camera or outside the view.
      */
-    private cellOf(node: Node, width: number, height: number, size: number, rows: number): number {
+    private cellOf(
+        position: Readonly<{ x: number; y: number; z: number }>,
+        width: number,
+        height: number,
+        size: number,
+        rows: number,
+    ): number {
         const { m } = this.transform;
-        const { x, y, z } = node.drawnPosition;
+        const { x, y, z } = position;
         // Behind the camera: clip w at or below zero.
         if (x * m[3] + y * m[7] + z * m[11] + m[15] <= 0) {
             return -1;
@@ -231,12 +264,25 @@ export class LabelSampler {
         return Math.floor((((ndc.x + 1) / 2) * width) / size) * rows + Math.floor((((1 - ndc.y) / 2) * height) / size);
     }
 
-    /** Build each winner's label and drop each other candidate's, and count what is left unbuilt. */
-    private build(): void {
-        let unbuilt = 0;
+    /**
+     * Build each winner's label and drop each other candidate's, and count what is left unbuilt.
+     * @param plain - The rows drawn plain that want a label: a winner among them gets its `Node`, whose
+     *     label is built when its paint lands, and the next pass counts it.
+     */
+    private build(plain: readonly { row: number; id: NodeIdType }[]): void {
+        let unbuilt = plain.length;
         let hidden = 0;
+        const table = this.context.getRowTable?.() ?? null;
+        for (const { row, id } of plain) {
+            if (this.plainWinners.has(id)) {
+                this.context.getUpdateManager?.().buildPlainRow(id);
+            } else if (table?.isHidden(row) === true) {
+                hidden++;
+            }
+        }
+
         for (const node of this.candidates) {
-            const winner = this.winners.has(node);
+            const winner = this.winners.has(node) || this.plainWinners.has(node.id);
             if ((node.label !== undefined) !== winner) {
                 node.resampleLabel();
             }
@@ -261,10 +307,9 @@ export class LabelSampler {
  * @param degrees - Each node's edge count, by id.
  * @returns True when `a` takes the cell.
  */
-function beats(a: Node, b: Node, degrees: ReadonlyMap<string | number, number>): boolean {
-    const selected = a.isSelected();
-    if (selected !== b.isSelected()) {
-        return selected;
+function beats(a: Pick, b: Pick, degrees: ReadonlyMap<string | number, number>): boolean {
+    if (a.selected !== b.selected) {
+        return a.selected;
     }
 
     const da = degrees.get(a.id) ?? 0;

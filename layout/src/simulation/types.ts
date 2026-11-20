@@ -2,9 +2,13 @@ import type { F32, GraphSnapshot, NodeId, NodeMask, U32 } from "@graphty/graph-f
 
 /** graph-format design 14.3 CommonLayoutOptions. */
 export interface CommonLayoutOptions {
+    /** Numbers per node: `2` or `3`. Default 2. */
     readonly dim?: 2 | 3 | undefined;
+    /** The size of the layout around its center. Default 1. */
     readonly scale?: number | undefined;
+    /** The center of the layout; missing components are 0. Default the origin. */
     readonly center?: ArrayLike<number> | undefined;
+    /** The seed of the random start positions; the same seed gives the same drawing. `null` or unset draws a random one. */
     readonly seed?: number | null | undefined;
 }
 
@@ -31,9 +35,9 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
     readonly jitterTolerance?: number | undefined;
     /** Strength of the repulsion between every pair of nodes; higher spreads the graph out. Default 2. */
     readonly scalingRatio?: number | undefined;
-    /** Pull toward the centre, which keeps disconnected parts from drifting apart. Default 1. */
+    /** Pull toward the center, which keeps disconnected parts from drifting apart. Default 1. */
     readonly gravity?: number | undefined;
-    /** Gravity that grows with the distance from the centre instead of staying constant. Default false. */
+    /** Gravity that grows with the distance from the center instead of staying constant. Default false. */
     readonly strongGravity?: boolean | undefined;
     /** Divide each node's attraction by its mass, so well-connected nodes move less. Default false. */
     readonly distributedAction?: boolean | undefined;
@@ -41,15 +45,25 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
     readonly linlog?: boolean | undefined;
     /** A per-node mass (n values), the name of a numeric node column, the legacy id-keyed record, or null (role-`mass` column, else outDegree + 1). */
     readonly nodeMass?: F32 | string | Readonly<Record<NodeId, number>> | null | undefined;
-    /** Accepted for compatibility with Gephi's options and not used yet: nodes are treated as points. */
+    /**
+     * Prevent overlapping (Gephi's "Adjust Sizes"): each node's radius (n values, the name of a numeric node column, or
+     * the legacy id-keyed record), in the units of the positions (scene units for a simulation). Distances are then
+     * measured between outlines: overlapping nodes push each other apart hard, touching ones neither attract nor
+     * repel, and each move is capped so the layout stays calm. The Barnes-Hut approximation of far nodes still treats
+     * them as points. null or absent: nodes are points. The GPU simulation refuses a nodeSize.
+     */
     readonly nodeSize?: F32 | string | Readonly<Record<NodeId, number>> | null | undefined;
     /** true: the snapshot's weights; a string: a numeric edge column; false / null: unweighted. */
     readonly weight?: boolean | string | null | undefined;
-    /** Accepted for compatibility with Gephi's options and not used yet. */
+    /**
+     * Dissuade hubs: divide each node's attraction by its degree + 1, so hubs are pushed to the edge of the drawing
+     * and the nodes around them hold the center. Applies on top of `distributedAction`. Default false. The GPU
+     * simulation honors it too.
+     */
     readonly dissuadeHubs?: boolean | undefined;
     /**
      * Approximate the repulsion with a Barnes-Hut tree, as Gephi does: a group of nodes far enough away repels as one
-     * body at its centre of mass. Each iteration then costs O(n log n) instead of O(n^2), so graphs of thousands of
+     * body at its center of mass. Each iteration then costs O(n log n) instead of O(n^2), so graphs of thousands of
      * nodes settle in a fraction of the time, with a slightly different drawing. The CPU simulation reads it; a
      * GPU simulation computes every pair. Default false.
      */
@@ -63,7 +77,7 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
 
 /** Design 9.3 FruchtermanReingoldOptions. */
 export interface FruchtermanReingoldOptions extends CommonLayoutOptions, SimulationOptions {
-    /** The ideal distance between neighbours; null or absent: `1 / sqrt(n)` of the unit square. */
+    /** The ideal distance between neighbors; null or absent: `1 / sqrt(n)` of the unit square. */
     readonly k?: number | null | undefined;
     /** Iteration budget; default 50. */
     readonly iterations?: number | undefined;
@@ -126,6 +140,7 @@ export interface LayoutSimulation {
     load(snapshot: GraphSnapshot, positions: F32): void;
     /** GPU implementations are async (the readback); CPU implementations return void. */
     step(iterations?: number): void | Promise<void>;
+    /** True once the layout has stopped moving (or reached its iteration limit); `step()` then does nothing. */
     readonly settled: boolean;
     /** The same bitmap layout as a bool column with role "fixed". */
     setFixed(mask: NodeMask): void;
@@ -155,16 +170,38 @@ export interface LayoutSimulation {
     setCollision?(collision: CollisionOptions | null): void;
     /** A drag during the simulation: one node's scene-unit position. */
     setPosition(index: number, x: number, y: number, z: number): void;
+    /** Frees what the simulation holds; it cannot be stepped afterwards. */
     dispose(): void;
 }
 
 /** Design 9.3 LayoutAccelerator: what an injected GPU implements; every method optional (only implemented ones exist). */
 export interface LayoutAccelerator {
+    /** What runs the simulations, such as `"webgpu"`; for logs and diagnostics. */
     readonly kind: string;
+    /**
+     * A ForceAtlas2 simulation on the accelerator.
+     * @param options - the ForceAtlas2 options
+     * @returns the simulation, ready for `load()`
+     */
     forceAtlas2?(options?: ForceAtlas2Options): LayoutSimulation;
+    /**
+     * A Fruchterman-Reingold simulation on the accelerator.
+     * @param options - the Fruchterman-Reingold options
+     * @returns the simulation, ready for `load()`
+     */
     fruchtermanReingold?(options?: FruchtermanReingoldOptions): LayoutSimulation;
+    /**
+     * A spring-electrical simulation on the accelerator.
+     * @param options - the spring-electrical options
+     * @returns the simulation, ready for `load()`
+     */
     springElectrical?(options?: SpringElectricalOptions): LayoutSimulation;
+    /**
+     * Frees what the accelerator holds for a snapshot (its uploaded buffers).
+     * @param s - the snapshot whose resources to free
+     */
     release?(s: GraphSnapshot): void;
+    /** Frees everything the accelerator holds; it cannot be used afterwards. */
     dispose?(): void;
 }
 

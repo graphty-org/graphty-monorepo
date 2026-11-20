@@ -86,17 +86,9 @@ describe("session.catalog.validate", () => {
 
 describe("session.catalog.timeAttributes", () => {
     it("lists the columns that read as time, and nothing else", async () => {
-        setDefaultFeatures(["timeline"]);
         const session = await loaded();
         const listed = session.catalog.timeAttributes().map((each) => `${each.kind}:${each.name}`);
         assert.deepEqual(listed, ["node:when"]);
-        session.dispose();
-    });
-
-    it("lists none while the timeline experiment is off", async () => {
-        setDefaultFeatures([]);
-        const session = await loaded();
-        assert.deepEqual(session.catalog.timeAttributes(), []);
         session.dispose();
     });
 });

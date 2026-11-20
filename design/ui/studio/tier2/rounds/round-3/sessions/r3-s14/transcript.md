@@ -12,7 +12,7 @@ beside this file.
 
 01.png: The orange dot picture again. Left: a find box, "Selection", "PageRank 77", "Everything".
 Right: a PageRank panel with Style and Values. A little box top-left says size and color are
-PageRank. Lots of thin grey lines; I can't tell which ones are "strong". Last time I used the find
+PageRank. Lots of thin gray lines; I can't tell which ones are "strong". Last time I used the find
 box, and it says "values", so I'll type 10 there.
 
 ## Step 1 -- type 10 in the find box

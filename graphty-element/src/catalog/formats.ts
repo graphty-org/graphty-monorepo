@@ -1,5 +1,5 @@
 /**
- * @file The format catalogue: the graph file formats the element can read and write.
+ * @file The format catalog: the graph file formats the element can read and write.
  *
  * A descriptor says what a format is called, what its files are called, what a server calls it,
  * whether the element can read it, whether the element can write it, and what can be configured
@@ -9,7 +9,7 @@
  * Every built-in format but CX version 1, Cytoscape sessions and OBO can be written:
  * `exportGraph(format)` hands the graph to the graph-io exporter of that format. A Neo4j
  * admin-import file is written as `csv` with `{ variant: "neo4j" }`, the same name the CSV reader
- * recognises it under; `exportVariants` lists each such kind of file with the options that fix it.
+ * recognizes it under; `exportVariants` lists each such kind of file with the options that fix it.
  * "graphty" is the project file: it can be written but not imported (`session.project.open` reads
  * it). XGMML and CX2 are written with the graph's structure and attribute columns,
  * never its style layers.
@@ -17,6 +17,7 @@
 
 import type { CSVVariant } from "../data/CSVDataSource";
 import { registeredFormatDescriptors } from "./formatRegistry";
+import { withDescriptionIds, withEachDescriptionIds } from "./options";
 import {
     type FormatDescriptor,
     type FormatExportVariant,
@@ -33,7 +34,7 @@ export interface UnservedFormat {
 }
 
 /**
- * The CSV shapes the reader recognises, with the label each one is offered under. Keyed by the
+ * The CSV shapes the reader recognizes, with the label each one is offered under. Keyed by the
  * reader's own union, so a shape that is added or renamed there stops compiling here rather than
  * becoming a choice that selects nothing.
  */
@@ -76,7 +77,7 @@ const csvOptions: readonly OptionDescriptor[] = [
 /**
  * The endpoint options EVERY format accepts, under one pair of names.
  *
- * The catalogue used to publish `edgeSrcIdPath`/`edgeDstIdPath` for JSON, `sourceColumn`/
+ * The catalog used to publish `edgeSrcIdPath`/`edgeDstIdPath` for JSON, `sourceColumn`/
  * `targetColumn` for CSV, and nothing at all for the other five -- three names for one fact, and
  * five formats whose endpoints a reader could not name from a picker even though the element was
  * perfectly able to read them. Unset means the element decides for itself: it reads
@@ -427,7 +428,7 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
  * The options of a Neo4j admin-import export, `csv` with `{ variant: "neo4j" }`: graph-io's Neo4j
  * writer takes its own set, not the plain CSV writer's.
  */
-export const NEO4J_WRITER_OPTIONS: readonly OptionDescriptor[] = [
+export const NEO4J_WRITER_OPTIONS: readonly OptionDescriptor[] = withDescriptionIds("format.csv.write", [
     writerOptions.csv[0],
     {
         name: "part",
@@ -472,7 +473,7 @@ export const NEO4J_WRITER_OPTIONS: readonly OptionDescriptor[] = [
     { name: "idColumn", plainName: "Id Property", technicalName: "idColumn", type: "string", advanced: true },
     ...writerOptions.csv.filter((option) => option.name === "neutraliseFormulas"),
     ...COMMON_WRITER_OPTIONS,
-];
+]);
 
 /**
  * The options `exportGraph` accepts for a built-in format.
@@ -480,7 +481,7 @@ export const NEO4J_WRITER_OPTIONS: readonly OptionDescriptor[] = [
  * @returns Its writer options, the common ones included.
  */
 function writerOptionsOf(id: string): readonly OptionDescriptor[] {
-    return withCommonWriterOptions(writerOptions[id]);
+    return withDescriptionIds(`format.${id}.write`, withCommonWriterOptions(writerOptions[id]));
 }
 
 /**
@@ -531,8 +532,8 @@ const CSV_VARIANTS: readonly FormatExportVariant[] = [
     },
 ];
 
-/** Every file format the element can read or write. */
-export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
+/** As written; {@link FORMAT_DESCRIPTORS} adds each described option's `descriptionId`. */
+const SHIPPED_FORMATS: readonly FormatDescriptor[] = [
     {
         id: "json",
         plainName: "JSON",
@@ -688,9 +689,16 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
     },
 ];
 
+/** Every file format the element can read or write. */
+export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = withEachDescriptionIds(
+    "format",
+    SHIPPED_FORMATS,
+    (format) => format.id,
+);
+
 /**
  * The built-in format names no registered data source reads. Listed rather than omitted, so a
- * consumer learns the gap from the catalogue instead of from a failed load, and a load that names
+ * consumer learns the gap from the catalog instead of from a failed load, and a load that names
  * one fails with the reason given here.
  *
  * "sif" is deprecated (issue #306): it is removed from `FormatId` at the next major release unless

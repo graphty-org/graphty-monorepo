@@ -32,6 +32,7 @@ const DECLARED = [
     "node.color",
     "node.size",
     "node.sizeMode",
+    "node.sizeSpace",
     "node.shape",
     "node.label",
     "node.labelStyle",
@@ -43,9 +44,12 @@ const DECLARED = [
     "node.labelItalic",
     "node.labelWrapWidth",
     "node.labelWrapTrailingSpace",
+    "node.labelWrapSkipEndSpace",
     "node.labelWrapEllipsis",
     "node.labelWrapAnywhere",
     "node.labelWrapSpaceCount",
+    "node.labelMaxLines",
+    "node.labelMaxLinesEllipsis",
     "node.labelRunAlign",
     "node.labelMinScreenSize",
     "node.labelOnTop",
@@ -62,6 +66,10 @@ const DECLARED = [
     "node.labelPadding",
     "node.labelCornerRadius",
     "node.labelLineHeight",
+    "node.labelLineBox",
+    "node.labelBorderAlign",
+    "node.labelBorderStyle",
+    "node.labelBackgroundShape",
     "node.labelOffsetX",
     "node.labelOffsetY",
     "node.labelShiftX",
@@ -209,6 +217,7 @@ const DECLARED = [
     "node.labelFitQuantum",
     "node.labelFitImage",
     "node.labelFitImagePadding",
+    "node.imageAspect",
     "node.gradientColor",
     "node.gradientDirection",
     "node.gradientColors",
@@ -221,10 +230,15 @@ const DECLARED = [
     "node.modelSourceUp",
     "node.modelTurn",
     "node.modelTint",
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+    "node.modelDoubleSided",
     "node.modelFit",
     "node.modelCenter",
     "node.texture",
     "edge.color",
+    "edge.colorFrom",
     "edge.width",
     "edge.minScreenWidth",
     "edge.opacity",
@@ -254,6 +268,7 @@ const DECLARED = [
     "edge.wavePeriod",
     "edge.dashLength",
     "edge.dashGap",
+    "edge.dashArray",
     "edge.curvature",
     "edge.bends",
     "edge.fanSpacing",
@@ -363,9 +378,12 @@ const DECLARED = [
     "edge.labelItalic",
     "edge.labelWrapWidth",
     "edge.labelWrapTrailingSpace",
+    "edge.labelWrapSkipEndSpace",
     "edge.labelWrapEllipsis",
     "edge.labelWrapAnywhere",
     "edge.labelWrapSpaceCount",
+    "edge.labelMaxLines",
+    "edge.labelMaxLinesEllipsis",
     "edge.labelRunAlign",
     "edge.labelMinScreenSize",
     "edge.labelOnTop",
@@ -381,6 +399,10 @@ const DECLARED = [
     "edge.labelPadding",
     "edge.labelCornerRadius",
     "edge.labelLineHeight",
+    "edge.labelLineBox",
+    "edge.labelBorderAlign",
+    "edge.labelBorderStyle",
+    "edge.labelBackgroundShape",
     "edge.labelOffsetX",
     "edge.labelOffsetY",
     "edge.labelShiftX",
@@ -391,12 +413,14 @@ const DECLARED = [
     "node.shaders",
     "edge.shaders",
     "edge.taper",
+    "edge.taperSource",
     "edge.lift",
     "node.xlabel",
     "node.xlabelStyle",
     "node.xlabelLocation",
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
+    "node.xlabelTextAlign",
     "edge.labelTable",
     "edge.xlabel",
     "edge.xlabelStyle",
@@ -429,9 +453,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and five node channels and one hundred and sixty-nine edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 205);
-        assert.strictEqual(channelsFor("edge").length, 169);
+    it("splits into two hundred and nineteen node channels and one hundred and seventy-nine edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 219);
+        assert.strictEqual(channelsFor("edge").length, 179);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -496,7 +520,7 @@ describe("what the element can really draw", () => {
         // than implemented -- the renderer never read either -- so the sentence named two fields
         // a consumer cannot write, which is the same documented lie as a field with no renderer
         // pointing the other way. A caveat is published: a settings panel, a plugin or a model
-        // reading the catalogue sees it.
+        // reading the catalog sees it.
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.labelStyle"].caveat);
         assert.isUndefined(CHANNEL_DESCRIPTORS["edge.labelStyle"].caveat);
         assert.notInclude(LABEL_STYLE_FIELDS as string[], "maxWidth");
@@ -655,6 +679,8 @@ describe("what a style editor needs to draw a row", () => {
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
         "edge.fadeEnd",
+        // Unset, the line is drawn in its own `edge.color`.
+        "edge.colorFrom",
         // Unset, a group reaches its largest member's radius past its members.
         "node.groupPadding",
         "node.groupPaddingRatio",
@@ -677,6 +703,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.xlabelLocation",
         "node.xlabelOffsetX",
         "node.xlabelOffsetY",
+        "node.xlabelTextAlign",
         // Unset, an edge has no external label, and one that has sits beside its middle or where the layout put it.
         "edge.xlabel",
         "edge.xlabelStyle",
@@ -693,7 +720,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.depth",
         // Unset, a border is as wide as `node.borderWidth` says, in the scene's units.
         "node.borderScreenWidth",
-        // Unset, a node is drawn where it always was, with no order among its neighbours.
+        // Unset, a node is drawn where it always was, with no order among its neighbors.
         "node.drawOrder",
         // Unset, a round-rectangle's corners are a quarter of its shorter side.
         "node.cornerRadius",
@@ -729,10 +756,12 @@ describe("what a style editor needs to draw a row", () => {
         "node.stripeFrame",
         // Unset, a node is the size it states rather than its label's.
         "node.labelFit",
-        // Unset, a node is filled flat with its colour.
+        // Unset, a node is filled flat with its color.
         "node.gradientColor",
         // Unset, a node draws its shape and no model.
         "node.model",
+        // Unset, a model is drawn still, in its rest pose.
+        "node.modelAnimation",
         // Unset, a node draws its own color and no picture.
         "node.texture",
         "edge.patternCount",
@@ -742,6 +771,8 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, a dash is three widths long and the elements spread from end to end.
         "edge.dashLength",
         "edge.dashGap",
+        // Unset, a line draws its own elements.
+        "edge.dashArray",
         "node.borderWaveAmplitude",
         "node.borderWavePeriod",
         // Unset, an underlay's or an overlay's shape is the node's own, its corners the node's.
@@ -832,9 +863,12 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelLetterSize",
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",
+        "node.labelWrapSkipEndSpace",
         "node.labelWrapEllipsis",
         "node.labelWrapAnywhere",
         "node.labelWrapSpaceCount",
+        "node.labelMaxLines",
+        "node.labelMaxLinesEllipsis",
         "node.labelRunAlign",
         "node.labelMinScreenSize",
         "node.labelOnTop",
@@ -853,6 +887,10 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelPadding",
         "node.labelCornerRadius",
         "node.labelLineHeight",
+        "node.labelLineBox",
+        "node.labelBorderAlign",
+        "node.labelBorderStyle",
+        "node.labelBackgroundShape",
         "node.labelOffsetX",
         "node.labelOffsetY",
         "node.labelShiftX",
@@ -865,9 +903,12 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelLocation",
         "edge.labelWrapWidth",
         "edge.labelWrapTrailingSpace",
+        "edge.labelWrapSkipEndSpace",
         "edge.labelWrapEllipsis",
         "edge.labelWrapAnywhere",
         "edge.labelWrapSpaceCount",
+        "edge.labelMaxLines",
+        "edge.labelMaxLinesEllipsis",
         "edge.labelRunAlign",
         "edge.labelMinScreenSize",
         "edge.labelOnTop",
@@ -883,6 +924,10 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelPadding",
         "edge.labelCornerRadius",
         "edge.labelLineHeight",
+        "edge.labelLineBox",
+        "edge.labelBorderAlign",
+        "edge.labelBorderStyle",
+        "edge.labelBackgroundShape",
         "edge.labelOffsetX",
         "edge.labelOffsetY",
         "edge.labelShiftX",
@@ -963,15 +1008,14 @@ describe("what a style editor needs to draw a row", () => {
         );
     });
 
-    it("says in a sentence why a channel cannot be set, exactly when it cannot", () => {
+    it("says with a code why a channel cannot be set, exactly when it cannot", () => {
         for (const channel of CHANNELS) {
-            const { renderable, unsupportedReason, unsupported } = CHANNEL_DESCRIPTORS[channel];
+            const { renderable, unsupported } = CHANNEL_DESCRIPTORS[channel];
 
-            assert.strictEqual(unsupportedReason !== undefined, !renderable, channel);
+            assert.notProperty(CHANNEL_DESCRIPTORS[channel], "unsupportedReason", channel);
             assert.strictEqual(unsupported !== undefined, !renderable, channel);
         }
 
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupportedReason, "The element draws no marker yet");
         assert.deepEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupported, { code: "channel.not-drawn", params: {} });
     });
 });

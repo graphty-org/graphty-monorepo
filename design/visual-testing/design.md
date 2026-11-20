@@ -1,6 +1,6 @@
 # Visual review: design, roadmap and plan
 
-> The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
+> Merging today: every change reaches master through its own pull request with auto-merge on (CLAUDE.md, "Shipping a change"; .github/workflows/README.md). The Mergify merge queue and the `hold` label were retired on 2026-10-18, and the `golden` integration branch that briefly replaced per-change pull requests was retired in turn by the channels pipeline (design/ci/channels-pipeline.md). Read the merge-queue and `golden` parts below as history.
 
 Date: 2026-09-27
 
@@ -46,6 +46,8 @@ measurements), `feature-analysis.md` (every candidate feature with its tier), `r
 
 ## 1a. Milestone 1 as built
 
+> A snapshot from 2026-09-27, kept as history. Today: Chromatic was removed from every package and from CI on 2026-10-11 (commit 31665f3000), tools/chromatic.sh and tools/chromatic-api.sh with it, and a `chromatic` label on a pull request no longer runs anything. visual-review is live: it captures the seven projects listed in `visual-review.config.json` (algorithms, compact-mantine, cytoscape-extensions, graph-io-fidelity, graphty, graphty-element, layout) from `.github/workflows/ci.yml`, `story-slices.yml` and `visual-seed.yml`; how to use it is in `visual-review/README.md`. `visual-review/projects.json` was replaced by `visual-review.config.json` on 2026-09-29 (commit c2cfdec255). `.husky/pre-push` has no visual step (it runs the Git LFS upload, the secret scan and the committed-images check).
+
 What is in the repository today, where it differs from the target above. `plan.md`, "Decisions
 for this milestone", gives the reason for each.
 
@@ -61,8 +63,8 @@ for this milestone", gives the reason for each.
   or `excluded` (so every story without an approved baseline blocks; section 11a), or is missing
   or unfinished. Both the list of
   projects and "seeded" are read from the base branch (the directories under `visual-baselines/`
-  holding a PNG), so neither deleting a project's baselines nor editing
-  `visual-review/projects.json` in the pull request switches the gate off; the newest attempt is used, so "Re-run failed jobs" cannot skip it; a `results.json` that
+  holding a PNG), so neither deleting a project's baselines nor editing the project list
+  (then `visual-review/projects.json`, now `visual-review.config.json`) in the pull request switches the gate off; the newest attempt is used, so "Re-run failed jobs" cannot skip it; a `results.json` that
   fails validation counts as missing. The owner's accept commit turns the items `unchanged`,
   which clears it.
 - **The gate also checks review records.** Every baseline PNG, and every settings file that
@@ -119,7 +121,7 @@ for this milestone", gives the reason for each.
   dependency-free rule matters once `trusted/` verifies approvals (milestone 3).
 - **No pinned fonts.** Captures use the CI runner's system fonts. The clock starts at a fixed
   instant and keeps running. Pinned fonts arrive in milestone 2 as one planned re-baseline.
-- **No pre-push visual step.** `tools/prepush.sh` runs only the visual-review package's own tests.
+- **No pre-push visual step.** `tools/prepush.sh` (removed 2026-11-02) ran only the visual-review package's own tests.
   The record check and the opt-in local capture arrive in milestone 2.
 - **Every pull request captures both projects.** Affected-only planning is milestone 2.
 - **Story parameters are read on every capture.** A story's `parameters.chromatic`
@@ -151,7 +153,7 @@ for this milestone", gives the reason for each.
   8 and 9); after 30 days a run's captures can no longer be reviewed or re-verified.
 - **A local capture hashes only `git diff HEAD --binary`.** Untracked files are not part of the
   hash (section 9), so two local runs that differ only in an untracked file carry the same
-  `diff` value. Local captures cannot be accepted, so this affects labelling only.
+  `diff` value. Local captures cannot be accepted, so this affects labeling only.
 - **Tests.** The unit tests cover `trusted/lib/`, `trusted/gate.mjs` and `capture/capture.mjs`
   (against a stand-in Storybook) under the 80/75 thresholds. The review page is driven in Chromium
   by `test/page.test.mjs`, but browser code is not counted in coverage, and `trusted/cli.mjs` is
@@ -223,7 +225,7 @@ for this milestone", gives the reason for each.
   would otherwise be out of sight. Views: side by side; flash, which alternates the two images
   themselves at about 1.5 Hz, and hold Space to flash; highlight; and spotlight, the new image
   dimmed to 65/255 except around the changed pixels grown by 10 image pixels (Chromatic's focus
-  mask). The client-side crop to a background-coloured box is gone.
+  mask). The client-side crop to a background-colored box is gone.
 - **No emoji font, a warning.** Capture asks fontconfig for a font holding U+1F680 and, without
   one, logs that every emoji will be captured as an empty box, and records
   `environment.emojiFont: false`. The development server has none; the pinned fonts (section 6,
@@ -297,7 +299,7 @@ The owner's guide to reviewing is `visual-review/README.md`.
 
 The owner's list, the Chromatic features the repository actually uses, and features from other
 systems (Argos, Percy, Happo, Applitools, reg-cli, Playwright, BackstopJS, Visual Regression
-Tracker, GitHub) are analysed row by row in `feature-analysis.md`. This table is the result, with
+Tracker, GitHub) are analyzed row by row in `feature-analysis.md`. This table is the result, with
 the changes from the owner's tiers explained.
 
 | Feature                                                                                                                                           | Owner             | Recommended                                                | When                                                                                                                 | Why the change, if any                                                                                                             |
@@ -318,7 +320,7 @@ the changes from the owner's tiers explained.
 | Exclude a flaky story with a reason                                                                                                               | --                | **P0**                                                     | today                                                                                                                | One flaky story among about 1,000 would otherwise block the seed                                                                   |
 | Links to baseline and new live Storybooks                                                                                                         | P1                | P1                                                         | within days                                                                                                          |                                                                                                                                    |
 | Comments Claude can pick up                                                                                                                       | P2                | P2                                                         | later                                                                                                                | Reject reasons cover much of it, as untrusted data (section 8)                                                                     |
-| Optimise time, CPU, storage                                                                                                                       | P2                | P2, except hash-before-pixels at P0                        | today (hashing)                                                                                                      | Hashing all 1,198 captures takes 30 ms                                                                                             |
+| Optimize time, CPU, storage                                                                                                                       | P2                | P2, except hash-before-pixels at P0                        | today (hashing)                                                                                                      | Hashing all 1,198 captures takes 30 ms                                                                                             |
 | MCP server                                                                                                                                        | P2                | P2; the machine-readable `results.json` it reads is **P0** | later                                                                                                                | Everything reads that file: the UI, CI, pre-push                                                                                   |
 | Other browsers                                                                                                                                    | P2                | P2                                                         | later                                                                                                                | Start with compact-mantine on WebKit, which has no canvas                                                                          |
 | Owner-only approval an agent cannot forge (no vendor has this)                                                                                    | --                | **P0**                                                     | unproven records today, passkey-approved and enforced this week                                                      | Agents here hold the owner's GitHub token and signing key                                                                          |
@@ -383,7 +385,7 @@ what runs, so the owner can read every tool change as an ordinary diff.
 ```
 visual-review/                        @graphty/visual-review, "private": true, bin "visual-review"
   package.json, project.json          Nx targets: test, lint (no build); out of nx release
-  projects.json                       the project registry and plan rules (section 12)
+  projects.json                       the project registry and plan rules (section 12; now visual-review.config.json)
   passkeys.json                       the owner's registered passkeys, the only keys that count (section 8)
   fonts/, fonts/fonts.conf            the pinned font set used by every capture (section 6)
   trusted/                            node built-ins, git and gh only; no dependencies
@@ -568,7 +570,7 @@ Two more measurements run in parallel and never block a seed:
 6. **Two comparisons.** Each item is compared with the baseline in the merged tree (the gate: is
    everything accepted?) and with the baseline on the base branch tip (the review: what does this
    pull request change about master?). The review screens use the second; an item that equals
-   master's image is labelled "back to master, nothing to approve".
+   master's image is labeled "back to master, nothing to approve".
 7. **`results.json`** has one entry per story and mode: both statuses, old and new SHA-256, both
    sizes, the changed-pixel count and bounding box, the recapture count, and the console output of
    a failure; plus the tool version, the built merge commit and its parents, the merged tree, the
@@ -620,9 +622,9 @@ downloads nothing from LFS either: the baselines a capture was compared with tra
 capture artifact.
 
 **LFS storage and bandwidth, against the Team plan's 250 GiB of each a month.** GitHub's current
-documentation gives the Team plan, which this organisation is on, 250 GiB of LFS storage and 250
+documentation gives the Team plan, which this organization is on, 250 GiB of LFS storage and 250
 GiB of bandwidth a month (Free and Pro get 10 GiB); Actions downloads count against bandwidth. The
-organisation's $0 LFS budget blocks LFS for the rest of the month rather than billing, so the
+organization's $0 LFS budget blocks LFS for the rest of the month rather than billing, so the
 failure mode is blocked downloads, never a bill.
 
 | Item                         | Estimate                                                                                                                                                                                                                                                                 |
@@ -632,7 +634,7 @@ failure mode is blocked downloads, never a bill.
 | Bandwidth, CI, no cache hit  | The worst case: every `visual` job downloads its whole project. About 4,500 runs a month (about 50 merges and 100 pull request pushes a day) x 16 MB = about 70 GiB a month, about 100 GiB with all five projects. Still under 250 GiB; a second browser would double it |
 | Bandwidth, people            | A fresh clone or `git lfs pull` of the current baselines is 16 to 24 MB; the development server's worktrees share one LFS object store, so each image is downloaded there once                                                                                           |
 
-The weekly run planned in section 11 is to report the month's LFS bandwidth from the organisation's billing
+The weekly run planned in section 11 is to report the month's LFS bandwidth from the organization's billing
 usage and opens an issue above 100 GiB, well before the block at 250 GiB.
 
 **GitHub's own image diff.** Whether the pull request Files tab renders an LFS image side by side
@@ -960,7 +962,7 @@ build, so the owner can read it (section 18).
       passes to the preview iframe, so the live story renders as captured; a "live behaviour"
       toggle removes it. One link is the pull request's Storybook, served by the development
       server's content server on another origin (never from the review page's origin); the other
-      is `https://graphty.app/storybook/<path>/?path=/story/<id>`, labelled "current master (may be
+      is `https://graphty.app/storybook/<path>/?path=/story/<id>`, labeled "current master (may be
       newer than this comparison)". A link to the pull request's Files tab for this image.
 5. **Finish.** Counts per project, "N accepted without being opened" and the rejects. From
    enforcement it asks for Face ID (section 8); before enforcement it saves an unproven record.
@@ -1000,7 +1002,7 @@ until it lands, capture and the gate run in `ci.yml` (section 1a).
   `github.head_ref` is empty. `visual.yml` asks `gh api repos/{o}/{r}/pulls?head=<owner>:<branch>&state=open`
   from `head_repository` and `head_branch`, and requires the pull request's `head.sha` to equal
   the run's `head_sha`. Concurrency is keyed on `head_repository.full_name` plus `head_branch`,
-  with `cancel-in-progress` for pull request runs only; master runs are never cancelled.
+  with `cancel-in-progress` for pull request runs only; master runs are never canceled.
 - **Capture target.** `refs/pull/N/merge` moves whenever master moves, so it is never re-read.
   `build.json` claims the merge commit the Storybook was built from and its parents. `visual.yml`
   treats it as untrusted: the second parent must equal `head_sha` and the first must be on the
@@ -1019,7 +1021,7 @@ until it lands, capture and the gate run in `ci.yml` (section 1a).
   three `workflow_run` levels, so nothing may chain after release.yml.
 - **No "require branches to be up to date".** The setting is ruleset-wide. Master took 52 merges
   on 2026-09-26 and 46 on 2026-09-27 with 13 pull requests open, and a CI run takes 17 to 38
-  minutes. Strict mode would serialise merges at one per CI-plus-capture cycle, at most about 30 a
+  minutes. Strict mode would serialize merges at one per CI-plus-capture cycle, at most about 30 a
   day, and rerun 21 shards for each stale pull request. The stale-green race is left to the
   master drift capture. A narrower guard, within days: when a master push changes
   `visual-baselines/<project>/`, `visual-audit.yml` sets "Visual review" to pending ("base
@@ -1035,7 +1037,7 @@ until it lands, capture and the gate run in `ci.yml` (section 1a).
   is not yet measured, and graphty-element splits into two shards if it passes about 20 minutes. Because `visual.yml` follows
   `storybooks.yml` instead of the whole test suite, push to reviewable is expected at about 10 to
   15 minutes (install and build, then capture), against 30 or more if it waited for CI; it is
-  measured on the tooling pull request and recorded here. ci.yml notes an organisation limit of
+  measured on the tooling pull request and recorded here. ci.yml notes an organization limit of
   about 60 concurrent jobs; storybooks.yml adds one and `visual.yml` up to six.
 
 ## 11a. Seeding one story at a time, and iterating on a story
@@ -1064,7 +1066,7 @@ images a person already reviewed (for graphty: one on which every Chromatic job 
 
 **A round.** The owner opens master in the page (`serve --master-run <run id>`), accepts the
 stories that look right, rejects the ones that do not with a reason, and leaves the rest. Finish
-pushes the accepts as a seed pull request and opens one issue holding every reject, labelled
+pushes the accepts as a seed pull request and opens one issue holding every reject, labeled
 `bug`, ending in the same `<!-- visual-review-rejects ... -->` JSON block a pull request reject
 comment has (project, file, captured hash, reason), so an agent can pick it up. The reasons are
 untrusted data from the agent's point of view (section 8), as on pull requests.
@@ -1117,6 +1119,11 @@ and decisions not yet finished are kept for every image whose hash did not chang
 
 ## 12. Multiple projects and affected-only runs
 
+> As designed on 2026-09-27. Today the registry is the `projects` map of `visual-review.config.json`
+> (seven projects: algorithms, compact-mantine, cytoscape-extensions, graph-io-fidelity, graphty,
+> graphty-element, layout), and capture runs from `ci.yml`, `story-slices.yml` and `visual-seed.yml`, not
+> `visual.yml`; `visual-review/README.md` describes the current behavior.
+
 `visual-review/projects.json` is the registry. Each entry names the project id, the package
 directory, the Storybook artifact name (`build-storybook-element` and `build-storybook-app` for
 graphty-element and graphty, `build-storybook-<project>` for the others), the modes and their
@@ -1158,6 +1165,9 @@ story almost free.
 
 ## 13. The pre-push hook
 
+> The planned steps below were never added, and `tools/prepush.sh` was removed on 2026-11-02 (commit
+> d99cdf5060). `.husky/pre-push` runs the Git LFS upload, the secret scan and the committed-images check.
+
 **Built: the Git LFS upload.** `.husky/pre-push` first runs `tools/lfs-pre-push.sh`, which hands
 git's ref lines to `git lfs pre-push`, so the images a push points at reach GitHub before the
 commits do. `git lfs install` cannot add that hook itself, because the repository's hooks path is
@@ -1184,7 +1194,7 @@ visual-review/trusted/cli.mjs verify --local` over `merge-base..HEAD`, run whene
 1. **Today, the owner:** switch the graphty-org Chromatic account to the Free plan, confirm in
    Chromatic's billing settings or with their support that the Free plan stops at its 5,000
    snapshots rather than billing, and record where that was confirmed. Remove the payment method,
-   which caps spend whatever the plan does. Chromatic already runs only on pull requests labelled
+   which caps spend whatever the plan does. Chromatic already runs only on pull requests labeled
    `chromatic`. Finish or abandon the open Chromatic reviews on #364, #365, #409, #463, #490 and
    #511.
 2. **Seed** from master's capture, one story at a time (section 11a): the owner accepts the
@@ -1281,7 +1291,7 @@ administrator rights; a separate signing origin agents cannot change.
 ### Later (P2)
 
 - **Notes Claude can act on:** a note pinned to a story or region, stored as a pull request comment
-  block and read by `visual-review notes --pr N`, labelled as untrusted data.
+  block and read by `visual-review notes --pr N`, labeled as untrusted data.
 - **MCP server:** `list_reviews`, `get_changes`, `get_images` (as MCP image content), `get_notes`.
   Deliberately no accept tool.
 - **A hosted read-only review site** on GitHub Pages, if reviewing away from both computers is ever
@@ -1303,11 +1313,11 @@ come in their own pull requests, which the owner reads in full before approving.
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Actions minutes on standard runners, public repository | $0                                                                                                                                                                                                                                                                                                                                                            |
 | Records and settings files in plain git                | $0                                                                                                                                                                                                                                                                                                                                                            |
-| Actions artifacts and cache                            | $0 expected, not confirmed. GitHub's billing page says Actions minutes are free for public repositories but states artifact storage quotas only for private ones. The organisation's $0 budget blocks rather than bills. Results are kept 90 days, images 30, Storybooks 7 on pull requests; check the organisation's storage in billing after the first week |
+| Actions artifacts and cache                            | $0 expected, not confirmed. GitHub's billing page says Actions minutes are free for public repositories but states artifact storage quotas only for private ones. The organization's $0 budget blocks rather than bills. Results are kept 90 days, images 30, Storybooks 7 on pull requests; check the organization's storage in billing after the first week |
 | Git LFS                                                | $0: about 0.2 GiB stored and 1 to 5 GiB (at worst about 100 GiB) downloaded a month, against the Team plan's 250 GiB of each; the $0 budget blocks rather than bills (section 7)                                                                                                                                                                              |
 | Hosted review site                                     | not used                                                                                                                                                                                                                                                                                                                                                      |
 | Passkey in iCloud Keychain                             | $0                                                                                                                                                                                                                                                                                                                                                            |
-| Chromatic until removal                                | $0 on the Free plan, once its stop-at-limit behaviour is confirmed and the payment method removed                                                                                                                                                                                                                                                             |
+| Chromatic until removal                                | $0 on the Free plan, once its stop-at-limit behavior is confirmed and the payment method removed                                                                                                                                                                                                                                                              |
 | **Total**                                              | **$0 a month**                                                                                                                                                                                                                                                                                                                                                |
 
 The only way past $200 a month is to switch a paid Chromatic plan back on. If the self-hosted
@@ -1362,7 +1372,7 @@ a month at opt-in volume, fed by the same capture directory.
   build. A second Mantine app for the development server would duplicate every review feature, so
   both servers use the one plain page.
 - **"Require branches to be up to date" and the merge queue.** At about 50 merges a day either
-  serialises merges below today's pace; the merge queue would also need a `merge_group` branch in
+  serializes merges below today's pace; the merge queue would also need a `merge_group` branch in
   every workflow. Drift detection covers the combined-change gap after the fact.
 - **Plain git for baselines, moving to LFS later.** Image history in plain git is permanent: 110 to
   210 MB in year one before more browsers, in every clone. Moving later is `git lfs migrate

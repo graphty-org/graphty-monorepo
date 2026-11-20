@@ -10,24 +10,18 @@
  * `test/browser/doors.test.ts`.
  */
 
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { COMMANDS } from "../../../commands";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { type Door, DOOR_ROOTS, GESTURE_DOORS } from "../../../src/session/commands/doors";
 import { createElementSession, dispatcherOf } from "../../../src/session/GraphSession";
 import type { ElementSession } from "../../../src/session/types";
 import { callOf, checkDispatches, dispatchesOf } from "./door-harness";
 
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
-
 /** The document the `LoadDraft` row of `doors.ts` prepares. */
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
 
-/** Every row, labelled `Root.member`; a whole-type root is one row labelled `Root.*`. */
+/** Every row, labeled `Root.member`; a whole-type root is one row labeled `Root.*`. */
 function rows(): [string, Door][] {
     return DOOR_ROOTS.flatMap((root) =>
         root.whole === undefined
@@ -52,11 +46,12 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     GraphSession: (session) => session,
     ElementSession: (session) => session,
     SessionHistory: (session) => session.history,
+    AssetsApi: (session) => session.assets,
     SessionDataApi: (session) => session.data,
     SessionGraphStore: (session) => session.data.store,
     RunsApi: (session) => session.runs,
     LoadDraft: (session) => session.data.prepare({ type: "json", config: { data: TINY_JSON } }),
-    // Cancelled, so `rerun` has something to run again.
+    // Canceled, so `rerun` has something to run again.
     Run: (session) => {
         const run = session.runs.start("degree");
         run.then(undefined, () => undefined);
@@ -99,11 +94,26 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SelectionApi: selectOne,
     SelectionOwner: selectOne,
     NotesApi: (session) => session.notes,
+    GroupsApi: async (session) => {
+        await session.data.addNodes([{ id: "g1", team: "door" }, { id: "g2", team: "door" }, { id: "g3" }]);
+        await session.data.addEdges([
+            { source: "g1", target: "g2" },
+            { source: "g2", target: "g3" },
+        ]);
+        return session.groups;
+    },
     ProjectApi: (session) => session.project,
-    SessionViews: (session) => session.views,
+    // After a change, so `setStartingCameras` dispatches its step instead of writing the baseline.
+    SessionViews: async (session) => {
+        await session.views.save([{ name: "door seed", camera: { zoom: 1 } }]);
+        return session.views;
+    },
+    SessionTours: (session) => session.tours,
+    SessionAnnotations: (session) => session.annotations,
     SessionLayout: (session) => session.layout,
     SessionConfig: (session) => session.config,
     VisibilityApi: (session) => session.visibility,
+    FilterDraft: (session) => session.visibility.draft({ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }),
     TimeApi: (session) => session.time,
     SessionVisibilityApi: (session) => session.visibility,
     StylesApi: (session) => session.styles,

@@ -915,7 +915,7 @@ export function randomRegularGraph(options: RandomRegularOptions): SampleGraph {
  * Push the edges (u, v), u < v, of a d-regular adjacency table in lexicographic order.
  * @param n - the node count
  * @param d - the degree
- * @param adj - row u holds u's d neighbours (sorted in place)
+ * @param adj - row u holds u's d neighbors (sorted in place)
  * @param out - receives the edges
  */
 function pushRegularEdges(n: number, d: number, adj: Uint32Array, out: EdgeBuffer): void {

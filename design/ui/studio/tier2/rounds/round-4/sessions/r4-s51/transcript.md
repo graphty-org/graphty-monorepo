@@ -89,7 +89,7 @@ leave it. Load.
 Drawn, in under a second. Title "people and messages", "From 2 files". Values > Overview: Nodes
 13, Edges 23, Directed, Loaded weight emails (closer), Components 1. Counts match what the import
 screen promised. But: no names on the dots, so I can't tell Alma from p13 by eye, and every line
-is the same thin grey -- the 18-email tie looks like the 2-email one. Before I believe "every
+is the same thin gray -- the 18-email tie looks like the 2-email one. Before I believe "every
 person arrived" I want the list. The grid icon in the bottom toolbar looks like a table.
 
 ### 14 -- Table
@@ -152,7 +152,7 @@ word.
   none, each edge counts 1"). I had to find "Role of emails", set it to Weight, then choose
   Closer. The wording there was clear ("such as more emails between two people"), but a new user
   would load without doing it and get every tie counted the same.
-- **The drawing doesn't show the weight or the names.** Every line is the same thin grey, so an
+- **The drawing doesn't show the weight or the names.** Every line is the same thin gray, so an
   18-email tie looks like a 2-email tie, and no node has a label. Before I can show this to
   anyone I still have to style it (names, line thickness by emails, color by team).
 - **The edge table shows p-codes, not names.** From and To show only ids, so to read who emails

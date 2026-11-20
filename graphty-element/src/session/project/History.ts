@@ -26,7 +26,7 @@
 
 import type { NodeId } from "../../catalog/types";
 import { POSITION_COMPONENTS } from "../../data/positions";
-import type { CodedFact } from "../shared";
+import type { CodedFact, CodedFactParam } from "../shared";
 import type { HistoryCode } from "../types";
 import { type ArrangementOp, captureBytes, coordsIn, mergeRowPatches, type RowPatch } from "./arrangement";
 import type { ArrangementCapture } from "./state";
@@ -43,7 +43,7 @@ const DEFAULT_COALESCE_MS = 1000;
  * merge without end and one undo would take back a minute of deliberate work.
  */
 const COALESCE_SPAN_MS = 5000;
-/** Eviction runs down to this share of both limits, so its work is amortised over many records. */
+/** Eviction runs down to this share of both limits, so its work is amortized over many records. */
 const EVICT_TO = 0.9;
 
 /** What a charge pass has counted: something counted once is counted where it is first seen. */
@@ -127,7 +127,6 @@ export interface OpenArrangement {
 /** A step as the history publishes it. Frozen. */
 interface HistoryStepView {
     readonly id: string;
-    readonly label: string;
     readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the last record or merge. */
     readonly at: string;
@@ -141,7 +140,6 @@ interface HistoryStepView {
 /** A step as the history keeps it. */
 interface Step<P> {
     readonly id: string;
-    label: string;
     fact: CodedFact<HistoryCode>;
     readonly key: string | null;
     patch: P;
@@ -326,9 +324,7 @@ export class History<P> {
             time - top.lastMerge < this.coalesceMs &&
             time - top.started < COALESCE_SPAN_MS
         ) {
-            // The step now ends where the newest edit left it, so it is named for that edit, and it
-            // still names every channel it changed: undo reverts them all.
-            top.label = input.label;
+            // The step's fact now names every channel it changed: undo reverts them all.
             top.fact = mergedFact(top.fact, factOf(input));
             this.mergeInto(top, input, time, at);
             return top.id;
@@ -339,7 +335,6 @@ export class History<P> {
         const id = `step-${this.nextId++}`;
         this.entries.push({
             id,
-            label: input.label,
             fact: factOf(input),
             key,
             patch: input.patch,
@@ -1167,7 +1162,6 @@ export class History<P> {
     private view(step: Step<P>, index: number): HistoryStepView {
         step.view ??= Object.freeze({
             id: step.id,
-            label: step.label,
             fact: step.fact,
             at: step.at,
             ops: Object.freeze([...step.ops]),
@@ -1247,7 +1241,14 @@ function factOf(input: RecordInput<unknown>): CodedFact<HistoryCode> {
 function mergedFact(older: CodedFact<HistoryCode>, newer: CodedFact<HistoryCode>): CodedFact<HistoryCode> {
     const before = older.params.channels;
     const after = newer.params.channels;
-    if (older.code !== newer.code || !Array.isArray(before) || !Array.isArray(after)) {
+    // A param that is an object is its list (CodedFactParam); Array.isArray would narrow it to any[].
+    if (
+        older.code !== newer.code ||
+        typeof before !== "object" ||
+        before === null ||
+        typeof after !== "object" ||
+        after === null
+    ) {
         return newer;
     }
 
@@ -1265,9 +1266,9 @@ export function frozenFact(fact: CodedFact<HistoryCode>): CodedFact<HistoryCode>
     }
 
     const params = Object.fromEntries(
-        Object.entries(fact.params).map(([name, value]) => [
+        Object.entries(fact.params).map(([name, value]): [string, CodedFactParam | undefined] => [
             name,
-            Array.isArray(value) ? Object.freeze([...value]) : value,
+            typeof value === "object" && value !== null ? Object.freeze([...value]) : value,
         ]),
     );
     return Object.freeze({ code: fact.code, params: Object.freeze(params) });

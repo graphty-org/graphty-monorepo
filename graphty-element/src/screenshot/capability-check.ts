@@ -1,6 +1,7 @@
 import { GraphtyError, type GraphtyErrorCode } from "../errors";
 import type { CodedFact } from "../session/shared.js";
 import { BROWSER_LIMITS, calculateDimensions } from "./dimensions.js";
+import { resolvePreset } from "./presets.js";
 import type { ScreenshotOptions } from "./types.js";
 
 /**
@@ -22,13 +23,23 @@ export interface CapabilityCheck {
     /**
      * Why the capture cannot be made, when it cannot: the `GraphtyError` code `captureScreenshot`
      * would throw with the same options, and that error's details as `params` (for example
-     * `E_TOO_LARGE` with `{ of: "pixels", width, height, count, limit }`, or `E_UNSUPPORTED` with
-     * `{ reason: "format", format }`).
+     * `E_TOO_LARGE` with `{ of: "pixels", width, height, count, limit }`, `E_UNSUPPORTED` with
+     * `{ reason: "format", format }`, or `E_BAD_COMMAND` with
+     * `{ fields: ["transparentBackground", "format"], format }` for a transparent background in a
+     * format other than PNG and WebP).
      */
     reason?: CodedFact<GraphtyErrorCode>;
     /** What may go wrong with a capture that can be made; absent when nothing may. */
     warnings?: CodedFact<ScreenshotWarningCode>[];
     estimatedMemoryMB: number;
+    /**
+     * The width of the image the capture would produce, in pixels: the canvas's device pixels
+     * after `multiplier`, `width`, `height` and `preset`. Absent when the size itself is not
+     * possible (`reason` says why).
+     */
+    width?: number;
+    /** The height of the image the capture would produce, in pixels; absent with `width`. */
+    height?: number;
 }
 
 /**
@@ -59,9 +70,12 @@ export async function canCaptureScreenshot(
     options: ScreenshotOptions,
 ): Promise<CapabilityCheck> {
     let dims;
+    let finalOptions = options;
 
     try {
-        dims = calculateDimensions(canvas, options);
+        // A preset sets the size and format the capture uses, so the check reads them the same way.
+        finalOptions = options.preset ? resolvePreset(options.preset, options) : options;
+        dims = calculateDimensions(canvas, finalOptions);
     } catch (error) {
         return { supported: false, reason: refusalOf(error), estimatedMemoryMB: 0 };
     }
@@ -69,11 +83,30 @@ export async function canCaptureScreenshot(
     const pixels = dims.width * dims.height;
     const memoryMB = (pixels * 4) / (1024 * 1024);
 
-    if (options.format === "webp" && !(await supportsWebP())) {
+    // The same rule captureScreenshot applies: only PNG and WebP keep a transparent background.
+    const format = finalOptions.format ?? "png";
+    if (
+        finalOptions.transparentBackground === true &&
+        finalOptions.backgroundColor === undefined &&
+        format !== "png" &&
+        format !== "webp"
+    ) {
+        return {
+            supported: false,
+            reason: { code: "E_BAD_COMMAND", params: { fields: ["transparentBackground", "format"], format } },
+            estimatedMemoryMB: memoryMB,
+            width: dims.width,
+            height: dims.height,
+        };
+    }
+
+    if (finalOptions.format === "webp" && !(await supportsWebP())) {
         return {
             supported: false,
             reason: { code: "E_UNSUPPORTED", params: { reason: "format", format: "webp" } },
             estimatedMemoryMB: memoryMB,
+            width: dims.width,
+            height: dims.height,
         };
     }
 
@@ -93,6 +126,8 @@ export async function canCaptureScreenshot(
         supported: true,
         warnings: warnings.length > 0 ? warnings : undefined,
         estimatedMemoryMB: memoryMB,
+        width: dims.width,
+        height: dims.height,
     };
 }
 

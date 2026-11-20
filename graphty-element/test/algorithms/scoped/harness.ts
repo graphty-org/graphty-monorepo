@@ -127,7 +127,7 @@ function edgeKeys(graph: InputGraph, keep: (row: number) => boolean): Map<string
  * differently read equal.
  * @param nodes - Node values in row order.
  * @param field - The label field.
- * @returns The relabelled values.
+ * @returns The relabeled values.
  */
 export function canonicalGroups(nodes: Record<string, unknown>, field = "group"): Record<string, unknown> {
     const relabel = new Map<unknown, number>();
@@ -153,7 +153,7 @@ export function canonicalGroups(nodes: Record<string, unknown>, field = "group")
  * @param graph - The graph it ran on.
  * @param keepNode - Which node ids to read; all of them by default.
  * @param keepEdge - Which edge rows to read; all of them by default.
- * @returns The values; a partition's labels canonicalised.
+ * @returns The values; a partition's labels canonicalized.
  */
 export function valuesOf(
     result: RunResult | undefined,

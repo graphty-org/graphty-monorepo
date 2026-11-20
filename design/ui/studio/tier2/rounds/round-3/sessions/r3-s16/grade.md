@@ -20,7 +20,7 @@ PageRank). Tool commit `acf3894e2c56`, no uncommitted changes.
 
 - **Marked ties (right).** `07.png`: 13 blue bands on the full drawing; the table's 13 rows match
   the key row for row, smallest 10, largest 31.
-- **Nothing taken off the drawing (right).** All characters and grey ties still drawn; the
+- **Nothing taken off the drawing (right).** All characters and gray ties still drawn; the
   PageRank row still reads 77; `work.json` shows no filter step and nothing removed, and the start
   and end `layers` lists are the same.
 - **Count (right).** "13", read from the line under the box and the table.
@@ -68,7 +68,7 @@ PageRank). Tool commit `acf3894e2c56`, no uncommitted changes.
 | 1   | 2        | discoverability | A plain number in the find box lists only exact matches and offers only "Select where shared_chapters is 1..." (exactly 10); nothing says a comparison such as "10 or more" can be typed. Tom took that row, selected 2 ties, and had to start again. Same finding as r3-s12, so confirmed (2 participants). | `03.png`, `04.png`; transcript steps 2 and 3 |
 | 2   | 2        | legibility      | The "Values" row under the "10" results is cut off at "Select where shared_chapters is 1...", so whether it means "is 10", "is 1..." or something else cannot be read before clicking. Same as r3-s12: confirmed. | `03.png`; transcript debrief |
 | 3   | 2        | error recovery  | A spreadsheet-style condition with no column name (">=10") gets "No match" and a generic example, not the participant's own condition made into a rule, as "shared_chapters >= 10" does on this build. The user who only knows the number has to rebuild the rule by hand. | `05.png`; transcript step 4 |
-| 4   | 1        | wording         | The example rule's backticks ("=shared_chapters > `16`") and its small grey monospace text read as code he would never have guessed; he copied them only because they were shown. It did not stop him. | `05.png`; transcript step 5 and debrief |
+| 4   | 1        | wording         | The example rule's backticks ("=shared_chapters > `16`") and its small gray monospace text read as code he would never have guessed; he copied them only because they were shown. It did not stop him. | `05.png`; transcript step 5 and debrief |
 | 5   | 0        | feedback        | The selected-edges list after "is 10" (`04.png`) shows only the tie names with no shared_chapters column, while the 13-tie list (`07.png`) shows the values; the value is what told him the first selection was wrong. Cosmetic. | `04.png`, `07.png` |
 
 No severity 3 or 4: the count and the marked ties were right, nothing was removed, and both wrong

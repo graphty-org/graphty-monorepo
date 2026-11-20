@@ -12,12 +12,17 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -147,7 +152,7 @@ function highlighted(session: GraphSession, node: string): string | undefined {
 async function greenAround(element: Element, node: string): Promise<number> {
     const at = element.nodeScreenPosition(node);
     assert.isTrue(at?.visible, `${node} is on screen`);
-    const shot = await element.captureScreenshot({ destination: { blob: true }, format: "png" });
+    const shot = await element.captureScreenshot({ format: "png" });
     const bitmap = await createImageBitmap(shot.blob);
     const scale = bitmap.width / element.clientWidth;
     const reach = (at?.radius ?? 0) * 1.6 * scale;

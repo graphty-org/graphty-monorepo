@@ -1,5 +1,5 @@
 /**
- * @file The camera catalogue: the named views the element can put the viewer in.
+ * @file The camera catalog: the named views the element can put the viewer in.
  *
  * A view is a way of DECIDING where the viewer stands and what they look at -- not a camera, not
  * an input model, not a projection. That distinction is what makes the point publishable: a view
@@ -22,10 +22,11 @@
  */
 
 import { registeredCameraById, registeredCameraDescriptors } from "./cameraRegistry";
+import { withEachDescriptionIds } from "./options";
 import type { CameraDescriptor, CameraId, DrawingMode } from "./types";
 
-/** Every camera view the element ships. */
-export const CAMERA_DESCRIPTORS: readonly CameraDescriptor[] = Object.freeze([
+/** As written; {@link CAMERA_DESCRIPTORS} adds each described option's `descriptionId`. */
+const SHIPPED_CAMERAS = Object.freeze([
     {
         id: "fitToGraph",
         plainName: "Fit to graph",
@@ -72,7 +73,19 @@ export const CAMERA_DESCRIPTORS: readonly CameraDescriptor[] = Object.freeze([
         modes: ["3d"],
         options: [],
     },
+    {
+        id: "bottomView",
+        plainName: "From below",
+        description: "Looks straight up at the graph from underneath: the mirror of the view from above.",
+        modes: ["3d"],
+        options: [],
+    },
 ] satisfies readonly CameraDescriptor[]);
+
+/** Every camera view the element ships. */
+export const CAMERA_DESCRIPTORS: readonly CameraDescriptor[] = Object.freeze(
+    withEachDescriptionIds("camera", SHIPPED_CAMERAS, (camera) => camera.id),
+);
 
 /**
  * Find one camera view by its name.

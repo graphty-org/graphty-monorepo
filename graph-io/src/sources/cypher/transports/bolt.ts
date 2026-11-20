@@ -15,7 +15,7 @@
  */
 
 import { throwIfAborted } from "../../../common/input.js";
-import { isLoopback, transportOptions } from "../../context.js";
+import { isLoopback, localNetworkRefused, transportOptions } from "../../context.js";
 import { originOf, unwrapCredential } from "../../credentials.js";
 import { failOn } from "../../fail.js";
 import { type QueryResult } from "../flatten.js";
@@ -150,6 +150,21 @@ async function connection(input: TransportInput, neo4j: DriverModule): Promise<{
 }
 
 /**
+ * The driver's settings. A plain `bolt:` endpoint is opened with encryption off, so a page on
+ * `https:` opens `ws://` to it (which browsers allow to this machine) instead of the driver's
+ * default there, `wss://`, which a server without Bolt TLS (Memgraph never has it) cannot answer.
+ * @param url - the endpoint
+ * @param userAgent - the user agent, if any
+ * @returns the settings
+ */
+function driverConfig(url: URL, userAgent: string | undefined): Readonly<Record<string, unknown>> {
+    return {
+        ...(url.protocol === "bolt:" ? { encrypted: "ENCRYPTION_OFF" } : {}),
+        ...(userAgent === undefined ? {} : { userAgent }),
+    };
+}
+
+/**
  * Make the transport: import the driver, check the endpoint and credential, open a READ session.
  * @param input - the context, params and mapper
  * @returns the transport
@@ -162,7 +177,7 @@ export async function boltTransport(input: TransportInput): Promise<Transport> {
     throwIfAborted(ctx.signal);
     const origin = originOf(ctx.endpoint ?? url);
     const { userAgent } = transportOptions(ctx);
-    const driver = neo4j.driver(`${url.protocol}//${url.host}`, auth, userAgent === undefined ? {} : { userAgent });
+    const driver = neo4j.driver(`${url.protocol}//${url.host}`, auth, driverConfig(url, userAgent));
     const session = driver.session({
         defaultAccessMode: neo4j.session.READ,
         ...(params.database === undefined ? {} : { database: params.database }),
@@ -181,7 +196,7 @@ export async function boltTransport(input: TransportInput): Promise<Transport> {
     };
     ctx.signal.addEventListener("abort", onAbort, { once: true });
 
-    const fail = (err: unknown): never => {
+    const fail = async (err: unknown): Promise<never> => {
         throwIfAborted(ctx.signal);
         const e = err as { code?: unknown; message?: unknown };
         const code = typeof e.code === "string" ? e.code : null;
@@ -189,7 +204,7 @@ export async function boltTransport(input: TransportInput): Promise<Transport> {
             return ctx.runtime === "browser"
                 ? failOn(ctx.report, "E_SOURCE_BLOCKED", `${origin} could not be reached over Bolt`, {
                       url: origin,
-                      cause: "unknown",
+                      cause: (await localNetworkRefused(url)) ? "local-network" : "unknown",
                   })
                 : failOn(ctx.report, "E_FETCH", `${origin} could not be reached over Bolt`, {
                       url: origin,
@@ -202,7 +217,7 @@ export async function boltTransport(input: TransportInput): Promise<Transport> {
                 code,
                 message: typeof e.message === "string" ? e.message : "",
                 status: null,
-                showable: code.startsWith("Neo.ClientError."),
+                showable: /^(?:Neo|Memgraph)\.ClientError\./.test(code),
             },
             origin,
             params.database,

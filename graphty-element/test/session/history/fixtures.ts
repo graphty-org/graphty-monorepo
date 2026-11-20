@@ -35,10 +35,28 @@ export interface RoundTripFixture {
 /** Both twins run every style and visibility fixture. */
 const BOTH = ["session", "renderer"] as const;
 
+/** A text annotation the annotation fixtures write. */
+const FIXTURE_ANNOTATION = {
+    id: "fixture-note",
+    kind: "text",
+    layer: "foreground",
+    z: 0,
+    rotation: 0,
+    text: "fixture note",
+    at: { x: 0, y: 0 },
+    anchor: "center",
+    fontSize: 12,
+    fontFamily: "sans-serif",
+    bold: false,
+    italic: false,
+    color: "#000000",
+    opacity: 1,
+} as const;
+
 /**
  * A node layer a fixture adds. Its id is minted from its name: "Fixture A" is `fixture-a_1`.
  * @param name - The layer's name.
- * @param color - The colour it paints every node.
+ * @param color - The color it paints every node.
  * @returns The specification.
  */
 function nodeLayer(name: string, color: string): LayerSpec {
@@ -517,10 +535,10 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "style.patch", action: "deleteRow", id: "folder:fixture-folder_1" },
     },
     {
-        name: "style.patch restoreStartingRows",
-        variant: "restoreStartingRows",
+        name: "style.patch addDefaultRows",
+        variant: "addDefaultRows",
         tags: BOTH,
-        command: { op: "style.patch", action: "restoreStartingRows" },
+        command: { op: "style.patch", action: "addDefaultRows" },
     },
     {
         name: "style.encode",
@@ -799,6 +817,11 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         },
     },
     {
+        name: "asset.defaults",
+        tags: BOTH,
+        command: { op: "asset.defaults", id: "asset:fixture", patch: { style: { "node.modelTurn": 90 } } },
+    },
+    {
         name: "data.columns",
         tags: BOTH,
         command: {
@@ -807,19 +830,43 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         },
     },
     {
-        name: "data.setFileStyles",
-        tags: ["session"],
+        name: "data.derive",
+        tags: BOTH,
         command: {
-            op: "data.setFileStyles",
-            loads: [
-                {
-                    importId: "fixture",
-                    namespace: "gexf",
-                    format: "gexf",
-                    columns: [{ kind: "node", key: "member.1", ids: ["n1", "n3"], values: [true, true] }],
-                },
-            ],
+            op: "data.derive",
+            columns: [{ kind: "node", name: "copied", expression: "data.name" }],
+            nodes: [{ id: "n1", values: { copied: "one" } }],
+            column: { kind: "node", name: "copied" },
         },
+    },
+    {
+        name: "annotations.set",
+        tags: BOTH,
+        command: {
+            op: "annotations.set",
+            annotations: [FIXTURE_ANNOTATION],
+            scale: 2,
+        },
+    },
+    {
+        name: "annotations.patch add",
+        variant: "add",
+        tags: BOTH,
+        command: { op: "annotations.patch", action: "add", annotation: FIXTURE_ANNOTATION },
+    },
+    {
+        name: "annotations.patch update",
+        variant: "update",
+        tags: BOTH,
+        before: (session) => session.annotations.add(FIXTURE_ANNOTATION),
+        command: { op: "annotations.patch", action: "update", id: FIXTURE_ANNOTATION.id, patch: { text: "changed" } },
+    },
+    {
+        name: "annotations.patch remove",
+        variant: "remove",
+        tags: BOTH,
+        before: (session) => session.annotations.add(FIXTURE_ANNOTATION),
+        command: { op: "annotations.patch", action: "remove", id: FIXTURE_ANNOTATION.id },
     },
     {
         name: "view.save",
@@ -827,10 +874,98 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "view.save", views: [{ name: "Fixture view", camera: { zoom: 2, pan: { x: 1, y: 2 } } }] },
     },
     {
+        name: "view.save following a camera view with a key, taking the key",
+        variant: "following",
+        tags: ["session"],
+        before: (session) => session.views.save([{ name: "Keyed view", camera: { zoom: 2 }, key: "7" }]),
+        command: { op: "view.save", views: [{ name: "Fixture view", follows: "topView", key: "7" }] },
+    },
+    {
+        name: "view.key",
+        tags: ["session"],
+        before: (session) =>
+            session.views.save([
+                { name: "Fixture view", camera: { zoom: 2 } },
+                { name: "Keyed view", camera: { zoom: 3 }, key: "7" },
+            ]),
+        command: { op: "view.key", name: "Fixture view", key: "7" },
+    },
+    {
+        name: "view.starting",
+        tags: ["session"],
+        before: (session) => session.views.save([{ name: "Top", camera: { zoom: 2 }, key: "1" }]),
+        command: {
+            op: "view.starting",
+            views: [
+                { name: "Top", follows: "topView", key: "1" },
+                { name: "Below", follows: "bottomView", key: "1" },
+                { name: "Iso", follows: "isometric", key: "2" },
+            ],
+        },
+    },
+    {
         name: "view.remove",
         tags: ["session"],
         before: (session) => session.views.save([{ name: "Fixture view", camera: { zoom: 2 } }]),
         command: { op: "view.remove", names: ["Fixture view"] },
+    },
+    {
+        name: "view.rename",
+        tags: ["session"],
+        before: (session) => session.views.save([{ name: "Fixture view", camera: { zoom: 2 } }]),
+        command: { op: "view.rename", from: "Fixture view", to: "Renamed view" },
+    },
+    {
+        name: "view.move",
+        tags: ["session"],
+        before: (session) =>
+            session.views.save([
+                { name: "Fixture view", camera: { zoom: 2 } },
+                { name: "Second view", camera: { zoom: 3 } },
+            ]),
+        command: { op: "view.move", name: "Second view", index: 0 },
+    },
+    {
+        name: "view.rename rewriting a tour's stops",
+        variant: "with tours",
+        tags: ["session"],
+        before: async (session) => {
+            await session.views.save([{ name: "Fixture view", camera: { zoom: 2 } }]);
+            await session.tours.save([
+                { name: "Fixture tour", tour: { stops: [{ view: "Fixture view", hold: 100 }] } },
+            ]);
+        },
+        command: { op: "view.rename", from: "Fixture view", to: "Renamed view" },
+    },
+    {
+        name: "tour.save",
+        tags: ["session"],
+        command: {
+            op: "tour.save",
+            tours: [{ name: "Fixture tour", tour: { stops: [{ view: "fitToGraph", duration: 0, hold: 2000 }] } }],
+        },
+    },
+    {
+        name: "tour.remove",
+        tags: ["session"],
+        before: (session) => session.tours.save([{ name: "Fixture tour", tour: { stops: [] } }]),
+        command: { op: "tour.remove", names: ["Fixture tour"] },
+    },
+    {
+        name: "tour.rename",
+        tags: ["session"],
+        before: (session) => session.tours.save([{ name: "Fixture tour", tour: { stops: [] } }]),
+        command: { op: "tour.rename", from: "Fixture tour", to: "Renamed tour" },
+    },
+    {
+        name: "tour.move",
+        tags: ["session"],
+        before: (session) =>
+            session.tours.save([
+                { name: "Fixture tour", tour: { stops: [] } },
+                { name: "Second tour", tour: { stops: [], easing: "linear" } },
+            ]),
+        command: { op: "tour.move", name: "Second tour", index: 0 },
     },
     {
         name: "config.set a data-config leaf",
@@ -892,6 +1027,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "config.set", values: { startingRows: true } },
     },
     {
+        name: "config.set startingCamerasWritten",
+        variant: "startingCamerasWritten",
+        tags: BOTH,
+        command: { op: "config.set", values: { startingCamerasWritten: true } },
+    },
+    {
         name: "config.set runPlacement",
         variant: "runPlacement",
         tags: BOTH,
@@ -914,6 +1055,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         variant: "framing",
         tags: BOTH,
         command: { op: "config.set", values: { framing: { extent: "centers", padding: 30 } } },
+    },
+    {
+        name: "config.set minMarkSize",
+        variant: "minMarkSize",
+        tags: BOTH,
+        command: { op: "config.set", values: { minMarkSize: { node: 0.5, edge: 1 } } },
     },
     {
         name: "config.set author",

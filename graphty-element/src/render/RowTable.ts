@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 /**
  * @file The drawn place and size of every row of one graph, as float textures a shader can read
  * and as a CPU table picking can walk (design/rendering/row-renderer.md 4.1).
@@ -16,8 +17,10 @@ import { INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import type { ElementPositions } from "../data/positions";
 import type { Xyz } from "../meshes/edgeRoute";
+import { ROW_EXTENT_ELLIPSE, ROW_EXTENT_ROUND, ROW_EXTENT_SEEN_THROUGH } from "../meshes/edgeTrim";
 import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { Node } from "../Node";
+import type { GpuBufferHandle, GpuDeviceHandle } from "./gpuHandles";
 
 /** Texels across both textures: a shader reads texel `i` at `(i % 1024, i / 1024)`. */
 const ROW_TEXTURE_WIDTH = 1024;
@@ -27,13 +30,18 @@ const FLOATS_PER_TEXEL = 4;
 const POSITION_FLOATS = 4;
 /**
  * `rowExtent`, three texels a row: scale, round radius, border reach, flags; half extents and
- * bounding radius; outline half extents and one spare float.
+ * bounding radius; outline half extents and the row's reach outline in `rowOutline` (its first side
+ * times 1024 plus its count of sides, 0 for none).
  */
 const EXTENT_FLOATS = 12;
 const EXTENT_BOUNDING_RADIUS = 7;
 
-/** The `rowExtent` flag of a row whose surface is the same distance from its center every way. */
-const ROW_EXTENT_ROUND = 1;
+/** `rowOutline`: one side a texel, its start x and y and its end x and y. */
+const OUTLINE_FLOATS = 4;
+/** Sides one reach outline may hold in `rowExtent`'s code; past it the row ends a line at its box. */
+const OUTLINE_MOST_SIDES = 1023;
+/** Sides `rowOutline` may hold before a float can no longer name the first one exactly. */
+const OUTLINE_TABLE_SIDES = 16384;
 
 /** Drawn somewhere other than its lane row (a drag, a transition, a group), so a repack leaves it. */
 const HELD = 1;
@@ -53,13 +61,24 @@ export interface RowMeasure {
     readonly drawnHalfExtents: Readonly<{ x: number; y: number; z: number }>;
     readonly drawnBoundingRadius: number;
     readonly outlineHalfExtents: Readonly<{ x: number; y: number; z: number }>;
+    /** The opacity its style draws its body at. */
+    readonly paintedOpacity: number;
+    /** Its shape. */
+    readonly shapeType?: string | undefined;
+    /** A flat shape's outline in units of its box's half size, or null (`surfaceReach`). */
+    readonly reachOutline: readonly (readonly [x: number, y: number])[] | null;
 }
 
 /** What {@link RowTable.extentOf} reads. */
 /** Where a layout on the drawing device fills `rowPosition` (design/rendering/row-renderer.md 4.5). */
 export interface DrawnTarget {
     readonly table: RowTable;
-    readonly device: GPUDevice;
+    /**
+     * The device the texture lives on when the layout shares it, so a landing is copied on the card; null when
+     * the renderer draws elsewhere (WebGL, or WebGPU on its own device), so a landing's drawn rows come back in
+     * the batch's readback and go up as they came ({@link RowTable.uploadLanded}).
+     */
+    readonly device: GpuDeviceHandle | null;
     /** A layout transition is drawing rows off their lanes: landings go up by upload, not by copy. */
     readonly suspended?: boolean;
 }
@@ -158,6 +177,43 @@ class RowTexture {
         this.last = -1;
     }
 
+    /**
+     * Send the first `rows` rows from `from`, laid out as `floats` is, without touching `floats`.
+     * @param from - The rows, `floatsPerRow` floats each.
+     * @param rows - Rows to send.
+     * @returns The bytes sent, 0 when the texture is not on the card yet.
+     */
+    uploadFrom(from: Float32Array, rows: number): number {
+        const internal = this.texture.getInternalTexture();
+        if (internal === null || rows <= 0) {
+            return 0;
+        }
+
+        const lineFloats = ROW_TEXTURE_WIDTH * FLOATS_PER_TEXEL;
+        const lineRows = lineFloats / this.floatsPerRow;
+        const lines = Math.floor(rows / lineRows);
+        const rest = rows % lineRows;
+        const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
+        if (lines > 0) {
+            engine.updateTextureData(internal, from.subarray(0, lines * lineFloats), 0, 0, ROW_TEXTURE_WIDTH, lines);
+        }
+
+        if (rest > 0) {
+            const start = lines * lineFloats;
+            const texels = (rest * this.floatsPerRow) / FLOATS_PER_TEXEL;
+            engine.updateTextureData(
+                internal,
+                from.subarray(start, start + rest * this.floatsPerRow),
+                0,
+                lines,
+                texels,
+                1,
+            );
+        }
+
+        return rows * this.floatsPerRow * 4;
+    }
+
     upload(whole: boolean): number {
         const lineFloats = ROW_TEXTURE_WIDTH * FLOATS_PER_TEXEL;
         const firstLine = whole ? 0 : Math.floor((this.first * this.floatsPerRow) / lineFloats);
@@ -229,6 +285,8 @@ export class RowTable {
     moves = 0;
     /** Calls that sent the `rowPosition` texture to the card. */
     positionUploads = 0;
+    /** Landings sent to the `rowPosition` texture as the layout's readback brought them, with no row written. */
+    landedUploads = 0;
     /** Landings copied into the `rowPosition` texture on the card, with no upload. */
     copies = 0;
     /**
@@ -249,6 +307,14 @@ export class RowTable {
     private bounds: Float32Array<ArrayBuffer>;
     private readonly positions: RowTexture;
     private readonly extents: RowTexture;
+    /** Every reach outline a row has named, one side a texel: rows of one shape share theirs. */
+    private readonly outlines: RowTexture;
+    /** Each outline's code in `rowExtent`, by its points. */
+    private readonly outlineCodes = new Map<string, number>();
+    /** The same, by the array a row handed in, so a row measured again joins no string. */
+    private readonly outlineArrays = new WeakMap<object, number>();
+    /** Sides written to {@link RowTable.outlines}. */
+    private outlineSides = 0;
     private flags: Uint8Array<ArrayBuffer>;
     private laneChanges = -1;
     /** How many of the first {@link RowTable.rows} rows are hidden. */
@@ -277,6 +343,7 @@ export class RowTable {
         const { capacity } = lane();
         this.positions = new RowTexture(scene, POSITION_FLOATS, capacity);
         this.extents = new RowTexture(scene, EXTENT_FLOATS, capacity);
+        this.outlines = new RowTexture(scene, OUTLINE_FLOATS, 1);
         this.bounds = new Float32Array(this.positions.floats.length);
         this.flags = new Uint8Array(this.positions.floats.length / POSITION_FLOATS);
         this.stopFlush = batchUploadFrames.join(scene, () => {
@@ -293,7 +360,7 @@ export class RowTable {
     }
 
     /**
-     * At least the widest half extent of any row, on any axis: what a box around the rows' centres
+     * At least the widest half extent of any row, on any axis: what a box around the rows' centers
      * grows by to hold the rows. It never shrinks until the dataset is cleared, so it may be wider.
      * @returns The half extent.
      */
@@ -344,6 +411,14 @@ export class RowTable {
     }
 
     /**
+     * The `rowOutline` texture: the reach outlines `rowExtent` names, replaced when it grows.
+     * @returns The texture.
+     */
+    get outlineTexture(): RawTexture {
+        return this.outlines.texture;
+    }
+
+    /**
      * Whether a row is held where {@link RowTable.place} put it, off its lane: its node's own
      * position is then the exact one, which this table keeps only to 32 bits.
      * @param row - The row.
@@ -375,12 +450,14 @@ export class RowTable {
      * Fill the first `rows` rows of the `rowPosition` texture from a layout's drawn buffer on the
      * card (design/rendering/row-renderer.md 4.5): one copy, no upload. The CPU copy follows at
      * the next repack, which then sends none of its rows.
-     * @param device - The device the texture and the buffer live on.
-     * @param buffer - Four floats per row, x, y, z and w, as `rowPosition` holds them.
+     * @param handle - The device the texture and the buffer live on.
+     * @param landed - Four floats per row, x, y, z and w, as `rowPosition` holds them.
      * @param rows - Rows to copy.
      * @returns False when the texture is not on the card yet, so nothing was copied.
      */
-    copyLanded(device: GPUDevice, buffer: GPUBuffer, rows: number): boolean {
+    copyLanded(handle: GpuDeviceHandle, landed: GpuBufferHandle, rows: number): boolean {
+        const device = handle as GPUDevice;
+        const buffer = landed as GPUBuffer;
         const texture = this.positions.texture.getInternalTexture()?._hardwareTexture?.underlyingResource as
             GPUTexture | undefined;
         if (texture === undefined || rows <= 0) {
@@ -416,6 +493,29 @@ export class RowTable {
         // The rows are drawn somewhere new, whether or not the lane follows them this frame.
         this.moves++;
         this.copies++;
+        return true;
+    }
+
+    /**
+     * Fill the first `rows` rows of the `rowPosition` texture from a layout's drawn rows read back from its own
+     * device (design/rendering/row-renderer.md 4.5): the bytes go up as they came, with no row written on the
+     * CPU. The CPU copy follows at the next repack, which then sends none of its rows, as after a copy.
+     * @param from - Four floats per row, x, y, z and w, as `rowPosition` holds them.
+     * @param rows - Rows to send.
+     * @returns False when the texture is not on the card yet, so nothing was sent.
+     */
+    uploadLanded(from: Float32Array, rows: number): boolean {
+        const bytes = this.positions.uploadFrom(from, Math.min(rows, from.length / POSITION_FLOATS));
+        if (bytes === 0) {
+            return false;
+        }
+
+        this.positions.clean();
+        this.copiedAt = this.lane().changes;
+        this.moves++;
+        this.landedUploads++;
+        this.uploads++;
+        this.uploadedBytes += bytes;
         return true;
     }
 
@@ -599,12 +699,16 @@ export class RowTable {
         const outline = node.outlineHalfExtents;
         const round = node.roundRadius;
         const base = row * EXTENT_FLOATS;
+        const extentFlags =
+            (round === null ? 0 : ROW_EXTENT_ROUND) |
+            (node.shapeType === "ellipse" ? ROW_EXTENT_ELLIPSE : 0) |
+            (node.paintedOpacity < 1 ? ROW_EXTENT_SEEN_THROUGH : 0);
         this.extents.floats.set(
             [
                 node.drawnScale,
                 round ?? 0,
                 node.borderReach,
-                round === null ? 0 : ROW_EXTENT_ROUND,
+                extentFlags,
                 half.x,
                 half.y,
                 half.z,
@@ -612,13 +716,51 @@ export class RowTable {
                 outline.x,
                 outline.y,
                 outline.z,
-                0,
+                (extentFlags & ROW_EXTENT_SEEN_THROUGH) === 0 ? 0 : this.outlineCode(node.reachOutline),
             ],
             base,
         );
         this.flags[row] = flags | KNOWN;
         this.extents.touch(row);
         this.writeW(row, this.positions.floats[row * POSITION_FLOATS + 3] ?? 0);
+    }
+
+    /**
+     * A reach outline's code in `rowExtent`: its first side in `rowOutline` times 1024 plus its count of sides, written
+     * there the first time a row names it.
+     * ponytail: outlines are kept for the table's life, and past {@link OUTLINE_TABLE_SIDES} sides a new one ends its
+     * line at the row's box; a table that forgets unused outlines can come when shapes churn that much.
+     * @param outline - The outline, or null.
+     * @returns The code, 0 for none.
+     */
+    private outlineCode(outline: RowMeasure["reachOutline"]): number {
+        if (outline === null || outline.length < 3 || outline.length > OUTLINE_MOST_SIDES) {
+            return 0;
+        }
+
+        const known = this.outlineArrays.get(outline) ?? this.outlineCodes.get(outline.join());
+        if (known !== undefined) {
+            this.outlineArrays.set(outline, known);
+            return known;
+        }
+
+        const start = this.outlineSides;
+        if (start + outline.length > OUTLINE_TABLE_SIDES) {
+            return 0;
+        }
+
+        this.outlines.follow(null, start + outline.length);
+        const { floats } = this.outlines;
+        outline.forEach(([x, y], i) => {
+            const [nx, ny] = outline[(i + 1) % outline.length];
+            floats.set([x, y, nx, ny], (start + i) * OUTLINE_FLOATS);
+        });
+        this.outlines.touch(start, start + outline.length - 1);
+        this.outlineSides += outline.length;
+        const code = start * 1024 + outline.length;
+        this.outlineCodes.set(outline.join(), code);
+        this.outlineArrays.set(outline, code);
+        return code;
     }
 
     /**
@@ -695,7 +837,7 @@ export class RowTable {
         // Babylon gives a texture back as it was made after a lost context, so every row goes
         // up again; the same rule as the batches on this roster.
         const whole = batchUploadFrames.isRestoring(this.scene);
-        for (const table of [this.positions, this.extents]) {
+        for (const table of [this.positions, this.extents, this.outlines]) {
             const bytes = table.upload(whole);
             if (bytes > 0) {
                 this.uploads++;
@@ -717,6 +859,7 @@ export class RowTable {
         this.stopFlush();
         this.positions.texture.dispose();
         this.extents.texture.dispose();
+        this.outlines.texture.dispose();
     }
 
     /**

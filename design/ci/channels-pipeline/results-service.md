@@ -294,10 +294,14 @@ A pull request must not stay red for a test master already fails, and the failur
 and the pull request's own client must not be able to grant the excuse. When a pull request's group
 fails test T in file F:
 
-1. T stays failing if the pull request changes F or its import closure.
+1. T stays failing if the pull request changes F.
 2. T is excused if the plan's `failingOnBase` has T with the same key, from `full`, `bisect` or `base`
-   records only.
-3. Otherwise T passes anyway, loudly, as `[UNRELATED] <test> ... this pull request did not touch it`: a
+   records only: on the base, or in the variant's newest full run, whatever commit it tested. This holds
+   when the pull request changes F's import closure too: the same failure master already has is not the
+   pull request's, and one it made differs in its key (2026-11-14, #8051: one master break turned every
+   pull request that reached the test red until it was fixed, because no record excused a touched test).
+3. Otherwise, if the pull request changes F's import closure, T stays failing.
+4. Otherwise T passes anyway, loudly, as `[UNRELATED] <test> ... this pull request did not touch it`: a
    warning annotation and a line in the job summary (2026-10-27, #3925: a failure with another source must
    not block merges -- every open pull request was red on one master defect, and the old `[KNOWN?]` wait
    needed a base check nothing dispatched; the full run with bisect and revert is the net). In the background
@@ -312,7 +316,7 @@ fails test T in file F:
    lands on that one issue); if F passes there, it comments on the pull request so the round looks for a
    flaky test or a cause in it. This is `exonerate()` of `tools/test-ledger.mjs` moved onto master's code.
    It costs one file's run per test per base.
-4. Still failing, whatever the store says: a test the pull request touched (rule 1), a crash, an unhandled
+5. Still failing, whatever the store says: a test file the pull request changed (rule 1), a crash, an unhandled
    error, a coverage or build failure (none is a test failure the judge sees), any GPU family
    (`webgpu-graph-algorithms*`), and the screenshot gate.
 

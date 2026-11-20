@@ -1,6 +1,6 @@
 /**
  * Characterization of the freeze pipeline: seeded random builders with parallel edges, self-loops,
- * removed edges, mixed explicit and omitted weights, cancelling infinities, every duplicate policy and
+ * removed edges, mixed explicit and omitted weights, canceling infinities, every duplicate policy and
  * both directions are frozen, and every observable result (the CSR, the arc weights, the remaps, the
  * report counts, the weight shadow column, the edge values, or the error code, details and message) is
  * compared with the recorded results in `freeze-golden.json`. It pins the current behavior so a

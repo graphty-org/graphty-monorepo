@@ -36,7 +36,7 @@ loops in the adapter, and WebGPU design 9.4 item 3 forbids exactly that: one loo
 result, whoever computed it.
 
 Two loops is not merely untidy. The bugs it produces are the ones nobody sees in review -- a
-normalisation applied on one branch, a tie broken in a different order, a `NaN` handled once --
+normalization applied on one branch, a tie broken in a different order, a `NaN` handled once --
 and they only appear on the machine that has the hardware.
 
 ## The argument that was rejected

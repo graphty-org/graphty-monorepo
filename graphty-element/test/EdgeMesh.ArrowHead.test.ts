@@ -2,16 +2,13 @@ import { MultiMaterial, NullEngine, Scene, ShaderMaterial } from "@babylonjs/cor
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
-import { MeshCache } from "../src/meshes/MeshCache";
 
 describe("Arrow Shape Generation", () => {
     let scene: Scene;
-    let meshCache: MeshCache;
 
     beforeEach(() => {
         const engine = new NullEngine();
         scene = new Scene(engine);
-        meshCache = new MeshCache();
     });
 
     afterEach(() => {
@@ -20,8 +17,6 @@ describe("Arrow Shape Generation", () => {
 
     test("inverted arrow points away from target", () => {
         const arrowCap = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-inverted",
             { type: "inverted", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
@@ -36,8 +31,6 @@ describe("Arrow Shape Generation", () => {
 
     test("an open cap with a fill color draws its inside in that color, apart from its outline (#7565)", () => {
         const filled = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-filled",
             { type: "open-normal", width: 1, color: "#505050", fill: "#FFCC00", side: "left" },
             scene,
         );
@@ -59,8 +52,6 @@ describe("Arrow Shape Generation", () => {
         // unset, the open cap is today's, one material; a filled type ignores the fill
         for (const type of ["open-normal", "normal"]) {
             const cap = EdgeMesh.createArrowHead(
-                meshCache,
-                `test-${type}`,
                 { type, width: 1, color: "#505050", fill: type === "normal" ? "#FFCC00" : undefined },
                 scene,
             );
@@ -70,8 +61,6 @@ describe("Arrow Shape Generation", () => {
 
     test("dot arrow creates circular shape", () => {
         const arrowCap = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-dot",
             { type: "dot", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
@@ -87,8 +76,6 @@ describe("Arrow Shape Generation", () => {
 
     test("diamond arrow creates rhombus shape", () => {
         const arrowCap = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-diamond",
             { type: "diamond", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
@@ -104,8 +91,6 @@ describe("Arrow Shape Generation", () => {
 
     test("box arrow creates rectangular shape", () => {
         const arrowCap = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-box",
             { type: "box", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
@@ -121,8 +106,6 @@ describe("Arrow Shape Generation", () => {
 
     test("normal arrow creates triangle shape", () => {
         const arrowCap = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-normal",
             { type: "normal", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
@@ -134,20 +117,12 @@ describe("Arrow Shape Generation", () => {
 
     test("unsupported arrow type throws error", () => {
         assert.throws(() => {
-            EdgeMesh.createArrowHead(
-                meshCache,
-                "test-invalid",
-
-                { type: "invalid-type", width: 1.0, color: "#FF0000" },
-                scene,
-            );
+            EdgeMesh.createArrowHead({ type: "invalid-type", width: 1.0, color: "#FF0000" }, scene);
         });
     });
 
     test("arrow with custom size multiplier", () => {
         const arrowCap = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-sized",
             { type: "normal", width: 1.0, color: "#FF0000", size: 2.0, opacity: 1.0 },
             scene,
         );
@@ -159,8 +134,6 @@ describe("Arrow Shape Generation", () => {
 
     test("arrow with custom opacity", () => {
         const arrowCap = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-opacity",
             { type: "normal", width: 1.0, color: "#FF0000", size: 1.0, opacity: 0.5 },
             scene,
         );
@@ -170,27 +143,18 @@ describe("Arrow Shape Generation", () => {
     });
 
     test("arrow with no type returns null", () => {
-        const arrowCap = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-none",
-            { type: "none", width: 1.0, color: "#FF0000" },
-            scene,
-        );
+        const arrowCap = EdgeMesh.createArrowHead({ type: "none", width: 1.0, color: "#FF0000" }, scene);
 
         assert.isNull(arrowCap);
     });
 
     test("arrows are individual meshes (not cached)", () => {
         const arrow1 = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-no-cache",
             { type: "normal", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );
 
         const arrow2 = EdgeMesh.createArrowHead(
-            meshCache,
-            "test-no-cache",
             { type: "normal", width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
             scene,
         );

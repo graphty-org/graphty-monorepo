@@ -49,7 +49,10 @@ function addedLayers(session: GraphSession): string[] {
     ];
 }
 
-/** What the app starts every project it opens with: the four starting rows, and nothing else. */
+/**
+ * What the app starts every project it opens with: the starting rows, and nothing else (Timeline
+ * Hidden comes only when the timeline turns on).
+ */
 const STARTING_ROWS = ["Everything", "Selected", "Pinned", "Hovered"];
 
 afterEach(() => {

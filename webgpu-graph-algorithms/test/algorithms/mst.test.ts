@@ -11,7 +11,6 @@
 
 import { kruskalMST } from "@graphty/algorithms";
 import { type GraphSnapshot } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
 import { compressPasses, minimumSpanningTree } from "../../src/algorithms/mst.js";
 import { BORUVKA_ROUNDS_PER_SUBMIT } from "../../src/constants.js";
@@ -20,7 +19,7 @@ import { type EdgeSpec, fixture, KARATE_EDGES, snapshotOf, xorshift } from "../h
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { deepPathEdges, distinctWeightEdges, drawnWeightEdges, mstAgreement, mstReport } from "../helpers/mst.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
-import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
+import { gpuScale, sharedContext } from "../setup/gpu.js";
 
 const FIXTURES = [
     "empty",
@@ -91,14 +90,7 @@ function f32Sample(count: number, seed: number): number[] {
 }
 
 describe("minimumSpanningTree (GPU, design 8.5)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "mst" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "mst" });
 
     /** Run twice, compare bitwise, check against Kruskal and the checksums, release. */
     async function agree(ctx: GpuContext, label: string, s: GraphSnapshot): Promise<GraphSnapshot> {
@@ -270,6 +262,6 @@ describe("minimumSpanningTree (GPU, design 8.5)", () => {
     });
 
     afterAll(() => {
-        shared?.dispose();
+        context.dispose();
     });
 });

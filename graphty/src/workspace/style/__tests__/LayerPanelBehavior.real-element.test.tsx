@@ -4,7 +4,7 @@
  * layer's default name says what it covers now; a default name made from several cards is short
  * enough to read whole; an attribute of the other kind is one click from its card on the other
  * tab; a run's group opened from a node's Memberships is its layer row, with the tree's header;
- * every layer row shows its count; Why this look and a "Covered by" name open the layer on Style.
+ * every layer row shows its count; Why this look opens the layer on Style.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -15,10 +15,15 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { DEFAULT_NAME_KEY } from "../cards";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with its starting rows.
@@ -187,32 +192,17 @@ describe("the layer panel's behavior", () => {
             await session.selection.apply({ nodes: [idOf("Valjean")] });
         });
         await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Open layer Thanked" }));
+        // The link here is the one under the node's look.
+        const opens = await screen.findAllByRole("button", { name: "Open layer Thanked" });
+        const why = opens.find((button) => button.closest('[data-testid="why-line"]') !== null);
+        if (why === undefined) {
+            throw new Error("no link to Thanked under the node's look");
+        }
+        await userEvent.click(why);
         await waitFor(() => {
             assert.deepEqual(store.get().inspected, { kind: "layer-row", id: top.row ?? top.id, tab: "style" });
             assert.equal(screen.getByRole("tab", { name: "Style" }).getAttribute("aria-selected"), "true");
         });
         await screen.findByRole("button", { name: /^Which nodes, / });
-
-        // Everything's color, covered by Thanked on two nodes: the name opens Thanked, on Style.
-        store.set({ inspected: { kind: "everything-row" } });
-        await act(async () => {
-            await session.selection.apply({ nodes: [] });
-        });
-        await userEvent.click(await treeRow("Everything"));
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        const caption = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>("[data-covered-caption]");
-            assert.isNotNull(found);
-            return found;
-        });
-        if (caption === null) {
-            return;
-        }
-        await userEvent.click(within(caption).getByRole("button", { name: "Open layer Thanked" }));
-        await waitFor(() => {
-            assert.equal(store.get().inspected?.id, top.row ?? top.id);
-            assert.equal(screen.getByRole("tab", { name: "Style" }).getAttribute("aria-selected"), "true");
-        });
     });
 });

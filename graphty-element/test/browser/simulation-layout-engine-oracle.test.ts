@@ -29,7 +29,7 @@
  *
  * HOW THE TWO ARE COMPARED. The bridge runs the simulation in an array of its own and refits the
  * arrangement into the element's scene envelope on the way out (see `SimulationLayoutEngine`'s
- * file header), and that refit is a similarity: a common centre and a common multiplier. So the
+ * file header), and that refit is a similarity: a common center and a common multiplier. So the
  * oracle's layout-unit positions are published through the very same rule, `measureEnvelope` at
  * the same radius, and the two are compared as published coordinates. A relative error is
  * invariant under a common multiplier, so the number this file prints is in the oracle's own
@@ -193,7 +193,7 @@ function oracleOver(
 }
 
 /**
- * An arrangement as the bridge publishes it: refitted about its own centre to {@link RADIUS}.
+ * An arrangement as the bridge publishes it: refitted about its own center to {@link RADIUS}.
  *
  * The bridge's own rule, run over the oracle's coordinates, so the comparison is between two
  * published arrangements rather than between two unit systems.

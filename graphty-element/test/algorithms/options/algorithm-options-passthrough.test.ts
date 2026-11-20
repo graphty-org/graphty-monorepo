@@ -25,6 +25,7 @@ import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
 import type { Graph } from "../../../src/Graph";
+import type { CodedFact } from "../../../src/session/shared";
 import {
     createMockGraph,
     getGraphResult,
@@ -145,9 +146,15 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const rank1 = getNodeResult(pr1, firstNodeId, "graphty", "pagerank", "rank");
                 const rank2 = getNodeResult(pr2, firstNodeId, "graphty", "pagerank", "rank");
 
-                // The damping factor a run used is in its caveats' notes.
-                assert.ok(pr1.result?.summary().caveats.notes.some((note: string) => note.includes("0.85")));
-                assert.ok(pr2.result?.summary().caveats.notes.some((note: string) => note.includes("0.5")));
+                // The damping factor a run used is in its caveats' facts.
+                assert.deepInclude(pr1.result?.summary().caveats.facts ?? [], {
+                    code: "pagerank.damping",
+                    params: { dampingFactor: 0.85 },
+                });
+                assert.deepInclude(pr2.result?.summary().caveats.facts ?? [], {
+                    code: "pagerank.damping",
+                    params: { dampingFactor: 0.5 },
+                });
 
                 // Results should be different
                 assert.notStrictEqual(rank1, rank2, "Different damping factors should produce different results");
@@ -366,10 +373,12 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const graph1 = await createMockGraph(communityGraphData);
                 const graph2 = await createMockGraph(communityGraphData);
 
-                const leiden1 = new LeidenAlgorithm(graph1, { resolution: 0.5 });
+                // Seeded: the bridge has one edge to each triangle, so at 0.5 which triangle it joins
+                // is a tie the seed breaks; unseeded, about 1 run in 100 put it with triangle B.
+                const leiden1 = new LeidenAlgorithm(graph1, { resolution: 0.5, randomSeed: 42 });
                 await leiden1.run();
 
-                const leiden2 = new LeidenAlgorithm(graph2, { resolution: 2.0 });
+                const leiden2 = new LeidenAlgorithm(graph2, { resolution: 2.0, randomSeed: 42 });
                 await leiden2.run();
 
                 // At 0.5 the bridge joins a triangle; at 2.0 it is a community of its own.
@@ -744,9 +753,14 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
             // The damping factor is part of what qualifies the numbers, so it is in the caveats'
             // notes rather than published as a graph result of its own.
-            const { result } = algo as unknown as { result?: { summary: () => { caveats: { notes: string[] } } } };
+            const { result } = algo as unknown as {
+                result?: { summary: () => { caveats: { facts: readonly CodedFact[] } } };
+            };
             assert.ok(result);
-            assert.ok(result.summary().caveats.notes.some((note) => note.includes("0.5")));
+            assert.deepInclude(result.summary().caveats.facts ?? [], {
+                code: "pagerank.damping",
+                params: { dampingFactor: 0.5 },
+            });
         });
 
         it("uses defaults when no options passed to factory", async () => {
@@ -759,9 +773,14 @@ describe("Algorithm Options Pass-Through Tests", () => {
             // Type assertion needed due to abstract signature mismatch
             await (algo as unknown as { run(): Promise<void> }).run();
 
-            const { result } = algo as unknown as { result?: { summary: () => { caveats: { notes: string[] } } } };
+            const { result } = algo as unknown as {
+                result?: { summary: () => { caveats: { facts: readonly CodedFact[] } } };
+            };
             assert.ok(result);
-            assert.ok(result.summary().caveats.notes.some((note) => note.includes("0.85")));
+            assert.deepInclude(result.summary().caveats.facts ?? [], {
+                code: "pagerank.damping",
+                params: { dampingFactor: 0.85 },
+            });
         });
     });
 });

@@ -10,6 +10,7 @@
 import type { AiMessageScope } from "../../catalog/ai";
 import type { NodeId } from "../../catalog/types";
 import type { GraphSession } from "../../session/types";
+import { wholeGraph } from "../../session/working/graphs";
 import type { GraphCommand } from "../commands/types";
 import { INTENT_HELP } from "./inputs";
 
@@ -22,7 +23,7 @@ const ON_DEMAND = [
     "notes: notes on elements",
     "import_data: load data from text or a URL the reader gave; rename the data source",
     "export_graph: write the graph as a file for the reader",
-    "project: settings, name, what a column measures",
+    "project: settings (edge direction: directed or undirected, background, data columns), name, what a column measures",
     "capture: a picture or a video for the reader",
     "immersive: VR and AR",
     "time: move a window along a time column, play it",
@@ -63,7 +64,7 @@ export function assistantInstructions(
         "Style channels include node.color, node.size, node.shape, node.label, edge.color, edge.width (catalog search kind channel lists the rest).",
         INTENT_HELP,
         "Every call is checked first. A failure comes back as {code, params} saying what to fix: fix it and call again once. A failed call keeps the rest of its turn from running (AI_TOOL_NOT_RUN, stoppedBy names it): those did nothing and were not held.",
-        "Your tool turns are few: look up only what the <graph-data> facts do not already say, then act. Calls in one turn run in order, so a run_algorithm and a style on its result can go together.",
+        "Your tool turns are few: look up only what the <graph-data> facts do not already say, every lookup in one turn (one catalog describe takes several names: a,b,c), then act. Calls in one turn run in order, so a run_algorithm and a style on its result can go together.",
         "Your changes in one message are one undo step, which the reader's Undo takes back; call undo only when the reader asks. A large, slow or irreversible change is held for the reader's approval, which they give on screen: once a result says it is held, and never before, say in a few words that it waits for their approval, never that it was not done or will not happen, and stop; you cannot approve it. Undo takes back removals too: never call a change irreversible or permanent unless its hold's gate is irreversible.",
         "A declined request (AI_APPROVAL_DENIED) is over: say it was left as it was, ask nothing more about it, and make no other change toward it, not even a smaller or softer one such as a filter for a removal, unless the reader asks.",
         "Select only when the reader asks you to: a question or a change needs no selection, and a selection limits the reader's next message.",
@@ -254,7 +255,7 @@ const IDS_SCANNED = 10_000;
  * @returns The line's text.
  */
 function idsLine(session: GraphSession): string {
-    const { ids, nodeCount } = session.data.snapshot();
+    const { ids, nodeCount } = wholeGraph(session.data.store);
     const first = Array.from({ length: Math.min(nodeCount, 5) }, (_, index) => ids.idOf(index));
     if (nodeCount > 0 && nodeCount <= IDS_SCANNED) {
         let low = Infinity;

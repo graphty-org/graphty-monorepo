@@ -9,7 +9,7 @@
 import { GraphtyError } from "../errors";
 import { type FeatureId, FEATURES, GRADUATED_FEATURES } from "./registry";
 
-/** What a session or element actually switched on, and the ids it did not recognise. */
+/** What a session or element actually switched on, and the ids it did not recognize. */
 export interface EnabledFeatures {
     /** The experiments switched on, in `FEATURES` order. */
     readonly enabled: readonly FeatureId[];
@@ -28,7 +28,7 @@ let pageDefault: readonly string[] = Object.freeze([]);
  * @example
  * ```ts
  * import { setDefaultFeatures } from "@graphty/graphty-element/extend";
- * setDefaultFeatures(["timeline"]);
+ * setDefaultFeatures(["location-map"]);
  * ```
  */
 export function setDefaultFeatures(ids: readonly string[]): void {
@@ -46,7 +46,7 @@ export function pageDefaultFeatures(): readonly string[] {
 /**
  * Resolve requested ids against this build's experiments.
  * @param requested - The ids asked for; absent means the page default (`setDefaultFeatures`).
- * @returns The experiments switched on and the ids not recognised, frozen. Never throws.
+ * @returns The experiments switched on and the ids not recognized, frozen. Never throws.
  */
 export function resolveFeatures(requested?: readonly string[]): EnabledFeatures {
     const asked = new Set<string>();
@@ -84,7 +84,7 @@ export function featureOff(feature: FeatureId, key: string): GraphtyError {
 }
 
 /**
- * Read experiment ids from a URL's query, such as `?features=timeline,location-map`.
+ * Read experiment ids from a URL's query, such as `?features=assistant,location-map`.
  * @param url - The URL, usually `location.href`.
  * @param param - The query parameter to read.
  * @returns The ids, comma separated, trimmed, lowercased and without duplicates, unknown ones

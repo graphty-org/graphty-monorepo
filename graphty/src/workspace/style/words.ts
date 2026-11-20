@@ -5,7 +5,7 @@
  * neutral about presentation"; the owner dropped `catalog.channelGroups` on 2026-10-03).
  */
 
-import { type AlignmentMatrixValue, colorWord } from "@graphty/compact-mantine";
+import { colorWord } from "@graphty/compact-mantine";
 import {
     type ChannelDescriptor,
     EDGE_ARROW_DESCRIPTORS,
@@ -15,17 +15,21 @@ import {
     NODE_SHAPE_DESCRIPTORS,
     type ShaderDescriptor,
     type ShaderInput,
+    shaderParamChannel,
     type ShaderPlace,
     type ShaderProblem,
     toColorValue,
 } from "@graphty/graphty-element/catalog";
-import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
+import type { Channel, LabelStyle, ShaderParamAddress } from "@graphty/graphty-element/schema";
 import {
     type CodedFact,
     type GraphSession,
     GraphtyError,
     type GraphtyErrorCode,
     type GraphtyWarningCode,
+    type ModelCompression,
+    type ModelEncoding,
+    type ModelSummary,
     type ReadableValue,
     renamePaths,
     rulePath,
@@ -35,6 +39,7 @@ import { wordsFor } from "../analyze/words";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
 import { formatCount } from "../settings/numberFormat";
+import { isSplatRefusal, megabytes } from "./modelWords";
 
 /** Where a label sits, as the element names it. */
 type LabelLocation = NonNullable<LabelStyle["location"]>;
@@ -61,6 +66,19 @@ export interface SectionSpec {
      * settings), never a "+" item of their own.
      */
     readonly inner?: readonly Channel[];
+    /** The properties its "+" offers; absent, every property it lists. */
+    readonly offer?: readonly Channel[];
+    /** Whether the row writes something in the section, drawn as a dot after its title. */
+    readonly configured?: boolean;
+    /** Row words that replace a property's own, by property. */
+    readonly words?: Readonly<Partial<Record<Channel, string>>>;
+    /**
+     * The things a list section holds (a fill's paints, the effects): one heading line per item the
+     * row sets, with a minus that takes every property of the item away, then its lines.
+     */
+    readonly items?: readonly { readonly id: string; readonly name: string; readonly channels: readonly Channel[] }[];
+    /** Properties drawn together: once the row sets one, the others show, waiting for a value. */
+    readonly together?: readonly Channel[];
 }
 
 /** A model's channels: what the Shape field names, and what Model settings sets. */
@@ -71,6 +89,11 @@ export const MODEL_CHANNELS: readonly Channel[] = [
     "node.modelTint",
     "node.modelFit",
     "node.modelCenter",
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+    "node.modelDoubleSided",
+    "node.unlit",
 ];
 
 /**
@@ -178,6 +201,7 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
                 "edge.animationSpeed",
                 "edge.curvature",
                 "edge.taper",
+                "edge.taperSource",
                 "edge.lift",
                 "edge.bandColor",
                 "edge.bandWidth",
@@ -216,8 +240,8 @@ const COSMOGRAPH_EDGE_SECTIONS: readonly SectionSpec[] = SECTIONS.edge.map((sect
 );
 
 /**
- * The node sections with the `node-models` experiment on (issue #3396): Shape holds a model in
- * place of a built-in shape, with its settings, and Fill's "+" offers Picture.
+ * The node sections the Style tab draws (issue #3396): Shape holds a model in place of a built-in
+ * shape, with its settings, and Fill's "+" offers Picture.
  */
 const NODE_MODELS_SECTIONS: readonly SectionSpec[] = SECTIONS.node.map((section) => {
     if (section.id === "shape") {
@@ -230,8 +254,16 @@ const NODE_MODELS_SECTIONS: readonly SectionSpec[] = SECTIONS.node.map((section)
 export interface SectionFlags {
     /** The `cosmograph` experiment: Line's long-edge fade and blending. */
     readonly cosmograph: boolean;
-    /** The `node-models` experiment: Shape's models and Fill's Picture. */
-    readonly nodeModels: boolean;
+}
+
+/**
+ * The properties an experiment that is off keeps out of the Style tab: with `cosmograph` off, Line's
+ * fade and blending.
+ * @param flags - which experiments are on.
+ * @returns the properties to leave out.
+ */
+export function experimentChannelsOff(flags: SectionFlags): ReadonlySet<Channel> {
+    return new Set<Channel>(flags.cosmograph ? [] : COSMOGRAPH_LINE_CHANNELS);
 }
 
 /**
@@ -244,7 +276,7 @@ export function sectionsFor(kind: Kind, flags: SectionFlags): readonly SectionSp
     if (kind === "edge") {
         return flags.cosmograph ? COSMOGRAPH_EDGE_SECTIONS : SECTIONS.edge;
     }
-    return flags.nodeModels ? NODE_MODELS_SECTIONS : SECTIONS.node;
+    return NODE_MODELS_SECTIONS;
 }
 
 /**
@@ -349,11 +381,16 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.color": "Color",
     "node.size": "Size",
     "node.sizeMode": "Size mode",
+    "node.sizeSpace": "Size space",
     "node.shape": "Shape",
     "node.model": "Model",
     "node.modelSourceUp": "Model up axis",
     "node.modelTurn": "Model turn",
     "node.modelTint": "Use node color",
+    "node.modelDoubleSided": "Model double-sided",
+    "node.modelAnimation": "Model animation",
+    "node.modelAnimationSpeed": "Model animation speed",
+    "node.modelAnimationOffset": "Model animation start",
     "node.modelFit": "Model fit",
     "node.modelCenter": "Model center",
     "node.texture": "Texture",
@@ -367,6 +404,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelWrapWidth": "Label wrap width",
     "node.labelLetterSize": "Label letter size",
     "node.labelWrapTrailingSpace": "Label wraps with a trailing space",
+    "node.labelWrapSkipEndSpace": "Label wraps without an end space",
     "node.labelMinScreenSize": "Label smallest size on screen",
     "node.labelOnTop": "Label drawn on top",
     "node.labelDeclutter": "Label overlap order",
@@ -417,6 +455,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelFitImage": "Fit image pixel size",
     "node.labelFitImagePadding": "Fit image padding",
     "edge.color": "Color",
+    "edge.colorFrom": "Color from node",
     "edge.width": "Width",
     "edge.opacity": "Opacity",
     "edge.bandColor": "Band",
@@ -465,16 +504,20 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shaders": "Shaders",
     "edge.shaders": "Shaders",
     "edge.taper": "Taper",
+    "edge.taperSource": "Source taper",
     "edge.lift": "Lift",
     "edge.labelWrapWidth": "Label wrap width",
     "edge.labelLetterSize": "Label letter size",
     "edge.labelWrapTrailingSpace": "Label wraps with a trailing space",
+    "edge.labelWrapSkipEndSpace": "Label wraps without an end space",
     "edge.labelMinScreenSize": "Label smallest size on screen",
     "edge.labelOnTop": "Label drawn on top",
     "edge.labelRotation": "Label rotation",
     "node.labelWrapEllipsis": "Label wrap ellipsis",
     "node.labelWrapAnywhere": "Label wrap anywhere",
     "node.labelWrapSpaceCount": "Label wrap space count",
+    "node.labelMaxLines": "Label max lines",
+    "node.labelMaxLinesEllipsis": "Label max lines ellipsis",
     "node.labelRunAlign": "Label run align",
     "node.labelOutline": "Label outline",
     "node.labelOutlineWidth": "Label outline width",
@@ -487,6 +530,10 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelPadding": "Label padding",
     "node.labelCornerRadius": "Label corner radius",
     "node.labelLineHeight": "Label line height",
+    "node.labelLineBox": "Label line box",
+    "node.labelBorderAlign": "Label border align",
+    "node.labelBorderStyle": "Label border style",
+    "node.labelBackgroundShape": "Label background shape",
     "node.labelOffsetX": "Label offset x",
     "node.labelOffsetY": "Label offset y",
     "node.labelShiftX": "Label shift x",
@@ -502,6 +549,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.xlabelLocation": "Outside label location",
     "node.xlabelOffsetX": "Outside label offset x",
     "node.xlabelOffsetY": "Outside label offset y",
+    "node.xlabelTextAlign": "Outside label text align",
     "edge.xlabel": "Outside label",
     "edge.xlabelStyle": "Outside label style",
     "edge.xlabelLocation": "Outside label location",
@@ -548,6 +596,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.imageSmoothing": "Image smoothing",
     "node.imageAutoSize": "Image auto size",
     "node.imageOpacity": "Image opacity",
+    "node.imageAspect": "Size to image aspect",
     "node.glyph": "Glyph",
     "node.glyphFont": "Glyph font",
     "node.glyphSize": "Glyph size",
@@ -625,6 +674,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.wavePeriod": "Wave period",
     "edge.dashLength": "Dash length",
     "edge.dashGap": "Dash gap",
+    "edge.dashArray": "Dash array",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",
@@ -683,6 +733,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelWrapEllipsis": "Label wrap ellipsis",
     "edge.labelWrapAnywhere": "Label wrap anywhere",
     "edge.labelWrapSpaceCount": "Label wrap space count",
+    "edge.labelMaxLines": "Label max lines",
+    "edge.labelMaxLinesEllipsis": "Label max lines ellipsis",
     "edge.labelRunAlign": "Label run align",
     "edge.labelOutline": "Label outline",
     "edge.labelOutlineWidth": "Label outline width",
@@ -696,6 +748,10 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelTable": "Label table",
     "edge.labelCornerRadius": "Label corner radius",
     "edge.labelLineHeight": "Label line height",
+    "edge.labelLineBox": "Label line box",
+    "edge.labelBorderAlign": "Label border align",
+    "edge.labelBorderStyle": "Label border style",
+    "edge.labelBackgroundShape": "Label background shape",
     "edge.labelOffsetX": "Label offset x",
     "edge.labelOffsetY": "Label offset y",
     "edge.labelShiftX": "Label shift x",
@@ -758,14 +814,28 @@ export function settingWord(style: Channel, setting: Channel): string {
     return rest.charAt(0).toUpperCase() + rest.slice(1);
 }
 
+/** What a binding is written under in a layer's `encode`: a channel, or a shader parameter's address. */
+export type EncodeKey = Channel | ShaderParamAddress;
+
+/**
+ * Whether a key is a shader parameter's address (`node.shaders.<shader>.<parameter>`); every
+ * channel id has one dot.
+ * @param key - the key.
+ * @returns whether it is an address.
+ */
+export function isShaderParam(key: EncodeKey): key is ShaderParamAddress {
+    return key.split(".").length > 2;
+}
+
 /**
  * A property named with its kind, for words that stand away from its line (the history, a
  * notice): "node color", "edge width", so an edge color is never read as a node's.
  * @param channel - the element's channel id.
  * @returns "node color", "edge pattern", ...
  */
-export function channelPhrase(channel: Channel): string {
-    const name = fieldName(channel);
+export function channelPhrase(channel: EncodeKey): string {
+    // A shader parameter goes by the element's name for it ("Glass marble spin").
+    const name = isShaderParam(channel) ? shaderParamChannel(channel).plainName : fieldName(channel);
     return name.charAt(0).toLowerCase() + name.slice(1);
 }
 
@@ -921,38 +991,6 @@ export function refusalWords(refusal: CodedFact): string {
     return "Cannot be drawn here";
 }
 
-/** The label positions a line can take, as the alignment grid's cells. */
-const LOCATION_BY_CELL: Readonly<Record<AlignmentMatrixValue, LabelLocation>> = {
-    "top-left": "top-left",
-    "top-center": "top",
-    "top-right": "top-right",
-    "middle-left": "left",
-    "middle-center": "center",
-    "middle-right": "right",
-    "bottom-left": "bottom-left",
-    "bottom-center": "bottom",
-    "bottom-right": "bottom-right",
-};
-
-/**
- * The element's label location for an alignment grid cell.
- * @param cell - the grid cell.
- * @returns the location.
- */
-export function locationOfCell(cell: AlignmentMatrixValue): LabelLocation {
-    return LOCATION_BY_CELL[cell];
-}
-
-/**
- * The alignment grid cell for a label location.
- * @param location - the element's location, or undefined for its default (above).
- * @returns the cell.
- */
-export function cellOfLocation(location: LabelLocation | undefined): AlignmentMatrixValue {
-    const cells = Object.keys(LOCATION_BY_CELL) as AlignmentMatrixValue[];
-    return cells.find((cell) => LOCATION_BY_CELL[cell] === location) ?? "top-center";
-}
-
 /** A position's word on the label line. */
 const POSITION_WORDS: Readonly<Record<LabelLocation, string>> = {
     top: "Above",
@@ -1037,9 +1075,18 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
     E_MODEL_URL_BLOCKED: (p) => `This style loads a model from ${said(p.hosts)}, which is not allowed here.`,
     E_MODEL_TOO_LARGE: (p) =>
         `This model is too large: ${amount(p.found)} ${said(p.what)}, the limit is ${amount(p.limit)}. Pick a lighter one.`,
-    E_MODEL_STRUCTURE: () => "The model file is damaged.",
-    E_MODEL_FORMAT_UNSUPPORTED: (p) =>
-        `${said(p.format).toUpperCase()} files cannot be loaded yet. Export as GLB from your 3D program.`,
+    E_MODEL_STRUCTURE: (p) =>
+        p.rule === "delayLoad"
+            ? "This .babylon file keeps its meshes in other files. Export it as one file or as .glb."
+            : "The model file is damaged.",
+    E_MODEL_FORMAT_UNSUPPORTED: (p) => {
+        if (isSplatRefusal({ code: "E_MODEL_FORMAT_UNSUPPORTED", params: p })) {
+            return "Gaussian splats are not supported.";
+        }
+        return typeof p.extension === "string"
+            ? `This model needs ${p.extension}, which cannot be loaded yet.`
+            : `${said(p.format).toUpperCase()} files cannot be loaded yet. Export as GLB from your 3D program.`;
+    },
     E_MODEL_FORMAT_UNKNOWN: (p) => `${said(p.fileName) || "This file"} is not a 3D model file graphty knows.`,
     E_MODEL_AMBIGUOUS: (p) => `Which one is the model? ${said(p.candidates)}. Drop just one of them.`,
     E_MODEL_MISSING_FILE: (p) =>
@@ -1052,14 +1099,31 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
             : "That address is a web page, not a model. Use the address of the file itself.",
     E_MODEL_PART_REQUIRED: (p) => `The model cannot be drawn without ${said(p.name)}.`,
     E_MODEL_EXTERNAL_URL: () => "This model loads parts from somewhere else, which is not allowed. Export it as .glb.",
-    E_MODEL_DECODER_UNAVAILABLE: () => "This model is compressed in a way this page cannot read yet.",
+    E_MODEL_DECODER_UNAVAILABLE: (p) => {
+        if (p.reason === "missing") {
+            return "This page cannot read this model's compression.";
+        }
+        if (p.reason === "load") {
+            return "The decoder for this model's compressed data did not load. Try again.";
+        }
+        return p.reason === "decode"
+            ? "This model's compressed data is damaged."
+            : "This model is compressed in a way this page cannot read yet.";
+    },
     E_MODEL_PARSE: (p) => `The file is damaged or not a valid ${said(p.format).toUpperCase() || "model"}.`,
     E_MODEL_ZIP: () => "The .zip could not be opened.",
     E_MODEL_NAME_TAKEN: (p) => `A different model is already called ${said(p.id).replace(/^asset:/, "")}.`,
     E_MODEL_UNKNOWN_ASSET: () => "This style needs a model that is not here. Add the model file again.",
     E_MODEL_DIGEST_MISMATCH: () => "The model in this file is damaged.",
     W_MODEL_UP_GUESSED: () => "This model may be lying down. Use Turn upright to stand it up.",
-    W_MODEL_HAS_ANIMATIONS: () => "This model has animations; they do not play yet.",
+    W_MODEL_POINTS_APPROXIMATED: (p) => `This model's ${amount(p.points)} points are drawn as small solids.`,
+    W_MODEL_HAS_ANIMATIONS: () => "This model has animations. Animation in Model settings plays one or holds a pose.",
+    W_MODEL_EXTENSION_IGNORED: (p) => `This model's ${said(p.extension)} look is drawn opaque.`,
+    W_MODEL_ANIMATION_UNKNOWN: (p) =>
+        `This model has no animation called ${said(p.name)}. It has ${said(p.available) || "none"}.`,
+    W_MODEL_ANIMATION_REDUCED: (p) =>
+        `This model's animations play at ${amount(p.fps)} frames a second to save memory.`,
+    W_MODEL_ANIMATION_PARTIAL: () => "Some parts of this model hold still: their shape keys do not play.",
     W_MODEL_COLOR_IGNORED: () => "The model keeps its own colors. Use node color to paint it.",
     W_MODEL_HEAVY: (p) => `This model is detailed; with ${amount(p.nodes)} nodes the graph may be slow.`,
     W_MODEL_BUDGET: (p) => `The graph draws ${amount(p.triangles)} triangles and may be slow.`,
@@ -1085,12 +1149,26 @@ export function modelWords(fact: CodedFact): string {
     return words === undefined ? "The model could not be drawn." : words(fact.params);
 }
 
+/**
+ * How well a name matches a search: 0 when it is the search, 1 when it starts with it, 2 otherwise.
+ * @param name - the name as the reader sees it.
+ * @param query - the search, trimmed and lower case.
+ * @returns the rank, lower is better.
+ */
+export function nameRank(name: string, query: string): number {
+    const lower = name.toLowerCase();
+    if (lower === query) {
+        return 0;
+    }
+    return lower.startsWith(query) ? 1 : 2;
+}
+
 /** Compares names as a reader counts: GAL2 before GAL10. */
 export const NATURAL = new Intl.Collator(undefined, { numeric: true });
 
 /**
- * A search's matches with the names that start with the typed text first, then the rest, each part
- * in the order it came in: "on" lists on_record before donations.
+ * A search's matches with the name that is exactly the typed text first, then the names that start
+ * with it, then the rest, each part in the order it came in: "on" lists on_record before donations.
  * @param items - the matches, in list order.
  * @param nameOf - an item's name as the reader sees it.
  * @param query - the search text.
@@ -1102,7 +1180,7 @@ export function prefixFirst<T>(items: readonly T[], nameOf: (item: T) => string,
         return [...items];
     }
     // Array.prototype.sort is stable, so each part keeps its order.
-    const rank = (item: T): number => (nameOf(item).toLowerCase().startsWith(q) ? 0 : 1);
+    const rank = (item: T): number => nameRank(nameOf(item), q);
     return [...items].sort((a, b) => rank(a) - rank(b));
 }
 
@@ -1371,16 +1449,6 @@ function pickedCount(nodes: number, edges: number): string {
  */
 export function firstValueWords(property: string): string {
     return `Not set yet: the first ${property.toLowerCase()} you pick makes the layer`;
-}
-
-/**
- * What a selection's Style tab says before its layer exists: the first style set makes it.
- * @param nodes - how many nodes are selected.
- * @param edges - how many edges are selected.
- * @returns the words.
- */
-export function firstStyleWords(nodes: number, edges: number): string {
-    return `The first style you set makes a layer for ${selectedWords(nodes, edges)}.`;
 }
 
 /** Which list a shader gallery opens for: a tab's Shaders, or the graph's Background. */
@@ -1834,6 +1902,19 @@ export const BACKGROUND_SECTION_WORDS = {
         const named = word === "" ? hex : `${word} (${hex})`;
         return `No color set: drawn in ${named}`;
     },
+    /**
+     * A picture graphty-element could not decode (`E_IMAGE_DECODE`), so it is not the background.
+     * @param problem - the element's report.
+     * @returns the notice's sentence, such as "IMG_0001.HEIC is HEIC, which this browser cannot draw."
+     */
+    notDrawn: (problem: CodedFact): string => {
+        const name = typeof problem.params.fileName === "string" ? problem.params.fileName : "This image";
+        const format = typeof problem.params.format === "string" ? problem.params.format : "";
+        const kind = format.replace(/^image\//, "").toUpperCase();
+        return kind === ""
+            ? `${name} could not be drawn: this browser cannot read it as an image.`
+            : `${name} is ${kind}, which this browser cannot draw.`;
+    },
 } as const;
 
 /** The Quality row's choices: the reader's `shaderSettings.quality`. */
@@ -1901,24 +1982,11 @@ export const GROUP_BY_WORDS = {
     none: "None",
 } as const;
 
-/** The Shape list's last entry, which opens the Models pop-over (the node-models experiment). */
+/** The Shape list's last entry, which opens the Models pop-over. */
 export const MODEL_TILE = "Model...";
 
 /** The value the Shape list's Model... entry carries: never written, it opens the Models pop-over. */
 export const MODEL_PICK = "+model";
-
-/**
- * A count and its noun: "no animations", "1 material", "12 triangles".
- * @param n - the count.
- * @param noun - the noun, singular.
- * @returns the words.
- */
-function counted(n: number, noun: string): string {
-    if (n === 0) {
-        return `no ${noun}s`;
-    }
-    return n === 1 ? `1 ${noun}` : `${String(n)} ${noun}s`;
-}
 
 /**
  * What a refused file should be instead: "choose a GLB, GLTF, OBJ, STL file".
@@ -1929,22 +1997,159 @@ function readsWords(formats: readonly string[]): string {
     return `choose a ${formats.map((e) => e.replace(/^\./, "").toUpperCase()).join(", ")} file`;
 }
 
+/** How a model file is stored, in a reader's words. */
+const ENCODING_WORDS: Readonly<Record<ModelEncoding, string>> = {
+    ascii: "ASCII",
+    binary: "binary",
+    binaryBigEndian: "big-endian binary",
+};
+
+/** A glTF's compression, by its usual name. */
+const COMPRESSION_WORDS: Readonly<Record<ModelCompression, string>> = {
+    draco: "Draco",
+    meshopt: "meshopt",
+    ktx2: "KTX2",
+    webp: "WebP",
+    avif: "AVIF",
+};
+
+/**
+ * A model format's usual name: "glTF", "GLB", "PLY".
+ * @param format - graphty-element's format id.
+ * @returns the name.
+ */
+function formatWord(format: string): string {
+    return format === "gltf" ? "glTF" : format.toUpperCase();
+}
+
 /** The Load custom model dialog's words (node-models design 14.6). */
+
+/**
+ * The Details Textures row: how many, then the pictures not in yet or drawn without, else their size.
+ * @param summary - from graphty-element's `assets.inspect`.
+ * @param waiting - the pictures missing or skipped, as `detailRows` takes them.
+ * @param waiting.count - how many are not in yet.
+ * @param waiting.downloading - whether they still download.
+ * @param waiting.skipped - how many the model is drawn without.
+ * @returns the words.
+ */
+function texturesLine(
+    summary: ModelSummary,
+    waiting?: { readonly count: number; readonly downloading: boolean; readonly skipped?: number },
+): string {
+    const count = formatCount(summary.textures);
+    if (waiting !== undefined && waiting.count > 0) {
+        return `${count}, ${formatCount(waiting.count)} ${waiting.downloading ? "downloading" : "missing"}`;
+    }
+    if (waiting?.skipped !== undefined && waiting.skipped > 0) {
+        return `${count}, ${formatCount(waiting.skipped)} skipped`;
+    }
+    return `${count}, ${megabytes(summary.textureBytes)}`;
+}
+
+/**
+ * A model's extent along one axis, in the file's own units, to three figures.
+ * @param value - the extent.
+ * @returns the words.
+ */
+function sizeNumber(value: number): string {
+    return String(Number(value.toPrecision(3)));
+}
+
+/** The units a model file may name, by meters per unit. */
+const UNIT_WORDS: readonly (readonly [number, string])[] = [
+    [1, "Meters"],
+    [0.01, "Centimeters"],
+    [0.001, "Millimeters"],
+    [0.0254, "Inches"],
+    [0.3048, "Feet"],
+    [1000, "Kilometers"],
+];
+
+/**
+ * A model file's unit in a reader's words: "Centimeters", or "0.05 m" for one with no name.
+ * @param metersPerUnit - from the summary.
+ * @returns the words.
+ */
+function unitWords(metersPerUnit: number): string {
+    const named = UNIT_WORDS.find(([meters]) => Math.abs(meters - metersPerUnit) <= meters * 1e-6);
+    return named?.[1] ?? `${sizeNumber(metersPerUnit)} m`;
+}
+
 export const CUSTOM_MODEL = {
     title: "Load custom model",
-    button: "Custom model...",
+    button: "Add custom model...",
     description: "Load a 3D model file or address into this project",
     address: "Model address",
-    load: "Load model address",
-    chooseFiles: "Choose files",
+    /** The address field's placeholder: it also says the dialog takes a dropped file. */
+    addressOrDrop: "Model address, or drop a file",
+    /** What the file row says over itself while files are dragged over the dialog. */
+    dropToLoad: "Drop to load model",
+    chooseFile: "Choose file",
     chooseFolder: "Choose folder",
+    /** The folder icon's hover text: when to use it. */
+    folderTip: "Choose folder: for a model exported with its textures and parts in a folder",
+    cancelLoad: "Cancel load",
     /**
-     * The drop zone's hint, with the model formats graphty-element draws.
-     * @param formats - the formats' extensions, ".glb".
+     * Said when the reader stops a load.
+     * @param name - what was loading.
      * @returns the words.
      */
-    dropHint: (formats: readonly string[]): string =>
-        `or drop files, a folder or a .zip -- ${formats.map((e) => e.replace(/^\./, "").toUpperCase()).join(", ")}`,
+    cancelled: (name: string): string => `Stopped loading ${name}`,
+    /** What a load is doing, by graphty-element's stage. */
+    stages: { downloading: "Downloading", reading: "Reading", unpacking: "Unpacking" } as Readonly<
+        Record<string, string>
+    >,
+    /** Said once graphty-element has the files and draws the model. */
+    preparing: "Preparing",
+    /**
+     * How much of a load has come: "3.2 of 12.4 MB", or "3.2 MB" when the size is not known.
+     * @param completed - bytes so far.
+     * @param total - bytes in all, or null.
+     * @returns the words.
+     */
+    bytes: (completed: number, total: number | null): string =>
+        total === null || total <= 0
+            ? megabytes(completed)
+            : `${megabytes(completed).replace(/ MB$/, "")} of ${megabytes(total)}`,
+    /** The button at the end of Name that opens the model's own settings, and their pop-over's title. */
+    settings: "Model settings",
+    /** The x that closes the Model settings pop-over, back to the dialog. */
+    closeSettings: "Close model settings",
+    textures: "Textures",
+    allTextures: "All textures",
+    /** Over the rows only a layer takes (Light, Wireframe, Picture), opened from a layer. */
+    forThisLayer: "For this layer",
+    /**
+     * Under the model's settings, opened from a layer that sets some of them itself.
+     * @param words - the settings' words, "Turn, Color".
+     * @returns the words.
+     */
+    layerOwn: (words: string): string => `This layer sets its own ${words}, which wins over the model's`,
+    /**
+     * The undo step that stores a model's settings with it.
+     * @param name - the model's name.
+     * @returns the words.
+     */
+    settingsStep: (name: string): string => `setting ${name}'s model settings`,
+    /** The heading over Model settings' animation rows. */
+    animation: "Animation",
+    /** The Animation group's switch: on plays the clip, off holds the model still. */
+    playing: "Playing",
+    still: "Still",
+    pose: "Pose",
+    /**
+     * A clip as the Animation menu lists it: "Walk, 2.0 s".
+     * @param clip - the clip's name and length.
+     * @param clip.name - its name.
+     * @param clip.seconds - its length.
+     * @returns the words.
+     */
+    clip: (clip: { readonly name: string; readonly seconds: number }): string =>
+        `${clip.name || "Unnamed"}, ${clip.seconds.toFixed(1)} s`,
+    /** The rotate buttons under the preview, by `turnModelOrientation`'s step. */
+    turns: { left: "Turn left", right: "Turn right", forward: "Tip forward", back: "Tip back" } as const,
+    rotate: "Rotate",
     /** What a refused file should be instead. */
     reads: readsWords,
     checkAddress: "check the address or choose the file instead",
@@ -1956,59 +2161,122 @@ export const CUSTOM_MODEL = {
      */
     notModel: (name: string, formats: readonly string[]): string =>
         `${name} is a picture, not a 3D model: ${readsWords(formats)}`,
-    replace: "Replace...",
+    /**
+     * The x beside the loaded file's name.
+     * @param name - the file's name or the address.
+     * @returns the words.
+     */
+    remove: (name: string): string => `Remove ${name}`,
+    /**
+     * Said once the loaded model is taken out of the dialog.
+     * @param name - the file's name or the address.
+     * @returns the words.
+     */
+    removed: (name: string): string => `${name} removed`,
+    /**
+     * A part of a model still downloading: the model is shown meanwhile, and Add waits for it.
+     * @param file - the part's file name.
+     * @returns the spinner's name.
+     */
+    downloadingPart: (file: string): string => `Downloading ${file}`,
     name: "Name",
     color: "Color",
     files: "Files",
-    advanced: "Advanced",
     details: "Details",
     /**
-     * The model's details in one line: "GLB, 12 triangles, 1 material, 1 texture, no animations".
+     * Which variant of its format a model is, under its preview: "PLY, binary, point cloud", "glTF, Draco".
      * @param summary - from graphty-element's `assets.inspect`.
-     * @param summary.format - its format.
-     * @param summary.triangles - its triangles.
-     * @param summary.materials - its materials.
-     * @param summary.textures - its pictures.
-     * @param summary.animations - its animations.
      * @returns the words.
      */
-    detailLine: (summary: {
-        readonly format: string;
-        readonly triangles: number;
-        readonly materials: readonly unknown[];
-        readonly textures: number;
-        readonly animations: readonly unknown[];
-    }): string =>
+    variantLine: (
+        summary: Pick<ModelSummary, "format" | "encoding" | "geometry" | "compression" | "gltfVersion">,
+    ): string =>
         [
-            summary.format.toUpperCase(),
-            counted(summary.triangles, "triangle"),
-            counted(summary.materials.length, "material"),
-            counted(summary.textures, "texture"),
-            counted(summary.animations.length, "animation"),
-        ].join(", "),
-    /**
-     * What the closed Files line says about files that need nothing: "1 substituted, 2 not used".
-     * @param counts - how many parts are in each state.
-     * @param counts.substituted - found under another name.
-     * @param counts.skipped - left out.
-     * @param counts.unused - files nothing names.
-     * @returns the words, or "" for none.
-     */
-    filesNote: (counts: { readonly substituted: number; readonly skipped: number; readonly unused: number }): string =>
-        [
-            counts.substituted > 0 ? `${String(counts.substituted)} substituted` : "",
-            counts.skipped > 0 ? `${String(counts.skipped)} skipped` : "",
-            counts.unused > 0 ? `${String(counts.unused)} not used` : "",
+            summary.gltfVersion === "1.0" ? `${formatWord(summary.format)}, glTF 1.0` : formatWord(summary.format),
+            summary.encoding === undefined ? "" : ENCODING_WORDS[summary.encoding],
+            { mesh: "", points: "point cloud" }[summary.geometry ?? "mesh"],
+            ...(summary.compression ?? []).map((c) => COMPRESSION_WORDS[c]),
         ]
             .filter((w) => w !== "")
             .join(", "),
     /**
-     * A part row's address field placeholder.
+     * The model's details as rows of a table: each fact graphty-element reports, by its name, the
+     * ones a file does not have left out.
+     * @param summary - from graphty-element's `assets.inspect`.
+     * @param fileBytes - the model's files, in bytes, if known.
+     * @param ignored - the extensions graphty-element drew without (`W_MODEL_EXTENSION_IGNORED`).
+     * @param waiting - the pictures not in yet, and whether they still download: their size is not
+     *     known, so the Textures row gives none.
+     * @param waiting.count - how many.
+     * @param waiting.downloading - whether they still download.
+     * @param waiting.skipped - how many the model is drawn without (`W_MODEL_PART_SKIPPED`): drawn
+     *     with none of their own, so the Textures row gives no size for them either.
+     * @returns each row's name, its value, and a tooltip for a value that lists more than it shows.
+     */
+    detailRows: (
+        summary: ModelSummary,
+        fileBytes: number | undefined,
+        ignored: readonly string[] = [],
+        waiting?: { readonly count: number; readonly downloading: boolean; readonly skipped?: number },
+    ): readonly { readonly name: string; readonly value: string; readonly tip?: string }[] => {
+        const rows: { name: string; value: string; tip?: string }[] = [
+            { name: "Format", value: CUSTOM_MODEL.variantLine(summary) },
+        ];
+        const add = (when: boolean, name: string, value: string, tip?: string): void => {
+            if (when) {
+                rows.push(tip === undefined ? { name, value } : { name, value, tip });
+            }
+        };
+        add(fileBytes !== undefined, "File size", megabytes(fileBytes ?? 0));
+        add(summary.points !== undefined, "Points", formatCount(summary.points ?? 0));
+        add(summary.points === undefined, "Triangles", formatCount(summary.triangles));
+        add(true, "Meshes", formatCount(summary.meshes));
+        add(
+            true,
+            "Materials",
+            formatCount(summary.materials.length),
+            summary.materials.filter((m) => m !== "").join(", ") || undefined,
+        );
+        add(summary.textures > 0, "Textures", texturesLine(summary, waiting));
+        add(
+            summary.animations.length > 0,
+            "Animations",
+            summary.animations.map((clip) => CUSTOM_MODEL.clip(clip)).join("; "),
+        );
+        add(summary.skinned, "Skinned", "Yes");
+        add(summary.morphTargets > 0, "Morph targets", formatCount(summary.morphTargets));
+        add(summary.vertexColors === true, "Vertex colors", "Yes");
+        add(summary.transparent, "Transparent", "Yes");
+        add(true, "Up axis", summary.upAxis === "unknown" ? "Not stated" : summary.upAxis.toUpperCase());
+        const { bounds } = summary;
+        add(
+            bounds !== undefined,
+            "Size",
+            bounds === undefined ? "" : [0, 1, 2].map((i) => sizeNumber(bounds.max[i] - bounds.min[i])).join(" x "),
+        );
+        add(summary.metersPerUnit !== undefined, "Units", unitWords(summary.metersPerUnit ?? 1));
+        add(summary.extensionsRequired.length > 0, "Extensions required", summary.extensionsRequired.join(", "));
+        add(ignored.length > 0, "Extensions ignored", ignored.join(", "));
+        return rows;
+    },
+    /**
+     * A part row's address field: its placeholder and its name.
      * @param part - the part's file name.
      * @returns the words.
      */
-    partAddress: (part: string): string => `URL for ${part}`,
-    byAddress: "Address...",
+    partAddress: (part: string): string => `${part} address`,
+    /**
+     * A missing part's field placeholder: it also says the row takes a dropped file.
+     * @param part - the part's file name.
+     * @returns the words.
+     */
+    partAddressOrDrop: (part: string): string => `${part} address, or drop a file`,
+    /**
+     * What a missing part's row says over itself while a file is dragged over it.
+     * @param part - the part's file name.
+     * @returns the words.
+     */
+    dropPart: (part: string): string => `Drop to use as ${part}`,
     useFile: "Use file",
     cancel: "Cancel",
     add: "Add model",
@@ -2025,7 +2293,9 @@ export const CUSTOM_MODEL = {
      * @param name - the model's name.
      * @returns the words.
      */
-    preview: (name: string): string => `${name} preview`,
+    preview: (name: string): string => `${name} preview, drag or use the arrow keys to turn it`,
+    /** The button that turns the preview back to its first view. */
+    resetView: "Reset view",
     /**
      * Said while a model loads.
      * @param name - its name, or "model".
@@ -2039,14 +2309,73 @@ export const CUSTOM_MODEL = {
      */
     loaded: (name: string): string => `${name} loaded`,
     /**
+     * The file is already in the project: Add adds a second model of it, leaving the first as it is.
+     * @param name - the first model's name.
+     * @returns the words.
+     */
+    again: (name: string): string => `Already in the project as ${name}. Add adds another, set up on its own.`,
+    /**
      * Said once the main menu's dialog added a model.
      * @param name - its name.
      * @returns the words.
      */
     added: (name: string): string => `${name} added to the project`,
+    /**
+     * Said once the main menu's dialog added several models.
+     * @param count - how many.
+     * @returns the words.
+     */
+    addedMany: (count: number): string => `${count} models added to the project`,
+    /**
+     * Said once a folder, a .zip or a drop of several models is in the dialog.
+     * @param count - how many.
+     * @returns the words.
+     */
+    loadedMany: (count: number): string => `${count} models loaded`,
+    /**
+     * Add, for several models chosen from a set.
+     * @param count - how many are chosen.
+     * @returns the words.
+     */
+    addMany: (count: number): string => `Add ${count} models`,
+    /**
+     * The file loader's line for a set of several models.
+     * @param count - how many.
+     * @returns the words.
+     */
+    models: (count: number): string => `${count} models`,
+    /**
+     * Where the shown model sits among the set's: "2 of 5".
+     * @param at - its place, from 1.
+     * @param count - how many.
+     * @returns the words.
+     */
+    position: (at: number, count: number): string => `${at} of ${count}`,
+    previousModel: "Previous model",
+    nextModel: "Next model",
+    /** Over a set's list of its models, in the loading column. */
+    setModels: "Models",
+    /**
+     * A set's list: the checkbox that says whether Add takes the model in this file.
+     * @param file - the model's file.
+     * @returns the words.
+     */
+    loadFile: (file: string): string => `Load ${file}`,
+    /** The checkbox under a set's preview: whether Add takes the model shown. */
+    loadThis: "Load this model",
+    /** Add's tooltip while no model of a set is chosen. */
+    noneChosen: "Choose a model to load",
+    /**
+     * One model of a set, by its file or its name, and what is wrong with it: a refusal, or why it
+     * cannot be drawn.
+     * @param name - the model's file or name.
+     * @param line - the refusal's sentence.
+     * @returns the words.
+     */
+    ofSet: (name: string, line: string): string => `${name}: ${line}`,
 } as const;
 
-/** What Fill's "+" and the Picture line call `node.texture` (the node-models experiment). */
+/** What Fill's "+" and the Picture line call `node.texture`. */
 export const PICTURE_WORD = "Picture";
 
 /**
@@ -2057,6 +2386,10 @@ export const MODEL_SETTING_ROWS: readonly {
     readonly channel: Channel;
     readonly word: string;
     readonly choices?: readonly (readonly [string, string])[];
+    /** A number's unit, after it. */
+    readonly unit?: string;
+    /** A number's step for the arrow keys. Default 1. */
+    readonly step?: number;
 }[] = [
     {
         channel: "node.modelSourceUp",
@@ -2071,14 +2404,15 @@ export const MODEL_SETTING_ROWS: readonly {
             ["-x", "-X"],
         ],
     },
-    { channel: "node.modelTurn", word: "Turn" },
+    { channel: "node.modelTurn", word: "Turn", unit: "deg" },
     {
         channel: "node.modelTint",
         word: "Color",
         choices: [
             ["false", "Model's own"],
             ["true", "Node color on top"],
-            ["replace", "Node color only"],
+            ["untextured", "Node color on plain parts"],
+            ["replace", "Node color only, no pictures"],
         ],
     },
     {
@@ -2097,15 +2431,43 @@ export const MODEL_SETTING_ROWS: readonly {
             ["origin", "File's origin"],
         ],
     },
+    // Its choices are the model's clips, which the row reads from graphty-element's summary.
+    { channel: "node.modelAnimation", word: "Clip", choices: [["", "Still"]] },
+    { channel: "node.modelAnimationSpeed", word: "Speed", unit: "x", step: 0.1 },
+    { channel: "node.modelAnimationOffset", word: "Start", unit: "s", step: 0.1 },
+    {
+        channel: "node.modelDoubleSided",
+        word: "Sides",
+        choices: [
+            ["file", "File's choice"],
+            ["true", "Both sides"],
+            ["false", "Front only"],
+        ],
+    },
+    {
+        channel: "node.unlit",
+        word: "Light",
+        choices: [
+            ["false", "Lit"],
+            ["true", "Unlit"],
+        ],
+    },
+    {
+        channel: "node.wireframe",
+        word: "Wireframe",
+        choices: [
+            ["false", "Off"],
+            ["true", "On"],
+        ],
+    },
 ];
 
-/** A warning chip on a Model settings row: its word and its tooltip (design 13.3). */
-export const MODEL_SETTING_CHIPS: Readonly<
-    Partial<Record<Channel, { readonly code: string; readonly word: string; readonly tip: string }>>
-> = {
-    "node.modelSourceUp": { code: "W_MODEL_UP_GUESSED", word: "Guessed", tip: "up axis guessed from the file" },
-    "node.modelTint": { code: "W_MODEL_COLOR_IGNORED", word: "Color unused", tip: "node color not drawn on the model" },
-};
+/** The Model settings rows that only a model with animations shows. */
+export const ANIMATION_CHANNELS: ReadonlySet<Channel> = new Set([
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+]);
 
 /**
  * A rule as the reader reads and types it: its numbers without the backticks the element writes

@@ -20,7 +20,7 @@ import { findTreeRow } from "../../graph-place/rows";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 /** The scene: the session, the store, and each run's tree row name. */

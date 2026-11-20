@@ -19,6 +19,7 @@ import type { Edge } from "../../src/Edge";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 interface TestGraph {
     nodes: Node[];
@@ -26,10 +27,8 @@ interface TestGraph {
 }
 
 function graphOf(ids: string[], pairs: [string, string][]): TestGraph {
-    const byId = new Map(ids.map((id, index) => [id, { id, index } as unknown as Node]));
-    const edges = pairs.map(
-        ([s, d]) => ({ srcId: s, dstId: d, srcNode: byId.get(s), dstNode: byId.get(d) }) as unknown as Edge,
-    );
+    const byId = new Map(ids.map((id, index) => [id, fakeNode(id, { index })]));
+    const edges = pairs.map(([s, d]) => fakeEdge(byId.get(s) ?? s, byId.get(d) ?? d));
     return { nodes: [...byId.values()], edges };
 }
 

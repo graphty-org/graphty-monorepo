@@ -226,14 +226,14 @@ Based on research from the official MCP documentation:
 }
 ```
 
-#### 7. `logs_health` (GET /health equivalent)
+#### 7. `logs_status` (GET /health equivalent)
 
-**Purpose**: Check server health and status.
+**Purpose**: Check server health, endpoint configuration and retention settings.
 
 ```typescript
 {
-  name: "logs_health",
-  description: "Check the health and status of the remote logging server. Returns server uptime, total sessions, total log count, and memory usage.",
+  name: "logs_status",
+  description: "Get the status of the remote log server. Returns health metrics (uptime, session count, log count, memory usage), HTTP endpoint configuration (port, host, URL for browser clients, script URL, proxy base URL), and retention settings.",
   inputSchema: {
     type: "object",
     properties: {}
@@ -319,7 +319,7 @@ Based on research from the official MCP documentation:
 | `logs_get_errors`    | GET /logs/errors | **Keep** - Common debugging need          |
 | `logs_clear`         | POST /logs/clear | **Keep** - Add confirmation               |
 | `logs_list_sessions` | NEW              | **Add** - Essential for multi-project     |
-| `logs_health`        | GET /health      | **Keep** - Server monitoring              |
+| `logs_status`        | GET /health      | **Keep** - Server monitoring              |
 | `logs_search`        | NEW              | **Add** - Powerful debugging aid          |
 | `logs_get_file_path` | NEW              | **Add** - File-based access for Grep/Read |
 

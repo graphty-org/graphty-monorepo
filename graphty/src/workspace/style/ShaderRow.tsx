@@ -1,14 +1,14 @@
 import { ContextMenu, Popout, PopoutButton } from "@graphty/compact-mantine";
 import type { Channel } from "@graphty/graphty-element/schema";
-import { ActionIcon, Button, Menu, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { ControlLabel } from "./ControlLabel";
 import type { RowContext } from "./PropertyRow";
 import { type DataChoice, sourceName } from "./row";
 import type { PasteInit } from "./ShaderEditorDialog";
-import { PlaceDiagram } from "./ShaderGallery";
 import { ShaderParams } from "./ShaderParams";
 import {
     bindingsOf,
@@ -101,26 +101,6 @@ function duplicateAction(
 }
 
 /**
- * The place of a row, as its words and diagram. Choosing a shader asks no place: a shader draws at
- * its own, which only its code (New shader, Edit code) sets.
- * @param props - Component props
- * @param props.tab - the row's tab
- * @param props.entry - the row's use
- * @returns The label
- */
-function PlaceLabel({ tab, entry }: Readonly<{ tab: RowContext["side"]; entry: ShaderEntry }>): React.JSX.Element {
-    const place = placeOf(entry);
-    return (
-        <span className="ws-place-badge" data-place={place}>
-            <PlaceDiagram place={place} tab={tab} />
-            <Text size="xs" truncate>
-                {placeWords(place, tab)}
-            </Text>
-        </span>
-    );
-}
-
-/**
  * A row's settings button and its pop-out: the parameters, with a calculated toggle on those
  * that vary, Minimum size when the shader declares it, and the cost line. Nothing for an unknown
  * shader or an entry that is off.
@@ -129,6 +109,7 @@ function PlaceLabel({ tab, entry }: Readonly<{ tab: RowContext["side"]; entry: S
  * @param props.entry - the row's use
  * @param props.name - the shader's name
  * @param props.fail - posts a failed write's notice
+ * @param props.notes - where it draws and why it draws nothing, said in its tooltip
  * @returns The button and its pop-out, or null
  */
 function SettingsPopout({
@@ -136,7 +117,14 @@ function SettingsPopout({
     entry,
     name,
     fail,
-}: Readonly<{ ctx: RowContext; entry: ShaderEntry; name: string; fail: Fail }>): React.JSX.Element | null {
+    notes,
+}: Readonly<{
+    ctx: RowContext;
+    entry: ShaderEntry;
+    name: string;
+    fail: Fail;
+    notes: readonly string[];
+}>): React.JSX.Element | null {
     const { store } = useWorkspace();
     const [open, setOpen] = useState(false);
     const { descriptor } = entry;
@@ -153,7 +141,11 @@ function SettingsPopout({
     return (
         <Popout opened={open} onOpenChange={setOpen}>
             <Popout.Trigger>
-                <Tooltip label={`${name} settings`}>
+                <Tooltip
+                    label={[`${name} settings`, ...notes].map((line) => (
+                        <div key={line}>{line}</div>
+                    ))}
+                >
                     <PopoutButton
                         icon={<GLYPHS.settings size={14} aria-hidden />}
                         aria-label={`${name} settings`}
@@ -377,8 +369,12 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
         onMove(entry.index, to);
     };
     const removeName = `Remove ${name.toLowerCase()}`;
+    // Where it draws and why it draws nothing: in the settings button's tooltip, or Remove's when the
+    // row has no settings (an unknown or switched-off shader), never a line in the sidebar (#8739).
+    const notes = [use.off === true ? "" : placeWords(placeOf(entry), ctx.side), why ?? ""].filter((w) => w !== "");
+    const settingsShown = descriptor !== undefined && use.off !== true;
     const row = (
-        <div // NOSONAR(S6848): catches Alt+Up and Alt+Down bubbling from the row's own controls to reorder it
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- catches Alt+Up and Alt+Down bubbling from the row's own controls to reorder it
             ref={box}
             className="ws-row ws-shader-row"
             data-line={entry.key}
@@ -414,30 +410,28 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
                 </Tooltip>
                 <span className="ws-shader-name">
                     <ShaderThumb src={descriptor?.thumbnail} />
-                    <Text size="xs" truncate title={name}>
+                    <ControlLabel size="xs" truncate title={name}>
                         {name}
-                    </Text>
+                    </ControlLabel>
                 </span>
                 {/* The field column: a new row's focus goes to the control here (useFocusLine). */}
-                <span className="ws-shader-place ws-field-control">
-                    {use.off === true ? null : <PlaceLabel tab={ctx.side} entry={entry} />}
+                <span className="ws-shader-place ws-field-control" />
+                <span className="ws-slot">
+                    <SettingsPopout ctx={ctx} entry={entry} name={name} fail={fail} notes={notes} />
                 </span>
                 <span className="ws-slot">
-                    <SettingsPopout ctx={ctx} entry={entry} name={name} fail={fail} />
-                </span>
-                <span className="ws-slot">
-                    <Tooltip label={removeName} position="top">
+                    <Tooltip
+                        label={(settingsShown ? [removeName] : [removeName, ...notes]).map((line) => (
+                            <div key={line}>{line}</div>
+                        ))}
+                        position="top"
+                    >
                         <ActionIcon variant="subtle" size="sm" aria-label={removeName} onClick={remove}>
                             <GLYPHS.remove size={14} aria-hidden />
                         </ActionIcon>
                     </Tooltip>
                 </span>
             </div>
-            {why === undefined ? null : (
-                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-shader-problem>
-                    {why}
-                </Text>
-            )}
         </div>
     );
     return (

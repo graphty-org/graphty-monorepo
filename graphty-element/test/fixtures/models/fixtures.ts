@@ -139,6 +139,20 @@ export function glb(json: Record<string, unknown>, bin?: Uint8Array): Uint8Array
 }
 
 /**
+ * A GLB's JSON and binary chunk, the inverse of {@link glb}.
+ * @param bytes - The GLB.
+ * @returns Its JSON and its binary chunk.
+ */
+export function unpackGlb(bytes: Uint8Array): { json: Record<string, unknown>; bin: Uint8Array } {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const jsonLength = view.getUint32(12, true);
+    const json = JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + jsonLength))) as Record<string, unknown>;
+    const at = 20 + jsonLength;
+    const bin = at < bytes.length ? bytes.slice(at + 8, at + 8 + view.getUint32(at, true)) : new Uint8Array(0);
+    return { json, bin };
+}
+
+/**
  * A GLB with one textured triangle: the PNG sits in the binary chunk after the positions.
  * @param png - The image bytes.
  * @returns The GLB.
@@ -230,18 +244,20 @@ export function zip(entries: Record<string, Uint8Array>, level: 0 | 9 = 9): Uint
 }
 
 /**
- * The hostile references, each refused with E_MODEL_EXTERNAL_URL. A `file:` URL is a path on its
- * author's disk and means only its base name (design 12.5), so it is not here.
+ * The hostile references, each refused with E_MODEL_EXTERNAL_URL: schemes other than a web
+ * address. A web address or a path above the folder is a part the reader may supply (design 3.3),
+ * and a `file:` URL is a path on its author's disk that means only its base name (design 12.5), so
+ * neither is here.
  */
-export const HOSTILE_REFERENCES = ["//host/x.bin", "%2e%2e/x.bin", "../x.bin", "blob:https://a/b", "http://host/x.bin"];
+export const HOSTILE_REFERENCES = ["blob:https://a/b", "javascript:alert(1)", "ftp://host/x.bin", "data:text/html,x"];
 
-/** A glTF whose accessor claims 2e8 elements with no buffer view behind it. */
+/** A glTF whose accessor claims 3e8 elements (1.2 GB) with no buffer view behind it. */
 export function accessorBomb(): Map<string, Uint8Array> {
     return gltfPair(
         triangleGltf({
             accessors: [
                 { bufferView: 0, componentType: 5126, count: 3, type: "VEC3" },
-                { componentType: 5126, count: 2e8, type: "SCALAR" },
+                { componentType: 5126, count: 3e8, type: "SCALAR" },
             ],
         }),
     );

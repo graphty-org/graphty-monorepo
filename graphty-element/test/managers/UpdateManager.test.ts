@@ -1,7 +1,6 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-import { Graph } from "../../src/Graph";
-import type { RenderManager } from "../../src/managers/RenderManager";
+import { Graph, renderManagerOf } from "../../src/Graph";
 import { nodeFramingBox, styleBudgetFor, UpdateManager } from "../../src/managers/UpdateManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
@@ -14,8 +13,6 @@ describe("UpdateManager", () => {
     beforeEach(async () => {
         graph = await createTestGraph();
 
-        const graphAny = graph as unknown as Record<string, unknown>;
-
         // Every test below pumps frames by hand (`update`, `stepFrames`) and reads what a pass left
         // behind, so the live render loop `init` started must not run passes of its own in between.
         // Left running, it frames the graph the first time an animation frame lands between the
@@ -24,7 +21,7 @@ describe("UpdateManager", () => {
         // 295 ms on a loaded CI shard, where "zoom to fit has not completed yet" was already false
         // before the test began. Held frames are skipped whole, so nothing below observes a pass it
         // did not run itself.
-        releaseFrames = (graphAny.renderManager as RenderManager).holdFrames();
+        releaseFrames = renderManagerOf(graph).holdFrames();
 
         // Add test data with explicit positions for fixed layout
         // Positions need to create a bounding box larger than minBoundingBoxSize (0.1)
@@ -41,7 +38,7 @@ describe("UpdateManager", () => {
         // Set fixed layout
         await graph.setLayout("fixed");
 
-        updateManager = graphAny.updateManager as UpdateManager;
+        updateManager = graph.getUpdateManager();
     });
 
     afterEach(() => {
@@ -72,6 +69,41 @@ describe("UpdateManager", () => {
             const initialFrameCount = updateManager.getRenderFrameCount();
             updateManager.stepFrames(5);
             assert.equal(updateManager.getRenderFrameCount(), initialFrameCount + 5);
+        });
+    });
+
+    describe("the glide to a selection keeps to the clock", () => {
+        // Issue #9032: on a page drawing a frame a second (software WebGL on one busy CPU) the glide
+        // to a picked node was capped at 12 nominal frames per pass, so it took seven drawn frames,
+        // seven seconds, before the picture was final. The glide costs nothing per nominal frame it
+        // covers, so a pass covers all the time the last frame took and arrives in two.
+        it("a one-second frame brings the camera to a far node in two passes, and the third is at rest", async () => {
+            const MOVING = "the camera is still moving to the selection";
+            const AT_REST = new Set([
+                "the picture is final",
+                "nothing has drawn a frame since the graph stopped moving",
+            ]);
+            graph.setLayoutBehavior({ camera: { pivotOnSelection: true } });
+            await graph.addNodes([{ id: "far", position: { x: 500, y: 0, z: 0 } }]);
+            await graph.setLayout("fixed");
+            // A fixed layout has placed every node; as the tests above, mark it at rest by hand.
+            graph.getLayoutManager().running = false;
+            // Let the framing finish, so the glide is all that moves the camera.
+            for (let i = 0; i < 500 && !AT_REST.has(updateManager.whyFrameIsNotStable()); i++) {
+                updateManager.update(16);
+            }
+            assert.isTrue(AT_REST.has(updateManager.whyFrameIsNotStable()), updateManager.whyFrameIsNotStable());
+            const far = graph.getDataManager().nodes.get("far");
+            assert.isDefined(far);
+            graph.getSelectionManager().select(far);
+
+            let passes = 0;
+            do {
+                updateManager.update(1000);
+                passes++;
+            } while (updateManager.whyFrameIsNotStable() === MOVING && passes < 20);
+
+            assert.isAtMost(passes, 3, "passes until one finds the camera at rest on the selection");
         });
     });
 
@@ -134,7 +166,7 @@ describe("UpdateManager", () => {
         it("should enable zoom to fit", () => {
             updateManager.enableZoomToFit();
 
-            // Armed, and not yet answered: the request is honoured by the next pass, not by the
+            // Armed, and not yet answered: the request is honored by the next pass, not by the
             // call itself, and no pass has run (the render loop is held; see beforeEach).
             assert.isTrue(updateManager.isZoomToFitEnabled());
             assert.isFalse(updateManager.zoomToFitCompleted);
@@ -391,17 +423,18 @@ describe("UpdateManager", () => {
 });
 
 describe("styleBudgetFor", () => {
-    it("keeps a short frame's repaint to 16 ms and gives a slow frame a share of its length", () => {
+    it("keeps a short frame's repaint to 16 ms, a longer one's to a quarter, and gives a slow frame its own length", () => {
         assert.strictEqual(styleBudgetFor(16), 16);
         assert.strictEqual(styleBudgetFor(33), 16);
-        assert.strictEqual(styleBudgetFor(400), 100, "a slow frame's repaint takes a quarter of it");
-        assert.strictEqual(styleBudgetFor(4000), 1000, "a frame of seconds is no reason to draw more of them");
+        assert.strictEqual(styleBudgetFor(80), 20, "a frame under 100 ms grows by a quarter at most");
+        assert.strictEqual(styleBudgetFor(400), 400, "a slow frame's repaint takes as long as the frame drew");
+        assert.strictEqual(styleBudgetFor(4000), 4000, "a frame of seconds is no reason to draw more of them");
     });
 
-    it("gives a batched repaint that no frame shows three frames' worth, and a slow frame a share as before", () => {
+    it("gives a batched repaint that no frame shows three frames' worth, and a slow frame its own length as before", () => {
         assert.strictEqual(styleBudgetFor(16, true), 48, "a held draw shows nothing, so no frame waits on it");
         assert.strictEqual(styleBudgetFor(33, true), 48);
-        assert.strictEqual(styleBudgetFor(400, true), 100);
+        assert.strictEqual(styleBudgetFor(400, true), 400, "a slow frame's repaint takes as long as the frame drew");
         assert.strictEqual(styleBudgetFor(16, false), 16, "a shown frame keeps its 16 ms");
     });
 });

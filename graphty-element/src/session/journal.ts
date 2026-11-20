@@ -3,7 +3,7 @@
  *
  * Every command that changes the project and finishes writes one entry, whether it was
  * dispatched on its own or as a member of a batch or a transaction. A command that fails or is
- * cancelled writes nothing; a batch or a transaction writes its members' entries when it
+ * canceled writes nothing; a batch or a transaction writes its members' entries when it
  * records, and none when it rolls back. Moving the camera and entering or leaving a headset session are not
  * project changes and write nothing either. A run carries the id of the entry its command wrote.
  *
@@ -16,11 +16,12 @@ import type { RunId } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { SessionCommand } from "./planning";
 import type { ExecutedCommand } from "./project/Dispatcher";
+import { plainRecords } from "./project/recordMap";
 import { reportCaught } from "./project/strict";
 import type { EngineVersions } from "./runs/types";
 
 /** The identity of a journal entry. Opaque; unique within its session. */
-export type JournalId = string; // NOSONAR(S6564): the designed public name a run's journalId is typed by
+export type JournalId = string; // eslint-disable-line sonarjs/redundant-type-aliases -- the designed public name a run's journalId is typed by
 
 /** One command the session ran. Frozen. */
 export interface JournalEntry {
@@ -85,6 +86,8 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "algo.remove": "run",
     "algo.move": "run",
     "algo.rename": "run",
+    "annotations.set": "data",
+    "annotations.patch": "data",
     // Never journaled itself: each member of a batch writes its own entry.
     batch: "data",
     "config.set": "config",
@@ -98,9 +101,10 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "data.import-source": "data",
     "data.setSource": "data",
     "data.label": "data",
-    "data.setFileStyles": "data",
     "shader.set": "style",
+    "asset.defaults": "style",
     "data.columns": "data",
+    "data.derive": "data",
     "layout.scope": "layout",
     "layout.set": "layout",
     "layout.rerun": "layout",
@@ -120,10 +124,18 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "style.encode": "style",
     "style.patch": "style",
     "style.template": "style",
+    "tour.move": "view",
+    "tour.remove": "view",
+    "tour.rename": "view",
+    "tour.save": "view",
     "view.camera": "view",
     "view.dimension": "view",
     "view.immersive": "view",
+    "view.move": "view",
+    "view.key": "view",
+    "view.starting": "view",
     "view.remove": "view",
+    "view.rename": "view",
     "view.save": "view",
     "visibility.context": "filter",
     "visibility.hide": "filter",
@@ -214,7 +226,7 @@ export function createJournal(options: {
                 id: `journal_${String(next++)}`,
                 at: new Date(now()).toISOString(),
                 kind: KINDS[op],
-                command: command as SessionCommand,
+                command: plainCommand(command as SessionCommand),
                 ...(coalesceKey === null ? {} : { coalesceKey }),
                 durationMs,
                 // `algo.run` resolves with the id of the run it finished.
@@ -245,4 +257,25 @@ export function createJournal(options: {
             return entry;
         },
     };
+}
+
+/**
+ * The command as the journal keeps it: a batched `importColumns`' adds hold their records as
+ * columns (row-renderer.md 4.6), handed out as a plain array built on read; any other command as
+ * it ran.
+ * @param command - The command.
+ * @returns The command to keep.
+ */
+function plainCommand(command: SessionCommand): SessionCommand {
+    if (command.op !== "data.apply" || !("records" in command.mutation)) {
+        return command;
+    }
+
+    const records = plainRecords(command.mutation.records);
+    if (!("get" in records)) {
+        return command;
+    }
+
+    const mutation = Object.defineProperty({ ...command.mutation }, "records", records);
+    return Object.freeze({ ...command, mutation: Object.freeze(mutation) });
 }

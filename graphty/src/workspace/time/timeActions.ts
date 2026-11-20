@@ -20,15 +20,6 @@ import { countWords, instantWords, intervalOf, noticeOf, refusalWords, unitLabel
 export const PHONE_WIDTH = "(max-width: 720px)";
 
 /**
- * Whether the timeline experiment is on, as graphty-element reports it.
- * @param session - the element's session, or null.
- * @returns true when it is on.
- */
-export function timelineOn(session: GraphSession | null): boolean {
-    return session?.features.enabled.includes("timeline") === true;
-}
-
-/**
  * The unit the designated field reads numbers in.
  * @param session - the element's session.
  * @returns the unit.
@@ -117,11 +108,12 @@ export function announceWindow(session: GraphSession, store: WorkspaceStore, mov
     if (window === null) {
         return;
     }
-    const { visibleNodes, visibleEdges } = session.visibility.summary;
+    // What the window holds, never the visibility summary: the window narrows only the drawing.
+    const inside = session.time.inside ?? { nodes: 0, edges: 0 };
     const counts =
         moved === undefined ? "" : `, ${formatCount(moved.entered)} entered, ${formatCount(moved.left)} left`;
     store.set({
-        announcement: `${windowWords(window, unitOf(session), session.time.timeZone)}: ${countWords(visibleNodes, "node")}, ${countWords(visibleEdges, "edge")}${counts}`,
+        announcement: `${windowWords(window, unitOf(session), session.time.timeZone)}: ${countWords(inside.nodes, "node")}, ${countWords(inside.edges, "edge")}${counts}`,
     });
 }
 
@@ -240,8 +232,6 @@ export function showNotices(
  */
 export function designate(session: GraphSession, store: WorkspaceStore, field: TimeField | null): void {
     session.time.pause();
-    // A Time window card added for the last field does not come back on its own for this one.
-    store.set({ timeWindowCard: false });
     // A text column of dates becomes a date column in the same undo step (tier 4 round 1: a time
     // drawn as dates over a column still marked text was a false done).
     session.time.setField(field, { asDates: true }).then(
@@ -252,7 +242,8 @@ export function designate(session: GraphSession, store: WorkspaceStore, field: T
         (error: unknown) => {
             const column = field?.edges?.start ?? field?.nodes?.start ?? "";
             const reason = (error as { details?: { reason?: unknown } }).details?.reason;
-            store.set({ notice: { message: refusalWords(column, reason), error: true } });
+            // The Time entry asked for will not be listed now: nothing waits to focus it.
+            store.set({ notice: { message: refusalWords(column, reason), error: true }, fieldsEntry: null });
         },
     );
 }

@@ -1,5 +1,9 @@
 # Implementation Plan for Compact Mantine Theme Refactor
 
+> **Binding specification:** how every component looks and behaves is set by
+> [compact-mantine/design/figma-spec.md](../../compact-mantine/design/figma-spec.md), and the package is
+> locked to it. Where this document's values differ, the Figma spec wins.
+
 ## Overview
 
 This plan outlines the refactor of `@graphty/compact-mantine` from a custom `size="compact"` pattern to a Mantine-idiomatic approach using `defaultProps` with `size="sm"` as the default. The refactor separates dimensional concerns (size) from visual styling (borderless, semantic backgrounds), making the theme more composable and aligned with Mantine best practices.

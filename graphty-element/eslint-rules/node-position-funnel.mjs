@@ -82,7 +82,7 @@ const rule = {
         };
         const isNodeName = (name) => name === "node" || name === "n" || /Node$/.test(name);
 
-        // The value a local was initialised from, read through `const x = init` and `const { x } = init`.
+        // The value a local was initialized from, read through `const x = init` and `const { x } = init`.
         const initOf = (id) => {
             const variable = sourceCode.getScope(id).references.find((r) => r.identifier === id)?.resolved;
             const def = variable?.defs.length === 1 ? variable.defs[0] : undefined;

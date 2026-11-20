@@ -346,6 +346,16 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         assert.include(["#ff0000", "#0000ff"], ramp === null ? "" : rampColor(ramp, 0.5));
     });
 
+    it("reads each piece of a gradient as long as it is drawn, not an equal share of the line", () => {
+        // a red piece over the first fifth of the line and a blue one over the rest, as a laid curve's measure lays them
+        const { stroke } = graphOf([], null, { kind: "linear", colors: ["#ff0000", "#0000ff"], shares: [0, 0.2, 1] })
+            .edges[0];
+        const ramp = stroke?.gradient ?? null;
+
+        assert.isNotNull(ramp);
+        assert.strictEqual(ramp === null ? "" : rampColor(ramp, 0.25), "#0000ff");
+    });
+
     it("reads each line pattern into its line class", () => {
         const of = (pattern: string | null): string | undefined => graphOf([], pattern).edges[0].stroke?.dashClass;
         assert.deepEqual([null, "dash", "dot", "box", "dash-dot", "zigzag", "sinewave", "star"].map(of), [

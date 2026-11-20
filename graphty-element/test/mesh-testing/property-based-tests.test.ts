@@ -2,7 +2,7 @@
  * Property-Based Random Tests
  *
  * The golden masters in this directory pin named cases. These generate the parameter space instead
- * -- every shape at a random size in a random colour, every line type at a random width, random
+ * -- every shape at a random size in a random color, every line type at a random width, random
  * text at a random size -- and assert the invariant that has to hold across all of it.
  *
  * This is the file that changes most by being re-pointed. It used to feed random input into a mock
@@ -273,12 +273,7 @@ describe("Property-Based Tests", () => {
                     hexColor,
                     fc.float({ min: 0, max: 1, noNaN: true }),
                     (type, size, color, opacity) => {
-                        const cap = EdgeMesh.createArrowHead(
-                            ctx.cache,
-                            nextStyleId(),
-                            { type, width: 1, color, size, opacity },
-                            ctx.scene,
-                        );
+                        const cap = EdgeMesh.createArrowHead({ type, width: 1, color, size, opacity }, ctx.scene);
 
                         assert.isNotNull(cap);
                         // The geometry is the batch's, shared by every cap of this appearance;

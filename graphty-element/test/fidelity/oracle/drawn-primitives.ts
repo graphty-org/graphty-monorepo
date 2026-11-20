@@ -29,6 +29,7 @@ import {
     type Pt,
     type PText,
     rampAngleOnScreen,
+    TAPER_POINT,
 } from "./primitives";
 import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
 
@@ -77,6 +78,20 @@ export function inkedLines(d: DrawnLabel, box: PBox): PBox {
     return { ...box, x0, x1 };
 }
 
+/**
+ * The class of a label panel's outline: a disc, a rounded rectangle or a rectangle.
+ * @param bg - the panel
+ * @param bg.circle - whether it is a disc
+ * @param bg.rounded - whether its corners are rounded
+ * @returns the class
+ */
+function panelShape(bg: { circle: boolean; rounded: boolean }): "ellipse" | "roundrect" | "rect" {
+    if (bg.circle) {
+        return "ellipse";
+    }
+    return bg.rounded ? "roundrect" : "rect";
+}
+
 function textOf(d: DrawnLabel): PText {
     // the words' own box, as an SVG text's box is its letters', not the plane they are drawn on with its margins
     const b = d.textBox ?? d.box;
@@ -122,7 +137,7 @@ function textOf(d: DrawnLabel): PText {
                                     dash: null,
                                     dashClass: "solid",
                                 },
-                      shape: bg.rounded ? "roundrect" : "rect",
+                      shape: panelShape(bg),
                   },
     };
 }
@@ -162,14 +177,23 @@ const DASHED_PATTERNS: ReadonlySet<string> = new Set(["dash", "dot", "box", "das
  * @param pattern - the pattern graphty drew, or null
  * @param dashPx - the drawn elements and gaps, or null where none were read
  * @param width - the line's width in pixels
- * @returns the class
+ * @param taper - its width at the target over its width at the source, where it tapers
+ * @param taperSource - its width at the source over the line's width, where it tapers there
+ * @returns the class; a line narrowing to a point at one end is tapered, by the rule the oracle's tapered outlines are
+ * read by (`taperedOutline`)
  */
 function drawnLineClass(
     style: string,
     pattern: string | null,
     dashPx: readonly number[] | null,
     width: number,
+    taper: number | undefined,
+    taperSource?: number,
 ): DashClass {
+    const ends = [taperSource ?? 1, taper ?? 1];
+    if ((taper !== undefined || taperSource !== undefined) && Math.min(...ends) <= TAPER_POINT * Math.max(...ends, 1)) {
+        return "tapered";
+    }
     const name = pattern ?? style;
     if (dashPx !== null && dashPx.length >= 2 && DASHED_PATTERNS.has(name)) {
         return dashClassOf(dashPx, width);
@@ -500,6 +524,8 @@ function edgeGradientOf(drawn: DrawnEdge["gradient"], points: readonly [number, 
         return null;
     }
     const n = drawn.colors.length;
+    // where each piece starts and ends along the line: as drawn, or equal shares
+    const at = (i: number): number => (drawn.shares?.length === n + 1 ? drawn.shares[i] : i / n);
     // a linear piece is one flat color from its start to its end: a hard switch between two pieces is drawn as one, not
     // blended across the two pieces' middles (dot-specimen-edges-lines color-segments, red;0.5:blue)
     const stops = drawn.colors
@@ -507,8 +533,8 @@ function edgeGradientOf(drawn: DrawnEdge["gradient"], points: readonly [number, 
             drawn.kind === "radial"
                 ? [{ offset: Math.abs((2 * (i + 0.5)) / n - 1), color, opacity: 1 }]
                 : [
-                      { offset: i / n, color, opacity: 1 },
-                      { offset: (i + 1) / n, color, opacity: 1 },
+                      { offset: at(i), color, opacity: 1 },
+                      { offset: at(i + 1), color, opacity: 1 },
                   ],
         )
         .sort((a, b) => a.offset - b.offset);
@@ -790,18 +816,23 @@ export function drawnPrimitives(
         const d = drawn.nodes.get(n.id);
         const inset = d === undefined ? 0 : 2 * borderInset(d);
         const ownLabel = n.label?.visible === true && d?.label ? textOf(d.label) : null;
-        const rule = d?.label?.nodeSizeRule;
+        const rule = d?.label?.sizeRule;
         const sized =
             rule !== undefined && d?.label && (n.label?.visible === true || n.drawn?.labelHiddenBySize === true)
                 ? { sizedLabel: { label: textOf(d.label), acrossPx: rule.acrossPx, min: rule.min } }
                 : {};
         // its further texts (a record's fields) are its label too, as the oracle reads every text in the node's box
-        // each drawn on its own line at its own place, so their alignment is read off their boxes, as the oracle's is
-        const parts = (d?.texts ?? []).map((t) => ({ ...textOf(t), align: undefined }));
-        const label =
+        // each drawn on its own line at its own place, so their alignment is read off their boxes, as the oracle's is;
+        // an external label of several lines is drawn in one plane, so its own alignment is declared for them all
+        // (yed-graphml-specimen-labels configuration-er-labels: "Entity" centered over "id" and "name" set left)
+        const drawnParts = d?.texts ?? [];
+        const parts = drawnParts.map((t) => ({ ...textOf(t), align: undefined }));
+        const several = drawnParts.find((t) => t.lineCount >= 2);
+        const merged =
             parts.length === 0
                 ? ownLabel
                 : mergeTexts([...(ownLabel === null || ownLabel.content === "" ? [] : [ownLabel]), ...parts]);
+        const label = several === undefined || merged === null ? merged : { ...merged, align: several.align };
         // a node that draws no body (shape "none", no picture in its place) is its label and its glyph alone, as a
         // program draws a text-only or an icon-only node (vis-network's text and icon shapes): the comparison reads
         // those as free texts, never as a node shape (withoutCaptions)
@@ -832,6 +863,9 @@ export function drawnPrimitives(
         const [hw, hh] = [(n.w - inset - gap) / 2, (n.h - inset - gap) / 2];
         const unit = ([x, y]: readonly [number, number]): Pt => [(x - n.x) / hw, (y - n.y) / hh];
         const figure = hw > 0 && hh > 0 ? d?.figure?.map(([a, b]): [Pt, Pt] => [unit(a), unit(b)]) : undefined;
+        // a node drawn as its picture alone, with no fill and no border (yEd's image and SVG nodes), is read by its
+        // picture's bounds, as the oracle's side reads one (`nodeFrom`): a box
+        const pictureOnly = d?.picture !== undefined && fill === null && !(borderColor !== null && borderWidth > 0);
         nodes.push({
             id: n.id,
             cx: n.x,
@@ -839,7 +873,7 @@ export function drawnPrimitives(
             // the fill, which graphty's border rings from outside (the scene's size takes the inset back)
             w: n.w - inset - gap,
             h: n.h - inset - gap,
-            shape: SHAPES[n.shape] ?? "other",
+            shape: pictureOnly ? "rect" : (SHAPES[n.shape] ?? "other"),
             fill: fill === null ? null : gradientFill(fill, n.fillOpacity, d?.gradient === true ? d.ramp : null, n),
             stroke:
                 borderColor !== null && borderWidth > 0
@@ -913,6 +947,8 @@ export function drawnPrimitives(
             d.pattern,
             d.dashPx ?? null,
             d.thicknessPx > 0 ? d.thicknessPx : e.width,
+            d.taper,
+            d.taperSource,
         );
         return [
             {

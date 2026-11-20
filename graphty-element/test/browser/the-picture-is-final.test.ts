@@ -49,7 +49,7 @@ const TAIL_FRAMES = 24;
 const HELD_FRAMES = 10;
 
 /**
- * How many pixels may change colour bucket before two frames count as different pictures.
+ * How many pixels may change color bucket before two frames count as different pictures.
  * The same margin `channel-paints.test.ts` uses: two renderings of one scene agree exactly.
  */
 const PIXEL_CHANGE = 32;
@@ -139,8 +139,8 @@ describe("knowing the picture is final", () => {
     }
 
     /**
-     * A coarse colour histogram of what is on the canvas now, without drawing anything.
-     * @returns One count per four-bit-per-channel colour bucket.
+     * A coarse color histogram of what is on the canvas now, without drawing anything.
+     * @returns One count per four-bit-per-channel color bucket.
      */
     async function histogram(): Promise<Uint32Array> {
         const { engine } = graph;

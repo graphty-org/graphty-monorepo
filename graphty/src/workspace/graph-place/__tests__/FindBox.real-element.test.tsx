@@ -11,10 +11,14 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { nodeModelsOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** A hub "a" with three spokes, and the givers' donations. */
 const NODES = [
@@ -162,10 +166,8 @@ describe("the find box", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: /New layer from selection/ }));
         const tab = await screen.findByTestId("style-tab", {});
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
-        if (nodeModelsOn(session)) {
-            // With the node-models experiment on, Fill also offers Picture, so its "+" opens a menu.
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
-        }
+        // Fill also offers Picture, so its "+" opens a menu.
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
         const field = await screen.findByRole("textbox", { name: /^Node color(,|$)/ });
         await userEvent.clear(field);
         await userEvent.type(field, "00AA55{Enter}");

@@ -3,11 +3,13 @@
 # @graphty/layout
 
 [![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Flayout.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/layout.md)
 [![npm version](https://img.shields.io/npm/v/@graphty/layout.svg)](https://www.npmjs.com/package/@graphty/layout)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/layout/)
 [![Storybook](https://img.shields.io/badge/storybook-interactive%20demos-ff4785)](https://graphty.app/storybook/layout/)
+
+**[Read the documentation ->](https://graphty.app/docs/layout/)** -- getting started, a guide to every layout, and the API reference.
 
 **[View Interactive Storybook ->](https://graphty.app/storybook/layout/)**
 
@@ -25,7 +27,7 @@ belonging to node index `i`. Each is a top-level export:
 - `fruchtermanReingold` - The Fruchterman-Reingold spring layout, with attractions and repulsions
 - `forceAtlas2` - ForceAtlas2, a force-directed layout for large and scale-free graphs
 - `arf` - Attractive and repulsive forces
-- `kamadaKawai` - Minimises a cost based on shortest-path lengths
+- `kamadaKawai` - Minimizes a cost based on shortest-path lengths
 - `spectral` - Uses eigenvectors of the graph's Laplacian matrix
 - `spiral` - Places nodes along a spiral
 - `grid` - Rows and columns on an evenly spaced lattice, in node order
@@ -175,7 +177,7 @@ import { fromEdgeArrays } from "@graphty/graph-format";
 import { plantedPartitionGraph, starGraph } from "@graphty/graph-samples/generators";
 import { shell } from "@graphty/layout";
 
-// the hub alone in the centre, the rim around it
+// the hub alone in the center, the rim around it
 const star = fromEdgeArrays(starGraph({ n: 8 }));
 const hubFirst = shell(star, { nlist: [[0], [1, 2, 3, 4, 5, 6, 7]] });
 
@@ -239,6 +241,7 @@ const result = forceAtlas2(s, {
     strongGravity: false,
     distributedAction: false,
     dissuadeHubs: true, // good for scale-free graphs
+    nodeSize: null, // per-node radii to keep nodes from overlapping
     linlog: false, // logarithmic attraction
     weight: null, // true for the snapshot's weights, or an edge column name
     seed: 42,
@@ -432,8 +435,8 @@ Every layout takes these options besides its own. `arf` rescales only when it is
 them its result keeps the size the forces settle at, which its `scaling` option sets.
 
 - **dim** (`2 | 3`): values per node; default 2
-- **scale** (number): size of the layout around its centre, a finite number > 0; default 1
-- **center** (numbers): the centre; missing components are 0, given ones must be finite; default the origin
+- **scale** (number): size of the layout around its center, a finite number > 0; default 1
+- **center** (numbers): the center; missing components are 0, given ones must be finite; default the origin
 - **seed** (number): seed of a layout that draws random numbers, an integer >= 0 (0 included); the same seed gives
   the same layout. Absent or `null`, a random seed: no layout is seeded by default. Any other value throws `E_BAD_OPTION`
 
@@ -501,7 +504,7 @@ const result = circular(s);
 const map = toPositionMap(result, s.ids); // { a: [x, y], b: [x, y], c: [x, y] }
 // id-keyed map -> flat array; the fill callback writes the row of every node the map does not give
 const flat = fromPositionMap(map, s.ids, 2, (i, out) => out.set([0, 0], 2 * i));
-rescaleInPlace(flat, 2, 1); // rescale and recentre the flat array in place
+rescaleInPlace(flat, 2, 1); // rescale and recenter the flat array in place
 const column = toPositionColumn(result, 100, [0, 0, 0]); // stride 3, scene units: v * scale + center
 const again = fromPositionColumn(column, 2, 100, [0, 0, 0]); // the inverse
 // into a renderer's rectangle (pixels): one factor for every axis, so the drawing keeps its shape
@@ -673,8 +676,8 @@ Where the results differ from 1.x:
   `kamadaKawaiLayout` also accepted other dimensions.
 - `fruchtermanReingold` rejects a negative or infinite `k`, which `fruchtermanReingoldLayout` ran through its older
   loop, and leaves a pinned single node where `pos` put it (1.x moved it to `center`).
-- `bfs`, `bipartite` and `multipartite` centre a horizontal layout on `center`; 1.x's functions centred it on
-  `[center[1], center[0]]`. With the default centre (the origin) nothing moves.
+- `bfs`, `bipartite` and `multipartite` center a horizontal layout on `center`; 1.x's functions centered it on
+  `[center[1], center[0]]`. With the default center (the origin) nothing moves.
 - `multipartite` without `subsets` reads the node column `subset` and throws when the snapshot has none, as a
   snapshot from `toLayoutSnapshot` does not; 1.x's `multipartiteLayout(G)` put every node in one layer. Pass the
   layers as `subsets`.

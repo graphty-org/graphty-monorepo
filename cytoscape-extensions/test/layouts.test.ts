@@ -135,7 +135,7 @@ describe("static layouts", () => {
         await run(cy, { name: "graphty-radial", root: "#n0" });
         const c = { x: BOX.x1 + BOX.w / 2, y: BOX.y1 + BOX.h / 2 };
         const p0 = cy.$("#n0").position();
-        // the root sits at the rings' centre: the mean of the placed nodes is not the centre, so compare distances
+        // the root sits at the rings' center: the mean of the placed nodes is not the center, so compare distances
         const d0 = Math.hypot(p0.x - c.x, p0.y - c.y);
         const far = cy.nodes().map((n) => Math.hypot(n.position().x - p0.x, n.position().y - p0.y));
         expect(Math.max(...far)).toBeGreaterThan(d0);
@@ -154,6 +154,32 @@ describe("static layouts", () => {
         expectPlaced(cy);
 
         await run(cy, { name: "graphty-bfs", root: "#n11" });
+        expectPlaced(cy);
+    });
+
+    it("graphty-multipartite orders string layers alphabetically and leaves out nodes without the field", async () => {
+        const cy = makeCy();
+        const tiers = ["b", "a", "c"];
+        cy.nodes().forEach((n, i) => {
+            n.data("tier", i === 11 ? undefined : tiers[i % 3]);
+        });
+        await run(cy, { name: "graphty-multipartite", subsets: "tier" });
+        const x = (t: string): number[] => cy.nodes(`[tier = "${t}"]`).map((n) => n.position().x);
+        expect(new Set(x("a").map((v) => v.toFixed(3))).size).toBe(1);
+        expect(Math.max(...x("a"))).toBeLessThan(Math.min(...x("b")));
+        expect(Math.max(...x("b"))).toBeLessThan(Math.min(...x("c")));
+    });
+
+    it("take a bounding box given by its corners, as { x1, y1, x2, y2 }", async () => {
+        const cy = makeCy();
+        const corners = { x1: 100, y1: 50, x2: 300, y2: 150 };
+        await run(cy, { name: "graphty-circular", boundingBox: corners });
+        for (const p of positions(cy).values()) {
+            expect(p.x).toBeGreaterThanOrEqual(corners.x1 - 1e-6);
+            expect(p.x).toBeLessThanOrEqual(corners.x2 + 1e-6);
+            expect(p.y).toBeGreaterThanOrEqual(corners.y1 - 1e-6);
+            expect(p.y).toBeLessThanOrEqual(corners.y2 + 1e-6);
+        }
         expectPlaced(cy);
     });
 
@@ -226,7 +252,7 @@ describe("simulations", () => {
                 const p = cy.$(`#${id}`).position();
                 return Math.hypot(p.x - anchor.x, p.y - anchor.y);
             };
-            // n0's neighbours are pulled toward it; the node farthest from it in the graph is not
+            // n0's neighbors are pulled toward it; the node farthest from it in the graph is not
             expect(Math.max(dist("n1"), dist("n4"))).toBeLessThan(dist("n11"));
         });
 

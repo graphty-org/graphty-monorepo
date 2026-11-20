@@ -60,7 +60,7 @@ master. **No breaking change is needed.** Two changes are optional and held for 
 
 A row is an object row for one of two reasons. _Paint or view_: `batchableOf(paint, view)`, one pure function in
 `managers/StylePainter.ts` with a test table, says the batch cannot draw it. `view` is the scene state paint does not hold: lighting
-(until stage 14 also `depthIndependentSize` and a map's `nodeScale`, which a batched row now carries in its matrix). The row returns at the repaint that makes it eligible, and a change to a `view` input runs one
+(until stage 14 also a view-following node size, now `node.sizeSpace`, which a batched row carries in its matrix). The row returns at the repaint that makes it eligible, and a change to a `view` input runs one
 re-batch pass. _Mesh read_: someone holds its mesh; this is permanent. An _object edge_ is the same idea for edges; the fast form is a
 _pulled edge_.
 
@@ -295,7 +295,7 @@ leaves the ramp as the object row draws it. Nothing else changed: `batchLook` al
 gradient inside `texture`.
 
 As built (stage 14, seventh pull request: screen-scale size): `batchableOf` no longer turns every row into
-an object under `depthIndependentSize` or a map's `nodeScale: "screen"`; `BatchView` keeps only the flat
+an object under a view-following node size (now `node.sizeSpace`); `BatchView` keeps only the flat
 outline. The update loop still scales each node every frame through `Node.drawnScale`, which scales the
 anchor and re-measures the row as before, and now also keeps `Node.wholeScale`, the view's scale without a
 particle shrink (the shrink is the row table's w). When it changes, `NodeBatches.rescale` writes the
@@ -377,7 +377,7 @@ As built (stage 15, first pull request): `EDGE_PULLED` is in `meshes/edgeJoinSha
 with it, from `CustomLineRenderer.createJoinedLineMesh({ pulled: true })`. No edge uses it yet: `Edge` joining it behind the internal switch, the
 6-vertex program, the stray pixel, `render-parity` with the switch on and WebGPU are the stage's later pull requests. The draw is the join
 template's 30 indices per piece, `piece * 14 + k`, so `gl_VertexID / 14` names the piece; the material declares no attribute. A piece pulls
-only a straight line between node centres, written as `EdgeLineBatch.place` writes one (neighbours its own ends, run zero), so its vertex inputs
+only a straight line between node centers, written as `EdgeLineBatch.place` writes one (neighbors its own ends, run zero), so its vertex inputs
 equal a placed slot's. A row of w = 0, or a freed piece (rows -1), puts every point at the origin, as a hidden slot does.
 `test/browser/pulled-edge-lines.test.ts` holds it on SwiftShader WebGL with anti-aliasing, for screen, world and minimum widths: 0 pixels differ
 from the placed line at rest, after every row moves (0 edge bytes uploaded), and with a row at w = 0 and a piece freed. Found building it: the
@@ -402,7 +402,7 @@ not 14 and 30), and its fragment stage skips the ownership test and the pattern,
 when `antialias` is false and the `"batched"` batches are open (`Graph.leansLines`), in a batch of its own
 (`edge-pulled|...|lean`); curves never use it. The stray pixel did not survive the trace. The spike's program is not in the
 repository, so the trace rebuilt it from the join shader: the triangles are the join template's own, and a piece with no
-neighbour has every join vertex on a side vertex, so the dropped triangles have no area; the one thing left that could put
+neighbor has every join vertex on a side vertex, so the dropped triangles have no area; the one thing left that could put
 a pixel on one side and not the other is the fragment's ownership test against the rasterizer's coverage. Against the
 placed plain line, over 240 scenes (60 seeded cameras and graphs of 120 edges, 4 widths from 160 screen to 0.05 world) with
 `antialias` false and 240 with it true, 0 pixels differ on the RTX 4070 SUPER (ANGLE Vulkan) and 0 on SwiftShader.
@@ -446,7 +446,7 @@ the view keys the batch (`|2d`), so a 2D/3D switch builds another. Correction to
 the `drawsFlat` refusal whole: two refusals stay in 2D. A 2D curve (`EdgeMesh.pullsCurve`) stays an object edge, since no parity
 case covers a pulled 2D curve yet; and `Edge.pullsLine` now refuses an end at a node drawn behind every edge
 (`Node.isDrawnBehindEdges`, which a 2D node below z-index 0 is, not only a group), because that line ends at the node's outline
-(`Edge.groupEnd`) where a pulled line runs to its centre. `test/browser/pulled-edges-batched.test.ts` holds 2D to the objects
+(`Edge.groupEnd`) where a pulled line runs to its center. `test/browser/pulled-edges-batched.test.ts` holds 2D to the objects
 picture, 0 pixels, at rest, after a mouse drag, across a 2D/3D switch and at a sub-pixel width. One `lean-m` run under
 `"batched"`, RTX, load average 3.0 (`benchmarks/results/stage-g3`): `rowCounts.pulledEdges` 1,000,000, drag 79.9 ms median
 (p99 89.6; 107 ms median before), still serial 72.1 ms (p99 74.3), paced 87.3 ms (p99 89.8).
@@ -532,7 +532,7 @@ moves while another drag rests is measured with the rest of the set: one quiet s
 
 As built (stage 17, dark): `PulledCapBatch` (`meshes/PulledCapBatch.ts`) draws 3D billboarded caps with `CAP_PULLED` in
 the cap shader (`FilledArrowRenderer.applyPulledShader`): a cap is its two rows, head end last (a tail is the head of its edge
-turned round), its gaps and how far its centre sits behind its tip, and the shader stands it where `Edge.placeArrowHead` would
+turned round), its gaps and how far its center sits behind its tip, and the shader stands it where `Edge.placeArrowHead` would
 over `EDGE_TRIM_GLSL`'s ends, reading `rowExtent` for scale, round radius and border. Where the ends meet nothing (overlapping
 nodes) it stands the tip at the target's box, as `Edge.placeArrowFromCentres` does. **It is switched off**: the batch cannot be
 built while the internal switch `pulledCapsOn` is off, which it is on every render path, so every edge, batched or not, keeps
@@ -541,7 +541,7 @@ to the placed ones on SwiftShader WebGL: 0 cap bytes uploaded on a move, and a k
 after a move, 1 with a row at w = 0, each by one anti-aliasing sample (at most 64 levels) -- asserted exactly, so a change in it is
 a change in the picture. The `render-parity` bar is not widened. Not a depth tie: with one cap per head row each differing pixel is
 a cap's tip against the background (the placed cap covers one sample of it, the pulled cap none; picture in section 10), and they
-stay put when the shader takes the direction from the centres. So the GPU's float32 place differs from the CPU's float64 place by
+stay put when the shader takes the direction from the centers. So the GPU's float32 place differs from the CPU's float64 place by
 enough to move a sample; the trim include was held to 1e-4 (stage 6), which is not pixel-exact. Caps meeting at one node also tie
 in depth, which a float's last bit settles. Turning pulled caps on is the owner's question in section 10; stage 20 may build on
 the dark caps meanwhile.
@@ -569,7 +569,7 @@ Lone curves are pulled on `"batched"` in the same pull request. `Edge.pullsLine`
 only. Such an edge goes into a curve batch of its own (`EdgeMesh.pulledBatch` keys it `|curve`; the mesh compiles with
 `EDGE_PULLED_CURVE`), whose pieces take four texels: (source row, target row, width, opacity), (red, green, blue, point),
 (samples, first, pieces, startAt), (endAt). The shader picks the piece's six points along the cut path by
-`EdgeLineBatch.writeFlat`'s neighbour rules and sets `run` to zero: a solid line that does not taper never reads it
+`EdgeLineBatch.writeFlat`'s neighbor rules and sets `run` to zero: a solid line that does not taper never reads it
 (`perTotal` is 0 and the pattern branch is off). `Edge.pullCurve` writes the span from `placeLine`, so it is refreshed on
 every placement, which a moved end causes; it takes pieces while a cut needs more than the edge holds and never hands them
 back, so an edge holds a run as long as its longest cut, and a piece at or past the span's last point draws nothing. A
@@ -767,9 +767,9 @@ which wins over a fan and a circle and gives way to a raised route and a teardro
 is 7: the fourth texel of its piece is (endAt, along, 7, across), sampled with `bezierThroughControls`' 24 pieces and
 cut where it leaves its nodes, as any route is. `Edge.pullsLine` takes the `line.support*` keys, and the placement that
 follows a moved point (`Edge.update`, every edge while the points settle) writes the new span. Two defects found on
-the way. On `"batched"` only: forceAtlas2's degrees (`degreeWeights`) find an edge's nodes among the centres by the
+the way. On `"batched"` only: forceAtlas2's degrees (`degreeWeights`) find an edge's nodes among the centers by the
 point object, and a batched node's `drawnPosition` is a new point at each read, so every degree was lost and the
-curves settled elsewhere; `UpdateManager` now reads each node's centre once per support update and hands it to
+curves settled elsewhere; `UpdateManager` now reads each node's center once per support update and hands it to
 `Edge.supportEdge` too. On both paths: `SupportPoints.endsChanged` ignored a move under 1e-6, so a drag's last move
 (its place rounded to 32 bits, 2.5e-8) left the settle begun a frame early from ends a hair off, and where the points
 rested, a few pixels, hung on the drag's last frames; it compares exactly now. `test/pulled-curve.test.ts` holds the
@@ -840,6 +840,19 @@ Correction from stage 22: `scene.animationsEnabled`, the switch that parks an an
 opening. `renderer: "webgpu"` starts on a WebGL scene and replaces it with a new one when WebGPU opens; the swap carried
 the background but not this flag, so a consumer that parked the animation before WebGPU opened found it running. The
 swap in `Graph` now carries it, on both paths.
+
+As built (#8281): a plain line stops at the outline of a translucent node (`node.opacity` under 1) on both paths, and
+still at the centre of an opaque one, which hides it. On `"objects"`, `Edge.bareEnd` leaves such an end where
+`Edge.leaveNode` says. On `"batched"`, the straight pulled programs (lean, joined and animated, 2D and 3D, `PULLED_TRIM_GLSL` in
+`meshes/edgeJoinShader.ts`) does the same on the GPU from the rows: `RowTable.measure` writes a seen-through flag and an
+ellipse flag beside the round one in `rowExtent`, and in its spare float the row's reach outline (`Node.reachOutline`,
+`ColumnRow.reachOutline`), whose sides go once per distinct outline into a fourth texture, `rowOutline`. The shader reads
+one `rowExtent` texel per end, and for a seen-through end its half extents and border, then `EDGE_TRIM_GLSL`'s closed
+forms or the outline's sides. No edge byte is written. `test/browser/pulled-edge-trim.test.ts` holds both paths at 0
+pixels inside the body and 0 pixels apart on five shapes, in 2D and 3D, on WebGL and WebGPU. A pulled curve was already
+cut at its nodes' outlines on the CPU (`curveSpan`); the animated program (`pulledAnimatedLine.ts`) takes in the same
+`PULLED_TRIM_GLSL`. On WebGPU the GLSL is translated keeping its names, so a name WGSL reserves (`from`) leaves the pipeline
+invalid and the whole frame blank, with no error raised.
 
 An object edge has labels, gradients, effects, halos, or anything not yet pulled. `UpdateManager` walks only those. Straight patterns stay
 on `PatternedLineMesh`, permanently. Caps read the same rows and include, so a cap and a line end cannot disagree.
@@ -1148,7 +1161,7 @@ flush that has touched rows to send writes the owed publish first, because rows 
 walk runs only when something can have changed it: a fixed row, a hold or followers, or a table write to a row it
 keeps (`RowTable.ownRowWrites`). Three things are left. The envelope is still measured on every landing, because it is
 the transform the next batches draw with; that is two read-only passes over the read-back (13 ms a frame at 1M rows).
-While a publish is owed, the zoom-to-fit of a running layout frames the envelope's sphere (target centre plus or minus
+While a publish is owed, the zoom-to-fit of a running layout frames the envelope's sphere (target center plus or minus
 the scaling radius) grown by every pinned or dragged row, as a written publish grows its box, instead of the rows' own
 box, which can frame a little more loosely. And a built `Node`, a label on
 one, or anything else that reads a row on every frame still writes the publish on every frame, at today's cost.
@@ -1169,6 +1182,26 @@ never drawn and the texture rested on the old landing. The table now remembers t
 (`copiedAt`) instead of a flag: a repack of exactly that lane sends nothing, a lane written since sends every row.
 Counted in `shared-device-drawn.test.ts` ("draws a layout switched to while a landing is owed on the card": the
 texture equals the CPU copy after the switch; worst difference 57.8 before the fix).
+
+As built (cosmos-gap stage 128): the same owed publish now covers a renderer that does not share the layout's device
+(WebGL, or WebGPU on its own device), under renderPath "batched" only. Before, every landing there ran the CPU publish:
+`publishColumn` over every row, the repack and the upload, about 43 ms of a 134 ms layout frame at 1M + 1M. Now
+`Graph.getDrawnTarget` offers the table on any renderer under "batched", with `device` null when it is not shared; the
+simulation sets its drawn ring with `readBack: true` (`DrawnOutput.readBack` in webgpu-graph-algorithms), so the ring is
+filled on the layout's own device exactly as on a shared one and each batch adds its landed slot to the same mapped
+readback as the scene rows (one map a batch, 16 more bytes a row), offered as `landedDrawnRows`. The publish hands those
+rows to `RowTable.uploadLanded`, which sends them to the `rowPosition` texture as they came (two `updateTextureData`
+calls, whole lines and the last partial one) without writing the CPU copy, and marks the lane's `changes` as copied, as
+`copyLanded` does; the lane is then owed the publish exactly as in the paragraph above, and the told-row resend, skip
+mask, transform and owed box are the same code. A shared engine whose device is not ready still gets no target, so it
+publishes by upload. Counted in `test/gpu-loss/separate-device-drawn.test.ts` (WebGL renderer, GPU layout on its own
+device): across three landings `ElementPositions.changes`, `RowTable.repackedRows` and the engine's `rowsWalked` do not
+move while `RowTable.landedUploads` does; a node read publishes the rows and the texture equals the CPU copy; a layout
+switched to while a landing is owed is drawn; under "objects" there is no table and every landing writes the lane.
+What is left per landing on the CPU is the envelope (two read-only passes over the read-back, about 15 ms a frame at
+1M rows, the next cost to move to the GPU) and the readback's own copy. Measured on WebGL, interleaved against
+origin/master with the GPU lock held, load average 11-35: the 1M + 1M layout frame median went from 134, 172 and 176 ms
+to 97, 99 and 104 ms, short of the 90 ms target by the envelope's share.
 
 ### 4.6 Columns and load (#3249)
 
@@ -1236,6 +1269,50 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   (`slice.nodes`, `slice.edges`, read by `Node.data` and every record reader), so loading without one means
   holding records as columns and building them on demand, which is stage 29's "records into columns", conditional
   on stage 30's harness run. Stage 28 builds nothing more for it.
+  Records into columns (stage 29, built): under `"batched"`, `importColumns` copies its columns into a row source
+  (`session/project/recordMap.ts`) and keeps no record from the load: the load still builds each row's record
+  (short-lived, some rows two or three times) as the record doors read it, and drops it. The journal's `add-nodes` and `add-edges` commands
+  hold the columns and hand out `records` as a getter that builds a plain frozen array of plain records on read
+  (kept by a `WeakRef` only while the reader holds it), so `JournalEntry.command` stays plain data: it clones,
+  deep-freezes and reads the same record twice, as on the objects path; the graph slice's maps are a `RecordMap` (a `Map` subclass)
+  holding a row number per column record, as do the op log's `nodes` and `edges` ranges; rows stored with no `Node`
+  or `Edge` keep a marker and read the record from the slice. Corrections to this section and to the stage note:
+  the record had four holders, not two (the journal's command and the data manager's unbuilt rows besides the
+  slice and the op log), and a record is built on every read and never kept, not "built on demand and kept":
+  something reads every record after a load, so keeping what was built held the whole 90 MB (859 MB after GC
+  against 874 MB on master); built per read it is 775 MB, under the 800 MB target (1M + 1M, RTX, 2026-11-14). A
+  built `Node` still keeps its own record as `Node.data`; a second read of a column row's slice record is an equal
+  object, not the same one. The objects path keeps its records as before. Correction to the section 13 row's
+  proving tests: the load builds records, so "records built during an eligible file import counted at 0" is
+  proven as records kept after it counted at 0 (`RecordMap.heldRecords`, every build counted beside it), and
+  the digest-and-fingerprint half compares both on every corpus file, generator and sample dataset. The first
+  pull request is the heap half.
+  Second pull request (built): `columnsEligible(load)` in `session/project/ingest.ts` decides, with a test table
+  (`test/session/records-into-columns.test.ts`). Under `"batched"`, an `addNodes` or `addEdges` whose records
+  qualify is read once into columns (`recordsSource` in `recordMap.ts`: one array per key and, per row, which keys
+  it has, in its order) and dispatched as a `rowsView`, so the slice, the op log and the journal keep no record of
+  it, as for `importColumns`; one that does not qualify is dispatched as it came, whole. Correction to cosmos-gap.md
+  section 6: the column form keeps every key a record has, so it reproduces each record exactly and needs no typed
+  endpoint or weight column; the endpoint, weight and repeat conditions are kept as specified, so the reasons are
+  the ones documented, but none is needed for the graph to come out the same. `nodeData`/`edgeData` and
+  `session.data.import` are not routed: they are loads from a data source and keep their own route (above). The
+  report: a batched push of edge records (`addEdges`, and `importColumns`' edge add) seals its `LoadReport` with
+  `path`, `PATH_COLUMNS` when its records came through columns, else `PATH_RECORDS` with the first failed
+  condition (`"records"` when they qualify but came through a door that does not read columns). Under
+  `"objects"` the report has no `path` (rollback: the objects path's report is unchanged), so reason `"objects"`
+  is returned by `columnsEligible` but never written. `importColumns` resolves to that report, deep-equal to the
+  one `addNodes` and `addEdges` give for the same rows on either path. The headless session's ingest host now
+  reports `batched`, as the element's always did.
+  Record maps hold rows by counter (stage 127, built): under `"batched"` the graph slice's `RecordMap`s hold a
+  forward add's rows in an array by counter (the edge counter, or a node id that is a non-negative integer number)
+  instead of one `Map.set` each; a write a `Map` would place anywhere but last moves the run into the `Map` first, in
+  order, so every read answers as a `Map` does, insertion order included (`test/session/record-map-dense.test.ts`).
+  The objects path never starts a run. Correction to profile-6's cost 2 (`tmp/cosmos-profile-6/comparison.md`):
+  the harness's record arrays reach the element as `nodeData`/`edgeData`, which are not routed through columns
+  (above), so they are held as frozen copies, not row numbers; the per-row `Map.set` (`put`, 0.8 s self at
+  100k + 1M) was the part shared with the column path and is the part removed. What is left of record-array ingest
+  is the per-row `frozenRecord` copy (about 1.0 s self at 1M + 1M), the four endpoint reads per edge and the lazy-row
+  bookkeeping.
 - **Bulk lane keys (cosmos-gap.md G4, first pull request).** Under `"batched"` a forward add marks its edges dirty as
   one range key per run of consecutive edges, `e+:<first edge counter>:<count>`, through `DerivationLane.touchLater`,
   whose key is read when the next pass starts. Correction to cosmos-gap.md section 3.3 item 2: the range is over the
@@ -1430,7 +1507,7 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
 ### 4.7 Labels (#3252)
 
 - **`RichTextLabel`, unchanged**, for anything rich: markup, panels, badges, animation, tooltips.
-- **Anchors.** A labelled row needs an anchor, not a real mesh: a geometry-free `Mesh` with a hand-set bounding box keeps `attachTo`,
+- **Anchors.** A labeled row needs an anchor, not a real mesh: a geometry-free `Mesh` with a hand-set bounding box keeps `attachTo`,
   `targetBounds` and declutter unchanged, so the row stays batched.
 - **Glyph atlas**, option `labelText: "glyphs"`, off by default because its pixels differ from `fillText`: one instanced draw over a
   signed-distance atlas. Plain single-style labels only, placed by Canvas `measureLine`, so wraps and declutter hold. Rules:
@@ -1458,7 +1535,7 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   settles, one label per screen cell is picked (selected, then degree, then id); only the winners get built, and
   `nodeLabelCounts.hiddenBySampling` (present only while it is on) counts the rest.
   Correction from stage 32: built on the CPU (`managers/LabelSampler.ts`), not as a GPU point draw with a readback. The pass runs once per
-  settled view, not per frame, and projects each labelled row's CPU position (`drawnPosition`, which every path keeps) through one matrix:
+  settled view, not per frame, and projects each labeled row's CPU position (`drawnPosition`, which every path keeps) through one matrix:
   a few milliseconds at 100,000 rows, with no render target, no readback stall and no WebGL/WebGPU split. A settled frame costs
   one comparison of the camera, the canvas size, the position lane's generation and the edge version.
 
@@ -1539,7 +1616,7 @@ Options that change a picture stay off. Existing tests, unedited, prove `"object
    pixels, or at most one level per channel, the value the batch spike measured (gradients), set once and never widened to pass. Stage 8
    first runs `"objects"` against itself: a story not byte-stable between two loads is seeded, or listed by name with its reason
    (`stories/Layout.stories.ts:301`, D3 physics). Fixtures add a mid-transition frame with animation parked, flat lighting set live, and a
-   zoom on a `nodeScale: "screen"` map. The 6-vertex program also runs on the RTX (`GRAPHTY_BROWSER_GPU=nvidia`), locally, for the Proof.
+   zoom on a map with `node.sizeSpace: "screen"`. The 6-vertex program also runs on the RTX (`GRAPHTY_BROWSER_GPU=nvidia`), locally, for the Proof.
 2. **`forced-batched`**, a new test project: the browser, interaction and `xr` suites under `"batched"`. A file that inspects mesh
    structure goes on a committed list with a reason each. Real-input tests and `rowCounts` carry the proof.
 3. **Where they run.** Neither joins a pull request or the full run. A stage runs the files it touches locally. The whole of both runs by
@@ -1650,6 +1727,29 @@ object per element. Stages 26 to 28 remove that reason.
   `limits-warning` once a repaint settles, and again only when the number held plain changes. The app's
   `fitsInBrowser` and `isLarge` take the limits as an optional parameter, defaulting to `DEFAULT_LIMITS`; no caller
   passes raised ones yet, because the app does not raise `limits` on the element.
+- **Stage 124, the gaps stage 30 left** (corrections to the bullet above, batched only). The rows held plain are
+  counted by what draws them, not by sets of row numbers in `UpdateManager`: `NodeBatches.plainRowCount` (column
+  rows whose paint key starts `plain|`) and `EdgeRowLines.plainCount` (rows in a batch made for a plain paint).
+  Those follow every unpaint, removal, renumbering freeze and clear, so `W_OBJECT_CAP`'s `wanted` after a removal
+  is exact, and a clear resets what was last reported, so a reload past the budget reports again. Setting
+  `limits` queues every plain row for a repaint (`UpdateManager.limitsChanged`): a raised budget gives each row it
+  has room for its object, and a row that has its object keeps it. Under 3D `flat` lighting, which batches no
+  row, a plain paint is still drawable by a batch, drawn without the outline only a `Node` draws; and a view
+  change that drops column rows from their batch now repaints them (`NodeBatchHost.repaint`), where before
+  they drew nothing until some other paint reached them. A plain row whose own paint has a label carries
+  `labelled` on its plain paint; while label sampling is on (section 4.7) it is a candidate by row and
+  position (`RowTable.centerOf`), and when it wins its cell its `Node` is built (`UpdateManager.buildPlainRow`)
+  and its label drawn as any other, through the glyph atlas when `labelText` is `"glyphs"`. With sampling
+  off a plain row still draws no label: the label is what its object would have held. A `Node` built for a
+  label stays when a later pass drops the label, so the objects grow by the rows that ever won a cell.
+- **Stage 125, the app raises the limits** (correction to the stage 30 bullet's "the app does not raise `limits` on
+  the element"). Under the cosmograph experiment only, the graphty app sets the element's `limits` beside
+  `renderPath = "batched"` (`ElementHost.tsx`, `COSMOGRAPH_LIMITS`): `renderCeiling`, `edgesDrawn`, `objectRows` and
+  `objectEdges` all 1,000,000, so a million nodes and a million edges load and each may draw as an object of its own.
+  With the experiment off the app writes no `limits` and the element's defaults stand. The start page's
+  `fitsInBrowser` and `isLarge` still run on `DEFAULT_LIMITS`: they are called before an element exists, so they
+  have no session to read raised limits from. `CosmographFlag.real-element.test.tsx` loads 100,001 nodes and 100,000
+  edges into the workspace with the experiment on and reads every row drawn from `rowCounts`.
 
 ## 9. Edge-case rulings (input -> expected result)
 
@@ -2039,7 +2139,7 @@ the eligibility check, and the switch.
 
 Stage 27's seventeenth pull request: d3 and ngraph are handed the edges stored with no `Edge`. The layout manager
 gives a new d3 or ngraph engine the built `Edge`s and, for every other stored edge, its edge row
-(`dataManagerInternals.unbuiltEdgeRows`, then `addEdgeRows`), and those that arrived while it initialised; one
+(`dataManagerInternals.unbuiltEdgeRows`, then `addEdgeRows`), and those that arrived while it initialized; one
 built or removed meanwhile is taken off it again. While the engine runs, the data manager hands it each edge stored
 with no `Edge` as it is stored, and takes the row back (`removeEdgeRows`) when the edge is forgotten: a removal, an
 undo sending it back to waiting, a clear, or a build, before the built `Edge` reaches the engine in its place
@@ -2156,11 +2256,75 @@ with the live heap, which is stage 111's target, not a still frame's.
 | 28  | Column door                         | #3249 closes unless 29 is built | `importColumns`, `count`, bulk op-log entry; graph-io, graph-samples routed; staging released; no id maps for typed input; 20-byte batches                                                                                                                                                              | 27                                                                                                                                               | M   | Typed: first frame per cosmos-gap.md 5.1; heap 400 MB                                                                                                                                                | Digest equals the record path; bulk undo, redo; `render-parity` on 20-byte batches; blind-author example                                                                                                                                                                                                                                                                                         |
 | 29  | Conditional: records into columns   | #3249 closes                    | Attribute columns, overlay, records on demand                                                                                                                                                                                                                                                           | 28, 30                                                                                                                                           | H   | Stage 30's heap target                                                                                                                                                                               | Digest and fingerprint equal on every sample dataset; from cosmos-gap.md G8: an ineligible load takes the records path whole, counted; records built during an eligible file import counted at 0; import report equal to the records path's                                                                                                                                                      |
 | 30  | The ceiling                         | ceiling                         | `objectRows`, `objectEdges` and `W_OBJECT_CAP` added to the `limits` option and `capabilities` member cosmos-gap.md G2 lands; app passes limits to `fitsInBrowser`, `isLarge`; measure the iteration raise                                                                                              | 18, 21, 22, 23, 25, 28, G2                                                                                                                       | M   | 1M nodes and edges, typed: first frame 6 s, frames 100 ms (40 with the 6-vertex program and no antialiasing), hover 30 ms, heap 800 MB, layout frame 120 ms, `renderer="webgpu"` 125 ms, lasso 15 ms | Harness run, which settles stage 29; refusal at default limits unchanged; `StartPageFrame.real-element`                                                                                                                                                                                                                                                                                          |
-| 31  | Label anchors                       | #3252                           | Geometry-free anchor; labelled and tooltip rows stay batched                                                                                                                                                                                                                                            | 12                                                                                                                                               | M   | 10k labelled still at least 20 ms below stage 0                                                                                                                                                      | `render-parity`; `label-scaling`                                                                                                                                                                                                                                                                                                                                                                 |
-| 32  | Grid sampling                       | #3252                           | Option, off by default                                                                                                                                                                                                                                                                                  | 4, 31                                                                                                                                            | M   | Sampling on, 100k labelled: still within 8 ms of labels off                                                                                                                                          | Labels built bounded by cell count; off leaves `nodeLabelCounts` unchanged                                                                                                                                                                                                                                                                                                                       |
+| 31  | Label anchors                       | #3252                           | Geometry-free anchor; labeled and tooltip rows stay batched                                                                                                                                                                                                                                             | 12                                                                                                                                               | M   | 10k labeled still at least 20 ms below stage 0                                                                                                                                                       | `render-parity`; `label-scaling`                                                                                                                                                                                                                                                                                                                                                                 |
+| 32  | Grid sampling                       | #3252                           | Option, off by default                                                                                                                                                                                                                                                                                  | 4, 31                                                                                                                                            | M   | Sampling on, 100k labeled: still within 8 ms of labels off                                                                                                                                           | Labels built bounded by cell count; off leaves `nodeLabelCounts` unchanged                                                                                                                                                                                                                                                                                                                       |
 | 33  | Glyph atlas                         | #3252 closes                    | Option, off by default; section 4.7's rules; stories to the owner's review                                                                                                                                                                                                                              | 32                                                                                                                                               | H   | 10,000 labels in one draw; 5,000 build under 1 s, on the RTX (SwiftShader's first frame alone is 1.4 s)                                                                                              | Off shows zero pixel change; `test/fidelity` unchanged; fallback list and full atlas by unit test                                                                                                                                                                                                                                                                                                |
 | 34  | Done: edge options                  | #3253, #3254                    | Pull request 5803                                                                                                                                                                                                                                                                                       | 0                                                                                                                                                | L   | None                                                                                                                                                                                                 | Merged                                                                                                                                                                                                                                                                                                                                                                                           |
 | 35  | Done: force guards                  | #3255                           | Pull request 5819                                                                                                                                                                                                                                                                                       | 0                                                                                                                                                | L   | None                                                                                                                                                                                                 | Merged                                                                                                                                                                                                                                                                                                                                                                                           |
 | 36  | Done: collision force               | #3256                           | Pull request 5806                                                                                                                                                                                                                                                                                       | 0                                                                                                                                                | M   | None                                                                                                                                                                                                 | Merged                                                                                                                                                                                                                                                                                                                                                                                           |
 | 37  | In pull request 5812: cluster force | #3257                           | Section 4.8                                                                                                                                                                                                                                                                                             | 0                                                                                                                                                | M   | Layout step within 15% of off, 100,000 nodes                                                                                                                                                         | Community spread falls on a known graph; off byte-equal                                                                                                                                                                                                                                                                                                                                          |
 | 38  | Close out                           | all, #1910                      | Full matrix into the research note; guide page; misses listed                                                                                                                                                                                                                                           | 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 39 | L   | Final numbers; both defaults to the owner                                                                                                                                                            | Docs example compiled against published types                                                                                                                                                                                                                                                                                                                                                    |
+
+### Stage 38: final numbers per target
+
+Measured 2026-11-15 with the full matrix, `benchmarks/results/close-out/summary.md`: master b717d5ecb2 under `"batched"`
+(record arrays, and the column door where named), the reference build 57c0ee700e rebuilt and re-measured in the same
+session, and cosmos.gl 3.5.1, interleaved, every counted run at a one-minute load of 8 or lower. Load alone moved the
+first frame by up to 1.53x and every other figure by 10% or less, so a miss smaller than that is within noise. Medians;
+p99 where the target is p99. 2D lean at 100,000 nodes and 1,000,000 edges unless named.
+
+| Stage | Target                                                          | Measured                                                            | Verdict                                         |
+| ----- | --------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------- |
+| 1     | Step with readback 40 ms                                        | 45.8 ms (43.9-46.8); cosmos.gl 8.0 ms                               | Missed by 5.8 ms (15%)                          |
+| 2     | Drag frame (no number)                                          | 73.5 ms, reference 467 ms                                           | Met: 6.4x faster                                |
+| 4     | Repack and upload 3 ms                                          | 0.9 ms; 9.8 ms at 1M nodes                                          | Met                                             |
+| 10    | Hover flat 10k to 100k within 3 ms                              | 0.95 ms at 10k + 100k, 1.75 ms at 100k + 1M                         | Met                                             |
+| 11    | Still 90 ms                                                     | 73.3 ms, p99 79.8 ms                                                | Met                                             |
+| 12    | Moving 130 ms; 10k still 8 ms                                   | 73.5 ms; 0.90 ms at 10k + 100 (7.75 ms at 10k + 100k)               | Met, both                                       |
+| 15    | 1M long edges 83 ms (default lines)                             | still p99 79.8 ms                                                   | Met                                             |
+| 16    | Moving 90 ms; layout frame 90 ms                                | 73.5 ms; 77.5 ms                                                    | Met                                             |
+| 18    | Hover 20 ms                                                     | 1.75 ms; cosmos.gl 28.6 ms                                          | Met                                             |
+| 23    | Lasso over 100,000 rows 2 ms                                    | 5.9 ms at 100k + 1k, 13.9 ms at 100k + 1M (whole `selection.apply`) | Missed by 3.9 ms and 11.9 ms                    |
+| 27    | First frame per cosmos-gap.md 5.1 (4.7-6.3 s); heap 600 MB      | 3.47 s; 461 MB                                                      | Met, both                                       |
+| 28    | Typed: first frame per cosmos-gap.md 5.1 (3.5-5 s); heap 400 MB | 4.02 s; 405 MB                                                      | First frame met; heap missed by 5 MB (1%)       |
+| 30    | 1M nodes and edges, typed: first frame 6 s                      | 9.81 s (column door), 9.97 s (records)                              | Missed by 3.8 s (1.6x)                          |
+| 30    | frames 100 ms                                                   | still 76.3 ms, p99 79.6 ms                                          | Met                                             |
+| 30    | hover 30 ms                                                     | 6.35 ms                                                             | Met                                             |
+| 30    | heap 800 MB                                                     | 871 MB (column door), 1,058 MB (records)                            | Missed by 71 MB (9%)                            |
+| 30    | layout frame 120 ms                                             | 127 ms (records; the column door run uses the static layout)        | Missed by 7 ms (6%), within noise of the target |
+| 30    | lasso 15 ms                                                     | 83.4 ms (column door), 84.7 ms (records)                            | Missed by 68 ms (5.6x)                          |
+
+Not measured by this matrix, so their stage Proofs stand: 5 (synthetic scan), 7, 9, 14, 19, 20, 22 and 26 (counted in CI,
+not timed), 13 (the app), 15's 6-vertex and no-antialiasing figures, 17 (3D), 21 (curves), 24, 25 and 30's
+`renderer="webgpu"` figures (WebGPU), 31-33 (labels), 37 (cluster force) and 39 (engine loss).
+
+Why each miss:
+
+- **Stage 1, step with readback.** At 100k nodes and a million edges one step plus the readback of 100,000 positions
+  takes 45.8 ms, against cosmos.gl's 8.0 ms for the same measure; at 10k nodes the two are 5.6 ms and 3.1 ms. The step
+  was not split further in this run; the stage 25 GPU fill and stage 24 device sharing Proofs hold the per-part figures.
+- **Stage 23 and stage 30, lasso.** The figure is the whole `selection.apply` (walk, the 5,000-row cap's truncation and
+  the delta), as stage 23 recorded. It grows with the rows under the region: 4,156 at 10k nodes, and at 100k and 1M more
+  than the cap, which then cuts each result to 5,000. The walk alone was never timed; the target assumed a scan of a
+  column, and the apply does more than that.
+- **Stage 28, heap.** 405 MB against 400 MB, 1%: within what a heap reading moves between builds. No heap profile was taken.
+- **Stage 30, first frame and heap.** The million-node load is the per-row work the session keeps, ten times over:
+  the derivation pass, the style repaint's column writes, the position repack and the builder (cosmos-gap.md 5.4).
+  Measured, it lands well under that document's 8.5-14.5 s projection at 1M + 10k (4.38 s) and at 9.8 s for 1M + 1M,
+  where the million edges add their own per-row share. The heap misses for the same reason, by 9% through the column
+  door.
+- **Stage 30, layout frame.** 127 ms against 120: 6%, inside the 10% load alone moves a frame figure, so this is not
+  shown to be a miss.
+
+Correction from stage 38: the column door is not faster to load than record arrays, against cosmos-gap.md 5.1's
+projection. Measured in the same rounds, 100k + 1M loads in 4.02 s through the column door and 3.47 s from record
+arrays; 100k + 1k in 0.56 s and 0.47 s; 1M + 10k in 5.07 s and 4.38 s. Only 1M + 1M is level (9.81 s and 9.97 s). The
+column door's heap is lower (405 MB and 461 MB at 100k + 1M; 871 MB and 1,058 MB at 1M + 1M). Why typed input is not
+faster was not profiled here.
+
+Correction from stage 38: `graph.getNodes()` on the batched path builds every node the element left unbuilt, so a
+consumer that walks the nodes of a million-node batched graph takes the renderer to about 6 GB and can crash the tab.
+That is issue #8169, open.
+
+Defaults: this stage changes none. The owner decides whether `renderPath` defaults to `"batched"` and whether
+`renderCeiling` defaults to 1,000,000; the evidence for and against each is in the stage's Proof and in issue #1910.

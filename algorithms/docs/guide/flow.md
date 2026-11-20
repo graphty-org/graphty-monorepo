@@ -87,7 +87,7 @@ console.log(Array.from(cut.cutEdges, edgeName)); // ["server-router1", "server-r
 ```
 
 `cut.side` is a node mask of the source side. Without a source and a sink, `stoerWagner(graph)` finds the global
-minimum cut deterministically, and `kargerMinCut(graph, { iterations, randomSeed })` finds it by random
+minimum cut deterministically, and `kargerMinCut(graph, { iterations, seed })` finds it by random
 contraction.
 
 ::: info Max-Flow Min-Cut Theorem

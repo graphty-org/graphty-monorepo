@@ -1,8 +1,10 @@
 /**
  * What the inspector opens, on the REAL graphty-element: a "Why this look" link opens the layer
  * that paints the node, a group's Style is its layer's, a row an undo removed gives way to the
- * selection, a click on the node already selected brings it back, a node a filter hides says so,
- * and every column of the node's kind shows, an empty one as "No value".
+ * selection, a click on the node already selected brings it back, a node a filter hides leaves it,
+ * and every column of the node's kind shows, an empty one as "No value". A click on empty canvas
+ * closes an open row and a right-click there keeps it; while the selection workspace is open no
+ * canvas click moves the inspector, which follows the selection once Done closes it.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -12,7 +14,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -85,7 +87,7 @@ async function pick(session: GraphSession, id: string): Promise<void> {
  * The inspector region.
  * @returns queries scoped to it.
  */
-const inspector = (): ReturnType<typeof within> => within(screen.getByRole("complementary", { name: "Inspector" }));
+const inspector = (): Within => within(screen.getByRole("complementary", { name: "Inspector" }));
 
 /**
  * What the inspector draws now.
@@ -119,6 +121,74 @@ function colorRowOf(session: GraphSession, node: string): string {
  */
 const colorOf = (session: GraphSession, node: string): string | undefined =>
     session.styles.explain({ node }).merged["node.color"]?.hex.slice(0, 7).toLowerCase();
+
+/**
+ * The drawn element, once its layout has settled and a frame is stable.
+ * @returns the element.
+ */
+async function settledElement(): Promise<HTMLElementTagNameMap["graphty-element"]> {
+    const element = document.querySelector("graphty-element");
+    if (element === null) {
+        throw new Error("no element");
+    }
+    await element.waitForSettled();
+    await element.waitForStableFrame();
+    return element;
+}
+
+/**
+ * A point on the canvas that is no node, no edge and no outline, as the element would pick it.
+ * @param element - the element.
+ * @returns the point, in the element's own pixels.
+ */
+async function emptyPoint(element: HTMLElementTagNameMap["graphty-element"]): Promise<{ x: number; y: number }> {
+    return waitFor(() => {
+        const { width, height } = element.getBoundingClientRect();
+        for (const point of [
+            { x: 12, y: height - 12 },
+            { x: width - 12, y: height - 12 },
+            { x: width / 2, y: height - 12 },
+            { x: 12, y: height / 2 },
+        ]) {
+            if (element.elementAt(point) === null && element.groupOutlineAt(point) === null) {
+                return point;
+            }
+        }
+        throw new Error("no empty point on the canvas");
+    });
+}
+
+/**
+ * A point on a layer's group outline, around a node and off every node and edge.
+ * @param element - the element.
+ * @param layer - the layer that draws the outline.
+ * @param node - the node it goes around.
+ * @returns the point.
+ */
+async function outlinePoint(
+    element: HTMLElementTagNameMap["graphty-element"],
+    layer: string,
+    node: string,
+): Promise<{ x: number; y: number }> {
+    return waitFor(() => {
+        const at = element.nodeScreenPosition(node);
+        assert.isTrue(at?.visible, `${node} is drawn on screen`);
+        const radius = at?.radius ?? 0;
+        for (let step = 1.3; step < 6; step += 0.3) {
+            for (let turn = 0; turn < 32; turn++) {
+                const angle = (turn / 32) * 2 * Math.PI;
+                const point = {
+                    x: (at?.x ?? 0) + Math.cos(angle) * radius * step,
+                    y: (at?.y ?? 0) + Math.sin(angle) * radius * step,
+                };
+                if (element.groupOutlineAt(point)?.layer === layer) {
+                    return point;
+                }
+            }
+        }
+        throw new Error("no point of the outline is clear of nodes and edges");
+    });
+}
 
 describe("what the inspector opens, on the real element", () => {
     beforeAll(async () => {
@@ -265,7 +335,7 @@ describe("what the inspector opens, on the real element", () => {
         assert.deepEqual([...session.selection.nodes], ["n3"]);
     });
 
-    it("a node a filter hides says so, and every column shows, an empty one as No value", async () => {
+    it("every column shows, an empty one as No value, and a filter that hides the node takes it off the inspector", async () => {
         const { session } = await openRings();
         await pick(session, "n11");
         // Every column of the node's kind, as the table lists them.
@@ -276,9 +346,101 @@ describe("what the inspector opens, on the real element", () => {
         await act(async () => {
             await session.visibility.set({ kind: "categories", attribute: "data.label", values: ["Node 0"] });
         });
+        // The app reads the working graph, so a filter drops a node it hides from the selection
+        // (the owner's decision, 2026-11-06), and the inspector, which shows the selection, lets
+        // it go.
         await waitFor(() => {
             assert.isFalse(session.visibility.isVisible("n11"));
-            assert.isNotNull(inspector().getByText("Node, hidden by a filter"));
+            assert.deepEqual([...session.selection.nodes], []);
+            assert.isNull(inspector().queryByRole("group", { name: "phone" }));
+        });
+    });
+
+    it("a click on empty canvas closes an open row; a right-click there asks for a menu and keeps it", async () => {
+        const { store } = await openRings();
+        const element = await settledElement();
+        act(() => {
+            store.set({ inspected: { kind: "everything-row" } });
+        });
+        await waitFor(() => {
+            assert.equal(drawn(), "everything-row");
+        });
+        const point = await emptyPoint(element);
+
+        await userEvent.click(element, { position: point, button: "right" });
+        await screen.findByRole("menuitem", { name: /^Select all/ });
+        assert.deepEqual(store.get().inspected, { kind: "everything-row" }, "a right-click lets go of nothing");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menuitem", { name: /^Select all/ }));
+        });
+
+        await userEvent.click(element, { position: point });
+        await waitFor(() => {
+            assert.isNull(store.get().inspected);
+            assert.equal(drawn(), "graph");
+        });
+    });
+
+    it("while the selection workspace is open a canvas click never moves the inspector; it follows the selection on Done", async () => {
+        const { session, store } = await openRings();
+        // n11 sits on the outer ring: a hull around it alone has room clear of nodes and edges.
+        const outlined = await session.styles.add({
+            name: "Outlined",
+            target: "node",
+            selector: { match: "ids", nodes: ["n11"] },
+            set: { "node.shaders": [{ shader: "metaball-hull" }] },
+        });
+        await session.styles.add({
+            name: "Framed",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#d55e00" },
+        });
+        await session.styles.settled();
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Framed, / }));
+        const framed = await waitFor(() => {
+            const open = store.get().inspected;
+            assert.equal(open?.kind, "layer-row");
+            return open;
+        });
+        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        const ws = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws");
+            assert.isNotNull(found, "the workspace is open");
+            assert.notStrictEqual(found?.style.visibility, "hidden", "and placed");
+            return found;
+        });
+        // Styled draws the layers' own look in the preview, the outline among it; Card colors would
+        // paint the rule's groups instead.
+        await userEvent.click(within(ws).getByText("Styled"));
+        const element = await settledElement();
+        await waitFor(() => {
+            assert.isDefined(element.drawnShaders().groupOutlines.find((each) => each.layer === outlined.id));
+        });
+
+        // The outline's layer is not opened: that would unmount the editor and close the workspace.
+        await userEvent.click(element, { position: await outlinePoint(element, outlined.id, "n11") });
+        // A click on a node selects it in the preview, and the inspector stays on the editor.
+        let node: { x: number; y: number } | undefined;
+        await waitFor(() => {
+            const at = element.nodeScreenPosition("n3");
+            node = at?.visible === true ? { x: at.x, y: at.y } : undefined;
+            assert.equal(node === undefined ? undefined : element.elementAt(node)?.id, "n3");
+        });
+        await userEvent.click(element, { position: node });
+        await waitFor(() => {
+            assert.deepEqual([...session.selection.nodes], ["n3"]);
+        });
+        assert.deepEqual(store.get().inspected, framed);
+        assert.isNotNull(document.querySelector(".sel-ws"), "the workspace stays open");
+
+        await userEvent.click(within(ws).getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+            assert.isNull(store.get().inspected);
+            assert.equal(drawn(), "node");
         });
     });
 });

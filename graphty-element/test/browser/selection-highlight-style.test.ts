@@ -3,7 +3,7 @@
  *
  * In 1.x a consumer restyled the selection: `SelectionManager` published
  * `getSelectionStyleLayer` and `setSelectionStyleLayer`, and a host that wanted its own
- * highlight colour handed one over. 2.0 draws a gold halo from three constants at the top of
+ * highlight color handed one over. 2.0 draws a gold halo from three constants at the top of
  * `src/Node.ts` and keeps it deliberately OUT of the style stack, so it cannot be reached by
  * adding a layer either -- the element's own layers answer `E_PROTECTED`. Between those two
  * decisions the capability disappeared: there was no door at all.
@@ -11,7 +11,7 @@
  * The halo belongs outside the layer stack; a selection is not a property of the data and a
  * layer that painted it would be reordered, persisted and lost at a dataset boundary along with
  * every other layer. So the door is the graph's own configuration, beside the background: what
- * colour the highlight is, how far it stands out past the node, and how solid it is.
+ * color the highlight is, how far it stands out past the node, and how solid it is.
  */
 
 import type { AbstractMesh } from "@babylonjs/core";
@@ -26,8 +26,8 @@ const NODES = [{ id: "alpha" }, { id: "omega" }];
 /** The one edge between them. */
 const EDGES = [{ src: "alpha", dst: "omega" }];
 
-/** The gold every selection has been drawn in. */
-const DEFAULT_HALO = "#FFD700";
+/** The default halo: the selected edge's blue, solid, 3:1 or better on light and dark canvases (#811). */
+const DEFAULT_HALO = "#0077BB";
 
 describe("what a selected node looks like", () => {
     let container: HTMLElement;
@@ -95,7 +95,7 @@ describe("what a selected node looks like", () => {
 
     /**
      * The material the selection halo is drawn with, read off the halo on screen.
-     * @returns the halo's colour and opacity, or undefined when no halo is drawn
+     * @returns the halo's color and opacity, or undefined when no halo is drawn
      */
     function haloMaterial(): { emissive: string; alpha: number } | undefined {
         const material = drawnHalo()?.material;
@@ -119,11 +119,11 @@ describe("what a selected node looks like", () => {
         }
     }
 
-    it("is gold when nobody has said otherwise", async () => {
+    it("is solid blue when nobody has said otherwise", async () => {
         await graph.select({ nodes: ["alpha"] });
         await frames();
 
-        assert.deepStrictEqual(haloMaterial(), { emissive: DEFAULT_HALO, alpha: 0.4 });
+        assert.deepStrictEqual(haloMaterial(), { emissive: DEFAULT_HALO.toUpperCase(), alpha: 1 });
     });
 
     it("takes the colour the graph configuration asks for", async () => {
@@ -195,7 +195,7 @@ describe("what a selected node looks like", () => {
         assert.deepStrictEqual(graph.styles.config.graph.selection, {
             color: "#00BCD4",
             scale: 1.45,
-            opacity: 0.4,
+            opacity: 1,
             edgeColor: "#0077BB",
             edgeScale: 2.5,
             edgeOpacity: 1,

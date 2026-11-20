@@ -54,12 +54,10 @@ when data arrives should skip those, or it starts the work again on every undo. 
 [Undo and History](./undo#following-changes).
 
 `code` on `operation-cancelled` says why the operation stopped: `"queue-cleared"` or
-`"cancelled"`. Write the words you show from it. The detail also carries `reason`, an English
-sentence (`"Queue cleared"`, `"Manual cancellation"`); it is deprecated and is removed in the next
-major release, so read `code` instead.
+`"cancelled"`. Write the words you show from it.
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
-with a serialisable detail, when edge picking lands.
+with a serializable detail, when edge picking lands.
 
 ### The two load events count different things, and say so in their field names
 
@@ -154,7 +152,9 @@ graph.on("error", ({ error, context }) => {
 
 ## DOM Events
 
-Listen via standard `addEventListener` on the Web Component:
+Listen via standard `addEventListener` on the Web Component. These events bubble and are composed,
+except `error`, which fires only on the element itself so that `window.onerror` and error reporters
+never mistake it for an uncaught exception:
 
 ```javascript
 const element = document.querySelector("graphty-element");
@@ -349,10 +349,25 @@ element.addEventListener("graphty-note-change", (e) => {
 On the session the same change is `note:changed`, whose payload also carries the frozen record as
 `note`. See [Notes](./notes#hearing-about-changes).
 
+### graphty-skybox-loaded and graphty-skybox-failed
+
+A skybox background's image (`element.background = { backgroundType: "skybox", data }`) has
+arrived, once per new image, or could not be loaded. Setting the image already shown fires neither.
+
+```javascript
+element.addEventListener("graphty-skybox-loaded", (e) => {
+    const { url } = e.detail; // the background's `data`
+});
+element.addEventListener("graphty-skybox-failed", (e) => {
+    const { code, params } = e.detail; // "E_IMAGE_LOAD", params.url: its first 256 characters
+});
+```
+
 ### graphty-warning
 
 A notice that stops nothing, as a code and its parameters (`e.detail.code`, `e.detail.params`).
-Today the one code is `W_ANTIALIAS_LATE`: `antialias` was changed after the engine was built. See
+The codes are `W_ANTIALIAS_LATE` and `W_PRESERVE_DRAWING_BUFFER_LATE`: `antialias` or
+`preserveDrawingBuffer` was changed after the engine was built. See
 [Renderer](./renderer#smoothing-antialias).
 
 ### style-changed

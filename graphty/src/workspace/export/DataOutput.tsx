@@ -1,7 +1,7 @@
 import { EntityChip, MenuCheckItem, ModalFooter, PopoutManager } from "@graphty/compact-mantine";
 import type { ExportLoss } from "@graphty/graphty-element";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
-import { type GraphSession, projectFileName } from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError, projectFileName } from "@graphty/graphty-element/session";
 import { Alert, Badge, Button, Group, Input, Menu, Select, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -39,9 +39,10 @@ function failureOf(error: unknown, losses: readonly ExportLoss[] = []): Failure 
     if (refused.length > 0) {
         return refused;
     }
-    const code = (error as { code?: unknown } | null)?.code;
     // Worded by its code, as the image's failures are; an unknown code shows as itself.
-    return code === "E_UNSUPPORTED" ? "Format cannot hold this graph" : failureWords(error);
+    return isGraphtyError(error) && error.code === "E_UNSUPPORTED"
+        ? "Format cannot hold this graph"
+        : failureWords(error);
 }
 
 /**
@@ -202,7 +203,7 @@ interface ScopeOption {
  * @returns the options; All first.
  */
 async function scopeOptions(session: GraphSession): Promise<ScopeOption[]> {
-    const { nodeCount, edgeCount } = session.data.statistics();
+    const { nodeCount, edgeCount } = session.data.statistics({ scope: "all" });
     const loads = session.data.sources();
     const [shown, selected, bySource, ...sets] = await Promise.all([
         session.scope.count("visible"),
@@ -343,7 +344,7 @@ function columnsWritten(
  * @returns the options.
  */
 function writableOptions(session: GraphSession, row: Row): readonly OptionDescriptor[] {
-    return session.data.statistics().edgeCount === 0
+    return session.data.statistics({ scope: "all" }).edgeCount === 0
         ? row.options.filter((option) => option.name !== "table")
         : row.options;
 }
@@ -657,7 +658,7 @@ export function DataOutput({
                 ) : null}
                 <pre
                     className="ws-export-text"
-                    tabIndex={0} // NOSONAR(S6845): a scrolling region must take focus so a keyboard can scroll it
+                    tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region must take focus so a keyboard can scroll it
                     aria-label="Preview of the exported data"
                 >
                     {preview?.lines ?? "Writing the preview..."}

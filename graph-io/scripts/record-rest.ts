@@ -12,7 +12,15 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { expandFromSource, loadFromSource, type Recording, recordingFrom } from "../src/index.js";
-import { DEPS_DEV_MAPPING, openalexSource, restMappingSource, STRING_MAPPING } from "../src/sources/rest/index.js";
+import {
+    CROSSREF_MAPPING,
+    DEPS_DEV_MAPPING,
+    openalexSource,
+    REACTOME_MAPPING,
+    restMappingSource,
+    STRING_MAPPING,
+    WIKIPEDIA_MAPPING,
+} from "../src/sources/rest/index.js";
 
 const WRITE = process.argv.includes("--write");
 const OUT = fileURLToPath(new URL("../test/sources/rest/recordings/", import.meta.url));
@@ -47,6 +55,17 @@ const CASES: Record<string, Run> = {
             restMappingSource,
             { mapping: DEPS_DEV_MAPPING, system: "npm", package: "webpack", version: "5.90.0" },
             { fetch },
+        ),
+    "reactome-tp53": (fetch) =>
+        loadFromSource(restMappingSource, { mapping: REACTOME_MAPPING, accession: "P04637" }, { fetch }),
+    "crossref-watts-strogatz": (fetch) =>
+        loadFromSource(restMappingSource, { mapping: CROSSREF_MAPPING, doi: "10.1038/30918" }, { fetch }),
+    // Wikimedia refuses a request without a descriptive User-Agent (issue #6217)
+    "wikipedia-eulerian-path": (fetch) =>
+        loadFromSource(
+            restMappingSource,
+            { mapping: WIKIPEDIA_MAPPING, title: "Eulerian path" },
+            { fetch, userAgent: "graphty-record-rest/1.0 (https://graphty.app)" },
         ),
 };
 

@@ -85,8 +85,8 @@ describe("a filter condition of one load", () => {
         await session.visibility.addCondition({ id: "teams", effect: "keep", rule: HIGH, source: "s1" });
         await session.visibility.addCondition({ id: "people", effect: "keep", rule: HIGH, source: "s2" });
         const [teams, people] = session.visibility.conditionCounts();
-        assert.deepStrictEqual(teams.nodes, { matched: 2, total: 3 });
-        assert.deepStrictEqual(people.nodes, { matched: 1, total: 2 });
+        assert.deepStrictEqual(teams.nodes, { matched: 2, total: 3, shown: 2 });
+        assert.deepStrictEqual(people.nodes, { matched: 1, total: 2, shown: 1 });
         session.dispose();
     });
 
@@ -154,7 +154,7 @@ describe("a union leaf narrowed to loads", () => {
             },
         });
         assert.deepStrictEqual(nodesShown(session), ["a1", "a2", "b1", "c1"]);
-        assert.deepStrictEqual(session.visibility.conditionCounts()[0].nodes, { matched: 1, total: 2 });
+        assert.deepStrictEqual(session.visibility.conditionCounts()[0].nodes, { matched: 1, total: 2, shown: 1 });
         session.dispose();
     });
 

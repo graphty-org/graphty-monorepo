@@ -8,13 +8,12 @@ import React, { useEffect, useState } from "react";
 import { APP_GLOBE_SOURCE } from "../../constants/globe";
 import { groupsAnnouncement, pathAnnouncement, topAnnouncement } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
-import { selectedNameWords } from "../inspector/words";
+import { runFailureWords, selectedNameWords } from "../inspector/words";
 import { layoutWarningWords } from "../layout/refusalWords";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
 import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
-import { PreviewKey } from "./PreviewKey";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -35,11 +34,13 @@ interface CanvasReading {
     readonly blocks: readonly LegendBlock[];
     readonly nodeCount: number;
     readonly edgeCount: number;
+    /** Nodes in the whole graph, shown or hidden: a filter that hides them all leaves a graph. */
+    readonly totalNodes: number;
     /** The load in flight, from the element's progress event, or null. */
     readonly load: ProgressChange | null;
 }
 
-const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, edgeCount: 0, load: null };
+const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, edgeCount: 0, totalNodes: 0, load: null };
 
 /**
  * Reads the legend, the node and edge counts and the load in flight from the session, again after every
@@ -69,8 +70,9 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
                 return;
             }
             const { nodeCount, edgeCount } = session.data.statistics();
+            const totalNodes = session.data.statistics({ scope: "all" }).nodeCount;
             const blocks = keyBlocks(dataBlocks(session));
-            setReading({ blocks, nodeCount, edgeCount, load });
+            setReading({ blocks, nodeCount, edgeCount, totalNodes, load });
             // An effect is listed in a key that shows, and never opens it: a style write of an
             // effect is no reason for the key to appear.
             const keyHasEntries = blocks.some((block) => !isEffectBlock(block));
@@ -123,6 +125,12 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
                             : (pathAnnouncement(session, run) ?? topAnnouncement(session, run, name));
                     store.set({ announcement: said ?? `${name} ${ended}` });
                 }
+                // A failed run says so where the reader is, whatever started it; its row marks it too.
+                if (change.run.status === "failed") {
+                    const code = session.runs.get(change.run.id)?.error?.code;
+                    store.set({ notice: { message: runFailureWords(code), error: true } });
+                    return;
+                }
                 // The painting is decided once the element has finished painting for the run.
                 void session.styles.settled().then(() => {
                     if (!live) {
@@ -158,9 +166,8 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
 const DETAILED_MAP_SPAN = 20;
 
 /**
- * The street map the app draws small data over: free, keyless and credited on the canvas, as
- * OpenStreetMap's tile usage policy asks (https://operations.osmfoundation.org/policies/tiles/);
- * the map only loads the tiles in view and never prefetches.
+ * The street map the app draws small data over: free and keyless; the map only loads the tiles in
+ * view and never prefetches (https://operations.osmfoundation.org/policies/tiles/).
  */
 const DETAILED_MAP_SOURCE = "openstreetmap";
 
@@ -203,7 +210,7 @@ function useDetailedMapForSmallData(): void {
 }
 
 /** The words a change of the map under a map layout is announced with, by its state. */
-const BASEMAP_STATE_WORDS: Readonly<Record<string, string>> = {
+const BASEMAP_STATE_WORDS: Readonly<Partial<Record<string, string>>> = {
     ready: "Map shown",
     fallback: "Map unavailable, showing Natural Earth",
 };
@@ -334,7 +341,9 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const legendAsked = useWorkspaceState((state) => state.legendAsked);
     // The empty card's doors: the Sources "+" doors a first source most often comes through.
     const doors = [useCommand("data.add-file"), useCommand("data.samples")].filter((door) => door !== null);
-    const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session, workspaceOpen);
+    // When filters hide every node the way back is the filters, never loading other data.
+    const filterDoors = [useCommand("filters.open")].filter((door) => door !== null);
+    const { blocks, nodeCount, edgeCount, totalNodes, load } = useCanvasReading(session, workspaceOpen);
     useLayoutWarningNotice();
     useDetailedMapForSmallData();
 
@@ -355,14 +364,16 @@ export function CanvasOverlays(): React.JSX.Element | null {
             />
         );
     } else if (nodeCount === 0) {
+        const hidden = totalNodes > 0;
+        const shownDoors = hidden ? filterDoors : doors;
         card = (
             <StateCard
                 icon={<GLYPHS.empty size={20} />}
-                title="No nodes to draw"
+                title={hidden ? "Every node is hidden" : "No nodes to draw"}
                 actions={
-                    doors.length === 0
+                    shownDoors.length === 0
                         ? undefined
-                        : doors.map((door) => (
+                        : shownDoors.map((door) => (
                               <Tooltip
                                   key={door.command.id}
                                   label={door.disabledReason}
@@ -386,11 +397,9 @@ export function CanvasOverlays(): React.JSX.Element | null {
     return (
         <>
             {/* Asked for over nothing, the card says nothing is styled yet. */}
-            {/* While a selection is picked, the key says the styles are suspended and names its groups. */}
-            {legendShown && !workspaceOpen ? (
-                <PreviewKey session={session}>
-                    {keyed || legendAsked ? <LegendCard blocks={blocks} session={session} /> : null}
-                </PreviewKey>
+            {/* While a selection is picked, the selection workspace draws its own key at its preview. */}
+            {legendShown && !workspaceOpen && (keyed || legendAsked) ? (
+                <LegendCard blocks={blocks} session={session} />
             ) : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
         </>

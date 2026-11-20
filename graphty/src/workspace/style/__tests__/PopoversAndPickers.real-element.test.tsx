@@ -14,10 +14,15 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { openSampleFromStart } from "../../../test/open";
 import { findValuePicker, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
 import { type WorkspaceStore } from "../../state/store";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Opens a layer's Style tab and its color binding popover by clicking the color's value pill.
@@ -27,9 +32,10 @@ import { type WorkspaceStore } from "../../state/store";
  */
 async function openBinding(store: WorkspaceStore, layer: Layer): Promise<HTMLElement> {
     store.set({ inspected: { kind: "layer-row", id: layer.id } });
-    const tab = await screen.findByTestId("style-tab", {});
+    // A project opens on its Everything row's Style tab, which the layer's tab replaces: read the
+    // tab shown now on every look, never one found before the swap.
     const pill = await waitFor(() => {
-        const found = tab.querySelector<HTMLElement>(".cm-var-fill-button");
+        const found = screen.getByTestId("style-tab").querySelector<HTMLElement>(".cm-var-fill-button");
         assert.isNotNull(found);
         return found;
     });
@@ -195,7 +201,13 @@ describe("the binding popover's rows and readings", () => {
             selector: { match: "everything" },
             set: { "node.color": "#FF0000" },
         });
-        store.set({ inspected: { kind: "layer-row", id: layer.id } });
+        // A click on its tree row opens its Style tab in place of Everything's, which the project
+        // opened on.
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${layer.name}, `) }));
+        await waitFor(() => {
+            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer.id });
+        });
         const tab = await screen.findByTestId("style-tab", {});
 
         // The vary picker on Node size, every value unfolded.

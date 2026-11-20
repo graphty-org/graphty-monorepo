@@ -48,7 +48,7 @@ export interface ImportReport {
         /** Edges the graph holds after the load. */
         readonly edges: number;
         /**
-         * Node records handed over, which is fewer than {@link nodes} when an edge named an
+         * Node records handed over, which is fewer than `nodes` when an edge named an
          * endpoint the file never declared as a node of its own.
          */
         readonly nodeRecords: number;
@@ -121,16 +121,58 @@ export interface TooLargeDetails {
     /** What is counted. */
     readonly of: "nodes" | "edges";
     /** What the graph held when the load was refused. */
-    readonly graph: { readonly nodes: number; readonly edges: number };
+    readonly graph: {
+        /** How many nodes the graph held. */
+        readonly nodes: number;
+        /** How many edges the graph held. */
+        readonly edges: number;
+    };
 }
+
+/**
+ * Why a load took the records path rather than the column path: the first condition it failed.
+ * `"objects"` is the render path itself; the rest name a choice or a record the column path has no
+ * form for.
+ */
+export type LoadPathReason = "objects" | "duplicateIds" | "repeatedEdges" | "endpoints" | "weights" | "records";
+
+/** Which path a load took, as a neutral fact: the column path, or the records path and why. */
+export type LoadPath =
+    | {
+          /** The rows were read into columns. */
+          readonly code: "PATH_COLUMNS";
+          /** None. */
+          readonly params: Readonly<Record<string, never>>;
+      }
+    | {
+          /** The rows were kept as records. */
+          readonly code: "PATH_RECORDS";
+          /** Why the column path was not taken. */
+          readonly params: {
+              /** The first condition the column path failed. */
+              readonly reason: LoadPathReason;
+          };
+      };
 
 /**
  * An {@link ImportReport} plus two facts a reader checks before and after a load:
  * `session.data.lastImport()` and `LoadDraft.report()` both return it.
  */
 export interface LoadReport extends ImportReport {
+    /**
+     * Which path the load's rows took, under `render-path="batched"`: an `addEdges` (or an
+     * `importColumns`) whose records qualify is read into columns and keeps no record object
+     * per row. Absent under `"objects"`, and for a load from a data source.
+     * @experimental cosmograph
+     */
+    readonly path?: LoadPath;
     /** Edge rows naming a node no node row (nor the graph, for a merge) held, and how many distinct such names. */
-    readonly unmatched: { readonly rows: number; readonly values: number };
+    readonly unmatched: {
+        /** How many edge rows named a node that was not there. */
+        readonly rows: number;
+        /** How many distinct missing node names those rows gave. */
+        readonly values: number;
+    };
     /** The details `E_TOO_LARGE` would carry; null when the load fits. Always null after a real load, which refuses instead. */
     readonly tooLarge: TooLargeDetails | null;
     /**
@@ -141,7 +183,12 @@ export interface LoadReport extends ImportReport {
      * graph file (GraphML, GEXF, GML, ...) has a repeated id folded by its parser before the
      * element sees it, so it is not counted.
      */
-    readonly duplicates: { readonly rows: number; readonly ids: readonly (string | number)[] };
+    readonly duplicates: {
+        /** How many node rows repeated an earlier row's id. */
+        readonly rows: number;
+        /** The distinct repeated ids, in the order they first repeated. */
+        readonly ids: readonly (string | number)[];
+    };
     /**
      * Every problem the load met, in the order met, at most the source's `errorLimit` of them:
      * the source's own (a CSV row it could not read, a GML vertex line it skipped), then the
@@ -163,7 +210,12 @@ export interface LoadReport extends ImportReport {
      * `"scoped"` -- and `byKind` how many distinct id values each kind holds, the same under either
      * choice. Absent when the mapping names no kind.
      */
-    readonly kinds?: { readonly sharedIds: number; readonly byKind: Readonly<Record<string, number>> };
+    readonly kinds?: {
+        /** How many id values appear under two or more kinds. */
+        readonly sharedIds: number;
+        /** How many distinct id values each kind holds, by kind. */
+        readonly byKind: Readonly<Record<string, number>>;
+    };
     /**
      * The rows themselves, so a reader can fix the file: `rejected`, the rows `counts.rejected`
      * counts, and `unmatched`, the edge rows `unmatched.rows` counts, each in the order met with
@@ -176,7 +228,12 @@ export interface LoadReport extends ImportReport {
      * in `errors`, with its line and the reader's code.
      * @since 3.40.0
      */
-    readonly rows?: { readonly rejected: readonly DraftRow[]; readonly unmatched: readonly DraftRow[] };
+    readonly rows?: {
+        /** The rejected rows, at most {@link IMPORT_ROWS_KEPT}. */
+        readonly rejected: readonly DraftRow[];
+        /** The edge rows with an end that matched no node, at most {@link IMPORT_ROWS_KEPT}. */
+        readonly unmatched: readonly DraftRow[];
+    };
 }
 
 /** How many rejected and how many unmatched rows a {@link LoadReport} keeps in `rows`. */

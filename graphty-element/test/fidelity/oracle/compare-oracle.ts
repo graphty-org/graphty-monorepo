@@ -1051,6 +1051,26 @@ const insideNode = (n: PNode, [x, y]: Pt): boolean => {
 };
 
 /**
+ * Whether a line's end lies on a node's box, within a pixel, and out past the ellipse the box holds by more than one:
+ * where the program stopped the line on an outline that reaches the box (a notched note's corner). Not for a box or a
+ * round node, which are cut at their own outline already.
+ * @param n - the node
+ * @param end - the line's end
+ * @param pixel - one render pixel, in the node's frame
+ * @returns whether it does
+ */
+export function onBoxPastEllipse(n: PNode, end: Pt, pixel: number): boolean {
+    // a round node's box is no outline: a line stopped there short of the ellipse leaves a gap a reader sees
+    if (n.shape === null || ["rect", "roundrect", "ellipse"].includes(n.shape) || !(n.w > 0 && n.h > 0)) {
+        return false;
+    }
+    const [dx, dy] = [Math.abs(end[0] - n.cx), Math.abs(end[1] - n.cy)];
+    const [hw, hh] = [n.w / 2, n.h / 2];
+    const onBox = dx <= hw + pixel && dy <= hh + pixel && (dx >= hw - pixel || dy >= hh - pixel);
+    return onBox && !insideNode({ ...n, shape: "ellipse", w: n.w + 2 * pixel, h: n.h + 2 * pixel }, end);
+}
+
+/**
  * A path without its ends inside a node: from where it first leaves the start node to where it last enters the
  * end node, each crossing found on its segment. One program draws an edge from border to border and another from
  * center to center under opaque nodes; a reader sees the same line, so a route is judged on the part between the
@@ -2454,6 +2474,21 @@ export function compareOracle(
         if (!bodied(on) || !bodied(at)) {
             return [undefined, undefined];
         }
+        // a line the program stops on its node's box out past the ellipse the box holds is cut at the boxes on both
+        // sides: the outline reaches the box there (graphml-libcitygml-mapping n38 -> n14: yEd stops at a UML note's
+        // top left corner, which the scene classes as a hexagon, and graphty's line, run to the center, was cut 20 px
+        // inside at the ellipse)
+        if (
+            on.figure === undefined &&
+            at.figure === undefined &&
+            end !== undefined &&
+            onBoxPastEllipse(on, end, pixel)
+        ) {
+            return [
+                { ...on, shape: "rect" },
+                { ...at, shape: "rect" },
+            ];
+        }
         return at.figure !== undefined && runsToMiddle(on, end)
             ? [on, at]
             : [
@@ -2937,7 +2972,16 @@ export function compareOracle(
             } else if (place !== null) {
                 j.add("edge.arrowPlace", "edge", at, place.miss, place.oracle, place.graphty);
             }
-            j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled ? 0 : 1, oa.filled, gg.filled);
+            // a head filled in the canvas's own color and drawn with no outline shows nothing on either side: the
+            // oracle's reads hollow with no color (associate.ts arrowFrom), graphty's as filled in that color
+            // (graphml-synthetic-edges n17 -> n27 and n27 -> n36: white lines and white heads on white, in both)
+            const blank =
+                !oa.filled &&
+                oa.color === null &&
+                gg.filled &&
+                gg.color !== null &&
+                deltaE(gg.color, oracle.background ?? "#ffffff") <= 3;
+            j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled || blank ? 0 : 1, oa.filled, gg.filled);
             if (oa.color !== null && gg.color !== null) {
                 j.add(
                     "edge.arrowColor",

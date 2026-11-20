@@ -231,6 +231,8 @@ export type {
     SourceStorage,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+// What the element's `graphty-source-loaded` DOM event carries.
+export type { SourceLoaded } from "./src/session/types";
 // What autosave reports: its status, its codes, its entries and what a restore found.
 export type { AutosaveAtRisk } from "./src/autosave/elementAutosave";
 export type {
@@ -446,7 +448,14 @@ export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/ca
 // Video capture exports
 // =============================================================================
 export { AnimationCanceledError, AnimationCancelledError } from "./src/video/MediaRecorderCapture";
-export type { AnimationOptions, AnimationResult, CameraWaypoint, ViewWaypoint } from "./src/video/VideoCapture";
+export type {
+    AnimationOptions,
+    AnimationResult,
+    CameraWaypoint,
+    VideoFormat,
+    ViewWaypoint,
+} from "./src/video/VideoCapture";
+export { VIDEO_FORMATS } from "./src/video/VideoCapture";
 
 // Video capture estimation
 export type { CaptureEstimate } from "./src/video/estimation";

@@ -473,11 +473,27 @@ chooses.
 > Code sessions.
 
 Buttons **Share usage data** and **No thanks**, equal weight, no default. A **What is collected**
-disclosure lists: a replay of each session with every node name, attribute value, label and file
-content masked; anonymous task events with their timings (file loaded, first graph drawn, measure
+disclosure lists: a replay of the moments before an error with every node name, attribute value,
+label and file content masked; anonymous task events with their timings (file loaded, first graph drawn, measure
 run, result read, style added, export, undo); errors and performance; a feedback widget. It ends
 "No file contents ever leave your computer." After an answer: "Thank you. Usage data is on, with
 content masked." or "Usage data stays off.", then "Change this in Settings > Privacy".
+
+_With the `usage-analytics` experiment on, on a site that sends PostHog anything_ (design/graphty/usage-analytics.md,
+"The experiment flag"; off by default, so the text above is what nightly and production show):
+anonymous counts (PostHog's cookieless mode, no cookies or stored id) are sent whatever the answer.
+Below the owner's words: "Until you share, anonymous counts are sent: visits, the site that sent
+you, which sample, file format, layout, measure and export you use, and whether you share. No
+cookies, no stored id, no names or contents." The **What is collected** disclosure lists what Share
+adds: a replay of some sessions, with all text, typing, labels, file names and the graph hidden
+(PostHog); which buttons, panels, commands and steps you use, by id only, and how you use the
+canvas: selecting, dragging, zooming (PostHog); page speed; your answers to a short survey, if you
+answer it, including any text you type in its Other box; error reports, with a masked replay of the
+moments before the error (Sentry); feedback you send. Then "PostHog keeps a random id in this
+browser while sharing is on." The declined line is "Usage data stays off. Anonymous counts are still
+sent." The start screen's footer links **Privacy** to `/privacy.html`, which lists every event and
+property. A Share given under the words above (experiment off) does not cover these: the card asks
+again.
 
 Routes: `#/start-screen/first-run`, `#/start-screen/disclosure`, `#/start-screen/answered`,
 `#/start-screen/declined`, `#/start-screen/returning`, `#/start-screen/drop-target`,
@@ -490,7 +506,11 @@ One dialog, a section list down the left, closed with X or Esc, Mod+, (spec 12.3
 - **General**: Theme (System, Light, Dark; the app's chrome only); Number format.
 - **Privacy**: Usage data (a switch, with the owner's text and the "What is collected" list);
   **Where your data goes**, read-only lines: files are read on this computer; the project is saved
-  where you save it; usage data, masked, is sent only while Usage data is on.
+  where you save it; usage data, masked, is sent only while Usage data is on (off: "Nothing is
+  sent."). _With the `usage-analytics` experiment on, on a site that sends PostHog anything:_ off
+  reads "Anonymous counts are still sent: visits, the site that sent you, and which sample, file
+  format, layout, measure and export you use."; a line on anonymous counts, shown only while Share
+  is off: no cookies or stored id (PostHog, US); and a **Privacy details** link to `/privacy.html`.
 - **Accessibility and input**: Single-key shortcuts (on/off, WCAG 2.1.4). Reduced motion is not
   drawn until graphty-element honors it (an unbuilt item is not drawn).
 

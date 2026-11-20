@@ -362,7 +362,7 @@ export interface AnimationOptions {
     downloadFilename?: string;
     duration?: number;
     easing?: EasingName;
-    format?: "webm" | "mp4" | "auto";
+    format?: VideoFormat | "auto";
     fps?: number;
     height?: number;
     motion?: "follow-view" | "authored";
@@ -378,15 +378,13 @@ export interface AnimationProgressEvent {
     type: "animation-progress";
 }
 
-// @public (undocumented)
+// @public
 export interface AnimationResult {
-    // (undocumented)
     blob: Blob;
-    // (undocumented)
     metadata: {
         duration: number;
         fps: number;
-        format: string;
+        format: VideoFormat;
         width: number;
         height: number;
         framesCaptured: number;
@@ -1393,6 +1391,11 @@ export const EdgeStyle: z.ZodObject<{
                 rectangle: "rectangle";
                 circle: "circle";
             }>>;
+            image: z.ZodOptional<z.ZodString>;
+            imageWidth: z.ZodOptional<z.ZodNumber>;
+            imageHeight: z.ZodOptional<z.ZodNumber>;
+            imageOffsetX: z.ZodOptional<z.ZodNumber>;
+            imageOffsetY: z.ZodOptional<z.ZodNumber>;
             minScreenSize: z.ZodOptional<z.ZodNumber>;
             declutter: z.ZodOptional<z.ZodEnum<{
                 size: "size";
@@ -1690,6 +1693,11 @@ export const EdgeStyle: z.ZodObject<{
                 rectangle: "rectangle";
                 circle: "circle";
             }>>;
+            image: z.ZodOptional<z.ZodString>;
+            imageWidth: z.ZodOptional<z.ZodNumber>;
+            imageHeight: z.ZodOptional<z.ZodNumber>;
+            imageOffsetX: z.ZodOptional<z.ZodNumber>;
+            imageOffsetY: z.ZodOptional<z.ZodNumber>;
             minScreenSize: z.ZodOptional<z.ZodNumber>;
             declutter: z.ZodOptional<z.ZodEnum<{
                 size: "size";
@@ -2145,6 +2153,11 @@ export const EdgeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -2388,6 +2401,11 @@ export const EdgeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -6569,6 +6587,11 @@ export const NodeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -6812,6 +6835,11 @@ export const NodeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -7055,6 +7083,11 @@ export const NodeStyle: z.ZodObject<{
             rectangle: "rectangle";
             circle: "circle";
         }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
         minScreenSize: z.ZodOptional<z.ZodNumber>;
         declutter: z.ZodOptional<z.ZodEnum<{
             size: "size";
@@ -7457,7 +7490,6 @@ export class OperationQueueManager implements Manager {
         size: number;
         isPaused: boolean;
     };
-    // (undocumented)
     hasLayoutEngine?: () => boolean;
     get hasWork(): boolean;
     init(): Promise<void>;
@@ -7993,6 +8025,11 @@ export const RichTextStyle: z.ZodObject<{
         rectangle: "rectangle";
         circle: "circle";
     }>>;
+    image: z.ZodOptional<z.ZodString>;
+    imageWidth: z.ZodOptional<z.ZodNumber>;
+    imageHeight: z.ZodOptional<z.ZodNumber>;
+    imageOffsetX: z.ZodOptional<z.ZodNumber>;
+    imageOffsetY: z.ZodOptional<z.ZodNumber>;
     minScreenSize: z.ZodOptional<z.ZodNumber>;
     declutter: z.ZodOptional<z.ZodEnum<{
         size: "size";
@@ -8295,6 +8332,8 @@ export class SelectionManager implements Manager {
     constructor(eventManager: EventManager);
     add(node: Node_2): void;
     bindSelection(selection: SelectionOwner): void;
+    // @internal
+    byInput(via: SelectionVia, fn: () => void): void;
     deselect(): void;
     dispose(): void;
     getSelectedNode(): Node_2 | null;
@@ -8550,6 +8589,24 @@ export { SourceListing }
 export { SourceListItem }
 
 export { SourceListQuery }
+
+// @public
+export interface SourceLoaded {
+    readonly callerKey?: string;
+    readonly format?: FormatId;
+    readonly kind: LoadedSourceKind;
+    readonly mode: "replace" | "merge";
+    readonly replaced?: "replaceSource" | "reloadSource";
+    readonly sample?: {
+        readonly datasetId: string;
+    } | {
+        readonly generatorId: string;
+    } | {
+        readonly exampleId: string;
+    };
+    readonly source: SourceKey;
+    readonly sourceId?: string;
+}
 
 // @public
 export interface SourceLoadOptions extends LoadChoices {
@@ -8926,6 +8983,12 @@ export class UpdateManager implements Manager {
     whyFrameIsNotStable(): string;
     get zoomToFitCompleted(): boolean;
 }
+
+// @public
+export const VIDEO_FORMATS: readonly VideoFormat[];
+
+// @public
+export type VideoFormat = "webm" | "mp4";
 
 // @public
 export const VIEW_MODE_VALUES: readonly ["2d", "3d", "ar", "vr"];

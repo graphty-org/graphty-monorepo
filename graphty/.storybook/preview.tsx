@@ -9,7 +9,6 @@ import { configure } from "storybook/test";
 import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 
 import { pinErudaTopRight } from "../src/lib/eruda";
-import { initSentry } from "../src/lib/sentry";
 import { theme } from "../src/theme";
 import { loadGraphtyElement } from "../src/elementLoader";
 import { loadFrame } from "../src/workspace/frameLoader";
@@ -23,12 +22,6 @@ import DocumentationTemplate from "./DocumentationTemplate.mdx";
 configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 // graphty-element's waitForStableFrame() waits until the same guard, not its 30 s default.
 (globalThis as { __GRAPHTY_WAIT_GUARD_MS__?: number }).__GRAPHTY_WAIT_GUARD_MS__ = WAIT_GUARD_MS;
-
-// Error tracking in Storybook only when a DSN was built in. Without one there is nothing to set up,
-// and the Sentry stories say on the page that it is not configured.
-if (import.meta.env.VITE_SENTRY_DSN) {
-    initSentry();
-}
 
 /**
  * Whether a page URL carries the `eruda` query flag.

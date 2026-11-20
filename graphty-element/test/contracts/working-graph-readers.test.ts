@@ -303,7 +303,6 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
             await s.data.preparePage("node", { scope: "graph", sort: { key: "id" } });
             return s.data.nodePage({ limit: 50, scope: "graph", sort: { key: "id" } });
         },
-        windowMasks: true,
     },
     "data.previewSource()": "not the graph",
     "data.previewType()": "not the graph",

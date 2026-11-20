@@ -5102,7 +5102,7 @@ export type GraphtyWarningCode =
 /**
 * A load cannot be saved as a reference: there is nothing to read it from again. It stays a
 * copy. `params.source` is the load's key and `params.reason` why (`file`, `inline`, `join`,
-* `network`, `secret-url`, `relative-url`, `no-seed`; OPEN UNION).
+* `secret-url`, `relative-url`, `no-seed`; OPEN UNION).
 */
 | "W_SOURCE_NO_PATH"
 /**

@@ -1,5 +1,5 @@
 // Chapter 6, clip 2: Layout > Map, Fit World, puts every airport where it is; the routes arc over a globe.
-import { FLIGHTS, layoutPanel, setTransition, still, stillLayout } from "./map.js";
+import { FLIGHTS, mapOnCamera, setTransition, still, stillLayout } from "./map.js";
 
 export default {
     id: "map-layout",
@@ -15,10 +15,7 @@ export default {
     },
     async run(h) {
         const { page } = h;
-        await h.click("Layout");
-        const panel = layoutPanel(page);
-        await h.scroll(panel.getByRole("listbox"), 2400);
-        await h.click(panel.getByRole("option", { name: /^Map / }));
+        const panel = await mapOnCamera(h);
         // Fit World frames the whole globe (the default leaves its top off screen), as clip 3 opens
         await h.click(panel.getByRole("combobox", { name: "Fit" }));
         await h.click(page.getByRole("option", { name: "World", exact: true }));

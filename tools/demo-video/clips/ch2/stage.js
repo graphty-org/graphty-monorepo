@@ -54,38 +54,5 @@ export async function labelNames(h, layers) {
     await page.getByRole("treeitem", { name: /^Everything,/ }).click();
 }
 
-/**
- * Where a node is drawn, as a page box the hand can aim at, read from graphty-element's public
- * nodeScreenPosition (setup only; the clip itself only moves and clicks).
- * @param h - the hand
- * @param id - the node's id (the character's name in Les Miserables)
- * @returns a box around the node's center
- */
-export async function nodeBox(h, id) {
-    const p = await h.page.evaluate((nodeId) => {
-        const el = globalThis.document.querySelector("graphty-element");
-        const at = el.nodeScreenPosition(nodeId);
-        const r = el.getBoundingClientRect();
-        return at?.visible ? { x: at.x + r.left, y: at.y + r.top, radius: at.radius } : null;
-    }, id);
-    if (!p) throw new Error(`${id} is not on screen`);
-    const s = Math.max(4, p.radius * 0.8);
-    return { x: p.x - s, y: p.y - s, width: 2 * s, height: 2 * s };
-}
-
-/**
- * Run one analysis through Analyze (setup only, no pacing): filter, pick, Run, wait for its legend.
- * @param h - the hand
- * @param words - what to type in Filter analyses
- * @param name - the analysis, as its row names it
- */
-export async function analyze(h, words, name) {
-    const { page } = h;
-    await page.getByRole("button", { name: "Analyze", exact: true }).click();
-    await page.getByRole("combobox", { name: "Filter analyses" }).fill(words);
-    await page.getByRole("option", { name, exact: true }).click();
-    await page.getByRole("button", { name: `Run ${name}` }).click();
-    await page.getByText(`Color: ${name}`).first().waitFor();
-    await page.keyboard.press("Escape");
-    await page.getByRole("dialog", { name: "Analyze" }).waitFor({ state: "hidden" });
-}
+// nodeBox and analyze are round 2's (analyze here is runAnalysis: it does not wait for a settle)
+export { nodeBox, runAnalysis as analyze } from "../r2-1-fraud-ring/bank.js";

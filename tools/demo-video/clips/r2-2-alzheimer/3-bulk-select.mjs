@@ -1,5 +1,6 @@
 // Round 2, clip 2.3 (bulk editing): the find box, "Approved"; the Values row "Select where drugStage
 // is Approved (16)": the 16 proteins an approved drug targets are selected at once.
+import { typeInFind } from "../r2-1-fraud-ring/bank.js";
 import { ALZ_CLIP, alzHull } from "./alz.js";
 
 export default {
@@ -13,8 +14,7 @@ export default {
     leadMs: 500,
     async run(h) {
         const { page } = h;
-        await h.click(page.getByRole("combobox", { name: "Find" }));
-        await h.type("Approved");
+        await typeInFind(h, "Approved");
         const list = page.getByRole("listbox", { name: "Find results" });
         await h.waitFor(list);
         // the 16 protein rows come first; the Values row is below them

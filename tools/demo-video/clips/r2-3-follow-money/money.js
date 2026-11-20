@@ -9,19 +9,14 @@ import {
     bankRing,
     closeToasts,
     clearSelection,
+    edgeLine,
     eye,
     paleEverything,
 } from "../r2-1-fraud-ring/bank.js";
+import { openMapForm, pick } from "../ch6/map.js";
 
 /** Every chapter 3 clip films the bank data. */
 export const MONEY_CLIP = { ...BANK_CLIP, chapter: 3 };
-
-/**
- * The Layout popover.
- * @param page - the Playwright page
- * @returns its locator
- */
-export const layoutPanel = (page) => page.getByRole("dialog", { name: "Layout" });
 
 /**
  * The inspector (the right panel).
@@ -87,35 +82,11 @@ export async function moneyCase(h) {
     await color.press("Enter");
     // a new layer sets no edge style yet: Line's + adds each property, then it is typed in
     await page.getByRole("tablist", { name: "Style for" }).getByRole("tab", { name: /^Edge/ }).click();
-    const styleEdges = insp.getByRole("checkbox", { name: "Style edges" }); // off on a layer made from nodes
-    if (!(await styleEdges.isChecked())) await styleEdges.check();
-    await insp.getByRole("button", { name: "Add to edge line" }).click();
-    await page.getByRole("menuitem", { name: "Color", exact: true }).click();
-    const edgeColor = insp.getByRole("textbox", { name: /^Edge color, / });
-    await edgeColor.fill(TRAIL_COLOR);
-    await edgeColor.press("Enter");
-    await insp.getByRole("button", { name: "Add to edge line" }).click();
-    await page.getByRole("menuitem", { name: "Width", exact: true }).click();
-    const width = insp.getByRole("spinbutton", { name: "Edge width" });
-    await width.fill("60");
-    await width.press("Enter");
+    await edgeLine(h, TRAIL_COLOR);
     await clearSelection(h);
     await closeToasts(h);
     await page.getByRole("button", { name: "Graph", exact: true }).click();
     await h.app.settled();
-}
-
-/**
- * Pick a value from one of the Map form's lists (Transition, Map, Fit).
- * @param page - the Playwright page
- * @param field - the list's label
- * @param value - the entry
- */
-async function pick(page, field, value) {
-    await layoutPanel(page).getByRole("combobox", { name: field }).click();
-    const option = page.getByRole("option", { name: value, exact: true });
-    await option.scrollIntoViewIfNeeded();
-    await option.click();
 }
 
 /**
@@ -124,12 +95,7 @@ async function pick(page, field, value) {
  */
 export async function onMap(h) {
     const { page } = h;
-    await page.getByRole("button", { name: "Layout", exact: true }).click();
-    const panel = layoutPanel(page);
-    const entry = panel.getByRole("option", { name: /^Map / });
-    await entry.scrollIntoViewIfNeeded();
-    await entry.click();
-    await panel.getByRole("form", { name: "Map" }).waitFor();
+    const panel = await openMapForm(page);
     await pick(page, "Transition", "None");
     await panel.getByRole("button", { name: "Apply" }).click();
     await panel.waitFor({ state: "hidden" });
@@ -143,8 +109,6 @@ export async function onMap(h) {
 export async function betweenness(h) {
     await analyze(h, "brokers", "Betweenness");
 }
-
-export { pick };
 
 /** An empty spot on the map (the Atlantic, south of the cities), in Graph drawing coordinates. */
 export const EMPTY = { x: 560, y: 760 };

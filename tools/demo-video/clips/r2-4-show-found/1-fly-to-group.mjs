@@ -6,6 +6,18 @@ import { analyze, clearSelection, closeToasts } from "../r2-1-fraud-ring/bank.js
 
 const insp = (page) => page.getByRole("complementary", { name: "Inspector" });
 
+/**
+ * The Louvain layer's Values list in the inspector (setup only).
+ * @param page - the Playwright page
+ */
+async function louvainValues(page) {
+    await page
+        .getByRole("treeitem", { name: /^Louvain/ })
+        .first()
+        .click();
+    await insp(page).getByRole("tab", { name: "Values" }).click();
+}
+
 /** The Values list entry of APP's community, read in setup ("Group 5"). */
 let group = "";
 
@@ -33,11 +45,7 @@ export default {
         if (!m) throw new Error(`no Louvain value for APP in the inspector:\n${text.slice(0, 1500)}`);
         group = `Group ${m[1]}`;
         // that community as a layer of its own, its proteins named
-        await page
-            .getByRole("treeitem", { name: /^Louvain/ })
-            .first()
-            .click();
-        await insp(page).getByRole("tab", { name: "Values" }).click();
+        await louvainValues(page);
         await insp(page).getByText(group, { exact: true }).click();
         const made = page.getByRole("treeitem", { name: /^\d+ nodes, / });
         await page.mouse.click(1560, 975, { button: "right" });
@@ -52,11 +60,7 @@ export default {
         await h.app.camera("Fit");
         await h.app.settled();
         // the Louvain layer's Values list, where the hand picks the community
-        await page
-            .getByRole("treeitem", { name: /^Louvain/ })
-            .first()
-            .click();
-        await insp(page).getByRole("tab", { name: "Values" }).click();
+        await louvainValues(page);
         await insp(page).getByText(group, { exact: true }).waitFor();
         await h.park({ x: 1250, y: 300 });
     },

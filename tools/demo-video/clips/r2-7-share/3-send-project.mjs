@@ -8,7 +8,7 @@ import { basename, join } from "node:path";
 
 import * as app from "../../lib/app.mjs";
 import { appUrl, OUT } from "../../lib/env.mjs";
-import { bankCase, CASE_CLIP } from "./case.js";
+import { bankCase, CASE_CLIP, exportOnCamera } from "./case.js";
 
 export default {
     id: "send-project",
@@ -36,9 +36,7 @@ export default {
     leadMs: 500,
     async run(h) {
         const { page } = h;
-        await h.click(page.getByRole("button", { name: "Main menu" }));
-        await h.click(page.getByRole("menuitem", { name: "Export..." }));
-        const dialog = page.getByRole("dialog", { name: "Export" });
+        const dialog = await exportOnCamera(h);
         await h.click(dialog.getByRole("row", { name: "Project" }));
         await h.click(dialog.getByRole("button", { name: "Export", exact: true }));
         const file = await h.saved;

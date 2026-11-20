@@ -59,25 +59,4 @@ export async function base(h) {
     await h.app.settled();
 }
 
-/**
- * The recorded path to a layout: Layout, the row, Apply.
- * @param h - the hand
- * @param row - the row's accessible name, from its start
- */
-export async function pickLayout(h, row) {
-    const { page } = h;
-    await h.click("Layout");
-    // the list opens scrolled to the layout in use: bring the row into its view first
-    const list = page.getByRole("listbox", { name: "Layouts" });
-    const option = page.getByRole("option", { name: row }).first();
-    await list.waitFor();
-    const lb = await list.boundingBox();
-    const ob = await option.boundingBox();
-    // the part of the list a viewer sees: inside both the list and the window
-    const top = Math.max(lb.y, 0);
-    const bottom = Math.min(lb.y + lb.height, page.viewportSize().height);
-    if (ob.y < top || ob.y + ob.height > bottom)
-        await h.scroll(list, Math.round(ob.y + ob.height / 2 - (top + bottom) / 2), { ms: 600 });
-    await h.click(option);
-    await h.click(page.getByRole("button", { name: "Apply" }));
-}
+export { pickLayout } from "../r2-5b-and-more/more.js";

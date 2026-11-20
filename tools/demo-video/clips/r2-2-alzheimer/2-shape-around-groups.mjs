@@ -4,7 +4,7 @@
 // the graph for about 3 s. The one action on camera is Group by > Louvain, which splits that line into
 // one outline per community.
 import { tap } from "../r2-1-fraud-ring/bank.js";
-import { ALZ_CLIP, alzLouvain, everythingNodes } from "./alz.js";
+import { ALZ_CLIP, alzOutline } from "./alz.js";
 
 export default {
     id: "shape-around-groups",
@@ -12,15 +12,7 @@ export default {
     caption: "Outline each community",
     async setup(h) {
         const { page } = h;
-        await alzLouvain(h);
-        await everythingNodes(h);
-        await page.getByRole("button", { name: "Add to node shaders" }).click();
-        await page.getByRole("textbox", { name: "Find node shader" }).fill("hull");
-        await page.getByRole("button", { name: "Hull", exact: true }).click();
-        await page.getByRole("button", { name: "Hull settings" }).click();
-        await page.getByRole("combobox", { name: "Look" }).click();
-        await page.getByRole("option", { name: "Outline", exact: true }).click();
-        await page.keyboard.press("Escape");
+        await alzOutline(h);
         await page.getByRole("button", { name: "Group by None" }).waitFor();
         await h.app.settled();
         await h.park({ x: 1500, y: 760 });

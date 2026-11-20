@@ -6,6 +6,7 @@ import {
     bankNeighborhood,
     bankRing,
     closeToasts,
+    edgeLine,
     eye,
     nodeBox,
     paleEverything,
@@ -58,18 +59,7 @@ async function ringBold(h) {
     await size.fill("3");
     await size.press("Enter");
     await forTabs.getByRole("tab", { name: /^Edge/ }).click();
-    const styleEdges = insp.getByRole("checkbox", { name: "Style edges" }); // off on a layer made from nodes
-    if (!(await styleEdges.isChecked())) await styleEdges.check();
-    await insp.getByRole("button", { name: "Add to edge line" }).click();
-    await page.getByRole("menuitem", { name: "Color", exact: true }).click();
-    const color = insp.getByRole("textbox", { name: /^Edge color, / });
-    await color.fill(RING_COLOR_HEX);
-    await color.press("Enter");
-    await insp.getByRole("button", { name: "Add to edge line" }).click();
-    await page.getByRole("menuitem", { name: "Width", exact: true }).click();
-    const width = insp.getByRole("spinbutton", { name: "Edge width" });
-    await width.fill("60");
-    await width.press("Enter");
+    await edgeLine(h, RING_COLOR_HEX);
     await forTabs.getByRole("tab", { name: /^Node/ }).click(); // focus off the fields
 }
 

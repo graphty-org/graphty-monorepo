@@ -30,6 +30,19 @@ export async function openMapForm(page) {
 }
 
 /**
+ * The recorded path to the Map layout's form: Layout, the list scrolled down to Map, Map.
+ * @param h - the hand
+ * @returns the Layout popover's locator
+ */
+export async function mapOnCamera(h) {
+    await h.click("Layout");
+    const panel = layoutPanel(h.page);
+    await h.scroll(panel.getByRole("listbox"), 2400);
+    await h.click(panel.getByRole("option", { name: /^Map / }));
+    return panel;
+}
+
+/**
  * Pick a value from one of the Map form's lists (Fit, Transition, Map).
  * @param page - the Playwright page
  * @param field - the list's label

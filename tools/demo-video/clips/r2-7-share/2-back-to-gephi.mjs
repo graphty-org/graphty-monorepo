@@ -1,7 +1,7 @@
 // Round 2, clip 7.2: Main menu > Export..., the Format list (Cytoscape, GraphML, GEXF, ...), Gephi
 // CSV: the preview's header row lists the Louvain and Betweenness results as columns; Export.
 // (GEXF's preview opens on the XML head, its results a dozen lines down, out of the short box.)
-import { bankCase, CASE_CLIP } from "./case.js";
+import { bankCase, CASE_CLIP, exportOnCamera } from "./case.js";
 
 export default {
     id: "back-to-gephi",
@@ -14,9 +14,7 @@ export default {
     leadMs: 500,
     async run(h) {
         const { page } = h;
-        await h.click(page.getByRole("button", { name: "Main menu" }));
-        await h.click(page.getByRole("menuitem", { name: "Export..." }));
-        const dialog = page.getByRole("dialog", { name: "Export" });
+        const dialog = await exportOnCamera(h);
         h.mark("dialog");
         // the hand drifts into the dialog (a move off the controls ends the menu's run of input, so
         // the push-in after "dialog" frames the dialog, not the menu)

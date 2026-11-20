@@ -72,11 +72,12 @@ export async function zoomToward(h, id, ticks) {
 
 /**
  * Run one analysis through Analyze (setup only): filter, pick, Run, wait for its legend, close.
+ * Does not wait for the drawing to settle (analyze does).
  * @param h - the hand
  * @param words - what to type in Filter analyses
  * @param name - the analysis, as its row names it
  */
-export async function analyze(h, words, name) {
+export async function runAnalysis(h, words, name) {
     const { page } = h;
     await page.getByRole("button", { name: "Analyze", exact: true }).click();
     await page.getByRole("combobox", { name: "Filter analyses" }).fill(words);
@@ -85,7 +86,41 @@ export async function analyze(h, words, name) {
     await page.getByText(`Color: ${name}`).first().waitFor();
     await page.keyboard.press("Escape");
     await page.getByRole("dialog", { name: "Analyze" }).waitFor({ state: "hidden" });
+}
+
+/**
+ * Run one analysis through Analyze (setup only), then let the drawing settle.
+ * @param h - the hand
+ * @param words - what to type in Filter analyses
+ * @param name - the analysis, as its row names it
+ */
+export async function analyze(h, words, name) {
+    await runAnalysis(h, words, name);
     await h.app.settled();
+}
+
+/**
+ * The recorded path to an analysis: Analyze, the words typed in its filter, the row, Run.
+ * @param h - the hand
+ * @param words - what to type in Filter analyses
+ * @param name - the analysis, as its row names it
+ */
+export async function analyzeOnCamera(h, words, name) {
+    const { page } = h;
+    await h.click("Analyze");
+    await h.type(words); // Analyze opens with the cursor in Filter analyses
+    await h.click(page.getByRole("option", { name, exact: true }));
+    await h.click(page.getByRole("button", { name: `Run ${name}` }));
+}
+
+/**
+ * The recorded path into the find box: a click on it, then the words typed.
+ * @param h - the hand
+ * @param words - what to type
+ */
+export async function typeInFind(h, words) {
+    await h.click(h.page.getByRole("combobox", { name: "Find" }));
+    await h.type(words);
 }
 
 /**
@@ -195,6 +230,40 @@ export async function eye(h, layer, show) {
 }
 
 /**
+ * The Everything layer open on its node style in the inspector (setup only).
+ * @param h - the hand
+ */
+export async function everythingNodes(h) {
+    const { page } = h;
+    await page.getByRole("treeitem", { name: /^Everything, / }).click();
+    await page.getByRole("complementary", { name: "Inspector" }).getByRole("tab", { name: "Style" }).click();
+    await page.getByRole("tablist", { name: "Style for" }).getByRole("tab", { name: /^Node/ }).click();
+}
+
+/**
+ * The selected layer's edges, on the inspector's Edge tab, styled (setup only): Style edges on (it is
+ * off on a layer made from nodes), then Line's color and width added and typed in.
+ * @param h - the hand
+ * @param color - the edge color, hex without "#"
+ */
+export async function edgeLine(h, color) {
+    const { page } = h;
+    const insp = page.getByRole("complementary", { name: "Inspector" });
+    const styleEdges = insp.getByRole("checkbox", { name: "Style edges" });
+    if (!(await styleEdges.isChecked())) await styleEdges.check();
+    await insp.getByRole("button", { name: "Add to edge line" }).click();
+    await page.getByRole("menuitem", { name: "Color", exact: true }).click();
+    const field = insp.getByRole("textbox", { name: /^Edge color, / });
+    await field.fill(color);
+    await field.press("Enter");
+    await insp.getByRole("button", { name: "Add to edge line" }).click();
+    await page.getByRole("menuitem", { name: "Width", exact: true }).click();
+    const width = insp.getByRole("spinbutton", { name: "Edge width" });
+    await width.fill("60");
+    await width.press("Enter");
+}
+
+/**
  * The Everything layer's node and edge colors set in the inspector (setup only): a pale field for
  * the ring to stand out on.
  * @param h - the hand
@@ -205,10 +274,7 @@ export async function eye(h, layer, show) {
 export async function paleEverything(h, { node, edge }) {
     const { page } = h;
     const insp = page.getByRole("complementary", { name: "Inspector" });
-    await page.getByRole("treeitem", { name: /^Everything, / }).click();
-    await insp.getByRole("tab", { name: "Style" }).click();
-    const forTabs = page.getByRole("tablist", { name: "Style for" });
-    await forTabs.getByRole("tab", { name: /^Node/ }).click();
+    await everythingNodes(h);
     const n = insp.getByRole("textbox", { name: /^Node color, set here/ });
     await n.fill(node);
     await n.press("Enter");

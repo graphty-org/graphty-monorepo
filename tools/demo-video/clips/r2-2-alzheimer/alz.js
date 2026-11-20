@@ -1,9 +1,9 @@
 // Round 2, chapter 2 ("Inside Alzheimer's disease"): the shared setup steps, each bringing a clip to
 // where the clip before it ended. A .js file, so record.mjs does not take it for a clip. Setup only:
 // Playwright clicks straight through the app's own UI, unpaced.
-import { analyze, clearSelection, closeToasts } from "../r2-1-fraud-ring/bank.js";
+import { analyze, clearSelection, closeToasts, everythingNodes } from "../r2-1-fraud-ring/bank.js";
 
-export { nodeBox } from "../r2-1-fraud-ring/bank.js";
+export { everythingNodes, nodeBox } from "../r2-1-fraud-ring/bank.js";
 
 /** The network's file: Open Targets' Alzheimer's targets with STRING links (real data). */
 export const ALZ = "round2/alzheimer-network.json";
@@ -43,21 +43,10 @@ export async function alzLouvain(h) {
 }
 
 /**
- * The Everything layer open on its node style in the inspector.
+ * Where clip 2.2 starts: the Hull shader added on Everything in its Outline look, not grouped yet.
  * @param h - the hand
  */
-export async function everythingNodes(h) {
-    const { page } = h;
-    await page.getByRole("treeitem", { name: /^Everything, / }).click();
-    await insp(page).getByRole("tab", { name: "Style" }).click();
-    await page.getByRole("tablist", { name: "Style for" }).getByRole("tab", { name: /^Node/ }).click();
-}
-
-/**
- * Where clip 2.2 ends: the Hull shader, Outline look, grouped by Louvain on Everything.
- * @param h - the hand
- */
-export async function alzHull(h) {
+export async function alzOutline(h) {
     const { page } = h;
     await alzLouvain(h);
     await everythingNodes(h);
@@ -68,6 +57,15 @@ export async function alzHull(h) {
     await page.getByRole("combobox", { name: "Look" }).click();
     await page.getByRole("option", { name: "Outline", exact: true }).click();
     await page.keyboard.press("Escape");
+}
+
+/**
+ * Where clip 2.2 ends: the Hull shader, Outline look, grouped by Louvain on Everything.
+ * @param h - the hand
+ */
+export async function alzHull(h) {
+    const { page } = h;
+    await alzOutline(h);
     await page.getByRole("button", { name: "Group by None" }).click();
     await page.getByRole("option", { name: /^Louvain, / }).click();
     await page.getByRole("button", { name: "Group by Louvain" }).waitFor();
@@ -118,13 +116,21 @@ export async function alzTargetsLayer(h) {
  * @param h - the hand
  */
 export async function fitWide(h) {
+    await fitToCenter(h);
+    await h.page.mouse.wheel(0, 100);
+    await h.app.settled();
+}
+
+/**
+ * Camera Fit, then the mouse moved to the canvas's center, ready for wheel notches (setup only).
+ * @param h - the hand
+ */
+export async function fitToCenter(h) {
     const { page } = h;
     await h.app.camera("Fit");
     await h.app.settled();
     const box = await page.getByRole("region", { name: "Graph drawing" }).boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.wheel(0, 100);
-    await h.app.settled();
 }
 
 /**
@@ -144,15 +150,29 @@ export async function labelLayer(h, layer, { column = "Node id", px = "28" } = {
     await insp(page).getByRole("button", { name: "Add to node text" }).click();
     await page.getByRole("menuitem", { name: "Label", exact: true }).click();
     await page.getByRole("dialog", { name: "Label" }).getByRole("option", { name: column }).first().click();
+    // the app's sans, not the element's default serif (README.md, "Known app defects")
+    await labelPixels(page, px, { sans: true });
+}
+
+/**
+ * The node label's settings (setup only): optionally the sans font, then the size in screen pixels;
+ * closed again after.
+ * @param page - the Playwright page
+ * @param px - the text size in screen pixels
+ * @param o - options
+ * @param [o.sans] - true to pick the Sans serif font first
+ */
+export async function labelPixels(page, px, { sans = false } = {}) {
     await page.getByRole("button", { name: "Node label settings" }).click();
     const settings = page.getByRole("dialog", { name: "Label settings" });
-    // the app's sans, not the element's default serif (README.md, "Known app defects")
-    await settings.getByRole("combobox", { name: "Font" }).click();
-    await page.getByRole("option", { name: "Sans serif", exact: true }).click();
+    if (sans) {
+        await settings.getByRole("combobox", { name: "Font" }).click();
+        await page.getByRole("option", { name: "Sans serif", exact: true }).click();
+    }
     await settings.getByRole("combobox", { name: "Size in" }).click();
     await page.getByRole("option", { name: "Screen pixels" }).click();
     const size = settings.getByRole("spinbutton", { name: /^Size, / });
-    await size.fill(px);
+    await size.fill(String(px));
     await size.press("Enter");
     const close = page.getByRole("button", { name: "Close Label settings" });
     if (await close.isVisible()) await close.click();

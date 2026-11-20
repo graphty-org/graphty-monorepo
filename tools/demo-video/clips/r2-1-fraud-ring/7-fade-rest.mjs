@@ -3,7 +3,16 @@
 //
 // Fading Everything's opacity instead (the color picker's Opacity slider) fades the ring too: the
 // Fraud ring layer sets only a color, so it takes Everything's opacity. A pale color leaves it red.
-import { BANK_CLIP, bankNeighborhood, bankRing, bankRule, closeToasts, RING_ADDRESS, zoomToward } from "./bank.js";
+import {
+    BANK_CLIP,
+    bankNeighborhood,
+    bankRing,
+    bankRule,
+    closeToasts,
+    everythingNodes,
+    RING_ADDRESS,
+    zoomToward,
+} from "./bank.js";
 
 export const FADE_COLOR = "lightgray";
 
@@ -12,16 +21,12 @@ export default {
     ...BANK_CLIP,
     caption: "Fade everything but the ring",
     async setup(h) {
-        const { page } = h;
         await bankRule(h);
         await zoomToward(h, RING_ADDRESS, 3); // the framing clip 1.6 ended on
         await bankNeighborhood(h);
         await bankRing(h);
         // the inspector on Everything's node style
-        const insp = page.getByRole("complementary", { name: "Inspector" });
-        await page.getByRole("treeitem", { name: /^Everything, / }).click();
-        await insp.getByRole("tab", { name: "Style" }).click();
-        await page.getByRole("tablist", { name: "Style for" }).getByRole("tab", { name: /^Node/ }).click();
+        await everythingNodes(h);
         await closeToasts(h);
         await h.app.settled();
         await h.park({ x: 420, y: 520 });

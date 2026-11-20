@@ -55,25 +55,7 @@ export async function zoomIn(h, at, ticks) {
     await h.app.settled();
 }
 
-/**
- * A brisker click than h.click, for clips whose real UI path has many steps: the same curved,
- * eased move at 0.7 of its time (the hand's timing is deliberately calmer than a real one), then a
- * short dwell and press at the point it reached, logged like h.click. h.click cannot take a speed,
- * and moving again inside the target costs at least 380 ms.
- * @param h - the hand
- * @param target - as for h.click
- */
-export async function tap(h, target) {
-    const { box } = await h.move(target, { slow: 0.7 });
-    const { page, random: r } = h;
-    await page.waitForTimeout(r.range(110, 170));
-    const { x, y } = h.at;
-    h.events.push({ t: Date.now(), type: "click", button: "left", x, y, box });
-    await page.mouse.down();
-    await page.waitForTimeout(r.range(60, 100));
-    await page.mouse.up();
-    await page.waitForTimeout(r.range(100, 160));
-}
+export { tap } from "../r2-1-fraud-ring/bank.js";
 
 /**
  * The middle of the graph's canvas.

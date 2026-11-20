@@ -7,24 +7,17 @@
 //
 // The file-styles experiment is off: on this file it adds stray "Draw order", "Drawing", "Values" and
 // "Defaults" layers, curves every edge and opens a notice over the drawing (an element defect).
-import { EXPORTS, FILES_CLIP, REST } from "./files.js";
+import { EXPORTS, FILES_CLIP, FROM_START, openFromStart, REST } from "./files.js";
 
 export default {
     id: "drop-gephi",
     ...FILES_CLIP,
+    ...FROM_START,
     featuresOff: ["file-styles"],
     caption: "Open a Gephi file",
-    async setup(h) {
-        await h.park({ x: 1300, y: 760 });
-    },
-    leadMs: 500,
     async run(h) {
         const { page } = h;
-        await h.openFile(
-            page.getByRole("button", { name: /^Open a file/ }),
-            h.file("round2/alzheimer-network.gexf"),
-            EXPORTS,
-        );
+        await openFromStart(h, h.file("round2/alzheimer-network.gexf"), EXPORTS);
         await h.waitFor(page.getByRole("treeitem", { name: /^Everything, .*\b308 nodes\b/ }));
         h.mark("opened");
         await h.move(REST, { slow: 1.3 });

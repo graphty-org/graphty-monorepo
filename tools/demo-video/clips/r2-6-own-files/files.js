@@ -38,3 +38,24 @@ export const REST = { x: 1460, y: 900, width: 100, height: 60 };
  * screen while a file is over it.
  */
 export const DROP = { x: 900, y: 515, width: 90, height: 50 };
+
+/**
+ * A clip that opens a file from the start page: the hand waits near Open a file.
+ * Spread into a clip after FILES_CLIP; the clip adds its id, caption and run.
+ */
+export const FROM_START = {
+    async setup(h) {
+        await h.park({ x: 1300, y: 760 });
+    },
+    leadMs: 500,
+};
+
+/**
+ * The recorded path to a file: the start page's Open a file, then the file in the drawn Open dialog.
+ * @param h - the hand
+ * @param file - the file's path
+ * @param folder - the folder the dialog shows ({ folder, files })
+ */
+export async function openFromStart(h, file, folder) {
+    await h.openFile(h.page.getByRole("button", { name: /^Open a file/ }), file, folder);
+}

@@ -22,6 +22,8 @@ import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 
+import { rng } from "../../lib/path.mjs";
+
 const { values: o } = parseArgs({
     options: {
         accounts: { type: "string", default: "480" },
@@ -32,14 +34,7 @@ const { values: o } = parseArgs({
 const ACCOUNTS = Number(o.accounts);
 
 // mulberry32: small, seeded, the same on every platform
-let state = Number(o.seed) >>> 0;
-function rand() {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-}
+const rand = rng(Number(o.seed));
 const pick = (a) => a[Math.floor(rand() * a.length)];
 const between = (lo, hi) => lo + rand() * (hi - lo);
 const money = (x) => Math.round(x * 100) / 100;

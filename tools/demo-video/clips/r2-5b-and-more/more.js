@@ -1,6 +1,9 @@
 // Round 2, "And more" (between chapters 5 and 6): what the montage beats share. A .js file, so
 // record.mjs does not take it for a clip. Each beat is one feature, cut short in the edit; its data
 // is the bank or the Alzheimer's network the viewer already knows. Setup only, through the app's UI.
+import { fitWide, labelPixels } from "../r2-2-alzheimer/alz.js";
+
+export { fitWide } from "../r2-2-alzheimer/alz.js";
 
 /** The montage sits between chapter 5 and chapter 6. */
 export const MORE = 5.5;
@@ -73,20 +76,6 @@ export async function applyLayout(h, row) {
 }
 
 /**
- * Fit, then one wheel notch out so the lowest nodes clear the canvas toolbar (setup only).
- * @param h - the hand
- */
-export async function fitWide(h) {
-    const { page } = h;
-    await h.app.camera("Fit");
-    await h.app.settled();
-    const box = await page.getByRole("region", { name: "Graph drawing" }).boundingBox();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.wheel(0, 100);
-    await h.app.settled();
-}
-
-/**
  * The recorded path to a layout: Layout, the row (scrolled into the list's view first), Apply.
  * @param h - the hand
  * @param row - the row's accessible name, from its start
@@ -141,14 +130,5 @@ export async function labelsFrom(h, layer, column, px) {
     await inspector(page).getByRole("button", { name: "Add to node text" }).click();
     await page.getByRole("menuitem", { name: "Label", exact: true }).click();
     await page.getByRole("dialog", { name: "Label" }).getByRole("option", { name: column, exact: true }).click();
-    await page.getByRole("button", { name: "Node label settings" }).click();
-    const settings = page.getByRole("dialog", { name: "Label settings" });
-    await settings.getByRole("combobox", { name: "Size in" }).click();
-    await page.getByRole("option", { name: "Screen pixels" }).click();
-    const size = settings.getByRole("spinbutton", { name: /^Size, / });
-    await size.fill(String(px));
-    await size.press("Enter");
-    const close = page.getByRole("button", { name: "Close Label settings" });
-    if (await close.isVisible()) await close.click();
-    await settings.waitFor({ state: "hidden" });
+    await labelPixels(page, px);
 }

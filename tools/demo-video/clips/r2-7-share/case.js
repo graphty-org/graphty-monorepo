@@ -34,3 +34,15 @@ export async function bankCase(h, { betweenness: withBetweenness = false } = {})
     await page.getByText("Autosave: saved").waitFor();
     await h.app.settled();
 }
+
+/**
+ * The recorded path to the Export dialog: Main menu, Export...
+ * @param h - the hand
+ * @returns the dialog's locator
+ */
+export async function exportOnCamera(h) {
+    const { page } = h;
+    await h.click(page.getByRole("button", { name: "Main menu" }));
+    await h.click(page.getByRole("menuitem", { name: "Export..." }));
+    return page.getByRole("dialog", { name: "Export" });
+}

@@ -9,6 +9,7 @@
 // overlap add up to light.
 
 import { analyze } from "../r2-1-fraud-ring/bank.js";
+import { fitToCenter } from "../r2-2-alzheimer/alz.js";
 import { hideLegend } from "../r2-5b-and-more/more.js";
 
 /** Chapter 5. */
@@ -123,11 +124,8 @@ export async function bioplex(h, { blending = "On", fadeEnd, layout = FA2, zoomI
     await page.getByRole("option", { name: "None", exact: true }).click();
     await ends.getByRole("button", { name: "Close Edge ends" }).click();
     await ends.waitFor({ state: "hidden" });
-    await h.app.camera("Fit");
-    await h.app.settled();
     // wheel notches in from Fit, if any (from the canvas center)
-    const box = await page.getByRole("region", { name: "Graph drawing" }).boundingBox();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await fitToCenter(h);
     for (let i = 0; i < zoomIn; i++) {
         await page.mouse.wheel(0, -100);
         await h.app.frames(5);

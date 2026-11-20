@@ -5729,7 +5729,7 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     ["edge.arrowTailImage", [{ channel: "edge.arrowTail", values: ["image"] }]],
     ["edge.arrowMiddleHeadImage", [{ channel: "edge.arrowMiddleHead", values: ["image"] }]],
     ["edge.arrowMiddleTailImage", [{ channel: "edge.arrowMiddleTail", values: ["image"] }]],
-    // A node's underlay and overlay and an edge's overlay are flat plates: "in the 2D view only". An
+    // A node's and an edge's underlay and overlay are flat plates: "in the 2D view only". An
     // underlay's or overlay's corners are rounded only on a round-cornered shape of its own; unset, it follows the node.
     ...(["Color", "Opacity", "Padding", "Shape"] as const).flatMap(
         (suffix): [Channel, readonly ChannelCondition[]][] => [
@@ -5737,9 +5737,9 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
             [`node.overlay${suffix}`, [ONLY_2D]],
         ],
     ),
-    ...(["Color", "Opacity", "Padding"] as const).map((suffix): [Channel, readonly ChannelCondition[]] => [
-        `edge.overlay${suffix}`,
-        [ONLY_2D],
+    ...(["Color", "Opacity", "Padding"] as const).flatMap((suffix): [Channel, readonly ChannelCondition[]][] => [
+        [`edge.underlay${suffix}`, [ONLY_2D]],
+        [`edge.overlay${suffix}`, [ONLY_2D]],
     ]),
     ["node.underlayCornerRadius", [ONLY_2D, { channel: "node.underlayShape", values: ROUND_CORNER_SHAPES }]],
     ["node.overlayCornerRadius", [ONLY_2D, { channel: "node.overlayShape", values: ROUND_CORNER_SHAPES }]],

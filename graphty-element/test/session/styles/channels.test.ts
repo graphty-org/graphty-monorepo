@@ -1391,7 +1391,7 @@ describe("ChannelDescriptor.drawnWhen", () => {
             assert.deepStrictEqual(CHANNEL_DESCRIPTORS[`node.${kind}Color`].drawnWhen, [{ dimension: "2d" }]);
         }
         assert.deepStrictEqual(CHANNEL_DESCRIPTORS["edge.overlayColor"].drawnWhen, [{ dimension: "2d" }]);
-        assert.isUndefined(CHANNEL_DESCRIPTORS["edge.underlayColor"].drawnWhen, "an edge underlay draws in both views");
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["edge.underlayColor"].drawnWhen, [{ dimension: "2d" }]);
     });
 });
 

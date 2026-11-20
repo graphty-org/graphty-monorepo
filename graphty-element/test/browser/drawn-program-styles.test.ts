@@ -467,7 +467,7 @@ describe("a node's underlay and overlay", () => {
         assert.strictEqual(paint(parts.overlay).emissiveColor.toHexString().toLowerCase(), "#0000ff");
     });
 
-    test("are drawn in the 2D view only (E669), as is an edge's overlay; an edge's underlay draws in both", async () => {
+    test("are drawn in the 2D view only (E669), as are an edge's underlay and overlay", async () => {
         await oneEdge(
             {
                 "edge.underlayOpacity": 1,
@@ -499,7 +499,7 @@ describe("a node's underlay and overlay", () => {
         await graph.waitForStableFrame();
         assert.isNull(parts().underlay, "3D draws no node underlay");
         assert.isNull(parts().overlay, "3D draws no node overlay");
-        assert.deepEqual(bands(), ["underlay"], "3D draws the edge's underlay and not its overlay");
+        assert.deepEqual(bands(), [], "3D draws neither the edge's underlay nor its overlay");
     });
 
     test("are read off the scene as shapes of their own round the node, in their colors", async () => {

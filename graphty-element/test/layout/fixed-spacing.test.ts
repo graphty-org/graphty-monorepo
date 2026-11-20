@@ -20,13 +20,13 @@ import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
  * @param ids - the nodes, in path order
  * @returns the frozen graph
  */
-function path(ids: string[]): GraphSnapshot {
+function path(ids: string[], edges = true): GraphSnapshot {
     const builder = new GraphBuilder({ directed: true });
     for (const id of ids) {
         builder.addNode(id);
     }
 
-    for (let i = 1; i < ids.length; i++) {
+    for (let i = 1; edges && i < ids.length; i++) {
         builder.addEdge(ids[i - 1], ids[i]);
     }
 
@@ -84,6 +84,41 @@ describe("the fixed layout keeps neighbors apart", () => {
 
     it("draws positions as given with spacing 0", () => {
         assert.deepEqual(layOut(1, { spacing: 0 }).xs, [0, 1, 2]);
+    });
+
+    it("spreads a load whose edges reach a later run than its nodes, as one that arrives whole (#9250)", () => {
+        let stored = path(["a", "b", "c"], false);
+        const parentGraph = {
+            getDataManager: () => ({
+                getSnapshot: (): GraphSnapshot => stored,
+                undirected: (s: GraphSnapshot) => s.toUndirected(),
+            }),
+        };
+        const nodes = ["a", "b", "c"].map((id, index) =>
+            fakeNode(id, {
+                index,
+                parentGraph,
+                data: { position: { x: index, y: 0, z: 0 } },
+                setMeshPosition: () => undefined,
+            }),
+        );
+        const engine = LayoutEngine.get("fixed", {});
+        assert.instanceOf(engine, FixedLayout);
+        layoutEngineInternals.addNodes(engine, nodes);
+        engine.publishPositions();
+        assert.deepEqual(
+            nodes.map((n) => engine.getNodePosition(n).x),
+            [0, 1, 2],
+        );
+
+        stored = path(["a", "b", "c"]);
+        layoutEngineInternals.addEdges(engine, [fakeEdge(nodes[0], nodes[1]), fakeEdge(nodes[1], nodes[2])]);
+        engine.publishPositions();
+        assert.deepEqual(
+            nodes.map((n) => engine.getNodePosition(n).x),
+            [0, 3, 6],
+        );
+        assert.strictEqual(engine.spread, 3);
     });
 
     it("keeps a scale the reader chose", () => {

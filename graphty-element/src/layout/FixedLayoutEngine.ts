@@ -103,6 +103,12 @@ export class FixedLayout extends SnapshotLayoutEngine {
      * when it spread nothing. An export divides it out to write the data's own coordinates.
      */
     spread = 1;
+    /**
+     * Whether {@link spread} is decided: spacing is off, or a run has measured an edge between two
+     * placed nodes. Until then each run measures again, so the spread does not depend on whether a
+     * load's edges reached the first run or a later one.
+     */
+    private spreadDecided = false;
     /** Always three: a node's data carries a z, and a 2D view draws it flat. */
     protected readonly dimensions = 3;
 
@@ -207,12 +213,13 @@ export class FixedLayout extends SnapshotLayoutEngine {
     }
 
     /**
-     * Where every node goes: its data position on the first run, else where it is.
+     * Where every node goes: its data position on the first run, or on the run that first measures an
+     * edge and spreads the drawing; else where it is.
      * @param input - the graph, the current coordinates and the data's own
      * @returns the coordinates
      */
     private place(input: SnapshotLayoutInput): F32 {
-        const seeds = input.firstRun ? this.seeds(input) : null;
+        const seeds = input.firstRun ? this.seeds(input) : this.respread(input);
 
         const { initial } = input;
         const positions = new Float32Array(initial.length);
@@ -225,7 +232,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
             let from: F32 | null = Number.isNaN(initial[i]) ? null : initial;
             if (seeds !== null && !Number.isNaN(seeds[i])) {
                 from = seeds;
-            } else if (seeds !== null || from === null) {
+            } else if (input.firstRun || from === null) {
                 missing++;
             }
 
@@ -251,6 +258,36 @@ export class FixedLayout extends SnapshotLayoutEngine {
     private seeds(input: SnapshotLayoutInput): F32 {
         const seeds = input.dataPositions();
         this.spread = this.spreadFor(input, seeds);
+        return this.scaled(seeds);
+    }
+
+    /**
+     * The data positions spread by a spread a later run decided: a load whose nodes reach the first
+     * run before its edges is drawn as one that arrives whole (issue #9250).
+     * @param input - the graph and its data positions
+     * @returns the coordinates, or null when the spread is decided already or stays as it is
+     */
+    private respread(input: SnapshotLayoutInput): F32 | null {
+        if (this.spreadDecided) {
+            return null;
+        }
+
+        const seeds = input.dataPositions();
+        const spread = this.spreadFor(input, seeds);
+        if (spread === this.spread) {
+            return null;
+        }
+
+        this.spread = spread;
+        return this.scaled(seeds);
+    }
+
+    /**
+     * Data positions times `scale` and the spread, in place.
+     * @param seeds - the data positions
+     * @returns the same array
+     */
+    private scaled(seeds: F32): F32 {
         const factor = this.config.scale * this.spread;
         if (factor !== 1) {
             for (let i = 0; i < seeds.length; i++) {
@@ -287,13 +324,15 @@ export class FixedLayout extends SnapshotLayoutEngine {
 
     /**
      * The factor that draws the median edge `spacing` long, or 1 when it is that long already,
-     * when `spacing` is 0, or when the reader chose a scale.
+     * when `spacing` is 0, or when the reader chose a scale. Decides the spread once it is off or an
+     * edge between placed nodes is measured.
      * @param input - the graph
      * @param seeds - the data positions, in scene units
      * @returns the factor, at least 1
      */
     private spreadFor(input: SnapshotLayoutInput, seeds: F32): number {
         if (this.config.spacing === 0 || this.config.scale !== 1 || this.positionScale() !== 1) {
+            this.spreadDecided = true;
             return 1;
         }
 
@@ -312,6 +351,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
         }
 
         const edge = median(lengths);
+        this.spreadDecided = edge !== undefined;
         const want = this.config.spacing;
         return edge === undefined || edge >= want ? 1 : want / edge;
     }

@@ -36,8 +36,8 @@ function cameraViewNames(): string[] {
 const CameraPresetSchema = z
     .string()
     .describe(
-        "Named camera view. The element ships 'fitToGraph', 'topView', 'sideView', 'frontView' and " +
-            "'isometric'; an application may have registered others.",
+        "Named camera view. The element ships 'fitToGraph', 'topView', 'sideView', 'frontView', " +
+            "'isometric' and 'bottomView'; an application may have registered others.",
     );
 
 /**

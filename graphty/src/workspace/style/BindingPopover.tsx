@@ -1,19 +1,17 @@
 import {
     ComboInput,
     FieldRow,
-    MenuShortcut,
     PanelField,
     PanelLabelsProvider,
     RampEditor,
     type RampEditorHandle,
     ResetButton,
-    ToggleIconButton,
     ToggleRow,
 } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/catalog";
 import type { ChannelValue, LayerId, RuleTree } from "@graphty/graphty-element/schema";
 import type { GraphSession, ReadableValue } from "@graphty/graphty-element/session";
-import { ActionIcon, Box, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Box, Button, Group, Menu, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -1010,22 +1008,16 @@ function Clamp({
 }
 
 /**
- * One value or one step, in the order of Figma's paint rows: its chit, name and count, then its
- * eye, the minus that clears its entry, and its actions -- Select these, and "New layer for
- * <value>". Every control is named with the source and the value, so a list of them reads apart.
+ * One step, in the order of Figma's paint rows: its name and count, then its actions -- Select
+ * these, and "New layer for <step>". Every control is named with the source and the value, so a list of them reads apart.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.target - nodes or edges
  * @param props.source - what the binding reads, in words
  * @param props.name - the value or the step in words
  * @param props.count - how many elements it paints
- * @param props.chit - the field that edits its entry
- * @param props.hidden - whether it is hidden
- * @param props.onHide - hides or shows it
  * @param props.where - the rule that matches its elements
  * @param props.onNewLayer - makes a layer of that rule
- * @param props.onRename - names the value (F2 on the row, or Rename in its menu); a group's name
- *     is the element's value label, shown wherever the value is
  * @returns The row
  */
 function ValueRow({
@@ -1034,27 +1026,18 @@ function ValueRow({
     source,
     name,
     count,
-    chit,
-    hidden,
-    onHide,
     where,
     onNewLayer,
-    onRename,
 }: Readonly<{
     session: GraphSession;
     target: ChannelDescriptor["target"];
     source: string;
     name: string;
     count: number;
-    chit?: React.ReactNode;
-    hidden?: boolean;
-    onHide?: (hide: boolean) => void;
     where: RuleTree;
     onNewLayer: (where: RuleTree) => void;
-    onRename?: (name: string) => void;
 }>): React.JSX.Element {
     const full = `${source} ${name}`;
-    const [renaming, setRenaming] = useState(false);
     const counted = countOf(count, target);
     const select = (): void => {
         // An edge's value selects its edges with their end nodes, as the Values tab's rows do.
@@ -1069,62 +1052,15 @@ function ValueRow({
         );
     };
     return (
-        // One line: the chip, the name, the count with its unit, then fixed 24 px columns (eye,
-        // Clear, actions), so the columns line up row to row whether or not a row has its Clear.
-        <Group
-            role="listitem"
-            aria-label={`${name}, ${counted}`}
-            gap={4}
-            wrap="nowrap"
-            onKeyDown={(event) => {
-                if (event.key === "F2" && onRename !== undefined && !renaming) {
-                    event.preventDefault();
-                    setRenaming(true);
-                }
-            }}
-        >
-            {chit === undefined || chit === null ? null : <Box style={{ flex: "none", display: "flex" }}>{chit}</Box>}
-            {renaming && onRename !== undefined ? (
-                <TextInput
-                    size="xs"
-                    aria-label={`Name of ${full}`}
-                    defaultValue={name}
-                    autoFocus
-                    style={{ flex: 1, minWidth: 0 }}
-                    onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                            event.preventDefault();
-                            onRename(event.currentTarget.value.trim());
-                            setRenaming(false);
-                        } else if (event.key === "Escape") {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setRenaming(false);
-                        }
-                    }}
-                    onBlur={(event) => {
-                        onRename(event.currentTarget.value.trim());
-                        setRenaming(false);
-                    }}
-                />
-            ) : (
-                <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>
-                    {name}
-                </Text>
-            )}
+        // One line: the name, the count with its unit, then fixed 24 px columns (an empty Clear
+        // column, actions), so the columns line up row to row.
+        <Group role="listitem" aria-label={`${name}, ${counted}`} gap={4} wrap="nowrap">
+            <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>
+                {name}
+            </Text>
             <Text size="xs" c="dimmed" style={{ flex: "none" }}>
                 {counted}
             </Text>
-            {onHide === undefined ? null : (
-                <ToggleIconButton
-                    variant="swap"
-                    label={`Hide ${full}`}
-                    checked={hidden === true}
-                    icon={<GLYPHS.show size={14} />}
-                    checkedIcon={<GLYPHS.hide size={14} />}
-                    onChange={onHide}
-                />
-            )}
             <Box w={24} style={{ flex: "none" }} data-clear-column />
             <Menu withinPortal={false} position="bottom-end">
                 <Menu.Target>
@@ -1142,16 +1078,6 @@ function ValueRow({
                             onNewLayer(where);
                         }}
                     >{`New layer for ${name}`}</Menu.Item>
-                    {onRename === undefined ? null : (
-                        <Menu.Item
-                            rightSection={<MenuShortcut>F2</MenuShortcut>}
-                            onClick={() => {
-                                setRenaming(true);
-                            }}
-                        >
-                            Rename
-                        </Menu.Item>
-                    )}
                 </Menu.Dropdown>
             </Menu>
         </Group>

@@ -1,6 +1,8 @@
 /**
  * @file `colorScheme`: the canvas clears to the background's `color` by default, its `darkColor`
  * under `"dark"`, and follows `prefers-color-scheme` under `"auto"` without reloading (issue #291).
+ * Under a dark scheme `session.config.backgroundColor` reports the dark color, and labels no layer
+ * colored are drawn light.
  */
 import "../../src/graphty-element";
 
@@ -10,6 +12,7 @@ import { commands } from "vitest/browser";
 import type { Graphty } from "../../index.js";
 import { DEFAULT_BACKGROUND_COLOR, DEFAULT_DARK_BACKGROUND_COLOR } from "../../schema";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { asData, styleEveryEdge, styleEveryNode } from "../helpers/testSetup";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -100,6 +103,50 @@ describe("colorScheme", () => {
 
         await pageScheme(false);
         assert.strictEqual(clearColor(graph), DEFAULT_BACKGROUND_COLOR);
+    });
+
+    it("reports the dark color through session.config.backgroundColor", async () => {
+        const graph = newGraph();
+        await graph.init();
+        assert.strictEqual(graph.getSession().config.backgroundColor, DEFAULT_BACKGROUND_COLOR);
+        graph.setColorScheme("dark");
+        assert.strictEqual(graph.getSession().config.backgroundColor, DEFAULT_DARK_BACKGROUND_COLOR);
+        graph.setColorScheme("light");
+        assert.strictEqual(graph.getSession().config.backgroundColor, DEFAULT_BACKGROUND_COLOR);
+    });
+
+    it("draws labels no layer colored light under a dark scheme, and keeps a chosen color", async () => {
+        const graph = newGraph();
+        await graph.init();
+        await graph.addNodes([asData({ id: "a" }), asData({ id: "b" })]);
+        await graph.addEdge(asData({ src: "a", dst: "b" }));
+        await styleEveryNode(graph, { "node.label": "words" });
+        await styleEveryEdge(graph, { "edge.label": "link" });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
+        const nodeColor = (id: string): string | undefined =>
+            graph.getDataManager().nodes.get(id)?.label?.textRuns[0]?.[0]?.style.color;
+        const edgeColor = (): string | undefined =>
+            [...graph.getDataManager().edges.values()][0]?.label?.textRuns[0]?.[0]?.style.color;
+        assert.strictEqual(nodeColor("a"), "#000000", "black on the light canvas");
+        assert.strictEqual(edgeColor(), "#000000");
+
+        graph.setColorScheme("dark");
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
+        const light = nodeColor("a");
+        assert(light !== undefined && light !== "#000000", `a light color on the dark canvas, got ${String(light)}`);
+        assert.strictEqual(edgeColor(), light);
+
+        await styleEveryNode(graph, { "node.labelColor": "#ff0000" }, "red labels");
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
+        assert.strictEqual(nodeColor("a")?.toLowerCase(), "#ff0000", "a chosen color wins");
+
+        graph.setColorScheme("light");
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
+        assert.strictEqual(edgeColor(), "#000000");
     });
 
     it("is the element's color-scheme attribute, and refuses an unknown scheme", () => {

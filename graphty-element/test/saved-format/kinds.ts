@@ -13,6 +13,7 @@ import { readFile } from "node:fs/promises";
 
 import { vi } from "vitest";
 
+import { LABEL_LOOKS } from "../../src/catalog/label-looks";
 import type { ShaderDescriptor } from "../../src/catalog/shaders";
 import * as graphStyle from "../../src/config/GraphStyle";
 import type { GraphSession } from "../../src/session";
@@ -175,6 +176,43 @@ async function useEveryModel(session: GraphSession): Promise<UsedEvery> {
 }
 
 /**
+ * Use every palette the catalog lists: one layer per palette, coloring nodes by a measurement.
+ * @param session - The session.
+ * @returns What was used.
+ */
+async function useEveryPalette(session: GraphSession): Promise<UsedEvery> {
+    const palettes = session.catalog.palettes();
+    for (const [at, palette] of palettes.entries()) {
+        await session.styles.add({
+            name: `Palette ${at}`,
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": { by: "data.weight", palette: palette.id } },
+        });
+    }
+
+    return { used: palettes.map((each) => each.id), listed: palettes.length, saves: [] };
+}
+
+/**
+ * Use every label look: one layer per look, on node labels.
+ * @param session - The session.
+ * @returns What was used.
+ */
+async function useEveryLabelLook(session: GraphSession): Promise<UsedEvery> {
+    for (const look of LABEL_LOOKS) {
+        await session.styles.add({
+            name: `Look ${look.id}`,
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelStyle": { look: look.id } },
+        });
+    }
+
+    return { used: LABEL_LOOKS.map((each) => each.id), listed: LABEL_LOOKS.length, saves: [] };
+}
+
+/**
  * Paint through the default palettes with bindings that name none -- a measurement, and one with a
  * midpoint -- and read back the palettes the save names on them, so a save that leaves the choice
  * to the reading build's defaults uses nothing (issue #6514). The groups' default needs a binding
@@ -224,6 +262,30 @@ export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
         builtInModules: {
             "../../src/catalog/models.ts": { MODEL_DESCRIPTORS: [] },
             "../../src/session/assets/samples.ts": { SAMPLE_MODEL_URLS: {} },
+        },
+    },
+    {
+        kind: "palettes",
+        useEvery: useEveryPalette,
+        builtInModules: {
+            "../../src/catalog/palettes.ts": {
+                PALETTE_DESCRIPTORS: [],
+                paletteDescriptor: () => undefined,
+                palettesOfKind: () => [],
+                knownPaletteIds: () => [],
+            },
+        },
+    },
+    {
+        kind: "labelLooks",
+        useEvery: useEveryLabelLook,
+        builtInModules: {
+            "../../src/catalog/label-looks.ts": {
+                LABEL_LOOKS: [],
+                labelLook: () => undefined,
+                labelLookChanges: () => [],
+                builtInIdsForTesting: () => ({ kind: "labelLooks", ids: [] }),
+            },
         },
     },
     {

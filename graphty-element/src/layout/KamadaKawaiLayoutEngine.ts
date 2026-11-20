@@ -167,7 +167,7 @@ type KamadaKawaiLayoutOpts = Partial<KamadaKawaiLayoutConfigType>;
 export class KamadaKawaiLayout extends SnapshotLayoutEngine {
     static readonly type: string = "kamada-kawai";
     static readonly maxDimensions: number = 3;
-    static override readonly honoursWeights: boolean = true;
+    static override readonly honorsWeights: boolean = true;
     static readonly zodOptionsSchema: OptionsSchema = kamadaKawaiLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: KamadaKawaiLayoutConfigType;

@@ -225,7 +225,7 @@ function KeepAssetRow({
 
 /**
  * How to keep each model or picture a layer names by web address, asked before a save that holds
- * any (the node models experiment): embed it, so the project opens offline, or keep only its
+ * any: embed it, so the project opens offline, or keep only its
  * address, so the file is fetched again when the project opens.
  * @returns The dialog
  */
@@ -302,7 +302,7 @@ function KeepAssetsDialog(): React.JSX.Element {
 
 /**
  * The Project package's dialogs (tier1-design.md section T14): Save as..., the unsaved-changes
- * question and, with the node models experiment, how to keep files from the web. It also opens a file waiting for a just-opened project's element, and keeps the
+ * question and how to keep files from the web. It also opens a file waiting for a just-opened project's element, and keeps the
  * header's name in step with the name graphty-element holds (an Undo of a rename, a reopened file).
  * @returns The dialogs
  */

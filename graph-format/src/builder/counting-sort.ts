@@ -36,6 +36,7 @@
  * of A bits.
  */
 
+import { INVALID_INDEX } from "../constants.js";
 import { GraphFormatError } from "../errors.js";
 import { type F32, type F64, type SnapshotFlags, type U32 } from "../types/index.js";
 import { allocateCoreArrays, type CoreArrays } from "./arena.js";
@@ -643,6 +644,333 @@ export function appendIntoCore(
         finiteWeights: finite,
     });
     return { core, arcCount, selfLoopCount, flags };
+}
+
+// ============================================================ removing from a sorted core
+
+/**
+ * The core of a graph made by removing a few nodes and edges from one already sorted, built from that
+ * sort rather than sorting every edge again. A removal keeps the order of what stays (invariant I14), so
+ * every kept arc is already where a full sort puts it: the kept arcs are copied in runs between the few
+ * dropped ones, each run's targets and edges moved down by the nodes and edges removed below them, and the
+ * permutations follow. The result is what {@link sortIntoCore} returns for the compacted input, array for
+ * array. A freeze after one removed edge of a million-edge graph copies the core instead of running the two
+ * counting sorts.
+ * @param previous - the sort of the edges before the removal
+ * @param nodeRemap - old node -> new node, or INVALID_INDEX for a removed node
+ * @param edgeRemap - old edge -> new edge, or INVALID_INDEX for a removed edge
+ * @param input - the compacted input, the same edges less the removed ones
+ * @param useArena - allocate the core in an arena
+ * @returns the sort, or null when removing does not apply (an identity core, or too many removed)
+ */
+export function removeFromCore(
+    previous: SortResult,
+    nodeRemap: U32,
+    edgeRemap: U32,
+    input: SortInput,
+    useArena: boolean,
+): SortResult | null {
+    const old = previous.core;
+    if (old.arcToEdge === null || old.edgeToArc === null || (old.weights === null) !== (input.weights === null)) {
+        return null;
+    }
+    const goneNodes = droppedIndices(nodeRemap);
+    const goneEdges = droppedIndices(edgeRemap);
+    if (goneNodes.length + goneEdges.length > Math.max(1, edgeRemap.length * APPEND_SHARE)) {
+        return null;
+    }
+    const dropped = droppedArcs(old, goneNodes, goneEdges, input.directed);
+    const loops = previous.selfLoopCount - dropped.loops;
+    const arcCount = previous.arcCount - dropped.arcs.length;
+    // Every arc of a removed edge or node found, and no other: else the removal is not one the core follows.
+    if (arcCount !== (input.directed ? input.edgeCount : 2 * input.edgeCount - loops)) {
+        return null;
+    }
+
+    const { allOne, nonNegative, finite } = weightPredicates(input.weights, input.edgeCount);
+    const core = allocateCoreArrays(
+        {
+            nodeCount: input.nodeCount,
+            arcCount,
+            edgeCount: input.edgeCount,
+            weighted: old.weights !== null,
+            identity: false,
+        },
+        useArena,
+    );
+    copyKeptRuns(old, dropped.arcs, { gone: goneNodes, remap: nodeRemap }, { gone: goneEdges, remap: edgeRemap }, core);
+    if (input.directed && isIdentityPermutation(core.arcToEdge as U32)) {
+        // what is left is in CSR order, which a full sort lays out as the identity core (flag I9)
+        return null;
+    }
+    keptRowPtr(old.rowPtr, nodeRemap, dropped.arcs, core.rowPtr);
+    keptEdgeToArc(old.edgeToArc, edgeRemap, dropped.arcs, core.edgeToArc as U32);
+    const flags: SnapshotFlags = Object.freeze({
+        // a removal never makes two arcs parallel, so only a multigraph is looked at again
+        multigraph: previous.flags.multigraph && hasParallelArcs(core.rowPtr, core.colIdx),
+        hasSelfLoops: loops > 0,
+        arcToEdgeIsIdentity: false,
+        weighted: core.weights !== null,
+        allWeightsOne: allOne,
+        nonNegativeWeights: nonNegative,
+        finiteWeights: finite,
+    });
+    return { core, arcCount, selfLoopCount: loops, flags };
+}
+
+/**
+ * The indices a remap drops, ascending.
+ * @param remap - old index -> new index, or INVALID_INDEX
+ * @returns they
+ */
+function droppedIndices(remap: U32): U32 {
+    const out: number[] = [];
+    for (let i = 0; i < remap.length; i++) {
+        if (remap[i] === INVALID_INDEX) {
+            out.push(i);
+        }
+    }
+    return Uint32Array.from(out);
+}
+
+/** Up to this many, {@link countBelow} counts with one comparison each. */
+const LINEAR_COUNT = 8;
+
+/**
+ * How many of an ascending list are below a value: a comparison each for a short list, else a binary search
+ * whose steps do not branch on the data.
+ * @param sorted - the list
+ * @param value - the value
+ * @returns the count
+ */
+function countBelow(sorted: U32, value: number): number {
+    const length = sorted.length;
+    if (length <= LINEAR_COUNT) {
+        let below = 0;
+        for (let i = 0; i < length; i++) {
+            below += sorted[i] < value ? 1 : 0;
+        }
+        return below;
+    }
+    let base = 0;
+    let span = length;
+    while (span > 1) {
+        const half = span >>> 1;
+        base = sorted[base + half] < value ? base + half : base;
+        span -= half;
+    }
+    return base + (sorted[base] < value ? 1 : 0);
+}
+
+/**
+ * The arcs a removal drops, ascending: every arc of a removed node's row, and each removed edge's arc and,
+ * undirected, its mirror (the arc of the same edge in the other end's row).
+ * @param old - the old core
+ * @param goneNodes - the removed nodes, ascending
+ * @param goneEdges - the removed edges, ascending
+ * @param directed - whether the graph is directed
+ * @returns the arcs, and how many of the removed edges were self-loops
+ */
+function droppedArcs(old: CoreArrays, goneNodes: U32, goneEdges: U32, directed: boolean): { arcs: U32; loops: number } {
+    const { rowPtr, colIdx } = old;
+    const arcToEdge = old.arcToEdge as U32;
+    const edgeToArc = old.edgeToArc as U32;
+    const arcs: number[] = [];
+    for (const u of goneNodes) {
+        for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
+            arcs.push(a);
+        }
+    }
+    let loops = 0;
+    for (const e of goneEdges) {
+        const a = edgeToArc[e];
+        arcs.push(a);
+        const row = upperBound(rowPtr, 0, rowPtr.length, a) - 1;
+        const v = colIdx[a];
+        if (v === row) {
+            loops++;
+        } else if (!directed) {
+            // the mirror: in row v, among the arcs to `row`, the one of edge e
+            for (
+                let m = lowerBound(colIdx, rowPtr[v], rowPtr[v + 1], row);
+                m < rowPtr[v + 1] && colIdx[m] === row;
+                m++
+            ) {
+                if (arcToEdge[m] === e) {
+                    arcs.push(m);
+                    break;
+                }
+            }
+        }
+    }
+    const sorted = Uint32Array.from(arcs).sort();
+    // a removed node's own arcs are also its removed edges' arcs: keep each once
+    let kept = 0;
+    for (let i = 0; i < sorted.length; i++) {
+        if (i === 0 || sorted[i] !== sorted[i - 1]) {
+            sorted[kept++] = sorted[i];
+        }
+    }
+    return { arcs: sorted.subarray(0, kept), loops };
+}
+
+/**
+ * The first arc of `[from, to)` whose target is at or above `target`.
+ * @param colIdx - the targets
+ * @param from - the row's first arc
+ * @param to - one past its last arc
+ * @param target - the target
+ * @returns the arc index
+ */
+function lowerBound(colIdx: U32, from: number, to: number, target: number): number {
+    let low = from;
+    let high = to;
+    while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (colIdx[middle] < target) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return low;
+}
+
+/** The indices a removal dropped, ascending, and its remap. */
+interface Removed {
+    /** The removed indices, ascending. */
+    readonly gone: U32;
+    /** Old index -> new index, or INVALID_INDEX. */
+    readonly remap: U32;
+}
+
+/**
+ * Copy the kept arcs into the new core in runs between the dropped ones: targets and edges renumbered, weights
+ * as they were.
+ * @param old - the old core
+ * @param dropped - the dropped arcs, ascending
+ * @param nodes - the removed nodes
+ * @param edges - the removed edges
+ * @param core - the new core, written
+ */
+function copyKeptRuns(old: CoreArrays, dropped: U32, nodes: Removed, edges: Removed, core: CoreArrays): void {
+    const oldArcToEdge = old.arcToEdge as U32;
+    const arcToEdge = core.arcToEdge as U32;
+    let to = 0;
+    for (let run = 0; run <= dropped.length; run++) {
+        const from = run === 0 ? 0 : dropped[run - 1] + 1;
+        const end = run === dropped.length ? old.colIdx.length : dropped[run];
+        if (end <= from) {
+            continue;
+        }
+        shiftedCopy(old.colIdx, from, end, core.colIdx, to, nodes.gone, nodes.remap);
+        shiftedCopy(oldArcToEdge, from, end, arcToEdge, to, edges.gone, edges.remap);
+        if (core.weights !== null && old.weights !== null) {
+            core.weights.set(old.weights.subarray(from, end), to);
+        }
+        to += end - from;
+    }
+}
+
+/**
+ * `target[at + i]` = `source[from + i]` renumbered: a plain copy when nothing is gone, one comparison when one
+ * is, else a read of the remap.
+ * @param source - the old values
+ * @param from - the first
+ * @param end - one past the last
+ * @param target - receives them
+ * @param at - where the first goes
+ * @param gone - the removed indices, ascending
+ * @param remap - old index -> new index
+ */
+function shiftedCopy(source: U32, from: number, end: number, target: U32, at: number, gone: U32, remap: U32): void {
+    if (gone.length === 0) {
+        target.set(source.subarray(from, end), at);
+        return;
+    }
+    if (gone.length === 1) {
+        const g = gone[0];
+        for (let i = from; i < end; i++) {
+            const value = source[i];
+            target[at++] = value > g ? value - 1 : value;
+        }
+        return;
+    }
+    for (let i = from; i < end; i++) {
+        target[at++] = remap[source[i]];
+    }
+}
+
+/**
+ * The new row offsets: each kept row's start moved down by the dropped arcs before it.
+ * @param oldRowPtr - the old row offsets
+ * @param nodeRemap - old node -> new node, or INVALID_INDEX
+ * @param dropped - the dropped arcs, ascending
+ * @param rowPtr - the new row offsets, written
+ */
+function keptRowPtr(oldRowPtr: U32, nodeRemap: U32, dropped: U32, rowPtr: U32): void {
+    let before = 0;
+    let row = 0;
+    for (let u = 0; u < nodeRemap.length; u++) {
+        if (nodeRemap[u] === INVALID_INDEX) {
+            continue;
+        }
+        const start = oldRowPtr[u];
+        while (before < dropped.length && dropped[before] < start) {
+            before++;
+        }
+        rowPtr[row++] = start - before;
+    }
+    rowPtr[row] = oldRowPtr[oldRowPtr.length - 1] - dropped.length;
+}
+
+/**
+ * Each kept edge's arc, moved down by the dropped arcs before it.
+ * @param oldEdgeToArc - the old edge -> arc
+ * @param edgeRemap - old edge -> new edge, or INVALID_INDEX
+ * @param dropped - the dropped arcs, ascending
+ * @param edgeToArc - receives new edge -> new arc
+ */
+function keptEdgeToArc(oldEdgeToArc: U32, edgeRemap: U32, dropped: U32, edgeToArc: U32): void {
+    const edges = edgeRemap.length;
+    let at = 0;
+    for (let e = 0; e < edges; e++) {
+        if (edgeRemap[e] !== INVALID_INDEX) {
+            const arc = oldEdgeToArc[e];
+            edgeToArc[at++] = arc - countBelow(dropped, arc);
+        }
+    }
+}
+
+/**
+ * Whether every arc's edge is the arc itself.
+ * @param arcToEdge - the arc permutation
+ * @returns true for the identity
+ */
+function isIdentityPermutation(arcToEdge: U32): boolean {
+    for (let a = 0; a < arcToEdge.length; a++) {
+        if (arcToEdge[a] !== a) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Whether two adjacent arcs of a row share a target.
+ * @param rowPtr - the row offsets
+ * @param colIdx - the targets
+ * @returns true for a multigraph
+ */
+function hasParallelArcs(rowPtr: U32, colIdx: U32): boolean {
+    for (let u = 0; u + 1 < rowPtr.length; u++) {
+        for (let a = rowPtr[u] + 1; a < rowPtr[u + 1]; a++) {
+            if (colIdx[a] === colIdx[a - 1]) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /** One arc an appended edge adds. */

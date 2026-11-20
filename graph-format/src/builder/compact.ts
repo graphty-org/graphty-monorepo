@@ -257,6 +257,22 @@ function gatherRuns(
 }
 
 /**
+ * `bit i of target = bit indexMap[i] of source` for every new row (every row in order when indexMap is null).
+ * @param target - the gathered bitmap's words, every bit clear on entry
+ * @param source - the source bitmap's words
+ * @param indexMap - new row -> old row, or null
+ * @param rows - the new row count
+ */
+function gatherBits(target: U32, source: U32, indexMap: U32 | null, rows: number): void {
+    for (let i = 0; i < rows; i++) {
+        const old = indexMap === null ? i : indexMap[i];
+        if (((source[old >>> 5] >>> (old & 31)) & 1) === 1) {
+            target[i >>> 5] |= 1 << (i & 31);
+        }
+    }
+}
+
+/**
  * One growable column of the builder (design section 6.2).
  *
  * A DECLARED column stores values in the storage of its dtype (a growable typed array for the numeric
@@ -568,6 +584,19 @@ export class StagingColumn {
             // Every row set and nothing rewritten: copy each run of consecutive source rows at once.
             // A compaction keeps nearly every row, so a million-row column is a handful of copies.
             gatherRuns(out.typed.array, this.typed.array, indexMap, rows, this.length, this.meta.components);
+            return out;
+        }
+        if (
+            remap === null &&
+            this.validity !== null &&
+            out.validity !== null &&
+            this.typed !== null &&
+            out.typed !== null
+        ) {
+            // Some rows unset, nothing rewritten: an unset row holds the fill, so the values copy in runs as
+            // above, and the validity bits follow the rows.
+            gatherRuns(out.typed.array, this.typed.array, indexMap, rows, this.length, this.meta.components);
+            gatherBits(out.validity.view(), this.validity.view(), indexMap, rows);
             return out;
         }
         for (let i = 0; i < rows; i++) {

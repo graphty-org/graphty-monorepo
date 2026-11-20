@@ -45,7 +45,7 @@ import {
     type Staging,
     type StagingColumn,
 } from "./compact.js";
-import { appendIntoCore, type SortInput, sortIntoCore, type SortResult } from "./counting-sort.js";
+import { appendIntoCore, removeFromCore, type SortInput, sortIntoCore, type SortResult } from "./counting-sort.js";
 import { assertDuplicatePolicy } from "./options.js";
 
 // ============================================================ context and outcome
@@ -914,7 +914,12 @@ export function runFreeze(ctx: FreezeContext, options: FreezeOptions): FreezeOut
         extendsSortInput(kept, compaction.staging, input, arena)
             ? appendIntoCore(kept.result, kept.nodeCount, kept.edgeCount, input, arena)
             : null;
-    const firstSort = reused?.result ?? appended ?? sortIntoCore(input, arena);
+    // Nodes or edges only removed since: the kept core filtered, not every edge sorted again.
+    const removed =
+        reused === null && appended === null && kept !== null && policy === "keep"
+            ? removedFromSort(kept, source, compaction, input, arena)
+            : null;
+    const firstSort = reused?.result ?? appended ?? removed ?? sortIntoCore(input, arena);
     clock.lap("sort");
 
     // step 7: duplicate policy
@@ -1001,6 +1006,63 @@ function sameSortInput(kept: SortCache, staging: Staging, input: SortInput, useA
         kept.edgeCount === input.edgeCount &&
         extendsSortInput(kept, staging, input, useArena)
     );
+}
+
+/**
+ * The sort of a compaction that only removed nodes or edges from the staging a kept sort sorted, made by
+ * filtering that sort ({@link removeFromCore}), or null when the freeze must sort: nothing was removed,
+ * something was also appended, the endpoints or a kept edge's weight changed, or the layout differs.
+ * @param kept - the kept sort
+ * @param source - the staging before compaction
+ * @param compaction - its compaction
+ * @param input - the compacted sort input
+ * @param useArena - whether this freeze lays the core out in an arena
+ * @returns the sort, or null
+ */
+function removedFromSort(
+    kept: SortCache,
+    source: Staging,
+    compaction: SourceCompaction,
+    input: SortInput,
+    useArena: boolean,
+): SortResult | null {
+    const { nodeRemap, edgeRemap } = compaction;
+    if (
+        nodeRemap === null ||
+        edgeRemap === null ||
+        kept.staging !== source ||
+        kept.src !== source.src ||
+        kept.dst !== source.dst ||
+        kept.nodeCount !== source.nodeBound ||
+        kept.edgeCount !== source.edgeBound ||
+        kept.directed !== input.directed ||
+        kept.useArena !== useArena ||
+        !sameKeptWeights(kept.weights, input.weights, edgeRemap.remap)
+    ) {
+        return null;
+    }
+    return removeFromCore(kept.result, nodeRemap.remap, edgeRemap.remap, input, useArena);
+}
+
+/**
+ * Whether every edge a removal kept has the weight it was sorted with.
+ * @param was - the kept sort's weights, by old edge, or null
+ * @param now - the compacted weights, by new edge, or null
+ * @param edgeRemap - old edge -> new edge, or INVALID_INDEX
+ * @returns true when they match, or both are unweighted
+ */
+function sameKeptWeights(was: F32 | F64 | null, now: F32 | F64 | null, edgeRemap: U32): boolean {
+    if (was === null || now === null) {
+        return was === now;
+    }
+    for (let e = 0; e < edgeRemap.length; e++) {
+        const at = edgeRemap[e];
+        // Object.is: NaN never reaches here (E_INVALID_WEIGHT), and -0 is stored as given.
+        if (at !== INVALID_INDEX && !Object.is(was[e], now[at])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**

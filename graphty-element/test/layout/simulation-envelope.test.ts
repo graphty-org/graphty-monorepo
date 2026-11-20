@@ -62,6 +62,14 @@ describe("the envelope a simulation's arrangement is published in", () => {
         assert.deepEqual([centre[0], centre[1], centre[2]], [20, 30, 40]);
     });
 
+    it("publishes at the arrangement's own size, only re-centered, with no radius to fit to", () => {
+        // Spring-electrical's case: it draws ngraph's arrangement, which is never refitted (#9174).
+        const { scale, centre } = measureEnvelope([10, 20, 30, 30, 40, 50], 2, null);
+
+        assert.strictEqual(scale, 1);
+        assert.deepEqual([centre[0], centre[1], centre[2]], [20, 30, 40]);
+    });
+
     it("leaves a single node and an all-coincident arrangement alone rather than dividing by nothing", () => {
         // Both measure a radius of zero. A scale derived from one would be infinite, and every
         // coordinate the bridge then published would be unstorable.

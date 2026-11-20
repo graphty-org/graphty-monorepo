@@ -68,6 +68,7 @@ import type { EnabledFeatures } from "../features/resolve";
 import type { DrawnAnnotation } from "./annotations";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { FilesApi } from "./files/kindOf";
 import type { SessionGraphs } from "./graphs/GraphsApi";
 import type { GroupsApi } from "./groups";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
@@ -79,6 +80,7 @@ import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
 import type { RecipeDocument } from "./recipe";
+import type { RecipesApi } from "./recipes/RecipesApi";
 import type { ResultsApi, RunRef } from "./results";
 import type { Histogram, HistogramOptions } from "./results/types";
 import type {
@@ -804,6 +806,18 @@ export interface LoadedWeight {
     readonly attribute: string;
     /** What the weight means, or null when the load did not say. */
     readonly meaning: WeightMeaning["meaning"] | null;
+    /**
+     * Under the `source-steps` experiment: present when the edges' weights do not share one
+     * meaning, or some edges come from a source that reads no weight. Runs and layouts then read no
+     * weight (`caveats.weightSkipped` `weight.meaning-mixed`, a layout's `W_WEIGHT_MEANING_MIXED`).
+     * `sources` lists the sources of the edges.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly mixed?: {
+        /** The sources whose weights were combined. */
+        readonly sources: readonly string[];
+    };
 }
 
 /** A {@link RecordPage} of neighbors, plus what the numbers measured. */
@@ -1346,10 +1360,13 @@ export interface SessionDataApi {
      * One node, by id.
      * @param id - the node id. An integer id may be written either way: `"34"` finds node `34` and
      *     `34` finds node `"34"`; a graph that holds both answers each by its own id
+     * @param options - Under the source-steps experiment: `space` reads `id` as a key in that id
+     *     space, so a key several spaces hold names one node (experimental)
+     * @param options.space - The id space.
      * @returns the record, carrying the id as the graph holds it, or undefined when the graph has
      *     no such node
      */
-    node(id: NodeId): NodeRecord | undefined;
+    node(id: NodeId, options?: { readonly space?: string }): NodeRecord | undefined;
     /**
      * What a node is called: the value of its label column (`data.knownFields.nodeLabelPath`) as
      * text, else its id as text. The same name {@link neighbors} gives each neighbor and a result
@@ -1428,9 +1445,12 @@ export interface SessionDataApi {
      * @param options.scope - `"visible"` for what the filter and the time window show, `"graph"`
      *     for the whole graph; absent, the working graph (what the filters show, the time window
      *     aside) while the session's `workingGraph` is on (the default), the whole graph while it is off.
+     *     Under the `source-steps` experiment, `source` and `type` count only one source's or one
+     *     type's elements (see {@link SourceElementsFilter}); naming either with the experiment off
+     *     throws `E_FEATURE_OFF`.
      * @returns the node count and the edge count
      */
-    count(options?: { readonly scope?: "graph" | "visible" }): {
+    count(options?: { readonly scope?: "graph" | "visible" } & SourceElementsFilter): {
         /** The node count. */
         readonly nodes: number;
         /** The edge count. */
@@ -1561,6 +1581,219 @@ export interface SessionDataApi {
      * @since 3.30.0
      */
     sources(): readonly LoadedSource[];
+    /**
+     * Hold a source's rows without building anything from them: a staged source, which no step
+     * reads, is saved and listed with `state: "staged"`. It is no undo step of its own: it joins the
+     * step before it, and with no step before it, it is part of the state history starts from.
+     * @param source - What `import` takes.
+     * @param options - Its key, type, space and edge ends.
+     * @returns The new source's id.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
+    /**
+     * Every step the graph is built from, in order, with its counts in the committed build.
+     * @returns The steps; empty while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    steps(): readonly SourceStepRow[];
+    /**
+     * Every id space the graph holds nodes in.
+     * @returns The spaces; empty while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    spaces(): readonly SourceSpaceRow[];
+    /**
+     * The type registry.
+     * @returns The declared types; empty while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    types(): readonly SourceTypeEntry[];
+    /**
+     * Declare a type, or add rules to one already declared, as one undoable step.
+     * @param entry - The type and its rules.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    declareType(entry: SourceTypeEntry): Promise<void>;
+    /**
+     * The reader's own edits (the direct edits, `addNodes` and the rest), in the order made.
+     * @returns The edits; empty while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    edits(): readonly ReaderEditRow[];
+    /**
+     * Take back one of the reader's edits, as one undoable step.
+     * @param id - The edit's id, from {@link edits}.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    removeEdit(id: string): Promise<void>;
+    /**
+     * Settle a reader edit whose source moved under it after a refresh or replace (its
+     * {@link edits} row reads `state: "source-changed"`, reported as `W_EDIT_SOURCE_CHANGED`), as
+     * one undoable step: `"follow"` takes the picked source's new value (a pick only), `"keep"`
+     * keeps the edit's value as the reader's own, `"drop"` takes the edit back.
+     * @param id - The edit's id, from {@link edits}.
+     * @param choice - Follow, keep or drop.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for an unknown edit or `"follow"` on a typed
+     *   edit, or `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    settleEdit(id: string, choice: SourceEditChoice): Promise<void>;
+    /**
+     * Resolve a step a refresh or replace held because a column it reads is gone (its
+     * {@link steps} row lists `missing`), as one undoable step: `{ column }` names a column of the
+     * new rows that takes the vanished name, so every step, rule and edit reading it keeps reading
+     * it; `{ none: true }` clears a vanished weight, time or location role. The step is built
+     * again once it misses nothing.
+     * @param index - The step's place, from {@link steps}.
+     * @param resolution - A column, or none.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for a step that misses nothing or `none` for a
+     *   column that is not a role, or `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    resolveStep(index: number, resolution: SourceStepResolution): Promise<void>;
+    /**
+     * The node a key names, as `{ space, key }`.
+     * @param key - The key.
+     * @param options - The space to look in; absent looks in every space.
+     * @param options.space - The space.
+     * @returns The reference, or null when no node holds the key.
+     * @throws A `GraphtyError` with `E_AMBIGUOUS_ID` when nodes in several spaces hold it.
+     * @experimental source-steps
+     */
+    ref(key: string, options?: { readonly space?: string }): SourceNodeRef | null;
+    /**
+     * Merge: fold each node of a source into the node its field names, as one undoable step. A
+     * staged source is added in its own space first. Its values meet the nodes' under `clash`
+     * (default `"keep"`).
+     * @param options - The source and field, the nodes they fold into, and the choices.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_STEP_NEEDS_NODES` for a source with no node rows, or
+     * `E_AMBIGUOUS_ID` when the field names no one set of nodes.
+     * @experimental source-steps
+     */
+    merge(options: SourceMergeOptions): Promise<void>;
+    /**
+     * Make an edge: each node row of a source becomes an edge between its node and the node its
+     * field names, as one undoable step. A staged source is added in its own space first.
+     * @param options - The source and field, the nodes they name, the direction and edge type.
+     * @returns The part the new edges are keyed by (`<part>/<key>`).
+     * @throws A `GraphtyError` with `E_STEP_NEEDS_NODES`, `E_AMBIGUOUS_ID`, or `E_JOIN_SPACE_SAME`
+     * when the staged source would land in the space it connects to.
+     * @experimental source-steps
+     */
+    connect(options: SourceConnectOptions): Promise<number>;
+    /**
+     * Extract: one column of an edge source becomes nodes, joined to one end by new edges (one per
+     * end pair), as one undoable step.
+     * @param source - The edge source.
+     * @param options - The column, its space and types, and columns to move onto the new nodes.
+     * @returns The part the new edges are keyed by.
+     * @experimental source-steps
+     */
+    extract(source: SourceKey, options: SourceExtractOptions): Promise<number>;
+    /**
+     * Move columns of an edge source onto the nodes at one end, as one undoable step.
+     * @param source - The edge source.
+     * @param options - The columns and where they go.
+     * @returns Settles once the graph is rebuilt.
+     * @experimental source-steps
+     */
+    moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): Promise<void>;
+    /**
+     * Take one source's value for a cell where sources disagree: a reader edit that names the
+     * source picked, as one undoable step.
+     * @param ref - The element.
+     * @param column - The column.
+     * @param source - The source whose value to take.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_EDIT_ROLE_COLUMN` for a column a key, role or step reads, or
+     * `E_BAD_COMMAND` when the source holds no value there.
+     * @experimental source-steps
+     */
+    pick(ref: SourceElementRef, column: string, source: SourceKey): Promise<void>;
+    /**
+     * Use one source's value for a cell: the same reader edit as {@link SessionDataApi.pick}.
+     * @param ref - The element.
+     * @param column - The column.
+     * @param source - The source whose value to use.
+     * @returns Settles once the graph is rebuilt.
+     * @experimental source-steps
+     */
+    use(ref: SourceElementRef, column: string, source: SourceKey): Promise<void>;
+    /**
+     * Delete one step, as one undoable step; a source no step reads any more is staged again.
+     * @param index - The step's place, as `steps()` lists it.
+     * @returns Settles once the graph is rebuilt.
+     * @experimental source-steps
+     */
+    removeStep(index: number): Promise<void>;
+    /**
+     * Turn one step off or back on, as one undoable step. An off step is kept, listed (`off` on its
+     * `steps()` row) and saved, but builds nothing; turning it on builds it again, and a source
+     * whose only steps were off is then listed as built. A staged joined table reopens from a saved
+     * project as its join's steps, off: turning them on commits the join.
+     *
+     * ```ts
+     * const at = session.data.steps().findIndex((s) => s.off);
+     * await session.data.setStepOff(at, false); // build it
+     * ```
+     * @param index - The step's place, as `steps()` lists it.
+     * @param off - True to turn it off, false to turn it on.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when no step is at `index`.
+     * @experimental source-steps
+     */
+    setStepOff(index: number, off: boolean): Promise<void>;
+    /**
+     * Add a staged source to the graph with its own `join.add`, as one undoable step. Keys that meet
+     * nodes another source built in its space are reported on its `data.sources()` entry
+     * (`W_SPACE_OVERLAP`) and kept in its own space unless `overlap` is `"merge"`.
+     * @param source - The staged source.
+     * @param options - What a key overlap does.
+     * @param options.overlap - `"separate"` (default) or `"merge"`.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"not-staged"`) for a source a step already reads.
+     * @experimental source-steps
+     */
+    add(source: SourceKey, options?: { readonly overlap?: "separate" | "merge" }): Promise<void>;
+    /**
+     * Where one node or edge came from.
+     * @param ref - The element.
+     * @returns Its lineage, or null when no element answers the reference.
+     * @experimental source-steps
+     */
+    lineage(ref: SourceElementRef): SourceLineage | null;
+    /**
+     * Every source's value for one cell, and the one shown.
+     * @param ref - The element.
+     * @param column - The column.
+     * @returns The values, or null when no element answers the reference.
+     * @experimental source-steps
+     */
+    values(ref: SourceElementRef, column: string): SourceCellValues | null;
+    /**
+     * What one cell holds.
+     * @param ref - The element.
+     * @param column - The column.
+     * @returns Its state, or null when no element answers the reference.
+     * @experimental source-steps
+     */
+    cell(ref: SourceElementRef, column: string): SourceCellState | null;
+    /**
+     * The cells where supplying sources hold different values.
+     * @param query - Which cells.
+     * @returns The conflicts, nodes first, in build order.
+     * @experimental source-steps
+     */
+    conflicts(query?: SourceConflictQuery): readonly SourceConflict[];
     /**
      * What is wrong with the data now: a number column holding "N/A", decimal commas, padded
      * values, two spellings of one value, edges naming a node no node row gave, repeated edges,
@@ -1790,6 +2023,47 @@ export interface SessionDataApi {
      */
     sourceInput(key: SourceKey): DataSourceInput | undefined;
     /**
+     * How a project save keeps each load: as a copy (its rows inside the file, the default) or as
+     * a reference (where to read it again; an open reads the rows again). One entry per load, in
+     * {@link SessionDataApi.sources} order. A load that cannot be a reference carries `refused`.
+     * With the `source-references` experiment off every entry is a copy and a save writes every
+     * load as a copy, as before the experiment, even in a project opened from a file that held
+     * references (the open still reads them again, so the graph is whole); only a reference the
+     * open could not read is written back as it was, so nothing is lost.
+     * @example
+     * ```ts
+     * for (const each of session.data.copies()) {
+     *     console.log(each.source, each.copy, each.refused?.params.reason);
+     * }
+     * ```
+     * @returns The entries; empty when no load is in the graph.
+     * @since 3.58.0
+     */
+    copies(): readonly SourceCopy[];
+    /**
+     * Choose how a project save keeps one load. Not a step: like `save({ assets })`, it is a save
+     * choice, kept with the project (autosave included), and it marks the project unsaved.
+     * Reference on a load that cannot be one keeps it a copy and returns the entry with
+     * `refused`; nothing is thrown. Publishes `source:copy` when the choice changes.
+     * Experimental: needs the `source-references` experiment.
+     * @experimental source-references
+     * @example
+     * ```ts
+     * const session = createGraphSession({ features: ["source-references"] });
+     * await session.data.import({ type: "json", config: { url: "https://example.com/graph.json" } });
+     * const [load] = session.data.sources();
+     * session.data.setCopy(load.key, "reference");
+     * const saved = await session.project.save(); // the rows are read again on open
+     * ```
+     * @param source - The load's key, from {@link SessionDataApi.sources}.
+     * @param copy - `"copy"` or `"reference"`.
+     * @returns The load's entry after the choice.
+     * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key no load has, and `E_FEATURE_OFF`
+     *     (`{ feature: "source-references", key: "setCopy" }`) while the experiment is off.
+     * @since 3.58.0
+     */
+    setCopy(source: SourceKey, copy: SourceCopyChoice): SourceCopy;
+    /**
      * The load whose rows carry the same columns as a file's header (in any order), newest
      * first: the load a dropped file is most likely a newer copy of. Reads the file; loads nothing.
      * @param source - The file, as `import` takes it.
@@ -1800,9 +2074,14 @@ export interface SessionDataApi {
     /**
      * Every attribute the graph's records carry, with its type, what it measures, how complete
      * it is and a few sample values. Walked once per revision and cached.
+     * @param options - Under the `source-steps` experiment, only the columns one source gave a
+     *     value for (its clash columns included) or the elements of one type carry; see
+     *     {@link SourceElementsFilter}. Absent, every column.
      * @returns the descriptors, node attributes first, each kind in first-seen order
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` when `options` names a source or a type while
+     *     the experiment is off.
      */
-    attributes(): readonly AttributeDescriptor[];
+    attributes(options?: SourceElementsFilter): readonly AttributeDescriptor[];
     /**
      * Every value a rule or a binding can read, in one list: the node id, every data column and
      * every field a finished run published per element. Each entry carries its path (what a rule
@@ -1893,14 +2172,18 @@ export interface SessionDataApi {
      * ```
      * @param column - the column; an attribute descriptor can be passed as it is
      * @param role - the role, or null for none
+     * @param options - Under the `source-steps` experiment, which source's role it is; see
+     *     {@link SourceRoleOptions}.
      * @returns settles once the step is recorded
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries,
      *     `E_BAD_COMMAND` (`details.reason: "role-kind"`, with `details.roles`) for a role the
      *     column's kind has no field for, and `E_UNSUPPORTED` (`details.reason: "reload"`) for
-     *     `key`, `source`, `target` or `edgeId` on rows already loaded.
+     *     `key`, `source`, `target` or `edgeId` on rows already loaded. Under the `source-steps`
+     *     experiment, `E_ROLE_TARGET_AMBIGUOUS` (`details.sources`) for a weight or time role that
+     *     names no source while several built sources carry the column and can carry the role.
      * @since 3.30.0
      */
-    setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
+    setRole(column: ColumnRef, role: ColumnRole | null, options?: SourceRoleOptions): Promise<void>;
     /**
      * The column the element would read a role from, when one is obvious: what to offer before
      * a reader picks one for {@link SessionDataApi.setRole}. Changes nothing. Only a column with
@@ -1966,9 +2249,15 @@ export interface SessionDataApi {
      * @returns settles once the step is recorded; the same name changes nothing
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
      *     `E_BAD_COMMAND` (`details.reason` `"empty-name"` or `"name-taken"`) for a name it cannot take.
+     *     With `options.source` (the source-steps experiment): `E_EDIT_ROLE_COLUMN` for a column a
+     *     key, role, type rule or step reads.
+     * @param options - With the source-steps experiment on, `source` renames the column in that
+     *     source only: its rows' working name, its steps' columns, rules and filters, and reader
+     *     edits on cells no other source fills (experimental).
+     * @param options.source - The source whose column to rename.
      * @since 3.30.0
      */
-    renameColumn(column: ColumnRef, name: string): Promise<void>;
+    renameColumn(column: ColumnRef, name: string, options?: { readonly source?: SourceKey }): Promise<void>;
     /**
      * Add a computed column, as one undoable step: every node (or edge) gets the value an
      * expression reads, in the expression language of selectors and filters, from its other
@@ -2094,14 +2383,17 @@ export interface SessionDataApi {
      *     `scope`: `"visible"` counts only what the filter and the time window leave shown,
      *     `"graph"` every element -- default `"graph"`, or the working graph (what the filters
      *     leave shown, the time window aside) while the session's `workingGraph` option is on
-     *     (since 3.40.0)
+     *     (since 3.40.0). Under the `source-steps` experiment, `source` and `type` count only one
+     *     source's or one type's elements (see {@link SourceElementsFilter}); with `source`, each
+     *     reads that source's own value, so another source's value for the same column is not
+     *     counted. Naming either with the experiment off throws `E_FEATURE_OFF`.
      * @returns the distribution
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (with `details.candidates`) for a column
      *     no record carries, and `E_OPTION_RANGE` for a bin count outside 1 to 100.
      */
     histogram(
         column: ColumnRef,
-        options?: HistogramOptions & { readonly scope?: "graph" | "visible" },
+        options?: HistogramOptions & { readonly scope?: "graph" | "visible" } & SourceElementsFilter,
     ): ColumnHistogram;
     /**
      * How many elements carry each value of a readable path, for a checklist of values with their
@@ -2121,12 +2413,17 @@ export interface SessionDataApi {
      *     shown (`total` included), `"graph"` every element. Default `"graph"`, or the working graph
      *     (what the filters leave shown, the time window aside) while the session's `workingGraph`
      *     option is on (since 3.40.0).
+     * @param options.source - Under the `source-steps` experiment: count only the elements this
+     *     source supplied, reading a data column as that source's own value. Throws `E_FEATURE_OFF`
+     *     with the experiment off.
+     * @param options.type - Under the `source-steps` experiment: count only the elements of this
+     *     type. Throws `E_FEATURE_OFF` with the experiment off.
      * @returns The counts, most elements first.
      * @since 3.37.0
      */
     valueCounts(
         path: Path,
-        options?: { readonly kind?: "node" | "edge"; readonly scope?: "graph" | "visible" },
+        options?: { readonly kind?: "node" | "edge"; readonly scope?: "graph" | "visible" } & SourceElementsFilter,
     ): ValueCounts;
     /**
      * Per group, the values of the nodes' categorical and list columns that occur in the group
@@ -2171,9 +2468,14 @@ export interface SessionDataApi {
      *     showing (the same as the whole graph while nothing is hidden). Default `"all"`, or the
      *     working graph (what the filters leave shown, the time window aside) while the session's
      *     `workingGraph` option is on.
+     * @param options.source - Under the `source-steps` experiment: measure only the nodes and edges
+     *     this source supplied, with the ends of those edges. Throws `E_FEATURE_OFF`
+     *     with the experiment off.
+     * @param options.type - Under the `source-steps` experiment: measure only the elements of this
+     *     type, as `source` does. Throws `E_FEATURE_OFF` with the experiment off.
      * @returns the statistics
      */
-    statistics(options?: { readonly scope?: "all" | "visible" }): GraphStatistics;
+    statistics(options?: { readonly scope?: "all" | "visible" } & SourceElementsFilter): GraphStatistics;
     /**
      * A stable identity for the graph's topology: equal fingerprints mean the same node ids in
      * the same order with the same arcs between them. Attributes and coordinates are not in it.
@@ -3195,6 +3497,13 @@ export interface LoadedSource extends DataSourceDescriptor {
      */
     readonly reloadable?: true;
     /**
+     * `"reference"` when a project save keeps this load as a reference, read again on open
+     * ({@link SessionDataApi.setCopy}); absent when it is kept as a copy, and always absent with
+     * the `source-references` experiment off.
+     * @since 3.58.0
+     */
+    readonly copy?: "reference";
+    /**
      * For a network source's load: its record's key in {@link SessionDataApi.loads}. `data.more`,
      * `data.refresh` and `data.checkSource` take it or {@link LoadedSource.key}; keep `key`, which a
      * save and reopen never changes.
@@ -3219,6 +3528,38 @@ export interface LoadedSource extends DataSourceDescriptor {
      * @since 3.30.0
      */
     readonly totalEdges?: number;
+    /**
+     * Where the load stands in the build. Present only under the source-steps experiment.
+     * @experimental source-steps
+     */
+    readonly state?: SourceBuildState;
+    /**
+     * How many nodes its rows only named (an edge end another source supplies). Present only
+     * under the source-steps experiment.
+     * @experimental source-steps
+     */
+    readonly named?: number;
+    /**
+     * Its rows the build left out, by reason. Present only under the source-steps experiment.
+     * @experimental source-steps
+     */
+    readonly rowsLeftOut?: Readonly<
+        Partial<
+            Record<
+                | "left-out:empty-key"
+                | "left-out:empty-end"
+                | "left-out:unmatched"
+                | "left-out:fan-out"
+                | "left-out:no-step",
+                number
+            >
+        >
+    >;
+    /**
+     * The key overlaps it met when it was added. Present only under the source-steps experiment.
+     * @experimental source-steps
+     */
+    readonly issues?: readonly SourceSpaceOverlap[];
 }
 
 /**
@@ -3666,6 +4007,37 @@ export interface JoinRecord {
  */
 export type LoadedSourceKind = "file" | "url" | "server" | "sample" | "join";
 
+/** How a project save keeps a load: its rows in the file, or where to read them again. */
+export type SourceCopyChoice = "copy" | "reference";
+
+/**
+ * Why a load cannot be saved as a reference: a file the page holds no path to (`file`), rows
+ * handed over inline (`inline`), a joined table (`join`), a URL or network source's load whose
+ * secret query parameters or credential a save drops (`secret-url`), a URL that is not an absolute http(s) address (`relative-url`), or a generated
+ * graph or dataset with nothing recorded to make it again (`no-seed`). OPEN UNION: later releases add values.
+ */
+export type SourceNoPathReason = "file" | "inline" | "join" | "secret-url" | "relative-url" | "no-seed";
+
+/** How a project save keeps one load: one entry of {@link SessionDataApi.copies}. */
+export interface SourceCopy {
+    /** The load's key. */
+    readonly source: SourceKey;
+    /** How a save keeps it. */
+    readonly copy: SourceCopyChoice;
+    /** Present when the load cannot be a reference: `W_SOURCE_NO_PATH` with `{ source, reason }`. */
+    readonly refused?: {
+        /** Always `W_SOURCE_NO_PATH`. */
+        readonly code: "W_SOURCE_NO_PATH";
+        /** The load and why it cannot be a reference. */
+        readonly params: {
+            /** The load's key. */
+            readonly source: SourceKey;
+            /** Why the load cannot be a reference. */
+            readonly reason: SourceNoPathReason;
+        };
+    };
+}
+
 /**
  * What `session.data.removeSource(key)` did.
  * @since 3.30.0
@@ -3690,6 +4062,11 @@ export interface RemoveSourceResult {
      * @since 3.38.0
      */
     readonly alsoRemoved: readonly SourceKey[];
+    /**
+     * Under the source-steps experiment: each step that went with the source (`W_STEP_REMOVED`).
+     * @experimental source-steps
+     */
+    readonly issues?: readonly SourceRefreshIssue[];
 }
 
 /**
@@ -3736,6 +4113,11 @@ export interface ReplaceReport {
     readonly edges: ReplaceCounts;
     /** Styles, filters and joins that read a column the copy no longer has. */
     readonly unbound: readonly CodedFact<ReplaceUnboundCode>[];
+    /**
+     * Under the source-steps experiment: held steps, new columns and reader edits whose source moved.
+     * @experimental source-steps
+     */
+    readonly issues?: readonly SourceRefreshIssue[];
 }
 
 /** How an import treats the graph already there. */
@@ -3764,6 +4146,756 @@ export interface ImportOptions {
      * @since 3.40.0
      */
     readonly callerKey?: string;
+    /**
+     * The column the loaded node rows are keyed by; the id column the load read when absent.
+     * @experimental source-steps
+     */
+    readonly key?: string;
+    /**
+     * The node type the loaded node rows carry, declared as the source's type rule; it also names
+     * the id space their keys live in when `space` is absent.
+     * @experimental source-steps
+     */
+    readonly type?: SourceTypeName;
+    /**
+     * The id space the loaded keys live in; absent, the source's own space (or its `type`'s), so
+     * two loads with no options never meet. A `graph:` space is refused with `E_SPACE_RESERVED`.
+     * @experimental source-steps
+     */
+    readonly space?: SourceSpaceName;
+    /**
+     * The columns the loaded edge rows name their ends by, and the space and type of each end.
+     * @experimental source-steps
+     */
+    readonly edges?: {
+        /** The column naming each edge's source end, and that end's space and type. */
+        readonly from: SourceEndOption;
+        /** The column naming each edge's target end, and that end's space and type. */
+        readonly to: SourceEndOption;
+        /** The column holding each edge's own key; absent keys each row by its place in the file. */
+        readonly id?: string;
+    };
+    /**
+     * What a key overlap does (`W_SPACE_OVERLAP`): `"separate"` (the default) keeps the source's
+     * keys in its own space, `"merge"` makes them the nodes already in the space.
+     * @experimental source-steps
+     */
+    readonly overlap?: "separate" | "merge";
+}
+
+/**
+ * One edge end of a source loaded under the source-steps experiment.
+ * @experimental source-steps
+ */
+export interface SourceEndOption {
+    /** The column naming the end. */
+    readonly column: string;
+    /** The id space the end's keys live in. */
+    readonly space?: SourceSpaceName;
+    /** The node type the end's nodes carry; names the space when `space` is absent. */
+    readonly type?: SourceTypeName;
+}
+
+/**
+ * The name of an id space loaded keys live in: one the consumer names, or `source:<source id>`.
+ * @experimental source-steps
+ */
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- names an identifier the consumer gives, as the API report reads it
+export type SourceSpaceName = string;
+
+/**
+ * The name of a node or edge type the consumer declares.
+ * @experimental source-steps
+ */
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- names an identifier the consumer gives, as the API report reads it
+export type SourceTypeName = string;
+
+/**
+ * A key value many rows of a step share, so it would link or fan out to many elements
+ * (`W_VALUE_HUB`).
+ * @experimental source-steps
+ */
+export interface SourceHubValue {
+    /** The key value, as the rows spell it. */
+    readonly value: string;
+    /** How many rows hold it. */
+    readonly rows: number;
+}
+
+/**
+ * What one step did in the committed build: its buckets (design 9.2). A count a step's kind never
+ * makes stays 0.
+ * @experimental source-steps
+ */
+export interface SourceStepCounts {
+    /** The step's place in the ordered list, from 0. */
+    readonly step: number;
+    /** The step's kind. */
+    readonly op: SourceStepOp;
+    /** The source the step reads. */
+    readonly source: SourceKey;
+    /** For a `join.edges` step: the part its edge keys are minted under. */
+    readonly part?: number;
+    /** Nodes the step made that no earlier step had made. */
+    readonly newNodes: number;
+    /** Edges the step made. */
+    readonly newEdges: number;
+    /** Rows whose key found the element they write to. */
+    readonly matched: number;
+    /** Rows whose key found no element. */
+    readonly unmatched: number;
+    /** Rows whose key found more than one element, so they were left out. */
+    readonly fanOut: number;
+    /** Repeated keys within the source whose rows hold different values. */
+    readonly rowsDiffer: number;
+    /** Cells that met a different value another source wrote, by column. */
+    readonly valuesDiffer: Readonly<Record<string, number>>;
+    /** Cells a numeric conflict rule (min, max, mean) met that are not numbers, by column. */
+    readonly ruleType: Readonly<Record<string, number>>;
+    /** For `join.merge`: nodes folded into the node they matched. */
+    readonly merged: number;
+    /** Elements this step gave a type other than the one an earlier step gave them. */
+    readonly typeDiffers: number;
+    /** For `join.merge`: nodes of the space merged into that no row reached. */
+    readonly untouched: number;
+    /** For `join.merge`: how many nodes each merged node was made from, largest first. */
+    readonly groups: readonly number[];
+    /** Edges whose two ends are one node. */
+    readonly selfLoops: number;
+    /** Rows left out because their key cell is empty (`W_KEY_EMPTY`). */
+    readonly emptyKey: number;
+    /** Rows kept apart because their key repeats and nothing settles one row for it. */
+    readonly repeatedKept: number;
+    /** Key values many rows share (`W_VALUE_HUB`). */
+    readonly hub: readonly SourceHubValue[];
+}
+
+/**
+ * The kind of a step: add a source's rows, merge one space into another, write node or edge
+ * values, or make edges. OPEN UNION: kinds may be added.
+ * @experimental source-steps
+ */
+export type SourceStepOp = "join.add" | "join.merge" | "join.node-values" | "join.edge-values" | "join.edges";
+
+/**
+ * A step as `data.steps()` lists it, with its counts in the committed build.
+ * @experimental source-steps
+ */
+export interface SourceStepRow {
+    /** Its place in the ordered list, from 0. */
+    readonly index: number;
+    /** Its kind. */
+    readonly op: SourceStepOp;
+    /** The source it reads. */
+    readonly source: SourceKey;
+    /** The columns it reads its keys, ends and roles from. */
+    readonly reads: readonly Path[];
+    /** The id spaces it writes nodes in. */
+    readonly spaces: readonly SourceSpaceName[];
+    /** The types its source's rules give what it builds. */
+    readonly types: readonly SourceTypeName[];
+    /** The reader turned it off: kept but not built. */
+    readonly off: boolean;
+    /** A source it depends on is held, or it misses a column (`missing`), so it is not built. */
+    readonly held: boolean;
+    /** The columns it reads that its sources' rows no longer hold; a step missing one is held. */
+    readonly missing: readonly SourceRefreshIssue[];
+    /** Its counts in the committed build; null when it was not built. */
+    readonly buckets: SourceStepCounts | null;
+    /** One `W_VALUES_DIFFER` per column whose values from different sources differ at this step. */
+    readonly valuesDiffer: readonly SourceValuesDiffer[];
+}
+
+/**
+ * `W_VALUES_DIFFER`: values from different sources differ in one column of one step.
+ * @experimental source-steps
+ */
+export interface SourceValuesDiffer {
+    /** The code. */
+    readonly code: "W_VALUES_DIFFER";
+    /** Its parameters. */
+    readonly params: {
+        /** The step's place. */
+        readonly step: number;
+        /** The column. */
+        readonly column: string;
+        /** How many cells differ. */
+        readonly count: number;
+        /** The step's rule for the column. */
+        readonly rule: SourceClashRule;
+        /** How many of those cells a reader decision (a pick or an edit) settles. */
+        readonly decided: number;
+    };
+}
+
+/**
+ * An id space as `data.spaces()` lists it.
+ * @experimental source-steps
+ */
+export interface SourceSpaceRow {
+    /** The space's name. */
+    readonly space: SourceSpaceName;
+    /** How many nodes the build holds in it. */
+    readonly nodes: number;
+    /** The sources whose rows built or named its nodes. */
+    readonly sources: readonly SourceKey[];
+}
+
+/**
+ * A reader operation as `data.edits()` lists it.
+ * @experimental source-steps
+ */
+export interface ReaderEditRow {
+    /** The operation's id: what `data.removeEdit` takes. */
+    readonly id: string;
+    /** `"add"` a node, `"add-edge"`, `"remove"` a node or edge, or `"edit"` one cell. */
+    readonly op: "add" | "add-edge" | "remove" | "edit";
+    /** The node (`{ space, key }`) or edge (`{ load, key }`: the source that made it, and its key there) it names. */
+    readonly target:
+        | {
+              /** The id space the node's key lives in. */
+              readonly space: SourceSpaceName;
+              /** The node's key. */
+              readonly key: string;
+          }
+        | {
+              /** The source that made the edge. */
+              readonly load: SourceKey;
+              /** The edge's key within that source. */
+              readonly key: string;
+          };
+    /** For an edit: the column it writes. */
+    readonly column?: string;
+    /** For an edit: the value it writes. */
+    readonly value?: SourceCellValue;
+    /** For a pick: the source whose value it took. */
+    readonly picked?: SourceKey;
+    /**
+     * For an edit: `"applies"`, `"lost"` (it names no element now) or `"source-changed"` (the value
+     * under it moved since it was made; settle it with `data.settleEdit`).
+     */
+    readonly state?: "applies" | "lost" | "source-changed";
+    /** For `"source-changed"`: the value it was made over (for a pick, the value it took). */
+    readonly was?: SourceValue | null;
+    /** For `"source-changed"`: what the source says now. */
+    readonly now?: SourceValue | null;
+}
+
+/**
+ * One cell of a source's rows as read: text, a number, a truth value or empty.
+ * @experimental source-steps
+ */
+export type SourceCellValue = string | number | boolean | null;
+
+/**
+ * Where a source stands in the build: `"staged"` (no step reads it), `"built"`, `"off"` (every
+ * step reading it is off) or `"held"` (its rows cannot be read).
+ * @experimental source-steps
+ */
+export type SourceBuildState = "staged" | "built" | "off" | "held";
+
+/**
+ * A type declared in the type registry, and the rules that give elements it. A type is declared,
+ * never guessed; an element has one type.
+ * @experimental source-steps
+ */
+export interface SourceTypeEntry {
+    /** The type's id, read as `graphty.type`. */
+    readonly name: SourceTypeName;
+    /** Whether nodes or edges carry it. */
+    readonly kind: "node" | "edge";
+    /** The type's default name for a reader; absent means `name`. An application may show it or replace it. */
+    readonly plainName?: string;
+    /** Which rows or ends of which source carry the type. */
+    readonly rules: readonly SourceTypeRule[];
+    /** What the type's elements are expected to carry, by column; kept and saved, not checked by the build. */
+    readonly schema?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * One rule of a {@link SourceTypeEntry}: every row of a source, or only some of them. A rule naming
+ * a column and its values wins over a whole-source rule; otherwise registry order decides.
+ * @experimental source-steps
+ */
+export interface SourceTypeRule {
+    /** The id of the source whose rows the rule types. */
+    readonly source: SourceKey;
+    /** With `values`: only rows whose cell in this column is listed. */
+    readonly column?: string;
+    /** With `column`: the cell values that give the type. */
+    readonly values?: readonly SourceCellValue[];
+    /** Only the nodes the source's edges reach at this end. */
+    readonly end?: "source" | "target";
+    /** Only what the `join.edges` step with this `part` makes. */
+    readonly part?: number;
+}
+
+/**
+ * A node named by its id space and key.
+ * @experimental source-steps
+ */
+export interface SourceNodeRef {
+    /** The id space the key lives in. */
+    readonly space: SourceSpaceName;
+    /** The key, as text. */
+    readonly key: string;
+}
+
+/**
+ * An edge named by the source that made it and its key there.
+ * @experimental source-steps
+ */
+export interface SourceEdgeRef {
+    /** The source that made the edge. */
+    readonly load: SourceKey;
+    /** The edge's key within that source: its edge id, or `<part>/<key>` for an edge a step made. */
+    readonly key: string;
+}
+
+/**
+ * A node (`{ space, key }`) or an edge (`{ load, key }`).
+ * @experimental source-steps
+ */
+export type SourceElementRef = SourceNodeRef | SourceEdgeRef;
+
+/**
+ * A built element's value for one cell: a cell as read, or the list an aggregate gathered.
+ * @experimental source-steps
+ */
+export type SourceValue = SourceCellValue | readonly SourceCellValue[];
+
+/**
+ * How a step settles a cell another source already filled: `"keep"` (the default) keeps the
+ * value shown, `"overwrite"` takes the new one, `"both"` keeps both (the new one under
+ * `<column> (<source id>)`), `"min"`, `"max"` and `"mean"` compute over numbers, `"vote"` takes the
+ * value most sources hold.
+ * @experimental source-steps
+ */
+export type SourceClashRule = "keep" | "overwrite" | "both" | "min" | "max" | "mean" | "vote";
+
+/**
+ * A column of one source.
+ * @experimental source-steps
+ */
+export interface SourceField {
+    /** The source. */
+    readonly source: SourceKey;
+    /** The column. */
+    readonly field: string;
+}
+
+/**
+ * The nodes a merge or Make an edge joins onto ("node 1"): a source's nodes by its key, or by
+ * another field of it (translated through its rows); or every node of an id space. For a source
+ * that holds only edges, `space` names which end's nodes `field` belongs to.
+ * @experimental source-steps
+ */
+export type SourceJoinInto =
+    | {
+          /** The source whose nodes are joined onto. */
+          readonly source: SourceKey;
+          /** The field of the source naming them; absent, its key. */
+          readonly field?: string;
+          /** For a source that holds only edges: the space of the end whose nodes `field` names. */
+          readonly space?: SourceSpaceName;
+      }
+    | {
+          /** The id space whose every node is joined onto. */
+          readonly space: SourceSpaceName;
+          /** Never set: the space names the nodes. */
+          readonly source?: undefined;
+          /** Never set: the space names the nodes. */
+          readonly field?: undefined;
+      };
+
+/**
+ * Rows named by one column's values.
+ * @experimental source-steps
+ */
+export interface SourceRowFilter {
+    /** The column. */
+    readonly column: string;
+    /** The values; a row whose cell is one of them is named. */
+    readonly values: readonly SourceCellValue[];
+}
+
+/**
+ * `data.setRole` under the source-steps experiment (design 3.9): a weight or time role is a member
+ * of one source's mapping, read from that source's own rows. A role written while no source is
+ * built is kept as the setting, and becomes the role of the next source loaded that carries the
+ * column.
+ * @experimental source-steps
+ */
+export interface SourceRoleOptions {
+    /**
+     * The source whose role it is, by the key `data.sources()` lists it with. Absent, the one
+     * built source that carries the column and can carry the role.
+     */
+    readonly source?: string;
+}
+
+/**
+ * Which elements a source-steps reading counts: those one source supplied, and those of one type
+ * (design 3.8, 8.4). Both narrow together.
+ * @experimental source-steps
+ */
+export interface SourceElementsFilter {
+    /** The source, by the key `data.sources()` lists it with. */
+    readonly source?: string;
+    /** The type, as `data.types()` names it; null for untyped elements. */
+    readonly type?: string | null;
+}
+
+/**
+ * `data.merge`: fold each node of a source into the node its field names.
+ * @experimental source-steps
+ */
+export interface SourceMergeOptions {
+    /** The source whose nodes fold in, and the field naming the node each folds into. */
+    readonly from: SourceField;
+    /** The nodes they fold into. */
+    readonly into: SourceJoinInto;
+    /** A node of `from` that names no node: `"keep"` (default) keeps it, `"drop"` leaves it out. */
+    readonly unmatchedFrom?: "keep" | "drop";
+    /** How a cell both sides fill is settled, for every column or per column (`"*"` for the rest). */
+    readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
+    /** Two rows naming one node: `"first"` (default) or `"last"` wins. */
+    readonly repeated?: "first" | "last";
+    /** Rows that stay their own nodes. */
+    readonly except?: SourceRowFilter;
+    /** Match keys ignoring case. */
+    readonly ignoreCase?: boolean;
+    /** Match keys ignoring spaces. */
+    readonly ignoreSpaces?: boolean;
+}
+
+/**
+ * `data.connect` (Make an edge): each node row of a source becomes an edge between its node and
+ * the node its field names.
+ * @experimental source-steps
+ */
+export interface SourceConnectOptions {
+    /** The source whose rows become edges, and the field naming the node at the other end. */
+    readonly from: SourceField;
+    /** The nodes the field names. */
+    readonly into: SourceJoinInto;
+    /** `"into-from"` (default) runs each edge from the named node to the source's node. */
+    readonly direction?: "into-from" | "from-into";
+    /** The type the new edges are declared with. */
+    readonly edgeType?: SourceTypeName;
+    /** Match keys ignoring case. */
+    readonly ignoreCase?: boolean;
+}
+
+/**
+ * `data.extract`: one column of an edge source becomes nodes, joined to one end by new edges.
+ * @experimental source-steps
+ */
+export interface SourceExtractOptions {
+    /** The column whose values become nodes. */
+    readonly column: string;
+    /** The id space the new nodes live in; default `type`, else the source's own space. */
+    readonly space?: SourceSpaceName;
+    /** The type the new nodes are declared with. */
+    readonly type?: SourceTypeName;
+    /** The type the new edges are declared with. */
+    readonly edgeType?: SourceTypeName;
+    /** Columns moved onto the new nodes. */
+    readonly columns?: readonly string[];
+    /** The end the new edges start from; default `"source"`. */
+    readonly from?: "source" | "target";
+}
+
+/**
+ * `data.moveColumns`: an edge source's columns onto the nodes at one end, or onto the nodes a
+ * column names in a space.
+ * @experimental source-steps
+ */
+export interface SourceMoveColumnsOptions {
+    /** The columns. */
+    readonly columns: readonly string[];
+    /** Where they go. */
+    readonly to:
+        | "source"
+        | "target"
+        | {
+              /** The column naming the nodes. */
+              readonly column: string;
+              /** The id space the column's values live in. */
+              readonly space: SourceSpaceName;
+          };
+}
+
+/**
+ * Where one element came from.
+ * @experimental source-steps
+ */
+export interface SourceLineage {
+    /** Its type, or null for none. */
+    readonly type: SourceTypeName | null;
+    /** The sources that supplied it, in step order; the reader's own edits are `"reader"`. */
+    readonly supplied: readonly SourceKey[];
+    /** The sources that only named it (an edge end, a key a step looked up). */
+    readonly named: readonly SourceKey[];
+    /** Every row a step read into it: the step's place, its source and the row. */
+    readonly steps: readonly {
+        /** The step's place. */
+        readonly step: number;
+        /** The source the step read. */
+        readonly source: SourceKey;
+        /** The row it read. */
+        readonly row: number;
+    }[];
+    /** The references that also reach it: merged nodes, a moved node's former place, reduced edges' rows. */
+    readonly aliases: readonly SourceElementRef[];
+    /** The types other steps would have given it. */
+    readonly otherTypes: readonly (SourceTypeName | null)[];
+    /** The ids of the reader's edits on it. */
+    readonly reader: readonly string[];
+}
+
+/**
+ * Every source's value for one cell, and the one shown.
+ * @experimental source-steps
+ */
+export interface SourceCellValues {
+    /** Each source's value, in step order, then the values a merge kept only in the lineage. */
+    readonly list: readonly {
+        /** The source that holds the value. */
+        readonly source: SourceKey;
+        /** The value. */
+        readonly value: SourceValue;
+        /** The place of the step that read it. */
+        readonly step?: number;
+        /** The row of the source it was read from. */
+        readonly row?: number;
+        /** For a value a merge kept only in the lineage: the key of the node it came from. */
+        readonly from?: SourceNodeRef["key"];
+    }[];
+    /** The value shown. */
+    readonly shown: SourceValue | null;
+    /** The source whose value shows, `"reader"` for a reader edit, or `"rule:mean"` for a computed value. */
+    readonly origin: SourceKey | null;
+    /** Whether the sources hold different values. */
+    readonly disagree: boolean;
+}
+
+/**
+ * What one cell holds: a value (`edited` when a reader edit set it), empty while a supplying
+ * source has the column, or not carried by any.
+ * @experimental source-steps
+ */
+export type SourceCellState =
+    | {
+          /** The cell holds a value. */
+          readonly state: "value";
+          /** The value. */
+          readonly value: SourceValue;
+          /** Set when a reader edit wrote the value. */
+          readonly edited?: true;
+      }
+    | {
+          /** A supplying source has the column, but the cell is empty. */
+          readonly state: "empty";
+      }
+    | {
+          /** No supplying source has the column. */
+          readonly state: "not-carried";
+      };
+
+/**
+ * One cell where supplying sources hold different values.
+ * @experimental source-steps
+ */
+export interface SourceConflict {
+    /** The element. */
+    readonly ref: SourceElementRef;
+    /** The place of the step whose rule settles the cell. */
+    readonly step: number;
+    /** The column. */
+    readonly column: string;
+    /** Each source's value. */
+    readonly values: readonly {
+        /** The source. */
+        readonly source: SourceKey;
+        /** Its value. */
+        readonly value: SourceValue;
+    }[];
+    /** The value shown. */
+    readonly shown: SourceValue | null;
+    /** What shows the value: the rule, or `"reader"` for a reader decision (a pick or an edit). */
+    readonly by: SourceClashRule | "reader";
+    /** The step's rule for the column, under any reader decision. */
+    readonly rule: SourceClashRule;
+}
+
+/**
+ * Which conflicts `data.conflicts` lists.
+ * @experimental source-steps
+ */
+export interface SourceConflictQuery {
+    /** Only cells this step settles. */
+    readonly step?: number;
+    /** Only this column. */
+    readonly column?: string;
+    /** Only cells this source holds a value for. */
+    readonly source?: SourceKey;
+    /** `"open"`: no reader decision; `"decided"`: a reader decision shows the value. */
+    readonly only?: "open" | "decided";
+}
+
+/**
+ * What a removal, refresh or replace reports under the source-steps experiment, as a code and its
+ * parameters:
+ *
+ * - `E_COLUMN_MISSING`: a step (`step`) or a type rule (`type`) of `source` reads `column` of
+ *   `table`, which the new rows no longer hold. The step is held (listed `off`, not built) until
+ *   `data.resolveStep` names a column for it or a later refresh brings the column back.
+ * - `E_READ_ROLE_MISSING`: the same for a weight, time or location `role`; `data.resolveStep`
+ *   can also clear the role.
+ * - `W_COLUMN_UNUSED`: the new rows bring `column`, which the old ones did not.
+ * - `W_STEP_REMOVED`: the step at `step` went with removed `source`.
+ * - `W_EDIT_SOURCE_CHANGED`: the value under reader edit `edit` moved from `was` to `now` (for a
+ *   pick, `picked` names the source it took from); `data.settleEdit` follows, keeps or drops it.
+ * - `W_REFERENCE_UNBOUND`: a note, a pin or a reader edit names `ref`, which the rebuilt graph no
+ *   longer holds. The reference is kept, and binds again when Undo brings the element back.
+ *
+ * OPEN UNION: codes may be added.
+ * @experimental source-steps
+ */
+export type SourceRefreshIssue =
+    | {
+          /** The code. */
+          readonly code: "E_COLUMN_MISSING";
+          /** Its parameters. */
+          readonly params: {
+              /** The source whose rows lost the column. */
+              readonly source: SourceKey;
+              /** The column. */
+              readonly column: string;
+              /** The table that held it. */
+              readonly table: "nodes" | "edges";
+              /** The place of the step that reads it. */
+              readonly step?: number;
+              /** The type whose rule reads it. */
+              readonly type?: SourceTypeName;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "E_READ_ROLE_MISSING";
+          /** Its parameters. */
+          readonly params: {
+              /** The place of the step that reads the role. */
+              readonly step: number;
+              /** The source whose rows lost the column. */
+              readonly source: SourceKey;
+              /** The column. */
+              readonly column: string;
+              /** The role read from it. */
+              readonly role: SourceRoleName;
+              /** The table that held it. */
+              readonly table: "nodes" | "edges";
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_COLUMN_UNUSED";
+          /** Its parameters. */
+          readonly params: {
+              /** The source whose new rows bring the column. */
+              readonly source: SourceKey;
+              /** The column. */
+              readonly column: string;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_STEP_REMOVED";
+          /** Its parameters. */
+          readonly params: {
+              /** The removed step's place. */
+              readonly step: number;
+              /** Why it went. */
+              readonly reason: "source-removed";
+              /** The removed source. */
+              readonly source: SourceKey;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_EDIT_SOURCE_CHANGED";
+          /** Its parameters. */
+          readonly params: {
+              /** The reader edit's id. */
+              readonly edit: ReaderEditRow["id"];
+              /** The value under the edit before. */
+              readonly was: SourceValue | null;
+              /** The value under the edit now. */
+              readonly now: SourceValue | null;
+              /** For a pick: the source it took from. */
+              readonly picked?: SourceKey;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_REFERENCE_UNBOUND";
+          /** Its parameters. */
+          readonly params: {
+              /** The element the reference names. */
+              readonly ref: SourceElementRef;
+          };
+      };
+
+/**
+ * A weight, time or location role a step reads from a column. OPEN UNION: roles may be added.
+ * @experimental source-steps
+ */
+export type SourceRoleName =
+    "weight" | "time" | "timeEnd" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city";
+
+/**
+ * How the reader settles an edit whose source moved under it: `"follow"` takes the picked
+ * source's new value (a pick only), `"keep"` keeps the edit's value as the reader's own, `"drop"`
+ * takes the edit back.
+ * @experimental source-steps
+ */
+export type SourceEditChoice = "follow" | "keep" | "drop";
+
+/**
+ * A held step's way out: `column` names a column of the new rows that takes the vanished name;
+ * `none` clears a vanished weight, time or location role.
+ * @experimental source-steps
+ */
+export type SourceStepResolution =
+    | {
+          /** The column of the new rows that takes the vanished name. */
+          readonly column: string;
+      }
+    | {
+          /** Clear the vanished role. */
+          readonly none: true;
+      };
+
+/**
+ * A key overlap a source met when it was added: its keys meet nodes another source built in the
+ * space it proposed. Unless the load asked for `overlap: "merge"`, its keys stay in its own space.
+ * @experimental source-steps
+ */
+export interface SourceSpaceOverlap {
+    /** The code. */
+    readonly code: "W_SPACE_OVERLAP";
+    /** Its parameters. */
+    readonly params: {
+        /** The space the keys met in. */
+        readonly space: SourceSpaceName;
+        /** How many of the source's keys met a node there. */
+        readonly count: number;
+        /** How many keys the source holds. */
+        readonly of: number;
+        /** For an untyped source: the other source whose own space holds the same keys. */
+        readonly other?: SourceKey;
+    };
 }
 
 /** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */
@@ -4536,6 +5668,13 @@ export interface SessionEventMap {
         /** The key of the load that was read again. */
         readonly load: string;
     };
+    /** How a project save keeps a load changed ({@link SessionDataApi.setCopy}). Experimental. */
+    "source:copy": {
+        /** The load's key. */
+        readonly source: SourceKey;
+        /** How a save keeps it now. */
+        readonly copy: SourceCopyChoice;
+    };
     /**
      * A load added a source to the graph: one event per source added, published by every load
      * method (`import`, `LoadDraft.load`, `loadExample`, `loadDataset`, `generate`, and the
@@ -4804,6 +5943,7 @@ export type PendingId = string & {
  * | `groups.collapse`, `groups.expand` | `groupBy`: the path grouped by; `group`: the group's value; `size`: how many members (experimental) |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
  * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
+ * | `data.steps-set` | `kind`: the edit (`set`, `add`, `reader`, `remove-edit`, `remove-source`, `declare-type`) or the act (`merge`, `connect`, `extract`, `move-columns`, `rename`, `pick`, `remove-step`, `add-staged`); `source`: the source it names, else null; `name`: the name of the source an `add` adds, else null (experimental) |
  * | `data.expand` | `node`: the id expanded |
  * | `data.source-expand` | `seeds`: the ids expanded; `nodes`, `edges`: how many rows came (experimental) |
  * | `data.collapse` | `node`: the id collapsed; `nodes`: how many nodes went (experimental) |
@@ -4821,20 +5961,22 @@ export type PendingId = string & {
  * | `data.columns` | none: the column settings a project file restored |
  * | `data.derive` | `kind`: `"node"` or `"edge"`, or null; `column`: the computed column added or changed, or null when its values were only brought up to date |
  * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
- * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
- * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
+ * | `style.add-layer` | `layer`: its name; `layerId`: the id it gets (a two-part row's id), or null when the step adds none |
+ * | `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id; `layerId`: its id |
+ * | `style.update-layer` | `layer`: its name, or its id; `layerId`: its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
  * | `style.remove-layers` | `count` |
  * | `style.highlight` | `run`: the run highlighted |
- * | `style.fix-channel` | `channel`; `layer`: its name, or its id |
+ * | `style.fix-channel` | `channel`; `layer`: its name, or its id; `layerId`: its id |
  * | `style.encode` | `channel`; `run` |
  * | `style.template` | none |
  * | `style.suggested` | `algorithms`: the algorithms whose suggested styles were applied |
- * | `style.add-folder` | `name`: the folder's name |
- * | `style.rename-row` | `row`: its name before, or its id; `name`: the new name |
- * | `style.move-row`, `style.delete-row` | `row`: its name, or its id |
- * | `style.pin-row` | `row`: its name, or its id; `pin`: `"top"`, `"bottom"` or `"none"` |
- * | `style.lock-row` | `row`: its name, or its id; `locked` |
- * | `style.hide-row` | `row`: its name, or its id; `hidden` |
+ * | `style.add-folder` | `name`: the folder's name; `rowId`: the id it gets |
+ * | `style.rename-row` | `row`: its name before, or its id; `rowId`: its id; `name`: the new name |
+ * | `style.move-row`, `style.delete-row` | `row`: its name, or its id; `rowId`: its id |
+ * | `style.duplicate-row` | `row`: the source row's name, or its id; `rowId`: the source's id; `copyId`: the copy's id |
+ * | `style.pin-row` | `row`: its name, or its id; `rowId`: its id; `pin`: `"top"`, `"bottom"` or `"none"` |
+ * | `style.lock-row` | `row`: its name, or its id; `rowId`: its id; `locked` |
+ * | `style.hide-row` | `row`: its name, or its id; `rowId`: its id; `hidden` |
  * | `style.add-default-rows` | none |
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
@@ -4899,6 +6041,7 @@ export type HistoryCode =
     | "groups.expand"
     | "data.import"
     | "data.import-source"
+    | "data.steps-set"
     | "data.expand"
     | "data.source-expand"
     | "data.collapse"
@@ -4935,6 +6078,7 @@ export type HistoryCode =
     | "style.lock-row"
     | "style.hide-row"
     | "style.delete-row"
+    | "style.duplicate-row"
     | "style.add-default-rows"
     | "shader.add"
     | "shader.replace"
@@ -5192,6 +6336,8 @@ export interface CommandOutcomeMap {
     "data.import": Promise<void>;
     /** Settles once the rows a network source load read are recorded and drawn. Experimental. */
     "data.import-source": Promise<void>;
+    /** Settles once the sources and steps are recorded and the graph rebuilt from them is drawn. Experimental. */
+    "data.steps-set": Promise<void>;
     /** Settles once the neighborhood is recorded and the pass that draws it has run. */
     "data.expand": Promise<void>;
     /** Settles once the expansion is recorded and drawn. Experimental. */
@@ -6232,6 +7378,20 @@ export interface GraphSession {
     readonly history: SessionHistory;
     /** Saving the whole session to one project file and opening one again. */
     readonly project: ProjectApi;
+    /**
+     * A session's analysis and style layers as one recipe file, applied to other data. Needs the
+     * `save-files-v2` experiment.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly recipes: RecipesApi;
+    /**
+     * What a file is, read from its contents: a project, a recipe, a style file or graph data.
+     * @since 3.40.0
+     * @beta
+     */
+    readonly files: FilesApi;
     /**
      * What was done to the data and how it is drawn, as a document that names columns by name
      * and role and never names a node or an edge: the sources, the columns (roles, types,

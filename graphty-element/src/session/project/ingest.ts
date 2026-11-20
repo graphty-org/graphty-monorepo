@@ -21,6 +21,7 @@ import { DataSource, type DataSourceChunk, type DeclaredDirection, setReaderSign
 import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey, recordType, reducesInto } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
+import { keepSourceMetaExtra, readerMetaExtra } from "../../data/graph-io-import";
 import type { GraphStore } from "../../data/GraphStore";
 import { GROUPS_VALUE, RANK_SETS_VALUE, readGroups, readRankSets } from "../../data/groups";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
@@ -2625,6 +2626,7 @@ export class Ingest<K extends KnownEdge> {
                 );
 
                 keepRequestedLayout(reader, writer);
+                keepMetaExtra(held === undefined ? source : HELD_READERS.get(held), writer);
 
                 this.drawMadeEndpoints(writer);
                 const errors = reader.getErrorAggregator();
@@ -2980,6 +2982,20 @@ function keepRequestedLayout(reader: ChunkReader, writer: GraphWriter): void {
     const layout = reader.requestedLayout;
     if (layout !== null && layout !== undefined) {
         writer.setGraphValues({ [REQUESTED_LAYOUT_VALUE]: layout });
+    }
+}
+
+/**
+ * Keep what the file recorded under `meta.extra` beside the load's `source` value, so an export
+ * writes it again (issue #7600).
+ * @param read - The data source that read the file; none for held rows that kept no reader.
+ * @param writer - The command's writer.
+ */
+function keepMetaExtra(read: object | null | undefined, writer: GraphWriter): void {
+    const extra = read === null || read === undefined ? null : readerMetaExtra(read);
+    const source = writer.graphValue(SOURCE_VALUE);
+    if (extra !== null && typeof source === "object" && source !== null) {
+        keepSourceMetaExtra(source, extra);
     }
 }
 

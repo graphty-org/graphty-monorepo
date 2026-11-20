@@ -2010,10 +2010,10 @@ export class Edge {
         const style = this.currentStyle;
         if (this.arrowHeadText) {
             const along =
-                this.captionOnLine(style.arrowHead, this.dstNode, dst, src) ??
+                this.captionOnLine(style.arrowHead, this.endMeasure("target"), dst, src) ??
                 this.captionLaid(style.arrowHead, src, dst, laid.headLabelAt);
             this.arrowHeadText.attachTo(
-                along?.at ?? this.arrowCap?.position ?? this.leaveNode(this.dstNode, dst, src),
+                along?.at ?? this.arrowCap?.position ?? this.leaveNode(this.endMeasure("target"), dst, src),
                 along?.attachPosition ?? this._arrowHeadTextAttachPosition,
                 along?.offset ?? this._arrowHeadTextOffset,
             );
@@ -2021,10 +2021,10 @@ export class Edge {
 
         if (this.arrowTailText) {
             const along =
-                this.captionOnLine(style.arrowTail, this.srcNode, src, dst) ??
+                this.captionOnLine(style.arrowTail, this.endMeasure("source"), src, dst) ??
                 this.captionLaid(style.arrowTail, src, dst, laid.tailLabelAt);
             this.arrowTailText.attachTo(
-                along?.at ?? this.arrowTailCap?.position ?? this.leaveNode(this.srcNode, src, dst),
+                along?.at ?? this.arrowTailCap?.position ?? this.leaveNode(this.endMeasure("source"), src, dst),
                 along?.attachPosition ?? this._arrowTailTextAttachPosition,
                 along?.offset ?? this._arrowTailTextOffset,
             );
@@ -2065,7 +2065,7 @@ export class Edge {
      */
     private captionOnLine(
         arrow: EdgeStyleConfig["arrowHead"],
-        node: Node,
+        node: RowMeasure,
         centre: Vector3,
         other: Vector3,
     ): { at: Vector3; attachPosition: AttachPosition; offset: number } | null {

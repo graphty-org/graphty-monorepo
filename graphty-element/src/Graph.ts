@@ -229,11 +229,12 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
+import { painterSortCompare } from "./meshes/drawOrder";
 import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
-import { MeshCache, painterSortCompare } from "./meshes/MeshCache";
+import { MeshCache } from "./meshes/MeshCache";
 import {
     LiveModelPreview,
     type ModelCheck,
@@ -5583,6 +5584,10 @@ export class Graph implements GraphContext {
                             this.layoutManager.running = true;
                         }
                     },
+                    build: (row) => {
+                        const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
+                        return id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
+                    },
                 },
                 this.scene,
             );
@@ -6411,7 +6416,8 @@ export class Graph implements GraphContext {
         }
 
         if (mapped) {
-            for (const batch of this.dataManager.meshCache.nodeBatchMap.values()) {
+            const { nodeBatchMap, afterBatchMap } = this.dataManager.meshCache;
+            for (const batch of [...nodeBatchMap.values(), ...afterBatchMap.values()]) {
                 this.#nodeMeshes.add(batch.mesh);
             }
         }

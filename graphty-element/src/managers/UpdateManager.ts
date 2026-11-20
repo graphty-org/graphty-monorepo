@@ -1999,7 +1999,8 @@ export class UpdateManager implements Manager {
             return undefined;
         }
 
-        return dataManagerInternals.buildRow(this.dataManager, id);
+        // painted by the caller with the rest of its batch, in row order (`paintNodes`)
+        return dataManagerInternals.buildRow(this.dataManager, id, false);
     }
 
     /** How many rows of each kind the last `W_OBJECT_CAP` reported. */

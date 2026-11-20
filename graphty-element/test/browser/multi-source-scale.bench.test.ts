@@ -61,9 +61,12 @@ function heapMb(): number {
  * Wait until the element has finished the work a load queued.
  * @param element - The element.
  */
-async function settled(element: Graphty): Promise<void> {
+async function settled(element: Graphty): Promise<{ queueMs: number; frameMs: number }> {
+    const start = performance.now();
     await operationQueueOf(element.graph).waitForCompletion();
+    const queued = performance.now();
     await element.waitForStableFrame();
+    return { queueMs: Math.round(queued - start), frameMs: Math.round(performance.now() - queued) };
 }
 
 describe("two data sources at 100k nodes and 1M edges", { timeout: TIMEOUT_MS }, () => {
@@ -84,7 +87,8 @@ describe("two data sources at 100k nodes and 1M edges", { timeout: TIMEOUT_MS },
                 config: { data: edgeList(FIRST_NODES, FIRST_EDGES, 0) },
                 name: "a.csv",
             });
-            await settled(element);
+            const firstImportMs = performance.now() - start;
+            const firstSettle = await settled(element);
             const firstMs = performance.now() - start;
             const heap1 = heapMb();
             start = performance.now();
@@ -96,7 +100,8 @@ describe("two data sources at 100k nodes and 1M edges", { timeout: TIMEOUT_MS },
                 },
                 { mode: "merge" },
             );
-            await settled(element);
+            const secondImportMs = performance.now() - start;
+            const secondSettle = await settled(element);
             const secondMs = performance.now() - start;
             const heap2 = heapMb();
             const { store } = element.graph.getDataManager() as unknown as { store: GraphStore };
@@ -104,6 +109,8 @@ describe("two data sources at 100k nodes and 1M edges", { timeout: TIMEOUT_MS },
                 path,
                 firstMs: Math.round(firstMs),
                 secondMs: Math.round(secondMs),
+                importMs: [Math.round(firstImportMs), Math.round(secondImportMs)],
+                settle: [firstSettle, secondSettle],
                 heapMb: [heap0, heap1, heap2],
                 builder: store.builderRelease,
             };

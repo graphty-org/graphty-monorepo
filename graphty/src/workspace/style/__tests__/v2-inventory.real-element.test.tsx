@@ -657,6 +657,12 @@ describe("Style panel v2's style inventory", () => {
     it("2. every label style field of every text kind has a line, varying by data where it can", () => {
         assert.lengthOf(TEXT_KINDS, 7, "seven text kinds");
         assert.equal(TEXT_KINDS.length * LABEL_STYLE_FIELDS.length, 630, "630 label styles");
+        // Every field has a line (task 5.6), so every gap left below is a missing By data (task 6.6).
+        assert.deepEqual(
+            LABEL_STYLE_FIELDS.filter((field) => !LABEL_COVERED.has(field)),
+            [],
+            "every label field has a line",
+        );
         const missing = TEXT_KINDS.flatMap(({ side, style }) =>
             LABEL_STYLE_FIELDS.filter((field) => !fieldCovered(side, style, field)).map((field) => `${style}.${field}`),
         );

@@ -6,8 +6,6 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, test } from "vitest";
 
-import type { Graphty } from "../../index.js";
-
 const mounted: HTMLElement[] = [];
 
 afterEach(() => {

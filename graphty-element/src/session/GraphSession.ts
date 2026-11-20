@@ -1107,7 +1107,7 @@ class Session implements ElementSession {
                 const { order, xyz } = this.positions.snapshot();
                 return { order: [...order], xyz: Array.from(xyz) };
             }
-            case "legend":
+            default:
                 return this.dispatcher.services.legend?.shown();
         }
     }
@@ -2186,6 +2186,7 @@ interface ViewParts {
  * verbs that write it.
  * @param dispatcher - The dispatcher.
  * @param seeded - Told the names the starting cameras wrote into the baseline.
+ * @param parts - Reads and brings back the parts a view keeps beside the camera.
  * @returns The views.
  */
 function viewsOf(dispatcher: Dispatcher, seeded: (names: readonly string[]) => void, parts: ViewParts): SessionViews {
@@ -2233,7 +2234,7 @@ function viewsOf(dispatcher: Dispatcher, seeded: (names: readonly string[]) => v
                     if (!(SAVED_VIEW_PARTS as readonly string[]).includes(part)) {
                         throw new GraphtyError({
                             code: "E_OPTION_RANGE",
-                            message: `A saved view keeps ${SAVED_VIEW_PARTS.join(", ")}; not "${String(part)}".`,
+                            message: `A saved view keeps ${SAVED_VIEW_PARTS.join(", ")}; not "${part}".`,
                             source: "view",
                             details: { option: "include", value: part },
                         });

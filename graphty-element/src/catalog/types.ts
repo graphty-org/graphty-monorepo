@@ -1419,9 +1419,13 @@ export type Selector =
      *     selector: { match: "type", types: ["account"] }, set: { "node.color": "#4c6ef5" } });
      * ```
      * Experimental: may change or be removed in a minor release.
-     * @beta
      */
-    | { match: "type"; types: readonly string[] };
+    | {
+          /** Match by type. */
+          match: "type";
+          /** The types whose elements match. */
+          types: readonly string[];
+      };
 
 /**
  * Who put a layer in the stack. Every layer names its source. An element layer's `reason` says
@@ -2262,9 +2266,11 @@ export type ScopeInput =
      * Under the `source-steps` experiment: the nodes whose one type (`graphty.type`) is listed and
      * the edges between them. Read back as its canonical `{ where }` on `graphty.type`.
      * Experimental: may change or be removed in a minor release.
-     * @beta
      */
-    | { types: readonly string[] };
+    | {
+          /** The types whose nodes are in scope. */
+          types: readonly string[];
+      };
 
 /**
  * Which way an edge is followed: arriving (`in`), leaving (`out`) or both (`all`). What a degree

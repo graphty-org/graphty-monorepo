@@ -699,7 +699,15 @@ export class NodeMesh {
         // Cytoscape.js places it: its rounded apex is lower than the box's top (json-cyjs-synth-nodes round-triangle)
         // the twins named in shapeOutlines' ROUNDED are node shapes too
         const sharp = sharpTwinOf(type) as NonNullable<NodeStyleConfig["shape"]>["type"];
-        if ((shape.rotation ?? 0) % 360 !== 0 || sharp !== undefined) {
+        if (shape.stretchPoints === false) {
+            // corners drawn where they say need not reach the box (yEd's star6 is 0.866 of its width): its label is
+            // placed against the node's own box, as yEd places it (gml-synthetic-coverage star6 labels)
+            const [w, h] = [(extents.x ?? extents.across) / 2, (extents.y ?? extents.across) / 2];
+            setLabelBox(mesh, [
+                [-w, -h],
+                [w, h],
+            ]);
+        } else if ((shape.rotation ?? 0) % 360 !== 0 || sharp !== undefined) {
             setLabelBox(
                 mesh,
                 this.unturnedFlatOutline(sharp === undefined ? shape : { ...shape, type: sharp }, extents),

@@ -305,6 +305,9 @@ const ALONG_CAP = 4;
 /** How near, in `along, across` units, a laid bend may sit to a line end the layout gives and be that end. */
 const LAID_END_MATCH = 1e-4;
 
+/** How near a node's outline, in scene units, a route point counts as on it (`Edge.outside`'s `onOutline`). */
+const ON_OUTLINE = 1e-4;
+
 /**
  * The shader uses resolved on an edge: its style's `shaders`, which the painter writes from
  * `edge.shaders`.
@@ -4323,14 +4326,24 @@ export class Edge {
      * @param node - The node.
      * @param centre - The node's center.
      * @param gap - How far past the outline a point must be to count as outside (`line.nodeGap`).
+     * @param onOutline - Whether a point on the outline itself, under its border, counts as outside too.
      * @returns True for a point farther from the center than the node's outline in its direction.
      */
-    private static outside(node: Node, centre: Vector3, gap = 0): (x: number, y: number, z: number) => boolean {
+    private static outside(
+        node: Node,
+        centre: Vector3,
+        gap = 0,
+        onOutline = false,
+    ): (x: number, y: number, z: number) => boolean {
+        const under = onOutline ? node.borderReach + ON_OUTLINE : 0;
         return (x, y, z) => {
             const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
             return (
                 d > 0 &&
-                d > gap + Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
+                d >
+                    gap -
+                        under +
+                        Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
             );
         };
     }
@@ -4513,7 +4526,15 @@ export class Edge {
         const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
         const outSrc = Edge.outside(this.srcNode, src, srcGap);
         const outDst = Edge.outside(this.dstNode, dst, dstGap);
-        const span = routeEnds(route, ports, outSrc, outDst);
+        // a bend on a node's outline is drawn from, as a tool clipping the line at the outline draws it from there
+        // (gml-synthetic-coverage 47->48: its bends sit on star8's tip and on the fat arrow's side); a sampled curve's
+        // points are not bends and stay clipped by the border
+        const span = routeEnds(
+            route,
+            ports,
+            sampled ? outSrc : Edge.outside(this.srcNode, src, srcGap, true),
+            sampled ? outDst : Edge.outside(this.dstNode, dst, dstGap, true),
+        );
         if (span === null) {
             return false;
         }

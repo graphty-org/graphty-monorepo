@@ -22,8 +22,7 @@ import type { Channel } from "./types";
  * OPEN UNION: members may be added in a minor release; handle unknown members.
  * @since 3.58.0
  */
-export type StyleFamilyId =
-    "node.shape" | "node.fill" | "edge.line" | "label.look" | "node.groupOutline" | "graph.background";
+export type StyleFamilyId = "node.shape" | "node.fill" | "edge.line" | "label.look" | "graph.background";
 
 /**
  * One member of a style family. A member is told apart by exactly one of `owns` (the member is
@@ -187,16 +186,6 @@ export const STYLE_FAMILIES: readonly StyleFamilyDescriptor[] = Object.freeze([
         field: "look",
         members: LABEL_LOOKS.map((look) => ({ id: look.id, plainName: look.plainName, owns: [], value: look.id })),
         shared: LABEL_FIELDS_BUT_LOOK,
-    },
-    {
-        id: "node.groupOutline",
-        target: "node",
-        plainName: "Group outline",
-        members: [
-            { id: "bubble", plainName: "Bubble", owns: ["params"], shader: "soap-bubble" },
-            { id: "hull", plainName: "Hull", owns: ["params"], shader: "metaball-hull" },
-        ],
-        shared: ["groupBy"],
     },
     {
         id: "graph.background",

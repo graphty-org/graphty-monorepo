@@ -151,12 +151,6 @@ const BORDER_UNIT: readonly (readonly [string, Channel])[] = [
     ["Screen", "node.borderScreenWidth"],
 ];
 
-/** A group's padding: in pixels, or a share of the group's size. */
-const GROUP_UNIT: readonly (readonly [string, Channel])[] = [
-    ["px", "node.groupPadding"],
-    ["%", "node.groupPaddingRatio"],
-];
-
 /** Fit to label: sizes the shape to its label, so it sits in the Shape pop-over (design 4). */
 export const FIT_TO_LABEL: readonly Channel[] = [
     "node.labelFit",
@@ -467,27 +461,6 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     },
     underlay: backdrop("underlay"),
     overlay: backdrop("overlay"),
-    order: { main: [{ channel: "node.drawOrder", name: "Draw order" }] },
-    group: {
-        main: [
-            { channel: "node.groupPadding", name: "Unit", unit: GROUP_UNIT },
-            { channel: "node.groupPaddingOf", name: "Of", rule: "R9" },
-            { channel: "node.groupIncludeLabels" },
-        ],
-        groups: [
-            {
-                name: "Min size",
-                lines: [
-                    { channel: "node.groupMinWidth", name: "Size", pair: "node.groupMinHeight", letters: ["W", "H"] },
-                    {
-                        channel: "node.groupMinWidthBiasLeft",
-                        name: "Bias",
-                        pair: "node.groupMinHeightBiasTop",
-                    },
-                ],
-            },
-        ],
-    },
     visibility: { row: { channel: "node.visible", name: null, rule: "R8" }, main: [] },
     // The Label row's Glyph kind (kindGroups.ts).
     "label:node.glyph": {

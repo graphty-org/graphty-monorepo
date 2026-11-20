@@ -28,6 +28,10 @@ interface Seen {
     readonly lines: Set<string>;
     /** Every forbidden selector found, with where. */
     readonly selectors: Set<string>;
+    /** Every number field with no scrub slot, by its line (E181, E330: a number is Figma's number input). */
+    readonly unscrubbed?: Set<string>;
+    /** How many number fields the walk saw. */
+    numbers?: number;
 }
 
 /** The v2 panel shown now. */
@@ -57,6 +61,13 @@ function look(seen: Seen, root: HTMLElement): void {
     for (const forbidden of OWNER_FORBIDDEN) {
         if (forbidden.selector !== undefined && root.querySelector(forbidden.selector) !== null) {
             seen.selectors.add(forbidden.selector);
+        }
+    }
+    for (const input of root.querySelectorAll('input[role="spinbutton"]')) {
+        seen.numbers = (seen.numbers ?? 0) + 1;
+        const line = input.closest(".ws-row, [data-line]") ?? input.parentElement;
+        if (line?.querySelector("[data-scrub]") === null || line === null) {
+            seen.unscrubbed?.add(line?.getAttribute("data-line") ?? input.getAttribute("aria-label") ?? "?");
         }
     }
 }
@@ -209,7 +220,7 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
 
     it("the Node and Edge tabs, every '+' menu, row and pop-over, in 2D and 3D, show none of them", async () => {
         const { session } = await openGraph();
-        const seen: Seen = { words: new Set(), lines: new Set(), selectors: new Set() };
+        const seen: Seen = { words: new Set(), lines: new Set(), selectors: new Set(), unscrubbed: new Set() };
         await switchView("3D");
         await walkKind(seen, "node", true);
         await walkKind(seen, "edge", true);
@@ -217,6 +228,8 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
         await walkKind(seen, "node", false);
         await walkKind(seen, "edge", false);
         assert.isAbove(seen.lines.size, 10, "the walk reached the rows' lines");
+        assert.isAbove(seen.numbers ?? 0, 10, "the walk reached number fields");
+        assert.deepEqual([...(seen.unscrubbed ?? [])], [], "every number field has a scrub slot (E181, E330)");
         const written = writtenChannels(session);
         for (const forbidden of OWNER_FORBIDDEN) {
             const why = `${forbidden.what} (${forbidden.ledger})`;
@@ -238,6 +251,85 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
                 assert.isFalse(seen.selectors.has(forbidden.selector), why);
             }
         }
+    });
+
+    it("the code dialog's Place, where a shader is created, offers no group outline place (E420, E422)", async () => {
+        await openGraph();
+        const tab = await openStyle("Key people");
+        await showKind("node");
+        const shaders = tab.querySelector<HTMLElement>('[data-style-panel-v2] [data-section="node-shaders"]');
+        assert.isNotNull(shaders);
+        if (shaders === null) {
+            return;
+        }
+        await userEvent.click(within(shaders).getByRole("button", { name: /^Add to node shaders/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^(Custom shader|New shader\.\.\.)$/ }));
+        const dialog = await screen.findByRole("dialog", { name: /shader/i });
+        await userEvent.click(within(dialog).getByRole("combobox", { name: /^Place/ }));
+        const options = (await screen.findAllByRole("option")).map((option) => option.textContent.trim());
+        assert.isNotEmpty(options);
+        assert.deepEqual(
+            options.filter((option) => /group/i.test(option)),
+            [],
+            "no place draws around a group",
+        );
+        await closeAll();
+    });
+
+    it("a file's group padding and draw order still draw, and no panel line shows them (E420, E422)", async () => {
+        const { session } = await openGraph();
+        await session.data.import(
+            {
+                type: "json",
+                name: "compound.cyjs",
+                config: {
+                    data: JSON.stringify({
+                        elements: {
+                            nodes: [
+                                { data: { id: "p" } },
+                                { data: { id: "x", parent: "p" }, position: { x: 0, y: 0 } },
+                                { data: { id: "y", parent: "p" }, position: { x: 60, y: 0 } },
+                            ],
+                            edges: [],
+                        },
+                        style: [
+                            { selector: "node", style: { "z-index": 7 } },
+                            { selector: ":parent", style: { padding: "30px" } },
+                        ],
+                    }),
+                },
+            },
+            { styles: "file" },
+        );
+        await session.styles.settled();
+        const drawn = (channel: string): number =>
+            session.styles
+                .drawnValues(channel as "node.groupPadding")
+                .filter((each) => each.value !== undefined && each.value !== null)
+                .reduce((sum, each) => sum + each.count, 0);
+        assert.isAbove(drawn("node.groupPadding"), 0, "the parent's padding is drawn");
+        assert.isAbove(drawn("node.drawOrder"), 0, "the draw order is drawn");
+        const seen: Seen = { words: new Set(), lines: new Set(), selectors: new Set() };
+        const writes = session.styles
+            .list()
+            .filter((layer) =>
+                [
+                    ...Object.keys(session.styles.get(layer.id)?.set ?? {}),
+                    ...Object.keys(session.styles.get(layer.id)?.encode ?? {}),
+                ].some((channel) => /^node\.(drawOrder|group[A-Z])/.test(channel)),
+            );
+        assert.isNotEmpty(writes, "a file layer writes them");
+        for (const layer of writes) {
+            await openStyle(layer.name);
+            await showKind("node");
+            look(seen, panel());
+            await walkPopovers(seen);
+        }
+        assert.deepEqual(
+            [...seen.lines].filter((channel) => /^node\.(zIndex|drawOrder|group[A-Z])/.test(channel)),
+            [],
+            "no line shows them",
+        );
     });
 
     it("Settings shows none of the forbidden switches", async () => {

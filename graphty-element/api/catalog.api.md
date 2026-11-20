@@ -3483,7 +3483,7 @@ export interface StyleFamilyDescriptor {
 }
 
 // @public
-export type StyleFamilyId = "node.shape" | "node.fill" | "edge.line" | "label.look" | "node.groupOutline" | "graph.background";
+export type StyleFamilyId = "node.shape" | "node.fill" | "edge.line" | "label.look" | "graph.background";
 
 // @public
 export interface StyleFamilyMember {

@@ -1534,7 +1534,8 @@ export const FIRST_PLACE: Readonly<Record<ShaderTab, ShaderPlace | undefined>> =
 
 /** The places the code dialog's Place field lists on a tab, in its order. */
 export const DIALOG_PLACES: Readonly<Record<ShaderTab, readonly ShaderPlace[]>> = {
-    node: ["paint", "over", "replace", "around", "behind", "group"],
+    // No "group": the owner removed group outlines (E420, E422).
+    node: ["paint", "over", "replace", "around", "behind"],
     edge: ["paint", "along"],
     background: [],
 };

@@ -22,7 +22,7 @@ import { cosmographOn, nodeModelsOn } from "../../features";
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
 import { lineIn, needsFor, startFor, writeIn } from "../row";
-import { placeOf, type ShaderEntry } from "../shaderSlots";
+import { placeOf } from "../shaderSlots";
 import { experimentChannelsOff } from "../words";
 
 /** The family each thing's row draws, by kind and thing id. */
@@ -315,25 +315,6 @@ export async function switchMember(
 export function isHeld(ctx: RowContext, family: StyleFamilyDescriptor, key: string): boolean {
     const layer = layerOf(ctx, family);
     return layer !== undefined && holdsAny(heldFor(ctx).get(`${layer.id}|${family.id}|${key}`));
-}
-
-/**
- * The shaders graphty-element's Group outline family draws (Bubble, Hull), in its order.
- * @returns their catalog ids.
- */
-export function groupOutlineShaders(): readonly string[] {
-    const family = STYLE_FAMILIES.find((each) => each.id === "node.groupOutline");
-    return (family?.members ?? []).flatMap((member) => (member.shader === undefined ? [] : [member.shader]));
-}
-
-/**
- * Whether a shader use is a group outline (design 4.1): it sits in Order and groups, not Shaders.
- * @param ctx - the row.
- * @param entry - the use.
- * @returns true for one of the Group outline family's shaders.
- */
-export function isGroupOutline(ctx: RowContext, entry: ShaderEntry): boolean {
-    return groupOutlineShaders().includes(ctx.session.shaders.describe(entry.use.shader)?.copyOf ?? entry.use.shader);
 }
 
 /**

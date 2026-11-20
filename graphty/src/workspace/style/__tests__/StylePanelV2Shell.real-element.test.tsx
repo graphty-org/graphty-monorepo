@@ -21,7 +21,7 @@ import { showKind } from "./kindTab";
 import { openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 /** The node tab's sections, in the design's order. */
-const NODE_SECTIONS = ["Shape", "Fill", "Border", "Text", "Effects", "Visibility", "Order and groups", "Shaders"];
+const NODE_SECTIONS = ["Shape", "Fill", "Border", "Text", "Effects", "Visibility", "Shaders"];
 
 describe("Style panel v2 on", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
@@ -175,7 +175,7 @@ describe("Style panel v2's '+' lists", () => {
         }
         // Each section, set (Fill) and empty, the Shaders section included.
         const sections = [...panel.querySelectorAll<HTMLElement>('[data-plus-list="section"]')];
-        assert.isAtLeast(sections.length, 8);
+        assert.isAtLeast(sections.length, 7);
         for (const section of sections) {
             await onlyPlusAdds(session, section, section.textContent ?? "a section");
         }

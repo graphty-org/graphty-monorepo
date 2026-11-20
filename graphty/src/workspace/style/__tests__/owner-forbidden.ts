@@ -46,4 +46,22 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         text: /^Glyph$/,
         selector: '[data-thing="glyph"]',
     },
+    {
+        what: "the Order and groups section, and its Order and Group things",
+        ledger: "E419, E420, E422",
+        text: /^(Order and groups|Order|Group|Stacking)$/,
+        selector: '[data-section="node-order"], [data-thing="order"], [data-thing="group"]',
+    },
+    {
+        what: "Group outline, as a '+' item, a row or a shader place",
+        ledger: "E420, E422",
+        text: /^Group outline$/,
+        selector: '[data-thing="groupOutline"]',
+        source: /node\.groupOutline|groupOutlineShaders|isGroupOutline/,
+    },
+    {
+        what: "a panel line for node.zIndex, node.drawOrder or any node.group* channel",
+        ledger: "E420, E422",
+        channel: /^node\.(zIndex|drawOrder|group[A-Z]\w*)$/,
+    },
 ];

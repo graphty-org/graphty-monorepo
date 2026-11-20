@@ -301,6 +301,27 @@ const KNOWN_SWITCH_ON_GAPS: readonly string[] = [];
 /** Check 5: styles v2 writes that are neither graphty-element's at the merge base, graph-io's nor requested. */
 const KNOWN_EXTRANEOUS: readonly string[] = [];
 
+/**
+ * Check 6: channels a file's styles reach that the owner ordered out of the panel ("remove orders and groups",
+ * E420; "removing group and group outline", E422). graphty-element still draws them from an imported file. These
+ * are not gaps and do not count against KNOWN_FILE_STYLE_GAPS; the owner can ask for them back.
+ */
+const OWNER_REMOVED_FILE_STYLES: Readonly<Record<string, string>> = {
+    "node.zIndex": "E420, E422",
+    "node.drawOrder": "E420, E422",
+    "node.groupPadding": "E420, E422",
+    "node.groupPaddingRatio": "E420, E422",
+    "node.groupPaddingOf": "E420, E422",
+    "node.groupMinWidth": "E420, E422",
+    "node.groupMinHeight": "E420, E422",
+    "node.groupMinWidthBiasLeft": "E420, E422",
+    "node.groupMinHeightBiasTop": "E420, E422",
+    "node.groupIncludeLabels": "E420, E422",
+};
+
+/** Check 1: renderable channels the owner ordered out of the panel, with the ones a file's styles reach. */
+const OWNER_REMOVED_CHANNELS: Readonly<Record<string, string>> = OWNER_REMOVED_FILE_STYLES;
+
 /** Check 6: channels a file's styles reach with no normal visible control. */
 const KNOWN_FILE_STYLE_GAPS: readonly string[] = [
     "node.xlabelOffsetX",
@@ -631,10 +652,13 @@ describe("Style panel v2's style inventory", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
     it("1. every renderable channel has a normal visible control", () => {
+        for (const channel of Object.keys(OWNER_REMOVED_CHANNELS)) {
+            assert.isFalse(covered(channel as Channel), `${channel} is out of the panel`);
+        }
         const missing = SIDES.flatMap((side) =>
             renderable(side)
                 .map(({ channel }) => channel)
-                .filter((channel) => !covered(channel)),
+                .filter((channel) => !covered(channel) && OWNER_REMOVED_CHANNELS[channel] === undefined),
         );
         assertGaps(missing, KNOWN_CHANNEL_GAPS, "KNOWN_CHANNEL_GAPS");
     });
@@ -847,7 +871,11 @@ vec4 shade(NodeInput n) {
     });
 
     it("6. every channel a file's styles reach has a normal visible control", () => {
-        const missing = fileStyleChannels().filter((channel) => !covered(channel));
+        const removed = fileStyleChannels().filter((channel) => OWNER_REMOVED_FILE_STYLES[channel] !== undefined);
+        assert.sameMembers(removed, Object.keys(OWNER_REMOVED_FILE_STYLES), "each removed style is one a file writes");
+        const missing = fileStyleChannels().filter(
+            (channel) => !covered(channel) && OWNER_REMOVED_FILE_STYLES[channel] === undefined,
+        );
         assertGaps(missing, KNOWN_FILE_STYLE_GAPS, "KNOWN_FILE_STYLE_GAPS");
     });
 });

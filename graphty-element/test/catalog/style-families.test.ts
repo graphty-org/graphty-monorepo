@@ -6,9 +6,6 @@ describe("STYLE_FAMILIES", () => {
     it("names only real channels on node and edge families, and no channel twice", () => {
         const known = new Set<string>(CHANNELS);
         for (const family of STYLE_FAMILIES.filter((each) => each.target === "node" || each.target === "edge")) {
-            if (family.id === "node.groupOutline") {
-                continue;
-            }
             const named = [...family.shared, ...family.members.flatMap((member) => member.owns)];
             for (const channel of named) {
                 assert.isTrue(known.has(channel), `${family.id}: ${channel} is a channel`);

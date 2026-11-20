@@ -56,21 +56,9 @@ async function lineOf(root: ParentNode, channel: string): Promise<HTMLElement> {
 describe("Style panel v2 dims what draws nothing in this view", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("Stacking draws only in 2D and Lift only in 3D: each is dimmed in the other view, never removed", async () => {
+    it("Lift draws only in 3D: it is dimmed in 2D, never removed", async () => {
         await openGraph();
-        await switchView("2D");
-        const tab = await openStyle("Key people");
-        const order = sectionOf(tab, "node-order");
-        await userEvent.click(within(order).getByRole("button", { name: /^Add to node order/ }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Order" }));
-        const stacking = await lineOf(order, "node.zIndex");
-        assert.isNull(dimmed(stacking), "in 2D Stacking is not dimmed");
-
         await switchView("3D");
-        await waitFor(() => {
-            assert.equal(dimmed(order.querySelector('.ws-row[data-line="node.zIndex"]') ?? order), "2D only");
-        });
-
         await openStyle("Links");
         await showKind("edge");
         const line = sectionOf(await screen.findByTestId("style-tab"), "edge-line");
@@ -121,20 +109,6 @@ describe("Style panel v2 dims what draws nothing in this view", () => {
             const line = border.querySelector('[data-thing="raised"] .ws-row[data-line="node.raisedBorderWidth"]');
             assert.isNotNull(line);
             assert.isNull(dimmed(line), "not dimmed in 2D");
-        });
-    });
-
-    it("a '+' item for a style that draws in one view only is dimmed in the other, and still adds", async () => {
-        const { session, nodes } = await openGraph();
-        await switchView("3D");
-        const tab = await openStyle("Key people");
-        const order = sectionOf(tab, "node-order");
-        await userEvent.click(within(order).getByRole("button", { name: /^Add to node order/ }));
-        const item = await screen.findByRole("menuitem", { name: "Order" });
-        assert.equal(dimmed(item), "2D only");
-        await userEvent.click(item);
-        await waitFor(() => {
-            assert.isDefined(session.styles.get(nodes)?.set?.["node.zIndex"], "a dimmed item still adds");
         });
     });
 

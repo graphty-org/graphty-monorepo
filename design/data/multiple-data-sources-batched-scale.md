@@ -42,8 +42,20 @@ were taken on a loaded machine and show the direction only:
 | `sources()` after an edit | 33 MB            | 5 MB            | 2.2 s       | 1.5 s      |
 | `sourcesOf` one edge      | 226 MB           | 56 MB           | 0.8 s       | 0.7 s      |
 
-`graphty-element/test/browser/multi-source-scale.bench.test.ts` times the same two loads in an
-element on both render paths.
+`graphty-element/test/browser/multi-source-scale.bench.test.ts` makes the same two loads in an
+element (99,000 nodes and 990,000 edges, then 1,000 nodes and 10,000 edges merged in) on both render
+paths. In Chromium with the software renderer, the JavaScript heap the merge added:
+
+| Render path | Before  | After   | Builder after the merge   |
+| ----------- | ------- | ------- | ------------------------- |
+| `"batched"` | +287 MB | +133 MB | kept before, let go after |
+| `"objects"` | +157 MB | +43 MB  | never let go (unchanged)  |
+
+What is left of a merge in the element is drawing, not source bookkeeping. A CPU profile of the
+batched merge (software renderer, loaded machine) spent about 57 s of 71 s in native code outside
+JavaScript, most likely waiting on the software renderer's frames. Of the JavaScript, about 4.6 s
+went to placing edges and their arrow caps, and about 1 s each to rebuilding the let-go builder,
+adding the rows and freezing the snapshot. The per-source bookkeeping no longer shows in it.
 
 ## What the experiment branches must change
 

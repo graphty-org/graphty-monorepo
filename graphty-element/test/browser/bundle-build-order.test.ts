@@ -198,6 +198,62 @@ describe("edges joining the same two nodes, under batched", () => {
     }
 });
 
+describe("a bundle of curved and plain edges under batched", () => {
+    /**
+     * Load SMALL with only the hot edges curved and nothing capped, so its plain edges are row lines.
+     * @param path - The render path.
+     * @returns The element, its picture settled.
+     */
+    async function mixed(path: Path): Promise<Graphty> {
+        const element = await loaded(path, { nodes: SMALL.nodes, edges: [] });
+        await element.session.styles.add({
+            name: "plain and uncapped",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.curvature": false, "edge.arrowHead": "none" },
+        } as never);
+        await element.session.styles.add({
+            name: "hot and curved",
+            target: "edge",
+            selector: { match: "has", path: "data.hot" },
+            set: { "edge.curvature": true },
+        } as never);
+        await element.session.data.addEdges(SMALL.edges);
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        return element;
+    }
+
+    it("builds only its curved members, and fans them as the objects path does", async () => {
+        const curves = (element: Graphty): [number, number[][]][] =>
+            builtEdges(element)
+                .filter((edge) => (SMALL.edges[edge.index] as { hot?: true }).hot === true)
+                .map((edge): [number, number[][]] => [edge.index, (edge.drawnCurve ?? []).map((p) => p.asArray())])
+                .sort(([x], [y]) => x - y);
+        const want = curves(await mixed("objects"));
+        assert.isAbove(
+            want.filter(([, curve]) => curve.length > 0).length,
+            0,
+            "the curved members are drawn as curves",
+        );
+        const element = await mixed("batched");
+        const hot = SMALL.edges.flatMap((edge, row) => (edge.hot === true ? [row] : []));
+        // Placing a curved member built its plain siblings, after every row painted before them, so they drew over
+        // the rows after them.
+        assert.deepEqual(
+            builtEdges(element).map((edge) => edge.index),
+            hot,
+            "the curved rows, in row order",
+        );
+        assert.sameMembers(
+            element.graph.getEdgeRowLines()?.rows() ?? [],
+            SMALL.edges.flatMap((edge, row) => (edge.hot === true ? [] : [row])),
+            "every plain row keeps its row line",
+        );
+        assert.deepEqual(curves(element), want, "each curved member's fan");
+    });
+});
+
 describe("a repeated edge under batched", () => {
     it("is merged into the edge stored with no Edge without building it, which is built later with the merged record", async () => {
         const element = await loaded("batched", { nodes: SMALL.nodes, edges: [] });

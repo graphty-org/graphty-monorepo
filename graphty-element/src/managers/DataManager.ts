@@ -81,10 +81,13 @@ export interface EdgeBundle {
     readonly rank: number;
     /** How many edges the bundle holds. */
     readonly count: number;
-    /** The bundle's first edge, whose direction the fan is measured from. */
-    readonly first: Edge;
-    /** Every edge of the bundle, in bundle order. */
-    readonly members: readonly Edge[];
+    /** The source node of the bundle's first edge, whose direction the fan is measured from. */
+    readonly firstSource: NodeIdType;
+    /**
+     * Every edge of the bundle, in bundle order: its `Edge`, or, under "batched", the row of an edge stored with none,
+     * which a row line draws straight and so never fans.
+     */
+    readonly members: readonly (Edge | number)[];
 }
 
 /**
@@ -3419,8 +3422,8 @@ export class DataManager implements Manager {
         if (this.bundles?.version !== this.edgeVersion) {
             const byEdge = new Map<Edge, EdgeBundle>();
             // By id, not by `Node`: reading an end's `Node` would build one for a row drawn with none.
-            // An edge stored with no `Edge` joins by its row, and is built only when it shares its
-            // pair with another edge: a fan is drawn by `Edge`s, a lone edge needs none.
+            // An edge stored with no `Edge` joins by its row and stays unbuilt: a row line is straight, so it holds its
+            // place in the fan without fanning, and building it here took its draw slot after every row painted before.
             const pairs = new Map<NodeIdType, Map<NodeIdType, (Edge | number)[]>>();
             const join = (a: NodeIdType, b: NodeIdType, each: Edge | number): void => {
                 let group = pairs.get(a)?.get(b) ?? pairs.get(b)?.get(a);
@@ -3453,15 +3456,15 @@ export class DataManager implements Manager {
             this.bundles = { version: this.edgeVersion, byEdge };
         }
 
-        return this.bundles.byEdge.get(edge) ?? { rank: 0, count: 1, first: edge, members: [edge] };
+        return this.bundles.byEdge.get(edge) ?? { rank: 0, count: 1, firstSource: edge.srcId, members: [edge] };
     }
 
     /**
-     * Record one fan of {@link drawnBundle}'s, building the `Edge` of each member stored with none.
+     * Record one fan of {@link drawnBundle}'s.
      * @param joined - Its members: `Edge`s, and the rows of edges stored with no `Edge`.
      * @param byRow - Under "batched": order it by row, oldest first, so an `Edge` built late (from a row
      *   stored with none) is not last in its fan for that. The objects path keeps its build order.
-     * @param byEdge - Where each member's place is recorded.
+     * @param byEdge - Where each `Edge` member's place is recorded.
      */
     private joinBundle(joined: (Edge | number)[], byRow: boolean, byEdge: Map<Edge, EdgeBundle>): void {
         if (byRow) {
@@ -3469,9 +3472,12 @@ export class DataManager implements Manager {
             joined.sort((x, y) => rowOf(x) - rowOf(y));
         }
 
-        const group = joined.flatMap((each) => (typeof each === "number" ? (this.buildEdgeRow(each) ?? []) : each));
-        group.forEach((each, rank) => {
-            byEdge.set(each, { rank, count: group.length, first: group[0], members: group });
+        const [first] = joined;
+        const firstSource = typeof first === "number" ? (this.unbuiltEdges.sourceAt(first) as NodeIdType) : first.srcId;
+        joined.forEach((each, rank) => {
+            if (typeof each !== "number") {
+                byEdge.set(each, { rank, count: joined.length, firstSource, members: joined });
+            }
         });
     }
 

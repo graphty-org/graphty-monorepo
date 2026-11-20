@@ -72,18 +72,18 @@ L4, R1 to R3), or an item of `revision.md` section 8. "--" means the element alr
 | Update attributes after load (#297) | proposed | a node's Attributes tab and a table cell edit in place; the file's value kept with Revert; one undo step (round-3/data-editing.md section 5) | 39 | natural | #297. Section 13 |
 | List edges (`getEdges`; `session.data.edge(id)`) | partial | the Table dock's "Edges 613" tab | 56 | natural | `getEdges` (#297) |
 | Clear (`clearData`) | shipped | Dataset "..." > Close dataset | 16, 17 | natural | -- |
-| Expand a node's neighbourhood from a server (`fetchNodes`, `fetchEdges`) | shipped | double-click a node when a fetcher is configured (decision T6); the node's overflow "Expand from server" | 42 | natural | -- |
-| Attribute catalogue (`data.attributes()`) | shipped | Dataset > Data: one row per column with type glyph, completeness and "..."; "See all 40 in table" | 10 | natural | -- |
+| Expand a node's neighborhood from a server (`fetchNodes`, `fetchEdges`) | shipped | double-click a node when a fetcher is configured (decision T6); the node's overflow "Expand from server" | 42 | natural | -- |
+| Attribute catalog (`data.attributes()`) | shipped | Dataset > Data: one row per column with type glyph, completeness and "..."; "See all 40 in table" | 10 | natural | -- |
 | Graph statistics (`data.statistics()`) | shipped | Dataset > Overview: Nodes, Edges, Density, Mean links, Parts, Weighted, Self-loops; component sizes as the Grouping from Structure > Separate pieces | 2 | natural | `statistics().reading()` for the reading row (decision I8) |
 | Status counts (`status.counts`) | shipped | the status bar's counts, never collapsed; click opens the Table dock | 2 | natural | -- |
 | Topology fingerprint (`session.fingerprint()`) | shipped | deliberately not on the everyday screen: the objects API uses it to match a recipe or a project file to its data | none | natural | -- |
 | Node type / edge type role (#299) | proposed | Dataset > Data: a column's "..." > Set as type; Groups > By attribute... defaults to it; Filter > By values defaults to it | 35 | natural | #299 |
 | Time role (`nodeTimePath`, `edgeTimePath`; `timeAttributes()` #333) | partial | Dataset > Data: the "Time [sent v]" row; the Findings door "Time column: sent ... [Show over time]"; a column's "..." > Set as time | 10 | natural | #333; decision L4 (a pair or a spells column as the role) |
 | Join an attribute table by key (#298) | proposed | Dataset > Data: ATTRIBUTES "+" > Join a table... ; the match report joins the Import report disclosure | 37 | natural | #298 |
-| Computed attributes (formula) | proposed | Dataset > Data: ATTRIBUTES "+" > New from formula... makes a column with a formula glyph; its "..." > Size by or Colour by makes the Measure (round-3/data-editing.md section 9) | 38 | natural | the `data.compute` command (design 4.3.4); the design gap is that the inventory calls the result a Measure (a tree row) while the door is on the Data tab (a column); the design does not say which it makes. Section 13 |
+| Computed attributes (formula) | proposed | Dataset > Data: ATTRIBUTES "+" > New from formula... makes a column with a formula glyph; its "..." > Size by or Color by makes the Measure (round-3/data-editing.md section 9) | 38 | natural | the `data.compute` command (design 4.3.4); the design gap is that the inventory calls the result a Measure (a tree row) while the door is on the Data tab (a column); the design does not say which it makes. Section 13 |
 | Node merging | proposed | the several-elements inspector: "Merge into one node..." (the second data edit; decision R6) | 41 | natural | the element has no merge; no issue yet |
 | Data export (GraphML, GEXF, CSV, JSON, CX2) | proposed | Export > Export data... (format, scope Everything or What is showing, Include positions, Include object columns) | 96 | natural | every element format descriptor is `canExport: false`; graph-io has the exporters |
-| SIF, CX2, STRING, BioGRID, Neo4j APOC readers (#306, #307, #308, #303, #304) | proposed | Open..., which is catalogue-driven, so a registered reader appears with no app change | 31 | natural | #303, #304, #306, #307, #308 |
+| SIF, CX2, STRING, BioGRID, Neo4j APOC readers (#306, #307, #308, #303, #304) | proposed | Open..., which is catalog-driven, so a registered reader appears with no app change | 31 | natural | #303, #304, #306, #307, #308 |
 | Project file (#301) | proposed | file menu: Save project (Ctrl+S), Open..., Open recent; screen 1's "Continue College football (yesterday)" | 16, 18, 19 | natural | #301; its shape is the objects API's saved form (decision S1) |
 | Sample datasets | app-side | screen 1's sample list; file menu Open sample; the "?" menu's Open sample | 1 | natural | the samples and their blurbs live in the app (`graphty/src/data/sampleManifest.ts`); a third-party consumer gets none. A `data.sample` command (design 4.11) would move them into the element |
 | Custom data source / format plugin | shipped | Open..., which lists the registry | none | natural | -- |
@@ -99,7 +99,7 @@ L4, R1 to R3), or an item of `revision.md` section 8. "--" means the element alr
 | Multi-element selection (cap 5,000, `truncated`) | shipped | Shift+click, marquee (2D drag; Shift+drag in 3D); the several-elements inspector; the status bar's "11 selected" and "5,000 selected (capped)" | 55 | natural | the marquee is an element hit-test that does not exist yet (`revision.md` 3.3, Select) |
 | Set operations on the selection (replace, add, remove, toggle, intersect) | shipped | replace, add, toggle and remove are the click modifiers; every object row's "Select members" replaces | none | awkward | none in the element; the design gap is that intersect has no gesture or menu row anywhere. Section 13 |
 | Select by ids | shipped | Filter > By id list, then [Select] in the secondary bar | 11 | natural | -- |
-| Select neighbours (depth 1 to 3, direction) | shipped | the Neighbours tool (E) with [Select] as an alternative to Create; a node's Links tab header "Select"; double-click when no fetcher is configured | 11 | natural | -- |
+| Select neighbors (depth 1 to 3, direction) | shipped | the Neighbors tool (E) with [Select] as an alternative to Create; a node's Links tab header "Select"; double-click when no fetcher is configured | 11 | natural | -- |
 | Select by scope | shipped | any object row's overflow "Select members"; a Set's Members header "Select"; a Group's "Select members" | 3 | natural | a Group scope (decision S2) |
 | Select the top N of a result | shipped | Measure > Values: click a ranked row; the TOP header's "+" (Top N set...); Filter > By range on a Measure then [Select] | 6 | natural | -- |
 | Select above a threshold | shipped | Measure > Values: TOP "+" > Above threshold set...; Filter > By range on a Measure then [Select] | 6 | natural | -- |
@@ -118,7 +118,7 @@ L4, R1 to R3), or an item of `revision.md` section 8. "--" means the element alr
 | Filter: categories | shipped | Filter > By values (a value list with counts) | 59 | natural | -- |
 | Filter: degree | shipped | Filter > By connections; the Set's Define tab says "Counts every edge, not only what is showing" | 11 | natural | filters evaluated within a scope (decision S2, `revision.md` section 8) |
 | Filter: component | shipped | Filter > Largest connected part; a Separate-pieces Group's "Focus on this" | 11 | natural | -- |
-| Filter: neighbourhood (ego network) | shipped | the Neighbours tool, then Focus on the Set | 64 | natural | -- (#314 is the app's unwired action) |
+| Filter: neighborhood (ego network) | shipped | the Neighbors tool, then Focus on the Set | 64 | natural | -- (#314 is the app's unwired action) |
 | Filter: edges by expression (#149) | proposed | Filter with Target [Edges], then By rule | 62 | natural | #149; edge categories and ranges are a small addition (`revision.md` 3.4) |
 | Filter combinators (all, any, not) | shipped | a rule Set's "+ Rule" (an AND line); a Combination Set ([Group 1] [and v] [Path]); "Focus on these" on several objects (a union); the Invert switch (not) | 61, 65 | natural | decision S2 (combinators in the scope type) |
 | Time window (`visibility.setWindow`) | shipped | the transport bar: the band with two handles, Window from / to in the gear | 10 | natural | decisions L3 (nodes follow their edges) and L6 (snap to steps) |
@@ -149,7 +149,7 @@ L4, R1 to R3), or an item of `revision.md` section 8. "--" means the element alr
 | `temporal` | the transport gear's OVER TIME section (a series chart, "Biggest movers" which promotes to a Measure) | 10 | awkward | #300; the design gap is a series chart and a movers list inside a 240 px popover. Section 13 |
 | `fact` | a Findings row on Dataset > Overview (up to 3 rows, then "and N more") | 2 | natural | -- |
 
-### 3.1 Catalogue entries (shipped)
+### 3.1 Catalog entries (shipped)
 
 Every row is a flyout item (screen 11 draws all of them) and runs through the one arm-read-run
 rule (`revision.md` 3.2); the parameters popover carries each one's options.
@@ -183,7 +183,7 @@ rule (`revision.md` 3.2); the parameters popover carries each one's options.
 | Key or name | Home in the revised design | Mock | Fit | Element gap |
 |---|---|---|---|---|
 | `clustering-coefficient` (#330) | Rank > Clustering (drawn at 50 percent with "#330" until registered) | 11 | natural | #330 |
-| `all-paths` (#329) | Path > All routes: Max steps and Max routes in the popover; hands back an edge Set | 11 | awkward | #329; the design gap is that many ordered routes become one Set, so the routes cannot be told apart, coloured separately or counted. Section 13 |
+| `all-paths` (#329) | Path > All routes: Max steps and Max routes in the popover; hands back an edge Set | 11 | awkward | #329; the design gap is that many ordered routes become one Set, so the routes cannot be told apart, colored separately or counted. Section 13 |
 | `k-core` | Structure > Densest shells: an ordered Grouping ("Shell 1"...) with a sequential palette | 11 | natural | registration of k-core (in `KNOWN_ALGORITHMS`, unregistered; the GPU package has it) |
 | `link-prediction` | Structure > Likely missing links: a Findings row "312 pairs, Open in table" | 11 | awkward | registration; and the pair-list table gap of 3.0. Section 13 |
 | Markov, spectral, hierarchical clustering (#55) | Groups > "Communities, Markov / spectral / hierarchical"; hierarchical has "Groups [k]" which re-cuts live | 11 | natural | #55 |
@@ -198,7 +198,7 @@ rule (`revision.md` 3.2); the parameters popover carries each one's options.
 | Group names (#191) | Grouping > Groups: "Names from [none v]"; a Group's name renames on double-click; the legend shows the same names | 71 | natural | #191 (names that follow a group across re-runs; the Record tab caveat until then) |
 | Parameter sweep (#194) | Groups > Sweep...: parameter, from, to, steps; "a Findings table with Make an object per row" | 11 | awkward | #194; the design gap is where a ten-row table with a button per row is drawn (Findings shows three rows). Section 13 |
 | Weight and direction options everywhere (#313) | the parameters popover and every Define tab: Weights [switch], Direction [As loaded v] | 4, 5 | natural | #313 |
-| Custom algorithm plugin | lands in the flyout its catalogue `category` names (centrality to Rank, community to Groups, path and flow to Path, structure and prediction to Structure) | 11 | natural | -- (`category` exists; the mapping is `revision.md` 3.6) |
+| Custom algorithm plugin | lands in the flyout its catalog `category` names (centrality to Rank, community to Groups, path and flow to Path, structure and prediction to Structure) | 11 | natural | -- (`category` exists; the mapping is `revision.md` 3.6) |
 
 ### 3.3 Running and reading (the run model)
 
@@ -208,7 +208,7 @@ rule (`revision.md` 3.2); the parameters popover carries each one's options.
 | Run on load (`algorithmsOnLoad`) | shipped | Settings > Analysis: "Run when data loads" with a checklist (all off by default) | 13 | natural | -- |
 | Batch (`runs.batch`) | shipped | Groups > Several..., Rank > Several...: a checklist popover, one Create; "Computing 1 of 6 [Cancel all]" | 4, 11 | natural | decision T8 (batch members after the first are created with the eye off) |
 | Watch a run (status, progress, phase, ETA, queue position) | shipped | the tree row's progress ring and "queued, 3rd"; the summary row "Computing 42% [Cancel]" with the phase; the status bar's computing chip | 5 | natural | -- |
-| Cancel a run | shipped | Cancel in the summary row and the chip; a cancelled creation removes the row | 5 | natural | partial results kept on cancel for sampled runs (`revision.md` section 8) |
+| Cancel a run | shipped | Cancel in the summary row and the chip; a canceled creation removes the row | 5 | natural | partial results kept on cancel for sampled runs (`revision.md` section 8) |
 | Re-run (`run.rerun()`) | shipped | the summary row's [Re-run (about 3 s)] in the stale state; Dataset "..." > Re-run all stale; the status bar's "3 stale [Re-run all]" | 45, 46 | natural | decision T10 (a re-run replaces under the same object id and keeps the old result for undo) |
 | Queue policy (append, replace, now) | shipped | deliberately not on the everyday screen: internal to the objects API; a Define edit uses "replace" | none | natural | -- |
 | Cost estimate (`session.estimate`, `catalog.metrics()`) | shipped | the cost at the right of every flyout row ("instant", "about 2 s", "at least 4 min"); the secondary bar's sentence; the popover's cost line | 4, 11 | natural | decision T9 (a `backend` field so "on the GPU" can be drawn) |
@@ -265,14 +265,14 @@ the strip only.
 | Wait for settle (`waitForSettled`, `graph-settled`) | shipped | the transport row's "Settling 62%" / "Settled"; the status bar's "Spread out: settled" | 2 | natural | -- |
 | Pin / unpin nodes | shipped | a node's header Pin; the Layout tab's "Pinned 2 [Unpin all]"; a "Pinned" Set in the tree; grab-and-drag in XR pins | 9 | natural | -- |
 | Drag a node | shipped | the Select tool: drag a node (pins it when `pinOnDrag`) | 86 | natural | -- |
-| Edge weights honoured (`honoursWeights`) | shipped | the layout engine's gear popover | none | awkward | none in the element; the design gap is that no row says whether this engine reads weights or lets the reader turn it off. Section 13 |
+| Edge weights honored (`honoursWeights`) | shipped | the layout engine's gear popover | none | awkward | none in the element; the design gap is that no row says whether this engine reads weights or lets the reader turn it off. Section 13 |
 | Play / pause / step / stop a live layout (#144) | proposed | the Layout tab's transport row [Pause] [Step] [Re-run]; the status bar's layout chip | 2 | natural | #144 |
 | Layout over a scope (#144) | proposed | the Layout tab's caveat row "Ring on 12 of 34 (Group 2)" | 85 | awkward | #144; the design gap is that no verb starts a scoped layout (a Set's or Group's overflow has Select, Focus, Locate only). Section 13 |
 | Positions API (`session.positions`; typed verbs #144) | partial | a node's overflow "Copy position"; Export data... "Include positions"; the project file | 86 | natural | #144 |
 | Layout change event (#144) | proposed | deliberately not on the everyday screen: the layout chip and the transport row read it | none | natural | #144 |
 | Layout dimension (2D layouts in a 3D view) | shipped | the Layout tab's Dimensions row ("3D, follows the view"; "2D, flat layout: shown in 3D as a plane") | 83 | natural | -- |
 | GPU layout (ForceAtlas2, Fruchterman-Reingold, spring-electrical on WebGPU) | shipped with the package | the Layout tab's acceleration line; Settings > Performance | 83 | natural | decision T9 |
-| Custom layout plugin | shipped | the Layout select (catalogue-driven) | none | natural | -- |
+| Custom layout plugin | shipped | the Layout select (catalog-driven) | none | natural | -- |
 | Animated transitions (`transitionMs`) | shipped | Settings > Canvas: "Animate layout changes" [switch] "500 ms" | none | natural | -- |
 
 ## 5. Styling: channels and layers
@@ -287,12 +287,12 @@ the strip only.
 | Selector: ids | shipped | a fixed Set ("12 nodes, 3 edges, fixed [Edit members]") | none | natural | -- |
 | Selector: everything | shipped | Dataset > Canvas: the DEFAULT LOOK section (the unlocked dataset-default layer) | none | natural | decision Y6 (an unlocked dataset-default layer above the locked base) |
 | Encode a result (`styles.encode`) | shipped | a Measure's or Grouping's Style tab: the encoding block | 6, 7 | natural | -- |
-| Encode a data attribute (`encode: {by: path}`) | shipped in the element | Dataset > Data: a column's "..." > Colour by, Size by, Shape by, Group by (creates a Measure or Grouping from the column); Groups > By attribute... | 7, 10 | natural | `encodeAttribute` (`revision.md` 5.7); #190 is the app's missing UI |
-| Highlight a set result (`styles.highlight`) | shipped | a Set's Style tab: NODES and EDGES paint rows | 8 | natural | decision S3 (non-exclusive; per-Set colour from a disjoint highlight palette, Y3) |
+| Encode a data attribute (`encode: {by: path}`) | shipped in the element | Dataset > Data: a column's "..." > Color by, Size by, Shape by, Group by (creates a Measure or Grouping from the column); Groups > By attribute... | 7, 10 | natural | `encodeAttribute` (`revision.md` 5.7); #190 is the app's missing UI |
+| Highlight a set result (`styles.highlight`) | shipped | a Set's Style tab: NODES and EDGES paint rows | 8 | natural | decision S3 (non-exclusive; per-Set color from a disjoint highlight palette, Y3) |
 | Scales (linear, log, neglog10, sqrt, pow, bins, quantile, ordinal, passthrough) | shipped | the encoding block's Scale [Even steps v] row, by plain name, filtered by `scalesForDomain` | 6 | natural | -- |
 | Palettes (7 sequential, 5 categorical, 3 diverging, 3 highlight) | shipped | the palette picker from any Palette row; sequential first for a Measure, categorical for a Grouping | 6, 7 | natural | decision Y3 (a highlight palette disjoint from the categorical ones) |
 | Custom palette plugin (`registerPalette`) | shipped | the picker's "Add palette..." (hex list or name); the project file carries it | none | natural | -- |
-| More groups than colours (overflow policy) | shipped | the Grouping's Style tab: Other [chit], Overflow [Other / Shape / Extend], Show the largest [8 v] | 7 | natural | #201 (the Other swatch's colour in the legend) |
+| More groups than colors (overflow policy) | shipped | the Grouping's Style tab: Other [chit], Overflow [Other / Shape / Extend], Show the largest [8 v] | 7 | natural | #201 (the Other swatch's color in the legend) |
 | Legend model (`styles.legend()`) | shipped as data | the legend card (L) at the bottom right of the canvas, above the toolbar's right end; one block per visible Measure, Grouping or Set | 3, 8, 10 | natural | #292 (drawn by the element so it reaches captures); decision Y4 (width and pattern on a highlight block) |
 | Explain an element's look (`styles.explain`) | shipped | a node's About tab: the LOOK disclosure ("Colour from Conference, Size from Bridges, Outline from Top 10"), one row per channel when open | 9 | natural | -- |
 | Resolve to static (`styles.resolveToStatic`) | shipped | the LOOK disclosure's "+" is "Style this node...", which creates a one-node Set and opens the picker | 9 | natural | -- (the design makes a Set rather than resolving a channel, so the edit is a tree row) |
@@ -301,7 +301,7 @@ the strip only.
 | Settled (`styles.settled()`) | shipped | "Restyling 38%" in the summary row while a large repaint runs | none | natural | -- |
 | Layer groups (design 9.3; app #171) | proposed | the tree's nesting: a Grouping is the folder of its Groups; hiding the parent hides all; an Opacity paint row on the object fades its whole effect | 3 | natural | -- (the objects API projects the tree onto the flat stack; a per-group opacity is the object's Opacity channel) |
 | Theme (light / dark canvas; #291, #331) | proposed | Dataset > Canvas: Background "Follow theme"; Look [Default v]; Settings > General: Theme [Follow system v] | 12, 13 | natural | #291, #331 |
-| Style presets | proposed | the Look select (Default, Presentation, Print, Colour-blind safe, High contrast, Dark) and saved styles | 87 | natural | #331; decision Y6 |
+| Style presets | proposed | the Look select (Default, Presentation, Print, Color-blind safe, High contrast, Dark) and saved styles | 87 | natural | #331; decision Y6 |
 
 ### 5.1 Channels
 
@@ -317,7 +317,7 @@ the strip only.
 | `edge.color`, `edge.opacity`, `edge.width` | EDGES paint rows; an edge Measure's blocks | 8 | natural | -- |
 | `edge.style`, `edge.patternCount` | the EDGES row Pattern [Dash v] with the repeat count in its popover | 8 | natural | -- |
 | `edge.curvature` | the EDGES "+" Curve | none | natural | -- |
-| `edge.arrowHead`, `edge.arrowTail` and their Size, Color, Opacity, Text, TextStyle | the EDGES "+" Arrows (head, tail; size, colour, text in a popover); Dataset > Canvas: Arrows [switch] on directed data | 8 | natural | -- |
+| `edge.arrowHead`, `edge.arrowTail` and their Size, Color, Opacity, Text, TextStyle | the EDGES "+" Arrows (head, tail; size, color, text in a popover); Dataset > Canvas: Arrows [switch] on directed data | 8 | natural | -- |
 | `edge.animationSpeed` | the EDGES "+" Animation (flow speed) | none | natural | -- |
 | `edge.label`, `edge.labelStyle` | Dataset > Canvas: Edge labels [none v]; the EDGES "+" Label | 87 | natural | -- |
 | edge tooltip | withdrawn in the element (edges are unpickable); not offered | none | does not fit | #319 would reopen it |
@@ -327,7 +327,7 @@ the strip only.
 | Capability | Status | Home in the revised design | Mock | Fit | Element gap |
 |---|---|---|---|---|---|
 | Label text from a path (`nodeLabelPath`) | shipped | Dataset > Canvas: Labels; Dataset > Data: a column's "..." > Set as label | 3 | natural | "Set as label" after a load re-imports today (section 8 of `revision.md`, last row) |
-| Rich text (font, size, weight, colour, gradient, outline, shadow, background, borders) | shipped | the label-style popover: Text and Background sections | 88 | natural | -- |
+| Rich text (font, size, weight, color, gradient, outline, shadow, background, borders) | shipped | the label-style popover: Text and Background sections | 88 | natural | -- |
 | Placement (attach position, offset) | shipped | the label-style popover: Placement | 88 | natural | -- |
 | Billboarding | shipped | the label-style popover: Placement | 88 | natural | -- |
 | Depth fade | shipped | the label-style popover: Placement, "fade with distance" | 88 | natural | -- |
@@ -356,16 +356,16 @@ the strip only.
 | Camera change event (`camera-state-changed`) | shipped | deliberately not on the everyday screen: the drift dot after a View's name reads it | none | natural | -- |
 | Coordinate transforms (`worldToScreen`, `screenToWorld`) | shipped | deliberately not on the everyday screen: the minimap's viewport rectangle and a note's callout leader use them | none | natural | -- |
 | Minimap / overview (#293) | proposed | Dataset > Canvas: "Minimap [switch]" (M); drawn at a canvas corner | 52 | natural | #293 |
-| Custom camera view plugin | shipped | the framing pill's menu (catalogue-driven) | none | natural | -- |
-| Background (colour or skybox) | shipped | Dataset > Canvas: Background [chit] with "Follow theme" and "Image..." | 87 | natural | -- |
+| Custom camera view plugin | shipped | the framing pill's menu (catalog-driven) | none | natural | -- |
+| Background (color or skybox) | shipped | Dataset > Canvas: Background [chit] with "Follow theme" and "Image..." | 87 | natural | -- |
 | Input enable (`setInputEnabled`) | shipped | deliberately not on the everyday screen: the app turns input off under a sheet (Settings, Welcome) | none | natural | -- |
-| Wheel zoom toward the cursor, right-drag pan (#290) | proposed | the Hand tool's behaviour; Settings > Camera: Orbit sensitivity, "Invert wheel" | 51 | natural | #290 |
+| Wheel zoom toward the cursor, right-drag pan (#290) | proposed | the Hand tool's behavior; Settings > Camera: Orbit sensitivity, "Invert wheel" | 51 | natural | #290 |
 
 ## 8. XR (VR and AR)
 
 | Capability | Status | Home in the revised design | Mock | Fit | Element gap |
 |---|---|---|---|---|---|
-| Enter VR / AR (`viewMode = "vr"`, `exitXR`) | shipped | the VR and AR segments of the mode switch: enter at once; the panels minimise; the status bar reads "VR [Exit]"; on return "Back from VR: 2 objects added" | 2 | natural | -- |
+| Enter VR / AR (`viewMode = "vr"`, `exitXR`) | shipped | the VR and AR segments of the mode switch: enter at once; the panels minimize; the status bar reads "VR [Exit]"; on return "Back from VR: 2 objects added" | 2 | natural | -- |
 | Support check (`isVRSupported`, `isARSupported`) | shipped | the segments are drawn only when supported; a segment that cannot start is disabled with the reason and the fix in its tooltip | 2 | natural | -- |
 | XR button and availability warning (`xr.ui`) | shipped | deliberately not on the everyday screen: the mode switch replaces the element's own corner button, so the app configures `xr.ui` off | 30, 100 | natural | -- |
 | Reference space and optional features (`xr.vr`, `xr.ar`) | shipped | Settings > Headset: Reference space [Local floor v] | none | natural | -- |
@@ -434,7 +434,7 @@ third-party consumer needs that the inventory lists as proposed.
 | Configuration document (`StyleTemplate`) | shipped | Export > Export styles...; the project file | none | natural | -- |
 | Logging (`catalog.logSinks()`) | shipped | Settings > Advanced: Logging [Warnings v], "Send logs to [none v]", "Copy diagnostics" | none | natural | -- |
 | Errors (`GraphtyError` codes) | shipped | per object: the failed state's message; inline on a field (`E_OPTION_RANGE`, a bad expression); a flyout row's "unavailable" tooltip | 5 | natural | -- (element-level errors are the unplaced `error` row of 10.1) |
-| Extension points (six registries plus accelerators) | shipped | every list a panel draws is the catalogue: a plugin appears in its flyout, select or picker with no app change | 11 | natural | -- |
+| Extension points (six registries plus accelerators) | shipped | every list a panel draws is the catalog: a plugin appears in its flyout, select or picker with no app change | 11 | natural | -- |
 | Framework wrappers (#40) | proposed | not a reader capability; the app is itself the React consumer | none | natural | #40 |
 
 ### 10.3 Performance and acceleration
@@ -443,7 +443,7 @@ third-party consumer needs that the inventory lists as proposed.
 |---|---|---|---|---|---|
 | WebGPU acceleration (`acceleration.policy`, `.minNodes`; `capabilities.acceleration`) | shipped with the package | Settings > Performance: Acceleration [Auto v] (Auto, Off, Required), "Use the GPU above [5,000] nodes", the state line ("Active: NVIDIA T4, WebGPU" / "Unavailable: needs a secure context"); the Layout tab's acceleration line; a GPU glyph in the computing chip; "on the GPU" in every Record tab | 13 | natural | decision T9 (a `backend` field on `RunRecord` and `CostEstimate`; until it lands the words are not drawn) |
 | Never fall back silently | shipped by rule | the failed state with [Retry] and an explicit [Retry on the CPU] | 45 | natural | a per-start backend override (`revision.md` section 8) |
-| Cost model and calibration (`calibrate()` #146, #159) | partial | Settings > Performance: [Measure this machine (about 10 s)]; the confidence word in every cost ("about" measured or calibrated, "at least" modelled) | 11, 13 | natural | #146, #159 |
+| Cost model and calibration (`calibrate()` #146, #159) | partial | Settings > Performance: [Measure this machine (about 10 s)]; the confidence word in every cost ("about" measured or calibrated, "at least" modeled) | 11, 13 | natural | #146, #159 |
 | Exact vs approximate (`exact`, `sample`, `approximable`) | shipped | the popover's Exact [switch] and Sample [2,000]; Settings > Analysis "Exact above [2,000] nodes: sample instead"; "~" before an approximate count; [Approximate instead] on a waiting object | 4 | natural | -- |
 | Render settings (`setRenderSettings`) | shipped | Settings > Performance: Rendering [WebGL v] | 13 | natural | -- |
 | WebGPU rendering (#36) | proposed | Settings > Performance: Rendering [WebGPU] when #36 lands | none | natural | #36 |
@@ -495,7 +495,7 @@ can be checked.
 | Acceleration status and policy | Settings > Performance; the Layout tab's line; the GPU glyph; Record's Engine row | 13 | natural | decision T9 |
 | Load replace / merge | Open... replaces the dataset; Add data... (file menu, the Dataset "+") merges into it | 2 | awkward | none in the element; the design gap is the missing collision policy on Add data... (section 1, "Incremental add"). Section 13 |
 | Import column roles (id, label, weight, time, type, source, target) | Dataset > Data: a column's "..."; the Made by disclosure's mapping | 10 | awkward | live re-mapping after a load (section 1, "Known-field mapping") |
-| Export formats | Export > Export data... (format select from the catalogue's exporters); Export image's Format from `capabilities.capture` | 96 | natural | data exporters; SVG and PDF |
+| Export formats | Export > Export data... (format select from the catalog's exporters); Export image's Format from `capabilities.capture` | 96 | natural | data exporters; SVG and PDF |
 | Undo / history | Ctrl+Z; the History dock; the dock handle keeps it one click away | 9 | natural | decision S1, #145 |
 | Keyboard shortcuts | file menu "Keyboard shortcuts" and the "?" menu (a sheet); every tool's tooltip carries its key chip; the suggestion rows carry keys ("Find groups (G)") | 2 | 2, 58 | -- |
 | Ctrl+K command palette | every flyout row under both names; every menu row; "Ask: <sentence>" as the last row | none | natural | #337 (so the palette's rows are the element's command list, not a copy) |
@@ -524,7 +524,7 @@ a new panel, and none asks the app to compute over the graph.
 | Select edges between selected nodes (`edgesBetween`) | the several-elements inspector gains a row "Include the edges between (Ctrl+Shift+E)"; the same verb in Ctrl+K. A Set's Define tab already has "Edges [All among members]", so a promoted selection keeps them | -- |
 | Invert the selection (`invert`) | Ctrl+I (Ctrl+Shift+I is the browser's developer tools), listed in Ctrl+K and in the several-elements inspector as "Invert"; drawn on screen 55; the Select flyout gets no row (it lists modes, not verbs) | -- |
 | A* (#55) | Path > Shortest route's Method select lists every registered method: Dijkstra, Bellman-Ford, A* (with a Heuristic [Euclidean v] row in the popover, since A* needs positions) | #55 |
-| The element's `error` event (an element-level failure: a lost WebGL context, a skybox that failed, a disposed session) | the status bar's computing-chip slot at priority 3: "Error: <message> [Details]" for as long as it is true; Details opens the "?" menu's diagnostics with "Copy diagnostics" (Settings > Advanced already has the button). A lost renderer additionally greys the canvas with "The graphics context was lost [Reload]" | -- |
+| The element's `error` event (an element-level failure: a lost WebGL context, a skybox that failed, a disposed session) | the status bar's computing-chip slot at priority 3: "Error: <message> [Details]" for as long as it is true; Details opens the "?" menu's diagnostics with "Copy diagnostics" (Settings > Advanced already has the button). A lost renderer additionally grays the canvas with "The graphics context was lost [Reload]" | -- |
 
 ### Awkward
 
@@ -534,17 +534,17 @@ a new panel, and none asks the app to compute over the graph.
 | Import options per format (separator, variant, id column, endpoint fields) | Import options... names four global rows and never the per-format ones | Import options... draws, after the four global rows, one row per `FormatDescriptor.options` entry of the format in use; Open... shows the same rows in a disclosure before the first load, so a CSV with a semicolon separator is fixed once | -- |
 | Known-field mapping; Direction "Change..."; "Set as weight" and "Set as label" after a load (and the cross-cutting "Import column roles" row) | every one of these re-imports today, so a one-word change reloads the file and loses nothing but takes seconds and turns every object stale | keep the rows where they are (Dataset > Data column "...", the Made by mapping, the Overview Direction row); make them live once the element re-maps in place; until then the row says "Reloads the file" in secondary text | re-mapping weight, label and direction after a load without a re-import (`revision.md` section 8, medium) |
 | Incremental add (Add data...) and the cross-cutting "Load replace / merge" | the Add data... dialog has no rule for a record whose id already exists | Add data... gets one row "Same id: [Skip / Replace / Update fields v]" with the match count from a dry run ("42 of 6,000 ids already exist"); Skip is the default because it is the only one the element supports today | Replace and Update need #297; the dry run needs the plan for `data.add` (#337) |
-| Computed attributes (formula) | the door is on the Data tab (a column) while the inventory calls the result a Measure (a tree row); the design never says which it makes | always a column: "New from formula..." adds a row to ATTRIBUTES with origin "computed" and a formula glyph; its "..." carries the same Colour by / Size by / Group by rows as any column, which make the Measure or Grouping when the reader wants one. One thing, one home; the tree stays for things made from the data, not for the data | the `data.compute` command |
+| Computed attributes (formula) | the door is on the Data tab (a column) while the inventory calls the result a Measure (a tree row); the design never says which it makes | always a column: "New from formula..." adds a row to ATTRIBUTES with origin "computed" and a formula glyph; its "..." carries the same Color by / Size by / Group by rows as any column, which make the Measure or Grouping when the reader wants one. One thing, one home; the tree stays for things made from the data, not for the data | the `data.compute` command |
 | Set operations on the selection: intersect | replace, add, remove and toggle have click modifiers; intersect has nothing | Ctrl+Shift+click on an object row's "Select members" (and on a legend swatch) intersects the current selection with that object's members; the tooltip says so; Ctrl+K lists "Intersect selection with..." | -- |
 | Pick what is under the pointer (a context menu) | the context actions live in the inspector's overflow, one panel away from the pointer | right-click on a node opens a dark menu with the same rows as the node's inspector overflow (Locate, Pin, Style its group..., Add to, Copy id, Follow, What breaks if removed, Expand from server, Remove from data...); right-click on empty canvas opens the framing pill's menu. One list, two doors, both reading the same rows | #319 for edges |
 | `pair-list` results (Likely missing links, Pattern's match list) and the parameter sweep's table (#194) | "Open in table" and "a Findings table with Make an object per row" have no table to open: the Table dock has Nodes and Edges tabs only | the Table dock gains a third tab, "Findings", whose select lists every Finding that carries a table (pairs, sweep values, per-step change counts); a pairs row has "Select both" and "Make a path"; a sweep row has "Make an object"; the Overview's Findings row is the door and reads "312 pairs [Open in table]" | #148 (column to ids) so a row maps to nodes; registration of link prediction; #194 |
 | `temporal` results and Temporal analysis (OVER TIME in the transport gear) | a series chart and a "Biggest movers" list inside a 240 px popover | keep the OVER TIME "+" in the gear as the door (it is where the reader is), but the result is a Finding: its series chart draws in the Findings tab of the Table dock (the row above), and "Biggest movers" is the Finding's "Make a Measure" button. The gear's CHANGES disclosure keeps only the per-step counts as a 200 px sparkline with "Go to this time" | #300 |
 | HITS (two Measures from one run, or one Measure with two fields) | `revision.md` 3.4 and 2.4 disagree | one Measure per run, always; HITS is one Measure "Hubs and authorities" whose Values tab has Field [authority v] (authority, hub), exactly as Connections has Field [total v] (total, in, out); the Style follows the field; a second Measure for the other field is "Duplicate" then change the field | -- |
 | Best pairing (an edge Set plus a "Sides" Grouping) and Most that can flow (an edge Measure plus the cut) | two tree rows from one run: delete or re-run one and the other is orphaned | one object per run, with the second shape reachable from it: Best pairing is an edge Set whose Members tab carries the side as a column and whose Define tab has "Make a grouping from sides" (a linked Grouping, frozen if the Set is deleted, exactly as a Top N cut is linked to its Measure); Most that can flow is an edge Measure whose Values tab has "Make the cut a set" (a linked edge Set). The linked-object rule already exists for Top N cuts, so no new state | -- |
-| All routes (#329): many ordered routes as one Set | the routes cannot be told apart, coloured separately or counted | the run hands back one Set per route up to Max routes (default 5), created as a batch under the same rule as Several... (the first paints, the rest have the eye off), each named "Route 2 of 5: 1 -> 34"; the Findings row on the Dataset says "14 routes found, 5 shown [Show all]" | #329; decision T8 |
-| Edge weights honoured by a layout (`honoursWeights`) | no row says whether the engine reads weights or lets the reader turn it off | the layout gear popover's first row: "Uses edge weights [switch]" when the descriptor says `honoursWeights`, with "(weight)" naming the column; read-only "Ignores weights" otherwise | a per-layout "use weights" option where the engine has one (small) |
+| All routes (#329): many ordered routes as one Set | the routes cannot be told apart, colored separately or counted | the run hands back one Set per route up to Max routes (default 5), created as a batch under the same rule as Several... (the first paints, the rest have the eye off), each named "Route 2 of 5: 1 -> 34"; the Findings row on the Dataset says "14 routes found, 5 shown [Show all]" | #329; decision T8 |
+| Edge weights honored by a layout (`honoursWeights`) | no row says whether the engine reads weights or lets the reader turn it off | the layout gear popover's first row: "Uses edge weights [switch]" when the descriptor says `honoursWeights`, with "(weight)" naming the column; read-only "Ignores weights" otherwise | a per-layout "use weights" option where the engine has one (small) |
 | Layout over a scope (#144) | the caveat row exists ("Ring on 12 of 34 (Group 2)") but no verb starts one | any Set's or Group's overflow and the several-objects inspector gain "Arrange only these...", which opens the Layout select scoped to the object (the secondary bar reads "Arrange Group 2, 11 nodes, by [Ring v] [Run] Cancel"); the rest keep their positions; the Layout tab's caveat row then says which object | #144 |
-| Badges (a per-node count, progress, icon, dot) | a badge carries a per-node value but the label-style popover's Badge row is dataset-wide and unbound | Badge becomes a channel in the NODES "+" of any Style tab ("Badge [count v] from [Connections v]" on a Measure; "Badge [dot]" on a Set), so a badge is bound like size or colour and shows in the legend; the label-style popover keeps only the badge's look (position, size) | the badge as a channel (`node.badge`, `node.badgeStyle`) rather than a label-style property (small) |
+| Badges (a per-node count, progress, icon, dot) | a badge carries a per-node value but the label-style popover's Badge row is dataset-wide and unbound | Badge becomes a channel in the NODES "+" of any Style tab ("Badge [count v] from [Connections v]" on a Measure; "Badge [dot]" on a Set), so a badge is bound like size or color and shows in the legend; the label-style popover keeps only the badge's look (position, size) | the badge as a channel (`node.badge`, `node.badgeStyle`) rather than a label-style property (small) |
 | In-headset UI (world-space panels, ray / pinch / gaze selection, snap turn, grab-and-scale; design 9.3) | the only in-headset scoping is Focus-then-enter; a reader in a headset cannot toggle an eye or Focus without taking the headset off | not this round, as `revision.md` 6.4 says; the proposed home when built is the element's own in-headset panel drawing the objects API's tree (name, eye, Focus, count) on the non-dominant forearm, because only the element can draw inside the session; the app draws nothing there | design 9.3; the objects API (decision S1) is the precondition |
 
 ### Does not fit

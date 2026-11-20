@@ -17,6 +17,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { ArrowCap } from "./ArrowCapBatch";
+import { routeMiddle } from "./edgeRoute";
 import {
     PATTERN_DEFINITIONS,
     type PatternDefinition,
@@ -27,7 +28,7 @@ import {
 import { type WaveShape, WHOLE_PERIOD, type ZigzagPiece, zigzagPieceKey } from "./shapeOutlines";
 
 /**
- * Centre-to-centre distance between two consecutive elements of a discrete pattern.
+ * Center-to-center distance between two consecutive elements of a discrete pattern.
  *
  * WHY THIS IS A SHARED FUNCTION -- the defect it prevents:
  * The mesh COUNT and the mesh POSITIONS were computed from two independently written
@@ -45,10 +46,10 @@ import { type WaveShape, WHOLE_PERIOD, type ZigzagPiece, zigzagPieceKey } from "
  * doubled the mesh count. `PATTERN_DEFINITIONS[*].spacing.min` already carried a per-pattern
  * WORLD-SPACE spacing floor intended to stop exactly that, but it was dead code: the count
  * routine read only `.connected` off the pattern definition and the positions routine took
- * the definition as an underscore-prefixed unused parameter. Honouring `spacing.min` here is
+ * the definition as an underscore-prefixed unused parameter. Honoring `spacing.min` here is
  * what makes the count stop growing as the width shrinks.
  * @param meshWidth - Rendered length of one pattern element ALONG the line, in world units
- * @returns Centre-to-centre period in world units, never less than `meshWidth`
+ * @returns Center-to-center period in world units, never less than `meshWidth`
  * @public
  */
 export function patternElementPeriod(meshWidth: number): number {
@@ -142,12 +143,12 @@ export function discreteMeshCount(lineLength: number, meshWidth: number, pattern
  * dependency on the spacing rule but was not one. Leaving it in place would have invited the
  * belief that this function had to be kept in step with {@link discreteMeshCount} by hand.
  * It does not: it takes whatever count it is given and spreads it evenly, so the new floor
- * and the new ceiling on the count cannot desynchronise the positions. That is the property
+ * and the new ceiling on the count cannot desynchronize the positions. That is the property
  * that keeps the last gap correct when the ceiling bites.
  * @param totalLength - Length of the line in world units, already trimmed for node surface and arrowhead
  * @param meshWidth - Rendered length of one pattern element along the line, in world units
  * @param meshCount - Number of elements to place; values below 2 place one
- * @returns Centre offsets from the line start, in world units, in order, one per element
+ * @returns Center offsets from the line start, in world units, in order, one per element
  * @public
  */
 export function discreteMeshOffsets(totalLength: number, meshWidth: number, meshCount: number): number[] {
@@ -232,7 +233,7 @@ export function fixedAdvanceCount(lineLength: number, advance: number): number {
  * @param lineLength - The line's length, already trimmed for the node surface and the arrowhead
  * @param advance - The distance between two glyphs' centers
  * @param count - How many glyphs
- * @returns Centre offsets from the line start, in order, one per glyph
+ * @returns Center offsets from the line start, in order, one per glyph
  */
 export function fixedAdvanceOffsets(lineLength: number, advance: number, count: number): number[] {
     const step = count >= MAX_PATTERN_PIECES ? Math.max(advance, lineLength / (MAX_PATTERN_PIECES - 1)) : advance;
@@ -274,7 +275,7 @@ export function alternatingMeshCount(lineLength: number, sizes: readonly number[
  * @param totalLength - Length of the line, already trimmed for the node surface and the arrowhead
  * @param sizes - Each shape's length along the line, in the order the pattern cycles through them
  * @param count - Number of elements; below 2 places one
- * @returns Centre offsets from the line start, in order, one per element
+ * @returns Center offsets from the line start, in order, one per element
  */
 export function alternatingMeshOffsets(totalLength: number, sizes: readonly number[], count: number): number[] {
     const own = (i: number): number => sizes[i % sizes.length];
@@ -584,7 +585,7 @@ export class PatternedLineMesh {
         const offsets = this.calculateOffsets();
         let segment = 1;
         for (let i = 0; i < this.elements.length; i++) {
-            // a line shorter than its elements can put a later centre before an earlier one: search from the start
+            // a line shorter than its elements can put a later center before an earlier one: search from the start
             const placed = this.onRoute(offsets[i], i > 0 && offsets[i] < offsets[i - 1] ? 1 : segment);
             ({ segment } = placed);
             const { point, direction } = placed;
@@ -645,7 +646,7 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Where along the route each element's centre sits, as a distance from the route's start: a discrete pattern's
+     * Where along the route each element's center sits, as a distance from the route's start: a discrete pattern's
      * (dot, star, box, dash, diamond, dash-dot) first and last elements touch the route's two ends and the rest share
      * the room between them evenly ({@link discreteMeshOffsets}); a Cytoscape glyph pattern's (separate-arrow,
      * contiguous-arrow) sit a fixed advance apart from the start ({@link cytoscapeAdvance}); a connected pattern's (sinewave, zigzag) segments
@@ -884,12 +885,14 @@ export class PatternedLineMesh {
     }
 
     /**
-     * The middle of the route this line was last laid along, halfway along its length.
+     * The middle of the route this line was last laid along: the middle of its middle segment, or the joint between
+     * its two middle ones, where a solid line drawn along the same route hangs its label ({@link routeMiddle}).
      * @returns The point.
      * @internal
      */
     routeMiddle(): Vector3 {
-        return this.onRoute((this.laid?.along.at(-1) ?? 0) / 2).point;
+        const points = this.laid?.points ?? [Vector3.Zero()];
+        return Vector3.FromArray(routeMiddle(points.flatMap((p) => [p.x, p.y, p.z])));
     }
 
     /**

@@ -56,7 +56,7 @@ people. Nothing dropped. Line numbers match my spreadsheet. The arrow header is 
 
 Command: `--step --click "Load"`
 
-Saw (05.png): a drawing -- 20 blue balls joined by grey arrows on a light canvas. NO names on any ball.
+Saw (05.png): a drawing -- 20 blue balls joined by gray arrows on a light canvas. NO names on any ball.
 Right panel "Graph, From friends.csv", Values tab, Overview: Nodes 20, Edges 41, Direction Directed,
 Density 0.1079, Components 1, Edges per node 3 to 6, mean 4.1. Left: a find box "Find nodes, edges,
 values", "Selection", "Everything", and at the bottom "Analyze (flask icon) in the toolbar (Shift+A)
@@ -183,7 +183,7 @@ Command: `--step --click "Style"`
 Saw (16.png): back to the Style tab of Betweenness (Fill/Color, Shape, Effects, Label +, Tooltip +).
 
 Ruth: "Label, plus. I hope this means names. (Slight worry: I'm styling 'Betweenness', not the whole
-graph -- will names only show up with this colouring? I'll try anyway.)"
+graph -- will names only show up with this coloring? I'll try anyway.)"
 
 ## Step 17
 
@@ -206,7 +206,7 @@ checkbox "Show all labels". Ava sits in the middle of the drawing, Ivan out to t
 
 Ruth: "Finally -- people with names. Ava is literally in the middle with lines in every direction,
 and Ivan is the bridge to the right-hand group. That matches the Top 10. One name is hidden (someone
-behind Milo's top neighbour?), but it tells me so and offers 'Show all labels' -- fair. Last thing
+behind Milo's top neighbor?), but it tells me so and offers 'Show all labels' -- fair. Last thing
 before I decide: can I get this picture and a table out? Where is export? I'll try the menu at top
 left."
 
@@ -264,7 +264,7 @@ table has no room for node attributes: 3 node columns ("results.betweenness.valu
 only by a second export with table: "nodes"". Preview: source,target,weight / Ava,Ben,3 ...
 
 Ruth: "That yellow box scared me for a second -- 'cannot be written' sounds like data loss -- but most
-of it is colours and positions I don't care about. The last line is the one that matters: the
+of it is colors and positions I don't care about. The last line is the one that matters: the
 betweenness numbers are only in the nodes table. It's written in programmer ('table: \"nodes\"'),
 but I get it. Switch Table to Nodes."
 
@@ -279,7 +279,7 @@ Saw (24.png): Table options: Edges, Nodes, Adjacency List.
 Command: `--step --click "Nodes"`
 
 Saw (25.png): "One row per node, with every computed value - CSV". The yellow warning remains (now
-only the colour/position/graph-attribute lines). Preview:
+only the color/position/graph-attribute lines). Preview:
 id,results.betweenness.value,results.betweenness.rank,results.betweenness.percentile /
 Ava,51.273881673881675,1,1.0 / Ben,9.753968253968255,14,0.35 / Chloe,7.08333...,17,0.2 / ...
 

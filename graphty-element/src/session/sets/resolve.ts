@@ -58,7 +58,7 @@ import { keptDefinition, scopeSignature } from "./signature";
  * - `edgePasses`: full passes over the edge list; `edgeRowVisits`: edge rows those passes read.
  * - `maskPacks`: byte masks packed into bitmaps.
  * - `digestSums`: masked sums over the hash columns.
- * - `idSetBuilds`: id `Set`s materialised from a bitmap.
+ * - `idSetBuilds`: id `Set`s materialized from a bitmap.
  */
 export const resolveCounters = {
     edgePasses: 0,
@@ -189,7 +189,7 @@ export interface ResolveContext {
      * @returns The token.
      */
     readonly executionOf?: (run: RunId) => string | undefined;
-    /** The session input tick, which scopes the signature memo. Absent: nothing is memoised. */
+    /** The session input tick, which scopes the signature memo. Absent: nothing is memoized. */
     readonly tick?: InputTick;
     /** The resolution cache. Absent: every resolution is computed. */
     readonly cache?: SetsCache;
@@ -215,7 +215,7 @@ export interface NodeHalf {
 }
 
 /**
- * The refusal a scope the session cannot honour yet gets, naming what would honour it.
+ * The refusal a scope the session cannot honor yet gets, naming what would honor it.
  * @param spec - What was asked for.
  * @param needs - The capability whose absence is the reason.
  * @returns The error to throw.
@@ -1321,7 +1321,7 @@ const digests = new WeakMap<Resolution, string>();
 
 /**
  * A resolution's `d1:` membership digest: one masked sum over each hash column, computed on first
- * read and memoised on the resolution.
+ * read and memoized on the resolution.
  * @param resolution - The resolution.
  * @param snapshot - The snapshot it was resolved against.
  * @returns The digest.

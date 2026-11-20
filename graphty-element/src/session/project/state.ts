@@ -11,7 +11,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM: the session entry point will reach it.
  */
 
-import type { CameraState } from "../../camera/types";
+import type { Tour } from "../../camera/tour";
 import type {
     EdgeId,
     FilterCondition,
@@ -22,6 +22,7 @@ import type {
     Scope,
     SetId,
 } from "../../catalog/types";
+import type { ModelDefaults } from "../assets/AssetsApi";
 import type { Note, NoteId, NoteStatus } from "../notes/types";
 import type { AlgorithmRunCommand } from "../planning";
 import type { RunResult } from "../results/types";
@@ -29,6 +30,7 @@ import type { RunPainting, RunRecord } from "../runs/types";
 import type { HeldCaptures } from "../sets/captures";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
+import type { SavedView } from "../types";
 import type { RuleTree, TimePlayback, TimeWindow } from "../visibility/filter";
 import { edgeRecordMap, nodeRecordMap } from "./recordMap";
 
@@ -71,7 +73,7 @@ export function emptyGraphSlice(token = 0, epoch = 0): GraphSlice {
 
 /** The `layout` slice: which layout draws the graph, with what, and in how many dimensions. */
 export interface LayoutChoice {
-    /** The catalogue id. */
+    /** The catalog id. */
     readonly id: LayoutId;
     /** The registered engine that draws it; several engines can draw one id. */
     readonly engine: string;
@@ -185,7 +187,17 @@ export interface ProjectState {
     /** The kept sets, by id: deep-frozen records. */
     readonly sets: ReadonlyMap<SetId, ElementSet>;
     /** Saved camera views, by name. */
-    readonly views: ReadonlyMap<string, CameraState>;
+    readonly views: ReadonlyMap<string, SavedView>;
+    /**
+     * The saved views' names in project order: one whole value, so undoing a removal puts the view
+     * back where it was rather than at the end. Reported as the `views` slice.
+     */
+    readonly viewOrder: readonly string[];
+    /**
+     * The saved camera tours, in project order: one whole value, written whole by every tour op,
+     * so each undo restores the list exactly. Deep-frozen.
+     */
+    readonly tours: readonly SavedTour[];
     /** The notes, by id. */
     readonly notes: ReadonlyMap<NoteId, NoteEntry>;
     /** What columns were declared to measure, by `<kind>:<name>`. */
@@ -198,6 +210,16 @@ export interface ProjectState {
      * is the session's, not the project's, so it is not here.
      */
     readonly shaders: ReadonlyMap<string, ProjectShaderEntry>;
+    /** Each model's own settings (`session.assets.setDefaults`), by its asset id. */
+    readonly modelDefaults: ReadonlyMap<string, ModelDefaults>;
+}
+
+/** One saved camera tour: its name and the tour. */
+export interface SavedTour {
+    /** The name the tour is saved under. */
+    readonly name: string;
+    /** The tour. */
+    readonly tour: Tour;
 }
 
 /** One shader the project holds: its text, as it was pasted or loaded. */
@@ -243,9 +265,12 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
             Object.freeze({ filter: null, window: null, showContext: false, conditions: Object.freeze([]) }),
         sets: new Map(init.sets),
         views: new Map(init.views),
+        viewOrder: init.viewOrder ?? Object.freeze([...(init.views?.keys() ?? [])]),
+        tours: init.tours ?? Object.freeze([]),
         notes: new Map(init.notes),
         attributes: new Map(init.attributes),
         valueLabels: new Map(init.valueLabels),
         shaders: new Map(init.shaders),
+        modelDefaults: new Map(init.modelDefaults),
     };
 }

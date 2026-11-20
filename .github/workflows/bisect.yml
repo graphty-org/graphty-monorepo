@@ -73,7 +73,7 @@ jobs:
         name: Plan the round
         runs-on: ubuntu-24.04
         timeout-minutes: 10
-        permissions: { contents: read, actions: read } # the last round's bisect-next artifact
+        permissions: { contents: read, actions: read } # the last round's bisect-next artifact; the red run's jobs, for an LLM red the account caused
         outputs:
             done: ${{ steps.plan.outputs.done }}
             points: ${{ steps.plan.outputs.points }}
@@ -89,8 +89,21 @@ jobs:
                   path: next
                   run-id: ${{ inputs.state_run }}
                   github-token: ${{ github.token }}
+            # An LLM red the provider's refusal of the account caused (release.yml's llm job runs its "LLM account
+            # refused" step then) has no culprit commit: the first round answers so, with no confirming run.
+            - name: Was the LLM red the account's
+              id: refused
+              if: ${{ inputs.lane == 'llm' && inputs.state == '' && inputs.state_run == '' }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RUN_ID: ${{ inputs.run_id }}
+              run: |
+                  n=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs?filter=latest&per_page=100" \
+                      --jq '.jobs[] | select(.name == "LLM regression") | .steps[]? | select(.name == "LLM account refused" and .conclusion == "success") | .name' | wc -l) || n=0
+                  echo "refused=$([ "${n:-0}" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
             - id: plan
               env:
+                  ACCOUNT_REFUSED: ${{ steps.refused.outputs.refused }}
                   LANE: ${{ inputs.lane }}
                   GOOD: ${{ inputs.good }}
                   BAD: ${{ inputs.bad }}
@@ -144,7 +157,7 @@ jobs:
               run: mv .bisect-tools "$RUNNER_TEMP/bisect-tools"
             - uses: actions/download-artifact@v8
               with: { name: bisect-state, path: "${{ runner.temp }}/state" }
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
             - uses: actions/setup-node@v7
               with: { node-version: 22.x, cache: pnpm }
             - run: pnpm install --frozen-lockfile
@@ -162,7 +175,7 @@ jobs:
             # every browser a shard may launch (the lifecycle shard runs Firefox and WebKit too)
             - run: pnpm exec playwright install chromium firefox webkit
             - name: Install Mesa lavapipe (the webgpu-graph-algorithms shards)
-              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1
+              uses: ./.github/actions/mesa-lavapipe
             - name: Build every package
               id: build
               # ponytail: builds here; reuse the merge's master build (ci.yml `reuse_build_run`) once full-run-calls lands
@@ -268,7 +281,7 @@ jobs:
                   [ -n "$id" ] || { echo "::error::no ${WF} run started on ${BRANCH}"; exit 1; }
                   echo "::notice::point ${SHA} runs as $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/${id}"
                   gh run watch "$id" --interval 60 > /dev/null || true
-                  # success or failure is the point's verdict; anything else (cancelled, lost) is no run, tested again
+                  # success or failure is the point's verdict; anything else (canceled, lost) is no run, tested again
                   echo "result=$(gh run view "$id" --json conclusion --jq .conclusion)" >> "$GITHUB_OUTPUT"
             - name: Delete the point's branch
               if: ${{ always() && steps.dispatch.outputs.branch }}

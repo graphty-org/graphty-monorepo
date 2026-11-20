@@ -284,6 +284,60 @@ describe("tapered edges", () => {
         assert.isNotNull(cap);
         assert.isAbove(cap.position.x, 5, "the arrowhead sits at the narrowed end");
     });
+
+    it("narrow toward the source, or toward both ends from a full-width middle", async () => {
+        const element = await mounted(
+            [
+                { id: "a", x: -8, y: 3 },
+                { id: "b", x: 8, y: 3 },
+                { id: "c", x: -8, y: -3 },
+                { id: "d", x: 8, y: -3 },
+            ],
+            [
+                { source: "a", target: "b" },
+                { source: "c", target: "d", both: true },
+            ],
+            [
+                {
+                    name: "Back",
+                    target: "edge",
+                    selector: { match: "everything" },
+                    set: { "edge.width": 24, "edge.taperSource": 0 },
+                },
+                {
+                    name: "Both",
+                    target: "edge",
+                    selector: { match: "has", path: "data.both" },
+                    set: { "edge.taper": 0 },
+                },
+            ],
+        );
+        const edges = edgesOf(element);
+        await until(element, "both lines draw from a widened batch", () =>
+            edges.every((edge) => (edge.drawnLine?.name ?? "").includes("-w")),
+        );
+
+        const backSource = await thickness(element, -5, 3);
+        const backTarget = await thickness(element, 5, 3);
+        assert.isBelow(
+            backSource,
+            backTarget * 0.7,
+            `back: narrower at the source (${String(backSource)} to ${String(backTarget)})`,
+        );
+        const bothSource = await thickness(element, -5, -3);
+        const bothMiddle = await thickness(element, 0, -3);
+        const bothTarget = await thickness(element, 5, -3);
+        assert.isBelow(
+            bothSource,
+            bothMiddle * 0.7,
+            `both: narrower at the source (${String(bothSource)}, ${String(bothMiddle)})`,
+        );
+        assert.isBelow(
+            bothTarget,
+            bothMiddle * 0.7,
+            `both: narrower at the target (${String(bothTarget)}, ${String(bothMiddle)})`,
+        );
+    });
 });
 
 describe("edge effects", () => {
@@ -335,7 +389,7 @@ describe("edge effects", () => {
             if (line === null) {
                 assert.lengthOf(effect.points, 2, "a straight edge's effect is one piece");
                 const middle = effect.points[0].add(effect.points[1]).scale(0.5);
-                assert.isTrue(middle.equalsWithEpsilon(edge.drawnCentre, 1e-4), "on the straight line");
+                assert.isTrue(middle.equalsWithEpsilon(edge.drawnCenter, 1e-4), "on the straight line");
             } else {
                 assert.strictEqual(
                     effect.points.length,
@@ -351,7 +405,7 @@ describe("edge effects", () => {
             }
 
             // The effect draws three times the line's width: green just beside the line.
-            const centre = edge.drawnCentre;
+            const centre = edge.drawnCenter;
             assert.isTrue(
                 leads(await pixelAt(element, centre.add(new Vector3(0, 0.12, 0))), 1),
                 `edge ${String(i)} glows beside its line`,

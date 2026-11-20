@@ -71,7 +71,7 @@ Command: `node tool/real.mjs --step $S --click Run`
 ```
 
 Saw (06.png): dots are now orange to dark brown. A key top-left of the drawing: "Color: Influence 0.04382 -> 0.06608" (light orange to dark brown). Left panel gained a row "Influence 20".
-Jordan: Part 2 DONE -- it worked out an "Influence" score (PageRank, renamed) and colored everyone; darker brown = more influence. The range is narrow (0.044 to 0.066), so the colors barely differ -- in a greyscale printout this would be mush. Sizes are all the same still. I'll click the Influence row to see if it offers "size by".
+Jordan: Part 2 DONE -- it worked out an "Influence" score (PageRank, renamed) and colored everyone; darker brown = more influence. The range is narrow (0.044 to 0.066), so the colors barely differ -- in a grayscale printout this would be mush. Sizes are all the same still. I'll click the Influence row to see if it offers "size by".
 
 ## Step 7
 
@@ -151,8 +151,8 @@ Command: `node tool/real.mjs --step $S --click Influence#2`
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-2/sessions/r2-s10/12.png
 ```
 
-Saw (12.png): dots now vary in size; two big dark ones near the bottom middle. Size row reads "1 to 3". The key top-left now has two lines: "Size: Influence 0.04382 -> 0.06608" (a grey wedge) and "Color: Influence 0.04382 -> 0.06608".
-Jordan: Part 3 DONE -- bigger dot = more influence, and darker brown = more influence too (same score twice, which is fine for a greyscale printout). Now names. There's a "Label +" row right there; pressing it.
+Saw (12.png): dots now vary in size; two big dark ones near the bottom middle. Size row reads "1 to 3". The key top-left now has two lines: "Size: Influence 0.04382 -> 0.06608" (a gray wedge) and "Color: Influence 0.04382 -> 0.06608".
+Jordan: Part 3 DONE -- bigger dot = more influence, and darker brown = more influence too (same score twice, which is fine for a grayscale printout). Now names. There's a "Label +" row right there; pressing it.
 
 ## Step 13
 
@@ -220,7 +220,7 @@ a file was saved: friends_current-view.png, 1806 x 1720 (/home/apowers/Projects/
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-2/sessions/r2-s10/17.png
 ```
 
-Saw (17.png): toast "Exported friends_current-view.png". The saved file (downloads/friends_current-view.png, 1806 x 1720) has the key in its top-left corner -- "Size: Influence 0.04382 -> 0.06608" with a grey wedge, "Color: Influence 0.04382 -> 0.06608" with an orange-to-brown bar -- plus every dot with its name.
+Saw (17.png): toast "Exported friends_current-view.png". The saved file (downloads/friends_current-view.png, 1806 x 1720) has the key in its top-left corner -- "Size: Influence 0.04382 -> 0.06608" with a gray wedge, "Color: Influence 0.04382 -> 0.06608" with an orange-to-brown bar -- plus every dot with its name.
 Jordan: Part 5 DONE -- a PNG with its key, ready to paste. Ending here.
 
 ## End
@@ -249,4 +249,4 @@ Command: `node tool/real.mjs --end $S`
 - The key shows raw scores (0.04382 to 0.06608). Those numbers mean nothing to a reader of my document; "low -> high" or ranks would read better. The range is also narrow, so the colors barely differ except for the top four.
 - The label is called "id", not "name" -- I guessed right because the sheet only had names in it, but it was a guess.
 - Names are small, and "Chloe" is printed over Farah's big dot at the bottom, hard to read in the export; Eli and Dev overlap too. "0 hidden to avoid overlap" is technically true but two names are still on top of things.
-- The size key is a grey wedge with no dot shapes, so it is not obvious at a glance that the wedge means dot size.
+- The size key is a gray wedge with no dot shapes, so it is not obvious at a glance that the wedge means dot size.

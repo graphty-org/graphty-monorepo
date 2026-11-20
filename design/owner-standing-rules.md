@@ -42,6 +42,10 @@ As amended by his save-file decisions of the same day:
 - Behaviors are not saved as results and run again on open: layout, algorithm, edge routes, sample source, place
   lookup.
 - "a change that only removes exceptions merges on agent review."
+- Amended 2026-11-14: saving results and rerunning on load are both optional ("make it optional to save results to a
+  file; and make it optional to re-run when loading a file"); rerunning stays the default. A change to a named
+  built-in is "managed by file versioning and file version migration". Code-backed built-ins are named and defined in
+  the format specification. See design/documents/version-2.md.
 
 The merge-on-review part needs a change to the PR Integrity check (`tools/pr-integrity.mjs`), tracked in its own
 issue; until it lands, such a pull request goes through the check as before.

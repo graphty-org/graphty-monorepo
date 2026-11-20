@@ -17,8 +17,8 @@ interface Neighbour {
 }
 
 /**
- * Per-node neighbour lists under the port's conventions: self-loops dropped, a directed edge joining
- * both ends. Out-neighbours first, sorted by index, then in-neighbours sorted by index: the order
+ * Per-node neighbor lists under the port's conventions: self-loops dropped, a directed edge joining
+ * both ends. Out-neighbors first, sorted by index, then in-neighbors sorted by index: the order
  * the snapshot's rows hold them in (invariant I4), which the tie draw depends on.
  */
 function neighbourLists(s: GraphSnapshot): Neighbour[][] {
@@ -40,7 +40,7 @@ function neighbourLists(s: GraphSnapshot): Neighbour[][] {
     return out.map((list, u) => [...list.sort(byIndex), ...inn[u].sort(byIndex)]);
 }
 
-/** Each neighbour label's summed vote at node u, in first-seen order. */
+/** Each neighbor label's summed vote at node u, in first-seen order. */
 function votes(nbrs: readonly Neighbour[], label: ArrayLike<number>, weighted: boolean): Map<number, number> {
     const tally = new Map<number, number>();
     const counted = new Set<number>();

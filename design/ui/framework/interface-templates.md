@@ -480,7 +480,7 @@ a pick or filters attributes itself.
 - **Regions and rows:** Mantine `Menu`, following the page theme; `ContextMenu` at the pointer;
   `MenuCheckItem` for toggles, in two groups split by a divider: those a saved view captures
   (Labels on canvas, Show arrows, Legend) and the reader's (Note markers, Minimap, Additional
-  labels, Follow selection; Minimap and Note markers blocked, `interface-specification.md` 7.4); the split's reason is
+  labels, Focus selected; Minimap and Note markers blocked, `interface-specification.md` 7.4); the split's reason is
   `interaction-patterns.md` 1.1's. Contents are the outline's, less every command whose need is
   in `interface-specification.md` 7.4.
 - **Tab order:** arrows within the menu; where focus goes after Esc is `interaction-patterns.md`

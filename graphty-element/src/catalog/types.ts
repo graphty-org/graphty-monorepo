@@ -1,10 +1,10 @@
 /**
- * @file Catalogue descriptor types.
+ * @file Catalog descriptor types.
  *
  * Everything the element can offer -- an algorithm, a layout, a file format, a palette, a
  * scale, a theme, an expression function, an option -- is published as a plain-JSON
  * descriptor. A descriptor is data: no classes, no methods, no library objects. That is what
- * lets it be serialised, posted to a worker, diffed, cached, stored in a document or rendered
+ * lets it be serialized, posted to a worker, diffed, cached, stored in a document or rendered
  * by a consumer that never imports this package's runtime.
  *
  * Option schemas in particular cross the package boundary as {@link OptionDescriptor}, never as
@@ -28,6 +28,7 @@ import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { ChannelValueDescriptor } from "./channelValues";
+import type { LabelLookDescriptor } from "./label-looks";
 import type { LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
@@ -149,7 +150,7 @@ export type Query = string;
 
 /**
  * The built-in algorithms. The list is also available at runtime so a consumer can enumerate
- * the built-in set without a catalogue instance.
+ * the built-in set without a catalog instance.
  */
 export const KNOWN_ALGORITHMS = [
     "degree",
@@ -282,7 +283,7 @@ export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
  *
  * All nineteen are here because this list is what autocomplete offers. Four of them used to be,
  * so a consumer typing a palette name was shown a quarter of the element's own palettes and had
- * to read the catalogue table to find the rest.
+ * to read the catalog table to find the rest.
  */
 export const KNOWN_PALETTE_IDS = [
     "viridis",
@@ -310,7 +311,7 @@ export const KNOWN_PALETTE_IDS = [
 export type PaletteId = (typeof KNOWN_PALETTE_IDS)[number] | (string & {});
 
 /** The built-in camera views. */
-export const KNOWN_CAMERA_IDS = ["fitToGraph", "topView", "sideView", "frontView", "isometric"] as const;
+export const KNOWN_CAMERA_IDS = ["fitToGraph", "topView", "sideView", "frontView", "isometric", "bottomView"] as const;
 
 /** A camera view id: a built-in name, or a plugin's. */
 export type CameraId = (typeof KNOWN_CAMERA_IDS)[number] | (string & {});
@@ -345,7 +346,7 @@ export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | 
 
 /**
  * Who said what a column measures, highest precedence first: a `data.declare` call, the algorithm
- * catalogue, the file format, or the element's inference from the values. A data column reports
+ * catalog, the file format, or the element's inference from the values. A data column reports
  * `"declared"` or `"inferred"` today; `"catalog"` and `"file"` are reserved for results and for
  * formats that write a column's measurement down.
  *
@@ -370,7 +371,7 @@ export type CostClass = (typeof COST_CLASSES)[number];
 /**
  * The ten declared result shapes. A shape fixes the field names a result publishes and the
  * primary action a consumer can offer for it, so a result path is guessable without opening
- * the catalogue.
+ * the catalog.
  */
 export const RESULT_SHAPES = [
     "node-metric",
@@ -549,7 +550,14 @@ export type OptionType = (typeof OPTION_TYPES)[number];
 /** One choice offered by an option whose type is "enum", or a column `catalog.optionsFor` lists. */
 export interface OptionChoice {
     value: string;
+    /** What to show for it. For a run's field, built from `runField`; an app may write its own words. */
     label: string;
+    /**
+     * The run field this choice names, for a "partition" choice `catalog.optionsFor` lists from a
+     * finished run: the run's id and the field's name. Absent for any other choice.
+     * @since 3.40.0
+     */
+    runField?: { readonly runId: RunId; readonly field: string };
     /**
      * Why this choice does not fit the option, when it does not: a column whose values the
      * option cannot read. A form lists such a choice after the fitting ones, disabled, and writes
@@ -657,7 +665,7 @@ export interface OptionUnsupported {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBackgroundShape`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -710,6 +718,7 @@ export type Channel =
     | "node.labelLineHeight"
     | "node.labelLineBox"
     | "node.labelBorderAlign"
+    | "node.labelBorderStyle"
     | "node.labelBackgroundShape"
     | "node.labelOffsetX"
     | "node.labelOffsetY"
@@ -875,6 +884,7 @@ export type Channel =
     | "node.groupMinHeightBiasTop"
     | "node.groupIncludeLabels"
     | "edge.color"
+    | "edge.colorFrom"
     | "edge.width"
     | "edge.minScreenWidth"
     | "edge.fadeStart"
@@ -904,6 +914,7 @@ export type Channel =
     | "edge.wavePeriod"
     | "edge.dashLength"
     | "edge.dashGap"
+    | "edge.dashArray"
     | "edge.curvature"
     | "edge.bends"
     | "edge.fanSpacing"
@@ -1012,6 +1023,7 @@ export type Channel =
     | "node.shaders"
     | "edge.shaders"
     | "edge.taper"
+    | "edge.taperSource"
     | "edge.lift"
     | "edge.labelWrapWidth"
     | "edge.labelWrapTrailingSpace"
@@ -1041,6 +1053,7 @@ export type Channel =
     | "edge.labelLineHeight"
     | "edge.labelLineBox"
     | "edge.labelBorderAlign"
+    | "edge.labelBorderStyle"
     | "edge.labelBackgroundShape"
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
@@ -1054,6 +1067,7 @@ export type Channel =
     | "node.xlabelLocation"
     | "node.xlabelOffsetX"
     | "node.xlabelOffsetY"
+    | "node.xlabelTextAlign"
     | "edge.xlabel"
     | "edge.xlabelStyle"
     | "edge.xlabelLocation"
@@ -1072,7 +1086,7 @@ export type Channel =
 export type EdgeLinePattern = NonNullable<NonNullable<EdgeStyleConfig["line"]>["type"]>;
 
 /**
- * A pre-parsed colour. Components are 0..255 and alpha is 0..1. The repaint reads this form;
+ * A pre-parsed color. Components are 0..255 and alpha is 0..1. The repaint reads this form;
  * the string form is for authoring and export, because parsing a hex string once per element
  * is a cost the encoding already knows how to avoid.
  */
@@ -1117,24 +1131,24 @@ export type ShaderParamAddress = `${"node" | "edge"}.shaders.${string}.${string}
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 /**
- * What a categorical colour encoding does when the column holds more groups than the palette has
- * colours. N is the palette's capacity: 8 for the default, Okabe-Ito.
+ * What a categorical color encoding does when the column holds more groups than the palette has
+ * colors. N is the palette's capacity: 8 for the default, Okabe-Ito.
  *
- * - `"other"`: the N largest groups keep the palette's colours in palette order, largest group
- *   first, and every remaining group is painted one mid grey (#686868). The legend lists the
- *   grey as its last row, marked `role: "other"` with the elements it paints in `count`.
- * - `"shape"`: node encodings only. Group i is painted colour i mod N and drawn in shape
+ * - `"other"`: the N largest groups keep the palette's colors in palette order, largest group
+ *   first, and every remaining group is painted one mid gray (#686868). The legend lists the
+ *   gray as its last row, marked `role: "other"` with the elements it paints in `count`.
+ * - `"shape"`: node encodings only. Group i is painted color i mod N and drawn in shape
  *   floor(i / N) from a fixed list (icosphere, box, octahedron, cylinder, cone, torus), so the
- *   first N groups keep the element's default shape. Groups past N x 6 fold into the grey. On an
+ *   first N groups keep the element's default shape. Groups past N x 6 fold into the gray. On an
  *   edge encoding it is refused, because an edge has no shape to cycle. A layer that varies only
- *   the colour this way is drawn in the shapes too, whether or not it stores the shape half.
+ *   the color this way is drawn in the shapes too, whether or not it stores the shape half.
  * - `"pattern"`: edge encodings only, the edge counterpart of `"shape"`. Group i is painted
- *   colour i mod N and drawn in line pattern floor(i / N) from a fixed list (solid, dash, dot,
- *   dash-dot, wave, diamonds), so two groups that share a colour never share a pattern. On a node
+ *   color i mod N and drawn in line pattern floor(i / N) from a fixed list (solid, dash, dot,
+ *   dash-dot, wave, diamonds), so two groups that share a color never share a pattern. On a node
  *   encoding it is refused, because a node has no line. @since 3.27.0
- * - `"extend"`: every group gets a colour of its own. With no palette named, the smallest
+ * - `"extend"`: every group gets a color of its own. With no palette named, the smallest
  *   categorical palette that fits, else the sequential default sampled once per group; with a
- *   palette named, its colours and then samples of the sequential default. Distinctness is NOT
+ *   palette named, its colors and then samples of the sequential default. Distinctness is NOT
  *   guaranteed past the palette's capacity.
  *
  * Ignored by a scale that reads numbers, which has no groups to overflow.
@@ -1225,9 +1239,9 @@ export type Binding =
               | (string & {});
           palette?: PaletteId;
           /**
-           * The binding's own palette: two or more colours, lowest first, saved with the layer.
-           * Given, `palette` is not: a binding names a catalogue palette or carries its colors. A
-           * scale that names groups reads them as a categorical palette (one colour per group, so
+           * The binding's own palette: two or more colors, lowest first, saved with the layer.
+           * Given, `palette` is not: a binding names a catalog palette or carries its colors. A
+           * scale that names groups reads them as a categorical palette (one color per group, so
            * as many colors as groups), a binding with a `midpoint` as a diverging one, and anything
            * else as a sequential ramp. The legend names it `custom`.
            * @since 3.26.0
@@ -1246,7 +1260,7 @@ export type Binding =
           otherwise?: string | number;
           other?: { threshold: number; value: string | number };
           /**
-           * What a categorical colour binding does with more groups than its palette can keep
+           * What a categorical color binding does with more groups than its palette can keep
            * apart. See {@link BindingOverflow}. Absent, a palette the binding names is refused with
            * `E_CAP_EXCEEDED` and one it leaves to the element is chosen large enough.
            */
@@ -1289,7 +1303,7 @@ export type Binding =
            * The values a scale's groups paint, lowest group first, on a channel that carries one
            * of a fixed list (a line pattern, a node shape, an arrow): group 0 paints the first,
            * group 1 the second. Each must be one the channel takes. Absent, the groups walk the
-           * channel's own list in catalogue order. `styles.proposeEncoding` writes an ordered set
+           * channel's own list in catalog order. `styles.proposeEncoding` writes an ordered set
            * here when it steps a number onto such a channel.
            * @since 3.26.0
            */
@@ -1387,7 +1401,7 @@ export type LayerSource =
 /** What a layer is for. */
 export type LayerKind = "base" | "encoding" | "highlight" | "custom";
 
-/** A layer as it is authored, imported or exported: data, never an object with behaviour. */
+/** A layer as it is authored, imported or exported: data, never an object with behavior. */
 export interface LayerSpec {
     name: string;
     target?: "node" | "edge";
@@ -1439,11 +1453,23 @@ export interface LayerUnmatchedGroup {
     };
 }
 
-/** A portable stack of layers, with any palettes it depends on travelling beside it. */
+/** A portable stack of layers, with any palettes it depends on traveling beside it. */
 export interface StyleDocument {
     version: 1;
     layers: readonly LayerSpec[];
+    /**
+     * Every palette a layer names, built-ins included, as the writing build painted it. A layer's
+     * palette name resolves here before the reader's own catalog, so a file opens with the same
+     * colors on a build that no longer ships a palette, or ships it changed. A document written
+     * before 3.40 carries only registered palettes, and its other names resolve in the catalog.
+     */
     palettes?: readonly PaletteDescriptor[];
+    /**
+     * Every label look a layer names (`LabelStyle.look`), with the fields it set, resolved here
+     * before the reader's catalog in the same way as `palettes`. Absent when no layer names one.
+     * @since 3.40.0
+     */
+    labelLooks?: readonly LabelLookDescriptor[];
     /**
      * The style tree: folders, pins, the reader's locks and hidden rows, bottom first. A layer row
      * names its layer by its place in `layers`. Absent when the tree is one plain row per layer.
@@ -1486,7 +1512,7 @@ export type StyleDocumentRow = (
 };
 
 // ---------------------------------------------------------------------------------------------
-// The catalogue descriptors
+// The catalog descriptors
 // ---------------------------------------------------------------------------------------------
 
 /** One algorithm the element can run. */
@@ -1599,6 +1625,11 @@ export interface LayoutDescriptor {
      * offering a weight control on the other fourteen would advertise a setting that changes
      * nothing.
      */
+    honorsWeights: boolean;
+    /**
+     * The British spelling of {@link LayoutDescriptor.honorsWeights}, always the same value.
+     * @deprecated Read `honorsWeights`. Removed in the next major.
+     */
     honoursWeights: boolean;
     /**
      * Whether the default engine accepts a scope: `setLayout(type, opts, { scope })` moves only
@@ -1632,11 +1663,11 @@ export interface LayoutRequirements {
 /**
  * A layout descriptor as a third party's engine class authors it.
  *
- * `honoursWeights` and `scoped` are missing from it because the engine class already declares
+ * `honorsWeights` (and its British spelling `honoursWeights`) and `scoped` are missing from it because the engine class already declares
  * those facts as statics, and a fact written in two places is a fact that can disagree with
  * itself. `LayoutEngine.register` reads the statics and publishes the complete descriptor.
  */
-export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;
+export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honorsWeights" | "honoursWeights" | "scoped">;
 
 /** One file format the element can read, write, or both. */
 export interface FormatDescriptor {
@@ -1716,7 +1747,7 @@ export interface FormatExportVariant {
     options: readonly OptionDescriptor[];
 }
 
-/** One colour palette. */
+/** One color palette. */
 export interface PaletteDescriptor {
     id: PaletteId;
     plainName: string;
@@ -1729,7 +1760,7 @@ export interface PaletteDescriptor {
 
 /**
  * What `registerPalette` accepts: a {@link PaletteDescriptor} whose derived and optional members
- * may be left off. `capacity` is derived from the kind and the colours, and a missing
+ * may be left off. `capacity` is derived from the kind and the colors, and a missing
  * `colorblindSafe` is no claim.
  */
 export type PaletteRegistration = Omit<PaletteDescriptor, "capacity" | "colorblindSafe"> & {
@@ -2115,7 +2146,7 @@ export type RuleTestKind = "range" | "top" | "above" | "categories" | "text";
 /**
  * Whether a metric can be computed on this graph, what it would cost, and whether it has
  * already been run. Metrics that have never been run are listed too, which is what makes the
- * catalogue self-describing: a stranger can see everything the element could compute, with a
+ * catalog self-describing: a stranger can see everything the element could compute, with a
  * cost and why it is unavailable beside each entry, before computing anything.
  */
 export interface MetricAvailability {
@@ -2190,7 +2221,7 @@ export type ScopeInput = Exclude<Scope, { define: unknown }> | { define: SetDefi
 
 /**
  * Which way an edge is followed: arriving (`in`), leaving (`out`) or both (`all`). What a degree
- * leaf counts and which way a neighbourhood selection walks.
+ * leaf counts and which way a neighborhood selection walks.
  */
 export type SelectionDirection = "in" | "out" | "all";
 
@@ -2957,7 +2988,7 @@ export type SetCreatedFrom =
 export type PathKind = "simple" | "trail" | "walk" | "cycle";
 
 /**
- * The catalogue: everything the element can offer, as data.
+ * The catalog: everything the element can offer, as data.
  *
  * `session.catalog` implements every method here except the ones named in
  * {@link DeprecatedCatalogMethod}, which nothing implements yet.

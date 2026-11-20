@@ -180,7 +180,7 @@ export function moveBranch(rule: UnionLeaf, id: string, to: number): UnionLeaf {
  */
 export function duplicateBranch(rule: UnionLeaf, id: string): { rule: UnionLeaf; id: string } {
     const at = rule.branches.findIndex((branch) => branch.id === id);
-    const source = rule.branches[at];
+    const source = at === -1 ? undefined : rule.branches[at];
     if (source === undefined) {
         return { rule, id };
     }
@@ -257,37 +257,3 @@ export const editStep = (rule: UnionLeaf, branchId: string, stepId: string, patc
  */
 export const removeStep = (rule: UnionLeaf, branchId: string, stepId: string): UnionLeaf =>
     withSteps(rule, branchId, (steps) => steps.filter((step) => step.id !== stepId));
-
-/**
- * Moves a step within its group. Start with never changes (spec 1).
- * @param rule - the selection.
- * @param branchId - the group.
- * @param stepId - the step.
- * @param to - its new place.
- * @returns the selection.
- */
-export const moveStep = (rule: UnionLeaf, branchId: string, stepId: string, to: number): UnionLeaf =>
-    withSteps(rule, branchId, (steps) =>
-        moveItem(
-            steps,
-            steps.findIndex((step) => step.id === stepId),
-            to,
-        ),
-    );
-
-/**
- * A copy of a step, under it, with a new id.
- * @param rule - the selection.
- * @param branchId - the group.
- * @param stepId - the step.
- * @returns the selection and the copy's id.
- */
-export function duplicateStep(rule: UnionLeaf, branchId: string, stepId: string): { rule: UnionLeaf; id: string } {
-    const id = newId("s");
-    return {
-        rule: withSteps(rule, branchId, (steps) =>
-            steps.flatMap((step) => (step.id === stepId ? [step, { ...step, id }] : [step])),
-        ),
-        id,
-    };
-}

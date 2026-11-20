@@ -74,7 +74,7 @@ function mount(autosave: string | null, configure?: (element: Graphty) => void):
 }
 
 /**
- * Whether the page would ask before closing now: a `beforeunload` listener cancelled the event.
+ * Whether the page would ask before closing now: a `beforeunload` listener canceled the event.
  * @returns True when one did.
  */
 function guardArmed(): boolean {

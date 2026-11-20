@@ -2,7 +2,7 @@
  * @file The layout ops: which layout draws the graph and in how many dimensions, and the two
  * exempt controls beside them.
  *
- * - `layout.set`: choose the layout (a catalogue id, the engine that draws it, its options, and
+ * - `layout.set`: choose the layout (a catalog id, the engine that draws it, its options, and
  *   optionally what it runs over). One undoable step.
  * - `layout.rerun`: run the current layout again from the start, as choosing it again would, with
  *   its own step (`layout.rerun`), so undo names a re-run rather than a change of layout.
@@ -18,7 +18,7 @@
  *
  * `layout.set` and `view.dimension` are slot-holding writers (design/undo/undo-design.md section
  * 4.7): they take the arrangement they began from, write the slice, then have the renderer build
- * the engine and spend its pre-steps inside their slot. Cancelled or made obsolete while the
+ * the engine and spend its pre-steps inside their slot. Canceled or made obsolete while the
  * pre-steps run, they publish nothing, and the rollback puts the previous layout and the previous
  * coordinates back. See design sections 3.2, 4.7, 6.4 and 11.4.
  */
@@ -33,9 +33,9 @@ import type { PositionEntry } from "../types";
 /** `layout.set`: choose the layout that draws the graph. */
 export interface LayoutSetCommand {
     readonly op: "layout.set";
-    /** The catalogue id, such as `"force"`. A registered engine name is read as the id it serves. */
+    /** The catalog id, such as `"force"`. A registered engine name is read as the id it serves. */
     readonly id: LayoutId;
-    /** The engine that draws it, such as `"d3"`; the catalogue's default engine for `id` when absent. */
+    /** The engine that draws it, such as `"d3"`; the catalog's default engine for `id` when absent. */
     readonly engine?: string;
     /** The engine's options. */
     readonly options?: Readonly<Record<string, unknown>>;
@@ -97,7 +97,7 @@ export interface LayoutService {
      * Build or reconfigure the engine for a choice just written, and spend its pre-steps, inside
      * the command's slot: the `layout` hook, run inline.
      * @param choice - The choice, as the slice now holds it.
-     * @param signal - Fires when the command is cancelled or made obsolete; the pre-steps then
+     * @param signal - Fires when the command is canceled or made obsolete; the pre-steps then
      *     stop without publishing anything.
      * @param explicitScope - Whether the command named the scope, the only case in which a scope
      *     the engine cannot hold, or that holds nothing, is refused.

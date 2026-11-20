@@ -1,7 +1,7 @@
 # Session r1-s29b: Tom, Florentine families, bigger dots for the families that matter
 
 Participant: Tom, 52, lab manager, does not build networks, reads headings and numbers, skips
-small grey text and hover tips. Never used this program before.
+small gray text and hover tips. Never used this program before.
 
 Task (prompt B): using the ready-made network of the leading families of Renaissance Florence
 and the marriages between them, make the drawing show which families the network depends on
@@ -31,7 +31,7 @@ never uploaded" and "Local only" at the top reassured him.
 
 `--step --click "No thanks" --click "Florentine families"` -> 02.png
 
-Saw: 15 blue dots joined by grey lines, no names on any dot. Right panel "Graph": Nodes 15,
+Saw: 15 blue dots joined by gray lines, no names on any dot. Right panel "Graph": Nodes 15,
 Edges 20, Density 0.1905, Components 1, "Edges per n... 1 to 6, mean 2.667". Left panel:
 Selection, Everything. Bottom left in small text: "Analyze (Shift+A) to add results here". A
 toolbar of five icons at the bottom.
@@ -46,7 +46,7 @@ probably that."
 
 Saw: a list titled "Rank nodes and edges": Degree, Betweenness, Edge betweenness, Closeness,
 PageRank (with a blue "Start here" tag), Eigenvector, Katz, HITS, All-pairs distance, more below.
-Each with a one-line grey description.
+Each with a one-line gray description.
 
 Think-aloud: "I don't know any of these and I'm not learning them at 4 pm. One says 'Start here'.
 I'll do what it tells me." Hesitated a few seconds over the names; did not read the descriptions.
@@ -77,7 +77,7 @@ PageRank -- I assume that's the same thing? The task says bigger dots, so I'm no
 `--step --click-at 122,156` -> 06.png
 
 Saw: right panel now "Influence, Measure, from Influence, Oct 6" with a Values tab: a bar of 15
-equal grey blocks, "15 of 15 have a value, 0.03066 to 0.1458, median 0.06886", and "Top 10":
+equal gray blocks, "15 of 15 have a value, 0.03066 to 0.1458, median 0.06886", and "Top 10":
 Medici 0.1458, Guadagni 0.0984, Strozzi 0.0881, Albizzi 0.07912, Tornabuoni 0.07128, Ridolfi,
 Castellani, Bischeri, Peruzzi, Salviati. "Made with: Analysis Influence, Ran Oct 6, Damping
 Factor 0.85".
@@ -125,7 +125,7 @@ Think-aloud: "It opened... nothing. Empty. Did I do that wrong?" First dead end.
 `--step --key Escape --click-at 1380,256` -> 11.png, "button Size by attribute"
 
 Saw: a list "Find an attribute": under "Influence": Influence, Influence rank, Influence
-percentile. Below, greyed: "Cannot be used: Holds groups, not amounts" -- id, name.
+percentile. Below, grayed: "Cannot be used: Holds groups, not amounts" -- id, name.
 
 Think-aloud: "Second try, the chain thing. Now it wants an 'attribute'. Influence -- same word as
 the color, so that one." Did not consider rank or percentile.

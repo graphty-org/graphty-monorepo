@@ -105,7 +105,7 @@ describe("Lazy Evaluation", () => {
 
     describe("lazy() return type", () => {
         test("should return a function that returns the computed value", () => {
-            const expensiveFn = vi.fn().mockReturnValue({ result: 42 });
+            const expensiveFn = vi.fn(() => ({ result: 42 }));
             const lazyFn = lazy(expensiveFn);
 
             // lazy() returns a function

@@ -1,6 +1,6 @@
 /**
  * @file The overview a consumer draws a minimap from (issue #293): its points match the nodes, its
- * viewport follows the camera, `centerOnOverview` centres the view on a frame point in 2D and 3D,
+ * viewport follows the camera, `centerOnOverview` centers the view on a frame point in 2D and 3D,
  * and `overview-changed` fires when the camera or the layout moves.
  */
 
@@ -112,7 +112,7 @@ describe("the overview (#293)", () => {
             assert.closeTo(at?.x ?? 0, 200, 1.5);
             assert.closeTo(at?.y ?? 0, 200, 1.5);
 
-            // The viewport is now centred on that node's point.
+            // The viewport is now centered on that node's point.
             const { viewport } = element.getOverview();
             const moved = pointOf(element, 3);
             assert.closeTo(viewport.x + viewport.width / 2, moved.x, 1e-3);

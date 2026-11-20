@@ -24,18 +24,23 @@ afterEach(() => {
 
 const COUNT = 10_000;
 const COLUMNS = 100;
-const MIDDLE = 5_050;
 /** The `Node`s an action on one node may build: that node's. */
 const FEW = 1;
 
 /**
- * A 10,000-node chain on the batched path, drawn with the default arrowheads, on a fixed grid.
+ * A chain on the batched path, drawn with the default arrowheads, on a fixed grid.
  * @param directed - Whether its edges carry arrowheads.
  * @param shape - The nodes' shape, when not the default sphere.
  * @param edges - What a layer paints on every edge, if anything.
+ * @param count - How many nodes.
  * @returns The element.
  */
-async function mounted(directed: boolean, shape?: string, edges?: Record<string, unknown>): Promise<Graphty> {
+async function mounted(
+    directed: boolean,
+    shape?: string,
+    edges?: Record<string, unknown>,
+    count = COUNT,
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderPath = "batched";
     element.directed = directed;
@@ -68,20 +73,29 @@ async function mounted(directed: boolean, shape?: string, edges?: Record<string,
     }
 
     await element.session.data.addNodes(
-        Array.from({ length: COUNT }, (_, i) => ({
+        Array.from({ length: count }, (_, i) => ({
             id: `n${String(i)}`,
-            flagged: i === MIDDLE,
+            flagged: `n${String(i)}` === middleOf(count),
             position: { x: (i % COLUMNS) * 2, y: Math.floor(i / COLUMNS) * 2, z: 0 },
         })),
     );
     await element.session.data.addEdges(
-        Array.from({ length: COUNT - 1 }, (_, i) => ({ src: `n${String(i)}`, dst: `n${String(i + 1)}` })),
+        Array.from({ length: count - 1 }, (_, i) => ({ src: `n${String(i)}`, dst: `n${String(i + 1)}` })),
     );
     await element.graph.setLayout("fixed", { dim: 2 });
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForSettled();
     await element.waitForStableFrame();
     return element;
+}
+
+/**
+ * The node in the middle of a chain's grid.
+ * @param count - How many nodes the chain has.
+ * @returns Its id.
+ */
+function middleOf(count: number): string {
+    return `n${String(count / 2 + COLUMNS / 2)}`;
 }
 
 /**
@@ -111,11 +125,12 @@ async function drawn(element: Graphty): Promise<void> {
  * @returns Where the node is on the page.
  */
 async function hoverMiddle(element: Graphty): Promise<Point> {
-    const at = element.nodeScreenPosition(`n${String(MIDDLE)}`);
+    const middle = middleOf(element.getNodeCount());
+    const at = element.nodeScreenPosition(middle);
     assert.isDefined(at);
     await hover(element, at);
     await drawn(element);
-    assert.equal(element.session.selection.hovered, `n${String(MIDDLE)}`, "the hover reached the node");
+    assert.equal(element.session.selection.hovered, middle, "the hover reached the node");
     assert.isAtMost(built(element), FEW, "the hover");
     return at;
 }
@@ -129,7 +144,7 @@ describe("one node acted on in a 10,000-node connected batched graph builds that
 
         await click(element, at);
         await drawn(element);
-        assert.deepEqual([...element.session.selection.nodes], [`n${String(MIDDLE)}`], "the click selected it");
+        assert.deepEqual([...element.session.selection.nodes], [middleOf(COUNT)], "the click selected it");
         assert.isAtMost(built(element), FEW, "the click");
     });
 
@@ -141,11 +156,12 @@ describe("one node acted on in a 10,000-node connected batched graph builds that
         await hoverMiddle(element);
     });
 
-    // a line with no arrowhead drawn as an Edge (a label, a dash) or along a curve starts at its ends' outlines
+    // a line with no arrowhead drawn as an Edge (a label, a dash) or along a curve starts at its ends' outlines; 2,000
+    // nodes, as 10,000 edge labels take minutes to draw in software
     it.each([{ "edge.label": "e" }, { "edge.style": "dash" }, { "edge.curvature": true }, { "edge.route": "arc" }])(
         "a real hover with undirected edges set %o",
         async (set) => {
-            const element = await mounted(false, undefined, set);
+            const element = await mounted(false, undefined, set, 2_000);
             assert.equal(built(element), 0, "the load builds no Node");
             await hoverMiddle(element);
         },

@@ -15,7 +15,7 @@ import { CancelButton } from "./CancelButton";
 import { COMMIT_KEY } from "./keys";
 import { openDraft } from "./preview";
 import { stepCardSource } from "./steps";
-import { afterWords, PREVIEW_WORDS, removeTitleWords, STEP_WORDS, stepRemovedWords } from "./words";
+import { afterWords, PREVIEW_WORDS, removeTitleWords, STEP_WORDS, stepRemovedWords, stepSubjectWords } from "./words";
 
 /** The element's events after which the card reads its draft again. */
 const DRAFT_EVENTS = ["data:draft-changed"] as const;
@@ -73,7 +73,17 @@ export function StepCard({
     const source = session.data.sources({ staged: true }).find((each) => each.key === key);
     const title = removeTitleWords(card.remove, source === undefined ? "" : sourceName(source));
     const preview = draft?.preview() ?? null;
-    const removed = preview?.issues.flatMap((issue) => (issue.code === "W_STEP_REMOVED" ? [issue.params] : [])) ?? [];
+    const { remove } = card;
+    const row = "step" in remove ? session.data.steps()[remove.step] : undefined;
+    // The element lists every committed step the draft drops, the card's own target too: the step
+    // it deletes, or the removed source's own steps. Later steps are only the others.
+    const removed =
+        preview?.issues.flatMap((issue) =>
+            issue.code === "W_STEP_REMOVED" &&
+            ("step" in remove ? issue.params.step !== remove.step : issue.params.source !== remove.source)
+                ? [issue.params]
+                : [],
+        ) ?? [];
     const unbound = preview?.issues.filter((issue) => issue.code === "W_REFERENCE_UNBOUND").length ?? 0;
     const edits = preview?.edits ?? [];
     const lost = edits.filter((edit) => edit.state === "lost").length;
@@ -101,6 +111,11 @@ export function StepCard({
                 <Text size="xs" fw={600}>
                     {title}
                 </Text>
+                {row === undefined ? null : (
+                    <Text size="xs" c="dimmed" aria-label={`${title} subject`}>
+                        {stepSubjectWords(row, source === undefined ? row.source : sourceName(source))}
+                    </Text>
+                )}
                 {preview === null ? null : (
                     <>
                         <fieldset className="ss-field">

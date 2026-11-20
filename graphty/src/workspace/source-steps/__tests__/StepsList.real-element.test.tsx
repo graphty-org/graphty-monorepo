@@ -7,7 +7,7 @@
  * its rule, and Keep 1 puts people.csv's departments back; a changed direction makes the new act in
  * the old step's place. A pick on HR's list is a reader edit,
  * listed under Reader edits (R) and taken back by its Delete. Remove in people.csv's menu names
- * the later steps that go with it, and Undo brings it back.
+ * the later steps that go with it (HR's merge, never its own Add), and Undo brings it back.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -111,12 +111,23 @@ describe("Steps and Reader edits (source-steps)", () => {
         const edgeItem = within(list).getByRole("listitem", { name: "Step 3" });
         assert.include(edgeItem.textContent ?? "", "Edges");
         assert.include(edgeItem.textContent ?? "", "5 edges", "E1, E2, E3, E5 and E6");
+        assert.strictEqual(
+            within(edgeItem).getByLabelText("Step 3 joins").textContent,
+            "badge -> person",
+            "what the step joined, so two joins from one source read apart",
+        );
         assert.include(within(list).getByRole("listitem", { name: "Step 1" }).textContent ?? "", "Add");
 
         const steps = session.history.steps.length;
         await userEvent.click(within(edgeItem).getByRole("button", { name: "Delete Step 3" }));
         const card = await screen.findByRole("form", { name: "Delete step 3" });
         assert.strictEqual(within(card).getByLabelText("Edges after").textContent, "5 -> 0");
+        assert.strictEqual(
+            within(card).getByLabelText("Delete step 3 subject").textContent,
+            "Edges entries.csv badge -> person",
+        );
+        const later = within(card).getByRole("group", { name: "Later steps" });
+        assert.strictEqual(later.textContent, "Later steps 0", "the last step takes no other with it");
         assert.strictEqual(within(card).getByLabelText("Nodes after").textContent, "no change");
         assert.strictEqual(session.history.steps.length, steps, "the preview writes nothing");
         await waitFor(() => {
@@ -267,6 +278,13 @@ describe("Steps and Reader edits (source-steps)", () => {
     it("Remove in people.csv's menu names the later steps that go with it, and Undo brings it back", async () => {
         const { session, people } = await withPeople();
         await joinEntries(session);
+        // HR's merge drops rows naming no person, so it reads people.csv and goes with it.
+        const hr = await session.data.stage({ type: "csv", config: { data: HR }, name: "hr.csv" }, { key: "badge" });
+        const merge = session.data.draft();
+        merge.merge({ from: { source: hr, field: "badge" }, into: { space: "person" }, unmatchedFrom: "drop" });
+        await merge.commit();
+        const hrStep = session.data.steps().find((row) => row.source === hr && row.op === "join.merge");
+        assert.isDefined(hrStep);
         const nodes = session.data.statistics({ scope: "all" }).nodeCount;
         const row = await screen.findByRole("listitem", { name: "people.csv" });
         await userEvent.click(within(row).getByRole("button", { name: "people.csv menu" }));
@@ -277,10 +295,16 @@ describe("Steps and Reader edits (source-steps)", () => {
             .currentDraft()
             ?.preview()
             .issues.flatMap((issue) => (issue.code === "W_STEP_REMOVED" ? [issue.params] : []));
-        assert.isAbove(removed?.length ?? 0, 0, "the element names later steps that go");
-        for (const params of removed ?? []) {
-            assert.include(later.textContent ?? "", `Step ${String(params.step + 1)}: `);
-        }
+        assert.sameMembers(
+            (removed ?? []).map((params) => params.step),
+            [0, hrStep?.index ?? -1],
+            "the element drops people.csv's own Add and HR's merge",
+        );
+        assert.strictEqual(
+            later.textContent,
+            `Later steps 1Step ${String((hrStep?.index ?? 0) + 1)}: step removed`,
+            "only HR's merge is a later step; people.csv's own Add is what Remove removes",
+        );
         assert.notInclude(card.textContent ?? "", "W_STEP_REMOVED", "no code is shown");
         assert.isTrue(sourcesHold(session, people), "nothing removed yet");
 

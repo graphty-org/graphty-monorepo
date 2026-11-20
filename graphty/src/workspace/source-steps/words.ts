@@ -14,6 +14,7 @@ import {
     type SourceOverlapQuestion,
     type SourceProfileKind,
     type SourceRefreshIssue,
+    type SourceStepAct,
     type SourceStepCounts,
     type SourceStepRow,
     type SourceTableMapping,
@@ -455,6 +456,25 @@ export const OP_WORDS: Readonly<Record<SourceStepRow["op"], string>> = {
     "join.node-values": "Values",
     "join.edge-values": "Values",
 };
+
+/**
+ * What a join step joined: field 2, then the field or space of node 1 it joined onto.
+ * @param act - the step's act.
+ * @returns such as "badge -> person".
+ */
+export function actWords(act: SourceStepAct): string {
+    return `${act.from.field} -> ${act.into.field ?? act.into.space}`;
+}
+
+/**
+ * A step as the step card names it under its title: its kind, its source and what it joined.
+ * @param row - the step.
+ * @param name - its source's name.
+ * @returns such as "Edges entries.csv badge -> person".
+ */
+export function stepSubjectWords(row: SourceStepRow, name: string): string {
+    return [OP_WORDS[row.op], name, ...(row.act === null ? [] : [actWords(row.act)])].join(" ");
+}
 
 /**
  * A Steps row's counts, from the step's buckets in the committed build.

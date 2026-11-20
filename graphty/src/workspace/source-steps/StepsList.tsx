@@ -8,7 +8,7 @@ import { ariaKey, formatKey } from "../keys/keys";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { DELETE_KEY } from "./keys";
 import { openEditStep, openRemove } from "./steps";
-import { missingWords, OP_WORDS, STEP_WORDS, stepCountWords, stepWords } from "./words";
+import { actWords, missingWords, OP_WORDS, STEP_WORDS, stepCountWords, stepWords } from "./words";
 
 /**
  * One Steps row: its number, source, kind and counts, Off with what it misses, Edit on a join step
@@ -53,6 +53,11 @@ function StepRow({
                 <Text size="xs" c="dimmed" truncate style={{ flex: 1, minWidth: 0 }}>
                     {name}
                 </Text>
+                {row.act === null ? null : (
+                    <Text size="xs" style={{ flexShrink: 0 }} aria-label={`${label} joins`}>
+                        {actWords(row.act)}
+                    </Text>
+                )}
                 {off ? (
                     <Text size="xs" c="dimmed" aria-label={`${label} ${STEP_WORDS.off.toLowerCase()}`}>
                         {[STEP_WORDS.off, ...row.missing.map((issue) => missingWords(issue))].join(", ")}

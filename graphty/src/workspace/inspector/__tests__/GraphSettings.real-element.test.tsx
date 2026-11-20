@@ -64,7 +64,7 @@ describe("Graph settings", () => {
         });
     });
 
-    it("turns the declutter rule on and back off, and labels move off nodes until turned off", async () => {
+    it("turns the declutter rule on and back off, and labels stay put until avoidance is turned on", async () => {
         const element = await openGraphSettings();
         assert.isFalse(element.layoutBehavior?.labels?.declutter, "every label is drawn by default");
         await userEvent.click(screen.getByRole("switch", { name: "Hide overlapping labels" }));
@@ -75,7 +75,11 @@ describe("Graph settings", () => {
         await waitFor(() => {
             assert.isFalse(element.layoutBehavior?.labels?.declutter);
         });
-        assert.isTrue(element.layoutBehavior?.labels?.avoidNodesAndEdges, "labels move off nodes by default");
+        assert.isFalse(element.layoutBehavior?.labels?.avoidNodesAndEdges, "labels stay put by default");
+        await userEvent.click(screen.getByRole("switch", { name: "Move labels off nodes and edges" }));
+        await waitFor(() => {
+            assert.isTrue(element.layoutBehavior?.labels?.avoidNodesAndEdges);
+        });
         await userEvent.click(screen.getByRole("switch", { name: "Move labels off nodes and edges" }));
         await waitFor(() => {
             assert.isFalse(element.layoutBehavior?.labels?.avoidNodesAndEdges);

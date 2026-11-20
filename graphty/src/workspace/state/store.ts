@@ -284,9 +284,8 @@ export interface WorkspaceState {
     readonly shaderNext: "node" | "edge" | "background" | null;
     /**
      * Graph settings, Labels: move a label off the nodes and edges it would cover, and with the
-     * overlap rule on, hide one with no place clear of labels and nodes. On by default: without it a
-     * name is drawn across the nodes in front of and behind it, which the overlap rule alone (labels
-     * against labels) never looks at.
+     * overlap rule on, hide one with no place clear of labels and nodes. Off by default (owner,
+     * 2026-11-19): a label is drawn where its style puts it, even over nodes or other labels.
      */
     readonly labelsAvoid: boolean;
     /**
@@ -576,7 +575,7 @@ const INITIAL: WorkspaceState = {
     allLabelsShown: true,
     textNext: null,
     shaderNext: null,
-    labelsAvoid: true,
+    labelsAvoid: false,
     labelText: null,
     labelSampleCell: null,
     layoutShownOnly: true,

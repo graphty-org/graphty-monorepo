@@ -553,6 +553,7 @@ export const edgeInternals = {} as {
         haloBands: Edge["haloBands"];
         lineIsCurve: Edge["lineIsCurve"];
         drawnStyle: Edge["drawnStyle"];
+        gradientPieces: Edge["gradientPieces"];
     };
     /** Where the edge's line leaves `node`, from `centre` toward `toward`; see `Edge.leaveNode`. */
     leaveNode(edge: Edge, node: Node, centre: Vector3, toward: Vector3): Vector3;
@@ -697,6 +698,7 @@ export class Edge {
             haloBands: edge.haloBands,
             lineIsCurve: edge.lineIsCurve,
             drawnStyle: edge.drawnStyle,
+            gradientPieces: edge.gradientPieces,
         });
         edgeInternals.leaveNode = (edge, node, centre, toward) => edge.leaveNode(node, centre, toward);
         edgeInternals.bareEnd = (edge, end, centre, toward) => edge.bareEnd(end, centre, toward);
@@ -983,6 +985,12 @@ export class Edge {
      * each a slot in the batch of its color, drawn over the line.
      */
     private gradientPieces: { batch: EdgeLineBatch; slot: number; color: string }[] = [];
+
+    /**
+     * The curve the layout laid this edge's line along, with its measure ({@link EdgePosition.laidCurve}), in scene
+     * units, while the line follows it: the gradient's pieces are laid by that measure. Null otherwise.
+     */
+    private laidCurve: { points: Vector3[]; params: readonly number[] } | null = null;
 
     /** The caption distances (`textDistance`, head then tail) the captions were last placed by. */
     private drawnCaptionDistances: string | undefined;
@@ -1670,9 +1678,10 @@ export class Edge {
         let bent = this.lifted;
         if (this.lifted) {
             this.bundled = false;
+            this.laidCurve = null;
             this.placeLifted(this.lineBatch, src, dst, lift);
         } else {
-            bent = this.placeLine(src, dst, lnk.bends, lnk.lineEnds);
+            bent = this.placeLine(src, dst, lnk.bends, lnk.lineEnds, lnk.laidCurve);
         }
 
         if (bentBefore !== (this.bundled || this.lifted)) {
@@ -1706,6 +1715,7 @@ export class Edge {
      * @param dst - The target end.
      * @param laid - The bends of the route the layout laid, if it laid one.
      * @param laidEnds - Where the layout starts and ends the line, if it ends it itself: the line runs to them.
+     * @param laidCurve - The curve the layout laid the line along, with its measure, if it gives one.
      * @returns Whether the line was laid along its bends.
      */
     private placeLine(
@@ -1713,12 +1723,14 @@ export class Edge {
         dst: Vector3,
         laid?: readonly number[],
         laidEnds?: EdgePosition["lineEnds"],
+        laidCurve?: EdgePosition["laidCurve"],
     ): boolean {
         this.followRoute();
         this.pullCurve(src, dst);
         const lays = this.laysRoute();
         const batch = lays ? this.lineBatch : null;
         const stored = this.lineRoute;
+        this.followLaidCurve(src, dst, laidCurve);
         const bent = lays && stored !== null && this.placeBent(batch, src, dst, stored);
         // a patterned line (no batch) follows the route as its elements (issue #3102); a self-loop's laid bends lie
         // round its node (Graphviz's splines=ortho rectangle), cut where they cross its outline
@@ -1756,6 +1768,20 @@ export class Edge {
         }
 
         return bent;
+    }
+
+    /**
+     * Keep the curve the layout laid this edge along, in scene units, for the gradient's pieces to follow -- unless the
+     * line follows a route of the style's own, or is a self-loop.
+     * @param src - The source end.
+     * @param dst - The target end.
+     * @param laidCurve - The curve, if the layout gives one.
+     */
+    private followLaidCurve(src: Vector3, dst: Vector3, laidCurve: EdgePosition["laidCurve"]): void {
+        this.laidCurve =
+            this.lineRoute === null && laidCurve !== undefined && !this.isLoop
+                ? { points: points(bendPoints(src, dst, laidCurve.points)), params: laidCurve.params }
+                : null;
     }
 
     /**
@@ -4306,6 +4332,8 @@ export class Edge {
             return false;
         }
 
+        // a line along the element's own bundle route does not follow the curve a layout laid
+        this.laidCurve = null;
         const first = Vector3.FromArray(route, 3 * span.first);
         const last = Vector3.FromArray(route, 3 * span.last);
         // where the route itself crosses each outline, on the curve; a line from the center toward the first point
@@ -4810,12 +4838,73 @@ export class Edge {
     }
 
     /**
-     * Lay the gradient's pieces along the line's points, each an equal share of its length.
+     * Where a share of a drawn line lies when its colors follow the curve the layout laid: the line's ends are found on
+     * the curve, and a share is that share of the way from one end's measure to the other's, on the curve.
+     * @param curve - The curve, its points and each one's measure, rising.
+     * @param curve.points - The points.
+     * @param curve.params - Each one's measure.
+     * @param drawn - The drawn line, flat x, y, z.
+     * @returns The point at a share, or null for a curve of fewer than two points or a measure per point.
+     */
+    private static alongLaidCurve(
+        curve: { readonly points: readonly Vector3[]; readonly params: readonly number[] },
+        drawn: readonly number[],
+    ): ((share: number) => Vector3) | null {
+        const { points: pts, params } = curve;
+        if (params.length !== pts.length || pts.length < 2) {
+            return null;
+        }
+
+        // the measure of the curve's point nearest p
+        const measureAt = (p: Vector3): number => {
+            let best = Number.POSITIVE_INFINITY;
+            let value = params[0];
+            for (let i = 1; i < pts.length; i++) {
+                const seg = pts[i].subtract(pts[i - 1]);
+                const len2 = seg.lengthSquared();
+                const f = len2 > 0 ? Math.min(1, Math.max(0, Vector3.Dot(p.subtract(pts[i - 1]), seg) / len2)) : 0;
+                const d = Vector3.DistanceSquared(p, pts[i - 1].add(seg.scale(f)));
+                if (d < best) {
+                    best = d;
+                    value = params[i - 1] + f * (params[i] - params[i - 1]);
+                }
+            }
+
+            return value;
+        };
+        const u0 = measureAt(Vector3.FromArray(drawn, 0));
+        const u1 = measureAt(Vector3.FromArray(drawn, drawn.length - 3));
+        return (share: number): Vector3 => {
+            const u = u0 + share * (u1 - u0);
+            for (let i = 1; i < pts.length; i++) {
+                const span = params[i] - params[i - 1];
+                if (span > 0 && u <= params[i]) {
+                    return Vector3.Lerp(pts[i - 1], pts[i], Math.max(0, (u - params[i - 1]) / span));
+                }
+            }
+
+            return pts.at(-1) ?? pts[0];
+        };
+    }
+
+    /**
+     * Lay the gradient's pieces along the line's points, each an equal share of its length -- or, when the layout laid
+     * the line along a curve it measures ({@link EdgePosition.laidCurve}), an equal share of that measure between the
+     * line's two ends.
      * @param flat - The line's points, flat x, y, z.
      */
     private placeGradient(flat: readonly number[]): void {
         const n = this.gradientPieces.length;
         if (n === 0 || flat.length < 6) {
+            return;
+        }
+
+        const along = this.laidCurve === null ? null : Edge.alongLaidCurve(this.laidCurve, flat);
+        if (along !== null) {
+            for (const [i, { batch, slot }] of this.gradientPieces.entries()) {
+                batch.place(slot, along(i / n), along((i + 1) / n));
+            }
+
             return;
         }
 

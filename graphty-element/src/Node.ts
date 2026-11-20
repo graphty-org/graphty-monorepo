@@ -1269,10 +1269,11 @@ export class Node implements ModelUser {
         // line from the camera through the node's center, so it is drawn centered on the node however
         // far from the middle of a perspective view the node is.
         const facesCamera = !this.context.is2D() && !isFlatShape(style.shape?.type ?? "");
+        // A raised edge is a flat bevel: the 2D view draws it, the 3D view does not (its drawnWhen says so).
         const { pieces, image, glyph } = createNodeDecorations(
             this.context.getMeshCache(),
             `${meshKey}-${this.context.is2D() ? "2d" : "3d"}`,
-            style,
+            this.context.is2D() ? style : { ...style, raisedBorder: undefined },
             this.size,
             this.#anchor as AbstractMesh,
             this.context.getScene(),

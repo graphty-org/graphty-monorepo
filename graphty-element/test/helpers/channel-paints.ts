@@ -110,6 +110,9 @@ export const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unkno
     "edge.supportCentralGravity": SUPPORTED,
     "edge.supportUnit": SUPPORTED,
     "edge.supportScale": SUPPORTED,
+    // A raised edge's colors color only a raised edge that has a width.
+    "node.raisedBorderLightColor": { "node.raisedBorderWidth": 0.3 },
+    "node.raisedBorderDarkColor": { "node.raisedBorderWidth": 0.3 },
     // An arc height raises only a raised route; every other layout draws edges straight.
     "edge.arcHeight": { "edge.route": "arc" },
     // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.

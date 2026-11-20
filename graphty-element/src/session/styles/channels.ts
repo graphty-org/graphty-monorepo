@@ -1299,7 +1299,8 @@ const NODE_SHADOW_CAVEAT =
 const NODE_RAISED_BORDER_CAVEAT =
     "Strips along the inside of the node's edge that make it look raised: `node.raisedBorderLightColor` on its left " +
     "and top, `node.raisedBorderDarkColor` on its bottom and right, cut to the node's outline. Drawn only with a " +
-    "`node.raisedBorderWidth` above 0, in the units of `node.borderWidth`.";
+    "`node.raisedBorderWidth` above 0, in the units of `node.borderWidth`, on a flat shape, in the 2D view only: " +
+    "the 3D view draws nothing for it.";
 
 const ARROW_CAPTION_CAVEAT =
     "A caption is drawn at that end of the edge, beside its cap where it has one; an end drawn with " +
@@ -5769,10 +5770,10 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     ["node.shapeLineWidth", SHAPE_LINES],
     ["node.shapeLineHaloColor", SHAPE_LINES],
     ["node.shapeLineHaloWidth", SHAPE_LINES],
-    // Raised edge imitates a flat bevel cut to the node's outline.
-    ["node.raisedBorderWidth", [FLAT_SHAPE]],
-    ["node.raisedBorderLightColor", [FLAT_SHAPE]],
-    ["node.raisedBorderDarkColor", [FLAT_SHAPE]],
+    // Raised edge imitates a flat bevel cut to the node's outline: "in the 2D view only".
+    ["node.raisedBorderWidth", [ONLY_2D, FLAT_SHAPE]],
+    ["node.raisedBorderLightColor", [ONLY_2D, FLAT_SHAPE]],
+    ["node.raisedBorderDarkColor", [ONLY_2D, FLAT_SHAPE]],
     // A zigzag or sinewave border's wave.
     ["node.borderWaveAmplitude", [{ channel: "node.borderStyle", values: ["zigzag", "sinewave"] }]],
     ["node.borderWavePeriod", [{ channel: "node.borderStyle", values: ["zigzag", "sinewave"] }]],

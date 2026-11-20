@@ -92,6 +92,38 @@ describe("Style panel v2 dims what draws nothing in this view", () => {
         });
     });
 
+    it("Raised edge draws only in 2D: in 3D its '+' item and its row are dimmed '2D only', in 2D they are not (E441)", async () => {
+        const { session, nodes } = await openGraph();
+        // A raised edge is a flat shape's: on a sphere it is dimmed in both views.
+        await session.styles.update(nodes, { set: { "node.color": "#E8590C", "node.shape": "rectangle" } });
+        await session.styles.settled();
+        await switchView("3D");
+        const tab = await openStyle("Key people");
+        const border = sectionOf(tab, "node-border");
+        await userEvent.click(within(border).getByRole("button", { name: /^Add to node border/ }));
+        const item = await screen.findByRole("menuitem", { name: "Raised edge" });
+        assert.equal(dimmed(item), "2D only", "the '+' item is dimmed in 3D");
+        await userEvent.click(item);
+        await waitFor(() => {
+            assert.isDefined(session.styles.get(nodes)?.set?.["node.raisedBorderWidth"], "a dimmed item still adds");
+        });
+        const row = await waitFor(() => {
+            const found = border.querySelector<HTMLElement>('[data-thing="raised"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        await waitFor(() => {
+            const line = row.querySelector('.ws-row[data-line="node.raisedBorderWidth"]') ?? row;
+            assert.equal(dimmed(line), "2D only", "the row is dimmed in 3D");
+        });
+        await switchView("2D");
+        await waitFor(() => {
+            const line = border.querySelector('[data-thing="raised"] .ws-row[data-line="node.raisedBorderWidth"]');
+            assert.isNotNull(line);
+            assert.isNull(dimmed(line), "not dimmed in 2D");
+        });
+    });
+
     it("a '+' item for a style that draws in one view only is dimmed in the other, and still adds", async () => {
         const { session, nodes } = await openGraph();
         await switchView("3D");

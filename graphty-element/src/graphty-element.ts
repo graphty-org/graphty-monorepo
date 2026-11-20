@@ -5500,7 +5500,8 @@ export class Graphty extends LitElement {
      * @param options.styleOptions - How the file's styles are turned into layers
      * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
      *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
-     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
+     *     and a computed one otherwise. `"placed"` chooses `fixed` in the same case and otherwise leaves the
+     *     layout as it is. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -5520,7 +5521,7 @@ export class Graphty extends LitElement {
             graphName?: string;
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
-            layout?: "recommended" | "keep";
+            layout?: "recommended" | "placed" | "keep";
             signal?: AbortSignal;
         },
     ): Promise<{ loadId: number }> {
@@ -5554,7 +5555,8 @@ export class Graphty extends LitElement {
      * @param options.styleOptions - How the file's styles are turned into layers
      * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
      *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
-     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
+     *     and a computed one otherwise. `"placed"` chooses `fixed` in the same case and otherwise leaves the
+     *     layout as it is. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -5576,7 +5578,7 @@ export class Graphty extends LitElement {
             graphName?: string;
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
-            layout?: "recommended" | "keep";
+            layout?: "recommended" | "placed" | "keep";
             signal?: AbortSignal;
         },
     ): Promise<{ loadId: number }> {

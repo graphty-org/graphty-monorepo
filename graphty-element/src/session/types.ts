@@ -3825,9 +3825,11 @@ export interface ImportOptions {
     readonly mode?: "replace" | "merge";
     /**
      * `"recommended"` also chooses a layout for what was loaded, from its shape and its
-     * coordinates, in the same step; `"keep"` (the default) leaves the layout as it is.
+     * coordinates, in the same step; `"placed"` (since 3.40.0) draws it where its data placed it
+     * (the `fixed` layout) when every node arrived with a position, and otherwise leaves the
+     * layout as it is; `"keep"` (the default) leaves the layout as it is.
      */
-    readonly layout?: "recommended" | "keep";
+    readonly layout?: "recommended" | "placed" | "keep";
     /**
      * `"step"` (the default) records the load as one undoable step. `"start"` makes the loaded
      * graph where the history starts, as opening a new project does: the load is never undone or

@@ -504,7 +504,7 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
-    layout?: "recommended" | "keep";
+    layout?: "recommended" | "placed" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -3176,7 +3176,7 @@ export class Graph implements GraphContext {
         graphName?: string;
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
+        layout?: "recommended" | "placed" | "keep";
         signal?: AbortSignal;
     }): Promise<{
         loadId: number;
@@ -3191,7 +3191,7 @@ export class Graph implements GraphContext {
         graphName?: string;
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
+        layout?: "recommended" | "placed" | "keep";
         signal?: AbortSignal;
     }): Promise<{
         loadId: number;
@@ -3784,7 +3784,7 @@ export class Graphty extends LitElement {
         graphName?: string;
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
+        layout?: "recommended" | "placed" | "keep";
         signal?: AbortSignal;
     }): Promise<{
         loadId: number;
@@ -3802,7 +3802,7 @@ export class Graphty extends LitElement {
         graphName?: string;
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
+        layout?: "recommended" | "placed" | "keep";
         signal?: AbortSignal;
     }): Promise<{
         loadId: number;

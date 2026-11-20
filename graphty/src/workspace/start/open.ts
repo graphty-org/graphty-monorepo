@@ -34,6 +34,12 @@ import { noticeFileStyles } from "../styles/noticeFileStyles";
 import { panelsInView } from "../time/timeActions";
 
 /**
+ * How a new project's first load is read: where its history starts, and drawn where its data placed
+ * every node (graphty-element's `layout: "placed"`), else on the layout the project starts with.
+ */
+export const OPENING = { history: "start", layout: "placed" } as const;
+
+/**
  * Opens a new project and hands its load to the workspace, which runs it once the project's
  * element has come up. Each load starts the project's history (`history: "start"`): opening is
  * not a change to undo, and Undo pressed while it loads never cancels it. The store's `opened`
@@ -124,7 +130,7 @@ export async function openNetworkSample(
         const read = await scratch.data.readExample(source, example, { signal });
         openWithStylePanel(workspace, name, async (session) => {
             await session.data.import(read, {
-                history: "start",
+                ...OPENING,
                 origin: "sample",
                 ...(callerKey === undefined ? {} : { callerKey }),
             });
@@ -219,7 +225,7 @@ export function samplePicture(sample: Pick<StartSample, "id" | "picture">): stri
 export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta, callerKey?: string): void {
     openProject(workspace, dataset.title, (session) =>
         session.data.loadDataset(dataset.name, {
-            history: "start",
+            ...OPENING,
             ...datasetBase(),
             ...(callerKey === undefined ? {} : { callerKey }),
         }),
@@ -242,7 +248,7 @@ export function openGenerated(
 ): void {
     openProject(workspace, generator.plainName, (session) =>
         session.data.generate(generator.name, params, {
-            history: "start",
+            ...OPENING,
             ...(callerKey === undefined ? {} : { callerKey }),
         }),
     );
@@ -360,7 +366,7 @@ async function drawFirst(
     await draft.load({
         ...(styled ? { styles: fileStylesChoice(), styleOptions: FILE_STYLE_OPTIONS } : {}),
         ...(fixed ? {} : { mapping }),
-        ...(fresh ? { history: "start" as const } : {}),
+        ...(fresh ? OPENING : {}),
         ...(origin === undefined ? {} : { origin }),
         ...(callerKey === undefined ? {} : { callerKey }),
     });
@@ -543,7 +549,7 @@ async function openFirst(
  */
 export type GraphLoad = (
     session: GraphSession,
-    load: { readonly mode: "replace" | "merge"; readonly history?: "start" },
+    load: { readonly mode: "replace" | "merge"; readonly history?: "start"; readonly layout?: "placed" },
 ) => Promise<void>;
 
 /**
@@ -558,11 +564,11 @@ export type GraphLoad = (
  */
 export function addGraph({ workspace, session }: CommandContext, name: string, load: GraphLoad): void {
     if (workspace.get().project === null || session === null) {
-        openProject(workspace, name, (next) => load(next, { mode: "replace", history: "start" }));
+        openProject(workspace, name, (next) => load(next, { mode: "replace", ...OPENING }));
         return;
     }
     const first = session.data.sources().length === 0;
-    const work = load(session, { mode: first ? "replace" : "merge" });
+    const work = load(session, first ? { mode: "replace", layout: OPENING.layout } : { mode: "merge" });
     if (first) {
         // The project's first graph: an open, which `opened` follows as a new project's.
         workspace.set({ opened: work });

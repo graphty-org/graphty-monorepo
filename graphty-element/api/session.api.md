@@ -3268,7 +3268,7 @@ export interface ImportColumnsInput {
 export interface ImportOptions {
     readonly callerKey?: string;
     readonly history?: "step" | "start";
-    readonly layout?: "recommended" | "keep";
+    readonly layout?: "recommended" | "placed" | "keep";
     readonly mode?: "replace" | "merge";
 }
 

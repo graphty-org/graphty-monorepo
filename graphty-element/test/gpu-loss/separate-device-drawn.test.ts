@@ -98,7 +98,8 @@ describe("the layout filling the row table from a separate device", () => {
             assert.strictEqual(lane.changes - written, 0, "the landing is owed, not written");
             const owed = Float64Array.from(engine.publishedBounds() ?? []);
 
-            // reading every row writes the owed publish: the rows' own box, and the box the written path reports
+            // every row as the owed publish puts it (a small graph's rows are read one at a time), then the
+            // publish written: the rows' own box, and the box the written path reports
             const rows = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
             for (const node of graph.getNodes()) {
                 const { x, y, z } = node.getPosition();
@@ -107,6 +108,7 @@ describe("the layout filling the row table from a separate device", () => {
                     rows[axis + 3] = Math.max(rows[axis + 3], value);
                 });
             }
+            assert.isTrue(lane.settle());
             assert.isAbove(lane.changes - written, 0);
             const writtenBox = Array.from(engine.publishedBounds() ?? []);
 

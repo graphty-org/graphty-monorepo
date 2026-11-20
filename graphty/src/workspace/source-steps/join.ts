@@ -13,6 +13,7 @@ import type {
     SourceMatchCounts,
     SourceMatchOptions,
     SourceMatchPair,
+    SourceTableFacts,
 } from "@graphty/graphty-element/session";
 
 import { sourceName } from "../data-place/words";
@@ -156,7 +157,7 @@ export function field2Profile(session: GraphSession, field: JoinField2 | null): 
  * @returns the columns.
  */
 export function sourceColumns(session: GraphSession, source: SourceKey, table?: "nodes"): readonly string[] {
-    const { tables } = session.data.sourceTable(source).summary();
+    const tables = summaryOf(session, source)?.tables ?? [];
     const nodes = tables.find((each) => each.table === "nodes");
     if (table === "nodes") {
         return nodes?.columns ?? [];
@@ -171,7 +172,21 @@ export function sourceColumns(session: GraphSession, source: SourceKey, table?: 
  * @returns true when it does.
  */
 export function holdsNodes(session: GraphSession, source: SourceKey): boolean {
-    return session.data.sourceTable(source).summary().mapping.rows !== "edges";
+    return summaryOf(session, source)?.mapping.rows !== "edges";
+}
+
+/**
+ * A source's tables and mapping, or null once it is gone (an undo took it away while the card is open).
+ * @param session - the element's session.
+ * @param source - the source.
+ * @returns the facts, or null.
+ */
+function summaryOf(session: GraphSession, source: SourceKey): SourceTableFacts | null {
+    try {
+        return session.data.sourceTable(source).summary();
+    } catch {
+        return null;
+    }
 }
 
 /**

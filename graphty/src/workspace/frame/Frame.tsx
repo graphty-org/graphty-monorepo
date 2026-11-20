@@ -99,7 +99,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             store.set({ inspected: null });
         }
     }, [place, store]);
-    // A note or a message being written is about this project's graph: another project drops it.
+    // A note or a message being written, or a source card, is about this project's graph: another
+    // project drops it.
     useEffect(() => {
         store.set({
             noteDraft: null,
@@ -109,6 +110,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             assistantSpoken: null,
             assistantTalkPress: false,
             assistantRefused: false,
+            // A source card's picks name this project's sources.
+            sourceCard: null,
+            stagedEnds: null,
         });
     }, [projectId, store]);
 

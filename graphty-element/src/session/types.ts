@@ -4223,6 +4223,12 @@ export interface SourceStepCounts {
     readonly typeDiffers: number;
     /** For `join.merge`: nodes of the space merged into that no row reached. */
     readonly untouched: number;
+    /**
+     * For `join.merge`: source 2's nodes the step leaves in the graph as nodes of their own (the
+     * new nodes the merge brings): those that met no node 1, or more than one. 0 under
+     * `unmatchedFrom: "drop"`, which leaves the unmatched out.
+     */
+    readonly keptNew: number;
     /** For `join.merge`: how many nodes each merged node was made from, largest first. */
     readonly groups: readonly number[];
     /** Edges whose two ends are one node. */
@@ -4658,6 +4664,12 @@ export interface SourceValuesDiffer {
         readonly rule: SourceClashRule;
         /** How many of those cells a reader decision (a pick or an edit) settles. */
         readonly decided: number;
+        /**
+         * The rules the column takes: every rule but `min`, `max` and `mean` always; `min` and
+         * `max` when every value that meets is a number or every one a date, `mean` when every one
+         * is a number. `draft.editStep` refuses any other with `E_CLASH_RULE_TYPE`.
+         */
+        readonly rules: readonly SourceClashRule[];
     };
 }
 
@@ -5301,7 +5313,7 @@ export interface SourceOverlapQuestion {
  * as one undoable step. One draft is open at a time; while it is open every data write and
  * `session.undo()` / `redo()` are refused with `E_DRAFT_OPEN { draft }`, and view, style, filter,
  * selection, set and note writes go ahead, as do value labels and hiding or showing columns. A project saved while a draft is open saves the committed
- * project and leaves the draft open; opening a project or `data.clear()` discards it.
+ * project and leaves the draft open; opening a project file or `data.clear()` discards it (opening a data file does not).
  *
  * ```ts
  * await session.data.import(entriesCsv, { key: "entry", type: "entry" });

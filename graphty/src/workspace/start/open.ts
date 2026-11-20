@@ -26,6 +26,7 @@ import { openProjectFile } from "../project/actions";
 import { notReadWords } from "../project/words";
 import { replaceWith } from "../replace/commands";
 import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
+import { askIfDraftOpen } from "../source-steps/preview";
 import { newProjectId, type Opener, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
 import { labelRow } from "../style/row";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
@@ -65,6 +66,7 @@ export function openProject(
         ends: null,
         sourceCard: null,
         stagedEnds: null,
+        draftOpen: null,
         pickedSource: null,
         dataTab: "loaded",
     }));
@@ -359,8 +361,16 @@ async function takeIn(
         // Sources and steps: it waits staged in its own section of the Data place, drawing nothing,
         // until the reader adds or joins it there. Its key is guessed as a first source's is.
         read?.dispose();
-        await session.data.stage(incoming.source, { guess: "values" });
-        workspace.set({ place: "data", dataTab: "loaded" });
+        const stage = async (): Promise<void> => {
+            await session.data.stage(incoming.source, { guess: "values" });
+            workspace.set({ place: "data", dataTab: "loaded" });
+        };
+        // An open source card's draft refuses it: the reader commits or discards the draft first.
+        await stage().catch((error: unknown) => {
+            if (!askIfDraftOpen(workspace, error, stage)) {
+                throw error;
+            }
+        });
         return;
     }
     // The same columns: the same file again replaces at once; another file (next month's) opens

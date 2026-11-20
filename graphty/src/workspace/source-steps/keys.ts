@@ -2,3 +2,9 @@
 export const ADD_KEY = "Shift+D";
 /** Join on a staged source, the Sources header and the inspector (design 5.2). */
 export const JOIN_KEY = "J";
+/** Preview on the Join card (design 5.3). */
+export const PREVIEW_KEY = "Shift+P";
+/** Commit on a source card. */
+export const COMMIT_KEY = "Enter";
+/** Before / After over the canvas while a draft is drawn (design 5.3). */
+export const SIDE_KEY = "B";

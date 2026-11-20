@@ -6,8 +6,10 @@
 
 import type { GraphSession, LoadedSource, SourceKey, SourceMappingPatch } from "@graphty/graphty-element/session";
 
-import type { WorkspaceStore } from "../state/store";
-import { STAGED_WORDS } from "./words";
+import { sourceName } from "../data-place/words";
+import type { Notice, WorkspaceState, WorkspaceStore } from "../state/store";
+import { askIfDraftOpen } from "./preview";
+import { committedWords, PREVIEW_WORDS, refusedWords, STAGED_WORDS } from "./words";
 
 /**
  * The staged sources, oldest first.
@@ -30,7 +32,12 @@ export function stagedSources(session: GraphSession): readonly LoadedSource[] {
  */
 export async function startAdd(workspace: WorkspaceStore, session: GraphSession, source: SourceKey): Promise<void> {
     // Edges picked without both ends are not the element's yet: adding now would add the old rows.
-    if (session.data.currentDraft() !== null || workspace.get().stagedEnds?.source === source) {
+    if (workspace.get().stagedEnds?.source === source) {
+        return;
+    }
+    // Another card's draft is open: the reader commits or discards it first.
+    if (session.data.currentDraft() !== null) {
+        workspace.set({ draftOpen: { retry: () => startAdd(workspace, session, source) } });
         return;
     }
     const draft = session.data.draft({ askOverlap: true });
@@ -59,33 +66,84 @@ export function cancelCard(workspace: WorkspaceStore, session: GraphSession): vo
     if (draft?.open === true) {
         draft.dispose();
     }
-    const card = workspace.get().sourceCard;
     // The Join card opened the dock on its Fields tab: closing it gives the dock back as it was.
-    workspace.set(
-        card?.kind === "join"
-            ? { sourceCard: null, dockOpen: card.dockWas.open, dockTab: card.dockWas.tab }
-            : { sourceCard: null },
-    );
+    closeCard(workspace);
 }
 
 /**
- * Commits the open card's draft and closes it; a refused commit keeps it open and says so.
+ * The source a card adds or joins: the Add card's, or the Join card's Field 2.
+ * @param card - the open card.
+ * @returns its key, or undefined.
+ */
+function cardSource(card: WorkspaceState["sourceCard"]): SourceKey | undefined {
+    return card?.kind === "join" ? card.field2?.source : card?.source;
+}
+
+/**
+ * Commits the open card's draft and closes it, then offers Undo on a notice while the commit is
+ * still the newest step; a refused commit keeps it open and says why.
  * @param workspace - the workspace store.
  * @param session - the element's session.
  * @returns settles once committed or refused.
  */
 export async function commitCard(workspace: WorkspaceStore, session: GraphSession): Promise<void> {
     const draft = session.data.currentDraft();
-    if (draft === null) {
+    const card = workspace.get().sourceCard;
+    if (draft === null || card === null) {
         workspace.set({ sourceCard: null });
         return;
     }
+    const key = cardSource(card);
+    const source = session.data.sources({ staged: true }).find((each) => each.key === key);
+    const before = session.history.steps.length;
     try {
         await draft.commit();
-        workspace.set({ sourceCard: null });
-    } catch {
-        workspace.set({ notice: { message: STAGED_WORDS.notAdded } });
+    } catch (error) {
+        workspace.set({ notice: { message: refusedWords(error), error: true } });
+        return;
     }
+    closeCard(workspace);
+    if (session.history.steps.length === before) {
+        return;
+    }
+    const next = session.history.nextUndo;
+    const step = next?.kind === "undo" ? next.step.id : undefined;
+    const isNext = (): boolean => {
+        const now = session.history.nextUndo;
+        return step !== undefined && now?.kind === "undo" && now.step.id === step;
+    };
+    const notice: Notice = {
+        message: committedWords(card.kind, source === undefined ? "" : sourceName(source)),
+        action: {
+            label: PREVIEW_WORDS.undo,
+            run: () => {
+                if (isNext()) {
+                    void session.undo();
+                }
+            },
+        },
+    };
+    // The notice goes once the commit is no longer the step Undo takes back.
+    const off = session.on("history:changed", () => {
+        if (!isNext()) {
+            off();
+            workspace.set((state) => (state.notice === notice ? { notice: null } : {}));
+        }
+    });
+    workspace.set({ notice });
+}
+
+/**
+ * Closes the open card, giving the dock back as the Join card found it.
+ * @param workspace - the workspace store.
+ */
+function closeCard(workspace: WorkspaceStore): void {
+    const card = workspace.get().sourceCard;
+    workspace.set(
+        card?.kind === "join"
+            ? { sourceCard: null, dockOpen: card.dockWas.open, dockTab: card.dockWas.tab }
+            : { sourceCard: null },
+    );
 }
 
 /**
@@ -102,8 +160,10 @@ export async function remap(
     source: SourceKey,
     patch: SourceMappingPatch,
 ): Promise<void> {
-    await session.data.setMapping(source, patch).catch(() => {
-        workspace.set({ notice: { message: STAGED_WORDS.notChanged } });
+    await session.data.setMapping(source, patch).catch((error: unknown) => {
+        if (!askIfDraftOpen(workspace, error, () => remap(workspace, session, source, patch))) {
+            workspace.set({ notice: { message: STAGED_WORDS.notChanged } });
+        }
     });
 }
 
@@ -115,7 +175,9 @@ export async function remap(
  * @returns settles once removed or refused.
  */
 export async function removeStaged(workspace: WorkspaceStore, session: GraphSession, source: SourceKey): Promise<void> {
-    await session.data.removeSource(source).catch(() => {
-        workspace.set({ notice: { message: STAGED_WORDS.notRemoved } });
+    await session.data.removeSource(source).catch((error: unknown) => {
+        if (!askIfDraftOpen(workspace, error, () => removeStaged(workspace, session, source))) {
+            workspace.set({ notice: { message: STAGED_WORDS.notRemoved } });
+        }
     });
 }

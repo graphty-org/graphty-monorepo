@@ -4,15 +4,19 @@
  * written here from what graphty-element reports.
  */
 
-import type {
-    SourceCellValue,
-    SourceOverlapQuestion,
-    SourceProfileKind,
-    SourceTableMapping,
+import {
+    isGraphtyError,
+    type SourceCellValue,
+    type SourceClashRule,
+    type SourceOverlapQuestion,
+    type SourceProfileKind,
+    type SourceStepCounts,
+    type SourceTableMapping,
 } from "@graphty/graphty-element/session";
 
 import { sizeWords } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
+import type { JoinRepeats } from "../state/store";
 
 /** The fixed labels. */
 export const STAGED_WORDS = {
@@ -184,4 +188,137 @@ export function cellWords(value: SourceCellValue): string {
  */
 export function moreWords(more: number | null): string | null {
     return more === null ? null : `+${formatNumber(more)}`;
+}
+
+/** The Join card's Preview and the Before / After chip. */
+export const PREVIEW_WORDS = {
+    preview: "Preview",
+    graphAfter: "Graph after",
+    buckets: "Buckets",
+    largestGroup: "largest group",
+    nodes: "Nodes",
+    edges: "Edges",
+    noChange: "no change",
+    valuesDiffer: "Values differ",
+    decided: "decided",
+    rule: "Rule",
+    repeats: "Repeats",
+    only2: "Only 2",
+    keep: "Keep",
+    drop: "Drop",
+    commit: "Commit",
+    before: "Before",
+    after: "After",
+    beforeAfter: "Before / After",
+    draftOpen: "Draft open",
+    discard: "Discard",
+    undo: "Undo",
+} as const;
+
+/** The Values differ rules, as the rule menu names them. */
+export const RULE_WORDS: Readonly<Record<SourceClashRule, string>> = {
+    keep: "Keep 1",
+    overwrite: "Use 2",
+    both: "Both",
+    vote: "Vote",
+    min: "Min",
+    max: "Max",
+    mean: "Mean",
+};
+
+/** How a merge settles a key source 2's rows repeat, as the Repeats menu names each way. */
+export const REPEATS_WORDS: Readonly<Record<JoinRepeats, string>> = {
+    first: "First",
+    last: "Last",
+    count: "Count",
+    list: "List",
+};
+
+/** A step's counts the Preview lists, in order, by the step's op. */
+export const BUCKET_WORDS: Readonly<
+    Record<"merge" | "edge", readonly { readonly id: SourceStepNumberBucket; readonly label: string }[]>
+> = {
+    merge: [
+        { id: "merged", label: "merged" },
+        { id: "keptNew", label: "new" },
+        { id: "untouched", label: "untouched" },
+        { id: "repeated2", label: "keys repeat" },
+        { id: "fanOut", label: "fan-out" },
+        { id: "typeDiffers", label: "type differs" },
+        { id: "namedOnly", label: "named only in 2" },
+    ],
+    edge: [
+        { id: "matched", label: "matched" },
+        { id: "unmatched", label: "unmatched" },
+        { id: "newEdges", label: "new edges" },
+        { id: "repeated2", label: "keys repeat" },
+        { id: "fanOut", label: "fan-out" },
+        { id: "parallelPairs", label: "parallel" },
+        { id: "selfLoops", label: "self-loops" },
+    ],
+};
+
+/** The step counts the Preview lists as one number each: names of the element's counts. */
+export type SourceStepNumberBucket = Extract<
+    keyof SourceStepCounts,
+    | "merged"
+    | "keptNew"
+    | "untouched"
+    | "repeated2"
+    | "fanOut"
+    | "typeDiffers"
+    | "namedOnly"
+    | "matched"
+    | "unmatched"
+    | "newEdges"
+    | "parallelPairs"
+    | "selfLoops"
+>;
+
+/**
+ * A Graph after line: "3 -> 5", or "no change".
+ * @param before - the count now.
+ * @param after - the count the commit would leave.
+ * @returns the words.
+ */
+export function afterWords(before: number, after: number): string {
+    return before === after ? PREVIEW_WORDS.noChange : `${formatNumber(before)} -> ${formatNumber(after)}`;
+}
+
+/** Refusals the source cards meet, by the element's code. */
+const REFUSAL_WORDS: Readonly<Record<string, string>> = {
+    E_CLASH_RULE_TYPE: "Rule does not fit these values",
+    E_STEP_NEEDS_NODES: "No node rows",
+    E_DRAFT_OPEN: "Draft open",
+    E_OVERLAP_UNANSWERED: "Question unanswered",
+    E_DRAFT_STALE: "Graph changed since the draft opened",
+};
+
+/**
+ * A refusal as the reader reads it.
+ * @param error - what the element threw.
+ * @returns its words.
+ */
+export function refusedWords(error: unknown): string {
+    const code = isGraphtyError(error) ? error.code : undefined;
+    return (code === undefined ? undefined : REFUSAL_WORDS[code]) ?? STAGED_WORDS.notChanged;
+}
+
+/**
+ * The notice after a source card commits.
+ * @param kind - the card.
+ * @param name - the source it added or joined.
+ * @returns such as "Joined entries.csv".
+ */
+export function committedWords(kind: "add" | "join", name: string): string {
+    return `${kind === "join" ? "Joined" : "Added"} ${name}`;
+}
+
+/**
+ * A bucket of new elements of one type.
+ * @param type - the type.
+ * @returns such as "new person".
+ */
+export function newTypeWords(type: string): string {
+    return `new ${type}`;
 }

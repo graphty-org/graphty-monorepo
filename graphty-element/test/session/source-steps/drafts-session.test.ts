@@ -232,6 +232,22 @@ describe("source-steps drafts: the session around a draft", () => {
         session.dispose();
     });
 
+    it("opening a data file keeps the draft, and staging it is refused with E_DRAFT_OPEN", async () => {
+        const { session } = await phase2();
+        const d = session.data.draft();
+        const opened = await session.project.open(new File(["merchant_id,city\nM-1,Oslo"], "m.csv"));
+        assert.isTrue(d.open, "a data file replaces no project");
+        assert.strictEqual(session.data.currentDraft(), d);
+        opened.draft?.dispose();
+        await refused(
+            () => session.data.stage({ type: "csv", config: { data: "merchant_id,city\nM-1,Oslo" }, name: "m.csv" }),
+            "E_DRAFT_OPEN",
+        );
+        assert.isTrue(d.open, "the refusal leaves the draft as it was");
+        d.dispose();
+        session.dispose();
+    });
+
     it("a note, a style and a run made while a draft is open survive its commit", async () => {
         const session = sessionWithRuns(["source-steps"]);
         await session.data.import(

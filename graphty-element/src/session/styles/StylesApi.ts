@@ -3351,6 +3351,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return { count: matched, of: edges ? whole.edgeCount : whole.nodeCount, visible: of };
         },
         reach: (id, channel) => valueReach(id, channel, elementsOf(WHOLE_GRAPH), countSources()),
+        carried: (id, path) => categoryCounts(id, path, WHOLE_GRAPH),
         // With the working graph on, a row is a category some shown element of the layer carries.
         shown: (id, channel) => {
             const binding = byId().get(id)?.layer.encode?.[channel];

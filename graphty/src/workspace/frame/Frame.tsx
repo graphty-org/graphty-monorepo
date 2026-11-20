@@ -113,6 +113,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             // A source card's picks name this project's sources.
             sourceCard: null,
             stagedEnds: null,
+            draftOpen: null,
         });
     }, [projectId, store]);
 

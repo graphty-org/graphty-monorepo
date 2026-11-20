@@ -53,6 +53,9 @@ export function openJoin(
             reversed: false,
             ignoreCase: false,
             ignoreSpaces: false,
+            repeated: "first",
+            unmatchedFrom: "keep",
+            preview: null,
             dockWas: { open: now.dockOpen, tab: now.dockTab },
         },
         page: "panels",
@@ -64,16 +67,33 @@ export function openJoin(
     });
 }
 
+/** The picks that make the act: changing one after Preview takes the act back. */
+const ACT_PICKS = ["field1", "field2", "act", "edgeType", "reversed"] as const;
+
 /**
- * Changes the open Join card's picks.
+ * Changes the open Join card's picks. Changing a field or the act after Preview takes the act back
+ * (the draft holds nothing else, so it is discarded) and returns the card to picking.
  * @param workspace - the workspace store.
  * @param patch - the change.
+ * @param session - the element's session, whose draft a changed act takes back.
  */
-export function updateJoin(workspace: WorkspaceStore, patch: Partial<Omit<JoinCardState, "kind">>): void {
+export function updateJoin(
+    workspace: WorkspaceStore,
+    patch: Partial<Omit<JoinCardState, "kind">>,
+    session?: GraphSession,
+): void {
     const card = workspace.get().sourceCard;
-    if (card?.kind === "join") {
-        workspace.set({ sourceCard: { ...card, ...patch } });
+    if (card?.kind !== "join") {
+        return;
     }
+    const reAct = card.preview !== null && ACT_PICKS.some((pick) => pick in patch && patch[pick] !== card[pick]);
+    if (reAct) {
+        const draft = session?.data.currentDraft() ?? null;
+        if (draft?.open === true) {
+            draft.dispose();
+        }
+    }
+    workspace.set({ sourceCard: { ...card, ...patch, ...(reAct ? { preview: null } : {}) } });
 }
 
 /**
@@ -272,4 +292,13 @@ export function spaceChoices(session: GraphSession): readonly Choice[] {
  */
 export function joinCardOf(card: WorkspaceState["sourceCard"]): JoinCardState | null {
     return card?.kind === "join" ? card : null;
+}
+
+/**
+ * Whether the open card is the Join card, previewing its act in a draft.
+ * @param card - the store's open card.
+ * @returns true while it previews.
+ */
+export function previewing(card: WorkspaceState["sourceCard"]): boolean {
+    return (joinCardOf(card)?.preview ?? null) !== null;
 }

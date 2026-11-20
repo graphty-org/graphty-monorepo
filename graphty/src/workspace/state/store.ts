@@ -110,7 +110,26 @@ export interface JoinCardState {
     readonly ignoreSpaces: boolean;
     /** The table dock as it was when the card opened, given back when it closes. */
     readonly dockWas: { readonly open: boolean; readonly tab: string };
+    /** How a merge settles a key source 2's rows repeat: a row (the first or the last) or an aggregate. */
+    readonly repeated: JoinRepeats;
+    /** A merge's rows that meet no node 1: kept as their own nodes, or dropped. */
+    readonly unmatchedFrom: "keep" | "drop";
+    /**
+     * Set once Preview made the act in the element's draft: the step it made, and the choices as
+     * they were before each change made since, so Undo puts them back. Null while picking.
+     */
+    readonly preview: { readonly step: number; readonly undo: readonly JoinChoices[] } | null;
 }
+
+/**
+ * How a merge settles a key source 2's rows repeat: keep the first row's values or the last's, as
+ * the step's `repeated`, or reduce every column's rows to their count or their list, as its
+ * `aggregate`.
+ */
+export type JoinRepeats = "first" | "last" | "count" | "list";
+
+/** The Join card's choices that a preview changes in the element's draft step. */
+export type JoinChoices = Pick<JoinCardState, "ignoreCase" | "ignoreSpaces" | "repeated" | "unmatchedFrom">;
 
 /** The chrome state. */
 export interface WorkspaceState {
@@ -300,6 +319,12 @@ export interface WorkspaceState {
         readonly from: string | null;
         readonly to: string | null;
     } | null;
+    /**
+     * A data write the element refused while a source card's draft is open (`E_DRAFT_OPEN`, the
+     * source-steps experiment): the question Commit / Discard / Cancel, and the write to try again
+     * after Commit or Discard.
+     */
+    readonly draftOpen: { readonly retry: () => Promise<unknown> } | null;
     /** The Sources row the reader picked, kept while they visit another place; null: the newest load. */
     readonly pickedSource: SourceKey | null;
     /** The Data place's tab: what was loaded or what was calculated; kept per project, Loaded first. */
@@ -517,6 +542,7 @@ export const ON_RELOAD = {
     ends: "fresh: a half-made choice of edge ends",
     sourceCard: "fresh: its draft lives in the element, which a reload replaced",
     stagedEnds: "fresh: a half-made choice of edge ends",
+    draftOpen: "fresh: a question about a draft a reload discarded",
     pickedSource: "kept",
     dataTab: "kept",
     timelineOpen: "kept",
@@ -640,6 +666,7 @@ const INITIAL: WorkspaceState = {
     ends: null,
     sourceCard: null,
     stagedEnds: null,
+    draftOpen: null,
     pickedSource: null,
     dataTab: "loaded",
     timelineOpen: false,

@@ -8185,6 +8185,7 @@ export interface SourceStepCounts {
     readonly fanOut: number;
     readonly groups: readonly number[];
     readonly hub: readonly SourceHubValue[];
+    readonly keptNew: number;
     readonly matched: number;
     readonly merged: number;
     readonly namedOnly: number;
@@ -8340,6 +8341,7 @@ export interface SourceValuesDiffer {
         readonly count: number;
         readonly rule: SourceClashRule;
         readonly decided: number;
+        readonly rules: readonly SourceClashRule[];
     };
 }
 

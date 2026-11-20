@@ -223,6 +223,32 @@ describe("source-steps drafts: acts on a copy", () => {
         session.dispose();
     });
 
+    it("a merge counts the keys source 2's rows repeat, folds the first by default and the last when asked", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "badge,dept\nB1,Ops\nB2,Lab"), { key: "badge", type: "person" });
+        const people = session.data.sources()[0]?.key ?? "";
+        // Two alerts name B1, with different departments.
+        const hr = await session.data.stage(csv("hr.csv", "badge,dept\nB1,Operations\nB1,Research\nB2,Lab"), {
+            key: "badge",
+        });
+        const merged = async (repeated?: "last"): Promise<unknown> => {
+            const d = session.data.draft();
+            d.merge({ from: { source: hr, field: "badge" }, into: { source: people } });
+            const merge = d.steps().find((s) => s.op === "join.merge")?.index ?? -1;
+            const row = d.preview().steps.find((s) => s.index === merge)?.buckets;
+            assert.strictEqual(row?.repeated2, 1, "B1 is held by two of hr.csv's rows");
+            assert.strictEqual(row?.keptNew, 0, "every hr.csv node meets its person");
+            d.editStep(merge, { clash: { dept: "overwrite" }, ...(repeated === undefined ? {} : { repeated }) });
+            await d.commit();
+            const dept = session.data.node("B1")?.dept;
+            await session.undo();
+            return dept;
+        };
+        assert.strictEqual(await merged(), "Operations", "the first row by default");
+        assert.strictEqual(await merged("last"), "Research", "the last row once asked");
+        session.dispose();
+    });
+
     it("editStep sets a step's choices and takes them off again; setMapping refuses a reserved space", async () => {
         const { session, a } = await renamedAndStaged();
         const d = session.data.draft();

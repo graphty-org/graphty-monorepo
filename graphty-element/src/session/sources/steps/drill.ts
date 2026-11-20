@@ -36,6 +36,7 @@ export const DRILL_COUNTS = [
     "merged",
     "typeDiffers",
     "untouched",
+    "keptNew",
     "selfLoops",
     "emptyKey",
     "repeatedKept",

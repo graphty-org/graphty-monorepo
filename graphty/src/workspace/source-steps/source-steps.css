@@ -41,3 +41,16 @@
 .ss-profile > legend {
     padding: 0;
 }
+
+/* The Before / After chip, at the top center of the canvas while a draft is drawn. */
+.ss-draft-chip {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 2px 6px;
+    border-radius: var(--mantine-radius-sm);
+    background: var(--mantine-color-body);
+    box-shadow: var(--mantine-shadow-xs);
+    pointer-events: auto;
+}

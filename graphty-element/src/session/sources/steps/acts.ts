@@ -442,6 +442,10 @@ export function checkClash(
  */
 function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps {
     const s1 = o.into.source;
+    const mirror = mirrored(prior, copies, o);
+    if (mirror !== null) {
+        return connect(prior, copies, mirror);
+    }
     const value =
         s1 !== undefined && isStaged(prior, s1) ? addSource(prior, sourceOf(prior, s1), copies, undefined) : prior;
     let s2 = nodeSource(value, copies, o.from.source);
@@ -491,6 +495,34 @@ function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps
     };
     next = { ...next, steps: [...next.steps, step] };
     return withRule(next, "edge", o.edgeType, { source: s2.id, part: mint.part });
+}
+
+/**
+ * Make an edge from a column of source 1 that is not its key to source 2's key, read the other way
+ * round: one edge per source 1 row, to the node 2 its column names. Read from source 2's rows, a
+ * value several source 1 rows share would name several nodes and make no edge (fan-out, 3.5).
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param o - The choices.
+ * @returns The same act with its fields swapped, or null when it reads as it is.
+ */
+function mirrored(value: SourceSteps, copies: Copies, o: ConnectAct): ConnectAct | null {
+    const s1 = o.into.source;
+    const field1 = o.into.field;
+    if (s1 === undefined || field1 === undefined) {
+        return null;
+    }
+    const one = sourceOf(value, s1).mapping.nodes?.key;
+    const two = nodeSource(value, copies, o.from.source).mapping.nodes?.key;
+    if (one === undefined || field1 === one || o.from.field !== two) {
+        return null;
+    }
+    return {
+        ...o,
+        from: { source: s1, field: field1 },
+        into: { source: o.from.source },
+        direction: (o.direction ?? "into-from") === "into-from" ? "from-into" : "into-from",
+    };
 }
 
 /**

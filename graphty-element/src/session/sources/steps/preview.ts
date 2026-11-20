@@ -33,6 +33,7 @@ const NUMBERS = [
     "merged",
     "typeDiffers",
     "untouched",
+    "keptNew",
     "selfLoops",
     "emptyKey",
     "repeatedKept",

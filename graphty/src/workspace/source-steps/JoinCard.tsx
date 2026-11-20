@@ -2,27 +2,36 @@ import "./source-steps.css";
 
 import { ComboInput, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, SourceColumnProfile } from "@graphty/graphty-element/session";
-import { ActionIcon, Group, Radio, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, Kbd, Radio, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef } from "react";
 
 import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
+import { ariaKey, formatKey } from "../keys/keys";
+import { useSessionEvents } from "../sessionEvents";
 import type { JoinCardState, JoinField1 } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { cancelCard } from "./actions";
+import { cancelCard, commitCard } from "./actions";
 import { CancelButton } from "./CancelButton";
 import {
     field1Profile,
     field2Profile,
     holdsNodes,
+    joinCardOf,
     joinCounts,
     sourceColumns,
     spaceChoices,
     swapped,
     updateJoin,
 } from "./join";
-import { cellWords, COUNT_WORDS, distinctWords, JOIN_WORDS, moreWords } from "./words";
+import { JoinPreview } from "./JoinPreview";
+import { COMMIT_KEY, PREVIEW_KEY } from "./keys";
+import { canPreview, openDraft, setChoice, startPreview } from "./preview";
+import { cellWords, COUNT_WORDS, distinctWords, JOIN_WORDS, moreWords, PREVIEW_WORDS } from "./words";
+
+/** The element's events after which the card reads its draft again. */
+const DRAFT_EVENTS = ["data:draft-changed"] as const;
 
 /** Field 1's Field value for the space's own key. */
 const KEY_VALUE = "key";
@@ -145,7 +154,7 @@ function Field1({ session, card }: Readonly<{ session: GraphSession; card: JoinC
                 data={spaces}
                 value={field1?.space ?? null}
                 onPick={(space) => {
-                    updateJoin(store, { field1: { space } });
+                    updateJoin(store, { field1: { space } }, session);
                 }}
             />
             {field1 === null ? null : (
@@ -155,11 +164,11 @@ function Field1({ session, card }: Readonly<{ session: GraphSession; card: JoinC
                     value={fieldValue}
                     onPick={(value) => {
                         if (value === KEY_VALUE) {
-                            updateJoin(store, { field1: { space: field1.space } });
+                            updateJoin(store, { field1: { space: field1.space } }, session);
                             return;
                         }
                         const [source, field] = JSON.parse(value) as [string, string];
-                        updateJoin(store, { field1: { space: field1.space, source, field } });
+                        updateJoin(store, { field1: { space: field1.space, source, field } }, session);
                     }}
                 />
             )}
@@ -192,7 +201,7 @@ function Field2({ session, card }: Readonly<{ session: GraphSession; card: JoinC
                 data={sources}
                 value={field2?.source ?? null}
                 onPick={(source) => {
-                    updateJoin(store, { field2: { source } });
+                    updateJoin(store, { field2: { source } }, session);
                 }}
             />
             {field2 === null ? null : (
@@ -201,7 +210,7 @@ function Field2({ session, card }: Readonly<{ session: GraphSession; card: JoinC
                     data={sourceColumns(session, field2.source).map((column) => ({ value: column, label: column }))}
                     value={field2.field ?? null}
                     onPick={(field) => {
-                        updateJoin(store, { field2: { source: field2.source, field } });
+                        updateJoin(store, { field2: { source: field2.source, field } }, session);
                     }}
                 />
             )}
@@ -258,7 +267,7 @@ function Counts({ session, card }: Readonly<{ session: GraphSession; card: JoinC
                             label={toggle.label}
                             checked={toggle.on}
                             onChange={(event) => {
-                                updateJoin(store, { [toggle.id]: event.currentTarget.checked });
+                                setChoice(store, session, { [toggle.id]: event.currentTarget.checked });
                             }}
                         />
                         {more === null ? null : (
@@ -305,7 +314,7 @@ function Act({ session, card }: Readonly<{ session: GraphSession; card: JoinCard
                 }
                 value={card.act}
                 onChange={(value) => {
-                    updateJoin(store, { act: value === "merge" ? "merge" : "edge" });
+                    updateJoin(store, { act: value === "merge" ? "merge" : "edge" }, session);
                 }}
             >
                 <Stack gap={4} mt={4}>
@@ -323,7 +332,7 @@ function Act({ session, card }: Readonly<{ session: GraphSession; card: JoinCard
                         options={edgeTypes}
                         value={card.edgeType}
                         onChange={(next) => {
-                            updateJoin(store, { edgeType: String(next).trim() });
+                            updateJoin(store, { edgeType: String(next).trim() }, session);
                         }}
                     />
                     <SegmentedControl
@@ -335,7 +344,7 @@ function Act({ session, card }: Readonly<{ session: GraphSession; card: JoinCard
                             { value: "21", label: JOIN_WORDS.twoToOne },
                         ]}
                         onChange={(value) => {
-                            updateJoin(store, { reversed: value === "21" });
+                            updateJoin(store, { reversed: value === "21" }, session);
                         }}
                     />
                 </Group>
@@ -362,7 +371,22 @@ export function JoinCard({
     useEffect(() => {
         form.current?.querySelector<HTMLElement>("input")?.focus();
     }, []);
+    // The draft's acts and Before / After change what the preview reads.
+    useSessionEvents(session, DRAFT_EVENTS);
+    // A draft gone by any door (a project opened, the graph cleared) leaves nothing to commit: the
+    // card picks again.
+    useEffect(
+        () =>
+            session.on("data:draft-changed", () => {
+                const now = joinCardOf(store.get().sourceCard);
+                if (now !== null && now.preview !== null && openDraft(session) === null) {
+                    store.set({ sourceCard: { ...now, preview: null } });
+                }
+            }),
+        [session, store],
+    );
     const swap = swapped(session, card);
+    const previewing = card.preview !== null;
     const cancel = (): void => {
         cancelCard(store, session);
     };
@@ -372,6 +396,7 @@ export function JoinCard({
             className="ss-card ss-join"
             aria-label={JOIN_WORDS.join}
             onSubmit={(event) => {
+                // Enter in a field submits a form: only the Commit button and the window's Enter commit.
                 event.preventDefault();
             }}
             onKeyDown={(event) => {
@@ -395,7 +420,7 @@ export function JoinCard({
                             disabled={swap === null}
                             onClick={() => {
                                 if (swap !== null) {
-                                    updateJoin(store, swap);
+                                    updateJoin(store, swap, session);
                                 }
                             }}
                         >
@@ -406,8 +431,37 @@ export function JoinCard({
                 <Field2 session={session} card={card} />
                 <Counts session={session} card={card} />
                 <Act session={session} card={card} />
+                <JoinPreview session={session} card={card} />
                 <Group gap={6} justify="flex-end">
                     <CancelButton onClick={cancel} />
+                    {/* Keyed apart: the click that starts the preview must not land on Commit, as it
+                        would if React reused this one button for both. */}
+                    {previewing ? (
+                        <Button
+                            key="commit"
+                            size="compact-xs"
+                            onClick={() => {
+                                void commitCard(store, session);
+                            }}
+                            rightSection={<Kbd size="xs">{formatKey(COMMIT_KEY)}</Kbd>}
+                            aria-keyshortcuts={ariaKey(COMMIT_KEY)}
+                        >
+                            {PREVIEW_WORDS.commit}
+                        </Button>
+                    ) : (
+                        <Button
+                            key="preview"
+                            size="compact-xs"
+                            disabled={!canPreview(card)}
+                            rightSection={<Kbd size="xs">{formatKey(PREVIEW_KEY)}</Kbd>}
+                            aria-keyshortcuts={ariaKey(PREVIEW_KEY)}
+                            onClick={() => {
+                                void startPreview(store, session);
+                            }}
+                        >
+                            {PREVIEW_WORDS.preview}
+                        </Button>
+                    )}
                 </Group>
             </Stack>
         </form>

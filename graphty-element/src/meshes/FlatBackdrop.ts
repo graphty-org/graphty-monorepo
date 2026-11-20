@@ -51,6 +51,8 @@ export class FlatBackdrop {
     private readonly layer: Layer;
     private readonly engine: AbstractEngine;
     private readonly resized: Observer<AbstractEngine>;
+    /** Asks before each frame whether the layer can draw, once the picture has arrived. */
+    private drawable: Observer<Scene> | null = null;
     private disposed = false;
     /** Ends the picture's place in the pending work: loaded, failed or disposed. */
     private settle: () => void = noop;
@@ -77,7 +79,13 @@ export class FlatBackdrop {
         this.layer.texture = this.texture;
         this.texture.onLoadObservable.addOnce(() => {
             this.fit();
-            this.settle();
+            // The layer draws nothing until its shader is compiled, which starts on the first
+            // isReady() after the texture arrives: the picture is final only once it can draw.
+            this.drawable = scene.onBeforeRenderObservable.add(() => {
+                if (this.layer.isReady()) {
+                    this.settle();
+                }
+            });
         });
         this.resized = this.engine.onResizeObservable.add(() => {
             this.fit();
@@ -115,8 +123,8 @@ export class FlatBackdrop {
     }
 
     /**
-     * Hold the scene's picture as not final until the image has arrived, failed to, or this was
-     * disposed (each calls {@link settle}).
+     * Hold the scene's picture as not final until the layer can draw the image, the image failed to
+     * load, or this was disposed (each calls {@link settle}).
      * @param scene - The scene.
      */
     private holdPicture(scene: Scene): void {
@@ -125,7 +133,11 @@ export class FlatBackdrop {
             "picture",
             "a flat background picture is loading",
             new Promise<void>((resolve) => {
-                this.settle = resolve;
+                this.settle = () => {
+                    scene.onBeforeRenderObservable.remove(this.drawable);
+                    this.drawable = null;
+                    resolve();
+                };
             }),
         );
     }

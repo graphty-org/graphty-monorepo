@@ -81,6 +81,7 @@ describe("graphty-skybox-loaded", () => {
 
         element.background = { backgroundType: "skybox", data: url, projection: "flat", color: "#ffffff" };
         await loaded;
+        await element.waitForSettled();
 
         assert.isNull(element.graph.scene.getMeshByName("testdome"), "no photo dome is built");
         const corners = await pixelsAt(element, [

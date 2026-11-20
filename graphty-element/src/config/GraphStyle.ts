@@ -63,7 +63,7 @@ const GraphBackgroundSkybox = z.strictObject({
      * draws it still behind the graph, covering the canvas and cropped to its shape, never
      * stretched. Absent, `"dome"`. @since 3.40.0
      */
-    projection: z.enum(["dome", "flat"]).optional(),
+    projection: z.literal(["dome", "flat"]).optional(),
     /** Drawn while the image loads, and wherever it is transparent. @since 3.36.0 */
     color: ColorStyle.optional(),
     /** `color` under a dark color scheme, as on a color background. @since 3.58.0 */

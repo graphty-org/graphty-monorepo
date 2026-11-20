@@ -293,7 +293,7 @@ const KNOWN_LABEL_FIELD_GAPS: readonly string[] = [
 const KNOWN_OPTION_GAPS: readonly string[] = [];
 
 /** Check 3: shaders drawn in a node's place that the Shape menu does not list, by name. */
-const KNOWN_SHAPE_MENU_GAPS: readonly string[] = ["Sticker", "Mandala", "Inventory disc"];
+const KNOWN_SHAPE_MENU_GAPS: readonly string[] = [];
 
 /** Check 4: styles a reader switches on (a part head with an `off` value) that "+" does not add drawn. */
 const KNOWN_SWITCH_ON_GAPS: readonly string[] = [];

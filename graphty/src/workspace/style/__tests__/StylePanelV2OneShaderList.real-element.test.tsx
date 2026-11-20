@@ -100,6 +100,91 @@ describe("custom and built-in shaders are one list", () => {
             }
             await userEvent.keyboard("{Escape}");
         }
+        // The custom replace shader is in the node Shape menu, beside the built-in shapes.
+        const replacing = ids.node.find((each) => each.place === "replace");
+        assert.isDefined(replacing, "the code dialog offers replace for a node");
+        const tab = await openStyle("Key people");
+        await showKind("node");
+        const shape = sectionOf(tab, "node-shape");
+        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        const picker = await waitFor(() => {
+            const found = shape.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(picker);
+        const menu = await screen.findByRole("group", { name: /values$/ });
+        const search = within(menu).getByRole("combobox", { name: "Search" });
+        // The menu narrowed to a name: what its options say once it settles.
+        const found = async (name: string): Promise<string[]> => {
+            await userEvent.clear(search);
+            await userEvent.type(search, name);
+            return waitFor(() => {
+                const shown = within(menu)
+                    .queryAllByRole("option")
+                    .map((option) => option.textContent);
+                assert.isTrue(
+                    shown.some((text) => text.startsWith(name)),
+                    `${name} is in the Shape menu`,
+                );
+                return shown;
+            });
+        };
+        await found("Sphere");
+        await found("Mandala");
+        // A shader drawn around or over the node is the Shaders list's only (E368): searched, it lists nothing.
+        await userEvent.clear(search);
+        await userEvent.type(search, "Test node around");
+        await waitFor(() => {
+            assert.deepEqual(within(menu).queryAllByRole("option"), [], "an around shader is not a shape");
+        });
+        const options = await found("Test node replace");
+        assert.include(options, "Test node replace");
+        // Picked from the Shape menu, the custom shader draws in the node's place, as a built-in one does.
+        await userEvent.click(within(menu).getByRole("option", { name: /^Test node replace/ }));
+        await waitFor(() => {
+            const layer = session.styles.list().find((each) => each.name === "Key people" && each.target === "node");
+            const uses = session.styles.get(layer?.id ?? "")?.set?.["node.shaders"];
+            assert.deepInclude(
+                Array.isArray(uses) ? uses : [],
+                { shader: replacing?.id ?? "" },
+                "the replace shader is the layer's",
+            );
+        });
+    });
+
+    it("the Shape menu has a Shaders section, New shader... first, whose New shader... opens the code dialog", async () => {
+        await openGraph();
+        const tab = await openStyle("Key people");
+        await showKind("node");
+        const shape = sectionOf(tab, "node-shape");
+        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        const picker = await waitFor(() => {
+            const found = shape.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(picker);
+        await userEvent.click(await screen.findByRole("combobox", { name: "Node shape section" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Shaders" }));
+        const list = await screen.findByRole("group", { name: /values$/ });
+        const shown = await waitFor(() => {
+            const options = within(list)
+                .queryAllByRole("option")
+                .map((option) => option.textContent);
+            assert.isAbove(options.length, 1);
+            return options;
+        });
+        // After the shapes this graph draws (listed first in every section), New shader... leads the shaders.
+        assert.include(shown, "Mandala");
+        assert.isBelow(shown.indexOf("New shader..."), shown.indexOf("Mandala"), "New shader... is first");
+        assert.isAtLeast(shown.indexOf("New shader..."), 0);
+        assert.notInclude(shown, "Torus", "another section's shapes are not listed");
+        assert.notInclude(shown, "Custom shader...", "no Custom shader item (E381)");
+        await userEvent.click(within(list).getByRole("option", { name: "New shader..." }));
+        const dialog = await screen.findByRole("dialog", { name: "New shader" });
+        assert.isNotNull(dialog);
+        await userEvent.keyboard("{Escape}");
     });
 
     it("'New shader...' is first; Place is set in the code dialog; saving at around puts it in the list, and it draws", async () => {

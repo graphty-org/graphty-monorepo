@@ -23,9 +23,24 @@ import { modelProblemLines } from "./modelWords";
 import { PictureField, PicturePopover } from "./PicturePopover";
 import type { RowContext } from "./PropertyRow";
 import { layerWord, lineIn, removeLine, without, writeIn } from "./row";
+import { ShaderEditorDialog } from "./ShaderEditorDialog";
 import { focusSectionNext } from "./useFocusLine";
+import { familyOf, pickReplace } from "./v2/families";
 import { ModelValueField, ValueField } from "./ValueField";
-import { fieldName, MODEL_CHANNELS, MODEL_PICK, MODEL_TILE, PICTURE_WORD, valueWords } from "./words";
+import {
+    CUSTOM_MODEL_PICK,
+    failureWords,
+    fieldName,
+    GALLERY_WORDS,
+    MODEL_CHANNELS,
+    MODEL_PICK,
+    MODEL_TILE,
+    NEW_REPLACE_PICK,
+    PICTURE_WORD,
+    REPLACE_PICK,
+    SHAPE_LIST_SECTIONS,
+    valueWords,
+} from "./words";
 
 /** The Model settings pop-over's width, as every Style panel pop-over. */
 const POPOUT_WIDTH = 240;
@@ -129,14 +144,17 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
     const [customOpen, setCustomOpen] = useState(false);
     // Fill's Picture line, added with "+": its pop-over opens at once.
     const [pictureOpen, setPictureOpen] = useState(() => on && channel === "node.texture" && pending);
+    // Style panel v2's Shape list: its New shader... opens the code dialog, set to the shapes' place.
+    const [replaceCode, setReplaceCode] = useState(false);
     // Focus back on the field, once the pop-over that took its place has gone.
     const focusField = useCallback(() => {
         requestAnimationFrame(() => {
             box.current?.querySelector<HTMLElement>(".ws-field-control input")?.focus();
         });
     }, [box]);
+    const listed = channel === "node.shape" && ctx.listSections !== undefined;
     if (on && channel === "node.shape") {
-        return shapeLine(line, {
+        const base = shapeLine(line, {
             model,
             modelsOpen,
             setModelsOpen,
@@ -147,11 +165,97 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
             setCustomOpen,
             focusField,
         });
+        return listed ? shapeList(line, base, { replaceCode, setReplaceCode, setCustomOpen }) : base;
+    }
+    if (listed) {
+        return shapeList(line, undefined, { replaceCode, setReplaceCode, setCustomOpen });
     }
     if (on && channel === "node.texture") {
         return pictureLine(line, { pictureOpen, setPictureOpen, focusField });
     }
     return undefined;
+}
+
+/** What Style panel v2's Shape list needs of `useAssetLine`'s state. */
+interface ShapeListState {
+    readonly replaceCode: boolean;
+    readonly setReplaceCode: (open: boolean) => void;
+    readonly setCustomOpen: (open: boolean) => void;
+}
+
+/**
+ * Style panel v2's Shape list (E378, E381): after the shapes, a Models section (with the node-models
+ * experiment on: Model... and Custom model...) and a Shaders section, "New shader..." first and then every
+ * shader that declares it draws in the node's place, built-in and custom alike, by the catalog's place.
+ * @param args - the line.
+ * @param base - what the node-models experiment draws for the line, if on.
+ * @param state - the list's state.
+ * @returns what it draws.
+ */
+function shapeList(args: LineHelpers, base: AssetLine | undefined, state: ShapeListState): AssetLine {
+    const { ctx, store } = args;
+    const family = familyOf(ctx.side, "shape");
+    const models =
+        base === undefined
+            ? []
+            : [
+                  ...(base.extraChoices ?? []).map((choice) => ({ ...choice, section: SHAPE_LIST_SECTIONS.models })),
+                  {
+                      value: CUSTOM_MODEL_PICK,
+                      label: SHAPE_LIST_SECTIONS.customModel,
+                      section: SHAPE_LIST_SECTIONS.models,
+                  },
+              ];
+    const shaders = [
+        { value: NEW_REPLACE_PICK, label: GALLERY_WORDS.newShader, section: SHAPE_LIST_SECTIONS.shaders },
+        ...ctx.session.catalog.shaders({ target: "node", place: "replace" }).map((shader) => ({
+            value: `${REPLACE_PICK}${shader.id}`,
+            label: shader.plainName,
+            section: SHAPE_LIST_SECTIONS.shaders,
+        })),
+    ];
+    const fail = (error: unknown): void => {
+        store.set({ notice: { message: failureWords("Shape", "changed", error), error: true } });
+    };
+    const pick = (value: ChannelValue): boolean => {
+        if (value === NEW_REPLACE_PICK) {
+            state.setReplaceCode(true);
+            return true;
+        }
+        if (value === CUSTOM_MODEL_PICK) {
+            state.setCustomOpen(true);
+            return true;
+        }
+        if (typeof value === "string" && value.startsWith(REPLACE_PICK) && family !== undefined) {
+            pickReplace(ctx, family, value.slice(REPLACE_PICK.length)).catch(fail);
+            return true;
+        }
+        return base?.pick(value) ?? false;
+    };
+    const code =
+        state.replaceCode && family !== undefined ? (
+            <ShaderEditorDialog
+                session={ctx.session}
+                tab="node"
+                put={(scope, id, params) => pickReplace(ctx, family, id, params, scope)}
+                init={{ place: "replace" }}
+                onClose={() => {
+                    state.setReplaceCode(false);
+                }}
+            />
+        ) : null;
+    return {
+        ...base,
+        extraChoices: [...models, ...shaders],
+        pick,
+        ownsVary: base?.ownsVary ?? false,
+        extras: (
+            <>
+                {base?.extras}
+                {code}
+            </>
+        ),
+    };
 }
 
 /** The Shape line's state, held by `useAssetLine`. */

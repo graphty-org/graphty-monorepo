@@ -25,6 +25,8 @@ interface ExtraChoice {
     readonly label: string;
     readonly glyph?: React.ReactNode;
     readonly disabled?: boolean;
+    /** The section it is listed in, after the list's own (Shape's Models and Shaders); unset, "More". */
+    readonly section?: string;
 }
 
 /**
@@ -82,7 +84,7 @@ function valueRows(
         ...extraChoices.map((choice): QuickAction => ({
             value: choice.value,
             label: choice.label,
-            section: "More",
+            section: choice.section ?? "More",
             ...(choice.glyph === undefined ? {} : { icon: choice.glyph }),
             ...(choice.disabled === true ? { disabled: true } : {}),
         })),
@@ -105,8 +107,18 @@ function sectionRows(
     searching: boolean,
 ): QuickAction[] {
     const sectionOf = (value: string): string | undefined => sections.find((each) => each.values.includes(value))?.name;
+    const named = new Set(sections.map((each) => each.name));
     return rows
-        .filter((row) => searching || row.section !== "All" || sectionOf(row.value) === section)
+        .filter((row) => {
+            if (searching) {
+                return true;
+            }
+            if (row.section === "All") {
+                return sectionOf(row.value) === section;
+            }
+            // A choice listed in a section of its own (Shape's Shaders) shows with that section only.
+            return !named.has(row.section ?? "") || row.section === section;
+        })
         .map((row) => (row.section === "All" ? { ...row, section: sectionOf(row.value) ?? row.section } : row));
 }
 
@@ -161,7 +173,21 @@ export function ValueListbox({
         "";
     const [section, setSection] = useState(startSection);
     const rows = opened ? valueRows(session, descriptor, extraChoices, counts, icons) : [];
-    const listed = sections === undefined ? rows : sectionRows(rows, sections, section, query.trim() !== "");
+    // The extra choices' own sections follow the list's, in the order the choices come.
+    const allSections =
+        sections === undefined
+            ? undefined
+            : [
+                  ...sections,
+                  ...[
+                      ...new Set(
+                          extraChoices.flatMap((choice) => (choice.section === undefined ? [] : [choice.section])),
+                      ),
+                  ]
+                      .filter((name) => !sections.some((each) => each.name === name))
+                      .map((name) => ({ name, values: [] })),
+              ];
+    const listed = allSections === undefined ? rows : sectionRows(rows, allSections, section, query.trim() !== "");
     const things = `${channelWord(descriptor.channel).toLowerCase()}s`;
     // As the shared choice field reads it: "mixed", or the default in force when nothing is set.
     const unset = value === undefined && !mixed;
@@ -203,14 +229,14 @@ export function ValueListbox({
                 header={{ variant: "title", title: label }}
                 closeLabel={`Close ${label}`}
             >
-                {sections === undefined ? null : (
+                {allSections === undefined ? null : (
                     // Inset as the search box under it is (8 px each side).
                     <Box mx={8} mt={8}>
                         <PanelField
                             label={`${label} section`}
                             kind="select"
                             width="fill"
-                            data={sections.map((each) => ({ value: each.name, label: each.name }))}
+                            data={allSections.map((each) => ({ value: each.name, label: each.name }))}
                             value={section}
                             onChange={(next) => {
                                 setSection(String(next));

@@ -10,13 +10,20 @@
 
 import {
     type Channel,
+    type ShaderParams,
     type ShaderUse,
     STYLE_FAMILIES,
     type StyleFamilyDescriptor,
     type StyleFamilyId,
     writeChannelList,
 } from "@graphty/graphty-element/catalog";
-import type { GraphSession, Layer, StaticStyle, StyleFamilyValues } from "@graphty/graphty-element/session";
+import type {
+    GraphSession,
+    Layer,
+    StaticStyle,
+    StyleFamilyValues,
+    TransactionScope,
+} from "@graphty/graphty-element/session";
 
 import { cosmographOn, nodeModelsOn } from "../../features";
 import { shownChannel } from "../offered";
@@ -323,14 +330,23 @@ export function isHeld(ctx: RowContext, family: StyleFamilyDescriptor, key: stri
  * @param ctx - the row.
  * @param family - the Shape family.
  * @param shader - the shader picked.
+ * @param params - its parameter values, from the code dialog.
+ * @param scope - the step it joins: the code dialog's add, or its own.
  * @returns when it is written.
  */
-export async function pickReplace(ctx: RowContext, family: StyleFamilyDescriptor, shader: string): Promise<void> {
+export async function pickReplace(
+    ctx: RowContext,
+    family: StyleFamilyDescriptor,
+    shader: string,
+    params: ShaderParams = {},
+    scope: TransactionScope = ctx.session,
+): Promise<void> {
     const layer = layerOf(ctx, family);
     if (layer === undefined) {
         return;
     }
-    await ctx.session.transaction(`changing ${family.plainName.toLowerCase()}`, (tx) =>
-        tx.styles.switchFamily(layer.id, family.id, "replace", { uses: [{ shader }] }),
+    const use: ShaderUse = { shader, ...(Object.keys(params).length === 0 ? {} : { params }) };
+    await scope.transaction(`changing ${family.plainName.toLowerCase()}`, (tx) =>
+        tx.styles.switchFamily(layer.id, family.id, "replace", { uses: [use] }),
     );
 }

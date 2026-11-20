@@ -34,6 +34,7 @@ import {
     type Target,
     writeIn,
 } from "./row";
+import { ScrubSlots } from "./scrubSlots";
 import { focusLineNext, focusSectionNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
@@ -969,6 +970,8 @@ function NumberValue({
     const percent = isPercent(descriptor);
     const scale = percent ? 100 : 1;
     const { min, max } = descriptor;
+    const scrub = React.useContext(ScrubSlots);
+    const letter = scrub ? scrubLetter(name) : undefined;
     return (
         <ComboInput
             label={name}
@@ -977,7 +980,7 @@ function NumberValue({
             options={[]}
             value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : ""}
             suffix={percent ? "%" : undefined}
-            glyph={prefix === undefined ? scrubLetter(name) : <span>{prefix}</span>}
+            glyph={prefix === undefined ? letter : <span>{prefix}</span>}
             min={min === undefined ? undefined : min * scale}
             max={max === undefined ? undefined : max * scale}
             step={!percent && max !== undefined && max <= 1 ? 0.1 : 1}

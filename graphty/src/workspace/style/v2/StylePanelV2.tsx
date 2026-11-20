@@ -19,6 +19,7 @@ import { useFindKey } from "../parts/useFindKey";
 import { PickerNamesOnly } from "../pickerNames";
 import type { RowContext } from "../PropertyRow";
 import { needsFor, startForOrNone, writeIn, writeLine } from "../row";
+import { ScrubSlots } from "../scrubSlots";
 import { AddButton, type AddOption, Section } from "../Section";
 import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
@@ -368,15 +369,17 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
         >
             <LabelsProvider labels={V2_LABELS}>
                 <PickerNamesOnly.Provider value>
-                    <section
-                        className="ws-style-group"
-                        data-group={ctx.side}
-                        data-style-parts=""
-                        data-style-panel-v2=""
-                    >
-                        <FindSettingBox query={query} onQuery={setQuery} inputRef={box} />
-                        {body}
-                    </section>
+                    <ScrubSlots.Provider value>
+                        <section
+                            className="ws-style-group"
+                            data-group={ctx.side}
+                            data-style-parts=""
+                            data-style-panel-v2=""
+                        >
+                            <FindSettingBox query={query} onQuery={setQuery} inputRef={box} />
+                            {body}
+                        </section>
+                    </ScrubSlots.Provider>
                 </PickerNamesOnly.Provider>
             </LabelsProvider>
         </div>

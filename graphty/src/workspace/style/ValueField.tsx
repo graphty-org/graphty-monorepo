@@ -8,6 +8,7 @@ import React from "react";
 import { useModelPicture } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { ValueListbox, type ValueSection } from "./parts/ValueListbox";
+import { ScrubSlots } from "./scrubSlots";
 import {
     channelWord,
     colorName,
@@ -235,8 +236,8 @@ function ColorValueField(props: KindFieldProps): React.JSX.Element {
 }
 
 /**
- * A number, Figma's number input: its slot at the left scrubs (its name's initial), the arrow keys step;
- * an opacity reads and types as a percent, as the property row does.
+ * A number, Figma's number input: inside {@link ScrubSlots}, its slot at the left scrubs (its name's initial);
+ * the arrow keys step; an opacity reads and types as a percent, as the property row does.
  * @param props - ValueField's props
  * @returns The field
  */
@@ -246,13 +247,14 @@ function NumberValueField(props: KindFieldProps): React.JSX.Element {
     const toShown = (n: unknown): number | undefined =>
         typeof n === "number" ? Math.round(n * scale * 100) / 100 : undefined;
     const { min, max } = descriptor;
+    const scrub = React.useContext(ScrubSlots);
     return (
         <ComboInput
             label={label}
             width={compact ? 64 : "100%"}
             numeric
             options={[]}
-            glyph={scrubLetter(label)}
+            glyph={scrub ? scrubLetter(label) : undefined}
             value={mixed ? "" : (toShown(value) ?? toShown(shown) ?? "")}
             mixed={mixed}
             suffix={scale === 100 ? "%" : undefined}

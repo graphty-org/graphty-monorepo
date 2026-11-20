@@ -277,10 +277,12 @@
             "shape": "ellipse",
             "borderPosition": "inside",
             "labelPosition": "center",
-            "labelOnTop": true
+            "labelOnTop": true,
+            "labelFont": "DejaVu Sans, sans-serif"
         },
         "edge": {
             "curved": true,
+            "labelFont": "DejaVu Sans, sans-serif",
             "sourceArrow": "none",
             "targetArrow": "none",
             "curved": true,

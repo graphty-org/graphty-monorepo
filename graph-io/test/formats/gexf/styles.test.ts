@@ -380,7 +380,8 @@ describe("GEXF styles: Gephi's Preview settings (the gephiPreview option)", () =
         expect(labels("node", "labelColor")).toEqual(["#ff0000", "#0000ff", "#808080"]);
         expect(labels("node", "labelOutlineWidth")).toEqual([3, 3, 3]);
         expect(labels("node", "labelOutlineColor")).toEqual(["#7f0000", "#00007f", "#404040"]);
-        expect(labels("node", "labelFont")[0]).toBe("DejaVu Serif");
+        // Java draws a font it does not have in Dialog's face, so that face follows the named one
+        expect(labels("node", "labelFont")[0]).toBe("DejaVu Serif, DejaVu Sans, sans-serif");
         expect(labels("node", "labelWeight")[0]).toBe("bold");
         expect(labels("node", "labelItalic")[0]).toBe(true);
         // overlap avoidance off: nothing turns it on (Gephi's default turns it on for every node)

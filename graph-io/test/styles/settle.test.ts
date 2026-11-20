@@ -212,6 +212,22 @@ ${node("a", 2)}${node("b", 0)}${node("c", 1)}${node("d", 1)}
         expect(values("node", "labelGridCellSize")).toEqual([null, null, null]);
         expect(values("node", "labelScreenSize")).toEqual([12, 12, 12]);
     });
+
+    it("files a node with no label in sigma.js's label grid, as sigma gives it the empty label", async () => {
+        const doc = JSON.stringify({
+            attributes: {},
+            nodes: [
+                { key: "a", attributes: { x: 0, y: 0, size: 10, label: null } },
+                { key: "b", attributes: { x: 1, y: 1, size: 5, label: "B" } },
+                { key: "c", attributes: { x: 100, y: 100, size: 5, label: "C" } },
+            ],
+            edges: [],
+        });
+        const { values } = await load(doc, "json", { viewport: { width: 800, height: 600 } });
+        // a draws no words but still takes its cell's first place, so b is ranked second there
+        const [, b] = values("node", "labelMinNodeScreenSize") as number[];
+        expect(b).toBeGreaterThan(54);
+    });
 });
 
 describe("settled facts in place of the program", () => {

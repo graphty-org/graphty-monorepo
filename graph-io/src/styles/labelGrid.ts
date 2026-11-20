@@ -105,8 +105,11 @@ export function labelGridSizes(
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const cell = num(cellSizes, i);
         const [x, y] = [coords[3 * i], coords[3 * i + 1]];
-        // sigma files a node by its label being a string, the empty one too (it is then not drawn)
-        if (cell === null || cell <= 0 || typeof labels[i] !== "string" || !Number.isFinite(x + y)) {
+        // sigma files a node by its label being a string, the empty one too (it is then not drawn); a node with no
+        // label has the empty one (sigma 4's DEFAULT_NODE_DISPLAY_DATA label ""), so it is filed and still takes its
+        // cell's first place (json-graphology-synth n51, label null, hides n41 below it)
+        const label = labels[i] ?? "";
+        if (cell === null || cell <= 0 || typeof label !== "string" || !Number.isFinite(x + y)) {
             continue;
         }
         const sx = viewport.width / 2 + (x - center[0]) * k;

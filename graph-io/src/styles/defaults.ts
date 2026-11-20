@@ -859,8 +859,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                         true,
                         `${GEPHI} PreviewController (the node label items are drawn after every node); Gephi Toolkit 0.11.3 SVG export: g#node-labels after g#nodes`,
                     ),
+                    // Gephi draws and measures its labels in Java's Dialog, whose face on Linux is DejaVu Sans; a
+                    // browser's own sans-serif is narrower ("a & b <c>" 17 percent, gexf-specimen-labels-p11's box)
+                    labelFont: v("DejaVu Sans, sans-serif", `${GEPHI} DefaultPreset.java (NODE_LABEL_FONT Dialog)`),
                 },
                 edge: {
+                    labelFont: v("DejaVu Sans, sans-serif", `${GEPHI} DefaultPreset.java (EDGE_LABEL_FONT Dialog)`),
                     sourceArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
                     targetArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
                     curved: v(true, `${GEPHI} DefaultPreset.java (EDGE_CURVED true); Gephi Toolkit 0.11.3 SVG export`),

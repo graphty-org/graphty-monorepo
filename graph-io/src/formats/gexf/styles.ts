@@ -15,6 +15,7 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import { javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { type ElementValues, takeFromBlock } from "../../styles/io/round-trip.js";
@@ -848,7 +849,8 @@ function fontValues(font: GephiFont, custom: boolean): Record<string, StyleValue
         return {};
     }
     return {
-        labelFont: font.family,
+        // a Java font name: Dialog and the other logical fonts in their Linux faces, any other with Dialog's after it
+        labelFont: javaFamily(font.family),
         ...(font.bold ? { labelWeight: "bold" } : {}),
         ...(font.italic ? { labelItalic: true } : {}),
     };

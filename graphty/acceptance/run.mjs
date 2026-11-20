@@ -237,7 +237,14 @@ async function runAll(o) {
 
 // ---------------------------------------------------------------- a worker (one browser slot)
 
-function serve(dist) {
+/**
+ * The built app on 127.0.0.1 at an ephemeral port, for as long as the caller keeps it; any path
+ * that is not a file is the app's own page. Also the demo video recorder's server
+ * (tools/demo-video/lib/env.mjs).
+ * @param dist the built app's folder
+ * @returns the listening server
+ */
+export function serve(dist) {
     const http = createServer(async (req, res) => {
         const url = new URL(req.url, "http://x"); // eslint-disable-line sonarjs/no-clear-text-protocols -- parses the request's path; the server is loopback only
         const path = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, "");
@@ -257,6 +264,33 @@ function serve(dist) {
 const profiles = new Set();
 
 /**
+ * Headless Chromium with the GPU flags and the extracted libEGL, on a profile folder, and the name of
+ * the renderer it draws with (the caller refuses anything but the NVIDIA card). Also the demo video
+ * recorder's browser (tools/demo-video/lib/env.mjs).
+ * @param chromium Playwright's chromium
+ * @param profile the profile folder
+ * @param options more launchPersistentContext options (`args` are added to the GPU flags)
+ * @returns the context, its first page and the renderer's name
+ */
+export async function gpuContext(chromium, profile, options = {}) {
+    const context = await chromium.launchPersistentContext(profile, {
+        headless: true,
+        acceptDownloads: true,
+        ignoreDefaultArgs: ["--hide-scrollbars"],
+        env: { ...process.env, LD_LIBRARY_PATH: [EGL, process.env.LD_LIBRARY_PATH].filter(Boolean).join(":") },
+        ...options,
+        args: [...GPU_ARGS, ...(options.args ?? [])],
+    });
+    const page = context.pages()[0] ?? (await context.newPage());
+    const renderer = await page.evaluate(() => {
+        const g = document.createElement("canvas").getContext("webgl2");
+        const e = g?.getExtension("WEBGL_debug_renderer_info");
+        return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : "no WebGL";
+    });
+    return { context, page, renderer };
+}
+
+/**
  * A browser on the GPU, or a loud failure: a software renderer is never used.
  * @param chromium Playwright's chromium
  * @returns a persistent context on a fresh profile, and its renderer
@@ -268,23 +302,12 @@ async function launch(chromium) {
         );
     const profile = await mkdtemp(join(tmpdir(), "graphty-dry-run-"));
     profiles.add(profile);
-    const context = await chromium.launchPersistentContext(profile, {
-        headless: true,
+    const { context, page, renderer } = await gpuContext(chromium, profile, {
         // a stop ends the worker, whose exit closes the browser (passStopsOn, runWorker)
         handleSIGINT: false,
         handleSIGTERM: false,
         handleSIGHUP: false,
-        args: GPU_ARGS,
-        ignoreDefaultArgs: ["--hide-scrollbars"],
-        env: { ...process.env, LD_LIBRARY_PATH: [EGL, process.env.LD_LIBRARY_PATH].filter(Boolean).join(":") },
         viewport: { width: 1440, height: 900 },
-        acceptDownloads: true,
-    });
-    const page = context.pages()[0] ?? (await context.newPage());
-    const renderer = await page.evaluate(() => {
-        const g = document.createElement("canvas").getContext("webgl2");
-        const e = g?.getExtension("WEBGL_debug_renderer_info");
-        return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : "no WebGL";
     });
     const close = () =>
         context.close().finally(async () => {

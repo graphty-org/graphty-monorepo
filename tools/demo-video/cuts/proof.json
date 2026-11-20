@@ -1,0 +1,27 @@
+{
+    "name": "proof",
+    "crossfadeMs": 400,
+    "music": null,
+    "sections": [
+        {
+            "marker": "Intro",
+            "items": [{ "card": "title", "seconds": 3, "lines": ["Free and open source -- graphty.app"] }]
+        },
+        {
+            "marker": "Open the files you already have",
+            "chapter": { "number": 1, "title": "Open the files you already have", "seconds": 2 },
+            "items": [{ "clip": "drop-gephi" }]
+        },
+        {
+            "marker": "Find what matters",
+            "chapter": { "number": 2, "title": "Find what matters", "seconds": 2 },
+            "items": [{ "clip": "find-groups" }]
+        },
+        {
+            "marker": "Outro",
+            "items": [
+                { "card": "end", "seconds": 4, "big": "graphty.app", "lines": ["Your network, in your browser."] }
+            ]
+        }
+    ]
+}

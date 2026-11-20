@@ -1,0 +1,1239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
+  <graph defaultedgetype="undirected" mode="static">
+    <attributes class="node" mode="static">
+      <attribute id="modularity_class" title="Modularity Class" type="integer"/>
+    </attributes>
+    <attributes class="edge" mode="static">
+      <attribute id="shared_chapters" title="shared_chapters" type="double"/>
+    </attributes>
+    <nodes count="77">
+      <node id="Napoleon" label="Napoleon">
+        <attvalues><attvalue for="modularity_class" value="5"/></attvalues>
+        <viz:color r="66" g="212" b="244"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-272.37" y="-445.16" z="0"/>
+      </node>
+      <node id="Myriel" label="Myriel">
+        <attvalues><attvalue for="modularity_class" value="5"/></attvalues>
+        <viz:color r="66" g="212" b="244"/>
+        <viz:size value="20.0"/>
+        <viz:position x="-230.34" y="-387.37" z="0"/>
+      </node>
+      <node id="MlleBaptistine" label="Mlle Baptistine">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="13.0"/>
+        <viz:position x="-161.98" y="-274.02" z="0"/>
+      </node>
+      <node id="MmeMagloire" label="Mme Magloire">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="13.0"/>
+        <viz:position x="-149.70" y="-285.45" z="0"/>
+      </node>
+      <node id="CountessDeLo" label="Countess de Lo">
+        <attvalues><attvalue for="modularity_class" value="5"/></attvalues>
+        <viz:color r="66" g="212" b="244"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-254.80" y="-453.65" z="0"/>
+      </node>
+      <node id="Geborand" label="Geborand">
+        <attvalues><attvalue for="modularity_class" value="5"/></attvalues>
+        <viz:color r="66" g="212" b="244"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-266.06" y="-421.86" z="0"/>
+      </node>
+      <node id="Champtercier" label="Champtercier">
+        <attvalues><attvalue for="modularity_class" value="5"/></attvalues>
+        <viz:color r="66" g="212" b="244"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-250.59" y="-432.58" z="0"/>
+      </node>
+      <node id="Cravatte" label="Cravatte">
+        <attvalues><attvalue for="modularity_class" value="5"/></attvalues>
+        <viz:color r="66" g="212" b="244"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-285.53" y="-430.48" z="0"/>
+      </node>
+      <node id="Count" label="Count">
+        <attvalues><attvalue for="modularity_class" value="5"/></attvalues>
+        <viz:color r="66" g="212" b="244"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-282.14" y="-410.47" z="0"/>
+      </node>
+      <node id="OldMan" label="Old Man">
+        <attvalues><attvalue for="modularity_class" value="5"/></attvalues>
+        <viz:color r="66" g="212" b="244"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-236.12" y="-445.34" z="0"/>
+      </node>
+      <node id="Valjean" label="Valjean">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="46.0"/>
+        <viz:position x="-7.61" y="-86.83" z="0"/>
+      </node>
+      <node id="Labarre" label="Labarre">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-53.04" y="-157.17" z="0"/>
+      </node>
+      <node id="Marguerite" label="Marguerite">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="12.0"/>
+        <viz:position x="163.06" y="-130.15" z="0"/>
+      </node>
+      <node id="MmeDeR" label="Mme de R">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-33.69" y="-155.25" z="0"/>
+      </node>
+      <node id="Isabeau" label="Isabeau">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-73.19" y="-145.41" z="0"/>
+      </node>
+      <node id="Gervais" label="Gervais">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-55.62" y="-138.26" z="0"/>
+      </node>
+      <node id="Listolier" label="Listolier">
+        <attvalues><attvalue for="modularity_class" value="4"/></attvalues>
+        <viz:color r="145" g="30" b="180"/>
+        <viz:size value="17.0"/>
+        <viz:position x="448.73" y="-141.83" z="0"/>
+      </node>
+      <node id="Tholomyes" label="Tholomyes">
+        <attvalues><attvalue for="modularity_class" value="4"/></attvalues>
+        <viz:color r="145" g="30" b="180"/>
+        <viz:size value="19.0"/>
+        <viz:position x="334.21" y="-74.39" z="0"/>
+      </node>
+      <node id="Fameuil" label="Fameuil">
+        <attvalues><attvalue for="modularity_class" value="4"/></attvalues>
+        <viz:color r="145" g="30" b="180"/>
+        <viz:size value="17.0"/>
+        <viz:position x="400.37" y="-136.65" z="0"/>
+      </node>
+      <node id="Blacheville" label="Blacheville">
+        <attvalues><attvalue for="modularity_class" value="4"/></attvalues>
+        <viz:color r="145" g="30" b="180"/>
+        <viz:size value="17.0"/>
+        <viz:position x="417.17" y="-102.17" z="0"/>
+      </node>
+      <node id="Favourite" label="Favourite">
+        <attvalues><attvalue for="modularity_class" value="4"/></attvalues>
+        <viz:color r="145" g="30" b="180"/>
+        <viz:size value="17.0"/>
+        <viz:position x="425.36" y="-127.88" z="0"/>
+      </node>
+      <node id="Dahlia" label="Dahlia">
+        <attvalues><attvalue for="modularity_class" value="4"/></attvalues>
+        <viz:color r="145" g="30" b="180"/>
+        <viz:size value="17.0"/>
+        <viz:position x="446.71" y="-108.33" z="0"/>
+      </node>
+      <node id="Zephine" label="Zephine">
+        <attvalues><attvalue for="modularity_class" value="4"/></attvalues>
+        <viz:color r="145" g="30" b="180"/>
+        <viz:size value="17.0"/>
+        <viz:position x="421.42" y="-158.84" z="0"/>
+      </node>
+      <node id="Fantine" label="Fantine">
+        <attvalues><attvalue for="modularity_class" value="4"/></attvalues>
+        <viz:color r="145" g="30" b="180"/>
+        <viz:size value="25.0"/>
+        <viz:position x="276.48" y="-103.65" z="0"/>
+      </node>
+      <node id="MmeThenardier" label="Mme Thenardier">
+        <attvalues><attvalue for="modularity_class" value="2"/></attvalues>
+        <viz:color r="67" g="99" b="216"/>
+        <viz:size value="21.0"/>
+        <viz:position x="104.03" y="50.44" z="0"/>
+      </node>
+      <node id="Thenardier" label="Thenardier">
+        <attvalues><attvalue for="modularity_class" value="2"/></attvalues>
+        <viz:color r="67" g="99" b="216"/>
+        <viz:size value="26.0"/>
+        <viz:position x="102.53" y="104.55" z="0"/>
+      </node>
+      <node id="Cosette" label="Cosette">
+        <attvalues><attvalue for="modularity_class" value="3"/></attvalues>
+        <viz:color r="245" g="130" b="49"/>
+        <viz:size value="21.0"/>
+        <viz:position x="5.47" y="6.95" z="0"/>
+      </node>
+      <node id="Javert" label="Javert">
+        <attvalues><attvalue for="modularity_class" value="2"/></attvalues>
+        <viz:color r="67" g="99" b="216"/>
+        <viz:size value="27.0"/>
+        <viz:position x="79.11" y="7.84" z="0"/>
+      </node>
+      <node id="Fauchelevent" label="Fauchelevent">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="14.0"/>
+        <viz:position x="76.13" y="-136.73" z="0"/>
+      </node>
+      <node id="Bamatabois" label="Bamatabois">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="18.0"/>
+        <viz:position x="80.04" y="-225.38" z="0"/>
+      </node>
+      <node id="Perpetue" label="Perpetue">
+        <attvalues><attvalue for="modularity_class" value="4"/></attvalues>
+        <viz:color r="145" g="30" b="180"/>
+        <viz:size value="12.0"/>
+        <viz:position x="249.13" y="-140.11" z="0"/>
+      </node>
+      <node id="Simplice" label="Simplice">
+        <attvalues><attvalue for="modularity_class" value="4"/></attvalues>
+        <viz:color r="145" g="30" b="180"/>
+        <viz:size value="14.0"/>
+        <viz:position x="176.38" y="-97.26" z="0"/>
+      </node>
+      <node id="Scaufflaire" label="Scaufflaire">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-76.43" y="-126.08" z="0"/>
+      </node>
+      <node id="Woman1" label="Woman 1">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="12.0"/>
+        <viz:position x="67.97" y="-72.52" z="0"/>
+      </node>
+      <node id="Judge" label="Judge">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="16.0"/>
+        <viz:position x="36.01" y="-297.66" z="0"/>
+      </node>
+      <node id="Champmathieu" label="Champmathieu">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="16.0"/>
+        <viz:position x="37.74" y="-263.79" z="0"/>
+      </node>
+      <node id="Brevet" label="Brevet">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="16.0"/>
+        <viz:position x="12.32" y="-263.67" z="0"/>
+      </node>
+      <node id="Chenildieu" label="Chenildieu">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="16.0"/>
+        <viz:position x="55.95" y="-282.36" z="0"/>
+      </node>
+      <node id="Cochepaille" label="Cochepaille">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="16.0"/>
+        <viz:position x="12.10" y="-288.57" z="0"/>
+      </node>
+      <node id="Pontmercy" label="Pontmercy">
+        <attvalues><attvalue for="modularity_class" value="3"/></attvalues>
+        <viz:color r="245" g="130" b="49"/>
+        <viz:size value="13.0"/>
+        <viz:position x="-81.49" y="104.10" z="0"/>
+      </node>
+      <node id="Boulatruelle" label="Boulatruelle">
+        <attvalues><attvalue for="modularity_class" value="2"/></attvalues>
+        <viz:color r="67" g="99" b="216"/>
+        <viz:size value="11.0"/>
+        <viz:position x="193.47" y="132.58" z="0"/>
+      </node>
+      <node id="Eponine" label="Eponine">
+        <attvalues><attvalue for="modularity_class" value="2"/></attvalues>
+        <viz:color r="67" g="99" b="216"/>
+        <viz:size value="21.0"/>
+        <viz:position x="36.06" y="197.46" z="0"/>
+      </node>
+      <node id="Anzelma" label="Anzelma">
+        <attvalues><attvalue for="modularity_class" value="2"/></attvalues>
+        <viz:color r="67" g="99" b="216"/>
+        <viz:size value="13.0"/>
+        <viz:position x="145.91" y="143.34" z="0"/>
+      </node>
+      <node id="Woman2" label="Woman 2">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="13.0"/>
+        <viz:position x="22.29" y="-34.88" z="0"/>
+      </node>
+      <node id="MotherInnocent" label="Mother Innocent">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="12.0"/>
+        <viz:position x="38.43" y="-157.16" z="0"/>
+      </node>
+      <node id="Gribier" label="Gribier">
+        <attvalues><attvalue for="modularity_class" value="0"/></attvalues>
+        <viz:color r="230" g="25" b="75"/>
+        <viz:size value="11.0"/>
+        <viz:position x="116.99" y="-186.14" z="0"/>
+      </node>
+      <node id="MmeBurgon" label="Mme Burgon">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="12.0"/>
+        <viz:position x="61.31" y="478.24" z="0"/>
+      </node>
+      <node id="Jondrette" label="Jondrette">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="11.0"/>
+        <viz:position x="91.64" y="546.35" z="0"/>
+      </node>
+      <node id="Gavroche" label="Gavroche">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="32.0"/>
+        <viz:position x="-24.39" y="299.40" z="0"/>
+      </node>
+      <node id="Gillenormand" label="Gillenormand">
+        <attvalues><attvalue for="modularity_class" value="3"/></attvalues>
+        <viz:color r="245" g="130" b="49"/>
+        <viz:size value="17.0"/>
+        <viz:position x="-100.27" y="27.24" z="0"/>
+      </node>
+      <node id="Magnon" label="Magnon">
+        <attvalues><attvalue for="modularity_class" value="3"/></attvalues>
+        <viz:color r="245" g="130" b="49"/>
+        <viz:size value="12.0"/>
+        <viz:position x="-29.00" y="30.81" z="0"/>
+      </node>
+      <node id="MlleGillenormand" label="Mlle Gillenormand">
+        <attvalues><attvalue for="modularity_class" value="3"/></attvalues>
+        <viz:color r="245" g="130" b="49"/>
+        <viz:size value="17.0"/>
+        <viz:position x="-141.51" y="10.02" z="0"/>
+      </node>
+      <node id="MmePontmercy" label="Mme Pontmercy">
+        <attvalues><attvalue for="modularity_class" value="3"/></attvalues>
+        <viz:color r="245" g="130" b="49"/>
+        <viz:size value="12.0"/>
+        <viz:position x="-174.13" y="46.75" z="0"/>
+      </node>
+      <node id="MlleVaubois" label="Mlle Vaubois">
+        <attvalues><attvalue for="modularity_class" value="3"/></attvalues>
+        <viz:color r="245" g="130" b="49"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-215.28" y="-17.59" z="0"/>
+      </node>
+      <node id="LtGillenormand" label="Lt Gillenormand">
+        <attvalues><attvalue for="modularity_class" value="3"/></attvalues>
+        <viz:color r="245" g="130" b="49"/>
+        <viz:size value="14.0"/>
+        <viz:position x="-120.11" y="53.72" z="0"/>
+      </node>
+      <node id="Marius" label="Marius">
+        <attvalues><attvalue for="modularity_class" value="3"/></attvalues>
+        <viz:color r="245" g="130" b="49"/>
+        <viz:size value="29.0"/>
+        <viz:position x="-87.72" y="181.31" z="0"/>
+      </node>
+      <node id="BaronessT" label="Baroness T">
+        <attvalues><attvalue for="modularity_class" value="3"/></attvalues>
+        <viz:color r="245" g="130" b="49"/>
+        <viz:size value="12.0"/>
+        <viz:position x="-148.23" y="100.42" z="0"/>
+      </node>
+      <node id="Mabeuf" label="Mabeuf">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="21.0"/>
+        <viz:position x="-171.62" y="303.39" z="0"/>
+      </node>
+      <node id="Enjolras" label="Enjolras">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="25.0"/>
+        <viz:position x="-103.70" y="279.13" z="0"/>
+      </node>
+      <node id="Combeferre" label="Combeferre">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="21.0"/>
+        <viz:position x="-172.17" y="350.09" z="0"/>
+      </node>
+      <node id="Prouvaire" label="Prouvaire">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="19.0"/>
+        <viz:position x="-103.21" y="413.26" z="0"/>
+      </node>
+      <node id="Feuilly" label="Feuilly">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="21.0"/>
+        <viz:position x="-130.08" y="360.84" z="0"/>
+      </node>
+      <node id="Courfeyrac" label="Courfeyrac">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="23.0"/>
+        <viz:position x="-91.67" y="366.15" z="0"/>
+      </node>
+      <node id="Bahorel" label="Bahorel">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="22.0"/>
+        <viz:position x="-145.56" y="390.94" z="0"/>
+      </node>
+      <node id="Bossuet" label="Bossuet">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="23.0"/>
+        <viz:position x="-132.49" y="316.94" z="0"/>
+      </node>
+      <node id="Joly" label="Joly">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="22.0"/>
+        <viz:position x="-183.39" y="384.20" z="0"/>
+      </node>
+      <node id="Grantaire" label="Grantaire">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="20.0"/>
+        <viz:position x="-130.03" y="434.54" z="0"/>
+      </node>
+      <node id="MotherPlutarch" label="Mother Plutarch">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="11.0"/>
+        <viz:position x="-268.03" y="324.39" z="0"/>
+      </node>
+      <node id="Gueulemer" label="Gueulemer">
+        <attvalues><attvalue for="modularity_class" value="2"/></attvalues>
+        <viz:color r="67" g="99" b="216"/>
+        <viz:size value="20.0"/>
+        <viz:position x="58.72" y="137.92" z="0"/>
+      </node>
+      <node id="Babet" label="Babet">
+        <attvalues><attvalue for="modularity_class" value="2"/></attvalues>
+        <viz:color r="67" g="99" b="216"/>
+        <viz:size value="20.0"/>
+        <viz:position x="62.88" y="108.15" z="0"/>
+      </node>
+      <node id="Claquesous" label="Claquesous">
+        <attvalues><attvalue for="modularity_class" value="2"/></attvalues>
+        <viz:color r="67" g="99" b="216"/>
+        <viz:size value="20.0"/>
+        <viz:position x="29.02" y="112.84" z="0"/>
+      </node>
+      <node id="Montparnasse" label="Montparnasse">
+        <attvalues><attvalue for="modularity_class" value="2"/></attvalues>
+        <viz:color r="67" g="99" b="216"/>
+        <viz:size value="19.0"/>
+        <viz:position x="85.72" y="151.80" z="0"/>
+      </node>
+      <node id="Toussaint" label="Toussaint">
+        <attvalues><attvalue for="modularity_class" value="3"/></attvalues>
+        <viz:color r="245" g="130" b="49"/>
+        <viz:size value="13.0"/>
+        <viz:position x="44.52" y="-45.90" z="0"/>
+      </node>
+      <node id="Child1" label="Child 1">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="12.0"/>
+        <viz:position x="54.26" y="399.92" z="0"/>
+      </node>
+      <node id="Child2" label="Child 2">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="12.0"/>
+        <viz:position x="43.67" y="409.84" z="0"/>
+      </node>
+      <node id="Brujon" label="Brujon">
+        <attvalues><attvalue for="modularity_class" value="2"/></attvalues>
+        <viz:color r="67" g="99" b="216"/>
+        <viz:size value="17.0"/>
+        <viz:position x="87.25" y="199.09" z="0"/>
+      </node>
+      <node id="MmeHucheloup" label="Mme Hucheloup">
+        <attvalues><attvalue for="modularity_class" value="1"/></attvalues>
+        <viz:color r="60" g="180" b="75"/>
+        <viz:size value="17.0"/>
+        <viz:position x="-157.26" y="424.05" z="0"/>
+      </node>
+    </nodes>
+    <edges count="254">
+      <edge id="0" source="Napoleon" target="Myriel" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="1" source="MlleBaptistine" target="Myriel" weight="8">
+        <attvalues><attvalue for="shared_chapters" value="8"/></attvalues>
+      </edge>
+      <edge id="2" source="MmeMagloire" target="Myriel" weight="10">
+        <attvalues><attvalue for="shared_chapters" value="10"/></attvalues>
+      </edge>
+      <edge id="3" source="MmeMagloire" target="MlleBaptistine" weight="6">
+        <attvalues><attvalue for="shared_chapters" value="6"/></attvalues>
+      </edge>
+      <edge id="4" source="CountessDeLo" target="Myriel" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="5" source="Geborand" target="Myriel" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="6" source="Champtercier" target="Myriel" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="7" source="Cravatte" target="Myriel" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="8" source="Count" target="Myriel" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="9" source="OldMan" target="Myriel" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="10" source="Valjean" target="Labarre" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="11" source="Valjean" target="MmeMagloire" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="12" source="Valjean" target="MlleBaptistine" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="13" source="Valjean" target="Myriel" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="14" source="Marguerite" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="15" source="MmeDeR" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="16" source="Isabeau" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="17" source="Gervais" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="18" source="Listolier" target="Tholomyes" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="19" source="Fameuil" target="Tholomyes" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="20" source="Fameuil" target="Listolier" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="21" source="Blacheville" target="Tholomyes" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="22" source="Blacheville" target="Listolier" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="23" source="Blacheville" target="Fameuil" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="24" source="Favourite" target="Tholomyes" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="25" source="Favourite" target="Listolier" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="26" source="Favourite" target="Fameuil" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="27" source="Favourite" target="Blacheville" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="28" source="Dahlia" target="Tholomyes" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="29" source="Dahlia" target="Listolier" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="30" source="Dahlia" target="Fameuil" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="31" source="Dahlia" target="Blacheville" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="32" source="Dahlia" target="Favourite" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="33" source="Zephine" target="Tholomyes" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="34" source="Zephine" target="Listolier" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="35" source="Zephine" target="Fameuil" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="36" source="Zephine" target="Blacheville" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="37" source="Zephine" target="Favourite" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="38" source="Zephine" target="Dahlia" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="39" source="Fantine" target="Tholomyes" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="40" source="Fantine" target="Listolier" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="41" source="Fantine" target="Fameuil" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="42" source="Fantine" target="Blacheville" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="43" source="Fantine" target="Favourite" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="44" source="Fantine" target="Dahlia" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="45" source="Fantine" target="Zephine" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="46" source="Fantine" target="Marguerite" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="47" source="Fantine" target="Valjean" weight="9">
+        <attvalues><attvalue for="shared_chapters" value="9"/></attvalues>
+      </edge>
+      <edge id="48" source="MmeThenardier" target="Fantine" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="49" source="MmeThenardier" target="Valjean" weight="7">
+        <attvalues><attvalue for="shared_chapters" value="7"/></attvalues>
+      </edge>
+      <edge id="50" source="Thenardier" target="MmeThenardier" weight="13">
+        <attvalues><attvalue for="shared_chapters" value="13"/></attvalues>
+      </edge>
+      <edge id="51" source="Thenardier" target="Fantine" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="52" source="Thenardier" target="Valjean" weight="12">
+        <attvalues><attvalue for="shared_chapters" value="12"/></attvalues>
+      </edge>
+      <edge id="53" source="Cosette" target="MmeThenardier" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="54" source="Cosette" target="Valjean" weight="31">
+        <attvalues><attvalue for="shared_chapters" value="31"/></attvalues>
+      </edge>
+      <edge id="55" source="Cosette" target="Tholomyes" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="56" source="Cosette" target="Thenardier" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="57" source="Javert" target="Valjean" weight="17">
+        <attvalues><attvalue for="shared_chapters" value="17"/></attvalues>
+      </edge>
+      <edge id="58" source="Javert" target="Fantine" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="59" source="Javert" target="Thenardier" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="60" source="Javert" target="MmeThenardier" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="61" source="Javert" target="Cosette" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="62" source="Fauchelevent" target="Valjean" weight="8">
+        <attvalues><attvalue for="shared_chapters" value="8"/></attvalues>
+      </edge>
+      <edge id="63" source="Fauchelevent" target="Javert" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="64" source="Bamatabois" target="Fantine" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="65" source="Bamatabois" target="Javert" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="66" source="Bamatabois" target="Valjean" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="67" source="Perpetue" target="Fantine" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="68" source="Simplice" target="Perpetue" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="69" source="Simplice" target="Valjean" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="70" source="Simplice" target="Fantine" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="71" source="Simplice" target="Javert" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="72" source="Scaufflaire" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="73" source="Woman1" target="Valjean" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="74" source="Woman1" target="Javert" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="75" source="Judge" target="Valjean" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="76" source="Judge" target="Bamatabois" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="77" source="Champmathieu" target="Valjean" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="78" source="Champmathieu" target="Judge" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="79" source="Champmathieu" target="Bamatabois" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="80" source="Brevet" target="Judge" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="81" source="Brevet" target="Champmathieu" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="82" source="Brevet" target="Valjean" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="83" source="Brevet" target="Bamatabois" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="84" source="Chenildieu" target="Judge" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="85" source="Chenildieu" target="Champmathieu" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="86" source="Chenildieu" target="Brevet" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="87" source="Chenildieu" target="Valjean" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="88" source="Chenildieu" target="Bamatabois" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="89" source="Cochepaille" target="Judge" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="90" source="Cochepaille" target="Champmathieu" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="91" source="Cochepaille" target="Brevet" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="92" source="Cochepaille" target="Chenildieu" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="93" source="Cochepaille" target="Valjean" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="94" source="Cochepaille" target="Bamatabois" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="95" source="Pontmercy" target="Thenardier" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="96" source="Boulatruelle" target="Thenardier" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="97" source="Eponine" target="MmeThenardier" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="98" source="Eponine" target="Thenardier" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="99" source="Anzelma" target="Eponine" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="100" source="Anzelma" target="Thenardier" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="101" source="Anzelma" target="MmeThenardier" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="102" source="Woman2" target="Valjean" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="103" source="Woman2" target="Cosette" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="104" source="Woman2" target="Javert" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="105" source="MotherInnocent" target="Fauchelevent" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="106" source="MotherInnocent" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="107" source="Gribier" target="Fauchelevent" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="108" source="MmeBurgon" target="Jondrette" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="109" source="Gavroche" target="MmeBurgon" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="110" source="Gavroche" target="Thenardier" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="111" source="Gavroche" target="Javert" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="112" source="Gavroche" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="113" source="Gillenormand" target="Cosette" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="114" source="Gillenormand" target="Valjean" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="115" source="Magnon" target="Gillenormand" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="116" source="Magnon" target="MmeThenardier" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="117" source="MlleGillenormand" target="Gillenormand" weight="9">
+        <attvalues><attvalue for="shared_chapters" value="9"/></attvalues>
+      </edge>
+      <edge id="118" source="MlleGillenormand" target="Cosette" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="119" source="MlleGillenormand" target="Valjean" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="120" source="MmePontmercy" target="MlleGillenormand" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="121" source="MmePontmercy" target="Pontmercy" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="122" source="MlleVaubois" target="MlleGillenormand" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="123" source="LtGillenormand" target="MlleGillenormand" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="124" source="LtGillenormand" target="Gillenormand" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="125" source="LtGillenormand" target="Cosette" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="126" source="Marius" target="MlleGillenormand" weight="6">
+        <attvalues><attvalue for="shared_chapters" value="6"/></attvalues>
+      </edge>
+      <edge id="127" source="Marius" target="Gillenormand" weight="12">
+        <attvalues><attvalue for="shared_chapters" value="12"/></attvalues>
+      </edge>
+      <edge id="128" source="Marius" target="Pontmercy" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="129" source="Marius" target="LtGillenormand" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="130" source="Marius" target="Cosette" weight="21">
+        <attvalues><attvalue for="shared_chapters" value="21"/></attvalues>
+      </edge>
+      <edge id="131" source="Marius" target="Valjean" weight="19">
+        <attvalues><attvalue for="shared_chapters" value="19"/></attvalues>
+      </edge>
+      <edge id="132" source="Marius" target="Tholomyes" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="133" source="Marius" target="Thenardier" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="134" source="Marius" target="Eponine" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="135" source="Marius" target="Gavroche" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="136" source="BaronessT" target="Gillenormand" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="137" source="BaronessT" target="Marius" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="138" source="Mabeuf" target="Marius" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="139" source="Mabeuf" target="Eponine" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="140" source="Mabeuf" target="Gavroche" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="141" source="Enjolras" target="Marius" weight="7">
+        <attvalues><attvalue for="shared_chapters" value="7"/></attvalues>
+      </edge>
+      <edge id="142" source="Enjolras" target="Gavroche" weight="7">
+        <attvalues><attvalue for="shared_chapters" value="7"/></attvalues>
+      </edge>
+      <edge id="143" source="Enjolras" target="Javert" weight="6">
+        <attvalues><attvalue for="shared_chapters" value="6"/></attvalues>
+      </edge>
+      <edge id="144" source="Enjolras" target="Mabeuf" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="145" source="Enjolras" target="Valjean" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="146" source="Combeferre" target="Enjolras" weight="15">
+        <attvalues><attvalue for="shared_chapters" value="15"/></attvalues>
+      </edge>
+      <edge id="147" source="Combeferre" target="Marius" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="148" source="Combeferre" target="Gavroche" weight="6">
+        <attvalues><attvalue for="shared_chapters" value="6"/></attvalues>
+      </edge>
+      <edge id="149" source="Combeferre" target="Mabeuf" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="150" source="Prouvaire" target="Gavroche" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="151" source="Prouvaire" target="Enjolras" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="152" source="Prouvaire" target="Combeferre" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="153" source="Feuilly" target="Gavroche" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="154" source="Feuilly" target="Enjolras" weight="6">
+        <attvalues><attvalue for="shared_chapters" value="6"/></attvalues>
+      </edge>
+      <edge id="155" source="Feuilly" target="Prouvaire" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="156" source="Feuilly" target="Combeferre" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="157" source="Feuilly" target="Mabeuf" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="158" source="Feuilly" target="Marius" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="159" source="Courfeyrac" target="Marius" weight="9">
+        <attvalues><attvalue for="shared_chapters" value="9"/></attvalues>
+      </edge>
+      <edge id="160" source="Courfeyrac" target="Enjolras" weight="17">
+        <attvalues><attvalue for="shared_chapters" value="17"/></attvalues>
+      </edge>
+      <edge id="161" source="Courfeyrac" target="Combeferre" weight="13">
+        <attvalues><attvalue for="shared_chapters" value="13"/></attvalues>
+      </edge>
+      <edge id="162" source="Courfeyrac" target="Gavroche" weight="7">
+        <attvalues><attvalue for="shared_chapters" value="7"/></attvalues>
+      </edge>
+      <edge id="163" source="Courfeyrac" target="Mabeuf" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="164" source="Courfeyrac" target="Eponine" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="165" source="Courfeyrac" target="Feuilly" weight="6">
+        <attvalues><attvalue for="shared_chapters" value="6"/></attvalues>
+      </edge>
+      <edge id="166" source="Courfeyrac" target="Prouvaire" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="167" source="Bahorel" target="Combeferre" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="168" source="Bahorel" target="Gavroche" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="169" source="Bahorel" target="Courfeyrac" weight="6">
+        <attvalues><attvalue for="shared_chapters" value="6"/></attvalues>
+      </edge>
+      <edge id="170" source="Bahorel" target="Mabeuf" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="171" source="Bahorel" target="Enjolras" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="172" source="Bahorel" target="Feuilly" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="173" source="Bahorel" target="Prouvaire" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="174" source="Bahorel" target="Marius" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="175" source="Bossuet" target="Marius" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="176" source="Bossuet" target="Courfeyrac" weight="12">
+        <attvalues><attvalue for="shared_chapters" value="12"/></attvalues>
+      </edge>
+      <edge id="177" source="Bossuet" target="Gavroche" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="178" source="Bossuet" target="Bahorel" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="179" source="Bossuet" target="Enjolras" weight="10">
+        <attvalues><attvalue for="shared_chapters" value="10"/></attvalues>
+      </edge>
+      <edge id="180" source="Bossuet" target="Feuilly" weight="6">
+        <attvalues><attvalue for="shared_chapters" value="6"/></attvalues>
+      </edge>
+      <edge id="181" source="Bossuet" target="Prouvaire" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="182" source="Bossuet" target="Combeferre" weight="9">
+        <attvalues><attvalue for="shared_chapters" value="9"/></attvalues>
+      </edge>
+      <edge id="183" source="Bossuet" target="Mabeuf" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="184" source="Bossuet" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="185" source="Joly" target="Bahorel" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="186" source="Joly" target="Bossuet" weight="7">
+        <attvalues><attvalue for="shared_chapters" value="7"/></attvalues>
+      </edge>
+      <edge id="187" source="Joly" target="Gavroche" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="188" source="Joly" target="Courfeyrac" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="189" source="Joly" target="Enjolras" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="190" source="Joly" target="Feuilly" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="191" source="Joly" target="Prouvaire" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="192" source="Joly" target="Combeferre" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="193" source="Joly" target="Mabeuf" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="194" source="Joly" target="Marius" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="195" source="Grantaire" target="Bossuet" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="196" source="Grantaire" target="Enjolras" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="197" source="Grantaire" target="Combeferre" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="198" source="Grantaire" target="Courfeyrac" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="199" source="Grantaire" target="Joly" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="200" source="Grantaire" target="Gavroche" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="201" source="Grantaire" target="Bahorel" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="202" source="Grantaire" target="Feuilly" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="203" source="Grantaire" target="Prouvaire" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="204" source="MotherPlutarch" target="Mabeuf" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="205" source="Gueulemer" target="Thenardier" weight="5">
+        <attvalues><attvalue for="shared_chapters" value="5"/></attvalues>
+      </edge>
+      <edge id="206" source="Gueulemer" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="207" source="Gueulemer" target="MmeThenardier" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="208" source="Gueulemer" target="Javert" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="209" source="Gueulemer" target="Gavroche" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="210" source="Gueulemer" target="Eponine" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="211" source="Babet" target="Thenardier" weight="6">
+        <attvalues><attvalue for="shared_chapters" value="6"/></attvalues>
+      </edge>
+      <edge id="212" source="Babet" target="Gueulemer" weight="6">
+        <attvalues><attvalue for="shared_chapters" value="6"/></attvalues>
+      </edge>
+      <edge id="213" source="Babet" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="214" source="Babet" target="MmeThenardier" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="215" source="Babet" target="Javert" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="216" source="Babet" target="Gavroche" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="217" source="Babet" target="Eponine" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="218" source="Claquesous" target="Thenardier" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="219" source="Claquesous" target="Babet" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="220" source="Claquesous" target="Gueulemer" weight="4">
+        <attvalues><attvalue for="shared_chapters" value="4"/></attvalues>
+      </edge>
+      <edge id="221" source="Claquesous" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="222" source="Claquesous" target="MmeThenardier" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="223" source="Claquesous" target="Javert" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="224" source="Claquesous" target="Eponine" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="225" source="Claquesous" target="Enjolras" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="226" source="Montparnasse" target="Javert" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="227" source="Montparnasse" target="Babet" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="228" source="Montparnasse" target="Gueulemer" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="229" source="Montparnasse" target="Claquesous" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="230" source="Montparnasse" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="231" source="Montparnasse" target="Gavroche" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="232" source="Montparnasse" target="Eponine" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="233" source="Montparnasse" target="Thenardier" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="234" source="Toussaint" target="Cosette" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="235" source="Toussaint" target="Javert" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="236" source="Toussaint" target="Valjean" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="237" source="Child1" target="Gavroche" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="238" source="Child2" target="Gavroche" weight="2">
+        <attvalues><attvalue for="shared_chapters" value="2"/></attvalues>
+      </edge>
+      <edge id="239" source="Child2" target="Child1" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="240" source="Brujon" target="Babet" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="241" source="Brujon" target="Gueulemer" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="242" source="Brujon" target="Thenardier" weight="3">
+        <attvalues><attvalue for="shared_chapters" value="3"/></attvalues>
+      </edge>
+      <edge id="243" source="Brujon" target="Gavroche" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="244" source="Brujon" target="Eponine" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="245" source="Brujon" target="Claquesous" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="246" source="Brujon" target="Montparnasse" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="247" source="MmeHucheloup" target="Bossuet" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="248" source="MmeHucheloup" target="Joly" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="249" source="MmeHucheloup" target="Grantaire" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="250" source="MmeHucheloup" target="Bahorel" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="251" source="MmeHucheloup" target="Courfeyrac" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="252" source="MmeHucheloup" target="Gavroche" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+      <edge id="253" source="MmeHucheloup" target="Enjolras" weight="1">
+        <attvalues><attvalue for="shared_chapters" value="1"/></attvalues>
+      </edge>
+    </edges>
+  </graph>
+</gexf>

@@ -1,0 +1,62 @@
+{
+    "name": "highlight",
+    "crossfadeMs": 350,
+    "music": null,
+    "sections": [
+        {
+            "marker": null,
+            "items": [
+                {
+                    "card": "title",
+                    "seconds": 2.5,
+                    "over": {
+                        "clip": "map-layout"
+                    },
+                    "lines": ["See the shape of any network -- free, in your browser."]
+                },
+                {
+                    "clip": "drop-gephi",
+                    "from": 1.6,
+                    "seconds": 5.5
+                },
+                {
+                    "clip": "find-groups",
+                    "from": 3.3,
+                    "seconds": 6
+                },
+                {
+                    "clip": "ask-plain-words",
+                    "seconds": 6
+                },
+                {
+                    "clip": "shortest-path",
+                    "seconds": 6
+                },
+                {
+                    "clip": "groups-pull-apart",
+                    "seconds": 5.5
+                },
+                {
+                    "clip": "gpu-layout",
+                    "seconds": 5.5,
+                    "from": 9.3
+                },
+                {
+                    "clip": "press-play",
+                    "from": 1.5,
+                    "seconds": 6
+                },
+                {
+                    "clip": "map-layout",
+                    "seconds": 6
+                },
+                {
+                    "card": "end",
+                    "seconds": 5,
+                    "big": "graphty.app",
+                    "lines": ["Your network, in your browser."]
+                }
+            ]
+        }
+    ]
+}

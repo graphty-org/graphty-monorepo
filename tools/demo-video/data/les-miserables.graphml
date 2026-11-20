@@ -1,0 +1,1000 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d0" for="node" attr.name="name" attr.type="string"/>
+  <key id="d1" for="edge" attr.name="shared_chapters" attr.type="double"/>
+  <graph id="G" edgedefault="undirected">
+    <node id="Napoleon">
+      <data key="d0">Napoleon</data>
+    </node>
+    <node id="Myriel">
+      <data key="d0">Myriel</data>
+    </node>
+    <node id="MlleBaptistine">
+      <data key="d0">Mlle Baptistine</data>
+    </node>
+    <node id="MmeMagloire">
+      <data key="d0">Mme Magloire</data>
+    </node>
+    <node id="CountessDeLo">
+      <data key="d0">Countess de Lo</data>
+    </node>
+    <node id="Geborand">
+      <data key="d0">Geborand</data>
+    </node>
+    <node id="Champtercier">
+      <data key="d0">Champtercier</data>
+    </node>
+    <node id="Cravatte">
+      <data key="d0">Cravatte</data>
+    </node>
+    <node id="Count">
+      <data key="d0">Count</data>
+    </node>
+    <node id="OldMan">
+      <data key="d0">Old Man</data>
+    </node>
+    <node id="Valjean">
+      <data key="d0">Valjean</data>
+    </node>
+    <node id="Labarre">
+      <data key="d0">Labarre</data>
+    </node>
+    <node id="Marguerite">
+      <data key="d0">Marguerite</data>
+    </node>
+    <node id="MmeDeR">
+      <data key="d0">Mme de R</data>
+    </node>
+    <node id="Isabeau">
+      <data key="d0">Isabeau</data>
+    </node>
+    <node id="Gervais">
+      <data key="d0">Gervais</data>
+    </node>
+    <node id="Listolier">
+      <data key="d0">Listolier</data>
+    </node>
+    <node id="Tholomyes">
+      <data key="d0">Tholomyes</data>
+    </node>
+    <node id="Fameuil">
+      <data key="d0">Fameuil</data>
+    </node>
+    <node id="Blacheville">
+      <data key="d0">Blacheville</data>
+    </node>
+    <node id="Favourite">
+      <data key="d0">Favourite</data>
+    </node>
+    <node id="Dahlia">
+      <data key="d0">Dahlia</data>
+    </node>
+    <node id="Zephine">
+      <data key="d0">Zephine</data>
+    </node>
+    <node id="Fantine">
+      <data key="d0">Fantine</data>
+    </node>
+    <node id="MmeThenardier">
+      <data key="d0">Mme Thenardier</data>
+    </node>
+    <node id="Thenardier">
+      <data key="d0">Thenardier</data>
+    </node>
+    <node id="Cosette">
+      <data key="d0">Cosette</data>
+    </node>
+    <node id="Javert">
+      <data key="d0">Javert</data>
+    </node>
+    <node id="Fauchelevent">
+      <data key="d0">Fauchelevent</data>
+    </node>
+    <node id="Bamatabois">
+      <data key="d0">Bamatabois</data>
+    </node>
+    <node id="Perpetue">
+      <data key="d0">Perpetue</data>
+    </node>
+    <node id="Simplice">
+      <data key="d0">Simplice</data>
+    </node>
+    <node id="Scaufflaire">
+      <data key="d0">Scaufflaire</data>
+    </node>
+    <node id="Woman1">
+      <data key="d0">Woman 1</data>
+    </node>
+    <node id="Judge">
+      <data key="d0">Judge</data>
+    </node>
+    <node id="Champmathieu">
+      <data key="d0">Champmathieu</data>
+    </node>
+    <node id="Brevet">
+      <data key="d0">Brevet</data>
+    </node>
+    <node id="Chenildieu">
+      <data key="d0">Chenildieu</data>
+    </node>
+    <node id="Cochepaille">
+      <data key="d0">Cochepaille</data>
+    </node>
+    <node id="Pontmercy">
+      <data key="d0">Pontmercy</data>
+    </node>
+    <node id="Boulatruelle">
+      <data key="d0">Boulatruelle</data>
+    </node>
+    <node id="Eponine">
+      <data key="d0">Eponine</data>
+    </node>
+    <node id="Anzelma">
+      <data key="d0">Anzelma</data>
+    </node>
+    <node id="Woman2">
+      <data key="d0">Woman 2</data>
+    </node>
+    <node id="MotherInnocent">
+      <data key="d0">Mother Innocent</data>
+    </node>
+    <node id="Gribier">
+      <data key="d0">Gribier</data>
+    </node>
+    <node id="MmeBurgon">
+      <data key="d0">Mme Burgon</data>
+    </node>
+    <node id="Jondrette">
+      <data key="d0">Jondrette</data>
+    </node>
+    <node id="Gavroche">
+      <data key="d0">Gavroche</data>
+    </node>
+    <node id="Gillenormand">
+      <data key="d0">Gillenormand</data>
+    </node>
+    <node id="Magnon">
+      <data key="d0">Magnon</data>
+    </node>
+    <node id="MlleGillenormand">
+      <data key="d0">Mlle Gillenormand</data>
+    </node>
+    <node id="MmePontmercy">
+      <data key="d0">Mme Pontmercy</data>
+    </node>
+    <node id="MlleVaubois">
+      <data key="d0">Mlle Vaubois</data>
+    </node>
+    <node id="LtGillenormand">
+      <data key="d0">Lt Gillenormand</data>
+    </node>
+    <node id="Marius">
+      <data key="d0">Marius</data>
+    </node>
+    <node id="BaronessT">
+      <data key="d0">Baroness T</data>
+    </node>
+    <node id="Mabeuf">
+      <data key="d0">Mabeuf</data>
+    </node>
+    <node id="Enjolras">
+      <data key="d0">Enjolras</data>
+    </node>
+    <node id="Combeferre">
+      <data key="d0">Combeferre</data>
+    </node>
+    <node id="Prouvaire">
+      <data key="d0">Prouvaire</data>
+    </node>
+    <node id="Feuilly">
+      <data key="d0">Feuilly</data>
+    </node>
+    <node id="Courfeyrac">
+      <data key="d0">Courfeyrac</data>
+    </node>
+    <node id="Bahorel">
+      <data key="d0">Bahorel</data>
+    </node>
+    <node id="Bossuet">
+      <data key="d0">Bossuet</data>
+    </node>
+    <node id="Joly">
+      <data key="d0">Joly</data>
+    </node>
+    <node id="Grantaire">
+      <data key="d0">Grantaire</data>
+    </node>
+    <node id="MotherPlutarch">
+      <data key="d0">Mother Plutarch</data>
+    </node>
+    <node id="Gueulemer">
+      <data key="d0">Gueulemer</data>
+    </node>
+    <node id="Babet">
+      <data key="d0">Babet</data>
+    </node>
+    <node id="Claquesous">
+      <data key="d0">Claquesous</data>
+    </node>
+    <node id="Montparnasse">
+      <data key="d0">Montparnasse</data>
+    </node>
+    <node id="Toussaint">
+      <data key="d0">Toussaint</data>
+    </node>
+    <node id="Child1">
+      <data key="d0">Child 1</data>
+    </node>
+    <node id="Child2">
+      <data key="d0">Child 2</data>
+    </node>
+    <node id="Brujon">
+      <data key="d0">Brujon</data>
+    </node>
+    <node id="MmeHucheloup">
+      <data key="d0">Mme Hucheloup</data>
+    </node>
+    <edge source="Napoleon" target="Myriel">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MlleBaptistine" target="Myriel">
+      <data key="d1">8</data>
+    </edge>
+    <edge source="MmeMagloire" target="Myriel">
+      <data key="d1">10</data>
+    </edge>
+    <edge source="MmeMagloire" target="MlleBaptistine">
+      <data key="d1">6</data>
+    </edge>
+    <edge source="CountessDeLo" target="Myriel">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Geborand" target="Myriel">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Champtercier" target="Myriel">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Cravatte" target="Myriel">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Count" target="Myriel">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="OldMan" target="Myriel">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Valjean" target="Labarre">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Valjean" target="MmeMagloire">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Valjean" target="MlleBaptistine">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Valjean" target="Myriel">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Marguerite" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MmeDeR" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Isabeau" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Gervais" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Listolier" target="Tholomyes">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Fameuil" target="Tholomyes">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Fameuil" target="Listolier">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Blacheville" target="Tholomyes">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Blacheville" target="Listolier">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Blacheville" target="Fameuil">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Favourite" target="Tholomyes">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Favourite" target="Listolier">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Favourite" target="Fameuil">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Favourite" target="Blacheville">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Dahlia" target="Tholomyes">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Dahlia" target="Listolier">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Dahlia" target="Fameuil">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Dahlia" target="Blacheville">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Dahlia" target="Favourite">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Zephine" target="Tholomyes">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Zephine" target="Listolier">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Zephine" target="Fameuil">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Zephine" target="Blacheville">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Zephine" target="Favourite">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Zephine" target="Dahlia">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Fantine" target="Tholomyes">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Fantine" target="Listolier">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Fantine" target="Fameuil">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Fantine" target="Blacheville">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Fantine" target="Favourite">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Fantine" target="Dahlia">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Fantine" target="Zephine">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Fantine" target="Marguerite">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Fantine" target="Valjean">
+      <data key="d1">9</data>
+    </edge>
+    <edge source="MmeThenardier" target="Fantine">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="MmeThenardier" target="Valjean">
+      <data key="d1">7</data>
+    </edge>
+    <edge source="Thenardier" target="MmeThenardier">
+      <data key="d1">13</data>
+    </edge>
+    <edge source="Thenardier" target="Fantine">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Thenardier" target="Valjean">
+      <data key="d1">12</data>
+    </edge>
+    <edge source="Cosette" target="MmeThenardier">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Cosette" target="Valjean">
+      <data key="d1">31</data>
+    </edge>
+    <edge source="Cosette" target="Tholomyes">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Cosette" target="Thenardier">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Javert" target="Valjean">
+      <data key="d1">17</data>
+    </edge>
+    <edge source="Javert" target="Fantine">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Javert" target="Thenardier">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Javert" target="MmeThenardier">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Javert" target="Cosette">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Fauchelevent" target="Valjean">
+      <data key="d1">8</data>
+    </edge>
+    <edge source="Fauchelevent" target="Javert">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Bamatabois" target="Fantine">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Bamatabois" target="Javert">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Bamatabois" target="Valjean">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Perpetue" target="Fantine">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Simplice" target="Perpetue">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Simplice" target="Valjean">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Simplice" target="Fantine">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Simplice" target="Javert">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Scaufflaire" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Woman1" target="Valjean">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Woman1" target="Javert">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Judge" target="Valjean">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Judge" target="Bamatabois">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Champmathieu" target="Valjean">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Champmathieu" target="Judge">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Champmathieu" target="Bamatabois">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Brevet" target="Judge">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Brevet" target="Champmathieu">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Brevet" target="Valjean">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Brevet" target="Bamatabois">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Chenildieu" target="Judge">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Chenildieu" target="Champmathieu">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Chenildieu" target="Brevet">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Chenildieu" target="Valjean">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Chenildieu" target="Bamatabois">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Cochepaille" target="Judge">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Cochepaille" target="Champmathieu">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Cochepaille" target="Brevet">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Cochepaille" target="Chenildieu">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Cochepaille" target="Valjean">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Cochepaille" target="Bamatabois">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Pontmercy" target="Thenardier">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Boulatruelle" target="Thenardier">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Eponine" target="MmeThenardier">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Eponine" target="Thenardier">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Anzelma" target="Eponine">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Anzelma" target="Thenardier">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Anzelma" target="MmeThenardier">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Woman2" target="Valjean">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Woman2" target="Cosette">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Woman2" target="Javert">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MotherInnocent" target="Fauchelevent">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="MotherInnocent" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Gribier" target="Fauchelevent">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="MmeBurgon" target="Jondrette">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Gavroche" target="MmeBurgon">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Gavroche" target="Thenardier">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Gavroche" target="Javert">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Gavroche" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Gillenormand" target="Cosette">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Gillenormand" target="Valjean">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Magnon" target="Gillenormand">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Magnon" target="MmeThenardier">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MlleGillenormand" target="Gillenormand">
+      <data key="d1">9</data>
+    </edge>
+    <edge source="MlleGillenormand" target="Cosette">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="MlleGillenormand" target="Valjean">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="MmePontmercy" target="MlleGillenormand">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MmePontmercy" target="Pontmercy">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MlleVaubois" target="MlleGillenormand">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="LtGillenormand" target="MlleGillenormand">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="LtGillenormand" target="Gillenormand">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="LtGillenormand" target="Cosette">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Marius" target="MlleGillenormand">
+      <data key="d1">6</data>
+    </edge>
+    <edge source="Marius" target="Gillenormand">
+      <data key="d1">12</data>
+    </edge>
+    <edge source="Marius" target="Pontmercy">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Marius" target="LtGillenormand">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Marius" target="Cosette">
+      <data key="d1">21</data>
+    </edge>
+    <edge source="Marius" target="Valjean">
+      <data key="d1">19</data>
+    </edge>
+    <edge source="Marius" target="Tholomyes">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Marius" target="Thenardier">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Marius" target="Eponine">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Marius" target="Gavroche">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="BaronessT" target="Gillenormand">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="BaronessT" target="Marius">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Mabeuf" target="Marius">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Mabeuf" target="Eponine">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Mabeuf" target="Gavroche">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Enjolras" target="Marius">
+      <data key="d1">7</data>
+    </edge>
+    <edge source="Enjolras" target="Gavroche">
+      <data key="d1">7</data>
+    </edge>
+    <edge source="Enjolras" target="Javert">
+      <data key="d1">6</data>
+    </edge>
+    <edge source="Enjolras" target="Mabeuf">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Enjolras" target="Valjean">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Combeferre" target="Enjolras">
+      <data key="d1">15</data>
+    </edge>
+    <edge source="Combeferre" target="Marius">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Combeferre" target="Gavroche">
+      <data key="d1">6</data>
+    </edge>
+    <edge source="Combeferre" target="Mabeuf">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Prouvaire" target="Gavroche">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Prouvaire" target="Enjolras">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Prouvaire" target="Combeferre">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Feuilly" target="Gavroche">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Feuilly" target="Enjolras">
+      <data key="d1">6</data>
+    </edge>
+    <edge source="Feuilly" target="Prouvaire">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Feuilly" target="Combeferre">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Feuilly" target="Mabeuf">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Feuilly" target="Marius">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Courfeyrac" target="Marius">
+      <data key="d1">9</data>
+    </edge>
+    <edge source="Courfeyrac" target="Enjolras">
+      <data key="d1">17</data>
+    </edge>
+    <edge source="Courfeyrac" target="Combeferre">
+      <data key="d1">13</data>
+    </edge>
+    <edge source="Courfeyrac" target="Gavroche">
+      <data key="d1">7</data>
+    </edge>
+    <edge source="Courfeyrac" target="Mabeuf">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Courfeyrac" target="Eponine">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Courfeyrac" target="Feuilly">
+      <data key="d1">6</data>
+    </edge>
+    <edge source="Courfeyrac" target="Prouvaire">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Bahorel" target="Combeferre">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Bahorel" target="Gavroche">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Bahorel" target="Courfeyrac">
+      <data key="d1">6</data>
+    </edge>
+    <edge source="Bahorel" target="Mabeuf">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Bahorel" target="Enjolras">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Bahorel" target="Feuilly">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Bahorel" target="Prouvaire">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Bahorel" target="Marius">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Bossuet" target="Marius">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Bossuet" target="Courfeyrac">
+      <data key="d1">12</data>
+    </edge>
+    <edge source="Bossuet" target="Gavroche">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Bossuet" target="Bahorel">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Bossuet" target="Enjolras">
+      <data key="d1">10</data>
+    </edge>
+    <edge source="Bossuet" target="Feuilly">
+      <data key="d1">6</data>
+    </edge>
+    <edge source="Bossuet" target="Prouvaire">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Bossuet" target="Combeferre">
+      <data key="d1">9</data>
+    </edge>
+    <edge source="Bossuet" target="Mabeuf">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Bossuet" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Joly" target="Bahorel">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Joly" target="Bossuet">
+      <data key="d1">7</data>
+    </edge>
+    <edge source="Joly" target="Gavroche">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Joly" target="Courfeyrac">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Joly" target="Enjolras">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Joly" target="Feuilly">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Joly" target="Prouvaire">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Joly" target="Combeferre">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Joly" target="Mabeuf">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Joly" target="Marius">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Grantaire" target="Bossuet">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Grantaire" target="Enjolras">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Grantaire" target="Combeferre">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Grantaire" target="Courfeyrac">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Grantaire" target="Joly">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Grantaire" target="Gavroche">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Grantaire" target="Bahorel">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Grantaire" target="Feuilly">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Grantaire" target="Prouvaire">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MotherPlutarch" target="Mabeuf">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Gueulemer" target="Thenardier">
+      <data key="d1">5</data>
+    </edge>
+    <edge source="Gueulemer" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Gueulemer" target="MmeThenardier">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Gueulemer" target="Javert">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Gueulemer" target="Gavroche">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Gueulemer" target="Eponine">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Babet" target="Thenardier">
+      <data key="d1">6</data>
+    </edge>
+    <edge source="Babet" target="Gueulemer">
+      <data key="d1">6</data>
+    </edge>
+    <edge source="Babet" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Babet" target="MmeThenardier">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Babet" target="Javert">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Babet" target="Gavroche">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Babet" target="Eponine">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Claquesous" target="Thenardier">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Claquesous" target="Babet">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Claquesous" target="Gueulemer">
+      <data key="d1">4</data>
+    </edge>
+    <edge source="Claquesous" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Claquesous" target="MmeThenardier">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Claquesous" target="Javert">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Claquesous" target="Eponine">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Claquesous" target="Enjolras">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Montparnasse" target="Javert">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Montparnasse" target="Babet">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Montparnasse" target="Gueulemer">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Montparnasse" target="Claquesous">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Montparnasse" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Montparnasse" target="Gavroche">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Montparnasse" target="Eponine">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Montparnasse" target="Thenardier">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Toussaint" target="Cosette">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Toussaint" target="Javert">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Toussaint" target="Valjean">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Child1" target="Gavroche">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Child2" target="Gavroche">
+      <data key="d1">2</data>
+    </edge>
+    <edge source="Child2" target="Child1">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Brujon" target="Babet">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Brujon" target="Gueulemer">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Brujon" target="Thenardier">
+      <data key="d1">3</data>
+    </edge>
+    <edge source="Brujon" target="Gavroche">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Brujon" target="Eponine">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Brujon" target="Claquesous">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="Brujon" target="Montparnasse">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MmeHucheloup" target="Bossuet">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MmeHucheloup" target="Joly">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MmeHucheloup" target="Grantaire">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MmeHucheloup" target="Bahorel">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MmeHucheloup" target="Courfeyrac">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MmeHucheloup" target="Gavroche">
+      <data key="d1">1</data>
+    </edge>
+    <edge source="MmeHucheloup" target="Enjolras">
+      <data key="d1">1</data>
+    </edge>
+  </graph>
+</graphml>

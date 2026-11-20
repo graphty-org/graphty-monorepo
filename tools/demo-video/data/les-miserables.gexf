@@ -1,0 +1,1670 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
+  <graph defaultedgetype="undirected" mode="static" idtype="string">
+    <attributes class="node" mode="static">
+      <attribute id="name" title="name" type="string"/>
+    </attributes>
+    <attributes class="edge" mode="static">
+      <attribute id="shared_chapters" title="shared_chapters" type="double"/>
+    </attributes>
+    <nodes count="77">
+      <node id="Napoleon">
+        <attvalues>
+          <attvalue for="name" value="Napoleon"/>
+        </attvalues>
+      </node>
+      <node id="Myriel">
+        <attvalues>
+          <attvalue for="name" value="Myriel"/>
+        </attvalues>
+      </node>
+      <node id="MlleBaptistine">
+        <attvalues>
+          <attvalue for="name" value="Mlle Baptistine"/>
+        </attvalues>
+      </node>
+      <node id="MmeMagloire">
+        <attvalues>
+          <attvalue for="name" value="Mme Magloire"/>
+        </attvalues>
+      </node>
+      <node id="CountessDeLo">
+        <attvalues>
+          <attvalue for="name" value="Countess de Lo"/>
+        </attvalues>
+      </node>
+      <node id="Geborand">
+        <attvalues>
+          <attvalue for="name" value="Geborand"/>
+        </attvalues>
+      </node>
+      <node id="Champtercier">
+        <attvalues>
+          <attvalue for="name" value="Champtercier"/>
+        </attvalues>
+      </node>
+      <node id="Cravatte">
+        <attvalues>
+          <attvalue for="name" value="Cravatte"/>
+        </attvalues>
+      </node>
+      <node id="Count">
+        <attvalues>
+          <attvalue for="name" value="Count"/>
+        </attvalues>
+      </node>
+      <node id="OldMan">
+        <attvalues>
+          <attvalue for="name" value="Old Man"/>
+        </attvalues>
+      </node>
+      <node id="Valjean">
+        <attvalues>
+          <attvalue for="name" value="Valjean"/>
+        </attvalues>
+      </node>
+      <node id="Labarre">
+        <attvalues>
+          <attvalue for="name" value="Labarre"/>
+        </attvalues>
+      </node>
+      <node id="Marguerite">
+        <attvalues>
+          <attvalue for="name" value="Marguerite"/>
+        </attvalues>
+      </node>
+      <node id="MmeDeR">
+        <attvalues>
+          <attvalue for="name" value="Mme de R"/>
+        </attvalues>
+      </node>
+      <node id="Isabeau">
+        <attvalues>
+          <attvalue for="name" value="Isabeau"/>
+        </attvalues>
+      </node>
+      <node id="Gervais">
+        <attvalues>
+          <attvalue for="name" value="Gervais"/>
+        </attvalues>
+      </node>
+      <node id="Listolier">
+        <attvalues>
+          <attvalue for="name" value="Listolier"/>
+        </attvalues>
+      </node>
+      <node id="Tholomyes">
+        <attvalues>
+          <attvalue for="name" value="Tholomyes"/>
+        </attvalues>
+      </node>
+      <node id="Fameuil">
+        <attvalues>
+          <attvalue for="name" value="Fameuil"/>
+        </attvalues>
+      </node>
+      <node id="Blacheville">
+        <attvalues>
+          <attvalue for="name" value="Blacheville"/>
+        </attvalues>
+      </node>
+      <node id="Favourite">
+        <attvalues>
+          <attvalue for="name" value="Favourite"/>
+        </attvalues>
+      </node>
+      <node id="Dahlia">
+        <attvalues>
+          <attvalue for="name" value="Dahlia"/>
+        </attvalues>
+      </node>
+      <node id="Zephine">
+        <attvalues>
+          <attvalue for="name" value="Zephine"/>
+        </attvalues>
+      </node>
+      <node id="Fantine">
+        <attvalues>
+          <attvalue for="name" value="Fantine"/>
+        </attvalues>
+      </node>
+      <node id="MmeThenardier">
+        <attvalues>
+          <attvalue for="name" value="Mme Thenardier"/>
+        </attvalues>
+      </node>
+      <node id="Thenardier">
+        <attvalues>
+          <attvalue for="name" value="Thenardier"/>
+        </attvalues>
+      </node>
+      <node id="Cosette">
+        <attvalues>
+          <attvalue for="name" value="Cosette"/>
+        </attvalues>
+      </node>
+      <node id="Javert">
+        <attvalues>
+          <attvalue for="name" value="Javert"/>
+        </attvalues>
+      </node>
+      <node id="Fauchelevent">
+        <attvalues>
+          <attvalue for="name" value="Fauchelevent"/>
+        </attvalues>
+      </node>
+      <node id="Bamatabois">
+        <attvalues>
+          <attvalue for="name" value="Bamatabois"/>
+        </attvalues>
+      </node>
+      <node id="Perpetue">
+        <attvalues>
+          <attvalue for="name" value="Perpetue"/>
+        </attvalues>
+      </node>
+      <node id="Simplice">
+        <attvalues>
+          <attvalue for="name" value="Simplice"/>
+        </attvalues>
+      </node>
+      <node id="Scaufflaire">
+        <attvalues>
+          <attvalue for="name" value="Scaufflaire"/>
+        </attvalues>
+      </node>
+      <node id="Woman1">
+        <attvalues>
+          <attvalue for="name" value="Woman 1"/>
+        </attvalues>
+      </node>
+      <node id="Judge">
+        <attvalues>
+          <attvalue for="name" value="Judge"/>
+        </attvalues>
+      </node>
+      <node id="Champmathieu">
+        <attvalues>
+          <attvalue for="name" value="Champmathieu"/>
+        </attvalues>
+      </node>
+      <node id="Brevet">
+        <attvalues>
+          <attvalue for="name" value="Brevet"/>
+        </attvalues>
+      </node>
+      <node id="Chenildieu">
+        <attvalues>
+          <attvalue for="name" value="Chenildieu"/>
+        </attvalues>
+      </node>
+      <node id="Cochepaille">
+        <attvalues>
+          <attvalue for="name" value="Cochepaille"/>
+        </attvalues>
+      </node>
+      <node id="Pontmercy">
+        <attvalues>
+          <attvalue for="name" value="Pontmercy"/>
+        </attvalues>
+      </node>
+      <node id="Boulatruelle">
+        <attvalues>
+          <attvalue for="name" value="Boulatruelle"/>
+        </attvalues>
+      </node>
+      <node id="Eponine">
+        <attvalues>
+          <attvalue for="name" value="Eponine"/>
+        </attvalues>
+      </node>
+      <node id="Anzelma">
+        <attvalues>
+          <attvalue for="name" value="Anzelma"/>
+        </attvalues>
+      </node>
+      <node id="Woman2">
+        <attvalues>
+          <attvalue for="name" value="Woman 2"/>
+        </attvalues>
+      </node>
+      <node id="MotherInnocent">
+        <attvalues>
+          <attvalue for="name" value="Mother Innocent"/>
+        </attvalues>
+      </node>
+      <node id="Gribier">
+        <attvalues>
+          <attvalue for="name" value="Gribier"/>
+        </attvalues>
+      </node>
+      <node id="MmeBurgon">
+        <attvalues>
+          <attvalue for="name" value="Mme Burgon"/>
+        </attvalues>
+      </node>
+      <node id="Jondrette">
+        <attvalues>
+          <attvalue for="name" value="Jondrette"/>
+        </attvalues>
+      </node>
+      <node id="Gavroche">
+        <attvalues>
+          <attvalue for="name" value="Gavroche"/>
+        </attvalues>
+      </node>
+      <node id="Gillenormand">
+        <attvalues>
+          <attvalue for="name" value="Gillenormand"/>
+        </attvalues>
+      </node>
+      <node id="Magnon">
+        <attvalues>
+          <attvalue for="name" value="Magnon"/>
+        </attvalues>
+      </node>
+      <node id="MlleGillenormand">
+        <attvalues>
+          <attvalue for="name" value="Mlle Gillenormand"/>
+        </attvalues>
+      </node>
+      <node id="MmePontmercy">
+        <attvalues>
+          <attvalue for="name" value="Mme Pontmercy"/>
+        </attvalues>
+      </node>
+      <node id="MlleVaubois">
+        <attvalues>
+          <attvalue for="name" value="Mlle Vaubois"/>
+        </attvalues>
+      </node>
+      <node id="LtGillenormand">
+        <attvalues>
+          <attvalue for="name" value="Lt Gillenormand"/>
+        </attvalues>
+      </node>
+      <node id="Marius">
+        <attvalues>
+          <attvalue for="name" value="Marius"/>
+        </attvalues>
+      </node>
+      <node id="BaronessT">
+        <attvalues>
+          <attvalue for="name" value="Baroness T"/>
+        </attvalues>
+      </node>
+      <node id="Mabeuf">
+        <attvalues>
+          <attvalue for="name" value="Mabeuf"/>
+        </attvalues>
+      </node>
+      <node id="Enjolras">
+        <attvalues>
+          <attvalue for="name" value="Enjolras"/>
+        </attvalues>
+      </node>
+      <node id="Combeferre">
+        <attvalues>
+          <attvalue for="name" value="Combeferre"/>
+        </attvalues>
+      </node>
+      <node id="Prouvaire">
+        <attvalues>
+          <attvalue for="name" value="Prouvaire"/>
+        </attvalues>
+      </node>
+      <node id="Feuilly">
+        <attvalues>
+          <attvalue for="name" value="Feuilly"/>
+        </attvalues>
+      </node>
+      <node id="Courfeyrac">
+        <attvalues>
+          <attvalue for="name" value="Courfeyrac"/>
+        </attvalues>
+      </node>
+      <node id="Bahorel">
+        <attvalues>
+          <attvalue for="name" value="Bahorel"/>
+        </attvalues>
+      </node>
+      <node id="Bossuet">
+        <attvalues>
+          <attvalue for="name" value="Bossuet"/>
+        </attvalues>
+      </node>
+      <node id="Joly">
+        <attvalues>
+          <attvalue for="name" value="Joly"/>
+        </attvalues>
+      </node>
+      <node id="Grantaire">
+        <attvalues>
+          <attvalue for="name" value="Grantaire"/>
+        </attvalues>
+      </node>
+      <node id="MotherPlutarch">
+        <attvalues>
+          <attvalue for="name" value="Mother Plutarch"/>
+        </attvalues>
+      </node>
+      <node id="Gueulemer">
+        <attvalues>
+          <attvalue for="name" value="Gueulemer"/>
+        </attvalues>
+      </node>
+      <node id="Babet">
+        <attvalues>
+          <attvalue for="name" value="Babet"/>
+        </attvalues>
+      </node>
+      <node id="Claquesous">
+        <attvalues>
+          <attvalue for="name" value="Claquesous"/>
+        </attvalues>
+      </node>
+      <node id="Montparnasse">
+        <attvalues>
+          <attvalue for="name" value="Montparnasse"/>
+        </attvalues>
+      </node>
+      <node id="Toussaint">
+        <attvalues>
+          <attvalue for="name" value="Toussaint"/>
+        </attvalues>
+      </node>
+      <node id="Child1">
+        <attvalues>
+          <attvalue for="name" value="Child 1"/>
+        </attvalues>
+      </node>
+      <node id="Child2">
+        <attvalues>
+          <attvalue for="name" value="Child 2"/>
+        </attvalues>
+      </node>
+      <node id="Brujon">
+        <attvalues>
+          <attvalue for="name" value="Brujon"/>
+        </attvalues>
+      </node>
+      <node id="MmeHucheloup">
+        <attvalues>
+          <attvalue for="name" value="Mme Hucheloup"/>
+        </attvalues>
+      </node>
+    </nodes>
+    <edges count="254">
+      <edge source="Napoleon" target="Myriel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MlleBaptistine" target="Myriel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="8"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeMagloire" target="Myriel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="10"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeMagloire" target="MlleBaptistine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="6"/>
+        </attvalues>
+      </edge>
+      <edge source="CountessDeLo" target="Myriel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Geborand" target="Myriel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Champtercier" target="Myriel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Cravatte" target="Myriel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Count" target="Myriel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="OldMan" target="Myriel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Valjean" target="Labarre">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Valjean" target="MmeMagloire">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Valjean" target="MlleBaptistine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Valjean" target="Myriel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Marguerite" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeDeR" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Isabeau" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Gervais" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Listolier" target="Tholomyes">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Fameuil" target="Tholomyes">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Fameuil" target="Listolier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Blacheville" target="Tholomyes">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Blacheville" target="Listolier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Blacheville" target="Fameuil">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Favourite" target="Tholomyes">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Favourite" target="Listolier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Favourite" target="Fameuil">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Favourite" target="Blacheville">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Dahlia" target="Tholomyes">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Dahlia" target="Listolier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Dahlia" target="Fameuil">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Dahlia" target="Blacheville">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Dahlia" target="Favourite">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Zephine" target="Tholomyes">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Zephine" target="Listolier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Zephine" target="Fameuil">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Zephine" target="Blacheville">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Zephine" target="Favourite">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Zephine" target="Dahlia">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Fantine" target="Tholomyes">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Fantine" target="Listolier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Fantine" target="Fameuil">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Fantine" target="Blacheville">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Fantine" target="Favourite">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Fantine" target="Dahlia">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Fantine" target="Zephine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Fantine" target="Marguerite">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Fantine" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="9"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeThenardier" target="Fantine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeThenardier" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="7"/>
+        </attvalues>
+      </edge>
+      <edge source="Thenardier" target="MmeThenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="13"/>
+        </attvalues>
+      </edge>
+      <edge source="Thenardier" target="Fantine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Thenardier" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="12"/>
+        </attvalues>
+      </edge>
+      <edge source="Cosette" target="MmeThenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Cosette" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="31"/>
+        </attvalues>
+      </edge>
+      <edge source="Cosette" target="Tholomyes">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Cosette" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Javert" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="17"/>
+        </attvalues>
+      </edge>
+      <edge source="Javert" target="Fantine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Javert" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Javert" target="MmeThenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Javert" target="Cosette">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Fauchelevent" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="8"/>
+        </attvalues>
+      </edge>
+      <edge source="Fauchelevent" target="Javert">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Bamatabois" target="Fantine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Bamatabois" target="Javert">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Bamatabois" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Perpetue" target="Fantine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Simplice" target="Perpetue">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Simplice" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Simplice" target="Fantine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Simplice" target="Javert">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Scaufflaire" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Woman1" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Woman1" target="Javert">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Judge" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Judge" target="Bamatabois">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Champmathieu" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Champmathieu" target="Judge">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Champmathieu" target="Bamatabois">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Brevet" target="Judge">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Brevet" target="Champmathieu">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Brevet" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Brevet" target="Bamatabois">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Chenildieu" target="Judge">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Chenildieu" target="Champmathieu">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Chenildieu" target="Brevet">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Chenildieu" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Chenildieu" target="Bamatabois">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Cochepaille" target="Judge">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Cochepaille" target="Champmathieu">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Cochepaille" target="Brevet">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Cochepaille" target="Chenildieu">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Cochepaille" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Cochepaille" target="Bamatabois">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Pontmercy" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Boulatruelle" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Eponine" target="MmeThenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Eponine" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Anzelma" target="Eponine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Anzelma" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Anzelma" target="MmeThenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Woman2" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Woman2" target="Cosette">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Woman2" target="Javert">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MotherInnocent" target="Fauchelevent">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="MotherInnocent" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Gribier" target="Fauchelevent">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeBurgon" target="Jondrette">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Gavroche" target="MmeBurgon">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Gavroche" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Gavroche" target="Javert">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Gavroche" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Gillenormand" target="Cosette">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Gillenormand" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Magnon" target="Gillenormand">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Magnon" target="MmeThenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MlleGillenormand" target="Gillenormand">
+        <attvalues>
+          <attvalue for="shared_chapters" value="9"/>
+        </attvalues>
+      </edge>
+      <edge source="MlleGillenormand" target="Cosette">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="MlleGillenormand" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="MmePontmercy" target="MlleGillenormand">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MmePontmercy" target="Pontmercy">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MlleVaubois" target="MlleGillenormand">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="LtGillenormand" target="MlleGillenormand">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="LtGillenormand" target="Gillenormand">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="LtGillenormand" target="Cosette">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Marius" target="MlleGillenormand">
+        <attvalues>
+          <attvalue for="shared_chapters" value="6"/>
+        </attvalues>
+      </edge>
+      <edge source="Marius" target="Gillenormand">
+        <attvalues>
+          <attvalue for="shared_chapters" value="12"/>
+        </attvalues>
+      </edge>
+      <edge source="Marius" target="Pontmercy">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Marius" target="LtGillenormand">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Marius" target="Cosette">
+        <attvalues>
+          <attvalue for="shared_chapters" value="21"/>
+        </attvalues>
+      </edge>
+      <edge source="Marius" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="19"/>
+        </attvalues>
+      </edge>
+      <edge source="Marius" target="Tholomyes">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Marius" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Marius" target="Eponine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Marius" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="BaronessT" target="Gillenormand">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="BaronessT" target="Marius">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Mabeuf" target="Marius">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Mabeuf" target="Eponine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Mabeuf" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Enjolras" target="Marius">
+        <attvalues>
+          <attvalue for="shared_chapters" value="7"/>
+        </attvalues>
+      </edge>
+      <edge source="Enjolras" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="7"/>
+        </attvalues>
+      </edge>
+      <edge source="Enjolras" target="Javert">
+        <attvalues>
+          <attvalue for="shared_chapters" value="6"/>
+        </attvalues>
+      </edge>
+      <edge source="Enjolras" target="Mabeuf">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Enjolras" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Combeferre" target="Enjolras">
+        <attvalues>
+          <attvalue for="shared_chapters" value="15"/>
+        </attvalues>
+      </edge>
+      <edge source="Combeferre" target="Marius">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Combeferre" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="6"/>
+        </attvalues>
+      </edge>
+      <edge source="Combeferre" target="Mabeuf">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Prouvaire" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Prouvaire" target="Enjolras">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Prouvaire" target="Combeferre">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Feuilly" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Feuilly" target="Enjolras">
+        <attvalues>
+          <attvalue for="shared_chapters" value="6"/>
+        </attvalues>
+      </edge>
+      <edge source="Feuilly" target="Prouvaire">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Feuilly" target="Combeferre">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Feuilly" target="Mabeuf">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Feuilly" target="Marius">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Courfeyrac" target="Marius">
+        <attvalues>
+          <attvalue for="shared_chapters" value="9"/>
+        </attvalues>
+      </edge>
+      <edge source="Courfeyrac" target="Enjolras">
+        <attvalues>
+          <attvalue for="shared_chapters" value="17"/>
+        </attvalues>
+      </edge>
+      <edge source="Courfeyrac" target="Combeferre">
+        <attvalues>
+          <attvalue for="shared_chapters" value="13"/>
+        </attvalues>
+      </edge>
+      <edge source="Courfeyrac" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="7"/>
+        </attvalues>
+      </edge>
+      <edge source="Courfeyrac" target="Mabeuf">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Courfeyrac" target="Eponine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Courfeyrac" target="Feuilly">
+        <attvalues>
+          <attvalue for="shared_chapters" value="6"/>
+        </attvalues>
+      </edge>
+      <edge source="Courfeyrac" target="Prouvaire">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Bahorel" target="Combeferre">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Bahorel" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Bahorel" target="Courfeyrac">
+        <attvalues>
+          <attvalue for="shared_chapters" value="6"/>
+        </attvalues>
+      </edge>
+      <edge source="Bahorel" target="Mabeuf">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Bahorel" target="Enjolras">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Bahorel" target="Feuilly">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Bahorel" target="Prouvaire">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Bahorel" target="Marius">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Bossuet" target="Marius">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Bossuet" target="Courfeyrac">
+        <attvalues>
+          <attvalue for="shared_chapters" value="12"/>
+        </attvalues>
+      </edge>
+      <edge source="Bossuet" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Bossuet" target="Bahorel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Bossuet" target="Enjolras">
+        <attvalues>
+          <attvalue for="shared_chapters" value="10"/>
+        </attvalues>
+      </edge>
+      <edge source="Bossuet" target="Feuilly">
+        <attvalues>
+          <attvalue for="shared_chapters" value="6"/>
+        </attvalues>
+      </edge>
+      <edge source="Bossuet" target="Prouvaire">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Bossuet" target="Combeferre">
+        <attvalues>
+          <attvalue for="shared_chapters" value="9"/>
+        </attvalues>
+      </edge>
+      <edge source="Bossuet" target="Mabeuf">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Bossuet" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Joly" target="Bahorel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Joly" target="Bossuet">
+        <attvalues>
+          <attvalue for="shared_chapters" value="7"/>
+        </attvalues>
+      </edge>
+      <edge source="Joly" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Joly" target="Courfeyrac">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Joly" target="Enjolras">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Joly" target="Feuilly">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Joly" target="Prouvaire">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Joly" target="Combeferre">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Joly" target="Mabeuf">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Joly" target="Marius">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Grantaire" target="Bossuet">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Grantaire" target="Enjolras">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Grantaire" target="Combeferre">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Grantaire" target="Courfeyrac">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Grantaire" target="Joly">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Grantaire" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Grantaire" target="Bahorel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Grantaire" target="Feuilly">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Grantaire" target="Prouvaire">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MotherPlutarch" target="Mabeuf">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Gueulemer" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="5"/>
+        </attvalues>
+      </edge>
+      <edge source="Gueulemer" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Gueulemer" target="MmeThenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Gueulemer" target="Javert">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Gueulemer" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Gueulemer" target="Eponine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Babet" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="6"/>
+        </attvalues>
+      </edge>
+      <edge source="Babet" target="Gueulemer">
+        <attvalues>
+          <attvalue for="shared_chapters" value="6"/>
+        </attvalues>
+      </edge>
+      <edge source="Babet" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Babet" target="MmeThenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Babet" target="Javert">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Babet" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Babet" target="Eponine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Claquesous" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Claquesous" target="Babet">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Claquesous" target="Gueulemer">
+        <attvalues>
+          <attvalue for="shared_chapters" value="4"/>
+        </attvalues>
+      </edge>
+      <edge source="Claquesous" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Claquesous" target="MmeThenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Claquesous" target="Javert">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Claquesous" target="Eponine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Claquesous" target="Enjolras">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Montparnasse" target="Javert">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Montparnasse" target="Babet">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Montparnasse" target="Gueulemer">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Montparnasse" target="Claquesous">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Montparnasse" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Montparnasse" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Montparnasse" target="Eponine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Montparnasse" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Toussaint" target="Cosette">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Toussaint" target="Javert">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Toussaint" target="Valjean">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Child1" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Child2" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="2"/>
+        </attvalues>
+      </edge>
+      <edge source="Child2" target="Child1">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Brujon" target="Babet">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Brujon" target="Gueulemer">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Brujon" target="Thenardier">
+        <attvalues>
+          <attvalue for="shared_chapters" value="3"/>
+        </attvalues>
+      </edge>
+      <edge source="Brujon" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Brujon" target="Eponine">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Brujon" target="Claquesous">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="Brujon" target="Montparnasse">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeHucheloup" target="Bossuet">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeHucheloup" target="Joly">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeHucheloup" target="Grantaire">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeHucheloup" target="Bahorel">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeHucheloup" target="Courfeyrac">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeHucheloup" target="Gavroche">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+      <edge source="MmeHucheloup" target="Enjolras">
+        <attvalues>
+          <attvalue for="shared_chapters" value="1"/>
+        </attvalues>
+      </edge>
+    </edges>
+  </graph>
+</gexf>

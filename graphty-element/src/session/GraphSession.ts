@@ -4985,7 +4985,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             through.renumbers === now.renumbers &&
             through.nodes === now.nodes &&
             through.edges === now.edges;
-        if (dirty !== null && rowsKept && recordsOnlyKeys(dirty)) {
+        // A record edit that named no field it changed (none was heard) is painted whole, as before.
+        const heard =
+            changed.node.length + changed.edge.length > 0 || [...(dirty ?? [])].every((key) => key.startsWith("v:"));
+        if (dirty !== null && rowsKept && heard && recordsOnlyKeys(dirty)) {
             const readers = stack.filter((entry) => readsAnyField(entry, changed));
             if (readers.length > 0) {
                 await repaintReaders(stack, readers, dirty);

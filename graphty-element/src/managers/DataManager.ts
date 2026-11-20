@@ -3502,7 +3502,9 @@ export class DataManager implements Manager {
      */
     private followBundles(bundles: { version: number; byEdge: Map<Edge, EdgeBundle> }): void {
         const changed = this.edgeSetLog.since(bundles.version, this.edgeVersion);
-        if (changed === null) {
+        // Never a freeze from inside a frame's edge walk: with a change still to be frozen, the
+        // whole pass works the bundles out from the edge map, as it always has.
+        if (changed === null || this.store.stale) {
             return;
         }
 
@@ -3535,15 +3537,37 @@ export class DataManager implements Manager {
     }
 
     /**
-     * The `Edge`s joining two nodes, in either direction, building none: the edges an edit between
-     * them can move.
-     * @param a - One node.
-     * @param b - The other.
-     * @returns The edges.
+     * The `Edge`s joining each of some pairs of nodes, in either direction, building none: the edges
+     * an edit between them can move. Each pair once, whichever way round and however often it is
+     * named. Read off the snapshot the graph is drawn from. A caller in the middle of placing edges
+     * passes `freeze: false`, so no freeze (and the renumbering it can announce) lands under it:
+     * while a change is still to be frozen it then answers null, and the caller walks every edge.
+     * @param pairs - The pairs, repeats allowed.
+     * @param freeze - Whether a change still to be frozen may be frozen now, at a frame's boundary.
+     * @returns Each pair's two ends and edges; or null while the snapshot is behind the graph.
      * @internal
      */
-    builtEdgesJoining(a: NodeIdType, b: NodeIdType): Edge[] {
-        return this.pairMembers(this.getSnapshot(), a, b).filter((each): each is Edge => typeof each !== "number");
+    builtEdgesOfPairs(
+        pairs: Iterable<readonly [NodeIdType, NodeIdType]>,
+        freeze: boolean,
+    ): { readonly a: NodeIdType; readonly b: NodeIdType; readonly edges: Edge[] }[] | null {
+        if (!freeze && this.store.stale) {
+            return null;
+        }
+
+        const snapshot = this.getSnapshot();
+        const seen = new Set<string>();
+        const found: { readonly a: NodeIdType; readonly b: NodeIdType; readonly edges: Edge[] }[] = [];
+        for (const [a, b] of pairs) {
+            const key = pairKey(a, b);
+            if (!seen.has(key)) {
+                seen.add(key);
+                const edges = this.pairMembers(snapshot, a, b).filter((each): each is Edge => typeof each !== "number");
+                found.push({ a, b, edges });
+            }
+        }
+
+        return found;
     }
 
     /**

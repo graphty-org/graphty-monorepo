@@ -919,13 +919,8 @@ export class UpdateManager implements Manager {
 
         // An edit that names the pairs whose edges came or went leaves the other edges as the masks
         // left them: only that pair's edges are put in line, once the masks are read (issue #9164).
-        let pairs: readonly (readonly [NodeIdType, NodeIdType])[] | null = null;
-        if (this.appliedAnything) {
-            pairs =
-                edgeVersion === this.appliedEdgeSet ? [] : this.dataManager.edgeSetChangesSince(this.appliedEdgeSet);
-        }
-
-        if (pairs === null) {
+        const changed = this.edgesOfChangedPairs(edgeVersion);
+        if (changed === null) {
             this.invalidateViewMasks();
         } else {
             if (nodeVersion !== this.appliedNodeSet) {
@@ -934,13 +929,31 @@ export class UpdateManager implements Manager {
                 this.drawnSelectedNodes.clear();
             }
 
-            for (const [source, target] of pairs) {
-                this.edgesToMask.push(...this.dataManager.builtEdgesJoining(source, target));
-            }
+            this.edgesToMask.push(...changed);
         }
 
         this.appliedNodeSet = nodeVersion;
         this.appliedEdgeSet = edgeVersion;
+    }
+
+    /**
+     * The built edges of the pairs whose edges came or went since the masks were last applied.
+     * @param edgeVersion - The edge set's version now.
+     * @returns The edges; or null when the masks have to be applied to every edge again.
+     */
+    private edgesOfChangedPairs(edgeVersion: number): Edge[] | null {
+        if (!this.appliedAnything) {
+            return null;
+        }
+
+        if (edgeVersion === this.appliedEdgeSet) {
+            return [];
+        }
+
+        const pairs = this.dataManager.edgeSetChangesSince(this.appliedEdgeSet);
+        // Read before any mask or edge is touched this frame, so a freeze it needs lands here.
+        const joined = pairs === null ? null : this.dataManager.builtEdgesOfPairs(pairs, true);
+        return joined === null ? null : joined.flatMap(({ edges }) => edges);
     }
 
     /** The edges of pairs an edit changed, put in line with the masks at the next {@link syncViewMasks}. */
@@ -948,7 +961,7 @@ export class UpdateManager implements Manager {
 
     /**
      * Put the edges an edit changed in line with the masks: shown and not selected when no edge is
-     * filtered or selected; otherwise every edge is walked, as any change to the edge set did.
+     * hidden or selected; otherwise every edge is walked, as any change to the edge set did.
      * @param edgeVisibility - The edge visibility mask.
      * @param edgeSelection - The edge selection mask.
      */
@@ -962,7 +975,9 @@ export class UpdateManager implements Manager {
         }
 
         this.edgesToMask = [];
-        if (edgeVisibility !== null || (edgeSelection?.size ?? 0) > 0) {
+        // The element always holds a visibility mask; one that shows every edge hides none.
+        const hidesSome = edgeVisibility !== null && edgeVisibility.size < this.dataManager.edges.size;
+        if (hidesSome || (edgeSelection?.size ?? 0) > 0) {
             this.appliedEdgeSelection = NO_MASK_VERSION;
             this.appliedEdgeVisibility = NO_MASK_VERSION;
             this.drawnSelectedEdges.clear();
@@ -1342,13 +1357,18 @@ export class UpdateManager implements Manager {
      * @internal
      */
     adoptBuiltNode(node: Node): void {
+        // While a load holds the draw they wait for the walk that ends the repaint, as a resize's do;
+        // otherwise this frame places them, and only them (issue #9164).
+        const place = !this.dataManager.drawHeld;
         for (const edge of this.edgesByNode().get(node.id) ?? []) {
             edge.invalidatePositionCache();
+            if (place) {
+                this.edgesToPlace.push(edge);
+            }
         }
 
-        // While a load holds the draw they wait for the walk that ends the repaint, as a resize's do.
-        if (!this.dataManager.drawHeld) {
-            this.forceEdgeWalk();
+        if (place) {
+            this.sceneChanged = true;
         }
 
         const masks = this.viewMasks ?? EMPTY_MASKS;
@@ -1578,7 +1598,7 @@ export class UpdateManager implements Manager {
             masks.ghost?.() ?? false,
         );
 
-        return nodesMoved || edgesMoved;
+        return nodesMoved || edgesMoved || this.edgesToMask.length > 0;
     }
 
     /**
@@ -1714,6 +1734,9 @@ export class UpdateManager implements Manager {
     /** The edges a repaint touched since the last edge pass, which that pass places. */
     private edgesToPlace: Edge[] = [];
 
+    /** How many edges the repaint under way has painted; see {@link UpdateManager.syncEdgeStyles}. */
+    private edgesPaintedInRun = 0;
+
     /** Whether the repaint under way has painted an edge with a support point. */
     private paintedSupportPoint = false;
 
@@ -1760,6 +1783,8 @@ export class UpdateManager implements Manager {
             painted += this.paintEdgeBatch(painter);
         } while (painter.hasPendingEdges && (performance.now() < deadline || painted < least));
 
+        this.edgesPaintedInRun += painted;
+
         // Visiting every edge on each frame made a repaint cost its frames times the edges: a
         // million edges take about a thousand frames, and those walks were most of a 100,000-node
         // load. A time window's slide changes nothing but the rows it painted, so what this frame
@@ -1772,7 +1797,11 @@ export class UpdateManager implements Manager {
                 this.edgePoolsArmed = false;
             }
 
-            if (!painter.takeEdgesRowsOnly() || this.paintedSupportPoint) {
+            // A repaint of a few edges -- an edit's own -- placed each of them as it painted it, which is
+            // all a walk would do for them (issue #9164).
+            const few = this.edgesPaintedInRun <= this.dataManager.edges.size * MOST_MOVED_SHARE;
+            this.edgesPaintedInRun = 0;
+            if ((!painter.takeEdgesRowsOnly() && !few) || this.paintedSupportPoint) {
                 this.forceEdgeWalk();
             }
 
@@ -1936,8 +1965,15 @@ export class UpdateManager implements Manager {
             this.drawnSelectedEdges.add(edge);
         }
 
+        // Shown or marked, it is placed by its own update this frame; only a support point, which
+        // pushes on the others, needs a walk of every edge (issue #9164).
         if (hidden || selected) {
-            this.forceEdgeWalk();
+            if (this.hasSupportPoint(edge)) {
+                this.forceEdgeWalk();
+            } else {
+                this.edgesToPlace.push(edge);
+                this.sceneChanged = true;
+            }
         }
     }
 
@@ -2045,7 +2081,15 @@ export class UpdateManager implements Manager {
 
         if (batches?.paintRow(index, paint) === true) {
             // shown again: hidden now only if a filter hides it, as `applyColumnRows` writes
-            table?.hide(index, filtered());
+            const hidden = filtered();
+            table?.hide(index, hidden);
+            // A row a filter hides while hidden nodes are drawn faintly takes a `Node` for its faint point, as
+            // `applyColumnRows` gives one to a row already drawn: a row painted after the masks were applied had
+            // none, and only a later walk of every mask, which an edit no longer causes, gave it one (issue #9164).
+            if (hidden && this.viewMasks?.showContext?.() === true) {
+                return dataManagerInternals.buildRow(this.dataManager, id);
+            }
+
             return undefined;
         }
 
@@ -2402,30 +2446,45 @@ export class UpdateManager implements Manager {
      */
     private followIncident(incident: { version: number; map: Map<NodeIdType, Edge[]> }): void {
         const changed = this.dataManager.edgeSetChangesSince(incident.version);
-        if (changed === null) {
+        // Asked while edges are being placed: never a freeze here.
+        const joined = changed === null ? null : this.dataManager.builtEdgesOfPairs(changed, false);
+        if (joined === null) {
             return;
         }
 
-        const { map } = incident;
-        const done = new Set<string>();
-        for (const [a, b] of changed) {
-            const key = `${typeof a}:${String(a)}|${typeof b}:${String(b)}`;
-            if (done.has(key)) {
-                continue;
+        // Each end's list is filtered once, of the edges to every partner a change named, and then
+        // given those pairs' edges as they stand: a hub's list is read once a frame, not once a pair.
+        const partners = new Map<NodeIdType, Set<NodeIdType>>();
+        const note = (end: NodeIdType, other: NodeIdType): void => {
+            const known = partners.get(end);
+            if (known === undefined) {
+                partners.set(end, new Set([other]));
+            } else {
+                known.add(other);
             }
+        };
+        for (const { a, b } of joined) {
+            note(a, b);
+            note(b, a);
+        }
 
-            done.add(key);
-            const joins = (edge: Edge): boolean =>
-                (edge.srcId === a && edge.dstId === b) || (edge.srcId === b && edge.dstId === a);
-            const now = this.dataManager.builtEdgesJoining(a, b);
+        const { map } = incident;
+        for (const [end, others] of partners) {
+            const kept = (map.get(end) ?? []).filter(
+                (edge) => !others.has(edge.srcId === end ? edge.dstId : edge.srcId),
+            );
+            map.set(end, kept);
+        }
+
+        for (const { a, b, edges } of joined) {
             for (const end of a === b ? [a] : [a, b]) {
-                const kept = (map.get(end) ?? []).filter((edge) => !joins(edge));
-                kept.push(...now);
-                if (kept.length === 0) {
-                    map.delete(end);
-                } else {
-                    map.set(end, kept);
-                }
+                map.get(end)?.push(...edges);
+            }
+        }
+
+        for (const end of partners.keys()) {
+            if (map.get(end)?.length === 0) {
+                map.delete(end);
             }
         }
 
@@ -4289,8 +4348,14 @@ export class UpdateManager implements Manager {
             return false;
         }
 
-        for (const [source, target] of changed) {
-            this.edgesToPlace.push(...this.dataManager.builtEdgesJoining(source, target));
+        // Asked at the start of the edge pass, before any edge is placed, so a freeze it needs lands here.
+        const joined = this.dataManager.builtEdgesOfPairs(changed, true);
+        if (joined === null) {
+            return false;
+        }
+
+        for (const { edges } of joined) {
+            this.edgesToPlace.push(...edges);
         }
 
         return true;

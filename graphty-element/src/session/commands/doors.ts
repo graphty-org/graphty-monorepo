@@ -2408,7 +2408,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getEdgesBetween: READ,
             drawnBundle: READ,
             edgeSetChangesSince: READ,
-            builtEdgesJoining: READ,
+            // May freeze the snapshot first, as getSnapshot does.
+            builtEdgesOfPairs: LANE,
             edgeDirected: READ,
             incidentEdgeIds: READ,
             // Called while no edge is drawn: the one the row above added waits for its endpoint.
@@ -4119,6 +4120,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             read: READ,
             generation: READ,
             changes: READ,
+            relocations: READ,
             moved: LANE,
             write: LANE,
             fillUnplaced: LANE,

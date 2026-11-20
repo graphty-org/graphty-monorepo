@@ -872,7 +872,11 @@ export class DataManager implements Manager {
         removing(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void;
     }): void;
     // @internal
-    builtEdgesJoining(a: NodeIdType, b: NodeIdType): Edge[];
+    builtEdgesOfPairs(pairs: Iterable<readonly [NodeIdType, NodeIdType]>, freeze: boolean): {
+        readonly a: NodeIdType;
+        readonly b: NodeIdType;
+        readonly edges: Edge[];
+    }[] | null;
     clear(): void;
     get directed(): boolean;
     get directionSettledBy(): DirectionProvenance;

@@ -146,6 +146,18 @@ describe("one data edit on a large graph", () => {
         }
     });
 
+    it("places only the pair's fan when many edges are added between the same two nodes", async () => {
+        // 400 nodes, 2,000 edges: one walk of every edge is more than the fan's bound below.
+        const element = await mount(400);
+        const added = Array.from({ length: 40 }, () => ({ source: "n4", target: "n5" }));
+
+        const counted = await countedWork(element, () => element.session.data.addEdges(added));
+
+        // Each of the fan's 41 edges may be placed again on each frame that builds or paints part of it.
+        assert.isAtMost(counted.placed, 41 * 41, "placements are bounded by the fan, not the graph");
+        assert.isAtMost(counted.repainted, added.length + 2, "the added edges and their ends are repainted");
+    });
+
     it("keeps the selection's look on the selected node after a removal renumbers the rows", async () => {
         const element = await mount(30);
         const session = element.graph.getSession() as ElementSession;

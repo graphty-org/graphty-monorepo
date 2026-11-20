@@ -303,6 +303,8 @@ export interface AiImageModelDescriptor {
 export const AI_IMAGE_MODELS: Readonly<Partial<Record<AiProviderId, AiImageModelDescriptor>>> = Object.freeze({
     // $30 per million output tokens, 1,290 tokens a picture (checked 2026-11-15).
     google: { id: "gemini-2.5-flash-image", plainName: "Gemini 2.5 Flash Image", costUsd: 0.039 },
+    // Medium quality at 1536 x 1024, OpenAI's list price per picture (checked 2026-11-16).
+    openai: { id: "gpt-image-1", plainName: "GPT Image 1", costUsd: 0.063 },
 });
 
 /**

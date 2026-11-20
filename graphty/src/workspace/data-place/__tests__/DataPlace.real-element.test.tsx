@@ -552,6 +552,20 @@ describe("the Data place's sidebar on the real element", () => {
         assert.isNotNull(await place().findByRole("listitem", { name: added }));
     });
 
+    it("adds the graph file at a pasted web address as a source named after the file, from Sources + > Paste", async () => {
+        const session = await openDataPlace();
+        const address = new URL(`${import.meta.env.BASE_URL}samples/football.gml`, globalThis.location.href).href;
+        // The clipboard takes text only while the page has focus: the click on "+" gives it.
+        await userEvent.click(await place().findByRole("button", { name: "Add source" }));
+        await navigator.clipboard.writeText(`  ${address}\n`);
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Paste" }));
+        await waitFor(() => {
+            assert.strictEqual(session.data.sources()[0]?.name, "football.gml");
+            assert.lengthOf(session.data.nodes(), 115);
+        });
+        assert.isNotNull(await place().findByRole("listitem", { name: "football.gml" }));
+    });
+
     it("renames a source on a double-click or F2, and its menu shows F2 by Rename", async () => {
         const session = await openDataPlace();
         await loadLog(session);

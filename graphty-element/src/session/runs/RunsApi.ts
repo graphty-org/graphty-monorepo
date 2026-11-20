@@ -1012,6 +1012,15 @@ class Runs implements SessionRunsApi {
     // -- starting -----------------------------------------------------------------------------
 
     /**
+     * Why the session is starting the run a call on the stack starts, as `RunChange.trigger`
+     * names it: `"project"` while opening a project brings its saved runs back.
+     * @returns The trigger, or undefined for a caller's own start.
+     */
+    private get startingTrigger(): RunChange["trigger"] {
+        return this.dispatcher.startingTrigger === "project" ? "project" : undefined;
+    }
+
+    /**
      * Start one algorithm, or hand back the run that already answers this question.
      * @param algorithm - Which algorithm to run.
      * @param params - Its parameters.
@@ -1779,7 +1788,8 @@ class Runs implements SessionRunsApi {
             this.names.delete(id);
         }
 
-        run.start();
+        // A run that opening a project brings back says so (`RunChange.trigger`).
+        run.start(this.startingTrigger);
 
         return run;
     }
@@ -1854,12 +1864,17 @@ class Runs implements SessionRunsApi {
             // The same result under other parameters: its re-execution is the new command.
             this.commands.set(existing.id, withoutSuggested(launch.command));
             this.launches.set(existing.id, launch);
-            return existing.retune(identity.params, identity.seed, this.caveatsFor(identity, descriptor));
+            return existing.retune(
+                identity.params,
+                identity.seed,
+                this.caveatsFor(identity, descriptor),
+                this.startingTrigger,
+            );
         }
 
         if (this.shouldReexecute(existing)) {
             this.launches.set(existing.id, launch);
-            existing.rerun();
+            existing.rerun(this.startingTrigger);
         } else if (
             (launch.command.applySuggestedStyles === true || launch.command.restoreLayer === true) &&
             !this.adopting
@@ -3185,7 +3200,7 @@ class Runs implements SessionRunsApi {
             const runId = idOf(suggestion.spec.run);
 
             try {
-                const outcome = await via(suggestionCommand(suggestion, true));
+                const outcome = await via(suggestionCommand(suggestion, true), { trigger: "suggestion" });
                 record(
                     addedOutcome(
                         suggestion,
@@ -3268,11 +3283,12 @@ class Runs implements SessionRunsApi {
      * @param run - The run, or the batch.
      * @param run.record - Its record, which the observer is handed.
      * @param run.generation - Which execution of it this is.
+     * @param run.trigger - Why the session started that execution by itself, when it did.
      * @param phase - Which moment it reached.
      * @param cause - What moved it.
      */
     private announce(
-        run: { readonly record: RunRecord; readonly generation: number },
+        run: { readonly record: RunRecord; readonly generation: number; readonly trigger?: RunChange["trigger"] },
         phase: RunPhase,
         cause: RunChange["cause"] = "command",
     ): void {
@@ -3283,7 +3299,17 @@ class Runs implements SessionRunsApi {
         }
 
         try {
-            onChange(Object.freeze({ run: run.record, phase, cause, generation: run.generation }));
+            // An undo, a redo or a restore moved it, not the execution the trigger describes.
+            const trigger = cause === "command" ? run.trigger : undefined;
+            onChange(
+                Object.freeze({
+                    run: run.record,
+                    phase,
+                    cause,
+                    generation: run.generation,
+                    ...(trigger === undefined ? {} : { trigger }),
+                }),
+            );
         } catch {
             // A watcher's failure is the watcher's. The run carries on.
         }

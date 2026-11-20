@@ -126,9 +126,9 @@ env:
 
 jobs:
     # The cap on concurrent pull request runs (tools/ci-run-cap.mjs). On a pull request it waits, on one small
-    # runner, while earlier pull request runs hold CI_PR_JOB_BUDGET (a repository variable, default 150) or more
-    # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a release.yml run waits for a
-    # runner, so the full run goes first. Every other job needs the Build job, which needs this one, so a waiting
+    # runner, while earlier pull request runs hold CI_PR_JOB_BUDGET (a repository variable, default 120) or more
+    # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a master push build or a
+    # release.yml run waits for a runner, so master's build and the full run go first (#9153). Every other job needs the Build job, which needs this one, so a waiting
     # run holds nothing else. It never fails the run: an API error proceeds, and the wait ends (the run proceeds)
     # at the script's MAX_WAIT_MINUTES, before this job's timeout, since a timed-out job is canceled and that
     # skips Build and every job after it (#8219). A push to master, a dispatch and the release train's call
@@ -1726,7 +1726,7 @@ jobs:
             # most 6, 30 runners in all, so the full run never starves pull requests of runners (#3448); the
             # Run cap lets pull requests go once the full run holds that share (RELEASE_SHARE in
             # tools/ci-run-cap.mjs), and the default pull request job budget is the ~180-runner ceiling less
-            # it: 150 (CI_PR_JOB_BUDGET overrides it). At 14 its Test jobs ended at about 66 minutes; 24 brings
+            # it and master's share: 120 (CI_PR_JOB_BUDGET overrides it). At 14 its Test jobs ended at about 66 minutes; 24 brings
             # that to about 35-38 (#7849). A pull request keeps 40. The features-on shards come last in the matrix
             # (tools/ci-test-matrix.mjs), so the Off shards start first and the On ones queue behind them.
             max-parallel: ${{ github.event_name == 'pull_request' && 40 || 24 }}

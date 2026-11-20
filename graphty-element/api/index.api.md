@@ -378,11 +378,9 @@ export interface AnimationProgressEvent {
     type: "animation-progress";
 }
 
-// @public (undocumented)
+// @public
 export interface AnimationResult {
-    // (undocumented)
     blob: Blob;
-    // (undocumented)
     metadata: {
         duration: number;
         fps: number;
@@ -7492,7 +7490,6 @@ export class OperationQueueManager implements Manager {
         size: number;
         isPaused: boolean;
     };
-    // (undocumented)
     hasLayoutEngine?: () => boolean;
     get hasWork(): boolean;
     init(): Promise<void>;

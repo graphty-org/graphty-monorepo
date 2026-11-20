@@ -2110,19 +2110,14 @@ export interface LayoutImplementation {
     // @deprecated
     honoursWeights: boolean;
     isDefault: boolean;
-    // (undocumented)
     kind: "live" | "batch";
-    // (undocumented)
     maxDimensions: 2 | 3;
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
     // @deprecated
     reason: string;
     requires?: LayoutRequirements;
     scoped: boolean;
-    // (undocumented)
     technicalName: string;
 }
 
@@ -3322,9 +3317,7 @@ export interface UnservedFormat {
 
 // @public
 export interface UnservedLayout {
-    // (undocumented)
     id: (typeof KNOWN_LAYOUT_IDS)[number];
-    // (undocumented)
     reason: string;
 }
 

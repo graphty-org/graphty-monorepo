@@ -217,6 +217,16 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "What the selected nodes or edges hold together: the nodes cut off if they were removed.",
         aliases: ["simulate removing", "what breaks", "what if", "cut off", "vulnerable", "resilience"],
     },
+    "articulation-points": {
+        name: "Articulation points",
+        answers: "Which nodes would split the graph apart if removed.",
+        aliases: ["cut points", "cut vertex", "single point of failure", "chokepoint"],
+    },
+    bridges: {
+        name: "Bridges",
+        answers: "Which edges would split the graph apart if removed.",
+        aliases: ["cut edges", "single point of failure", "weak link"],
+    },
 };
 
 /**
@@ -280,6 +290,10 @@ export const ALGORITHM_DESCRIPTIONS: Readonly<Partial<Record<string, string>>> =
         "Scores the pairs of nodes that are not yet joined by the neighbors they share, and lists the pairs most likely to be joined next.",
     "algorithm.removal-impact":
         "Works out what removing some nodes or edges would cut off, without removing them: the separate pieces before and after, and the nodes left cut off from the rest of their piece.",
+    "algorithm.articulation-points":
+        "Finds the nodes whose removal would split their piece of the graph into more pieces: the single points of failure.",
+    "algorithm.bridges":
+        "Finds the edges whose removal would split their piece of the graph in two: the links nothing else backs up.",
 };
 
 /**

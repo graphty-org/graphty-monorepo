@@ -142,6 +142,7 @@ import {
     type ColorScheme,
     defaultXRConfig,
     FetchEdgesFn,
+    FetchNeighborEdgesFn,
     FetchNodesFn,
     GraphBackground,
     type GraphBackgroundConfig,
@@ -180,6 +181,7 @@ import {
     type XRSessionStartedEvent,
 } from "./events";
 import { attachRegionGesture } from "./input/RegionSelectGesture";
+import { FixedLayout } from "./layout/FixedLayoutEngine";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import {
     type AddEdgesOptions,
@@ -229,6 +231,7 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
+import { arrowCapMeshes } from "./meshes/ArrowCapBatch";
 import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
@@ -931,6 +934,11 @@ export class Graph implements GraphContext {
     // graph
     fetchNodes?: FetchNodesFn;
     fetchEdges?: FetchEdgesFn;
+    /**
+     * The parsed `layoutBehavior.fetchNeighborEdges`, read by expansion; set it through that option.
+     * @internal
+     */
+    fetchNeighborEdges?: FetchNeighborEdgesFn;
     initialized = false;
 
     /**
@@ -3513,6 +3521,7 @@ export class Graph implements GraphContext {
         // property.
         this.fetchNodes = parsed.fetchNodes as FetchNodesFn | undefined;
         this.fetchEdges = parsed.fetchEdges as FetchEdgesFn | undefined;
+        this.fetchNeighborEdges = parsed.fetchNeighborEdges as FetchNeighborEdgesFn | undefined;
 
         if (typeof type === "string") {
             // The settings and the layout it names are one step.
@@ -6434,6 +6443,12 @@ export class Graph implements GraphContext {
             }
         }
 
+        // A cap is part of its edge: drawn among the nodes in material order, a cap and a node
+        // meeting at one depth drew a different pixel on each render path (#9179).
+        for (const mesh of arrowCapMeshes(this.scene)) {
+            this.#edgeMeshes.add(mesh);
+        }
+
         if (mapped === this.#overMap) {
             return;
         }
@@ -6979,6 +6994,10 @@ export class Graph implements GraphContext {
         // building one for it cost 8.7 KB a row (#8204).
         const nodes = [...dataManagerInternals.builtNodes(this.dataManager)];
         const edges = [...this.builtEdges()];
+        // The edge rows drawn with no `Edge` are drawn in line batches the cache is about to dispose: taken out of
+        // them now, while they are live, and painted again into the new dimension's batches below (#9223).
+        const lineRows = this.#edgeRowLines?.rows() ?? [];
+        this.#edgeRowLines?.clear();
 
         // Every mesh goes in one bulk teardown, then every mesh is built again. Disposed one
         // element at a time, each mesh, action manager and drag handler left scene-wide lists by
@@ -7018,6 +7037,10 @@ export class Graph implements GraphContext {
         const painter = this.getStylePainter();
         for (const row of dataManagerInternals.unbuiltRows(this.dataManager)) {
             painter.queue("node", row);
+        }
+
+        for (const row of lineRows) {
+            painter.queue("edge", row);
         }
 
         this.updateManager.meshesAdded();
@@ -7637,8 +7660,9 @@ export class Graph implements GraphContext {
      * @remarks
      * This waits for the operation QUEUE -- data loading, layout changes, algorithm runs -- and
      * for nothing else. When it resolves, everything asked for has been carried out; the layout
-     * may still be running and the camera may still be moving, because neither of those is a
-     * queued operation.
+     * may still be running, the camera may still be moving, and a picture -- a background image,
+     * a node's image or 3D model -- may still be loading, because none of those is a queued
+     * operation.
      *
      * For a picture that will not change again -- a screenshot, a video frame, a visual
      * regression snapshot -- wait for {@link Graph.waitForStableFrame} instead, which waits for
@@ -7661,9 +7685,9 @@ export class Graph implements GraphContext {
      * await graph.waitForSettled();
      * graph.zoomToFit();
      *
-     * // Wait before taking a screenshot
+     * // Wait for the finished picture -- pictures loaded, layout at rest -- before a screenshot
      * await graph.setLayout('circular');
-     * await graph.waitForSettled();
+     * await graph.waitForStableFrame();
      * const screenshot = await graph.captureScreenshot();
      *
      * // Chain operations with settle
@@ -10694,6 +10718,10 @@ export class Graph implements GraphContext {
             edgeStyle: (row) => {
                 const { style } = painter.edgePaint(row) ?? bootstrapEdgePaint();
                 return { color: toColorValue(style.line?.color), width: style.line?.width };
+            },
+            positionFactor: () => {
+                const engine = this.layoutManager.layoutEngine;
+                return engine instanceof FixedLayout ? engine.spread : 1;
             },
         });
     }

@@ -275,7 +275,8 @@ describe("AiController", () => {
                 ["look"],
             );
             assert.strictEqual(second.at(-1)?.role, "tool");
-            assert.strictEqual(second.at(-1)?.toolCallId, "t1");
+            // The result answers the call the model was shown: the engine's id for it, not the provider's.
+            assert.strictEqual(second.at(-1)?.toolCallId, second.at(-2)?.toolCalls?.[0].id);
             assert.deepStrictEqual(JSON.parse(second.at(-1)?.content ?? "{}"), {
                 success: true,
                 message: "look servers",
@@ -333,9 +334,10 @@ describe("AiController", () => {
 
             assert.deepStrictEqual(skipped, []);
             const toolMessages = provider.asks[1].filter((message) => message.role === "tool");
+            const calls = provider.asks[1].find((message) => message.toolCalls)?.toolCalls ?? [];
             assert.deepStrictEqual(
                 toolMessages.map((message) => message.toolCallId),
-                ["t1", "t2"],
+                calls.map((call) => call.id),
             );
             assert.include(toolMessages[1].content, "Not run");
         });
@@ -624,8 +626,8 @@ describe("AiController", () => {
                 commandRegistry: registry,
                 graph: mockGraph,
                 emitEvent: (event) => {
-                    if (event.type === "ai-command-cancelled") {
-                        cancelledInputs.push(event.input);
+                    if (event.type === "ai-command-canceled" || event.type === "ai-command-cancelled") {
+                        cancelledInputs.push(`${event.type} ${event.input}`);
                     }
                 },
             });
@@ -640,7 +642,13 @@ describe("AiController", () => {
                 results.map((r) => r.code),
                 ["AI_CANCELLED", "AI_CANCELLED"],
             );
-            assert.deepEqual(cancelledInputs, ["first", "second"]);
+            // Each under its American name, then its deprecated British one.
+            assert.deepEqual(cancelledInputs, [
+                "ai-command-canceled first",
+                "ai-command-cancelled first",
+                "ai-command-canceled second",
+                "ai-command-cancelled second",
+            ]);
             // Messages run one at a time: the second never reached the model.
             assert.strictEqual(asks, 1);
         });

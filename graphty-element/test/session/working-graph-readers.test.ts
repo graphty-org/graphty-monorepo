@@ -247,11 +247,11 @@ describe("the selection under a filter", () => {
         session.dispose();
     });
 
-    it("keeps selecting a node the time window alone hides", async () => {
+    it("keeps selecting a node outside the time window", async () => {
         const harness = harnessOf();
         const { session } = harness;
         await session.visibility.setWindow(EARLY);
-        assert.isFalse(session.visibility.isVisible("c"));
+        assert.isTrue(session.visibility.isVisible("c"), "a window only changes how c is drawn");
         await session.selection.apply({ nodes: ["c"] }, "replace");
         assert.sameMembers([...session.selection.nodes], ["c"]);
         session.dispose();
@@ -309,6 +309,61 @@ describe("opening a project", () => {
             reopened.session.dispose();
         });
     }
+});
+
+describe("opening a file that saved ranOn and no live scope", () => {
+    /**
+     * Save the session as the writer from #6201 did: each run carries `ranOn`, the counts its scope
+     * held, and no `live` scope.
+     * @param harness - The session to save.
+     * @returns The file's text.
+     */
+    async function savedWithRanOn(harness: Harness): Promise<string> {
+        const { text } = await harness.session.project.save();
+        const file = JSON.parse(text) as { members: { kind: string; runs?: Record<string, unknown>[] }[] };
+        for (const run of file.members.find((member) => member.kind === "graphty-results")?.runs ?? []) {
+            const { scope } = harness.session.runs.get(run.id as string)?.record ?? {};
+            assert.isDefined(scope);
+            delete run.live;
+            run.ranOn = { nodes: scope.nodes, edges: scope.edges };
+        }
+
+        return JSON.stringify(file);
+    }
+
+    for (const working of [true, false]) {
+        it(`reopens a run made before the filter out of date (option ${working ? "on" : "off"})`, async () => {
+            const harness = harnessOf(working);
+            await harness.session.runs.start("degree");
+            await harness.session.visibility.set(HOSTS);
+            const text = await savedWithRanOn(harness);
+
+            const reopened = harnessOf(working);
+            await reopened.session.project.open(text, { discard: true });
+            assert.deepInclude(
+                reopened.session.runs.list()[0]?.stale,
+                { reason: "scope-changed", ranOn: 5, nowVisible: 3 },
+                "it ran on the whole graph, as the file says",
+            );
+            harness.session.dispose();
+            reopened.session.dispose();
+        });
+    }
+
+    it("reopens a run made under the filter current", async () => {
+        const harness = harnessOf();
+        await harness.session.visibility.set(HOSTS);
+        await harness.session.runs.start("degree");
+        const text = await savedWithRanOn(harness);
+
+        const reopened = harnessOf();
+        await reopened.session.project.open(text, { discard: true });
+        const back = reopened.session.runs.list()[0];
+        assert.isDefined(back);
+        assert.isNull(back.stale, "it ran on what the filter shows, as the file says");
+        harness.session.dispose();
+        reopened.session.dispose();
+    });
 });
 
 describe("a Top-N style rule", () => {

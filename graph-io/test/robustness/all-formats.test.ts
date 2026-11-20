@@ -186,7 +186,11 @@ describe("robustness: the error limit and the warning cap on large files", () =>
 
     it("keeps the first warnings of one code and counts the rest in one W_ISSUES_SUPPRESSED", async () => {
         const rows = 100_000;
-        const { snapshot, report } = await importGraph(`id\n${"a\n".repeat(rows)}`, { format: "csv", table: "nodes" });
+        const { snapshot, report } = await importGraph(`id\n${"a\n".repeat(rows)}`, {
+            format: "csv",
+            table: "nodes",
+            idColumn: "id",
+        });
         expect(snapshot.nodeCount).toBe(1);
         expect(report.issues.filter((i) => i.code === "W_DUPLICATE_NODE")).toHaveLength(MAX_WARNINGS_PER_CODE);
         const summary = report.issues.filter((i) => i.code === "W_ISSUES_SUPPRESSED");

@@ -3,9 +3,9 @@
  *
  * A definition is an id, options in short form and `place(graph, context)`, which returns a map
  * from node id to `[x, y]` or `[x, y, z]` in scene units. `defineLayout` checks the definition,
- * fills in every catalogue member, and files an ordinary layout engine through the one layout
+ * fills in every catalog member, and files an ordinary layout engine through the one layout
  * registration there is, `LayoutEngine.register` -- so a simple layout IS an advanced one once
- * registered: same catalogue entry shape, same option checks, same registry, same `setLayout`.
+ * registered: same catalog entry shape, same option checks, same registry, same `setLayout`.
  *
  * What the element does for the author, so the definition never has to:
  * - hands `place` the graph view over the whole graph and checks "attribute" and "node" options
@@ -276,7 +276,7 @@ export function isDefinedLayout(engine: object): boolean {
 /**
  * Build the layout engine class a definition compiles to.
  * @param plan - The checked definition.
- * @param descriptor - Its catalogue entry.
+ * @param descriptor - Its catalog entry.
  * @param maxDimensions - The most dimensions it uses.
  * @returns The class, ready for `LayoutEngine.register`.
  */
@@ -310,6 +310,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                 plan.options.map((option) => [option.name, given[option.name] ?? option.default]),
             );
             if (plan.random && typeof this.#values.seed !== "number") {
+                // eslint-disable-next-line sonarjs/pseudo-random -- a seeded layout's random starting positions; nothing security-related depends on them
                 this.#values.seed = Math.floor(Math.random() * 2 ** 32);
                 logger.info(`${id}: drew a layout seed`, { layout: id, seed: this.#values.seed });
             }

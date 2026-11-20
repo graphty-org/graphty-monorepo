@@ -97,7 +97,7 @@ export const Default: Story = {
         const scene = await settled(canvasElement, "Default");
 
         // The element's own appearance, with no layer of the story's own: one shape, one size,
-        // one colour, and no label anywhere.
+        // one color, and no label anywhere.
         await assertDrawnColour(scene, "#6366f1");
         await assertDrawnShape(scene, Object.fromEntries(scene.nodes.map((node) => [node.id, "icosphere"])));
         await assertNoLabelsDrawn(scene);
@@ -252,9 +252,8 @@ export const Flat: Story = {
 /**
  * A label on every node, reading each node's own id.
  *
- * `label: {enabled: true}` used to switch labels on and leave the words to the renderer's
- * default. A layer says what a label SAYS: writing `node.label` is what switches one on, and
- * binding it to a column is how the words come from the data.
+ * A layer says what a label SAYS: writing `node.label` is what switches one on, and binding it
+ * to a column is how the words come from the data.
  */
 export const Label: Story = {
     play: async ({ canvasElement }) => {
@@ -300,7 +299,7 @@ export const Opacity: Story = {
 /**
  * The highlight: the selection's halo, in each node's own shape, drawn on the nodes a layer
  * picks. The box and the left sphere set `node.halo` alone and are drawn in the selection's
- * look; the right sphere sets its own colour, scale and opacity. The middle node has none.
+ * look; the right sphere sets its own color, scale and opacity. The middle node has none.
  */
 export const Halo: Story = {
     play: async ({ canvasElement }) => {

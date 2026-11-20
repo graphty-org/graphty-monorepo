@@ -37,6 +37,15 @@ const bfsOptionsSchema = defineOptions({
             advanced: true,
         },
     },
+    maxDepth: {
+        schema: z.number().int().min(0).nullable().default(null),
+        meta: {
+            label: "Max Depth",
+            description:
+                "Stop the walk this many steps from the source (optional - walks everything reachable if not set)",
+            advanced: true,
+        },
+    },
 });
 
 /**
@@ -47,6 +56,8 @@ interface BFSOptions extends Record<string, unknown> {
     source: number | string | null;
     /** Target node for early termination (optional) */
     targetNode: number | string | null;
+    /** How many steps from the source the walk goes, or null for no bound */
+    maxDepth: number | null;
 }
 
 /**
@@ -79,6 +90,16 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
             default: null,
             label: "Target Node",
             description: "Target node for early termination (optional - searches all nodes if not set)",
+            required: false,
+            advanced: true,
+        },
+        maxDepth: {
+            type: "integer",
+            default: null,
+            label: "Max Depth",
+            description:
+                "Stop the walk this many steps from the source (optional - walks everything reachable if not set)",
+            min: 0,
             required: false,
             advanced: true,
         },
@@ -121,6 +142,7 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
         }
 
         const targetNode = this._schemaOptions.targetNode ?? undefined;
+        const maxDepth = this._schemaOptions.maxDepth ?? undefined;
 
         /* Get source from legacy options, schema options, or use the input's first node. The
            DEFAULT comes from the input rather than from the render objects, because the input is
@@ -134,10 +156,11 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
 
            A walk that stops at a target is not one an accelerator answers -- a GPU walk expands
            whole levels at once -- so the decision says so before any work starts. It also tries
-           each node's neighbours in the order their edges were declared: which nodes it expands
+           each node's neighbors in the order their edges were declared: which nodes it expands
            before it reaches the target depends on that order, and the element's walks have always
            used it. A walk with no target keeps row order, which an accelerator can reproduce and
-           which reaches every node on the same level either way. */
+           which reaches every node on the same level either way. A depth bound stops whole levels,
+           so it leaves the walk accelerable and is handed through. */
         const { snapshot, run } = this.accelerated("breadthFirstSearch", "undirected", {
             accelerable: targetNode === undefined,
         });
@@ -146,11 +169,10 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
 
         context.report({ phase: "walking-outwards", total: null });
         const { value, precision } = await run((dispatch, s) =>
-            dispatch.breadthFirstSearch(
-                s,
-                sourceIndex,
-                targetIndex === undefined ? undefined : { target: targetIndex, arcOrder: declarationArcOrder(s) },
-            ),
+            dispatch.breadthFirstSearch(s, sourceIndex, {
+                maxDepth,
+                ...(targetIndex === undefined ? {} : { target: targetIndex, arcOrder: declarationArcOrder(s) }),
+            }),
         );
 
         /* `order` holds the visited rows in visit order, so the position a node was reached in is
@@ -181,6 +203,10 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
             { name: "order", kind: "node", type: "integer" },
         ];
         const facts = [caveat("bfs.origin", { source })];
+
+        if (maxDepth !== undefined) {
+            facts.push(caveat("bfs.depth-bounded", { maxDepth }));
+        }
 
         if (targetNode !== undefined) {
             fields.push({ name: "targetFound", kind: "graph", type: "boolean" });

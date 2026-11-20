@@ -100,7 +100,7 @@ describe("the metrics a graph can support", () => {
     });
 
     it("keeps a metric this graph cannot support in the list, and says why", async () => {
-        // The store is told the graph is directed, so every algorithm whose catalogue entry
+        // The store is told the graph is directed, so every algorithm whose catalog entry
         // requires an undirected graph is unavailable on it.
         const harness = await lesMiserables(true);
 
@@ -110,12 +110,11 @@ describe("the metrics a graph can support", () => {
         assert.isAbove(refused.length, 0, "a directed graph cannot support every algorithm");
 
         for (const metric of refused) {
-            assert.isString(metric.reason, `${metric.key} says why it is unavailable`);
-            assert.isAbove((metric.reason ?? "").length, 0, `${metric.key}'s reason is a sentence`);
+            assert.isString(metric.refusal?.code, `${metric.key} says why it is unavailable`);
         }
 
         for (const metric of metrics.filter((candidate) => candidate.available)) {
-            assert.isUndefined(metric.reason, `${metric.key} carries no reason while it is available`);
+            assert.isUndefined(metric.refusal, `${metric.key} carries no refusal while it is available`);
         }
 
         harness.session.dispose();

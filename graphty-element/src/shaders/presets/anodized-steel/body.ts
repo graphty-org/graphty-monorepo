@@ -5,7 +5,7 @@
  * Brushed steel under a thin transparent oxide film. The film's color is thin-film interference,
  * the same math as the shader lab's soap bubble: light reflected from the film's top and bottom
  * meets out of step by twice the film's optical thickness, so each wavelength is strengthened or
- * cancelled and the color shifts with the viewing angle. `film` is the film's thickness in
+ * canceled and the color shifts with the viewing angle. `film` is the film's thickness in
  * nanometers (thin: straw and bronze; thicker: blue, purple, then greens and pinks); `brush` is
  * how strongly the surface is brushed (fine streaks and a highlight stretched across them);
  * `tint` is how much the node's color tints the steel.

@@ -55,6 +55,19 @@ export function parseBends(text: string | undefined): number[] | null {
 }
 
 /**
+ * Where an edge's label hangs on a route: the middle of its middle segment, or the joint between its two middle ones
+ * -- the same rule for a solid line and a patterned one, and the point an importer measures a label's offset from.
+ * @param flat - The route, flat x, y, z, at least one point.
+ * @returns The point, x, y, z.
+ */
+export function routeMiddle(flat: readonly number[]): [number, number, number] {
+    const m = flat.length / 3 - 1;
+    const a = 3 * Math.floor(m / 2);
+    const b = 3 * Math.ceil(m / 2);
+    return [0, 1, 2].map((k) => (flat[a + k] + flat[b + k]) / 2) as [number, number, number];
+}
+
+/**
  * Where the bends are, between two node centers: `along` of the way from the source center to the
  * target's, `across` of the same length to the left of that line in the x-y plane.
  * @param src - The source node's center.

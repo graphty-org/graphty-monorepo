@@ -1,5 +1,7 @@
 # Test ledger: record every test result and use the history
 
+> Status: Partly historical. Everything here about `golden`, the landing gate and verification is history: tools/land.mjs, tools/verify.mjs, tools/prepush.sh and tools/prepush-tests.mjs were removed on 2026-11-02 (commit d99cdf5060), and tools/branch-sync.mjs on 2026-10-25 (commit 0c011ef28f). The ledger itself is still built (tools/test-ledger.mjs, tools/test-history.mjs). Today every change reaches master through its own pull request with auto-merge on (CLAUDE.md, "Shipping a change"; .github/workflows/README.md).
+
 Status: Proposed, 2026-10-22, revised after two adversarial reviews (the second replaced golden's
 recorded word with a direct re-run on golden's tip, 5.1). Issue #3282, part of the fast
 pipeline (#3262, `design/ci/fast-pipeline.md`). Background research: `reports/Test result history
@@ -283,7 +285,7 @@ of the same files fast-forwards in seconds, and no other push reuses it. `PREPUS
 gate key (`laneEnv()` in `tools/prepush-inputs.mjs`), so `PREPUSH_EXONERATE=0` really runs a strict gate.
 `golden-verified` does not move past the failure, and cuts wait for the fix.
 
-**Issues.** One per signature, titled `Failing on golden: <first line>`, labelled `bug`,
+**Issues.** One per signature, titled `Failing on golden: <first line>`, labeled `bug`,
 `priority:high`, `effort:medium`, listing tests, keys, commit and log, with a `<!-- test-ledger
 signature=<sig> -->` marker. Filed by a land check whose re-run reproduced the failure, and by
 verification for a failure that is not reproduced or that comes back in the next verification. Never for a

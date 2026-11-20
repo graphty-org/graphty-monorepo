@@ -10,7 +10,7 @@ file per screen built from the round-1 kit (`../mocks/kit.css`, the icon sprite 
 Conventions shared by every screen (the frame of `revision.md` section 1):
 
 - **Layout.** Left panel 240 px, right panel 240 px, canvas between, status bar 24 px at the
-  bottom. No rail, no top bar, no hamburger glyph. The floating toolbar sits bottom centre of the
+  bottom. No rail, no top bar, no hamburger glyph. The floating toolbar sits bottom center of the
   canvas, 56 px tall, radius 13, 12 px above whatever is under the canvas (the dock's handle,
   the open dock, or the time transport bar).
 - **Left panel header** (48 px): the dataset name at 13/22 weight 550 with a chevron; the two
@@ -19,7 +19,7 @@ Conventions shared by every screen (the frame of `revision.md` section 1):
   Settings..., Keyboard shortcuts, Help). Before a load the name reads "graphty" in secondary
   text.
 - **Views** (40 px header, collapsible): "+" saves; a "..." with Export views..., Import
-  views...; rows 32 px; the current view has the grey current-page fill and weight 550; a drift
+  views...; rows 32 px; the current view has the gray current-page fill and weight 550; a drift
   dot after its name when the camera has moved.
 - **Objects** (40 px header with a find glyph, Ctrl+F, and a "..." holding "Suggestions"): tree
   rows 32 px: caret, kind icon, name, count in secondary text, state glyph if any, a 14 x 14
@@ -40,13 +40,13 @@ Conventions shared by every screen (the frame of `revision.md` section 1):
   name (13/22 550); eye, lock, "..." at the right (Locate, Pin on a node); a summary row (chip,
   count, state); a reading row in secondary text ending in "?"; then the pill tabs (24 px tall
   in a 32 px row, 11 px weight 550 for every tab, 4 px of padding each side, 4 px apart, the
-  selected one on a grey pill). Four tab names total at most 27 characters. Rows below are 32
+  selected one on a gray pill). Four tab names total at most 27 characters. Rows below are 32
   px on the 16 / 88 / 8 / 88 / 8 / 24 / 8 grid; section headers 40 px; a disclosure header
   carries its summary after the title. No tab exceeds 14 rows; at 1440 x 900 there are 18
   rows of room, so white space under a tab is intended.
 - **Toolbar**, left to right: Select (V, 32 px, chevron, no label), Hand (H, 32 px, no label),
   divider, then 40 px buttons with a 16 px icon over an 8 px label: Filter (F, chevron),
-  Neighbours (E), Path (P, chevron), Groups (G, chevron), Rank (R, chevron), Structure (S,
+  Neighbors (E), Path (P, chevron), Groups (G, chevron), Rank (R, chevron), Structure (S,
   chevron), divider, Note (N), Ask (backtick), divider, the mode switch [2D | 3D | VR | AR] as
   the sliding-thumb segmented control. 725 px wide. The armed tool has the brand fill. VR and
   AR are present because the mock browser reports support.
@@ -72,7 +72,7 @@ Conventions shared by every screen (the frame of `revision.md` section 1):
 ## Screen 1: first run, nothing loaded
 
 **Purpose.** The empty state with the round-2 frame: no rail, no hamburger, one primary button,
-two panels that hold nothing, the labelled toolbar with only Select and Hand live, the dock
+two panels that hold nothing, the labeled toolbar with only Select and Hand live, the dock
 handle and the "?".
 
 **State.** No dataset. No objects, no selection. Select is the face, nothing armed. Mode 2D.
@@ -82,7 +82,7 @@ No overlays.
 "+", no rows. OBJECTS header with a disabled find glyph; three 32 px rows in secondary text:
 "Open a file...", "Paste data...", "From a URL...".
 
-**Canvas.** The Welcome sheet centred: a 15/25 heading "Open a graph", a dashed drop zone (400
+**Canvas.** The Welcome sheet centered: a 15/25 heading "Open a graph", a dashed drop zone (400
 x 120, "Drop a file here"), a "Choose a file" button (the only filled button on the screen), and
 the sample list: "Karate Club  34 nodes  78 edges", "Cat social network  20 nodes  29 edges",
 "College football  115 nodes  613 edges", "Email network  1,204 nodes  5,830 edges  over time";
@@ -111,16 +111,16 @@ visible in the strip. Nothing computed unasked.
 
 **Left panel.** Header "Karate Club" with the chevron. VIEWS: "+"; one row "Overview"
 (current). OBJECTS: find glyph, "..."; rows: 1. "v Karate Club" (the root row carries no count) (root, 550,
-a locked grey chip); 2. three indented suggestion rows in secondary text with a 16 px tool icon
+a locked gray chip); 2. three indented suggestion rows in secondary text with a 16 px tool icon
 each: "Find groups (G)", "Rank by connections (R)", "Find a path (P)"; tooltip "Same as
 pressing G".
 
-**Canvas.** 34 grey nodes (#b3b3b3), 1 px edges, no labels. Toolbar with Select active. The
+**Canvas.** 34 gray nodes (#b3b3b3), 1 px edges, no labels. Toolbar with Select active. The
 dock handle under the canvas.
 
 **Right panel.** Header: "Fit v" and Export. Header block: "Dataset" above "Karate Club";
 actions "+" (Add data) and "..." (Close dataset, Reload, Re-run all stale, Import options...);
-summary row: locked grey chip, "karate.gml, GML"; reading row: "34 nodes joined by 78 edges in
+summary row: locked gray chip, "karate.gml, GML"; reading row: "34 nodes joined by 78 edges in
 one connected part  ?" (the "?" popover also defines Density and Parts); tabs: **Overview**
 (selected) | Layout | Canvas | Data.
 
@@ -139,15 +139,15 @@ rows say the same thing, and the Objects "..." brings them back later.
 
 **Purpose.** The heart of the model in the round-2 inspector: a Group selected, its members
 haloed, and its Style tab showing the override above the inherited row, in the shared Style
-grammar. The three-click recolour.
+grammar. The three-click recolor.
 
 **State.** Karate Club. Objects in tree order (top is newest and highest in precedence):
 1. "Degree > 8" - Set (rule: degree min 9), 5 nodes (1, 2, 3, 33, 34), Style: NODES > Outline
    2 px #1e1e1e; current.
-2. "Connections (Degree)" - Measure, 34 values, Style: NODES > Size 0.8 to 2.0 (Colour was
+2. "Connections (Degree)" - Measure, 34 values, Style: NODES > Size 0.8 to 2.0 (Color was
    taken by Communities below it when it was created, so the Measure took Size, the second in
    its order); current.
-3. "Communities (Louvain)" - Grouping, 4 groups, Style: NODES > Colour, Okabe-Ito, expanded:
+3. "Communities (Louvain)" - Grouping, 4 groups, Style: NODES > Color, Okabe-Ito, expanded:
    "Group 1" 12 (#e69f00), "Group 2" 11 (inherited #56b4e9, overridden to #d55e00; selected),
    "Group 3" 6 (#009e73), "Group 4" 5 (#cc79a7).
 Selection: the Group 2 row; the element selection is its 11 members (a Group scope, assumed
@@ -156,11 +156,11 @@ present in this mock). Tool: Select. Mask: everything. Legend on. Mode 2D.
 **Left panel.** Header "Karate Club". VIEWS: "Overview" current. OBJECTS rows: 1. "v Karate
 Club  34 nodes  78 edges" (root, locked chip); 2. "Degree > 8  5 nodes" (set icon, a white chip
 with a 2 px dark ring); 3. "Connections (Degree)  34 values" (measure icon, a small-to-large
-dots chip); 4. "v Communities (Louvain)  4 groups" (grouping icon, a four-colour strip); 5.
+dots chip); 4. "v Communities (Louvain)  4 groups" (grouping icon, a four-color strip); 5.
 "Group 1  12" (chip #e69f00); 6. "Group 2  11" (chip #d55e00 with a small override dot;
 selected, brand-tinted, 550, eye and lock visible); 7. "Group 3  6"; 8. "Group 4  5".
 
-**Canvas.** Nodes coloured by community; Group 2's eleven nodes are #d55e00 with the gold
+**Canvas.** Nodes colored by community; Group 2's eleven nodes are #d55e00 with the gold
 selection halo; sizes vary with degree; nodes 1, 2, 3, 33, 34 outlined; six labels ("34", "1",
 "33", "3", "2", "9") from the label budget "Top 6 by Connections". Legend at the bottom right,
 above the toolbar's right end: a 160 px card with "Communities" (four swatch rows, Group 2's
@@ -181,7 +181,7 @@ the row is the empty-section header otherwise). Under the sections, in secondary
 
 **Status bar.** "34 nodes  78 edges" | "Spread out: settled" | "11 selected" | "100%" | "?".
 
-**Interaction.** Select a row, click the chip, pick: three clicks, and the colour is a style
+**Interaction.** Select a row, click the chip, pick: three clicks, and the color is a style
 layer on an object in the tree. The inherited row's chit is clickable and creates the override.
 The tab strip shows Define, Members and Record without scrolling to them.
 
@@ -193,7 +193,7 @@ flyout is open with kind icons, plain and technical names and costs; and the par
 is open from a row's "...". No dialog.
 
 **State.** College football loaded. Objects: "Conference" - Grouping by the `value` attribute,
-12 groups, NODES > Colour (a 12-colour categorical palette), collapsed; current. Nothing
+12 groups, NODES > Color (a 12-color categorical palette), collapsed; current. Nothing
 selected. Tool: Rank, armed (brand fill). The secondary bar reads "Rank by [Bridges v] on what
 is showing, 115 nodes, about 2 s  [Options]  [Run]  Cancel" (the reader has already chosen
 Bridges in the select, so the flyout's bold face row is Bridges). The flyout is open above the
@@ -202,7 +202,7 @@ right of the flyout, 240 px, light. Mask: everything. Legend on. Mode 2D.
 
 **Left panel.** Header "College football". VIEWS: "Overview". OBJECTS: "v College football" (the root row carries no count); "> Conference  12 groups" (strip chip).
 
-**Canvas.** 115 nodes coloured by conference, uniform size, no labels (no Measure yet). Above
+**Canvas.** 115 nodes colored by conference, uniform size, no labels (no Measure yet). Above
 the toolbar the secondary bar, full sentence as above, Run as its one light button. Above it,
 aligned to Rank's chevron, the dark flyout (radius 13, 32 px rows), each row led by the
 Measure kind icon at 16 px, the plain name (the face row bold), the technical name in secondary
@@ -272,17 +272,17 @@ the chip. When Bridges finishes: the ring becomes "115 values", the chip a ramp,
 switches to Values, and the legend gains a block. The waiting row is an object with no run
 ("defined, not started"), which is element work named in `revision.md` section 8.
 
-## Screen 6: a Measure selected, continuous encoding (colour scale plus size)
+## Screen 6: a Measure selected, continuous encoding (color scale plus size)
 
 **Purpose.** The other family's Style tab in the shared grammar: NODES with two encoding blocks
-(Colour open: scale, palette, values from and to, clamp, missing, legend preview; Size
+(Color open: scale, palette, values from and to, clamp, missing, legend preview; Size
 collapsed), EDGES empty with its "+", on one screen without scrolling, and the Values tab one
 click away.
 
 **State.** Karate Club. Objects: 1. "Influence (PageRank)" - Measure, 34 values, Style: NODES >
-Colour (viridis, Even steps, values 0.010 to 0.101) and NODES > Size (0.8 to 2.2); selected;
-current. 2. "Communities (Louvain)" - Grouping, 4 groups, NODES > Colour Okabe-Ito, collapsed;
-fully covered on Colour by Influence above it (its chip drawn at 50 percent). No element
+Color (viridis, Even steps, values 0.010 to 0.101) and NODES > Size (0.8 to 2.2); selected;
+current. 2. "Communities (Louvain)" - Grouping, 4 groups, NODES > Color Okabe-Ito, collapsed;
+fully covered on Color by Influence above it (its chip drawn at 50 percent). No element
 selection. Tool: Select. Mask: everything. Legend on. Mode 2D.
 
 **Left panel.** Header "Karate Club". VIEWS: "Overview". OBJECTS: "v Karate Club" (the root row carries no count); "Influence (PageRank)  34 values" (viridis ramp chip; selected); "> Communities
@@ -297,28 +297,28 @@ paints nothing visible). Toolbar: Select active.
 summary row: ramp chip, "34 values"; reading row: "Node 34 has the most influence; the top
 three hold a third of it.  ?"; tabs: Values | Define | **Style** (selected) | Record.
 
-Style rows: NODES header with "+" (Colour, Size, Opacity, Outline width, Glow, Label, "Colour
-and size"); block 1 open: "Colour [ramp chip]  [eye] [-]  v" (the block header); "Scale [Even
+Style rows: NODES header with "+" (Color, Size, Opacity, Outline width, Glow, Label, "Color
+and size"); block 1 open: "Color [ramp chip]  [eye] [-]  v" (the block header); "Scale [Even
 steps v]"; "Palette [a 156 x 14 viridis ramp v]"; "Values from [0.010] | to [0.101]" (a 50 px
 captioned two-column row); "[ ] Clamp outliers   [ ] Reverse   Reset" (one 32 px row of two
 checkboxes and a text button); "Missing [chit #b3b3b3]"; "Legend" with a 208 x 14 preview strip
 and end labels; block 2, collapsed to its header: "Size  0.8x to 2.2x  [eye] [-]  >"; EDGES
-header with "+" (Width, Colour, Opacity), no rows. Eleven rows.
+header with "+" (Width, Color, Opacity), no rows. Eleven rows.
 
 **Status bar.** "34 nodes  78 edges" | "Spread out: settled" | "100%" | "?".
 
 **Interaction.** Changing the palette, scale or values repaints at once; opening the Size block
-collapses Colour, so two channels always fit; the covered Grouping beneath says so on its own
+collapses Color, so two channels always fit; the covered Grouping beneath says so on its own
 Style tab ("Covered by Influence on 34 of 34 members") and its legend block is gone.
 
 ## Screen 7: a Grouping selected, the group palette with one override
 
-**Purpose.** Group values: the Grouping's Style tab with the Colour block, the palette select,
-five swatch rows (one carrying an override dot) then "and 7 more", the Other colour, the
+**Purpose.** Group values: the Grouping's Style tab with the Color block, the palette select,
+five swatch rows (one carrying an override dot) then "and 7 more", the Other color, the
 overflow policy and "Show the largest"; and the Groups tab's rows one click away.
 
 **State.** College football. Objects: 1. "Conference" - Grouping by `value`, 12 groups, Style:
-NODES > Colour, palette "Nine Soft Colours" (the element's tol-muted, capacity 9), overflow
+NODES > Color, palette "Nine Soft Colours" (the element's tol-muted, capacity 9), overflow
 Other, Largest 8; conference "4" (Conference USA, 10 teams) overridden to #d55e00; selected;
 expanded to its 8 largest Group rows plus one collapsed "Other" row. No element selection.
 Tool: Select. Mask: everything. Legend on. Mode 2D. The sizes are the real conference sizes of
@@ -330,9 +330,9 @@ football.gml (13, 12, 12, 11, 10, 10, 10, 9, 8, 8, 7, 5).
 10", "0  9", "Other  28" (a collapsed row with a grey chip and a chevron; its tooltip "Other (4
 more)"). Names are the raw values because "Names from" is none.
 
-**Canvas.** 115 nodes coloured by conference; conference 4's ten nodes orange; the four
-smallest conferences (1, 7, 10 and 5: 28 teams) grey (Other); no labels. Legend: "Conference"
-with 8 rows, then "Other (4 more)  28" with the grey swatch. Toolbar: Select active.
+**Canvas.** 115 nodes colored by conference; conference 4's ten nodes orange; the four
+smallest conferences (1, 7, 10 and 5: 28 teams) gray (Other); no labels. Legend: "Conference"
+with 8 rows, then "Other (4 more)  28" with the gray swatch. Toolbar: Select active.
 
 **Right panel.** Header block: "Grouping" above "Conference"; eye, lock, "..." (Sort groups by
 size, Name groups from an attribute..., Delete); summary row: strip chip, "12 groups"; reading
@@ -345,7 +345,7 @@ palette itself, its name in the tooltip); five swatch rows "[chit] 6  13", "[chi
 "[chit] 9  12", "[chit] 2  11", "[chit #d55e00, dot] 4  10" (the chit is a 14 x 14 button; the
 list is in group order by size); "and 3 more" in secondary text (expands in place to the eight
 named groups); "Other [chit #b3b3b3]"; "Overflow [Other v]"; "Largest [8 v]  rest as Other"
-(every label on the one 68 px label grid); EDGES header with "+" (Colour), no rows. Twelve rows.
+(every label on the one 68 px label grid); EDGES header with "+" (Color), no rows. Twelve rows.
 
 **Status bar.** "115 nodes  613 edges" | "Spread out: settled" | "100%" | "?".
 
@@ -357,30 +357,30 @@ and the legend.
 ## Screen 8: two Paths layered as edge styles, with the legend
 
 **Purpose.** Highlights are not exclusive: two routes in the tree at once, each an edge style
-layer with its own colour, width and pattern; path nodes outlined rather than filled so the
-community colours stay visible; a shared edge showing the per-channel rule; the legend listing
+layer with its own color, width and pattern; path nodes outlined rather than filled so the
+community colors stay visible; a shared edge showing the per-channel rule; the legend listing
 both with width and pattern; the selected Path's Style tab with its NODES and EDGES sections.
 
 **State.** Karate Club. Objects in tree order: 1. "Path: 12 -> 30" - Set, 6 nodes 5 edges,
-Style: EDGES > Colour #7b3294 (the highlight palette's second colour, a purple no shipped
-categorical palette uses), Width 3, Pattern Dash; NODES > Outline 2 px in the same colour;
-selected. 2. "Path: 1 -> 34" - Set, 5 nodes 4 edges, Style: EDGES > Colour #c51b7d (the
-highlight palette's first colour, a magenta), Width 5, Pattern Solid, Arrows head Normal;
-NODES > Outline 2 px in the same colour. 3. "Communities (Louvain)" - Grouping, 4 groups,
-collapsed, current (its colours show on every node, path nodes included). The two routes share
+Style: EDGES > Color #7b3294 (the highlight palette's second color, a purple no shipped
+categorical palette uses), Width 3, Pattern Dash; NODES > Outline 2 px in the same color;
+selected. 2. "Path: 1 -> 34" - Set, 5 nodes 4 edges, Style: EDGES > Color #c51b7d (the
+highlight palette's first color, a magenta), Width 5, Pattern Solid, Arrows head Normal;
+NODES > Outline 2 px in the same color. 3. "Communities (Louvain)" - Grouping, 4 groups,
+collapsed, current (its colors show on every node, path nodes included). The two routes share
 the edge 3 -> 33. Element selection: the six members of the selected path (gold halo). Tool:
-Select. Mask: everything. Legend on. Mode 2D. (The two highlight colours are placeholders for
+Select. Mask: everything. Legend on. Mode 2D. (The two highlight colors are placeholders for
 the element's disjoint highlight palette; the mock's job is to show them differing from every
-Okabe-Ito colour on the canvas.)
+Okabe-Ito color on the canvas.)
 
 **Left panel.** Header "Karate Club". VIEWS: "Overview". OBJECTS: "v Karate Club" (the root row carries no count); "Path: 12 -> 30  5 edges" (an edge Set counts its edges; a path icon with a line glyph, chip:
 a purple dashed line; selected); "Path: 1 -> 34  4 edges" (chip: a magenta solid line); ">
 Communities (Louvain)  4 groups".
 
-**Canvas.** Community colours on every node; route 1 -> 34 drawn 5 px solid magenta with
+**Canvas.** Community colors on every node; route 1 -> 34 drawn 5 px solid magenta with
 arrowheads, its five nodes ringed magenta; route 12 -> 30 drawn 3 px dashed purple, its six
 nodes ringed purple with the gold halo outside the ring; the shared edge 3 -> 33 is purple
-(the higher row's Colour wins), 3 px (the higher row writes Width) and dashed, with no
+(the higher row's Color wins), 3 px (the higher row writes Width) and dashed, with no
 arrowhead (the higher row writes no Arrows, so the lower row's Arrows would show; the mock
 draws the arrowhead in purple to make the per-channel rule visible, and the caption says so).
 Node 3 and node 33 carry both rings, purple outside. Labels on the path endpoints. Legend at
@@ -396,13 +396,13 @@ Define | Members | **Style** (selected) | Record.
 Style rows: NODES header with "+"; "Outline [chit #7b3294] 2 px  [eye] [-]"; EDGES header with
 "+"; "Colour [chit #7b3294] 7B3294  100 %  [eye] [-]"; "Width [3]  [eye] [-]"; "Pattern [Dash
 v]  [eye] [-]"; under the sections, in secondary text: "Shares 1 edge with Path: 1 -> 34; this
-path wins Colour, Width and Pattern on it". Seven rows.
+path wins Color, Width and Pattern on it". Seven rows.
 
 **Status bar.** "34 nodes  78 edges" | "Spread out: settled" | "6 selected" | "100%" | "?".
 
 **Interaction.** A second path did not delete the first. Dragging "Path: 1 -> 34" above the
 other flips the shared edge to magenta, 5 px, solid with an arrowhead. The EDGES "+" offers
-Arrows, Animation, Opacity, Curve and Label (hop order); the NODES "+" offers Colour for a
+Arrows, Animation, Opacity, Curve and Label (hop order); the NODES "+" offers Color for a
 reader who wants a fill after all. "Dim the rest" in the overflow adds a linked Set below this
 one. In the element one Path is two layers (nodes and edges), so "Covered by" counts are per
 section.
@@ -416,8 +416,8 @@ attribute columns.
 
 **State.** College football with the objects of screen 5 finished: 1. "Top 10 by Bridges" -
 Set, 10 nodes, linked to the Measure below, NODES > Outline 2 px; 2. "Bridges (Betweenness)" -
-Measure, 115 values, NODES > Size 0.8 to 2.4 (Colour was taken by Conference); 3.
-"Conference" - Grouping, 12 groups, NODES > Colour, collapsed. Element selection: the node
+Measure, 115 values, NODES > Size 0.8 to 2.4 (Color was taken by Conference); 3.
+"Conference" - Grouping, 12 groups, NODES > Color, collapsed. Element selection: the node
 "BrighamYoung", clicked in the table (by the real betweenness of football.gml it ranks 2nd;
 FloridaState, round 1's node, ranks 25th and is not in the top ten). No object selection. Tool: Select. Mask: everything.
 Legend off (to keep the canvas clear). Mode 2D. The dock is open on Table, 320 px tall, Nodes
@@ -427,7 +427,7 @@ tab, showing what is showing, sorted by label.
 BrighamYoung is a member); "Bridges (Betweenness)  115 values" (size chip); "> Conference  12
 groups" (strip chip; child-of-selected fill).
 
-**Canvas** (the upper 560 px). Nodes coloured by conference, sized by betweenness, the top ten
+**Canvas** (the upper 560 px). Nodes colored by conference, sized by betweenness, the top ten
 outlined; BrighamYoung haloed with its label. Toolbar: Select active.
 
 **Dock** (below the canvas, above the status bar): a 32 px header row: pill tabs "Table"
@@ -451,7 +451,7 @@ no reading row; tabs: **About** (selected) | Attributes | Links.
 About rows: "label  BrighamYoung"; "value  7"; "id  0"; "All 3 attributes >" (this sample has
 three; a richer file would show "All 23 attributes >"); "Connected to 12 nodes >"; VALUES
 header; "Bridges  0.033  rank 2 of 115  >"; "Conference  7  >"; MEMBER OF header with one chip
-inline "[ring chip] Top 10 by Bridges"; LOOK disclosure, collapsed, "Colour from Conference,
+inline "[ring chip] Top 10 by Bridges"; LOOK disclosure, collapsed, "Color from Conference,
 Size from Bridges, Outline from Top 10 by Bridges"; NOTES header with "+". Eleven rows.
 
 **Status bar.** "115 nodes  613 edges" | "Spread out: settled" | "1 selected" | "100%" | "?".
@@ -474,7 +474,7 @@ to 2019-12, has the time role; no node time column). Objects in tree order: 1. "
 - Set (cut: Of [Connections >] Above [20]), 58 nodes, NODES > Outline 2 px; current at this
 window. 2. "Connections (Degree)" - Measure, scope what is showing, 412 values, NODES > Size;
 current at this window (re-run per step, 40 ms). 3. "Communities (Louvain)" - Grouping, 9
-groups, NODES > Colour Okabe-Ito, collapsed, **current**, computed on the whole year; its
+groups, NODES > Color Okabe-Ito, collapsed, **current**, computed on the whole year; its
 summary row and legend block carry "computed on 2019-01 to 2019-12". Nothing selected (the
 Dataset inspector shows, on its Data tab). Tool: Select. Mask: the time window 2019-03 to
 2019-05 (sliding, 3 months); Focus off. Legend on. Mode 2D. Playback paused at 2019-05. The
@@ -485,7 +485,7 @@ values" (size chip); "> Communities (Louvain)  9 groups" (strip chip; no state g
 
 **Canvas** (above the transport bar). 412 nodes and 1,910 edges drawn: the edges whose `sent`
 is inside the window and the nodes that have at least one of them (nodes follow their edges;
-the rest are absent, because "Show hidden faintly" is off); community colours as computed on
+the rest are absent, because "Show hidden faintly" is off); community colors as computed on
 the whole year; nodes sized by their in-window connections; 58 outlined nodes; no labels.
 Legend: "Communities" (8 rows, "and 1 more"), and under its title a secondary line "computed on
 2019-01 to 2019-12"; "Connections" with a size glyph. Toolbar: Select active, 12 px above the
@@ -530,7 +530,7 @@ the role is set.
 
 ## Screen 11: the toolbar reference sheet, at 1600 and at 1280
 
-**Purpose.** Every toolbar button and every flyout, expanded and labelled on one page, as the
+**Purpose.** Every toolbar button and every flyout, expanded and labeled on one page, as the
 kit sheet documents the kit: the specification of `revision.md` section 3 as a picture, drawn
 twice so the bar's 725 px is seen against both canvas widths.
 
@@ -542,7 +542,7 @@ legend card) to show the fit.
 
 **Content, top to bottom.**
 1. The toolbar at 1:1 with a callout line from each button to a caption: "Select  V", "Hand
-   H", "Filter  F", "Neighbours  E", "Path  P", "Groups  G", "Rank  R", "Structure  S", "Note
+   H", "Filter  F", "Neighbors  E", "Path  P", "Groups  G", "Rank  R", "Structure  S", "Note
    N", "Ask  backtick", "2D / 3D / VR / AR  (5 toggles 2D and 3D)"; a dimension line "725 px";
    and, at 1280, the two panel outlines with "800 px canvas" and the 160 px legend card drawn
    above the bar's right end.
@@ -560,7 +560,7 @@ legend card) to show the fit.
    Communities (the scope line, "Resolution [1.0] | Seed [42] [dice]", "Iterations [100]",
    "Weights [switch] | Direction [As loaded v]", "About 80 ms", [Run]).
 4. A footnote row in secondary text: "Every flyout row is also a Ctrl+K command under both
-   names. A plugin algorithm appears in the flyout its catalogue entry names. On a fresh
+   names. A plugin algorithm appears in the flyout its catalog entry names. On a fresh
    session the faces are Select, By values, Shortest route, Communities, Connections, Separate
    pieces."
 
@@ -571,7 +571,7 @@ legend card) to show the fit.
 ## Screen 12: screen 3 in the dark theme
 
 **Purpose.** Prove the visual language holds in dark with the round-2 frame: the same
-structure, the same one accent, the tab strip, the labelled toolbar and the canvas colours
+structure, the same one accent, the tab strip, the labeled toolbar and the canvas colors
 unchanged.
 
 **State.** Identical to screen 3 (Group 2 selected on its Style tab, its override, the halo),
@@ -583,8 +583,8 @@ and the selected pill tab #e6e6e6 / #383838; text #000000 / #ffffff; secondary #
 #ffffffb2; tertiary #0000004d / #ffffff66; dividers #e6e6e6 / #444; brand fill (Export, the
 armed tool, the selected row's tint) #0d99ff / #0c8ce9; the mode switch track #f5f5f5 / #444
 with its white thumb becoming #2c2c2c; dark menus, tooltips and the secondary bar stay #1e1e1e.
-On the canvas the default node grey #b3b3b3 / #757575 and edge grey #b3b3b3 / #5a5a5a; the
-Okabe-Ito colours, the #d55e00 override and the gold halo unchanged; the outline style and the
+On the canvas the default node gray #b3b3b3 / #757575 and edge gray #b3b3b3 / #5a5a5a; the
+Okabe-Ito colors, the #d55e00 override and the gold halo unchanged; the outline style and the
 labels turn from #1e1e1e to #ffffff so they stay visible. The legend card is #2c2c2c with white
 text; the dock handle's strip follows the panel surface.
 
@@ -592,7 +592,7 @@ text; the dock handle's strip follows the panel surface.
 screen 12 side by side should show nothing moved.
 
 **Interaction.** None new; the theme check. Only the element can turn the outline and the base
-greys (#291 "canvas background does not follow light and dark theme", #331 "implement
+grays (#291 "canvas background does not follow light and dark theme", #331 "implement
 session.catalog.themes()").
 
 ## Screen 13: the Settings sheet
@@ -602,7 +602,7 @@ rather than a property of the data: the eleven inventory capabilities that had n
 out once so the file-menu row "Settings..." is not a promise.
 
 **State.** College football loaded as screen 2. File menu > Settings... (Ctrl+,) opened the
-sheet: the kit's 480 px dialog centred over a scrim, with a close "x" and a Done button. Round 3
+sheet: the kit's 480 px dialog centered over a scrim, with a close "x" and a Done button. Round 3
 replaced the specified 640 x 480 sheet with a left section list by this dialog, its eight
 sections as disclosures in one list (each closed one shows its current values as a one-line
 summary; several may be open), because the inspector already uses that grammar and it needs no
@@ -651,7 +651,7 @@ first file. The mapping fields are selects listing the file's columns, never typ
 a five-row preview shows the file before anything loads.
 
 **State.** Nothing loaded. The reader dropped `email.csv` on the Welcome sheet; the sheet is
-replaced by the dialog over the empty stage (scrim, the kit's 480 px dialog, centred). The
+replaced by the dialog over the empty stage (scrim, the kit's 480 px dialog, centered). The
 left panel, the toolbar and the inspector are screen 1's.
 
 **Dialog.** Header "Import email.csv" with a close "x". Rows: "Format [CSV, detected v]  5,831
@@ -695,7 +695,7 @@ Connections, Communities  about 2 s" (the objects in tree order and the summed e
 the data with the new role, and replays every object's definition as a recipe under the stale
 rule (cheap objects re-run at once; one over the cost gate lands waiting; one whose rule no
 longer resolves lands failed with the reason). Group overrides, names and notes follow by
-label, as after any re-run. Remove is the old behaviour, made explicit. "Set as weight" on a
+label, as after any re-run. Remove is the old behavior, made explicit. "Set as weight" on a
 column opens the same dialog with "Weight [msgs v]  was none" as its first row; "Set as label"
 likewise. When the element gains in-place re-mapping (`revision.md` section 8, last row), the
 dialog loses its first sentence and the reload, and the objects re-run under the same rule.
@@ -734,7 +734,7 @@ above a card or a menu marks a second moment drawn on the same screen.
 | 33-42 | import report, load rules, column menu and operations, join, formula, edit, remove, merge, expand, add by hand | `data-editing.md` |
 | 43-48, 102 | History, the object menu, rename and reorder, a failed run, stale results, a lost view, empty results | `history-errors.md` |
 | 49-58 | right-click, Find, 3D framing, minimap, saved Views, follow, box selection, edges, Focus, keyboard | `navigate-select.md` |
-| 59-68 | filters by values, range, rule and on edges; patterns; neighbours; combining; members; all routes; editing a Set | `filters-sets.md` |
+| 59-68 | filters by values, range, rule and on edges; patterns; neighbors; combining; members; all routes; editing a Set | `filters-sets.md` |
 | 69-82 | values, scatter plot, groups, summary graph, record, batches, scope, findings, removal, compare, time, notes, Assistant | `analysis-results.md` |
 | 83-100 | layout, pinning, canvas look, labels, hover, palettes, edge width, shapes, one node, saved styles, export, Present, VR | `visualization-export.md` |
 

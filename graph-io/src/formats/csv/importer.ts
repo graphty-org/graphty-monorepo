@@ -79,6 +79,7 @@ import {
     findColumn,
     headerNames,
     ID_NAMES,
+    idCandidates,
     LABEL_NAMES,
     looksLikeHeader,
     positionalNames,
@@ -156,8 +157,11 @@ export interface CsvImportOptions extends CommonImportOptions {
      */
     typeColumn?: CsvColumnRef | null | undefined;
     /**
-     * The id column of a node table, by name or position. The default is the column the header
-     * names `id` (or `node`, `name`, `key`).
+     * The id column of a node table, by name or position. The default is the first of these whose
+     * values are all present and distinct: the column named `id`, a column whose name ends in `id`
+     * (`person_id`, `personId`), then `node`, `key`, `name`. When none is, the nodes are numbered
+     * by row (W_CSV_NO_UNIQUE_ID). A node table passed as `nodes` beside an edge table is keyed by
+     * the column named `id` (or `node`, `name`, `key`), since the edges name its nodes by it.
      * @defaultValue from the header
      */
     idColumn?: CsvColumnRef | undefined;
@@ -183,6 +187,13 @@ export interface CsvImportOptions extends CommonImportOptions {
      * @defaultValue false
      */
     rowNumberIds?: boolean | undefined;
+    /**
+     * Keep a node row whose id cell is blank, as a node whose id is this prefix followed by the
+     * row's number (0 for the first data row), instead of skipping it with E_MISSING_ID. Choose a
+     * prefix no id in the file starts with: a minted id that repeats one is merged like any repeated id.
+     * @defaultValue undefined (blank-id rows are skipped)
+     */
+    blankIdPrefix?: string | undefined;
 }
 
 /**
@@ -313,6 +324,14 @@ export const POSSIBLE_HEADER_CODE = "W_CSV_POSSIBLE_HEADER";
  * @category Issue and loss codes
  */
 export const WEIGHT_AS_ATTRIBUTE_CODE = "W_CSV_WEIGHT_AS_ATTRIBUTE";
+/**
+ * A node table's header has id-like columns (`id`, `person_id`, `node`, `key`, `name`), but each
+ * of them repeats a value or leaves one blank, so the nodes are numbered by row instead (0 for the
+ * first data row). Details: `columns`, the candidate column names. Pass `idColumn` to key the
+ * table by one of them anyway.
+ * @category Issue and loss codes
+ */
+export const NO_UNIQUE_ID_CODE = "W_CSV_NO_UNIQUE_ID";
 
 const TABLE_MODES: ReadonlySet<string> = new Set(["edges", "nodes", "adjacency", "auto"]);
 
@@ -351,6 +370,7 @@ interface ResolvedCsvOptions {
     readonly labelColumn: CsvColumnRef | null;
     readonly nodes: ImportInput | null;
     readonly rowNumberIds: boolean;
+    readonly blankIdPrefix: string | null;
     /** The caller's explicit defaultDirected; null when it was left to its default. */
     readonly explicitDirected: boolean | null;
 }
@@ -521,6 +541,12 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
             found: o.rowNumberIds,
         });
     }
+    if (o.blankIdPrefix !== undefined && typeof o.blankIdPrefix !== "string") {
+        throw new GraphFormatError("E_UNSUPPORTED", "option blankIdPrefix: expected a string", {
+            option: "blankIdPrefix",
+            found: o.blankIdPrefix,
+        });
+    }
     return {
         delimiter: o.delimiter ?? null,
         decimalComma: o.decimal === ",",
@@ -533,6 +559,7 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
         labelColumn: o.labelColumn ?? null,
         nodes: nodesInput(o.nodes),
         rowNumberIds: o.rowNumberIds ?? false,
+        blankIdPrefix: o.blankIdPrefix ?? null,
         explicitDirected: typeof options?.defaultDirected === "boolean" ? options.defaultDirected : null,
     };
 }
@@ -675,7 +702,7 @@ const ABORT_CHECK_INTERVAL = 64;
 
 /**
  * Header names made unique within the table: a repeated name becomes `<name>#<position>` (1-based,
- * the CSV analogue of the `#<origin.id>` rule of design section 5.6) and is reported.
+ * the CSV analog of the `#<origin.id>` rule of design section 5.6) and is reported.
  * @param names - the header names
  * @param report - the report
  * @param line - the header line
@@ -696,6 +723,34 @@ function uniqueNames(names: readonly string[], report: ImportReportBuilder, line
         }
         return unique;
     });
+}
+
+/**
+ * Whether a column holds a distinct, set value on every row (a row too short counts as unset).
+ * @param rows - the data rows
+ * @param column - the column index
+ * @param blankKept - whether a blank cell is kept under blankIdPrefix, and so does not disqualify it
+ * @returns true when the column can key the rows
+ */
+function isKey(rows: readonly PendingRow[], column: number, blankKept = false): boolean {
+    const seen = new Set<string>();
+    for (const { row, quoted } of rows) {
+        if (column >= row.length) {
+            return false;
+        }
+        const text = row[column];
+        if (isUnset(text, quoted[column])) {
+            if (blankKept) {
+                continue;
+            }
+            return false;
+        }
+        if (seen.has(text)) {
+            return false;
+        }
+        seen.add(text);
+    }
+    return true;
 }
 
 /**
@@ -770,7 +825,7 @@ function parseKind(text: string): EdgeKind | null | undefined {
  * @returns the id text and the weight (undefined when the cell has none)
  * @category Plugin helpers
  */
-export function splitNeighbour(
+export function splitNeighbor(
     text: string,
     report?: ImportReportBuilder,
 ): { readonly id: string; readonly weight: number | undefined } {
@@ -832,6 +887,12 @@ class TableReader {
     private possibleHeader: { cells: ReadonlySet<string>; line: number } | null = null;
 
     private nodeOrdinal = 0;
+
+    /** Every row of the table, read before its plan to guess the id column by its values; else null. */
+    private drained: readonly PendingRow[] | null = null;
+
+    /** Whether no guessed id column was distinct, so the node table is numbered by row. */
+    private unkeyed = false;
     /** Whether a field-count error has already suggested `table: "adjacency"`. */
     private adjacencyHinted = false;
 
@@ -919,6 +980,9 @@ class TableReader {
         const names = header ? uniqueNames(headerNames(firstRow), report, firstLine) : positionalNames(firstRow.length);
         const last = firstRow.length - 1;
         const optionalLast = header && last > 0 && isUnset(firstRow[last], firstQuoted[last]);
+        if (this.guessesNodeId(names, header)) {
+            await this.drain(iterator, pending);
+        }
         this.applyCommentDirection();
         this.plan = this.resolvePlan(
             names,
@@ -1029,6 +1093,61 @@ class TableReader {
             return true;
         }
         return mode;
+    }
+
+    /**
+     * Whether this table is a node table whose id column is guessed from its header, so its values
+     * decide which candidate keys it (the first whose values are all present and distinct).
+     * @param names - the column names
+     * @param header - whether the file has a header row
+     * @returns true when the rows must be read before the plan
+     */
+    private guessesNodeId(names: readonly string[], header: boolean): boolean {
+        const { csv, common } = this.state;
+        if (!header || csv.idColumn !== null || common.nodeIdFrom === "index" || common.nodeIdFrom === "label") {
+            return false;
+        }
+        if (this.kind === "nodes") {
+            // a node table paired with edges keeps the header-name choice: the edges name its nodes
+            return csv.nodes === null;
+        }
+        return (
+            this.kind === "auto" &&
+            csv.sourceColumn === null &&
+            csv.targetColumn === null &&
+            csv.nodes === null &&
+            idCandidates(names).length > 0 &&
+            findColumn(names, SOURCE_NAMES) < 0 &&
+            findColumn(names, TARGET_NAMES) < 0
+        );
+    }
+
+    /**
+     * Read every remaining row into the queue.
+     * ponytail: holds the whole node table in memory to check id uniqueness; a two-pass read would
+     * avoid that for huge node tables.
+     * @param iterator - the record iterator
+     * @param pending - receives the rows
+     */
+    private async drain(iterator: AsyncGenerator<string[], void, undefined>, pending: PendingRow[]): Promise<void> {
+        const { signal } = this.state.common;
+        let sinceCheck = 0;
+        for (;;) {
+            const next = await iterator.next();
+            if (next.done) {
+                break;
+            }
+            pending.push({
+                row: next.value,
+                quoted: this.reader.quoted.slice(0, next.value.length),
+                line: this.reader.line,
+            });
+            if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
+                sinceCheck = 0;
+                throwIfAborted(signal);
+            }
+        }
+        this.drained = pending;
     }
 
     /**
@@ -1276,7 +1395,11 @@ class TableReader {
                 { columns: [...names] },
             );
         }
-        const idResolves = header ? findColumn(names, ID_NAMES) >= 0 : names.length >= 1;
+        // an id, node, name or key column makes a table without endpoints a node table, and so does
+        // a column ending in id that keys the rows with values no other column holds: an edge list
+        // headed user_id,friend_id names the same ids in both columns, and must fail rather than
+        // lose its edges as a node table
+        const idResolves = header ? findColumn(names, ID_NAMES) >= 0 || this.ownKey(names) : names.length >= 1;
         if (this.kind === "auto" && csv.idColumn === null && !idResolves && !this.rowNumbers) {
             report.fail(
                 NO_ENDPOINT_COLUMNS_CODE,
@@ -1285,6 +1408,26 @@ class TableReader {
                 { columns: [...names] },
             );
         }
+    }
+
+    /**
+     * Whether the rows read ahead have an id-like column that keys them with values no other
+     * column holds (door_entries.csv's entry_id), rather than ids an edge list names in two columns.
+     * @param names - the column names
+     * @returns true when such a column exists
+     */
+    private ownKey(names: readonly string[]): boolean {
+        const rows = this.drained;
+        if (rows === null) {
+            return false;
+        }
+        return idCandidates(names).some((column) => {
+            if (!isKey(rows, column)) {
+                return false;
+            }
+            const own = new Set(rows.map(({ row }) => row[column]));
+            return rows.every(({ row }) => row.every((cell, i) => i === column || !own.has(cell)));
+        });
     }
 
     /**
@@ -1517,7 +1660,7 @@ class TableReader {
     private nodePlan(names: readonly string[], header: boolean, line: number, optionalLast: boolean): NodePlan {
         const { common } = this.state;
         const claimed = new Set<number>();
-        const idColumn = this.idColumnOf(names, header);
+        const idColumn = this.idColumnOf(names, header, line);
         const label = this.labelOf(names, header, new Set(idColumn >= 0 ? [idColumn] : []));
         const id = this.nodeIdColumn(names, idColumn, label, line);
         if (id >= 0) {
@@ -1537,21 +1680,47 @@ class TableReader {
     }
 
     /**
-     * The id column of a node table: the idColumn option, else a header column with an id name,
-     * else the first column of a headerless table.
+     * The id column of a node table: the idColumn option; else, for a table read whole (an unpaired
+     * node table), the first header candidate (idCandidates) whose values are all present and
+     * distinct, or row numbers (NO_UNIQUE_ID_CODE) when none is; else a header column named `id`,
+     * `node`, `name` or `key` (a node table paired with edges, which name its nodes by it); else the
+     * first column of a headerless table.
      * @param names - the column names
      * @param header - whether the file has a header row
-     * @returns the column index, or -1
+     * @param line - the header line
+     * @returns the column index, or -1 (row numbers)
      */
-    private idColumnOf(names: readonly string[], header: boolean): number {
+    private idColumnOf(names: readonly string[], header: boolean, line: number): number {
         const { idColumn } = this.state.csv;
         if (idColumn !== null) {
             return resolveColumnRef(names, idColumn, "idColumn");
         }
-        if (header) {
-            return findColumn(names, ID_NAMES);
+        if (!header) {
+            return names.length >= 1 ? 0 : -1;
         }
-        return names.length >= 1 ? 0 : -1;
+        const candidates = idCandidates(names);
+        const rows = this.drained;
+        // null: no candidate keys every row
+        const chosen =
+            rows === null || candidates.length === 0
+                ? findColumn(names, ID_NAMES)
+                : (candidates.find((column) => isKey(rows, column, this.state.csv.blankIdPrefix !== null)) ?? null);
+        if (chosen !== null) {
+            if (chosen >= 0) {
+                this.state.report.resolve("idColumn", names[chosen]);
+            }
+            return chosen;
+        }
+        const columns = candidates.map((c) => names[c]);
+        this.state.report.warning(
+            "merged",
+            NO_UNIQUE_ID_CODE,
+            `no id column has a distinct value on every row (${columns.map((c) => JSON.stringify(c)).join(", ")}); the nodes are numbered by row`,
+            { line },
+            { columns },
+        );
+        this.unkeyed = true;
+        return -1;
     }
 
     /**
@@ -1580,7 +1749,7 @@ class TableReader {
             }
             return label;
         }
-        if (idColumn < 0 && !this.rowNumbers) {
+        if (idColumn < 0 && !this.rowNumbers && !this.unkeyed) {
             report.fail(
                 NO_ID_COLUMN_CODE,
                 `no id column in the node table header (${shown})`,
@@ -1716,7 +1885,7 @@ class TableReader {
             const text = idCell(row[k], quoted[k]);
             where.element = text;
             try {
-                const cell = splitNeighbour(text, report);
+                const cell = splitNeighbor(text, report);
                 const target = this.coerce(cell.id);
                 const targetNew = sink.indexOf(target) === INVALID_INDEX;
                 const before = sink.edgeCount;
@@ -1915,13 +2084,15 @@ class TableReader {
             counts.skippedNodes++;
             return;
         }
-        const idText = plan.id >= 0 ? idCell(row[plan.id], quoted[plan.id]) : String(ordinal);
-        if (plan.id >= 0 && isUnset(row[plan.id], quoted[plan.id])) {
+        const { blankIdPrefix } = this.state.csv;
+        const blank = plan.id >= 0 && isUnset(row[plan.id], quoted[plan.id]);
+        if (blank && blankIdPrefix === null) {
             report.error("missing-value", MISSING_ID_CODE, `blank id cell`, { line });
             counts.skippedNodes++;
             return;
         }
-        if (plan.id >= 0) {
+        const idText = plan.id >= 0 && !blank ? idCell(row[plan.id], quoted[plan.id]) : String(ordinal);
+        if (plan.id >= 0 && !blank) {
             this.checkPadded(idText, quoted[plan.id], line);
         }
         const { where } = this;
@@ -1929,7 +2100,7 @@ class TableReader {
         where.element = idText;
         let index: number;
         try {
-            const id = plan.id >= 0 || plan.rowNumber ? this.coerce(idText) : ordinal;
+            const id = this.nodeIdOf(plan, blank, idText, ordinal);
             if (sink.indexOf(id) !== INVALID_INDEX) {
                 report.warning(
                     "merged",
@@ -1968,6 +2139,22 @@ class TableReader {
                 { line, element: text },
             );
         }
+    }
+
+    /**
+     * A node row's id: the prefix and row number for a kept blank-id row, else the coerced id
+     * cell or row number, else the raw ordinal.
+     * @param plan - the node plan
+     * @param blank - whether the id cell is blank (kept under blankIdPrefix)
+     * @param idText - the id cell text, or the row number as text
+     * @param ordinal - the row number
+     * @returns the id
+     */
+    private nodeIdOf(plan: NodePlan, blank: boolean, idText: string, ordinal: number): NodeId {
+        if (blank) {
+            return `${this.state.csv.blankIdPrefix ?? ""}${idText}`;
+        }
+        return plan.id >= 0 || plan.rowNumber ? this.coerce(idText) : ordinal;
     }
 
     /**
@@ -2343,6 +2530,7 @@ async function importCsv(
 export const csvImporter: GraphImporter<CsvImportOptions> = Object.freeze({
     format: "csv",
     options: Object.freeze([
+        "blankIdPrefix",
         "decimal",
         "delimiter",
         "header",

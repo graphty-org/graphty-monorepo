@@ -22,8 +22,8 @@ const intervals = (st) => st.slice(1).map((t, i) => t - st[i]);
 
 function mulberry32(a) {
     return () => {
-        a |= 0; // NOSONAR(S7767): int32 wrap, which Math.trunc does not do; the positions depend on it
-        a = (a + 0x6d2b79f5) | 0; // NOSONAR(S7767): int32 wrap, as above
+        a |= 0; // eslint-disable-line unicorn/prefer-math-trunc -- int32 wrap, which Math.trunc does not do; the positions depend on it
+        a = (a + 0x6d2b79f5) | 0; // eslint-disable-line unicorn/prefer-math-trunc -- int32 wrap, as above
         let t = Math.imul(a ^ (a >>> 15), 1 | a);
         t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -254,7 +254,7 @@ async function cosmosAdapter({ dpr }) {
     // Our own frame loop: one forced draw per animation frame.
     let running = true;
     // Paced like graphty-element's own loop (RenderManager.gpuBehind): skip a tick while the
-    // previous frame's fence is unsignalled, so the GPU queue never grows past one frame.
+    // previous frame's fence is unsignaled, so the GPU queue never grows past one frame.
     let fence = null;
     const tick = () => {
         if (!running) return;
@@ -597,7 +597,7 @@ async function graphtyAdapter({
                 }
             };
             const deadline = now() + STABLE_MS;
-            while (tFirst === null && errors.length === 0 && now() < deadline) await sleep(20); // NOSONAR(S2189): an event handler sets tFirst and errors during the await
+            while (tFirst === null && errors.length === 0 && now() < deadline) await sleep(20); // eslint-disable-line no-unmodified-loop-condition -- an event handler sets tFirst and errors during the await
             onFrame = null;
             if (tFirst === null)
                 return {

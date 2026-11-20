@@ -24,8 +24,8 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The owner's path is the full-screen selection workspace, the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 type Element = HTMLElementTagNameMap["graphty-element"];
 
@@ -70,7 +70,7 @@ async function chooseLayout(element: Element, name: RegExp): Promise<void> {
     await userEvent.click(await screen.findByRole("button", { name: "Layout" }));
     const popover = await screen.findByRole("dialog", { name: "Layout" });
     await userEvent.click(within(popover).getByRole("option", { name }));
-    // Flat, so the shown nodes' angles about their centre read the arrangement.
+    // Flat, so the shown nodes' angles about their center read the arrangement.
     await userEvent.click(within(within(popover).getByRole("radiogroup", { name: "Shape" })).getByText("2D"));
     await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
     await userEvent.keyboard("{Escape}");
@@ -167,7 +167,7 @@ function positionsOf(session: GraphSession): Map<string, [number, number, number
 }
 
 /**
- * The smallest gap, in degrees, between the angles of some nodes about their centre.
+ * The smallest gap, in degrees, between the angles of some nodes about their center.
  * @param at - every node's position.
  * @param ids - the nodes.
  * @returns the gap: 360 / n for n nodes on a circle of their own.

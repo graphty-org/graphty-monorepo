@@ -12,17 +12,29 @@ describe("Operation Triggers", () => {
         manager = new OperationQueueManager(eventManager);
     });
 
+    /**
+     * Report the category of every operation queued from now on, triggered ones included.
+     * @param listener - Called with each queued operation's category.
+     */
+    function onQueued(listener: (category: OperationCategory) => void): void {
+        const queueOperation = manager.queueOperation.bind(manager);
+        manager.queueOperation = (category, execute, options) => {
+            listener(category);
+            return queueOperation(category, execute, options);
+        };
+    }
+
     it("should trigger layout-update after data-add", async () => {
         const operations: string[] = [];
         let layoutUpdateTriggered = false;
 
         // Set up a way to detect if layout-update was triggered BEFORE queuing
-        manager.onOperationQueued = (category: OperationCategory) => {
+        onQueued((category: OperationCategory) => {
             if (category === "layout-update") {
                 layoutUpdateTriggered = true;
                 operations.push("layout-update-triggered");
             }
-        };
+        });
 
         // Queue a data-add operation
         await manager.queueOperationAsync(
@@ -47,11 +59,11 @@ describe("Operation Triggers", () => {
         let layoutUpdateTriggered = false;
 
         // Set up detection for layout-update trigger
-        manager.onOperationQueued = (category: OperationCategory) => {
+        onQueued((category: OperationCategory) => {
             if (category === "layout-update") {
                 layoutUpdateTriggered = true;
             }
-        };
+        });
 
         // Queue a data-add operation with skipTriggers flag
         await manager.queueOperationAsync(
@@ -116,11 +128,11 @@ describe("Operation Triggers", () => {
         manager.hasLayoutEngine = () => false;
 
         // Set up detection for layout-update trigger
-        manager.onOperationQueued = (category: OperationCategory) => {
+        onQueued((category: OperationCategory) => {
             if (category === "layout-update") {
                 layoutUpdateTriggered = true;
             }
-        };
+        });
 
         // Queue a data-add operation
         await manager.queueOperationAsync(
@@ -145,9 +157,9 @@ describe("Operation Triggers", () => {
         const triggeredCategories: OperationCategory[] = [];
 
         // Set up detection for triggered operations
-        manager.onOperationQueued = (category: OperationCategory) => {
+        onQueued((category: OperationCategory) => {
             triggeredCategories.push(category);
-        };
+        });
 
         // Register multiple triggers for data-add
         manager.registerTrigger("data-add", () => {

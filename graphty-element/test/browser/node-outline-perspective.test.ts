@@ -8,7 +8,7 @@
  * edge and the node: "just a ring floating in space" (the owner's report from the start page).
  *
  * WHAT IS MEASURED. Unlit red nodes with a yellow outline, one in the middle of the view and one
- * near its right side. Along the row through each node's centre, the pixels between the node's
+ * near its right side. Along the row through each node's center, the pixels between the node's
  * last red pixel and the ring's first yellow one, on both sides, must be none (or a pixel of
  * blending). Then the graph is turned the way the start page turns it and the side node measured
  * again.
@@ -66,9 +66,9 @@ describe("node.outline under perspective", () => {
 
     /**
      * The gaps between a node's red and its ring's yellow, left and right, along the row through
-     * the node's centre on screen.
+     * the node's center on screen.
      * @param id - The node.
-     * @returns The two gaps in pixels, and where the node's centre is drawn.
+     * @returns The two gaps in pixels, and where the node's center is drawn.
      */
     async function gaps(id: string): Promise<{ left: number; right: number; x: number }> {
         const { engine, scene } = graph;

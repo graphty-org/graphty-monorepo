@@ -8,11 +8,13 @@
  * Babylon-free and DOM-free: it reads a `Uint8Array`.
  */
 
+import { isSplatPly, readPlyHeader } from "./readers/ply.js";
+
 /** A loader id. The element's own are {@link BuiltInModelFormat}; extensions may add more. */
-export type ModelFormat = string; // NOSONAR(S6564): published, documented name for the open union of model format ids
+export type ModelFormat = string; // eslint-disable-line sonarjs/redundant-type-aliases -- published, documented name for the open union of model format ids
 
 /** The model formats this package reads itself. */
-export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply" | "splat" | "spz" | "sog" | "babylon";
+export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply" | "babylon" | "fbx" | "usdz" | "usd";
 
 /** The built-in formats, best first: the order a main file is chosen in. */
 export const BUILT_IN_MODEL_FORMATS: readonly BuiltInModelFormat[] = Object.freeze([
@@ -22,9 +24,9 @@ export const BUILT_IN_MODEL_FORMATS: readonly BuiltInModelFormat[] = Object.free
     "stl",
     "ply",
     "babylon",
-    "spz",
-    "sog",
-    "splat",
+    "fbx",
+    "usdz",
+    "usd",
 ]);
 
 /** What {@link detectModelFormat} is given: a file name, its first bytes, or both. */
@@ -38,26 +40,30 @@ export interface ModelDetectionInput {
 /** The answer of {@link detectModelFormat}. */
 export interface ModelDetection {
     /**
-     * The format: a {@link BuiltInModelFormat}, `"zip"` for an archive that may hold a model, or a
-     * recognized format this package cannot load (`"fbx"`, `"usdz"`, `"usd"`, `"dae"`, `"3mf"`,
-     * `"blend"`, `"bvh"`).
+     * The format: a {@link BuiltInModelFormat} (`"usd"` is any of `.usd`, `.usda` and `.usdc`),
+     * `"zip"` for an archive that may hold a model, or a recognized format this package cannot load
+     * (`"dae"`, `"3mf"`, `"blend"`, `"bvh"`, and the Gaussian splat formats `"splat"`, `"spz"`,
+     * `"sog"` and `"splat-ply"`, a PLY holding splats).
      */
     readonly format: ModelFormat;
-    /** Whether this package can load it. */
+    /**
+     * Whether this package can load it. A `"glb"` or `"gltf"` whose head uses
+     * `KHR_gaussian_splatting` is Gaussian splats and is not supported.
+     */
     readonly supported: boolean;
 }
 
 /** Recognized formats this package does not load, by extension. */
 const UNSUPPORTED_EXTENSIONS: Readonly<Record<string, string>> = {
-    fbx: "fbx",
-    usdz: "usdz",
-    usd: "usd",
-    usda: "usd",
-    usdc: "usd",
     dae: "dae",
     "3mf": "3mf",
     blend: "blend",
+    // BVH motion capture: recognized, not loaded.
     bvh: "bvh",
+    // Gaussian splats: recognized, not loaded.
+    splat: "splat",
+    spz: "spz",
+    sog: "sog",
 };
 
 const BUILT_IN_EXTENSIONS: Readonly<Record<string, BuiltInModelFormat>> = {
@@ -66,10 +72,12 @@ const BUILT_IN_EXTENSIONS: Readonly<Record<string, BuiltInModelFormat>> = {
     obj: "obj",
     stl: "stl",
     ply: "ply",
-    splat: "splat",
-    spz: "spz",
-    sog: "sog",
     babylon: "babylon",
+    fbx: "fbx",
+    usd: "usd",
+    usda: "usd",
+    usdc: "usd",
+    usdz: "usdz",
 };
 
 /**
@@ -132,42 +140,111 @@ function headText(bytes: Uint8Array): string {
     return text;
 }
 
+/**
+ * The formats that hold Gaussian splats: recognized, never loaded. Their refusal, and that of a
+ * glTF using Gaussian splatting, carries `kind: "splat"` so a caller need not keep this list.
+ */
+const SPLAT_FORMATS: ReadonlySet<string> = new Set(["splat", "spz", "sog", "splat-ply"]);
+
+/**
+ * The `kind` param of a format's refusal: `{ kind: "splat" }` for Gaussian splats, else nothing.
+ * @param format - The format refused.
+ * @param splatExtension - The Gaussian splatting extension a glTF uses, if any.
+ * @returns The param to spread into the refusal.
+ */
+export function splatKind(format: string, splatExtension?: string): { kind?: "splat" } {
+    return splatExtension !== undefined || SPLAT_FORMATS.has(format) ? { kind: "splat" } : {};
+}
+
+/** A glTF that uses Gaussian splatting (`KHR_gaussian_splatting` and its compressions) is not loaded. */
+const SPLAT_EXTENSION = /"(KHR_gaussian_splatting[\w-]*)"/;
+
+/**
+ * The Gaussian splatting extension a glTF or GLB head names, if any.
+ * @param head - The first bytes.
+ * @returns The extension name, or undefined.
+ */
+export function splatExtensionOf(head: Uint8Array): string | undefined {
+    return SPLAT_EXTENSION.exec(headText(head))?.[1];
+}
+
 /** Binary magic numbers of recognized formats this package does not load. */
 const UNSUPPORTED_MAGIC: readonly (readonly [string, string])[] = [
-    ["Kaydara FBX Binary", "fbx"],
     ["BLENDER", "blend"],
-    ["PXR-USDC", "usd"],
     ["HIERARCHY", "bvh"],
 ];
 
 /**
  * The answer for a file that starts `glTF`: a GLB, supported in version 1 (`KHR_binary_glTF`,
- * upgraded on reading) and version 2.
+ * upgraded on reading) and version 2, unless its JSON uses Gaussian splatting.
  * @param head - The first bytes.
  * @returns The detection.
  */
 function glbDetection(head: Uint8Array): ModelDetection {
     const version = head.length >= 8 ? new DataView(head.buffer, head.byteOffset, 8).getUint32(4, true) : 2;
-    return { format: "glb", supported: version === 1 || version === 2 };
+    return { format: "glb", supported: (version === 1 || version === 2) && !SPLAT_EXTENSION.test(headText(head)) };
 }
 
 /**
- * The answer for a zip archive, by its extension.
- * @param ext - The lower-cased extension.
- * @returns The detection, or undefined for a zip that is not a model kit.
+ * Whether a zip's first entry is a USD layer stored as it is: what a USDZ package starts with.
+ * @param head - The first bytes.
+ * @returns True for a `.usd`, `.usda` or `.usdc` first entry with no compression.
  */
-function zipDetection(ext: string): ModelDetection | undefined {
-    if (ext === "usdz" || ext === "3mf") {
-        return { format: ext, supported: false };
+function startsWithUsdLayer(head: Uint8Array): boolean {
+    if (head.length < 30) {
+        return false;
     }
 
-    // A PlayCanvas SOG bundle: a zip of meta.json and the WebP pictures it names.
-    if (ext === "sog") {
-        return { format: "sog", supported: true };
+    const view = new DataView(head.buffer, head.byteOffset, 30);
+    const length = view.getUint16(26, true);
+    if (view.getUint16(8, true) !== 0 || head.length < 30 + length) {
+        return false;
+    }
+
+    let name = "";
+    for (let i = 30; i < 30 + length; i++) {
+        name += String.fromCodePoint(head[i]);
+    }
+
+    return /\.usd[ac]?$/i.test(name);
+}
+
+/**
+ * The answer for a zip archive, by its extension (and, with none, by its first entry).
+ * @param ext - The lower-cased extension.
+ * @param head - The first bytes.
+ * @returns The detection, or undefined for a zip that is not a model kit.
+ */
+function zipDetection(ext: string, head: Uint8Array): ModelDetection | undefined {
+    if (ext === "usdz" || (ext === "" && startsWithUsdLayer(head))) {
+        return { format: "usdz", supported: true };
+    }
+
+    // A PlayCanvas SOG bundle (Gaussian splats) is a zip of meta.json and the WebP pictures it names.
+    if (ext === "3mf" || ext === "sog") {
+        return { format: ext, supported: false };
     }
 
     // A zip with another extension (a Cytoscape session, an office file) is not a model kit.
     return ext === "" || ext === "zip" ? { format: "zip", supported: true } : undefined;
+}
+
+/**
+ * The answer for a file that starts `ply`: a Gaussian splat PLY (`splat-ply`, not loaded) when
+ * the head holds its whole header and that header names splat properties, else a PLY.
+ * @param head - The first bytes.
+ * @returns The detection.
+ */
+function plyDetection(head: Uint8Array): ModelDetection {
+    try {
+        if (isSplatPly(readPlyHeader(head))) {
+            return { format: "splat-ply", supported: false };
+        }
+    } catch {
+        // A header cut short by the head: the intake's scan reads the whole one.
+    }
+
+    return { format: "ply", supported: true };
 }
 
 /**
@@ -187,15 +264,15 @@ function isBinaryStl(head: Uint8Array, ext: string): boolean {
 }
 
 /**
- * The answer for text that starts `{`: a glTF, a .babylon, an unbundled SOG's `meta.json`, or
- * nothing.
+ * The answer for text that starts `{`: a glTF, a .babylon, an unbundled SOG's `meta.json`
+ * (Gaussian splats, not loaded), or nothing.
  * @param text - The head as text.
  * @param ext - The lower-cased extension.
  * @returns The detection, or undefined.
  */
 function jsonDetection(text: string, ext: string): ModelDetection | undefined {
     if (/"means"\s*:/.test(text) && /"quats"\s*:/.test(text)) {
-        return { format: "sog", supported: true };
+        return { format: "sog", supported: false };
     }
 
     if (ext === "babylon" && /"producer"\s*:|"meshes"\s*:/.test(text)) {
@@ -204,7 +281,7 @@ function jsonDetection(text: string, ext: string): ModelDetection | undefined {
 
     // A glTF 1.0 file without an `asset` names its meshes by id.
     if (/"asset"\s*:/.test(text) || (ext === "gltf" && /"meshes"\s*:/.test(text))) {
-        return { format: "gltf", supported: true };
+        return { format: "gltf", supported: !SPLAT_EXTENSION.test(text) };
     }
 
     return undefined;
@@ -231,12 +308,12 @@ function formatFromText(head: Uint8Array, ext: string): ModelDetection | undefin
         return { format: "dae", supported: false };
     }
 
-    if (trimmed.startsWith("; FBX")) {
-        return { format: "fbx", supported: false };
+    if (trimmed.startsWith("; FBX") || /^FBXHeaderExtension\s*:/.test(trimmed)) {
+        return { format: "fbx", supported: true };
     }
 
     if (trimmed.startsWith("#usda")) {
-        return { format: "usd", supported: false };
+        return { format: "usd", supported: true };
     }
 
     if (/^v\s/m.test(text) && (/^f\s/m.test(text) || ext === "obj")) {
@@ -257,6 +334,14 @@ function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefi
         return glbDetection(head);
     }
 
+    if (startsWithAscii(head, "Kaydara FBX Binary")) {
+        return { format: "fbx", supported: true };
+    }
+
+    if (startsWithAscii(head, "PXR-USDC")) {
+        return { format: "usd", supported: true };
+    }
+
     for (const [magic, format] of UNSUPPORTED_MAGIC) {
         if (startsWithAscii(head, magic)) {
             return { format, supported: false };
@@ -264,16 +349,16 @@ function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefi
     }
 
     if (isZip(head)) {
-        return zipDetection(ext);
+        return zipDetection(ext, head);
     }
 
     if (startsWithAscii(head, "ply\n") || startsWithAscii(head, "ply\r\n")) {
-        return { format: "ply", supported: true };
+        return plyDetection(head);
     }
 
-    // Niantic's SPZ is gzip; its `NGSP` magic is inside, read by the scan after inflating.
+    // Niantic's SPZ (Gaussian splats) is gzip; its `NGSP` magic is inside.
     if (ext === "spz" && head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b) {
-        return { format: "spz", supported: true };
+        return { format: "spz", supported: false };
     }
 
     if (isBinaryStl(head, ext)) {
@@ -289,9 +374,12 @@ function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefi
  * Every drop target calls this before treating a file as graph data. Bytes come first: a GLB
  * starts `glTF`, a glTF is JSON with an `asset`, a binary STL is exactly 84 + 50 bytes per
  * triangle long, an ASCII STL starts `solid` and holds a `facet`, a PLY starts `ply`, an OBJ has
- * `v` and `f` lines, a zip starts `PK` (a `.sog` is a zip too), an SPZ is gzip named `.spz`, a BVH
- * starts `HIERARCHY`. With nothing in the bytes, the extension decides: a raw `.splat` is rows of
- * 32 bytes and nothing more.
+ * `v` and `f` lines, a zip starts `PK` (a USDZ is one named `.usdz`, or with no name one whose
+ * first entry is a USD layer), a binary FBX starts `Kaydara FBX Binary` and an ASCII one `; FBX`,
+ * a binary USD starts `PXR-USDC` and a text one `#usda`, an SPZ is gzip named `.spz`, a BVH (not
+ * loaded) starts `HIERARCHY`. With nothing in the bytes, the extension decides: a raw `.splat` is rows of 32
+ * bytes and nothing more. Gaussian splats (`.splat`, `.spz`, `.sog`, a splat PLY) are recognized
+ * and not loaded.
  * @param input - The file name, the first bytes, or both.
  * @returns The format and whether it loads, or undefined when it is not a model file.
  * @example
@@ -379,8 +467,8 @@ export function detectAssetKind(input: ModelDetectionInput): AssetKind | undefin
     return !hasHead && IMAGE_EXTENSIONS.has(extensionOf(input.filename)) ? "image" : undefined;
 }
 
-/** The parts a model's files may come with, beyond its pictures: glTF buffers, OBJ materials, an unbundled SOG's meta.json. */
-const PART_EXTENSIONS = ["bin", "mtl", "json"];
+/** The parts a model's files may come with, beyond its pictures: glTF buffers and OBJ materials. */
+const PART_EXTENSIONS = ["bin", "mtl"];
 
 /** Pictures a model's files may name, beyond the ones an image asset may be. */
 const PART_PICTURE_EXTENSIONS = ["tga", "bmp", "gif", "dds", "ktx2", "avif"];
@@ -409,7 +497,7 @@ const MAIN_MODEL_EXTENSIONS: readonly string[] = Object.freeze(
  * buffers, OBJ materials, its pictures) and a .zip holding them.
  * @param kind - `"model"` or `"image"`.
  * @param options - `parts: false` lists a model's own files and a .zip only, for a chooser that
- *     takes the model first and asks for its parts after (a browser may grey out a part's
+ *     takes the model first and asks for its parts after (a browser may gray out a part's
  *     extension, such as `.mtl`, that it has no file type for). Default: `parts: true`.
  * @param options.parts - Whether a model's parts are listed.
  * @returns The extensions, lower case.

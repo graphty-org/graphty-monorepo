@@ -2,7 +2,7 @@
  * @file The layout and the dimension as undoable steps, on a real `Graph`.
  *
  * Choosing a layout keeps the engine that was chosen and its options, so undo brings back d3, not
- * the catalogue's default engine for the same layout. Switching between 2D and 3D, and undoing
+ * the catalog's default engine for the same layout. Switching between 2D and 3D, and undoing
  * the switch, leaves every reading of the dimension agreeing with the `layout` slice: the graph
  * context, the engine, the scene's record and the merged configuration. A layout whose pre-steps
  * are still computing when it is undone or replaced publishes nothing, and the nodes go back to
@@ -16,7 +16,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { isGraphtyError } from "../../src/errors";
-import { Graph, operationQueueOf } from "../../src/Graph";
+import { Graph, graphContextOf, operationQueueOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
@@ -90,7 +90,7 @@ function lane(session: GraphSession): number[] {
  */
 function agrees(graph: Graph, dimension: "2d" | "3d", what: string): void {
     const twoD = dimension === "2d";
-    const context = (graph as unknown as { graphContext: { is2D(): boolean } }).graphContext;
+    const context = graphContextOf(graph);
     assert.strictEqual(graph.getSession().layout.dimension, dimension, `${what}: the slice`);
     assert.strictEqual(context.is2D(), twoD, `${what}: GraphContext.is2D`);
     assert.strictEqual(graph.getLayoutManager().dimension, twoD ? 2 : 3, `${what}: the engine's dimension`);

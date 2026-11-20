@@ -17,7 +17,9 @@ import type { RowMeasure } from "../render/RowTable";
 import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
 import type { MeshCache } from "./MeshCache";
+import { NodeMesh, styleOpacity } from "./NodeMesh";
 import { attachRowPull } from "./RowPullPlugin";
+import type { Point2 } from "./shapeOutlines";
 
 /**
  * @file Draw the rows of one source mesh in one draw call (design/rendering/row-renderer.md 4.2).
@@ -486,10 +488,13 @@ function drawSpan(first: Mesh, sources: Mesh[]): [Mesh, Mesh] {
 }
 
 /** A view in which nothing keeps a row out of a batch: what a plain paint is drawn in. */
-const UNLIT_VIEW: BatchView = { flatOutline: false };
+const UNLIT_VIEW: BatchView = { flatOutline: false, sizeSpace: "scene" };
 
 /** The shapes a row can be round from every side as, as `Node` keeps them. */
 const ROUND_TYPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
+
+/** Each source mesh's reach outline ({@link ColumnRow.reachOutline}): every row of a look shares it. */
+const REACH_OUTLINES = new WeakMap<Mesh, Point2[] | null>();
 
 /**
  * A row with no `Node`, drawn from its paint alone: the look, color and size the style stack
@@ -544,6 +549,8 @@ export class ColumnRow implements RowMeasure {
             shape?.model === undefined &&
             (texture?.image ?? "") === "" &&
             drawnText(label) === undefined &&
+            // A view-sized row needs a `Node`: only a `Node` scales with the view.
+            (shape?.sizeSpace ?? view.sizeSpace) === "scene" &&
             // A plain paint is the fallback past an object budget: under 3D flat lighting, which batches nothing
             // else, it is still drawn by a batch, without the outline only a `Node` draws.
             batchableOf(paint, isPlainPaint(paint) ? UNLIT_VIEW : view)
@@ -625,6 +632,38 @@ export class ColumnRow implements RowMeasure {
      */
     get outlineHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
         return this.drawnHalfExtents;
+    }
+
+    /**
+     * The opacity its paint draws its body at, as `Node.paintedOpacity` reads a node's.
+     * @returns The opacity.
+     */
+    get paintedOpacity(): number {
+        return styleOpacity(this.paint.style.texture);
+    }
+
+    /**
+     * Its paint's shape.
+     * @returns The shape's type.
+     */
+    get shapeType(): string | undefined {
+        return this.paint.style.shape?.type;
+    }
+
+    /**
+     * The outline a line ends on, as `Node.reachOutline` builds it, once per source mesh: a row has no label to fit.
+     * @returns The outline, or null for a shape whose box or ellipse is its outline.
+     */
+    get reachOutline(): readonly (readonly [x: number, y: number])[] | null {
+        const source = this.paintedSourceMesh;
+        let outline = REACH_OUTLINES.get(source);
+        if (outline === undefined) {
+            const { shape, border } = this.paint.style;
+            outline = NodeMesh.reachOutlineOf({ shape, border }, shape?.size ?? 0, source);
+            REACH_OUTLINES.set(source, outline);
+        }
+
+        return outline;
     }
 
     /**
@@ -998,7 +1037,7 @@ export class NodeBatches {
 
     /**
      * The source a paint draws from: the one the row has while the paint keeps it, as
-     * `Node.keepsMeshFor` keeps a `Node`'s mesh (the same key, or a deep-equal style and colour on
+     * `Node.keepsMeshFor` keeps a `Node`'s mesh (the same key, or a deep-equal style and color on
      * the same shader path), or else the paint's own.
      * @param drawn - What the row is drawn as now, if anything.
      * @param paint - The new paint.
@@ -1084,6 +1123,15 @@ export class NodeBatches {
     }
 
     /**
+     * The opacity a row drawn with no `Node` is drawn at, as `Node.drawnOpacity` reads a batched node's.
+     * @param row - The row.
+     * @returns The opacity; 1 for a row in no batch.
+     */
+    columnOpacityOf(row: ColumnRow): number {
+        return this.groupOf(row)?.restVisibility ?? 1;
+    }
+
+    /**
      * How many rows are drawn with no `Node`: a caller with no row number yet can skip finding one at 0.
      * @returns The count.
      */
@@ -1165,7 +1213,7 @@ export class NodeBatches {
     /** Bring every batch up to date before a frame. */
     private flush(): void {
         const view = this.host.view();
-        if (view.flatOutline !== this.view.flatOutline) {
+        if (view.flatOutline !== this.view.flatOutline || view.sizeSpace !== this.view.sizeSpace) {
             this.view = view;
             this.syncAll();
         }

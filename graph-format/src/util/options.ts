@@ -24,7 +24,7 @@ export function assertOneOf<T extends string>(field: string, value: unknown, all
     if (typeof value !== "string" || !(allowed as readonly string[]).includes(value)) {
         throw new GraphFormatError(
             "E_UNSUPPORTED",
-            `option ${field} has an unsupported value ${describeOption(value)}`,
+            `option ${field} has an unsupported value ${describeValue(value)}`,
             {
                 field,
                 found: value,
@@ -36,18 +36,20 @@ export function assertOneOf<T extends string>(field: string, value: unknown, all
 }
 
 /**
- * A plain-ASCII rendering of an option value for an error message.
+ * A short plain-ASCII rendering of an untrusted value for an error message: strings are quoted,
+ * everything else is named by type (a bigint or a null-prototype object cannot be stringified, and a
+ * structuredClone-delivered wire manifest can carry both).
  * @param value - the value
  * @returns the rendering
  */
-function describeOption(value: unknown): string {
+export function describeValue(value: unknown): string {
     if (typeof value === "string") {
         return JSON.stringify(value.length > 40 ? `${value.slice(0, 37)}...` : value);
     }
     if (typeof value === "number" || typeof value === "boolean" || value === null) {
         return String(value);
     }
-    return `a ${typeof value}`;
+    return value === undefined ? "undefined" : `a ${typeof value}`;
 }
 
 /** The WeightReducer literals (design section 7.3). */

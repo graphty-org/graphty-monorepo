@@ -1,6 +1,6 @@
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { ImportError } from "@graphty/graph-io";
-import { DATASETS, fetchDataset } from "@graphty/graph-samples";
+import { fetchDataset } from "@graphty/graph-samples";
 import cytoscape from "cytoscape";
 import { describe, expect, it } from "vitest";
 
@@ -102,7 +102,6 @@ describe("graphtyDataset", () => {
     });
 
     it("downloads every dataset, the formerly bundled ones included", async () => {
-        expect(DATASETS.every((d) => d.hosting === "remote")).toBe(true);
         const urls: string[] = [];
         const cy = core();
         await cy.graphtyDataset("dolphins", {
@@ -451,5 +450,16 @@ describe("integer ids in the integer-id formats", () => {
             await cy.graphtyExport(format, { onLoss: (notes) => codes.push(...notes.map((n) => n.code)) });
             expect(codes).not.toContain("W_ID_TEXT_TYPE");
         }
+    });
+});
+
+describe("graphtyKatzCentrality with no alpha", () => {
+    it("converges on Les Miserables, where an alpha of 0.1 diverges", async () => {
+        const cy = core();
+        await cy.graphtyDataset("les-miserables");
+        expect(() => cy.elements().graphtyKatzCentrality({ alpha: 0.1 })).toThrow(/converge/i);
+        const katz = cy.elements().graphtyKatzCentrality();
+        // Valjean co-appears with the most characters, so he has the top score
+        expect(katz.score("#Valjean")).toBe(1);
     });
 });

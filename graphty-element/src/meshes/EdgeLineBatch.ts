@@ -23,7 +23,7 @@ import { discreteMeshCount } from "./PatternedLineMesh";
 /** Floats in one 4x4 world matrix, which is what a thin-instance slot holds. */
 const FLOATS_PER_MATRIX = 16;
 
-/** Floats in one slot of a plain batch: the piece and its neighbours (see `edgeJoinShader`). */
+/** Floats in one slot of a plain batch: the piece and its neighbors (see `edgeJoinShader`). */
 const FLOATS_PER_SLOT = JOIN_FLOATS_PER_PIECE;
 
 /** Slots a new batch starts with, before the first doubling. */
@@ -96,6 +96,8 @@ export interface EdgeLineMeta {
         elementLength: number;
         count?: number | undefined;
         gap?: number | undefined;
+        /** Dashes and gaps of several lengths (`line.dashArray`, world units), repeating every `elementLength + gap`. */
+        dashes?: readonly number[] | undefined;
     };
     /**
      * A joined line drawn with a shader or a taper (`edgeJoinShader`'s `EDGE_WIDENED`): each slot
@@ -138,7 +140,7 @@ export function segmentMatrixToRef(srcPoint: Vector3, dstPoint: Vector3, out: Ma
     // segment, so the vector it turns into yaw and pitch is half the delta -- same direction,
     // and the angles below are Babylon's own (TransformNode.setDirection).
     const yaw = -Math.atan2(scratchDirection.z, scratchDirection.x) + Math.PI / 2;
-    const flat = Math.sqrt(scratchDirection.x * scratchDirection.x + scratchDirection.z * scratchDirection.z); // NOSONAR(S7769): per edge, per frame; Math.hypot made this function 50-70% slower
+    const flat = Math.sqrt(scratchDirection.x * scratchDirection.x + scratchDirection.z * scratchDirection.z); // eslint-disable-line unicorn/prefer-modern-math-apis -- per edge, per frame; Math.hypot made this function 50-70% slower
     const pitch = -Math.atan2(scratchDirection.y, flat);
 
     Quaternion.RotationYawPitchRollToRef(yaw, pitch, 0, scratchRotation);
@@ -478,7 +480,7 @@ export class EdgeLineBatch {
 
     /**
      * Take a slot drawn exactly as a slot of another batch is drawn: its placement copied, not
-     * placed again. What an edge whose colour or opacity changed takes, because those are its
+     * placed again. What an edge whose color or opacity changed takes, because those are its
      * batch's and nothing about where it is drawn moved.
      * @param from - The batch the edge is drawn in now.
      * @param index - Its slot there, which the caller releases afterwards.
@@ -802,7 +804,7 @@ export class EdgeLineBatch {
         const y = this.slots[at + 7] - this.slots[at + 4];
         const z = this.slots[at + 8] - this.slots[at + 5];
 
-        return Math.sqrt(x * x + y * y + z * z); // NOSONAR(S7769): per edge, per frame; Math.hypot measured ~17x slower here
+        return Math.sqrt(x * x + y * y + z * z); // eslint-disable-line unicorn/prefer-modern-math-apis -- per edge, per frame; Math.hypot measured ~17x slower here
     }
 
     /**
@@ -1146,7 +1148,7 @@ export class EdgeLineBatch {
     }
 
     /**
-     * The dash or dot spacing for an edge of one length: the centre-to-centre distance that puts
+     * The dash or dot spacing for an edge of one length: the center-to-center distance that puts
      * the first element at the start and the last at the end, as `PatternedLineMesh` places its
      * elements on a straight line. 0 for a solid line.
      * @param length - The edge's length along its pieces.
@@ -1213,7 +1215,7 @@ export class EdgeLineBatch {
     }
 
     /**
-     * Write one piece of a run from points in a flat array. Its neighbours are the pieces either
+     * Write one piece of a run from points in a flat array. Its neighbors are the pieces either
      * side; the first piece's previous corner is its own start and the last's next corner its own
      * end, which the shader draws as a square end. The corner two pieces back is the previous
      * corner when there is none, and the corner two ahead the next corner. See
@@ -1396,5 +1398,5 @@ function pieceLength(flat: readonly number[], i: number): number {
     const y = flat[i * 3 + 4] - flat[i * 3 + 1];
     const z = flat[i * 3 + 5] - flat[i * 3 + 2];
 
-    return Math.sqrt(x * x + y * y + z * z); // NOSONAR(S7769): per piece, per frame; Math.hypot is measurably slower
+    return Math.sqrt(x * x + y * y + z * z); // eslint-disable-line unicorn/prefer-modern-math-apis -- per piece, per frame; Math.hypot is measurably slower
 }

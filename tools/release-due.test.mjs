@@ -69,7 +69,7 @@ describe("release-due pre-mortem guards", () => {
     });
 });
 
-// #4127: several merges reach master together, the waiting builds are cancelled (#3940), and an approval merge's own
+// #4127: several merges reach master together, the waiting builds are canceled (#3940), and an approval merge's own
 // build never runs; the next green build must promote it, and no build may promote one approval twice.
 describe("release-due approval merges since the last green build", () => {
     const dir = mkdtempSync(join(tmpdir(), "release-due-approval-"));
@@ -191,7 +191,7 @@ describe("release-due approvals since the last green build", () => {
             { sha: A, parents: [H], subject: "test(workspace): approve visual baselines at 3ddf13da8909" },
         ],
     };
-    // the build that runs is a later, unrelated merge's: the approval merge's own build was cancelled
+    // the build that runs is a later, unrelated merge's: the approval merge's own build was canceled
     const unrelated = {
         approval: "f00d",
         commits: [
@@ -254,7 +254,7 @@ describe("release-due cancel note", () => {
         assert.deepEqual(calls, ["run cancel 9"]);
     });
 
-    // #3644: a note left on a run that was not cancelled hides that run's real failure from release-watch
+    // #3644: a note left on a run that was not canceled hides that run's real failure from release-watch
     it("deletes the note when the cancel fails, and cancels even when the note fails", () => {
         const failed = gh(true);
         cancelWithNote(9, () => note, failed.fn);

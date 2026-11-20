@@ -148,7 +148,7 @@ describe("Custom Sink", () => {
 
     describe("correct format", () => {
         test("should be called with correct LogRecord format", () => {
-            const writeFn = vi.fn();
+            const writeFn = vi.fn<Sink["write"]>();
             const customSink: Sink = {
                 name: "format-test-sink",
                 write: writeFn,
@@ -171,7 +171,7 @@ describe("Custom Sink", () => {
         });
 
         test("should include error in LogRecord for error logs", () => {
-            const writeFn = vi.fn();
+            const writeFn = vi.fn<Sink["write"]>();
             const customSink: Sink = {
                 name: "error-format-sink",
                 write: writeFn,
@@ -193,7 +193,7 @@ describe("Custom Sink", () => {
         });
 
         test("should have undefined data when no data provided", () => {
-            const writeFn = vi.fn();
+            const writeFn = vi.fn<Sink["write"]>();
             const customSink: Sink = {
                 name: "no-data-sink",
                 write: writeFn,
@@ -209,7 +209,7 @@ describe("Custom Sink", () => {
         });
 
         test("should have recent timestamp", () => {
-            const writeFn = vi.fn();
+            const writeFn = vi.fn<Sink["write"]>();
             const customSink: Sink = {
                 name: "timestamp-sink",
                 write: writeFn,

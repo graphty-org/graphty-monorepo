@@ -8,13 +8,12 @@ import React, { useEffect, useState } from "react";
 import { APP_GLOBE_SOURCE } from "../../constants/globe";
 import { groupsAnnouncement, pathAnnouncement, topAnnouncement } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
-import { selectedNameWords } from "../inspector/words";
+import { runFailureWords, selectedNameWords } from "../inspector/words";
 import { layoutWarningWords } from "../layout/refusalWords";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
 import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
-import { PreviewKey } from "./PreviewKey";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -126,6 +125,12 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
                             : (pathAnnouncement(session, run) ?? topAnnouncement(session, run, name));
                     store.set({ announcement: said ?? `${name} ${ended}` });
                 }
+                // A failed run says so where the reader is, whatever started it; its row marks it too.
+                if (change.run.status === "failed") {
+                    const code = session.runs.get(change.run.id)?.error?.code;
+                    store.set({ notice: { message: runFailureWords(code), error: true } });
+                    return;
+                }
                 // The painting is decided once the element has finished painting for the run.
                 void session.styles.settled().then(() => {
                     if (!live) {
@@ -205,7 +210,7 @@ function useDetailedMapForSmallData(): void {
 }
 
 /** The words a change of the map under a map layout is announced with, by its state. */
-const BASEMAP_STATE_WORDS: Readonly<Record<string, string>> = {
+const BASEMAP_STATE_WORDS: Readonly<Partial<Record<string, string>>> = {
     ready: "Map shown",
     fallback: "Map unavailable, showing Natural Earth",
 };
@@ -392,11 +397,9 @@ export function CanvasOverlays(): React.JSX.Element | null {
     return (
         <>
             {/* Asked for over nothing, the card says nothing is styled yet. */}
-            {/* While a selection is picked, the key says the styles are suspended and names its groups. */}
-            {legendShown && !workspaceOpen ? (
-                <PreviewKey session={session}>
-                    {keyed || legendAsked ? <LegendCard blocks={blocks} session={session} /> : null}
-                </PreviewKey>
+            {/* While a selection is picked, the selection workspace draws its own key at its preview. */}
+            {legendShown && !workspaceOpen && (keyed || legendAsked) ? (
+                <LegendCard blocks={blocks} session={session} />
             ) : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
         </>

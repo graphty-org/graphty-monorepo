@@ -9,10 +9,9 @@
  * here is a compile error too.
  */
 
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { COMMANDS } from "../../../commands";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { CodedFact } from "../../../src/session/shared";
 import type { HistoryCode, HistoryStep } from "../../../src/session/types";
 import { fileStylesOn } from "../../helpers/file-styles-on";
@@ -20,11 +19,6 @@ import { fixtureSession } from "./fixture-session";
 import { FIXTURES } from "./fixtures";
 
 fileStylesOn();
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 /** The undoable ops of the vocabulary. */
 type UndoableOp = {
@@ -77,7 +71,8 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "data.label": ["data.label"],
     "data.columns": ["data.columns"],
     "data.derive": ["data.derive"],
-    "data.setFileStyles": ["data.set-file-styles"],
+    "annotations.set": ["annotations.set"],
+    "annotations.patch": ["annotations.patch"],
     "style.patch": [
         "style.add-layer",
         "style.update-layer",
@@ -98,6 +93,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "style.encode": ["style.encode"],
     "style.template": ["style.template"],
     "shader.set": ["shader.add", "shader.replace", "shader.remove"],
+    "asset.defaults": ["asset.defaults"],
     "visibility.set": ["visibility.filter", "visibility.clear-filter"],
     "visibility.window": ["visibility.window", "visibility.clear-window"],
     "visibility.context": ["visibility.show-context", "visibility.hide-context"],
@@ -131,6 +127,14 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "note.merge": ["note.merge"],
     "view.save": ["view.save"],
     "view.remove": ["view.remove"],
+    "view.rename": ["view.rename"],
+    "view.move": ["view.move"],
+    "view.key": ["view.key"],
+    "view.starting": ["view.starting"],
+    "tour.save": ["tour.save"],
+    "tour.remove": ["tour.remove"],
+    "tour.rename": ["tour.rename"],
+    "tour.move": ["tour.move"],
     "config.set": ["config.set"],
     "positions.set": ["positions.set"],
     "positions.pin": ["positions.pin", "positions.release"],
@@ -183,7 +187,8 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.show-columns": ["count"],
     "data.columns": [],
     "data.derive": ["column", "kind"],
-    "data.set-file-styles": ["loads"],
+    "annotations.set": ["count"],
+    "annotations.patch": ["action", "id"],
     "style.add-layer": ["layer"],
     "style.update-layer": ["channels", "layer"],
     "style.remove-layer": ["layer"],
@@ -194,6 +199,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "style.encode": ["channel", "run"],
     "style.template": [],
     "shader.add": ["id", "layer"],
+    "asset.defaults": ["id"],
     "shader.replace": ["id"],
     "shader.remove": ["id"],
     "style.suggested": ["algorithms"],
@@ -239,6 +245,14 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "note.merge": ["source"],
     "view.save": ["names"],
     "view.remove": ["names"],
+    "view.rename": ["from", "to", "tours"],
+    "view.move": ["name", "index"],
+    "view.key": ["name", "key", "from"],
+    "view.starting": ["names"],
+    "tour.save": ["names"],
+    "tour.remove": ["names"],
+    "tour.rename": ["from", "to"],
+    "tour.move": ["name", "index"],
     "view.dimension": ["dimension"],
     "view.immersive": ["mode"],
     "config.set": ["keys"],

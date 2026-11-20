@@ -23,7 +23,7 @@ import {
     importGraph,
     registry,
 } from "../../src/registry.js";
-import { featuresOf, planStyles, resolveStyles, styleFingerprint } from "../../src/styles/internal.js";
+import { featuresOf, planStyles, resolveStyles, styleFingerprint, unsettledStyles } from "../../src/styles/internal.js";
 import type { StyleReadContext } from "../../src/styles/types.js";
 import { type GraphImporter, ImportError, type ImportInput } from "../../src/types.js";
 import { digestFormat } from "./no-styles-digest.js";
@@ -82,7 +82,9 @@ describe("the simple path", () => {
             (r) => r.map?.fill?.kind === "discrete" && "data" in r.map.fill.by && r.map.fill.by.data === "group",
         );
         expect(byGroup).toHaveLength(1);
-        expect(styles.styles.rules.some((r) => r.role === "exceptions" || r.role === "passthrough")).toBe(false);
+        // the planned rules, before values derived for drawing are added
+        const planned = unsettledStyles(styles).styles.rules;
+        expect(planned.some((r) => r.role === "exceptions" || r.role === "passthrough")).toBe(false);
         const fill = resolveStyles(styles, "node", "fill", result.snapshot);
         for (let i = 0; i < 300; i++) {
             expect(fill[i]).toBe(GROUPS[i % GROUPS.length][2]);

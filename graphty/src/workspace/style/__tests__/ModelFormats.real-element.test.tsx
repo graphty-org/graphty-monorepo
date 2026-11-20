@@ -18,8 +18,7 @@ import type { ModelSummary } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
-import { screen, within } from "../../../test/test-utils";
-import { modelChip } from "../modelWords";
+import { screen, waitFor, within } from "../../../test/test-utils";
 import { CUSTOM_MODEL } from "../words";
 import {
     addModel,
@@ -66,7 +65,7 @@ interface Variant {
 const TABLE = JSON.parse(await commands.readFile(`${VARIANTS}/manifest.json`)) as Variant[];
 
 /** Files that hold other files: their parts are named inside them, not by the files chosen. */
-const CONTAINER = /\.(zip|sog)$/;
+const CONTAINER = /\.zip$/;
 
 /**
  * The share of a picture's pixels that are drawn, and of those dominated by a color (that channel
@@ -75,11 +74,10 @@ const CONTAINER = /\.(zip|sog)$/;
  * @param color - the color, or "any".
  * @returns both shares, 0 to 1.
  */
-async function shares(picture: HTMLImageElement, color: Variant["color"]): Promise<{ drawn: number; colored: number }> {
-    await picture.decode();
+function shares(picture: HTMLCanvasElement, color: Variant["color"]): { drawn: number; colored: number } {
     const canvas = document.createElement("canvas");
-    canvas.width = picture.naturalWidth;
-    canvas.height = picture.naturalHeight;
+    canvas.width = picture.width;
+    canvas.height = picture.height;
     const context = canvas.getContext("2d");
     assert.isNotNull(context);
     context.drawImage(picture, 0, 0);
@@ -108,11 +106,15 @@ async function shares(picture: HTMLImageElement, color: Variant["color"]): Promi
 async function assertPreview(dialog: HTMLElement, variant: Variant): Promise<void> {
     // The name graphty-element's record gives it, as the dialog's Name field shows it.
     const name = (await within(dialog).findByRole<HTMLInputElement>("textbox", { name: "Name" })).value;
-    const { drawn, colored } = await shares(await previewOf(dialog, name), variant.color);
-    assert.isAtLeast(drawn, 0.03, `${variant.id}: the preview is not blank`);
-    if (variant.color !== "any") {
-        assert.isAtLeast(colored, 0.01, `${variant.id}: the preview shows ${variant.color}`);
-    }
+    const canvas = await previewOf(dialog, name);
+    // A model that waited for a part is drawn at once with it stood in for, then again with it.
+    await waitFor(() => {
+        const { drawn, colored } = shares(canvas, variant.color);
+        assert.isAtLeast(drawn, 0.03, `${variant.id}: the preview is not blank`);
+        if (variant.color !== "any") {
+            assert.isAtLeast(colored, 0.01, `${variant.id}: the preview shows ${variant.color}`);
+        }
+    });
 }
 
 /**
@@ -154,16 +156,6 @@ function serveAddresses(served: ReadonlyMap<string, Uint8Array<ArrayBuffer>>): s
 }
 
 /**
- * The closed Details line, with its chips.
- * @param dialog - the dialog.
- * @returns the line.
- */
-function detailsLine(dialog: HTMLElement): HTMLElement {
-    const advanced = within(dialog).getByRole("button", { name: "Details" });
-    return advanced.parentElement ?? dialog;
-}
-
-/**
  * A fixture's bytes, read by the test runner.
  * @param path - below the variants folder.
  * @returns the bytes.
@@ -189,25 +181,34 @@ describe("every model format and variant, through the Load custom model dialog",
         await choose(dialog, variant);
 
         if (variant.refused?.code === "E_MODEL_AMBIGUOUS") {
-            const files = await within(dialog).findByTestId("model-files");
-            assert.isNotNull(await within(files).findByRole("combobox", { name: "Which file is the model" }));
-            assert.isNull(within(dialog).queryByRole("img"), "no preview until the reader picks one");
+            // Several models in one drop are a set: each is offered, one preview at a time.
+            const position = await within(dialog).findByTestId("model-position");
+            assert.equal(position.textContent, "1 of 2");
+            assert.isNotNull(within(dialog).getByRole("button", { name: "Add 2 models" }));
             return;
         }
         if (variant.refused !== null) {
             const refusal = await within(dialog).findByTestId("model-refusal");
-            assert.match(refusal.textContent, new RegExp(`^${variant.format.toUpperCase()} not read`), "names it");
+            if (["splat", "spz", "sog", "splat-ply"].includes(variant.format)) {
+                // Every splat is refused, so no other format is suggested for one.
+                assert.equal(refusal.textContent, "Not loaded: Gaussian splats are not supported", "says splats");
+            } else {
+                assert.match(refusal.textContent, new RegExp(`^${variant.format.toUpperCase()} not read`), "names it");
+            }
             assert.isNull(within(dialog).queryByRole("img"), "no preview");
             return;
         }
         if (variant.drawFails !== undefined) {
-            const preview = await within(dialog).findByTestId("model-preview");
-            assert.isNotNull(await within(preview).findByText("Not loaded"));
-            assert.isNull(preview.querySelector("img"));
-            const addButton = within(dialog).getByRole("button", { name: "Add model" });
-            assert.equal(addButton.getAttribute("aria-disabled"), "true");
-            // The reader is told, as an intake refusal is told.
+            // The reader is told by the line under the loader, as an intake refusal is told; the
+            // model's box holds only the model glyph, with no pill (owner, 2026-11-17).
             const refusal = await within(dialog).findByTestId("model-refusal");
+            const preview = within(dialog).getByTestId("model-preview");
+            assert.isNull(preview.querySelector("img, canvas"));
+            assert.isNull(within(preview).queryByText("Not loaded"), "no pill in the model's box");
+            const addButton = within(dialog).getByRole("button", { name: "Add model" });
+            await waitFor(() => {
+                assert.equal(addButton.getAttribute("aria-disabled"), "true");
+            });
             assert.equal(store.get().announcement, refusal.textContent, "the failure is announced");
             // Neither a click nor Enter or Space on the blocked Add adds the model. A browser clicks an
             // aria-disabled button; Playwright only does with `force`, which skips its own enabled check.
@@ -224,17 +225,24 @@ describe("every model format and variant, through the Load custom model dialog",
                 name: variant.needs,
             });
             await userEvent.click(within(row).getByRole("button", { name: `Load without ${variant.needs}` }));
+            // Load without is asynchronous, and the waiting model already has a preview (its part stood
+            // in): wait for its row to go, then for the caption that marks the model drawn without it.
+            await waitFor(() => {
+                assert.isFalse(row.isConnected, `${variant.needs} is no longer asked for`);
+            });
+            await within(dialog).findByRole("region", { name: "Details" });
         }
 
         await assertPreview(dialog, variant);
-        assert.equal(
-            within(dialog).getByTestId("model-variant").textContent,
+        assert.include(
+            within(within(dialog).getByRole("region", { name: "Details" })).getByRole("group", { name: "Format" })
+                .textContent,
             CUSTOM_MODEL.variantLine(variant),
-            "the caption names the variant",
+            "Details names the variant",
         );
-        for (const code of variant.warnings.filter((w) => w !== "W_MODEL_PART_SKIPPED")) {
-            assert.isNotNull(within(detailsLine(dialog)).getByText(modelChip({ code, params: {} }).word), code);
-        }
+        // No chip says the warnings (owner, 2026-11-17): Details' rows carry what matters.
+        assert.equal(within(dialog).getByTestId("model-details-line").textContent, "Details");
+        assert.isNull(dialog.querySelector(".mantine-Badge-root"), "no pill in the dialog");
 
         await addModel(dialog);
         const ref = String(written(session, "node.model"));
@@ -242,6 +250,13 @@ describe("every model format and variant, through the Load custom model dialog",
         const record = session.assets.find(ref);
         assert.equal(record?.state, "accepted");
         assert.isDefined(record);
+        for (const code of variant.warnings.filter((w) => w !== "W_MODEL_PART_SKIPPED")) {
+            assert.include(
+                record.problems.map((p) => p.code),
+                code,
+                code,
+            );
+        }
         const summary = session.assets.inspect(record.id);
         assert.equal(summary.format, variant.format);
         assert.equal(summary.geometry ?? "mesh", variant.geometry ?? "mesh");
@@ -378,7 +393,10 @@ describe("every model format and variant, through the Load custom model dialog",
         const files = await within(dialog).findByTestId("model-files");
         const row = await within(files).findByRole("group", { name: "cube.png" });
         assert.isNotNull(within(row).getByText("Texture"));
-        assert.equal(within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"), "true");
+        assert.isNull(
+            within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"),
+            "a missing picture does not block Add",
+        );
         await chooseIn(row, "Choose cube.png", [`${VARIANTS}/obj-mtl-png/cube.png`]);
         const waiting = TABLE.find((v) => v.id === "obj-mtl-missing-png");
         assert.isDefined(waiting);

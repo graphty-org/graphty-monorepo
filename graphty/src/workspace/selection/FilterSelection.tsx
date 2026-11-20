@@ -18,10 +18,8 @@ import type {
 import React, { useEffect, useRef, useState } from "react";
 
 import { keepChange, writeCondition } from "../data-place/filterCards";
-import { selectionWorkspaceOn } from "../features";
 import type { WorkspaceStore } from "../state/store";
 import { SelectionEditor } from "./SelectionEditor";
-import { SelectionEditorInline } from "./SelectionEditorInline";
 import type { SelectionMenuItem } from "./SelectionMenu";
 import type { PickSection } from "./values";
 
@@ -46,7 +44,6 @@ import type { PickSection } from "./values";
  * @param props.onEmptyCancel - the value picker closed with nothing chosen on a card with no step
  * @param props.onDraft - takes a new card's selection while it has no step yet, so the host keeps it
  * @param props.onDone - the workspace closed, or Escape with no row selected
- * @param props.onTitleToggle - Space on the title row: switches the card's on box
  * @param props.titleOff - the card's on box is off
  * @param props.name - the name the reader gave the card, written with it
  * @param props.onRename - renames the card from the workspace's title bar
@@ -71,7 +68,6 @@ export function FilterSelection({
     onDraft,
     onEmptyCancel,
     onDone,
-    onTitleToggle,
     titleOff,
     name,
     onRename,
@@ -94,32 +90,16 @@ export function FilterSelection({
     onDraft?: (rule: UnionLeaf) => void;
     onEmptyCancel?: () => void;
     onDone: () => void;
-    onTitleToggle?: () => void;
     titleOff?: boolean;
     name?: string;
     onRename?: (name: string | undefined) => void;
 }>): React.JSX.Element {
     // The rule as last edited, until the element holds it.
     const [local, setLocal] = useState<UnionLeaf | null>(null);
-    const writes = useRef(0);
-    const write = (next: UnionLeaf): Promise<unknown> =>
-        effect === undefined
-            ? writeCondition(store, () =>
-                  session.visibility.addCondition({
-                      id,
-                      effect: "keep",
-                      rule: next,
-                      ...(name === undefined ? {} : { name }),
-                      ...(source === undefined ? {} : { source }),
-                  }),
-              )
-            : writeCondition(store, () => session.visibility.updateCondition(id, keepChange(next, effect)));
-    // IN THE SELECTION WORKSPACE the card is edited as a
-    // draft: nothing that is shown changes and nothing is laid out again until the workspace closes,
-    // when the draft is written as one step (graphty-element's `visibility.draft`;
-    // design/working-graph/design.md, section 3). A new card is written only once it has a step, as
-    // before. The outline-and-pane editor has no Done, so it writes each edit as it always has.
-    const drafting = selectionWorkspaceOn(session);
+    // The card is edited as a draft: nothing that is shown changes and nothing is laid out again
+    // until the workspace closes, when the draft is written as one step (graphty-element's
+    // `visibility.draft`; design/working-graph/design.md, section 3). A new card is written only once
+    // it has a step.
     const draft = useRef<FilterDraft | null>(null);
     const toDraft = (next: UnionLeaf): void => {
         if (draft.current?.open !== true) {
@@ -177,10 +157,8 @@ export function FilterSelection({
             finishRef.current();
         };
     }, [session]);
-    // The full-screen workspace is an experiment; off, the outline-and-pane editor is drawn.
-    const Editor = selectionWorkspaceOn(session) ? SelectionEditor : SelectionEditorInline;
     return (
-        <Editor
+        <SelectionEditor
             session={session}
             rule={local ?? rule}
             host="filter"
@@ -207,30 +185,15 @@ export function FilterSelection({
                           onEmptyCancel();
                       }
             }
-            onTitleToggle={onTitleToggle}
             titleOff={titleOff}
             onRename={onRename}
             onChange={(next) => {
                 setLocal(next);
-                if (drafting) {
-                    toDraft(next);
-                    // The host keeps a new card's selection, so Done reads it as having a step.
-                    if (effect === undefined) {
-                        onDraft?.(next);
-                    }
-                    return;
-                }
-                if (effect === undefined && next.branches.every((branch) => branch.steps.length === 0)) {
+                toDraft(next);
+                // The host keeps a new card's selection, so Done reads it as having a step.
+                if (effect === undefined) {
                     onDraft?.(next);
-                    return;
                 }
-                writes.current += 1;
-                const mine = writes.current;
-                void write(next).then(() => {
-                    if (writes.current === mine) {
-                        setLocal(null);
-                    }
-                });
             }}
         />
     );

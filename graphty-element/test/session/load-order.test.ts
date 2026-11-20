@@ -213,7 +213,7 @@ describe("session.data loads that overlap", () => {
         await newer;
         assert.strictEqual(first.status, "rejected");
         // A 404 answers the same on every retry.
-        const missing = first.status === "rejected" ? first.reason : undefined;
+        const missing: unknown = first.status === "rejected" ? first.reason : undefined;
         assert.instanceOf(missing, GraphtyError);
         assert.strictEqual(missing.code, "E_FETCH_FAILED");
         assert.strictEqual(missing.recoverable, false);
@@ -228,11 +228,11 @@ describe("session.data loads that overlap", () => {
             session.data.loadDataset("corrupt", { baseUrl }),
             session.data.loadDataset("Not A Name", { baseUrl }),
         ]);
-        const parse = corrupt.status === "rejected" ? corrupt.reason : undefined;
+        const parse: unknown = corrupt.status === "rejected" ? corrupt.reason : undefined;
         assert.instanceOf(parse, GraphtyError);
         assert.strictEqual(parse.code, "E_PARSE_FAILED");
         assert.strictEqual(parse.recoverable, false);
-        const unknown = badName.status === "rejected" ? badName.reason : undefined;
+        const unknown: unknown = badName.status === "rejected" ? badName.reason : undefined;
         assert.instanceOf(unknown, GraphtyError);
         assert.strictEqual(unknown.code, "E_UNKNOWN_DATASET");
         assert.strictEqual(session.data.snapshot().nodeCount, 0);

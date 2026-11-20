@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../../src/registry.js";
 import { toolDefaults } from "../../../src/styles/defaults.js";
-import { resolveStyles } from "../../../src/styles/internal.js";
+import { resolveStyles, unsettledStyles } from "../../../src/styles/internal.js";
 
 const registry = createRegistry();
 
@@ -18,10 +18,12 @@ const registry = createRegistry();
  */
 async function load(doc: string) {
     const result = await registry.importGraph(doc, { format: "gml", styles: { toolDefaults: true } });
-    const { styles } = result;
-    if (styles === null || styles === undefined) {
+    const read = result.styles;
+    if (read === null || read === undefined) {
         throw new Error("no styles");
     }
+    // the reader's values, before they are settled for drawing
+    const styles = unsettledStyles(read);
     type Property = Parameters<typeof resolveStyles>[2];
     return {
         node: (p: Property): readonly unknown[] => resolveStyles(styles, "node", p, result.snapshot),

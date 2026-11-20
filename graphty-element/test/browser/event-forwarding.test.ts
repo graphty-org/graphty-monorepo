@@ -27,7 +27,7 @@ async function createGraphtyElement(): Promise<{ element: Graphty; container: HT
     graphtyElement.style.display = "block";
     container.appendChild(graphtyElement);
 
-    // Wait for element to be connected and its graph initialised
+    // Wait for element to be connected and its graph initialized
     await graphtyElement.updateComplete;
     await vi.waitFor(() => {
         assert.isTrue(graphtyElement.graph.initialized, "the element initialised its graph");
@@ -430,6 +430,31 @@ describe("Event Forwarding Regression Tests", () => {
     });
 
     describe("real-world integration scenarios", () => {
+        test("a load forwards data-loaded, operation-queue-idle and graph-settled from real work", async () => {
+            const { element: graphtyElement } = await createGraphtyElement();
+            const seen = new Set<string>();
+            for (const type of ["data-loaded", "operation-queue-idle", "graph-settled"]) {
+                graphtyElement.addEventListener(type, () => seen.add(type));
+            }
+
+            graphtyElement.dataSource = "json";
+            graphtyElement.dataSourceConfig = {
+                data: JSON.stringify({
+                    nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+                    edges: [
+                        { source: "a", target: "b" },
+                        { source: "b", target: "c" },
+                    ],
+                }),
+            };
+
+            await vi.waitFor(() => {
+                assert.sameMembers([...seen], ["data-loaded", "operation-queue-idle", "graph-settled"]);
+            });
+
+            cleanup(graphtyElement);
+        });
+
         test("events fire during full graph lifecycle", async () => {
             const { element: graphtyElement } = await createGraphtyElement();
 

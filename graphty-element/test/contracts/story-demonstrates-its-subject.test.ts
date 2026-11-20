@@ -16,7 +16,7 @@
  *
  * 1. No story in the `Styles/` tree names a channel it does not paint.
  * 2. The gate is still reading a substantial part of that tree, so a change that quietly stops it
- *    recognising subjects fails here rather than passing everything.
+ *    recognizing subjects fails here rather than passing everything.
  * 3. The gate can still go red. It is run over a story written to be hollow, in a scratch
  *    directory of this test's own, and is required to catch it -- and over the same story with
  *    its sizes put back, where it is required to say nothing. A gate nobody has ever seen fail is
@@ -42,8 +42,8 @@ import { checkSubjects, checkTreeSubjects } from "./story-subject";
  * How many stories in the `Styles/` tree must name a subject for the gate to count as awake.
  *
  * A TRIPWIRE, NOT A TARGET. Sixty-two stories name a channel today. This floor is far below that
- * and exists for one failure only: a change to the tokeniser, the vocabulary or the tree's titles
- * that leaves the gate recognising nothing and therefore passing everything, which is the exact
+ * and exists for one failure only: a change to the tokenizer, the vocabulary or the tree's titles
+ * that leaves the gate recognizing nothing and therefore passing everything, which is the exact
  * shape of defect this whole file is about. Raising it to track the real number would only make
  * it a second roster.
  */

@@ -126,7 +126,7 @@ n2\tn3\t2.0`;
             });
 
             assert.deepEqual(
-                nodes.map((node) => node.id),
+                nodes.map((node): unknown => node.id),
                 ["n1", "n2"],
             );
             assert.strictEqual(edges.length, 1);

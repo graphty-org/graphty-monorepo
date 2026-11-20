@@ -1,0 +1,63 @@
+name: Install Mesa lavapipe
+description: >
+    Installs Mesa's software Vulkan driver (lavapipe), which Dawn needs on a hosted ubuntu runner that has
+    no Vulkan ICD, from .deb files cached by what apt would download, so a hit runs only dpkg and never
+    touches Ubuntu's mirror. The key is the list of .deb files apt resolves from the runner image's own
+    package index (no apt-get update, no network), so a new runner image that resolves the same Mesa
+    reuses the cache: keyed on ImageVersion it missed on every image rollout, and a miss during a mirror
+    outage failed the job (full run 44519887010, #9043). A miss installs from the image's index first
+    and runs apt-get update only when that index points at files the mirror no longer has. Either way the
+    step fails unless every package is installed afterwards. Run drop-microsoft-apt-source first.
+inputs:
+    save:
+        description: >
+            "true" saves the .deb files on a miss. A pull request only restores, so it reuses master's files
+            and never stores a copy in its own cache scope (#3591).
+        default: ${{ github.event_name != 'pull_request' }}
+runs:
+    using: composite
+    steps:
+        - id: key
+          shell: bash
+          env:
+              PACKAGES: mesa-vulkan-drivers libvulkan1 vulkan-tools
+          # field 2 of --print-uris is the .deb file name (package, version, arch); the mirror's URL varies by runner
+          run: |
+              debs=$(apt-get install -y -qq --no-install-recommends --print-uris $PACKAGES | awk '{print $2}' | sort)
+              echo "key=lavapipe-debs-${ImageOS:?}-$(echo "$debs" | sha256sum | cut -c1-32)" >> "$GITHUB_OUTPUT"
+              echo "needed=$([ -n "$debs" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+        - id: cache
+          if: steps.key.outputs.needed == 'true'
+          uses: actions/cache/restore@v6
+          with:
+              path: ~/.cache/lavapipe-debs
+              key: ${{ steps.key.outputs.key }}
+
+        - shell: bash
+          env:
+              HIT: ${{ steps.cache.outputs.cache-hit }}
+              NEEDED: ${{ steps.key.outputs.needed }}
+              PACKAGES: mesa-vulkan-drivers libvulkan1 vulkan-tools
+          run: |
+              dir="$HOME/.cache/lavapipe-debs"
+              install() { sudo apt-get install -y --no-install-recommends -o Dir::Cache::Archives="$dir" $PACKAGES; }
+              if [ "$NEEDED" != true ]; then
+                  echo "the runner image already has $PACKAGES"
+              elif [ "$HIT" = true ]; then
+                  sudo dpkg -i "$dir"/*.deb
+              else
+                  # apt downloads into $dir and keeps the files there for the save step below
+                  mkdir -p "$dir/partial"
+                  install || { sudo apt-get update && install; }
+                  sudo rm -rf "$dir/partial" "$dir/lock"
+              fi
+              # a hit that held too little fails here, not later as a missing Vulkan ICD
+              missing=$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' $PACKAGES 2>&1 | grep -v '^ii ' || true)
+              if [ -n "$missing" ]; then echo "::error::Mesa lavapipe's packages are not all installed: $missing"; exit 1; fi
+
+        - if: steps.key.outputs.needed == 'true' && steps.cache.outputs.cache-hit != 'true' && inputs.save == 'true'
+          uses: actions/cache/save@v6
+          with:
+              path: ~/.cache/lavapipe-debs
+              key: ${{ steps.key.outputs.key }}

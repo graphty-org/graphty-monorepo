@@ -1,12 +1,12 @@
 /**
- * The segmented (per-row) reduction primitive of spec 6 row 3: the caller's VALUE snippet folded over every CSR
+ * The segmented (per-row) reduction primitive: the caller's VALUE snippet folded over every CSR
  * row's arcs into `out[row]` (f32), a row with no arcs receiving the identity element. Without tiers it is ONE
  * thread-per-row dispatch (TIER 0, USE_PERM false: the perm slot carries the rowPtr dummy of graphBindings). With
- * the degree tiers of degreeOrder() (P4-T5, PD-6) it is up to three dispatches over the permuted rows: TIER 2, one
+ * the degree tiers of degreeOrder() it is up to three dispatches over the permuted rows: TIER 2, one
  * workgroup per row of degree >= 1024 over [0, hiEnd); TIER 1, 32 lanes per row of degree 32..1023 over [hiEnd,
  * midEnd); TIER 0, one thread per row over [midEnd, n) -- each compiled only when its range is non-empty. The row
  * and arc counts come from the core's binding sizes: the residency binds every array at its exact byte length
- * (contract 3.8), so rowPtr is 4(n + 1) bytes and colIdx 4 x arcCount. On a windowed core (spec 4.2, P4-T7, PD-8)
+ * so rowPtr is 4(n + 1) bytes and colIdx 4 x arcCount. On a windowed core
  * the dispatches repeat per window with `arcBase = w.start`, `arcEnd = w.end` and `accumulate = 1` over an out
  * pre-filled with the identity element (unless the caller asked to accumulate), so a row split across windows
  * combines its partials: the untiered dispatch covers the window's rows [rowFirst, rowLast], while every tier
@@ -46,7 +46,7 @@ const F32_MAX = 2 ** 128 - 2 ** 104;
 
 /**
  * The u32 bit pattern the `fill` kernel writes so every out word holds the identity element of the operator before
- * the windowed dispatches accumulate into it (PD-8).
+ * the windowed dispatches accumulate into it.
  * @param op - the operator
  * @returns the bits of 0 (sum), F32_MAX (min) or -F32_MAX (max)
  */
@@ -62,7 +62,7 @@ function identityFillWord(op: ReduceOp): number {
     return view.getUint32(0, true);
 }
 
-/** The identifiers a VALUE snippet may name (contract 3.11, 4.5); every other identifier is rejected textually before compose. */
+/** The identifiers a VALUE snippet may name; every other identifier is rejected textually before compose. */
 const VALUE_SNIPPET_VOCABULARY: ReadonlySet<string> = new Set(["row", "arc", "nbr", "weight", "v"]);
 
 /**
@@ -106,7 +106,7 @@ const VALUE_SNIPPET_WGSL_WORDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The OP override value of an operator (the body's `OP == 1u` / `OP == 2u` tests, contract 4.5).
+ * The OP override value of an operator (the body's `OP == 1u` / `OP == 2u` tests).
  * @param op - the operator
  * @returns 0 for sum, 1 for min, 2 for max
  */
@@ -137,7 +137,7 @@ function stripComments(text: string): string {
 }
 
 /**
- * The textual vocabulary check of contract 3.11: the snippet must assign `v` (`=`, `+=`, `-=`, `*=` or `/=`) and its
+ * The textual vocabulary check: the snippet must assign `v` (`=`, `+=`, `-=`, `*=` or `/=`) and its
  * identifiers may be only row, arc, nbr, weight and v; numeric literals and the WGSL words of
  * VALUE_SNIPPET_WGSL_WORDS are not identifiers and pass; anything else -- a binding, a uniform, a module function,
  * a locally declared name, a flow keyword, a reserved word such as `target` -- is E_SHADER_COMPILE { stage:
@@ -271,7 +271,7 @@ class TieredPlanner implements SegmentedReducePlanner {
     /**
      * Records the dispatches: every tier's rows over the arcs [0, arcCount), each with its own params record;
      * nothing for n = 0 (no zero-length binding is ever created). On a windowed core: the identity fill (unless
-     * accumulating into the caller's out), then the dispatches once per window (PD-8).
+     * accumulating into the caller's out), then the dispatches once per window.
      * @param pass - the pass to record into
      * @param core - a core with the SAME weights pattern as the one prepared (any snapshot; with tiers, the one the
      * tiers were built from)

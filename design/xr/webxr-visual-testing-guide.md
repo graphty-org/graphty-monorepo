@@ -1,6 +1,17 @@
 # WebXR Visual Regression Testing Guide
 
-Yes, you can absolutely test WebXR visual rendering to ensure consistency! This guide covers multiple approaches to implement comprehensive WebXR visual regression testing.
+Status: historical research, written in January 2026 before the testing rules. Do not copy its test code. Its examples use practices the repository now bans: fixed sleeps
+(`waitForTimeout`, `setTimeout` delays), local `timeout` deadlines, reads of private state
+(`activeCameraController`, `dataManager`, `node.mesh`), a fixed dev-server URL, and frame-rate
+assertions in functional tests. Tests now wait on the event or promise that settles the thing under
+test, assert through graphty-element's public API, start servers through servherd with an assigned
+port, and keep measurements in a `bench*` project. The rules are in tools/README.md, "Testing".
+
+Its page hooks were never built: `window.initWebXRScene()`, `window.xrSession`, `data-xr-mode` and
+`getAverageFPS` exist nowhere, and graphty-element's XR button has the class `webxr-button`, not
+`vr-button` (graphty-element/src/ui/XRUIManager.ts).
+
+This guide surveys approaches to WebXR visual regression testing.
 
 ## Table of Contents
 

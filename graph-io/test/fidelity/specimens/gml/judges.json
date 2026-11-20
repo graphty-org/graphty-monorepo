@@ -35,8 +35,14 @@
         {
             "judge": "cytoscape-gml",
             "settings": ["*"],
-            "properties": ["node.strokeWidth", "edge.width"],
-            "why": "OGDF does not read the draft's width (every outline and line is 1 px); Cytoscape's GML reader draws it"
+            "properties": ["edge.width"],
+            "why": "OGDF does not read the draft's width (every line is 1 px); Cytoscape's GML reader draws it"
+        },
+        {
+            "judge": "gml2gv",
+            "settings": ["*"],
+            "properties": ["node.strokeWidth"],
+            "why": "OGDF does not read the draft's width (every outline is 1 px), and Cytoscape desktop paints a node's fill over the inner half of its outline, so half the width shows; gml2gv draws width as the pen width, the whole outline showing as Tk draws it (A.4)"
         },
         {
             "judge": "none",

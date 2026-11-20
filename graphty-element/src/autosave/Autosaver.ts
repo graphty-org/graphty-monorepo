@@ -23,7 +23,7 @@
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
-import { dispatcherOf } from "../session/GraphSession";
+import { dispatcherOf } from "../session/dispatchers";
 import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
@@ -352,6 +352,7 @@ function tagsOf(slices: readonly ProjectSlice[]): PartTag[] {
             case "visibility":
             case "sets":
             case "views":
+            case "tours":
             case "notes":
             case "attributes":
             case "shaders":
@@ -697,7 +698,7 @@ export class Autosaver {
             this.#stash.delete(name);
         } else {
             // A JSON round trip on purpose: the stash keeps exactly what the entry will hold.
-            this.#stash.set(name, JSON.parse(JSON.stringify(value)) as unknown); // NOSONAR(S7784): JSON semantics wanted, not a structured clone
+            this.#stash.set(name, JSON.parse(JSON.stringify(value)) as unknown); // eslint-disable-line unicorn/prefer-structured-clone -- JSON semantics wanted, not a structured clone
         }
 
         if (this.#quiet > 0 && !this.#restoring) {
@@ -1190,7 +1191,7 @@ export class Autosaver {
      * @returns The project-open report.
      * @throws {GraphtyError} `E_UNSAVED_CHANGES`, `E_AUTOSAVE_UNKNOWN_ENTRY`,
      *     `E_AUTOSAVE_ENTRY_TAKEN`, `E_SUPERSEDED` when a clear asked for while the restore waited
-     *     cancelled it (the entry is left as it was), `E_AUTOSAVE_STALLED` when the browser's
+     *     canceled it (the entry is left as it was), `E_AUTOSAVE_STALLED` when the browser's
      *     database did not answer in time (the entry is left as it was, its lock released), or the
      *     code the entry could not be opened with.
      */
@@ -1229,7 +1230,7 @@ export class Autosaver {
         }
 
         if (restored === null && failed === null) {
-            // A clear cancelled the open: the entry is intact, and nothing failed.
+            // A clear canceled the open: the entry is intact, and nothing failed.
             throw supersededError();
         }
 
@@ -1419,12 +1420,12 @@ export class Autosaver {
     }
 
     /**
-     * Report a restore whose open failed. One a clear cancelled (`E_SUPERSEDED`, asked for while
+     * Report a restore whose open failed. One a clear canceled (`E_SUPERSEDED`, asked for while
      * the restore waited) left the work intact: its attempt is taken back and nothing is reported.
      * @param current - The entry, with the attempt recorded.
      * @param untried - The entry as it was before the attempt.
      * @param error - Why the open failed.
-     * @param copied - Whether `current` is a copy this restore made, which a cancelled one removes.
+     * @param copied - Whether `current` is a copy this restore made, which a canceled one removes.
      */
     async #restoreFailed(
         current: AutosaveEntryMeta,
@@ -1563,7 +1564,7 @@ export class Autosaver {
         };
 
         let current: AutosaveEntryMeta;
-        // The entry as it was before this attempt was recorded, which a cancelled restore puts back.
+        // The entry as it was before this attempt was recorded, which a canceled restore puts back.
         let untried: AutosaveEntryMeta;
         let text: string;
         let stash: Map<string, unknown>;
@@ -1612,7 +1613,7 @@ export class Autosaver {
         let report: AutosaveRestored["report"];
         // The open's place in line, taken now. The restore counts as writing only once its turn
         // has come and until a clear cancels it: a change made while it waits behind a load, or
-        // right after a clear cancelled it, is the reader's (issue #3674).
+        // right after a clear canceled it, is the reader's (issue #3674).
         const line = loadLineOf(dispatcherOf(this.#session));
         const turn = line.join();
         try {
@@ -1773,7 +1774,7 @@ export class Autosaver {
 
     /**
      * Whether the changes now are a restore's or a discard's reload, not new work: a restore's
-     * open only from when its turn in the load line came, and never once a clear cancelled it.
+     * open only from when its turn in the load line came, and never once a clear canceled it.
      * @returns True while they are.
      */
     get #restoring(): boolean {
@@ -1833,7 +1834,7 @@ export class Autosaver {
             this.#kick();
         };
         // Playback moves the window every step: the write waits for the pause, then happens once.
-        if (this.#session.features.enabled.includes("timeline") && this.#session.time.playing) {
+        if (this.#session.time.playing) {
             return;
         }
 

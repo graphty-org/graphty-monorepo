@@ -32,7 +32,7 @@ import glycolysisUrl from "../../graph-io/test/corpus/styles/json/iVis-at-Bilken
 import iliadUrl from "../../graph-io/test/corpus/styles/pajek/kjhealy_kjhnet__iliad_killedby.net?url";
 import ngsCheckMateUrl from "../../graph-io/test/corpus/styles/xgmml/parklab_NGSCheckMate__luad.out.xgmml?url";
 import genemaniaUrl from "../../graph-io/test/fidelity/samples/cyjs-genemania.json?url";
-import { type ExplainTarget, fileStyleOf } from "../session";
+import type { ExplainTarget } from "../session";
 import { assertDrawnColour, assertGraphLoaded, drawn, holds, renderedElement } from "./assertions";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
 
@@ -85,7 +85,8 @@ async function drewFileStyles(
 ): Promise<void> {
     await waitForGraphSettled(canvasElement);
     const element = await renderedElement(canvasElement, `${story}: no <graphty-element> rendered`);
-    const layers = element.session.styles.list().filter((layer) => fileStyleOf(layer) !== null);
+    const loaded = new Set(element.session.data.lastImport()?.styles?.layers ?? []);
+    const layers = element.session.styles.list().filter((layer) => loaded.has(layer.id));
     await holds(layers.length > 0, `${story}: the load drew no layers from the file's styles`);
 
     const scene = await drawn(canvasElement, `Data/File Styles ${story}`);

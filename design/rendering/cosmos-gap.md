@@ -116,7 +116,7 @@ GPU time during either load is under 1%. The load is CPU-bound JavaScript in gra
 ### 2.4 The small-graph floor is a missing flush
 
 Below about 20 ms a batched frame measures the loop's pacing, not drawing. `RenderManager.gpuBehind`
-(`managers/RenderManager.ts:1374`) skips a loop tick while the previous frame's fence is unsignalled, keeping one frame in
+(`managers/RenderManager.ts:1374`) skips a loop tick while the previous frame's fence is unsignaled, keeping one frame in
 flight, which a software GPU needs (it once ran 850 ms behind). But `fenceFrame` (`:1394-1407`) issues `gl.fenceSync` and
 never flushes, so the GPU does not see the fence until Chrome flushes at its own present cadence, about every 18 ms. The same
 file already flushes after its other fence (`:344-345`). A probe that patched one `gl.flush()` after the `fenceSync`, one run
@@ -222,6 +222,18 @@ No CPU change moves a fill-bound frame. Two picture changes do, so both are opt-
 
 With the default picture the frame stays at 72-90 ms (71.5 ms of GPU, 89.6 ms measured), about 2.5-3.2x cosmos.gl. G1's Proof checks whether the flush also
 recovers part of the 18 ms between the harness's 89.6 ms and the GPU's 71.5 ms.
+
+As built (issue #8235): `antialias: "at-rest"` keeps the default picture without paying for it while anything moves.
+The engine is built multisampled, as under `true`; a moving frame is drawn through a pass post-process with no
+multisampling (`RenderManager.drawFast`) and copied to the canvas, with every straight pulled batch, 2D and 3D (#8428), switched to
+`EDGE_PULLED_LEAN` by a define and a vertex count (`drawLinesLean`, no piece moved); the first tick that would rest
+draws one frame straight to the canvas with the join template, which is the `true` frame by construction, and the
+loop then rests on it (at-rest turns drawing on demand on). A pointer held on the canvas counts as motion. Because the
+canvas stays multisampled, an element built with `true` switches to `"at-rest"` and back at any time
+(`Graph.setAntialias`), which the app needs: the edge count is known only after the load. Measured on the RTX at
+100k + 1M, 4 interleaved runs: a fast frame of the still view 30.4 ms serial and 28.2 ms of GPU against `false`'s 30.1
+and 28.2; the layout frame 20.5 ms against 21.0 (`true`: 41.3); the smooth frame 73.2 ms of GPU, on screen 75.3 ms
+after the last moving frame; the held 1200x900 picture equal to `true`'s in every pixel (`false`: 176,639 differ).
 
 ### 3.5 What is kept out on purpose
 
@@ -492,7 +504,7 @@ For faster frames at a million edges, add `antialias="false"` to the tag (harder
 ## 8. Risks
 
 - **The projections are arithmetic on one profile per size**, under profiler overhead and load 2-24; the
-  garbage-collection and bulk-builder figures are labelled assumptions.
+  garbage-collection and bulk-builder figures are labeled assumptions.
 - **The flush probe is one run per size**, with a median below the GPU time; G1 repeats it and checks frame stamping.
 - **A flush per frame on a software GPU** may cost frame time; G1's pacing tests and SwiftShader row check it.
 - **The uniform mesh-key fill flatters the benchmark**, whose styles give every node one shape. A data-driven encoding keeps
@@ -515,7 +527,7 @@ For faster frames at a million edges, add `antialias="false"` to the tag (harder
 A second profile of master d8da5debd1 (batched path, 2D lean look, RTX 4070 SUPER), each finding re-measured by an
 independent run, found one blocker no stage planned and several costs no stage targets.
 
-- **WebGPU frames were never paced.** The WebGL loop skips a tick while the last frame's fence is unsignalled; on WebGPU
+- **WebGPU frames were never paced.** The WebGL loop skips a tick while the last frame's fence is unsignaled; on WebGPU
   that check did not exist. A still 100k + 1M scene queued a frame every 0.8-3 ms against about 89 ms of GPU work, a
   backlog of minutes built, and every GPU readback waited behind it: hover never answered, the GPU layout's position
   readback never landed so the layout stopped moving, and a fresh 256-byte buffer map did not answer in 120 s. The

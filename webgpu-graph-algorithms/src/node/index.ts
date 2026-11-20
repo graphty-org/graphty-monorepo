@@ -1,12 +1,10 @@
 /// <reference types="@webgpu/types" preserve="true" />
 /**
- * The ./node entry (spec 2.1, 2.3, 3.4; contract 3.7): Dawn through the optional peer dependency `webgpu`. The
- * ONLY file of the package that names the "webgpu" module, and only inside `await import("webgpu")` in a
- * function body, so the root and browser bundles never carry the specifier (spec 2.5; test/build-output.test.ts,
- * test/layers.test.ts). P0-T3 wrote createNodeGpu, dawnFlags and their types; P1-T1 adds createNodeGpuContext,
- * probeNodeWebGpu and the `extends Omit<GpuContextOptions, ...>` clause of NodeGpuOptions.
+ * The ./node entry: Dawn through the optional peer dependency `webgpu`. The ONLY file of the package that names
+ * the "webgpu" module, and only inside `await import("webgpu")` in a function body, so the root and browser bundles
+ * never carry the specifier (test/build-output.test.ts, test/layers.test.ts).
  *
- * Rule of spec 2.5 item 5 (also in CLAUDE.md): "./node" is imported only by Node entry points and tests.
+ * Rule (also in CLAUDE.md): "./node" is imported only by Node entry points and tests.
  */
 
 import { GpuContext } from "../context.js";
@@ -23,11 +21,11 @@ export type {
     ManagedAccelerator,
 } from "../types/managed.js";
 
-/** Options of the Node helpers (spec 3.4). */
+/** Options of the Node helpers. */
 export interface NodeGpuOptions extends Omit<GpuContextOptions, "gpu" | "adapter" | "device" | "runtime"> {
     /** Dawn `adapter=<substring>`: a substring of the adapter name (`llvmpipe`, `4070`); an empty string is ignored; wins over `software`. */
     readonly adapter?: string | undefined;
-    /** Dawn `backend=<name>`; `null` compiles pipelines and runs nothing (spec 5.1; the compile tests use it). */
+    /** Dawn `backend=<name>`; `null` compiles pipelines and runs nothing (the compile tests use it). */
     readonly backend?: "vulkan" | "d3d12" | "d3d11" | "metal" | "opengl" | "opengles" | "null" | undefined;
     /** Dawn toggles, emitted as `enable-dawn-features=a,b`. */
     readonly dawnFeatures?: readonly string[] | undefined;
@@ -37,9 +35,9 @@ export interface NodeGpuOptions extends Omit<GpuContextOptions, "gpu" | "adapter
      * every timestamp-query result to a 65,536 ns grid unless it is disabled, which is coarser than most kernels.
      */
     readonly dawnDisableFeatures?: readonly string[] | undefined;
-    /** Shorthand for `adapter=llvmpipe` (Linux / Mesa specific, spec 2.3); ignored when `adapter` is given. */
+    /** Shorthand for `adapter=llvmpipe` (Linux / Mesa specific); ignored when `adapter` is given. */
     readonly software?: boolean | undefined;
-    /** Install dawn.globals on globalThis (default true; spec 2.1 rule 2) so user code sees GPUBufferUsage and friends. */
+    /** Install dawn.globals on globalThis (default true) so user code sees GPUBufferUsage and friends. */
     readonly installGlobals?: boolean | undefined;
     /**
      * Test seam: replaces `() => import("webgpu")` so a missing / broken module can be simulated.
@@ -49,7 +47,7 @@ export interface NodeGpuOptions extends Omit<GpuContextOptions, "gpu" | "adapter
 }
 
 /**
- * The Dawn GPU handle (spec 2.3). The Dawn instance behind `gpu` is shared by every handle created with the
+ * The Dawn GPU handle. The Dawn instance behind `gpu` is shared by every handle created with the
  * same flags and lives until the process exits (see `createNodeGpu`); it holds no event-loop handle, so it
  * never keeps the process alive.
  */
@@ -60,7 +58,7 @@ export interface NodeGpuHandle {
     dispose(): void;
 }
 
-/** The install hint of E_NO_WEBGPU (spec 2.5 item 4); re-pinned with the devDependency by the environment move (docs/decisions/G-ENV.md). */
+/** The install hint of E_NO_WEBGPU; re-pinned with the devDependency by the environment move (docs/decisions/G-ENV.md). */
 const INSTALL_HINT = "install the optional peer dependency webgpu@0.6.1";
 
 /** The shape of the `webgpu` module (its types.d.ts: create(options: string[]): GPU; globals: Object). */
@@ -160,7 +158,7 @@ export function dawnFlags(options: NodeGpuOptions | undefined): string[] {
 }
 
 /**
- * import("webgpu"), install dawn.globals unless installGlobals === false, dawn.create(flags) (spec 2.3). The GPU
+ * import("webgpu"), install dawn.globals unless installGlobals === false, dawn.create(flags). The GPU
  * object is created once per flag list and reused by every later call with the same flags; it is never released,
  * because Dawn keeps polling its instance for the adapters and devices it produced (issue #30).
  * @param options - adapter / backend / dawnFeatures / software / installGlobals (and the test seam)

@@ -5,7 +5,7 @@
  * WHAT AN EXPORT CARRIES. Whatever the chosen format can represent: every node and edge with the
  * attributes it was loaded or edited with, the current positions, every published algorithm
  * result and the style each element is drawn with. The element resolves all of it into one
- * graph-format snapshot -- positions into the `position` role column, colours, sizes and edge
+ * graph-format snapshot -- positions into the `position` role column, colors, sizes and edge
  * widths into the `color`, `size` and `thickness` role columns, results into attribute columns
  * named by their result path (a partition's group as the algorithm's group id, or with
  * `{ groupRanks: true }` as its rank by size, 1 for the largest) -- and the exporter writes what its format has
@@ -79,7 +79,6 @@ import { partitionGroupRanks } from "../session/results/pageColumns";
 import type { CodedFact, CodedFactParam } from "../session/shared";
 import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
-import { asFileStyleStore, FILE_STYLES_VALUE } from "../session/styles/fileStyles/store";
 import type { EdgeRecord, GraphSession, GroupTableOptions, NodeRecord } from "../session/types";
 import { wholeGraph } from "../session/working/graphs";
 import { writtenPositions } from "./filePositions";
@@ -91,7 +90,8 @@ export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
  * session's `workingGraph` option is on, what is shown:
  *
  * - `"all"`: the whole graph, whatever is shown.
- * - `"shown"`: what the visibility filter and the time window leave showing.
+ * - `"shown"`: what the visibility filter leaves showing; a time window, which only changes how
+ *   elements are drawn, narrows nothing.
  * - `"selection"`: the selected nodes and the edges between them.
  * - `{ set }`: a kept set's members.
  * - `{ nodes }`: these nodes and the edges between them.
@@ -202,7 +202,7 @@ export type ExportLossCode =
  * `code` is an {@link ExportLossCode} for a built-in writer; a writer registered with
  * `registerFormatWriter` reports its own codes.
  */
-export type ExportLoss = CodedFact<ExportLossCode | (string & {})>; // NOSONAR(S4335): the open-union idiom; keeps the known codes in autocomplete while accepting a registered writer's
+export type ExportLoss = CodedFact<ExportLossCode | (string & {})>; // the open-union idiom; keeps the known codes in autocomplete while accepting a registered writer's
 
 /** What `exportGraph` returns. */
 export interface ExportResult {
@@ -214,13 +214,6 @@ export interface ExportResult {
      * export is exact.
      */
     readonly losses: readonly ExportLoss[];
-    /**
-     * Everything the format could not carry, one note per kind of omission, from the exporter's
-     * `check()`. Empty only when the export is exact.
-     * @deprecated Its `message` is English written by the element. Word {@link ExportResult.losses}
-     * instead; removed in the next major release.
-     */
-    readonly lossNotes: readonly LossNote[];
     /**
      * The whole output as one string.
      * @returns The document.
@@ -237,7 +230,7 @@ interface ExportViewState {
     /**
      * What a node is drawn as.
      * @param row - The node's row in the session's snapshot.
-     * @returns Its colour, size and shape, or undefined when nothing is drawn.
+     * @returns Its color, size and shape, or undefined when nothing is drawn.
      */
     nodeStyle?(
         row: number,
@@ -245,7 +238,7 @@ interface ExportViewState {
     /**
      * What an edge is drawn as.
      * @param row - The edge's row in the session's snapshot.
-     * @returns Its colour and width, or undefined when nothing is drawn.
+     * @returns Its color and width, or undefined when nothing is drawn.
      */
     edgeStyle?(row: number): { readonly color: Rgba | null; readonly width: number | undefined } | undefined;
 }
@@ -345,7 +338,7 @@ function attributesOf(
 }
 
 /**
- * A colour as graph-format's `color` role holds it: four components from 0 to 1.
+ * A color as graph-format's `color` role holds it: four components from 0 to 1.
  * @param color - Components 0-255, alpha 0-1.
  * @returns The components.
  */
@@ -716,11 +709,9 @@ function exportGroupTable(session: GraphSession, format: FormatId, options: Expo
         }
     }
 
-    const lossNotes = Object.freeze(notes);
     return {
         format,
-        losses: Object.freeze(lossNotes.map(lossOf)),
-        lossNotes,
+        losses: Object.freeze(notes.map(lossOf)),
         text: () => Promise.resolve(output),
         bytes: {
             async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> {
@@ -812,7 +803,7 @@ function writeEdges(
 }
 
 /**
- * Write each node's drawn colour, size and shape, when the view supplies them.
+ * Write each node's drawn color, size and shape, when the view supplies them.
  * @param builder - The export's builder.
  * @param nodeRows - The session row of each node written.
  * @param view - Style, from the renderer.
@@ -842,7 +833,7 @@ function writeNodeStyles(builder: GraphBuilder, nodeRows: readonly number[], vie
 }
 
 /**
- * Write each edge's drawn colour and width, when the view supplies them.
+ * Write each edge's drawn color and width, when the view supplies them.
  * @param builder - The export's builder.
  * @param edgeRows - The session row of each edge written.
  * @param view - Style, from the renderer.
@@ -1048,7 +1039,7 @@ interface ChosenWriter {
 
 /**
  * The exporter for a format, and the options to hand it, checked against what the format's
- * catalogue entry declares in `writerOptions` -- the same rule for a built-in writer as for a
+ * catalog entry declares in `writerOptions` -- the same rule for a built-in writer as for a
  * registered one.
  * @param format - The format id.
  * @param options - What the caller passed.
@@ -1097,8 +1088,8 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     }
 
     // `variant` picks the writer and `neutraliseFormulas` is the element's own guard; graph-io
-    // reads neither. CSV's `dialect` defaults to the plain one (see the catalogue entry): the
-    // element's CSV reader reads Gephi's capitalised headers back under those names.
+    // reads neither. CSV's `dialect` defaults to the plain one (see the catalog entry): the
+    // element's CSV reader reads Gephi's capitalized headers back under those names.
     const { variant: _variant, neutraliseFormulas, ...rest } = resolved;
     // The header row's stated default is the edge and node tables'; an adjacency table has none,
     // and the writer refuses one, so it is passed only when the caller asked for it.
@@ -1200,7 +1191,7 @@ export function exportSession(
     let built: { snapshot: GraphSnapshot; notes: LossNote[] };
     let styles: StylesToWrite | null = null;
     try {
-        // With styles, the style writer is the only path: the drawn colour, size and width columns are left out.
+        // With styles, the style writer is the only path: the drawn color, size and width columns are left out.
         built = buildExportSnapshot(session, writer.build.styles === true ? {} : view, build);
         if (writer.build.styles === true) {
             styles = sessionStyles(session, built.snapshot, writer.exporter, rows);
@@ -1290,7 +1281,6 @@ function sessionStyles(
                 (row) => edgeMask[row] !== 1 && shown(allEdges[row].source) && shown(allEdges[row].target),
             ),
         },
-        fileStyles: asFileStyleStore(state.graph.values.get(FILE_STYLES_VALUE)),
         format: exporter.format,
         keepsBlock: block === "native" || (block === "attributes" && exporter.capabilities.graphAttributes),
     });
@@ -1328,7 +1318,7 @@ function channelOf(property: string | undefined): { channel?: string } {
  * Write the project file, Graphty JSON: the document `session.project.save` produces, without
  * marking the project saved. The one format still built as a single string, because the project
  * is serialized as one document; `bytes` yields that string's UTF-8 in one chunk. Nothing is lost,
- * so `losses` and `lossNotes` are empty.
+ * so `losses` is empty.
  * @param session - The session.
  * @param options - Must be empty: the project file takes no writer options.
  * @returns The result.
@@ -1341,7 +1331,6 @@ function exportProject(session: GraphSession, options: ExportGraphOptions): Expo
     return {
         format: "graphty",
         losses: Object.freeze([]),
-        lossNotes: Object.freeze([]),
         text,
         bytes: {
             async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> {
@@ -1439,14 +1428,13 @@ function writeWith(
         throw writerFailure(error, format);
     }
 
-    const lossNotes = Object.freeze([
+    const lossNotes = [
         ...notes,
         ...(written === undefined ? checked : withoutBaseLosses(checked, written.extracted, written.base)),
-    ]);
+    ];
     return {
         format,
         losses: Object.freeze(lossNotes.map(lossOf)),
-        lossNotes,
         async text(): Promise<string> {
             try {
                 return registry === null

@@ -438,6 +438,8 @@ interface FieldProps {
         readonly slot: React.ReactNode;
         readonly removeLabel: string;
         readonly onRemove: () => void;
+        /** What the control takes, as its tooltip ("Character or icon" for a Glyph). */
+        readonly hint?: string;
     };
     /**
      * Drawn as an unset line of Style panel v2: the layer does not set it, so it has no minus and
@@ -1490,7 +1492,11 @@ export function Field({
             {/* One line: the name, the field, then two reserved 24 px columns, vary and minus,
                 so the field keeps its width (Figma's property row). */}
             <FieldLine name={thing === undefined ? label : thing.name} settings={settings}>
-                <div className="ws-field-control" data-notes={notes.length === 0 ? undefined : notes.join(" ")}>
+                <div
+                    className="ws-field-control"
+                    title={thing?.hint}
+                    data-notes={notes.length === 0 ? undefined : notes.join(" ")}
+                >
                     {control}
                 </div>
                 {thing?.slot === undefined ? (

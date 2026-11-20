@@ -25,6 +25,8 @@ import { onlyPlusAdds, openGraph, openStyle, picture, pixelsApart } from "./v2Ha
 interface Seen {
     /** Every line of visible words: section titles, menu items, row names, pop-over lines, gallery tiles. */
     readonly words: Set<string>;
+    /** Every section "+" menu item. */
+    readonly plusItems: Set<string>;
     /** Every line's channel (data-line) in the panel and its pop-overs. */
     readonly lines: Set<string>;
     /** Every forbidden selector found, with where. */
@@ -171,6 +173,9 @@ async function walkMenus(seen: Seen, adding: boolean): Promise<void> {
                 break;
             }
             look(seen, menu);
+            for (const item of within(menu).queryAllByRole("menuitem")) {
+                seen.plusItems.add(item.textContent.trim());
+            }
             const next = within(menu)
                 .queryAllByRole("menuitem")
                 .find(
@@ -192,13 +197,13 @@ async function walkMenus(seen: Seen, adding: boolean): Promise<void> {
 }
 
 /**
- * Opens every row's settings pop-over and records it.
+ * Opens every row's settings pop-over and Switch to menu and records them.
  * @param seen - the record.
  */
 async function walkPopovers(seen: Seen): Promise<void> {
-    const names = [...panel().querySelectorAll<HTMLElement>("button[aria-label$=' settings']")].map(
-        (each) => each.getAttribute("aria-label") ?? "",
-    );
+    const names = [
+        ...panel().querySelectorAll<HTMLElement>("button[aria-label$=' settings'], button[aria-label^='Switch ']"),
+    ].map((each) => each.getAttribute("aria-label") ?? "");
     for (const name of names) {
         const button = panel().querySelector<HTMLElement>(`button[aria-label="${CSS.escape(name)}"]`);
         if (button === null) {
@@ -273,6 +278,7 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
         const { session } = await openGraph();
         const seen: Seen = {
             words: new Set(),
+            plusItems: new Set(),
             lines: new Set(),
             selectors: new Set(),
             unscrubbed: new Set(),
@@ -302,6 +308,13 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
             if (forbidden.text !== undefined) {
                 assert.deepEqual(
                     [...seen.words].filter((word) => forbidden.text?.test(word)),
+                    [],
+                    why,
+                );
+            }
+            if (forbidden.plusItem !== undefined) {
+                assert.deepEqual(
+                    [...seen.plusItems].filter((item) => forbidden.plusItem?.test(item)),
                     [],
                     why,
                 );
@@ -375,7 +388,7 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
                 .reduce((sum, each) => sum + each.count, 0);
         assert.isAbove(drawn("node.groupPadding"), 0, "the parent's padding is drawn");
         assert.isAbove(drawn("node.drawOrder"), 0, "the draw order is drawn");
-        const seen: Seen = { words: new Set(), lines: new Set(), selectors: new Set() };
+        const seen: Seen = { words: new Set(), plusItems: new Set(), lines: new Set(), selectors: new Set() };
         const writes = session.styles
             .list()
             .filter((layer) =>
@@ -495,7 +508,11 @@ describe("pointing at a Style row, with the assistant experiment on so a peek co
         let rows = 0;
         let shaderRows = 0;
         for (const kind of ["node", "edge"] as const) {
-            await walkKind({ words: new Set(), lines: new Set(), selectors: new Set() }, kind, false);
+            await walkKind(
+                { words: new Set(), plusItems: new Set(), lines: new Set(), selectors: new Set() },
+                kind,
+                false,
+            );
             const before = await picture(element);
             const found = [...panel().querySelectorAll<HTMLElement>("[data-thing], [data-shader]")];
             assert.isNotEmpty(found, `the ${kind} tab has rows`);

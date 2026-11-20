@@ -13,6 +13,8 @@ export interface Forbidden {
     readonly ledger: string;
     /** Visible words of a section title, "+" menu item, row name or pop-over line it shows as. */
     readonly text?: RegExp;
+    /** A section "+" menu item it shows as (not a kind in a row's Switch to). */
+    readonly plusItem?: RegExp;
     /** The channels a line writing it names (a line's data-line, a layer's written channel). */
     readonly channel?: RegExp;
     /** The words of a Settings control it shows as. */
@@ -48,7 +50,8 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
     {
         what: "Glyph as a style of its own beside Label (it is a kind of the Label row)",
         ledger: "E275, E276",
-        text: /^Glyph$/,
+        // Only a "+" menu item: Glyph is rightly a kind in the Label row's Switch to, and names a row of that kind.
+        plusItem: /^Glyph$/,
         selector: '[data-thing="glyph"]',
     },
     {

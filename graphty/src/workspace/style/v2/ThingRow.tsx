@@ -203,14 +203,6 @@ function MainLine(
     // A rubric line drawing the row dims itself.
     const dimmed =
         props.replacing === undefined && props.row === undefined ? dimOf(props.ctx, props.main.channel) : undefined;
-    if (dimmed === undefined && props.hint !== undefined) {
-        // A kind's row says what its control takes ("Character or icon" for a Glyph).
-        return (
-            <div title={props.hint}>
-                <MainControl {...props} />
-            </div>
-        );
-    }
     return dimmed === undefined ? (
         <MainControl {...props} />
     ) : (
@@ -231,6 +223,7 @@ function MainLine(
  * @param props.pending - added with "+" and waiting for its first value
  * @param props.onCancel - takes a waiting thing away again
  * @param props.slots - its settings button and whole-thing minus
+ * @param props.hint - what its control takes, as its tooltip, for a kind's row
  * @returns The line
  */
 function MainControl({
@@ -242,6 +235,7 @@ function MainControl({
     pending,
     onCancel,
     slots,
+    hint,
 }: Readonly<{
     ctx: RowContext;
     thing: ThingSpec;
@@ -251,6 +245,7 @@ function MainControl({
     pending: boolean;
     onCancel: () => void;
     slots: RowSlots;
+    hint?: string;
 }>): React.JSX.Element {
     // A thing its section does not name (Pie, Stripes, Inner lines) keeps its name column (design 2.4).
     const name = thing.unnamed === true ? null : thing.name;
@@ -310,7 +305,7 @@ function MainControl({
             descriptor={main}
             pending={pending || !setOn(ctx, main.channel)}
             onCancel={onCancel}
-            thing={{ name: thing.unnamed === true ? null : thing.name, ...slots }}
+            thing={{ name: thing.unnamed === true ? null : thing.name, hint, ...slots }}
         />
     );
 }
@@ -387,8 +382,11 @@ export function ThingRow({
     if (main === undefined) {
         return null;
     }
+    const text = TEXT_THINGS[ctx.side][thing.id] as TextThing | undefined;
+    // A kind's row is named by its kind ("Glyph") everywhere, its buttons too; a text kind's row keeps the thing's.
+    const name = kind === undefined || text?.words === main.channel ? thing.name : kind.plainName;
     const kindWord = ctx.side === "node" ? "Node" : "Edge";
-    const title = `${kindWord} ${thing.name.toLowerCase()}`;
+    const title = `${kindWord} ${name.toLowerCase()}`;
     const member = switchTo(ctx, thing, title, kind);
     const list = ctx.side === "node" ? LISTS[thing.id] : undefined;
     // A shader drawn in the shapes' place is the Shape row's member (design 5): its row names it.
@@ -437,16 +435,15 @@ export function ThingRow({
     );
     const remove = (): void => {
         onCancel();
-        unsetIn(ctx, all, { name: thing.name, shape: thing.id === "shape" })
+        unsetIn(ctx, all, { name, shape: thing.id === "shape" })
             .then(() => {
-                store.set({ announcement: `${thing.name} removed` });
+                store.set({ announcement: `${name} removed` });
             })
             .catch((error: unknown) => {
-                store.set({ notice: { message: failureWords(thing.name, "removed", error), error: true } });
+                store.set({ notice: { message: failureWords(name, "removed", error), error: true } });
             });
     };
     const removeLabel = `Remove ${title.toLowerCase()}`;
-    const text = TEXT_THINGS[ctx.side][thing.id] as TextThing | undefined;
     if (text?.words === main.channel) {
         return (
             <div data-thing={thing.id}>
@@ -501,8 +498,7 @@ export function ThingRow({
             <ThingLine member={member}>
                 <MainLine
                     ctx={ctx}
-                    // A kind's row is named by its kind ("Glyph"): its control takes that kind's value.
-                    thing={kind === undefined ? thing : { ...thing, name: kind.plainName }}
+                    thing={{ ...thing, name }}
                     hint={kind?.hint}
                     main={main}
                     row={rubric?.row}

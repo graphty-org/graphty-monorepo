@@ -38,7 +38,7 @@ async function labelRow(tab: HTMLElement): Promise<HTMLElement> {
  * @param kind - the kind's name.
  */
 async function switchTo(row: HTMLElement, kind: string): Promise<void> {
-    await userEvent.click(within(row).getByRole("button", { name: /^Switch node label to/ }));
+    await userEvent.click(within(row).getByRole("button", { name: /^Switch node (label|glyph) to/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
 }
 
@@ -48,7 +48,7 @@ async function switchTo(row: HTMLElement, kind: string): Promise<void> {
  * @returns its name.
  */
 async function kindOf(row: HTMLElement): Promise<string> {
-    await userEvent.click(within(row).getByRole("button", { name: /^Switch node label to/ }));
+    await userEvent.click(within(row).getByRole("button", { name: /^Switch node (label|glyph) to/ }));
     const menu = await screen.findByRole("menu");
     const current = menu.querySelector('[aria-current="true"]')?.textContent.trim() ?? "";
     await userEvent.keyboard("{Escape}");
@@ -95,7 +95,9 @@ describe("a node's Label is Text or Glyph", () => {
             if ((await kindOf(await labelRow(tab))) !== kind) {
                 await switchTo(await labelRow(tab), kind);
             }
-            await userEvent.click(within(await labelRow(tab)).getByRole("button", { name: /^Node label settings/ }));
+            await userEvent.click(
+                within(await labelRow(tab)).getByRole("button", { name: /^Node (label|glyph) settings/ }),
+            );
             const pop = await screen.findByRole("dialog");
             const lines = [...pop.querySelectorAll<HTMLElement>(".ws-row[data-line]")].filter((line) =>
                 line.checkVisibility(),
@@ -146,6 +148,11 @@ describe("a node's Label is Text or Glyph", () => {
             /character/i,
             "its tooltip names the character",
         );
+        // Its buttons name the Glyph too, so a screen reader hears what the row shows.
+        for (const name of [/^Switch node glyph to/, "Node glyph settings", "Remove node glyph"]) {
+            assert.isNotNull(within(glyphRow).queryByRole("button", { name }), String(name));
+        }
+        assert.isNull(within(glyphRow).queryByRole("button", { name: /node label/i }), "no button says label");
         await userEvent.click(field);
         await userEvent.keyboard("A{Enter}");
         await waitFor(() => {

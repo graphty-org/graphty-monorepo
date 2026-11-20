@@ -137,7 +137,7 @@ jobs:
     run-cap:
         name: Run cap
         runs-on: ubuntu-24.04
-        timeout-minutes: 350
+        timeout-minutes: 120
         # the job runs on every event (a skipped job would skip every job below Build); only its steps are
         # limited to a pull request, so elsewhere it is a few seconds on one runner
         # never fails the run (its wait ends before this timeout), and so is no required check

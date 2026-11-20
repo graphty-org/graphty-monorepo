@@ -27,10 +27,9 @@
 //
 // It never fails the pull request: an API error lets the run proceed, and so does a GITHUB_TOKEN with under
 // MIN_RATE_LEFT requests left this hour (the token's 1,000 an hour are shared by every workflow). Waiting its
-// turn is long (giving up early let the slowest runs join the backlog exactly when it was longest: on 2026-11-20
-// every run that waited the old 110 minutes proceeded at once, and the pool queued 1,714 pull request jobs ahead
-// of master's build, #9153), but it ends at MAX_WAIT_MINUTES, near GitHub's 6-hour limit on a hosted job and
-// before the job's timeout in ci.yml: a job that reaches its timeout is canceled, which
+// turn is long (giving up early let the slowest runs join the backlog exactly when it was longest), but it ends
+// at MAX_WAIT_MINUTES, before the job's timeout in ci.yml (twice the job's budget in ci-budgets.json): a job that
+// reaches its timeout is canceled, which
 // continue-on-error does not cover, so Build and every job after it were skipped and the pull request went red
 // (#8219: a 2-hour backlog on 2026-11-14 failed #7878 that way). Past the limit the run proceeds. A run k
 // places from its turn checks every k x POLL_SECONDS (at most 5 minutes), so a long queue costs few calls. The wait goes in the job summary.
@@ -48,7 +47,7 @@ import { pathToFileURL } from "node:url";
 
 export const POLL_SECONDS = 60;
 // the longest wait for a turn, below the Run cap job's timeout-minutes in ci.yml (ci-run-cap.test.mjs checks it)
-export const MAX_WAIT_MINUTES = 340;
+export const MAX_WAIT_MINUTES = 110;
 const MAX_POLL_SECONDS = 300;
 export const MIN_RATE_LEFT = 300;
 const ACTIVE = new Set(["queued", "in_progress", "requested", "pending", "waiting"]);

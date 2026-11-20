@@ -47,22 +47,44 @@ const FIND_WORDS: Partial<Readonly<Record<Channel, readonly string[]>>> = {
 const ADD_SECTION = "Add section";
 
 /**
- * Every channel of a thing that its section offers: its items' and its own, less what another
- * thing of the section takes as its own.
+ * Every channel the kind's parts offer here (an experiment that is off keeps its own out).
+ * @param ctx - the row and kind.
+ * @returns the channels.
+ */
+function kindChannels(ctx: RowContext): ReadonlySet<Channel> {
+    const off = experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) });
+    return new Set(partsFor(ctx.side, off).flatMap((part) => part.items.flatMap((item) => itemChannels(item))));
+}
+
+/**
+ * Every channel of a thing that its section offers: its items' and its own (a channel another part of
+ * the kind holds, such as an edge's animation speed, which the line part lists), less what another
+ * thing of the kind takes as its own.
+ * @param ctx - the row and kind.
  * @param part - its section's part.
  * @param section - its section.
  * @param thing - the thing.
+ * @param kindChannels - every channel the kind's parts offer here.
  * @returns the channels.
  */
-function thingChannels(part: PartSpec, section: SectionThings, thing: ThingSpec): readonly Channel[] {
-    const taken = new Set(section.groups.flat().flatMap((each) => (each === thing ? [] : (each.own ?? []))));
+function thingChannels(
+    ctx: RowContext,
+    part: PartSpec,
+    section: SectionThings,
+    thing: ThingSpec,
+    kindChannels: ReadonlySet<Channel>,
+): readonly Channel[] {
+    const taken = new Set(
+        SECTIONS[ctx.side].flatMap((each) =>
+            each.groups.flat().flatMap((other) => (other === thing ? [] : (other.own ?? []))),
+        ),
+    );
     const offered = new Set(part.items.flatMap((item) => itemChannels(item)));
     const items = part.items.filter((item) => thing.items.includes(item.id)).flatMap((item) => itemChannels(item));
     // Fit to label sizes the shape: it is the Shape thing's, not the Label's (design 4).
     const moved = new Set<Channel>(thing.id === "shape" ? [] : FIT_TO_LABEL);
-    return [...new Set([...items, ...(thing.own ?? [])])].filter(
-        (c) => offered.has(c) && !taken.has(c) && !moved.has(c),
-    );
+    const own = (thing.own ?? []).filter((c) => kindChannels.has(c));
+    return [...new Set([...items.filter((c) => offered.has(c)), ...own])].filter((c) => !taken.has(c) && !moved.has(c));
 }
 
 /**
@@ -84,7 +106,7 @@ function thingsOf(
 } {
     const things = section.groups.map((group) =>
         group.flatMap((thing) => {
-            const channels = thingChannels(part, section, thing);
+            const channels = thingChannels(ctx, part, section, thing, kindChannels(ctx));
             return channels.length === 0 || mainOf(ctx, thing, channels) === undefined ? [] : [{ thing, channels }];
         }),
     );
@@ -199,6 +221,7 @@ function ThingSection({
                             key: thing.id,
                             label: thing.name,
                             dimmed: main === undefined ? undefined : viewDim(ctx, main),
+                            hint: thing.hint,
                         },
                     ];
                 }

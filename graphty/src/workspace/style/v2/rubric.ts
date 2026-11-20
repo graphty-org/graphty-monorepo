@@ -515,7 +515,6 @@ const LINE_MAIN: readonly LineSpec[] = [
     { channel: "edge.blending" },
     // Lift draws only in 3D: dimmed in 2D from graphty-element's view fact, like every one-view line.
     { channel: "edge.lift", name: "Lift" },
-    { channel: "edge.animationSpeed", name: "Flow speed" },
 ];
 
 /** An edge line's sub-groups (design 7.2). */
@@ -665,7 +664,7 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     bundling: {
-        row: { channel: "edge.supportModel", name: "Bundling", rule: "R9" },
+        row: { channel: "edge.supportModel", name: "Force curves", rule: "R9" },
         main: [],
         groups: [
             {

@@ -93,7 +93,10 @@ describe('Style panel v2\'s "+" writes what a style needs to draw', () => {
                 assert.equal(read(main), start, `${main} starts on graphty-element's start`);
             }
             for (const need of needsOf(main)) {
-                assert.equal(read(need.channel), need.value, `${main} needs ${need.channel}`);
+                // Written with it, unless a layer beneath already draws the value it needs (Edge defaults' solid line).
+                const drawn = session.styles.drawnValues(need.channel).map((each) => each.value);
+                const held = read(need.channel) ?? (drawn.length === 1 ? drawn[0] : undefined);
+                assert.equal(held, need.value, `${main} needs ${need.channel}`);
             }
             // A start graphty-element already draws with nothing set (a directed graph's target arrow) changes nothing.
             const shows = start === undefined || session.styles.defaultValue(main) !== start;

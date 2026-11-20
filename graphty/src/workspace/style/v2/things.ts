@@ -30,6 +30,8 @@ export interface ThingSpec {
     readonly own?: readonly Channel[];
     /** Its section already names it (Fill, Border, Shape, Line, Visibility): the row has no name column. */
     readonly unnamed?: boolean;
+    /** What it does, in its "+" menu item's tooltip, where its name alone does not say. */
+    readonly hint?: string;
 }
 
 /** One section: the `parts.ts` part it draws and its things, in "+" menu groups. */
@@ -209,7 +211,15 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
             part: "route",
             groups: [
                 [{ id: "route", name: "Route", items: ["route"], main: ["edge.route"] }],
-                [{ id: "bundling", name: "Bundling", items: ["support"], main: ["edge.supportModel"] }],
+                [
+                    {
+                        id: "bundling",
+                        name: "Force curves",
+                        items: ["support"],
+                        main: ["edge.supportModel"],
+                        hint: "Bows each edge as a physics simulation pulls and pushes it, so edges bend around one another",
+                    },
+                ],
             ],
         },
         {
@@ -251,6 +261,16 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         name: "Overlay",
                         items: ["overlay"],
                         main: ["edge.overlayColor"],
+                    },
+                ],
+                // The line part lists the speed; the thing that moves the line owns it (design 4.2).
+                [
+                    {
+                        id: "animation",
+                        name: "Animation",
+                        items: [],
+                        main: ["edge.animationSpeed"],
+                        own: ["edge.animationSpeed"],
                     },
                 ],
             ],

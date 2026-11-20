@@ -114,7 +114,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.bandColor": at("Edges, Line, Band"),
     "edge.bandWidth": at("Edges, Line, Band width"),
     "edge.bandOpacity": at("Edges, Line, Band opacity"),
-    "edge.animationSpeed": at("Edges, Line, Dash motion"),
+    "edge.animationSpeed": at("Edges, Line, Animation"),
     "edge.label": at("Edges, Text, Label entry, source (a value, or Fixed text)"),
     "edge.labelStyle": at("Edges, Label entry look, position and Label settings"),
     "edge.labelSize": at("Edges, Label entry, size"),
@@ -677,8 +677,12 @@ export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; r
         reason: "takesBinding lists color with number, choice and words; valueWords names a color, and names every other kind in its own branch",
     },
     "workspace/style/row.ts": {
-        count: 5,
-        reason: "startFor reads a color beneath as its hex, and every other kind as it is; Vary by Layer starts a color on a palette with every layer its own color, a number on the app's range, a shape on the channel's own list with the distinct shapes first",
+        count: 6,
+        reason: "startFor reads a color beneath as its hex, and every other kind as it is; Vary by Layer starts a color on a palette with every layer its own color, a number on the app's range, a shape on the channel's own list with the distinct shapes first; needsFor counts a color partner beneath as drawing unless it is off, a number above 0, any other kind only at the value needed",
+    },
+    "workspace/style/v2/RubricLine.tsx": {
+        count: 1,
+        reason: "A line the rubric leaves unnamed is named 'Color' under a row when it is a color, and by its channel's word when it is any other kind",
     },
     "workspace/style/ShaderParamRows.tsx": {
         count: 2,

@@ -505,7 +505,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowTailOpacity": "Source end opacity",
     "edge.arrowTailText": "Label at source end",
     "edge.arrowTailTextStyle": "Label at source end style",
-    "edge.animationSpeed": "Dash motion",
+    "edge.animationSpeed": "Animation",
     "edge.label": "Label",
     "edge.labelStyle": "Label style",
     "edge.labelSize": "Label size",

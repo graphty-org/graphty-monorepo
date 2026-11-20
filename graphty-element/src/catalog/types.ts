@@ -1412,7 +1412,24 @@ export type Selector =
      *     selector: { match: "hover", reach: "neighbors", invert: true }, set: { "node.opacity": 0.25 } });
      * ```
      */
-    | { match: "hover"; reach?: "node" | "neighbors"; invert?: boolean; orSelected?: boolean };
+    | { match: "hover"; reach?: "node" | "neighbors"; invert?: boolean; orSelected?: boolean }
+    /**
+     * The elements of some types, under the `source-steps` experiment: those whose one type
+     * (the readable path `graphty.type`) is listed, such as the accounts of a graph of accounts and
+     * merchants. Refused with `E_FEATURE_OFF` while the experiment is off.
+     *
+     * ```ts
+     * session.styles.add({ name: "Accounts", target: "node",
+     *     selector: { match: "type", types: ["account"] }, set: { "node.color": "#4c6ef5" } });
+     * ```
+     * Experimental: may change or be removed in a minor release.
+     */
+    | {
+          /** Match by type. */
+          match: "type";
+          /** The types whose elements match. */
+          types: readonly string[];
+      };
 
 /**
  * Who put a layer in the stack. Every layer names its source. An element layer's `reason` says
@@ -2246,7 +2263,18 @@ export type Scope =
  * A {@link Scope} as a write position accepts it: an inline definition may name edges by session
  * {@link EdgeId}. Every getter returns the canonical {@link Scope}, with stable members.
  */
-export type ScopeInput = Exclude<Scope, { define: unknown }> | { define: SetDefinitionInput };
+export type ScopeInput =
+    | Exclude<Scope, { define: unknown }>
+    | { define: SetDefinitionInput }
+    /**
+     * Under the `source-steps` experiment: the nodes whose one type (`graphty.type`) is listed and
+     * the edges between them. Read back as its canonical `{ where }` on `graphty.type`.
+     * Experimental: may change or be removed in a minor release.
+     */
+    | {
+          /** The types whose nodes are in scope. */
+          types: readonly string[];
+      };
 
 /**
  * Which way an edge is followed: arriving (`in`), leaving (`out`) or both (`all`). What a degree

@@ -6749,6 +6749,9 @@ export class Graph implements GraphContext {
 
         this.#lighting = lighting;
         this.renderManager.applyLighting(lighting);
+        // A frozen list of what is drawn skips each mesh's material check, so a mesh would keep
+        // drawing the old lighting's shader, or nothing once its material is marked not ready (#9246).
+        this.updateManager.thawActiveMeshes();
     }
 
     /**

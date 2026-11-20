@@ -69,7 +69,7 @@ import { readProjectConfig } from "./commands/config";
 import { type DataMutation, declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
-import { edgeAddsOf, freshEdgeIds, removeAndPatch } from "./commands/source-steps";
+import { edgeAddsOf, freshEdgeIds, removeAndPatch, reportOfBuild } from "./commands/source-steps";
 import {
     calibrateOnce,
     type CostEstimate,
@@ -3277,7 +3277,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const records = sliceRecords(
         slice,
         snapshot,
-        () => (slice().values.get("importReport") as LoadReport | undefined) ?? store.store.lastImport ?? null,
+        () =>
+            data.drawnReport() ??
+            (slice().values.get("importReport") as LoadReport | undefined) ??
+            store.store.lastImport ??
+            null,
         options.records ?? null,
     );
     const data = new SessionData(
@@ -4375,7 +4379,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 if (signal.aborted) {
                     return;
                 }
-                data.drawnAfter(ids);
+                // The commit names its whole build's ends once its writes land; After reads the same.
+                const sealed = dispatcher.state.graph.values.get("importReport") as LoadReport | undefined;
+                data.drawnAfter(ids, reportOfBuild(sealed, drawn.after));
                 repaintDraft();
                 await dispatcher.lane.settled();
                 land();

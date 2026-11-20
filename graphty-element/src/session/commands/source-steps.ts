@@ -390,7 +390,7 @@ function newestLoaded(value: SourceSteps): StepsSource | undefined {
  * @param graph - The build.
  * @returns The report to write, or null when it already says so or there is nothing to say.
  */
-function reportOfBuild(report: LoadReport | undefined, graph: ProjectedGraph): LoadReport | null {
+export function reportOfBuild(report: LoadReport | undefined, graph: ProjectedGraph): LoadReport | null {
     // addEdges groups the new edges by ends and weight, in the order each group first appears.
     const first = new Map<string, ProjectedEdge["ends"]>();
     for (const { ends, weight } of graph.edges.values()) {

@@ -231,6 +231,7 @@ import {
     mintSourceId,
     nodeIdsOf,
     projectBuild,
+    type ProjectedGraph,
     refOf,
     SOURCE_COPIES_VALUE,
     SOURCE_EDGE_IDS_VALUE,
@@ -1004,6 +1005,9 @@ function withStartMode(source: string, config: Record<string, unknown>): Record<
     return declared.values?.some((each) => each.value === asked) === true ? { ...config, mode: asked } : config;
 }
 
+/** The session edge ids of a graph no step built an edge of. */
+const NO_EDGE_IDS: Readonly<Record<string, EdgeId>> = Object.freeze({});
+
 /**
  * The session's view of the graph data.
  *
@@ -1039,6 +1043,8 @@ export class SessionData implements SessionDataApi {
      * built id, the ones only the draft makes included. Null otherwise.
      */
     private afterEdgeIds: Readonly<Record<string, EdgeId>> | null = null;
+    /** While After is drawn, the report its commit would leave, as {@link drawnReport} reads it. */
+    private afterReport: LoadReport | null = null;
     /** The drawn draft's edge marks by session id, kept for the marks and edge ids they came from. */
     private shownMarks: {
         readonly marks: DraftMarks;
@@ -3387,7 +3393,10 @@ export class SessionData implements SessionDataApi {
      * @returns The ids by built edge id.
      */
     private stepsEdgeIds(): Readonly<Record<string, EdgeId>> {
-        return (this.writes.slice().values.get(SOURCE_EDGE_IDS_VALUE) as Record<string, EdgeId> | undefined) ?? {};
+        // One empty object, so a reader keyed on its identity (shownDraft) is not rebuilt per read.
+        return (
+            (this.writes.slice().values.get(SOURCE_EDGE_IDS_VALUE) as Record<string, EdgeId> | undefined) ?? NO_EDGE_IDS
+        );
     }
 
     /**
@@ -3731,27 +3740,41 @@ export class SessionData implements SessionDataApi {
      * remove, patch and add, as `data.steps-set` would write them, but none of the sources and steps.
      * @returns The writes and the node id path, or null while no draft is drawn.
      */
-    draftAfterDiff(): { readonly diff: GraphDiff; readonly idPath: string } | null {
+    draftAfterDiff(): { readonly diff: GraphDiff; readonly idPath: string; readonly after: ProjectedGraph } | null {
         const drawn = this.stepsOn() ? (this.sourceDraft?.drawnValue() ?? null) : null;
         if (drawn === null) {
             return null;
         }
         const value = this.stepsValue();
         const idPath = this.readConfig().knownFields.nodeIdPath;
+        const after = projectBuild(buildOf(drawn.value, drawn.copies), drawn.value, idPath);
         const diff = diffGraph(
             projectBuild(buildOf(value, this.stepsCopies()), value, idPath),
-            projectBuild(buildOf(drawn.value, drawn.copies), drawn.value, idPath),
+            after,
             this.stepsEdgeIds(),
         );
-        return { diff, idPath };
+        return { diff, idPath, after };
     }
 
     /**
      * Say which session id each of the draft's edges has while its After is drawn, or that it is not.
      * @param ids - The ids by built id, or null once After is taken off the graph.
+     * @param report - The load report the draft's commit would leave, or null when it leaves the one
+     *     the graph holds.
      */
-    drawnAfter(ids: Readonly<Record<string, EdgeId>> | null): void {
+    drawnAfter(ids: Readonly<Record<string, EdgeId>> | null, report: LoadReport | null = null): void {
         this.afterEdgeIds = ids;
+        this.afterReport = ids === null ? null : report;
+    }
+
+    /**
+     * The load report the drawn draft's commit would leave, when it differs from the one the graph
+     * holds: After's writes seal a report for the edges they add, and the commit then names the ends
+     * of its whole build, so a record read while After shows hides the same end columns.
+     * @returns The report, or null.
+     */
+    drawnReport(): LoadReport | null {
+        return this.afterReport;
     }
 
     /** Discard the open draft, if any: a project opened or the graph cleared replaces what it drafted. */
@@ -6179,7 +6202,7 @@ export class SessionData implements SessionDataApi {
      */
     lastImport(): LoadReport | null {
         this.requireLive("lastImport");
-        const recorded = this.writes.slice().values.get("importReport") as LoadReport | undefined;
+        const recorded = this.afterReport ?? (this.writes.slice().values.get("importReport") as LoadReport | undefined);
         return recorded ?? this.graphStore.lastImport ?? null;
     }
 

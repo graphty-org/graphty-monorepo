@@ -277,6 +277,10 @@ export const MUTATING: readonly string[] = [
     "SessionDataApi.stage",
     // Its one dispatch: everything the draft did, as one data.steps-set step.
     "SourceDraft.commit",
+    // Drawing After writes the draft's graph into what is drawn, through an unrecorded transaction,
+    // and repaints it; nothing a project saves or records.
+    "SourceDraft.display",
+    "SourceDraft.show",
     "SessionDataApi.updateEdges",
     "SessionDataApi.updateNodes",
     "SessionDataApi.use",
@@ -1241,9 +1245,6 @@ export const READ_ONLY: readonly string[] = [
     "SourceDraft.steps",
     "SourceDraft.types",
     "SourceDraft.undo",
-    // Drawing a draft repaints what is drawn and writes nothing a project saves or records.
-    "SourceDraft.display",
-    "SourceDraft.show",
     "SourceDraft.use",
     "SessionDataApi.types",
     "SessionDataApi.valueCounts",

@@ -336,7 +336,7 @@ describe("source-steps drafts: drawing a draft", () => {
         session.dispose();
     });
 
-    it("the Draft starting row rings what a displayed draft merges, written only under the experiment", async () => {
+    it("the Draft starting row rings what a displayed draft merges and dashes what it adds, only under the experiment", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         const { a } = await renamedAndStaged(session);
         await session.config.set({ startingRows: true });
@@ -360,8 +360,18 @@ describe("source-steps drafts: drawing a draft", () => {
         assert.strictEqual(
             session.styles.counts(node?.id ?? "").matched,
             3,
-            "After rings the two merged accounts and the new one",
+            "After marks two merged accounts and one new",
         );
+        const look = (id: string): { halo: unknown; border: unknown } => {
+            const merged = session.styles.explain({ node: id }).merged as Readonly<Record<string, unknown>>;
+            const width = merged["node.borderWidth"];
+            return {
+                halo: merged["node.haloOpacity"] ?? 0,
+                border: typeof width === "number" && width > 0 ? (merged["node.borderStyle"] ?? "solid") : "none",
+            };
+        };
+        assert.deepStrictEqual(look("A-1"), { halo: 1, border: "none" }, "a merged account is ringed");
+        assert.deepStrictEqual(look("A-9"), { halo: 0, border: "dashed" }, "a new account is dashed, not ringed");
         await d.show("before");
         await session.styles.settled();
         assert.strictEqual(session.styles.counts(node?.id ?? "").matched, 2, "Before has no new account to ring");

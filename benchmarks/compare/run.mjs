@@ -1,5 +1,8 @@
 // BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [glyphs] [curves] [3d] [no-still] [no-move]
-// lib: cosmos|graphty; mode: default|lean; accel: on|off. Appends one JSON line to BENCH_RESULTS.
+//     [dim=2d|3d] [style=<name>] [layout=<name>] [edit] [frames=<k>] [allow-objects]
+// lib: cosmos|graphty; mode: default|lean|plain; accel: on|off. Appends one JSON line to BENCH_RESULTS.
+// The flags with "=" and edit and allow-objects are the performance matrix's (perf-matrix.mjs); BENCH_SCENARIO names the
+// matrix scenario in the row.
 // dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
 // unset, the element keeps its default. BENCH_ANTIALIAS=false sets antialias="false". See RUNBOOK.md for the others.
 import { execFileSync, execSync } from "node:child_process";
@@ -39,7 +42,15 @@ const skip = flags.includes("skip-layout"),
     // not nodeData/edgeData records (cosmos-gap G8)
     columns = flags.includes("columns"),
     noStill = flags.includes("no-still"),
-    noMove = flags.includes("no-move");
+    noMove = flags.includes("no-move"),
+    // a run whose style is meant to take rows off the batch records them instead of failing
+    allowObjects = flags.includes("allow-objects"),
+    edit = flags.includes("edit");
+const flagValue = (key) => flags.find((f) => f.startsWith(`${key}=`))?.slice(key.length + 1);
+const style = flagValue("style"),
+    layout = flagValue("layout"),
+    dim = flagValue("dim"),
+    FRAMES = Number(flagValue("frames") ?? 200);
 const N = Number(n),
     M = Number(m),
     DPR = Number(dpr);
@@ -96,6 +107,7 @@ const out = {
     rendererRequest: lib === "graphty" ? RENDERER : undefined,
     antialias: lib === "graphty" ? ANTIALIAS : undefined,
     limits: lib === "graphty" ? LIMITS : undefined,
+    scenario: process.env.BENCH_SCENARIO || undefined,
     n: N,
     m: M,
     dpr: DPR,
@@ -206,6 +218,7 @@ try {
                 renderer: RENDERER,
                 antialias: ANTIALIAS,
                 limits: LIMITS,
+                dim,
                 onDemand: !!process.env.LAYOUT_ONLY,
             },
         ]),
@@ -220,10 +233,12 @@ try {
         if (lib !== "graphty" || RENDER_PATH !== "batched") return;
         const rows = await page.evaluate(() => document.querySelector("graphty-element")?.rowCounts);
         log(stage === "load" ? "rowCounts" : `rowCounts-${stage}`, rows);
+        if (allowObjects) return;
         if (!rows || rows.objectNodes > 0 || ((curves || threeD) && rows.objectEdges > 0))
             throw new Error(`rows left the batched path after ${stage}: ${JSON.stringify(rows)}`);
     };
     await checkBatched("load");
+    if (style) log("restyle", await page.evaluate((name) => B.restyle(name), style));
     // What a labeled run really built: with sampling on, only the cells' winners.
     if (labels && lib === "graphty")
         log(
@@ -249,7 +264,7 @@ try {
         );
         throw new Error("layout-only run, render-on-demand");
     }
-    if (!noStill) log("still", await page.evaluate(() => B.still(200)));
+    if (!noStill) log("still", await page.evaluate((f) => B.still(f), FRAMES));
     if (!noStill) log("gpuFrame", await page.evaluate(() => B.gpuFrame(60)));
     await page
         .screenshot({
@@ -273,8 +288,8 @@ try {
     };
     await profile("still", () => B.still(60));
     await profile("orbit", () => B.orbit(60));
-    if (!noMove) log("orbit", await page.evaluate(() => B.orbit(200)));
-    if (!noMove) log("drag", await page.evaluate(() => B.drag(60)));
+    if (!noMove) log("orbit", await page.evaluate((f) => B.orbit(f), FRAMES));
+    if (!noMove) log("drag", await page.evaluate((f) => B.drag(f), Math.min(60, FRAMES)));
     if (!noMove) await checkBatched("drag");
     // The heap as the page holds it, before the forced collection below shrinks it.
     log("memoryNoGc", { ...(await page.evaluate(() => B.mem())), rssMB: rssMB() });
@@ -284,6 +299,8 @@ try {
     // why its 10,000-node hover used to find no target. Both libraries hover the same still scene.
     await hoverStage(page, "hover");
     if (lib === "graphty") log("lasso", await page.evaluate(() => B.lasso(20)));
+    if (edit) log("edit", await page.evaluate(() => B.edit()));
+    if (layout) log("layoutRun", await page.evaluate(([l, f]) => B.layoutRun(l, f, 60000), [layout, FRAMES]));
     if (!skip) {
         log("layoutFps", await profiled("layout", () => B.layoutFps(200, 30000)));
         // The layout is still running: a hover reads the node under the pointer back from the GPU,

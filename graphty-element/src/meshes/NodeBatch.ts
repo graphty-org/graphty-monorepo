@@ -1076,6 +1076,11 @@ export class NodeBatches {
                 : { paint: had.paint, sourcePaint: had.sourcePaint, source: had.paintedSourceMesh },
             paint,
         );
+        // A source with an object row is drawn by its own instances, and a row with no `Node` has none.
+        if ((this.groups.get(source)?.objects ?? 0) > 0) {
+            return false;
+        }
+
         const row = new ColumnRow(index, paint, source, sourcePaint);
         this.columnRows.set(index, row);
         this.plainRows += isPlainPaint(paint) ? 1 : 0;
@@ -1249,6 +1254,10 @@ export class NodeBatches {
             }
 
             const batched = group.objects === 0 && group.members.size > 0 && group.highest < this.host.places.rows;
+            if (group.objects > 0 && group.columns > 0) {
+                this.releaseColumns(group);
+            }
+
             if (this.settle(group, batched)) {
                 changed = true;
                 if (group.family !== null) {
@@ -1261,6 +1270,26 @@ export class NodeBatches {
 
         this.dirty.clear();
         return changed;
+    }
+
+    /**
+     * Give each row with no `Node` in a group that an object row keeps off the batch to its paint
+     * again, which builds it a `Node`: the group's source draws its rows as instances then, and such
+     * a row has none, so it would be drawn by nothing (issue #9226).
+     * ponytail: builds a `Node` per row of the source, which at a million rows of one look is a
+     * million `Node`s; draw the object row from a source of its own if selecting there gets slow.
+     * @param group - The group.
+     */
+    private releaseColumns(group: RowGroup): void {
+        const rows: number[] = [];
+        for (const row of [...group.members]) {
+            if (row instanceof ColumnRow) {
+                this.unpaintRow(row.index);
+                rows.push(row.index);
+            }
+        }
+
+        this.host.repaint?.(rows);
     }
 
     /**

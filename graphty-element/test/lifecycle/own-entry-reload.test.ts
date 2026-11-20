@@ -92,6 +92,32 @@ describe.each(ENGINES)("%s", (engine) => {
         assert.deepEqual(reopened.probes, probes, "the newest work came back");
     });
 
+    it("a reload that lost the tab's session storage still owns and reopens its entry (issue #9230)", async () => {
+        const key = `own-lost-${engine}`;
+        const { page } = await opened(key);
+        const entry = await editSaved(page, key);
+        // Safari loads a tab it ended in the background with empty session storage: cleared after
+        // every other pagehide listener, so no mark the leaving page writes is left either.
+        await page.evaluate(`addEventListener("pagehide", () => sessionStorage.clear())`);
+        const beforeReload = fx.log.length;
+        await page.reload();
+        const reloaded = await listedAt(`${key}.a`, beforeReload);
+        assert.isNull(reloaded.item, "session storage names nothing");
+        const boot = await fx.report(`${key}.a`, "boot", beforeReload);
+        if (boot.navigationType === "navigate") {
+            // Playwright's Firefox reloads as a new navigation: that is a new tab's load, offered.
+            assert.deepEqual(owned(reloaded.entries), [], "a navigation adopts nothing");
+            return;
+        }
+
+        assert.deepEqual(owned(reloaded.entries), [entry], "the reloaded tab owns its entry");
+        await page.waitForFunction("window.fixture !== undefined");
+        await page.evaluate("fixture.ready()");
+        const after = await page.evaluate<PageCheck>("fixture.check()");
+        assert.strictEqual(after.restored?.entry, entry, "the element restored the entry itself");
+        assert.isNull(after.restored?.copiedFrom ?? null, "not a copy");
+    });
+
     it("puts the camera back after a real reload with keepCamera", async () => {
         const key = `own-camera-${engine}`;
         const dir = profile(engine);

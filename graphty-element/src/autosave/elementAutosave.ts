@@ -25,7 +25,7 @@ import {
     type RecoverOptions,
 } from "./Autosaver";
 import { indexedDbAutosaveStore } from "./indexedDbStore";
-import { entryOfMeta, navigationFacts, type PageSource } from "./recovery";
+import { entryOfMeta, navigationFacts, type PageSource, textOf } from "./recovery";
 import type {
     AutosaveApi,
     AutosaveAvailable,
@@ -115,6 +115,17 @@ export interface AutosaveEnvironment {
      * @returns The store.
      */
     defaultStore(): AutosaveStore | undefined;
+    /**
+     * The tab's window, whose `name` outlives a reload that loses session storage (Safari ending a
+     * background tab and loading it again). Optional: without it, no record is kept there.
+     */
+    readonly tab?: { name: string };
+    /**
+     * How this page load came about, where the browser says: "navigate", "reload" or "back_forward".
+     * Optional: without it, the load counts as a new one.
+     * @returns The navigation's type, or null.
+     */
+    navigationType?(): string | null;
 }
 
 /**
@@ -304,6 +315,8 @@ export function browserEnvironment(): AutosaveEnvironment {
             }
         },
         defaultStore: () => (typeof indexedDB === "undefined" ? undefined : indexedDbAutosaveStore()),
+        ...(globalThis.document === undefined ? {} : { tab: globalThis as unknown as { name: string } }),
+        navigationType: () => navigationFacts().navigationType,
     };
     return browser;
 }
@@ -388,6 +401,126 @@ function readItem(env: AutosaveEnvironment, name: string): string | null {
     } catch {
         return null;
     }
+}
+
+/**
+ * The prefix of the tab's `window.name` while it holds this tab's record: the ids of the entries
+ * its pages wrote, newest last. Only random entry ids, never a key or data, since a page of another
+ * site this tab goes to may read the name; a page that leaves for good clears it.
+ */
+const TAB_RECORD = "graphty-autosave:";
+
+/** The most entry ids the tab's record keeps. */
+const TAB_RECORD_MAX = 16;
+
+/** The keys whose lost note this page load has looked for (once each: a later mount never adopts). */
+const lostLooked = new Set<string>();
+
+/**
+ * The tab's record in `window.name`.
+ * @param env - The page.
+ * @returns Its entry ids, newest last, or null when the window's name holds no record.
+ */
+function tabRecord(env: AutosaveEnvironment): string[] | null {
+    const name = env.tab?.name;
+    return typeof name === "string" && name.startsWith(TAB_RECORD)
+        ? name
+              .slice(TAB_RECORD.length)
+              .split(",")
+              .filter((id) => id !== "")
+        : null;
+}
+
+/**
+ * Keep the tab's record, adding an entry as its newest. A window name the page set itself is
+ * never overwritten.
+ * @param env - The page.
+ * @param add - The entry, or null to only start the record.
+ * @param drop - An entry to forget, or null.
+ */
+function writeTabRecord(env: AutosaveEnvironment, add: string | null, drop: string | null = null): void {
+    const { tab } = env;
+    const ids = tabRecord(env);
+    if (tab === undefined || (ids === null && tab.name !== "") || (add !== null && ids?.at(-1) === add)) {
+        return;
+    }
+
+    const next = (ids ?? []).filter((id) => id !== add && id !== drop);
+    if (add !== null) {
+        next.push(add);
+    }
+
+    tab.name = TAB_RECORD + next.slice(-TAB_RECORD_MAX).join(",");
+}
+
+/**
+ * Note an entry as this tab's own, for a remount and for the next load.
+ * @param env - The page.
+ * @param key - The key.
+ * @param entry - The entry.
+ */
+function writeOwnNote(env: AutosaveEnvironment, key: string, entry: string): void {
+    ownEntries.set(key, entry);
+    try {
+        env.sessionStorage()?.setItem(OWN_ITEM + key, entry);
+    } catch {
+        // No session storage here: the registry still serves a remount.
+    }
+}
+
+/** How a load with no note in session storage found its own entry. */
+type LostOwnRule = "tab-record" | "newest-unheld";
+
+/**
+ * This tab's own entry when its session storage lost the note: Safari can end a tab in the
+ * background, with no `pagehide`, and load it again on return with empty session storage. The
+ * tab's record in `window.name` names it; where that is gone too, a reload or a history load takes
+ * the newest entry no live tab holds. A new tab (a "navigate" load) adopts nothing. The entry is
+ * claimed, so never one another open tab holds, and noted again as on any reload.
+ * @param env - The page.
+ * @param key - The key.
+ * @param metas - The key's entries.
+ * @param leaving - The entry the page this load replaces left marked, whose lock it may still hold.
+ * @returns The entry and the rule that found it, or null.
+ */
+async function adoptLostOwn(
+    env: AutosaveEnvironment,
+    key: string,
+    metas: readonly AutosaveEntryMeta[],
+    leaving: string | null,
+): Promise<{ id: string; by: LostOwnRule } | null> {
+    if (lostLooked.has(key)) {
+        return null;
+    }
+
+    lostLooked.add(key);
+    const open = metas.filter((meta) => meta.ended !== "replaced");
+    const record = tabRecord(env);
+    let found: AutosaveEntryMeta | undefined;
+    let by: LostOwnRule = "tab-record";
+    if (record !== null) {
+        found = [...record]
+            .reverse()
+            .map((id) => open.find((meta) => meta.id === id))
+            .find((meta) => meta !== undefined);
+    } else if (["reload", "back_forward"].includes(env.navigationType?.() ?? "")) {
+        // ponytail: a heuristic, for a browser that kept neither session storage nor window.name; it
+        // can take work a closed tab left when this tab had written none. Never an older entry
+        // when the newest is held: that one is probably this tab's, reopened by another.
+        by = "newest-unheld";
+        found = open.reduce<AutosaveEntryMeta | undefined>(
+            (newest, meta) => (newest === undefined || textOf(meta.savedAt) > textOf(newest.savedAt) ? meta : newest),
+            undefined,
+        );
+    }
+
+    const waitMs = leaving === found?.id ? LEAVING_WAIT_MS : undefined;
+    if (found === undefined || !((await env.locks.own?.(lockName(key, found.id), waitMs)) ?? true)) {
+        return null;
+    }
+
+    writeOwnNote(env, key, found.id);
+    return { id: found.id, by };
 }
 
 /** What `start` is told. */
@@ -718,8 +851,8 @@ export class ElementAutosave {
 
         // This tab's own entry: an element of this tab that just left (a remount), else what
         // session storage kept across a reload or a discard.
-        const own = this.#readOwn(key);
         const before = readOwnBefore(this.#env, key);
+        const own = this.#readOwn(key) ?? (before === null ? await this.#adoptLost(store, key) : null);
         await this.#waitForOwns(key, [own, before]);
 
         saver.setFacts(await this.#gatherFacts(), true);
@@ -765,6 +898,25 @@ export class ElementAutosave {
         this.#startRevision = saver.status.revision;
         this.#finish(restored);
         this.#checkAtRisk(saver.status);
+    }
+
+    /**
+     * This tab's own entry when session storage lost its note ({@link adoptLostOwn}), unless a lookup
+     * of this page load already looked.
+     * @param store - The store.
+     * @param key - The autosave key.
+     * @returns The entry, or null.
+     */
+    async #adoptLost(store: AutosaveStore, key: string): Promise<string | null> {
+        const metas = lostLooked.has(key) ? null : await listWithin(store, key).catch(() => null);
+        const adopted =
+            metas === null ? null : await adoptLostOwn(this.#env, key, metas, readItem(this.#env, LEAVING_ITEM + key));
+        writeTabRecord(this.#env, null);
+        if (adopted !== null) {
+            logger.info("own entry adopted", { entry: adopted.id, by: adopted.by });
+        }
+
+        return adopted?.id ?? null;
     }
 
     /**
@@ -1033,15 +1185,9 @@ export class ElementAutosave {
             this.#keepBefore(key, noted);
         }
 
-        if (noted === entry) {
-            return;
-        }
-
-        ownEntries.set(key, entry);
-        try {
-            this.#env.sessionStorage()?.setItem(OWN_ITEM + key, entry);
-        } catch {
-            // No session storage here: the registry still serves a remount.
+        writeTabRecord(this.#env, entry);
+        if (noted !== entry) {
+            writeOwnNote(this.#env, key, entry);
         }
     }
 
@@ -1084,6 +1230,7 @@ export class ElementAutosave {
      * @param key - The key.
      */
     #forgetOwn(key: string): void {
+        writeTabRecord(this.#env, null, readOwnItem(this.#env, key));
         ownEntries.delete(key);
         this.#keepBefore(key, null);
         try {
@@ -1129,6 +1276,11 @@ export class ElementAutosave {
                     this.#env.sessionStorage()?.setItem(LEAVING_ITEM + saver.key, saver.entryId);
                 } catch {
                     // No session storage here: a reload cannot wait for this page's lock.
+                }
+
+                // Session storage serves a reload from here on; the next site sees no record.
+                if (this.#env.tab !== undefined && tabRecord(this.#env) !== null) {
+                    this.#env.tab.name = "";
                 }
             }
 
@@ -1259,13 +1411,14 @@ export interface AutosaveLookupOptions {
  * Runs something against the store a lookup names, closing the default store afterwards.
  * @param options - The lookup's options.
  * @param act - What to do; receives no store where IndexedDB is missing.
+ * @param env - The page; the browser's by default.
  * @returns What `act` returned.
  */
 async function withLookupStore<T>(
     options: AutosaveLookupOptions,
     act: (store: AutosaveStore | undefined, env: AutosaveEnvironment) => Promise<T>,
+    env: AutosaveEnvironment = browserEnvironment(),
 ): Promise<T> {
-    const env = browserEnvironment();
     const store = options.store ?? env.defaultStore();
     try {
         return await act(store, env);
@@ -1329,54 +1482,79 @@ function listWithin(store: AutosaveStore, key: string): Promise<readonly Autosav
  *     not that there is none.
  */
 export function listAutosaves(key: string, options: AutosaveLookupOptions = {}): Promise<readonly AutosaveEntry[]> {
-    return withLookupStore(options, async (store, env) => {
-        if (store === undefined) {
-            return [];
-        }
+    return listAutosavesIn(browserEnvironment(), key, options);
+}
 
-        const noted = readOwnItem(env, key);
-        const before = readOwnBefore(env, key);
-        const leaving = takeLeaving(env, key);
-        const waited = noted !== null && leaving === noted;
-        // Before the list: the page that left may still be writing this entry's final commit.
-        if (waited) {
-            await env.locks.own?.(lockName(key, noted), LEAVING_WAIT_MS);
-        }
+/**
+ * {@link listAutosaves} on a given page.
+ * @param page - The page.
+ * @param key - The autosave key.
+ * @param options - Where to look.
+ * @returns The entries.
+ */
+export function listAutosavesIn(
+    page: AutosaveEnvironment,
+    key: string,
+    options: AutosaveLookupOptions = {},
+): Promise<readonly AutosaveEntry[]> {
+    return withLookupStore(
+        options,
+        async (store, env) => {
+            if (store === undefined) {
+                return [];
+            }
 
-        const metas = await listWithin(store, key);
-        if (metas === null) {
-            // Refused rather than answered empty: an empty list says nothing is kept, and a page
-            // that read it so opened again work another tab was writing (issue #6583). The page
-            // still starts; the element lists again itself.
-            logger.warn("kept work not listed: another tab holds the database", { afterMs: LIST_TIMEOUT_MS });
-            throw new GraphtyError({
-                code: "E_AUTOSAVE_STALLED",
-                message: `Autosave could not list key ${key} within ${String(LIST_TIMEOUT_MS)} ms.`,
-                source: "data",
-                details: { afterMs: LIST_TIMEOUT_MS, step: "list" },
+            const noted = readOwnItem(env, key);
+            const before = readOwnBefore(env, key);
+            const leaving = takeLeaving(env, key);
+            const waited = noted !== null && leaving === noted;
+            // Before the list: the page that left may still be writing this entry's final commit.
+            if (waited) {
+                await env.locks.own?.(lockName(key, noted), LEAVING_WAIT_MS);
+            }
+
+            const metas = await listWithin(store, key);
+            if (metas === null) {
+                // Refused rather than answered empty: an empty list says nothing is kept, and a page
+                // that read it so opened again work another tab was writing (issue #6583). The page
+                // still starts; the element lists again itself.
+                logger.warn("kept work not listed: another tab holds the database", { afterMs: LIST_TIMEOUT_MS });
+                throw new GraphtyError({
+                    code: "E_AUTOSAVE_STALLED",
+                    message: `Autosave could not list key ${key} within ${String(LIST_TIMEOUT_MS)} ms.`,
+                    source: "data",
+                    details: { afterMs: LIST_TIMEOUT_MS, step: "list" },
+                });
+            }
+
+            // The entry named before, when the named one was never written or was replaced; else the
+            // one a tab whose session storage was lost finds again.
+            const adopted = noted === null && before === null ? await adoptLostOwn(env, key, metas, leaving) : null;
+            const candidate = adopted?.id ?? ownAmong(metas, noted, before);
+            const exists = metas.some((meta) => meta.id === candidate);
+            const owned =
+                adopted !== null ||
+                (candidate !== null && exists && ((await env.locks.own?.(lockName(key, candidate))) ?? true));
+            writeTabRecord(env, owned ? candidate : null);
+            const held = await env.locks.held();
+            logger.info("kept work listed", {
+                by: adopted?.by ?? (noted === null && before === null ? "none" : "session"),
+                noted: noted !== null,
+                before: candidate !== noted,
+                exists,
+                own: owned,
+                waited,
+                leavingMark: leaving !== null,
+                entries: metas.length,
+                navigationType: env.navigationType?.() ?? null,
             });
-        }
-
-        // The entry named before, when the named one was never written or was replaced.
-        const candidate = ownAmong(metas, noted, before);
-        const exists = metas.some((meta) => meta.id === candidate);
-        const owned = candidate !== null && exists && ((await env.locks.own?.(lockName(key, candidate))) ?? true);
-        const held = await env.locks.held();
-        logger.info("kept work listed", {
-            noted: noted !== null,
-            before: candidate !== noted,
-            exists,
-            own: owned,
-            waited,
-            leavingMark: leaving !== null,
-            entries: metas.length,
-            navigationType: navigationFacts().navigationType,
-        });
-        return metas.map((meta) => ({
-            ...entryOfMeta(meta, held.has(lockName(key, meta.id))),
-            own: owned && meta.id === candidate,
-        }));
-    });
+            return metas.map((meta) => ({
+                ...entryOfMeta(meta, held.has(lockName(key, meta.id))),
+                own: owned && meta.id === candidate,
+            }));
+        },
+        page,
+    );
 }
 
 /**

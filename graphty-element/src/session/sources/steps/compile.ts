@@ -696,6 +696,17 @@ export function withoutJoin(value: SourceSteps, id: string): SourceSteps {
 }
 
 /**
+ * The rule a join gives a clashing column it names no rule for, as the experiment-off join does:
+ * `keep`, or `both` when it compares two graphs.
+ * @param choices - The join's choices.
+ * @param choices.compare - Whether it compares two graphs.
+ * @returns The rule.
+ */
+function legacyClash(choices: { readonly compare?: boolean }): "keep" | "both" {
+    return choices.compare === true ? "both" : "keep";
+}
+
+/**
  * A join of today's join screen as a source and its steps (3.6): values onto the nodes the key
  * names (`join.node-values`), a merge (`join.add` in the table's own space, then `join.merge`), or
  * edges between the nodes the two keys name (`join.add` of an edge table). The key is read in the
@@ -724,8 +735,9 @@ export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsStep
     const space = translation?.mapping.space ?? field?.space ?? spaceOfKeys(value, copies, keyValues, id);
     const options = defined({
         columns: choices.columns,
-        // Today's join keeps a clashing value both ways unless the reader says otherwise (section 10 item 23).
-        clash: { "*": "both" as const, ...choices.clash },
+        // Today's join keeps the graph's value unless the reader says otherwise, both ways when comparing
+        // two graphs, as the experiment-off join does.
+        clash: { "*": legacyClash(choices), ...choices.clash },
         repeated: choices.repeated === "both" ? undefined : (choices.repeated ?? "first"),
         ignoreCase: choices.ignoreCase,
         ignoreSpaces: choices.ignoreSpaces,
@@ -929,7 +941,7 @@ function compileEdgeValues(value: SourceSteps, copies: Copies, join: JoinAsSteps
         read: { table: "nodes", edgeId: key.file },
         ...defined({
             columns: choices.columns,
-            clash: { "*": "both" as const, ...choices.clash },
+            clash: { "*": legacyClash(choices), ...choices.clash },
             repeated: choices.repeated === "both" ? undefined : choices.repeated,
             ignoreCase: choices.ignoreCase,
             ignoreSpaces: choices.ignoreSpaces,

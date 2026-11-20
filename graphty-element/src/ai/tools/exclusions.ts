@@ -456,6 +456,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "use",
                 "editStep",
                 "removeStep",
+                "moveStep",
                 "removeSource",
                 "removeEdit",
                 "setMapping",

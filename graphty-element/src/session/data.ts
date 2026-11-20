@@ -325,6 +325,7 @@ import type {
     JoinReport,
     JoinShape,
     LoadChoices,
+    LoadedChoices,
     LoadedSource,
     LoadedSourceKind,
     LoadedWeight,
@@ -9398,7 +9399,7 @@ const EMPTY_COPIES: Copies = Object.freeze({});
  * @param options - The load's choices.
  * @returns The ones the compile reads.
  */
-function stepsChoices(options: ImportOptions): LoadChoices {
+function stepsChoices(options: ImportOptions): LoadedChoices {
     return Object.freeze(
         Object.fromEntries(
             (["key", "type", "space", "edges", "overlap"] as const)

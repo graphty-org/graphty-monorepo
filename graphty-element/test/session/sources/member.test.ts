@@ -892,7 +892,7 @@ describe("the sources member: what a save leaves out", () => {
                         ["filter", "cites:{work}"],
                         ["access_token", "{token}"],
                     ]),
-                    body: Object.fromEntries([
+                    body: Object.fromEntries<unknown>([
                         ["client_secret", "SECRET-3"],
                         ["page", 1],
                     ]),

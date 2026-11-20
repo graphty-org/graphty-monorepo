@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import type { MeasurementDeclaration } from "../../../catalog/types";
+import type { ModelDefaultsPatch } from "../../../session/assets/AssetsApi";
 import { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "../../../session/backgroundImage";
 import { CONFIG_KEYS, unwrap } from "../../../session/configKeys";
 import type { ProjectConfigPatch } from "../../../session/types";
@@ -43,6 +44,7 @@ export const SETTING_GROUPS = Object.freeze({
     pinnedStyle: "How pinned nodes are drawn.",
     runPlacement: "Where a run's style layers go in the stack.",
     startingRows: "The style rows a new project starts with.",
+    startingCamerasWritten: "Whether the starting cameras were written into this project.",
     viewRotation: "How the view turns.",
 } as const);
 
@@ -165,9 +167,41 @@ export const projectTool: ToolDefinition = {
     plainName: "Project",
     core: false,
     description:
-        "Project settings (background, selection style, layout behavior, data columns, direction), its name, what a column measures, and whether it has unsaved changes; a background picture made from a prompt. Saving is the reader's application's. The data source's own name is import_data rename_source.",
+        "Project settings (background, selection style, layout behavior, data columns, direction), a model's own settings, its name, what a column measures, and whether it has unsaved changes; a background picture made from a prompt. Saving is the reader's application's. The data source's own name is import_data rename_source.",
     example: { action: "settings", data: { knownFields: { nodeLabelPath: "name" } } },
     actions: [
+        {
+            name: "model_settings",
+            summary: "a model's own settings; null removes",
+            fields: {
+                model: z.string().max(MAX_STRING).describe("The model's asset id or URL, as node.model names it."),
+                values: z
+                    .record(
+                        z.string().max(100),
+                        z.union([z.string().max(MAX_STRING), z.number(), z.boolean(), z.null()]),
+                    )
+                    .optional()
+                    .describe("node.model* values every node drawing it starts from."),
+                hiddenTextures: z
+                    .array(z.string().max(MAX_STRING))
+                    .max(256)
+                    .optional()
+                    .describe("Picture names (inspect pictures) drawn without."),
+            },
+            effect: "write",
+            reaches: [{ door: "AssetsApi.setDefaults" }, { op: "asset.defaults" }],
+            run: async ({ tx }, args) => {
+                const record = await coded(() =>
+                    tx.assets.setDefaults(text(args.model), {
+                        ...(args.values === undefined ? {} : { style: args.values as ModelDefaultsPatch["style"] }),
+                        ...(Array.isArray(args.hiddenTextures)
+                            ? { hiddenTextures: args.hiddenTextures as string[] }
+                            : {}),
+                    }),
+                );
+                return ok(record.defaults ?? null, { model: record.id });
+            },
+        },
         {
             name: "settings",
             summary: "Change project settings; only the groups given change.",
@@ -301,6 +335,7 @@ interface Capturer {
         options: object,
     ): Promise<{ blob: Blob; metadata: { width: number; height: number; format: string; duration: number } }>;
     cancelAnimationCapture(): boolean;
+    stopAnimationCapture(): boolean;
     isVRSupported(): Promise<boolean>;
     isARSupported(): Promise<boolean>;
 }
@@ -361,18 +396,28 @@ export const captureTool: ToolDefinition = {
         },
         {
             name: "animation",
-            summary: "Record a short video while the camera and layout move.",
+            summary: "Record a short video while the camera and layout move, or record a saved tour.",
             fields: {
-                seconds: z.number().min(1).max(30).describe("How long, 1 to 30 seconds."),
+                seconds: z
+                    .number()
+                    .min(1)
+                    .max(30)
+                    .optional()
+                    .describe("How long, 1 to 30 seconds; a tour sets its own."),
+                tour: z.string().min(1).max(MAX_STRING).optional().describe("A saved tour's name, to record it."),
                 width: side,
                 height: side,
             },
             effect: "read",
             reaches: [{ door: "Graph.captureAnimation" }],
             run: (context, args) => {
+                if (args.seconds === undefined && args.tour === undefined) {
+                    throw new ToolRefusal("AI_ARG_INVALID", { path: "seconds", expected: "seconds or tour" });
+                }
+
                 const graph = capturer(context, "captureAnimation");
                 // A recording takes seconds: it settles after the batch commits, when it is the
-                // batch's last call, and a cancelled message stops it.
+                // batch's last call, and a canceled message stops it.
                 return Promise.resolve({
                     settle: async ({ signal, host }) => {
                         const stop = (): void => {
@@ -381,11 +426,14 @@ export const captureTool: ToolDefinition = {
                         signal.addEventListener("abort", stop, { once: true });
                         let result: Awaited<ReturnType<Capturer["captureAnimation"]>>;
                         try {
-                            result = await graph.captureAnimation({
-                                duration: Number(args.seconds) * 1000,
-                                ...(args.width === undefined ? {} : { width: args.width }),
-                                ...(args.height === undefined ? {} : { height: args.height }),
-                            });
+                            result = await coded(() =>
+                                graph.captureAnimation({
+                                    ...(args.seconds === undefined ? {} : { duration: Number(args.seconds) * 1000 }),
+                                    ...(args.tour === undefined ? {} : { tour: text(args.tour) }),
+                                    ...(args.width === undefined ? {} : { width: args.width }),
+                                    ...(args.height === undefined ? {} : { height: args.height }),
+                                }),
+                            );
                         } finally {
                             signal.removeEventListener("abort", stop);
                         }
@@ -411,6 +459,17 @@ export const captureTool: ToolDefinition = {
             run: (context) =>
                 Promise.resolve(
                     ok(undefined, { cancelled: capturer(context, "cancelAnimationCapture").cancelAnimationCapture() }),
+                ),
+        },
+        {
+            name: "stop",
+            summary: "End a video recording now and keep what it has recorded.",
+            fields: {},
+            effect: "exempt",
+            reaches: [{ door: "Graph.stopAnimationCapture" }],
+            run: (context) =>
+                Promise.resolve(
+                    ok(undefined, { stopped: capturer(context, "stopAnimationCapture").stopAnimationCapture() }),
                 ),
         },
     ] satisfies ActionSpec[],

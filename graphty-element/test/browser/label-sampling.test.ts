@@ -1,5 +1,5 @@
 /**
- * @file Label sampling builds one node label per screen cell, not one per labelled node.
+ * @file Label sampling builds one node label per screen cell, not one per labeled node.
  *
  * With `layoutBehavior.labels.sampleCell` set, the element divides the canvas into square cells of
  * that many CSS pixels and, once the view has settled, builds the label of one node per cell: the

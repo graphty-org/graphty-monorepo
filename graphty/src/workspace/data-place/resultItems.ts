@@ -1,12 +1,12 @@
 /**
- * A result's Run again, Combine into a score and Copy items, shared by its row's "..." in the Data place and the
+ * A result's Run again, Pin to report, Combine into a score and Copy items, shared by its row's "..." in the Data place and the
  * inspector's header "..." for it.
  */
 
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
 
 import type { SelectionMenuItem } from "../selection/SelectionMenu";
-import type { WorkspaceStore } from "../state/store";
+import type { ReportPin, WorkspaceStore } from "../state/store";
 import { methodsWords } from "./words";
 
 /**
@@ -15,7 +15,7 @@ import { methodsWords } from "./words";
  * @param what - what was copied, as the notice names it.
  * @param text - the text, or a reason it cannot be copied.
  */
-function copyText(store: WorkspaceStore, what: string, text: string): void {
+export function copyText(store: WorkspaceStore, what: string, text: string): void {
     navigator.clipboard.writeText(text).then(
         () => {
             store.set({ notice: { message: `Copied ${what}` } });
@@ -51,13 +51,20 @@ function numberColumnOf(session: GraphSession, run: Run): { kind: "node" | "edge
  * @param session - the element's session.
  * @param store - the workspace store.
  * @param run - the result.
+ * @param pins - the results pinned to the report now, which say whether it is Pin or Unpin.
  * @returns the items.
  */
-export function resultItems(session: GraphSession, store: WorkspaceStore, run: Run): SelectionMenuItem[] {
+export function resultItems(
+    session: GraphSession,
+    store: WorkspaceStore,
+    run: Run,
+    pins: readonly ReportPin[],
+): SelectionMenuItem[] {
     const { result } = run;
     const noResult = result === undefined ? "Not finished" : null;
     const command = run.journalId === null ? undefined : session.journal.get(run.journalId)?.command;
     const metric = numberColumnOf(session, run);
+    const pinned = pins.some((pin) => pin.run === run.id);
     return [
         {
             id: "run-again",
@@ -66,6 +73,20 @@ export function resultItems(session: GraphSession, store: WorkspaceStore, run: R
             group: "edit",
             onRun: () => {
                 store.set({ dialog: "analyze", analyzeOn: run.algorithm, analyzeValues: run.params });
+            },
+        },
+        {
+            id: "pin-report",
+            label: pinned ? "Unpin from report" : "Pin to report",
+            icon: pinned ? "unpin" : "pin",
+            group: "edit",
+            onRun: () => {
+                store.set((state) => ({
+                    reportPins: pinned
+                        ? state.reportPins.filter((pin) => pin.run !== run.id)
+                        : [...state.reportPins, { run: run.id, note: "" }],
+                    notice: { message: pinned ? "Unpinned from report" : "Pinned to report" },
+                }));
             },
         },
         {

@@ -1044,14 +1044,16 @@ function visIcon(layer: VisLayer, site: CanonSite): Row {
     }
     const size = typeof layer.iconSize === "number" && layer.iconSize >= 0 ? layer.iconSize : 50;
     const color = typeof layer.iconColor === "string" ? canonColor(layer.iconColor, "vis", site) : null;
-    const weight = layer.iconWeight;
-    const bold = weight === "bold" || weight === "bolder" || (typeof weight === "number" && weight >= 600);
+    // a CSS weight: a keyword, or a number drawn at the nearest of the nine weights a face has
+    const raw = layer.iconWeight;
+    const weight = typeof raw === "number" ? Math.min(900, Math.max(100, Math.round(raw / 100) * 100)) : raw;
+    const glyphWeight = weight === undefined || weight === null ? null : canonEnum("weight", weight, "vis", site);
     return {
         glyph: code,
         glyphFont: typeof layer.iconFace === "string" && layer.iconFace !== "" ? layer.iconFace : "FontAwesome",
         glyphSize: size,
         glyphColor: color?.color ?? "#2b7ce9",
-        glyphWeight: bold ? "bold" : "normal",
+        glyphWeight: glyphWeight ?? "normal",
     };
 }
 
@@ -1752,6 +1754,12 @@ function visDashLengths(dashes: unknown, width: number, put: PutRow): void {
         put("dashLength", num6(pair.dash / width));
         put("dashGap", num6(pair.gap / width));
     }
+    // more than one dash and gap (vis.js [12, 3, 3, 3]): each as drawn, in widths, a width longer and shorter with its caps
+    const pairs = lengths.length % 2 === 1 ? [...lengths, ...lengths] : lengths;
+    if (pair !== null && pairs.length > 2) {
+        const drawn = pairs.map((d, i) => (i % 2 === 0 ? Math.max(0, d) + width : Math.max(0, d - width)) / width);
+        put("dashArray", drawn.map((d) => String(num6(d))).join(" "));
+    }
 }
 
 /**
@@ -1784,6 +1792,7 @@ function visDashesAtDrawnWidth(vals: Row, merged: VisLayer, width: number | unde
     }
     delete vals.dashLength;
     delete vals.dashGap;
+    delete vals.dashArray;
     visEdgeLineStyle({ ...merged, width }, (p, v) => {
         vals[p] = v;
     });
@@ -2035,6 +2044,29 @@ function visMergedNode(nodeDefaults: VisLayer, group: VisLayer, own: VisLayer, o
 }
 
 /**
+ * vis.js: a node's label offsets, the shape's own label place with font.vadjust below it, merged into its row. A
+ * derived offset is canonical (6 significant digits) like every value read from a file, so a file graphty writes
+ * holds the same number in its native slot and its block.
+ * @param row - the node's values, offsets included
+ * @param shaped - its shape's own values
+ */
+function addShapeOffsets(row: Row, shaped: Row): void {
+    for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
+        const [a, b] = [row[p], shaped[p]];
+        if (typeof a === "number" && typeof b === "number") {
+            shaped[p] = a + b;
+        }
+    }
+    Object.assign(row, shaped);
+    for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
+        const v = row[p];
+        if (typeof v === "number") {
+            row[p] = num6(v);
+        }
+    }
+}
+
+/**
  * vis.js: the values one node draws, from its merged layer: its colors and label, then its shape's own.
  * @param merged - the node's merged layer
  * @param shape - its vis-network shape
@@ -2061,14 +2093,7 @@ function visNodeRow(
         const below = typeof row.labelOffsetY === "number" ? row.labelOffsetY : 0;
         row.labelOffsetY = below + drop + visBelowGap(size);
     }
-    // the shape's own label place, then font.vadjust below it
-    for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
-        const [a, b] = [row[p], shaped[p]];
-        if (typeof a === "number" && typeof b === "number") {
-            shaped[p] = a + b;
-        }
-    }
-    Object.assign(row, shaped);
+    addShapeOffsets(row, shaped);
     const labelSize = visLabelScaled(merged, range);
     if (labelSize !== null) {
         row.labelSize = labelSize;

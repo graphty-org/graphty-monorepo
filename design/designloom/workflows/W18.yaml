@@ -6,6 +6,7 @@ personas:
     - explorer-elena
     - analyst-alex
     - expert-emma
+    - genomics-cytoscape-user
 requires_capabilities:
     - data-import
     - data-validation

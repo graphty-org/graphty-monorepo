@@ -67,6 +67,32 @@ console.log(trip.distance); // 9
 console.log(Array.from(trip.path, (i) => graph.ids.idOf(i))); // ["a", "b", "d"]
 ```
 
+### Every Route Between Two Nodes
+
+`allSimplePaths` lists every route from one node to another that visits no node twice, as networkx's
+`all_simple_paths`. Their number grows exponentially with the graph, so three caps bound the work: `maxLength` (edges
+per path, unlimited by default), `maxPaths` (1,000 by default) and `maxSteps` (arcs followed, 1,000,000 by default).
+`stoppedBy` names the cap that left paths unfound, or is null when every path within `maxLength` was returned:
+
+<!-- doc-check -->
+
+```typescript
+import { GraphBuilder } from "@graphty/graph-format";
+import { allSimplePaths } from "@graphty/algorithms";
+
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("a", "b");
+builder.addEdge("b", "d");
+builder.addEdge("a", "c");
+builder.addEdge("c", "d");
+builder.addEdge("b", "c");
+const graph = builder.freeze();
+
+const routes = allSimplePaths(graph, { id: "a" }, { id: "d" }, { maxLength: 2 });
+console.log(routes.paths.map((path) => Array.from(path, (i) => graph.ids.idOf(i)))); // [["a", "b", "d"], ["a", "c", "d"]]
+console.log(routes.stoppedBy); // null
+```
+
 ::: warning
 Dijkstra's algorithm does not work correctly with negative edge weights. Use Bellman-Ford instead.
 :::

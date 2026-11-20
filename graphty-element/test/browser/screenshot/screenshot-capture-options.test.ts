@@ -1,6 +1,6 @@
 /**
  * @file Capture options a consumer's Export dialog needs: a solid background color, the output size
- * before capturing, cancelling a waiting capture or capturing now, and capturing from a canvas that
+ * before capturing, canceling a waiting capture or capturing now, and capturing from a canvas that
  * keeps no frames (`preserveDrawingBuffer: false`).
  */
 

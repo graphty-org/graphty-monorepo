@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const FORMAT_DIRS = readdirSync(resolve("./src/formats")).sort();
 
 /** The network source subpaths, `./sources/<name>`, built as dist/sources-<name>.js. */
-const SOURCE_DIRS = ["cypher", "github", "gremlin", "ndex", "rest", "s3", "sparql", "zenodo"];
+const SOURCE_DIRS = ["cypher", "figshare", "github", "gremlin", "ndex", "rest", "s3", "sparql", "zenodo"];
 
 interface PackageJsonShape {
     name: string;
@@ -131,6 +131,7 @@ describe("Build Output Tests", () => {
             "neo4j",
             "obo",
             "pajek",
+            "sif",
             "xgmml",
         ]);
         const subpaths = Object.keys(packageJson.exports).filter((key) => key !== "." && !key.startsWith("./sources/"));

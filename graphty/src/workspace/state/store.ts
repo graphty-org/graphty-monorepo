@@ -40,7 +40,7 @@ export type Opener =
     | { readonly kind: "network"; readonly name: string; readonly source: string; readonly example: string };
 
 /** A left-panel place on the rail (tier1-design.md section 2.2). */
-type Place = "graph" | "data" | "assistant" | "notes";
+type Place = "graph" | "data" | "views" | "assistant" | "notes";
 
 /** What takes the area right of the rail: the panels, or the Data page (section 2.10). */
 type Page = "panels" | "data-page";
@@ -69,6 +69,14 @@ interface Inspected {
     readonly id?: string;
     /** The tab to open on, for a link that opens a row for one tab's contents (a layer's look). */
     readonly tab?: "style" | "values";
+}
+
+/** One result pinned to the report: the run, and the reader's note for it. */
+export interface ReportPin {
+    /** The run's id in graphty-element. */
+    readonly run: string;
+    /** The reader's words about it, put in the report as written; blank leaves it out. */
+    readonly note: string;
 }
 
 /** The chrome state. */
@@ -310,16 +318,35 @@ export interface WorkspaceState {
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
     /**
-     * Camera > Follow selection: the camera glides to the selection and keeps it centered while it
+     * Camera > Focus selected: the camera glides to the selection and keeps it centered while it
      * moves (graphty-element's `camera.pivotOnSelection`). On by default; a view preference, never saved.
      */
     readonly followSelection: boolean;
     /**
-     * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
-     * edges table. Export... (Ctrl+E) and the table dock's Export... set the table that is
-     * showing whenever the dock is open (tier 4, R14).
+     * Where the Export dialog opens (section T13): on Image (a camera's Export image...) or Video (a
+     * tour's Export video...), or on Data with the nodes or the edges table. Export... (Ctrl+E) and
+     * the table dock's Export... set the table that is showing whenever the dock is open (tier 4, R14).
      */
-    readonly exportOn: "image" | "nodes" | "edges";
+    readonly exportOn: "image" | "video" | "nodes" | "edges";
+    /**
+     * The saved camera last gone to (a Camera menu row, a Go button or a camera key), by name: the
+     * Views place marks its card. Null until one has been applied.
+     */
+    readonly lastView: string | null;
+    /** The tour playing now, from graphty-element's `tour-progress`; null once `tour-ended` fires. */
+    readonly tourProgress: { readonly tour: string | null; readonly stop: number; readonly stops: number } | null;
+    /** Whether the Views place's Cameras section is open. Open by default. */
+    readonly viewsCamerasOpen: boolean;
+    /** Whether the Views place's Video tours section is open. Open by default. */
+    readonly viewsToursOpen: boolean;
+    /** A door asked the Views place to put focus on one of its sections; the place clears it. */
+    readonly viewsFocus: "cameras" | "tours" | null;
+    /** A camera just saved by Save camera, which the Views place unfolds and opens to rename; it clears it. */
+    readonly viewsRename: string | null;
+    /** The saved tour the Export dialog's Video opens on (a tour's Record...), else null. */
+    readonly exportTour: string | null;
+    /** The saved camera the Export dialog's Image opens on (a camera's Export image...), else null. */
+    readonly exportView: string | null;
     /** The algorithm Analyze opens on (a Quick actions row picked it, by key), else null. */
     readonly analyzeOn: string | null;
     /** The settings Analyze opens that algorithm with (a result's Run again with changes...), else null. */
@@ -380,6 +407,12 @@ export interface WorkspaceState {
     readonly autosave: boolean;
     /** Work kept from an earlier visit that the start screen offers to restore, or null. */
     readonly recovered: AutosaveEntry | null;
+    /**
+     * The results the reader pinned to the report, in the order pinned: the report's Pinned items.
+     * Which results go in a report is the reader's choice, not the graph's, so it lives here; a
+     * project that opens starts with none.
+     */
+    readonly reportPins: readonly ReportPin[];
 }
 
 /**
@@ -449,6 +482,14 @@ export const ON_RELOAD = {
     autoRotate: "kept",
     followSelection: "kept",
     exportOn: "fresh: set when the Export dialog opens",
+    lastView: "fresh: the camera itself is not kept across a reload",
+    tourProgress: "fresh: a tour ends when the page reloads",
+    viewsCamerasOpen: "kept",
+    viewsToursOpen: "kept",
+    viewsFocus: "fresh: a one-time request the Views place clears",
+    viewsRename: "fresh: a one-time request the Views place clears",
+    exportTour: "fresh: set when the Export dialog opens",
+    exportView: "fresh: set when the Export dialog opens",
     exportSource: "fresh: set when the Export dialog opens",
     serverKind: "fresh: set when the server form opens",
     analyzeOn: "fresh: set when a Quick actions row opens Analyze",
@@ -466,6 +507,7 @@ export const ON_RELOAD = {
     opened: "fresh: an open in flight",
     autosave: "fresh: set by the application at start",
     recovered: "fresh: looked up again at start",
+    reportPins: "kept",
 } as const satisfies Record<keyof WorkspaceState, "kept" | `this tab: ${string}` | `fresh: ${string}`>;
 
 /** The fields a reload of this tab puts back. */
@@ -561,7 +603,15 @@ const INITIAL: WorkspaceState = {
     lighting: "studio",
     autoRotate: false,
     followSelection: true,
-    exportOn: "image",
+    exportOn: "nodes",
+    lastView: null,
+    tourProgress: null,
+    viewsCamerasOpen: true,
+    viewsToursOpen: true,
+    viewsFocus: null,
+    viewsRename: null,
+    exportTour: null,
+    exportView: null,
     exportSource: null,
     serverKind: null,
     analyzeOn: null,
@@ -578,6 +628,7 @@ const INITIAL: WorkspaceState = {
     opened: null,
     autosave: false,
     recovered: null,
+    reportPins: [],
 };
 
 /** Settles an open's `opened`: with nothing once it is done, else with the failure. */
@@ -691,8 +742,12 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
                     : given;
             // Opening a layer row selects that layer: a selection's Style tab goes on editing it.
             const opened = fields.inspected?.kind === "layer-row" ? fields.inspected.id : undefined;
+            // Another project opening starts with nothing pinned, unless the write puts its kept pins back.
+            const otherProject =
+                fields.project !== undefined && fields.project?.id !== state.project?.id && !("reportPins" in fields);
             state = {
                 ...state,
+                ...(otherProject ? { reportPins: [] } : {}),
                 ...fields,
                 ...(opened === undefined ? {} : { styleRow: opened }),
                 ...("announcement" in fields ? { announced: state.announced + 1 } : {}),

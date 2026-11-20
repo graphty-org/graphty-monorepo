@@ -188,6 +188,10 @@ export interface CompactMantineLabels {
     moveCard: (title: string) => string;
     /** CardList: tooltip of a card's grip. */
     reorderCard: string;
+    /** CardList: tooltip of a card's grip when its keys move the card (keyboardReorder). */
+    reorderCardKeys: string;
+    /** CardList: announced after a keyboard move; `position` and `count` are already formatted. */
+    cardMoved: (position: string, count: string) => string;
     /** CardList: accessible name of a folded card's fold button. */
     expandCard: (title: string) => string;
     /** CardList: accessible name of an open card's fold button. */
@@ -581,6 +585,8 @@ export const defaultLabels: Required<CompactMantineLabels> = {
 
     moveCard: (title: string): string => `Move ${title}`,
     reorderCard: "Drag to reorder",
+    reorderCardKeys: "Drag to reorder (Alt+Up, Alt+Down)",
+    cardMoved: (position: string, count: string): string => `Moved to position ${position} of ${count}`,
     expandCard: (title: string): string => `Expand ${title}`,
     collapseCard: (title: string): string => `Collapse ${title}`,
     renameCard: (title: string): string => `Rename ${title}`,

@@ -3,6 +3,8 @@
  * label locations and colors become the fidelity scene's classes. The reader itself runs in the
  * browser (`fidelity.test.ts`); these are the parts that decide what a value means.
  */
+import { GraphBuilder } from "@graphty/graph-format";
+import { dotImporter } from "@graphty/graph-io/dot";
 import { assert, describe, it } from "vitest";
 
 import type { SceneNode } from "../../../graph-io/test/fidelity/scene";
@@ -17,6 +19,7 @@ import {
     groupsOf,
     labelPositionOf,
     lineStyleOf,
+    nestingNodes,
     occluders,
     polygonClassOf,
     sceneNode,
@@ -268,6 +271,17 @@ describe("what the graphty scene extractor counts as hidden, and as a group", ()
         );
     });
 
+    it("reads the nodes a graph nests others in off its data, which no folding of the file's layers loses", async () => {
+        // dot-synth-edges-clusters: its file styles make more layers than the cap, so the rule that draws each cluster
+        // behind its members is folded and its name gone; the clusters are still the graph's nesting
+        const builder = new GraphBuilder({ directed: true });
+        const dot = "digraph { subgraph cluster_a { a; b; subgraph cluster_b { c } } d; a -> d }";
+        await dotImporter.import(new TextEncoder().encode(dot), builder, { ids: "keep" });
+        const snapshot = builder.freeze();
+        const nesting = nestingNodes(snapshot);
+        assert.deepEqual([...nesting].sort(), ["cluster_a", "cluster_b"]);
+    });
+
     it("shows a label drawn under one pixel tall, and leaves its size to fontSize", () => {
         // cx-ddram: a 1 pt label drawn in proportion at 0.09 px in a frame that shrinks the drawing
         const label: DrawnLabel = {
@@ -373,6 +387,15 @@ describe("the graphty scene extractor's vocabulary", () => {
         assert.strictEqual(polygonClassOf("1,0 0,1 -1,0 0,-1 0.5,-0.5 0.7,-0.2 0.9,-0.1"), "other");
         // without corners graphty draws the node's box
         assert.strictEqual(polygonClassOf(undefined), "rect");
+    });
+
+    it("counts a corner within 2% of its drawn box's longer side as on the box's corner, as the oracle's side does", () => {
+        // dot-real-crazy "8th Edition": a skewed quadrilateral drawn 195 by 44, one corner 2 units below its box's top
+        // right; as the oracle reads Graphviz's drawing of it, no diamond
+        const eighth = "-0.214,0.845 -0.897,0.031 -0.427,-1.609 1.538,0.733";
+        assert.strictEqual(polygonClassOf(eighth, { x0: 0, y0: 0, x1: 195, y1: 44 }), "other");
+        // the same corners drawn square: that corner is 5% of the side off the box's, a diamond's corner on its side
+        assert.strictEqual(polygonClassOf(eighth, { x0: 0, y0: 0, x1: 100, y1: 100 }), "diamond");
     });
 
     it("gives every node shape the element has a class, and anything else other", () => {

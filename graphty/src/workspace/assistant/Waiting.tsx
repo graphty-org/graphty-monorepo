@@ -162,24 +162,27 @@ export function Waiting({
     view,
     choice,
 }: Readonly<{ view: AssistantView; choice: AssistantChoice }>): React.JSX.Element | null {
-    const [approval] = view.approvals;
-    const [question] = view.questions;
-    if (approval === undefined && question === undefined) {
-        return null;
-    }
+    const approval = view.approvals.at(0);
+    const question = view.questions.at(0);
     const total = view.approvals.length + view.questions.length;
+    let card: React.JSX.Element;
+    if (approval !== undefined) {
+        card = (
+            <ApprovalCard
+                key={approval.id}
+                request={approval}
+                choice={choice}
+                place={total > 1 ? `1 of ${String(total)}` : null}
+            />
+        );
+    } else if (question === undefined) {
+        return null;
+    } else {
+        card = <QuestionCard key={question.id} request={question} choice={choice} />;
+    }
     return (
         <section className="ws-assistant-waiting" aria-label={WORDS["assistant.waiting.name"]}>
-            {approval === undefined ? (
-                <QuestionCard key={question.id} request={question} choice={choice} />
-            ) : (
-                <ApprovalCard
-                    key={approval.id}
-                    request={approval}
-                    choice={choice}
-                    place={total > 1 ? `1 of ${String(total)}` : null}
-                />
-            )}
+            {card}
         </section>
     );
 }

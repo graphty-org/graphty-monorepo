@@ -65,7 +65,7 @@ Reversible choices made here, so no item waits on them:
   is refused, as the integration branch does today (`23f94701`); the other branch's alternative
   (`24e561ad`) is not taken.
 - **The fixed layout** places nodes at their `data.position` on its first run and then keeps the
-  position array, so a drag survives a recompute (the integration branch's behaviour after the
+  position array, so a drag survives a recompute (the integration branch's behavior after the
   undo work). The review branch's "every run" variant (`5130940a`) is not taken.
 - **CSV node ids stay text** after the move to graph-io (2.x typed numeric-looking ids as numbers).
   Recorded in the changelog.
@@ -77,7 +77,7 @@ Reversible choices made here, so no item waits on them:
 ### The items
 
 Merge items bring a finished local branch into `feat/graph-format-migration` with `git merge`,
-resolving conflicts in favour of what the integration branch already holds unless the item says
+resolving conflicts in favor of what the integration branch already holds unless the item says
 otherwise, then run lint, build, knip and the touched packages' test projects. Build items branch
 from the integration branch in their own worktree. Every item that changes a story adds its entry
 to `visual-changes/README.md`.
@@ -182,13 +182,13 @@ matching note at each place (decision log entry 17.9); the original text is kept
 | 14.2: the Map-of-Maps overloads of astar, edmondsKarp, stoerWagner, kargerMinCut kept behind `fromAdjacencyMap`                    | `astar` and `astarWithDetails` have no Graph overload: they take only a Map-of-Maps. `fromAdjacencyMap` does not exist. It is written as an internal helper so the Map inputs can delegate; `indexed.astar` is the snapshot entry point.                                                                                                                                                                                                | `algorithms/src/pathfinding/astar.ts`                                                                                                                                             |
 | 14.1 rule 2, 14.5: the element and the GPU package call `indexed.*`; the element injects `runAlgorithm(snapshot, { accelerator })` | Element adapters call `this.accelerated(capability, mode)`, which uses the `accelerated(acc)` dispatcher of `@graphty/algorithms`; the element owns WebGPU detection through its `./webgpu` subpath.                                                                                                                                                                                                                                    | 17.8 D-INJECT; `design/decisions/2026-09-19-graphty-element-owns-webgpu.md`; `graphty-element/src/algorithms/Algorithm.ts`                                                        |
 | 14.3: 14 positional layouts; generators stay in layout behind a `LayoutGraph`; `bipartiteGraph` adds a partition column            | There are 16 positional layouts (grid and radial added by PR #396). The 8 generators are deprecated aliases of `@graphty/graph-samples/generators`; no `LayoutGraph` exists or is planned.                                                                                                                                                                                                                                              | commit 080fa1f9; `design/graph-samples/graph-samples-design.md` section 9; `layout/src/layouts/geometric/grid.ts`, `radial.ts`                                                    |
-| 14.3 and 14.1 rule 4: legacy layout input memoised per mutation                                                                    | Layout's input type has no `mutationCount`, and `toLayoutSnapshot` caches a duck-typed graph by object identity alone, so a mutated input returns a stale snapshot. The fix is to walk duck inputs on every call (work item `layout-position-helpers`).                                                                                                                                                                                 | `layout/src/simulation/snapshot.ts` (walkCache); `layout/test/simulation/snapshot.test.ts`                                                                                        |
+| 14.3 and 14.1 rule 4: legacy layout input memoized per mutation                                                                    | Layout's input type has no `mutationCount`, and `toLayoutSnapshot` caches a duck-typed graph by object identity alone, so a mutated input returns a stale snapshot. The fix is to walk duck inputs on every call (work item `layout-position-helpers`).                                                                                                                                                                                 | `layout/src/simulation/snapshot.ts` (walkCache); `layout/test/simulation/snapshot.test.ts`                                                                                        |
 | 14.3: Kamada-Kawai `dist` comes from `@graphty/algorithms` or the GPU package                                                      | Both now exist or are in flight (`indexed.allPairsShortestPath`, PR #549). The design never said how `+Infinity` maps onto Kamada-Kawai's unreachable fill: non-finite entries become the existing `1e6` fill.                                                                                                                                                                                                                          | `layout/src/algorithms/optimization/kamada-kawai-solver.ts`                                                                                                                       |
 | 14.4: DataManager holds the builder, snapshot cache and positions directly                                                         | A separate `GraphStore` class does, with identity columns and a pinned column; the element API redesign respecified the rest.                                                                                                                                                                                                                                                                                                           | `design/decisions/2026-09-19-land-element-graph-store.md`; `graphty-element/src/data/GraphStore.ts`                                                                               |
 | 14.4: `toAlgorithmGraph` is replaced by a two-line selector                                                                        | `toAlgorithmGraph` became a published plugin seam: `Algorithm.algorithmGraph()` and the `AlgorithmGraphView` type exported from `@graphty/graphty-element/extend`. Removing it changes the element's public API (work item `element-plugin-seam`).                                                                                                                                                                                      | `graphty-element/extend.ts` line 220; `graphty-element/docs/guide/extending/custom-algorithms.md`                                                                                 |
-| 14.4: analyse-visible-only through a `visible(s)` cache                                                                            | Replaced by run scopes.                                                                                                                                                                                                                                                                                                                                                                                                                 | `graphty-element/src/algorithms/input/ScopedInput.ts`                                                                                                                             |
+| 14.4: analyze-visible-only through a `visible(s)` cache                                                                            | Replaced by run scopes.                                                                                                                                                                                                                                                                                                                                                                                                                 | `graphty-element/src/algorithms/input/ScopedInput.ts`                                                                                                                             |
 | 14.4, 14.6 IO1: a DataSource streams into the io importer with the element's builder as the sink                                   | The element's builder carries no attribute columns; every attribute lives in per-node and per-edge data bags that styles, id paths and schemas read. The wrapper imports into a scratch builder and turns its columns back into records with today's keys.                                                                                                                                                                              | `graphty-element/src/data/GraphStore.ts`; `graphty-element/src/managers/DataManager.ts`                                                                                           |
-| 8.2, C16, section 18 decision 2: graph-io takes fast-xml-parser and papaparse from the element                                     | graph-io uses hand-written tokenisers and has no runtime parser dependency. The element keeps both until its wrappers land.                                                                                                                                                                                                                                                                                                             | `graph-io/package.json`; `graphty-element/package.json`                                                                                                                           |
+| 8.2, C16, section 18 decision 2: graph-io takes fast-xml-parser and papaparse from the element                                     | graph-io uses hand-written tokenizers and has no runtime parser dependency. The element keeps both until its wrappers land.                                                                                                                                                                                                                                                                                                             | `graph-io/package.json`; `graphty-element/package.json`                                                                                                                           |
 | 8.2, 14.4: `format-detection.ts` becomes graph-io's sniff table                                                                    | Detection is the element's public, plugin-extensible API. Only its built-in sniffers delegate to graph-io.                                                                                                                                                                                                                                                                                                                              | `graphty-element/src/catalog/detect.ts`                                                                                                                                           |
 | 14.4: the snapshot cache is keyed on `builder.mutationCount`, which counts column writes                                           | False until commit f7db019c made every change a freeze would show count; true now. Issue #100 is closed.                                                                                                                                                                                                                                                                                                                                | commit f7db019c                                                                                                                                                                   |
 | 14.6 E1, L1 gates: "Chromatic re-baseline"                                                                                         | Chromatic is switched off. Visual changes go through the `visual-review` package and the owner's review. Its baselines are not seeded yet; layout's Storybook is one of its projects on the integration branch (work item `visual-review-ready`).                                                                                                                                                                                       | PR #541; PR #557; PR #559; `visual-review/projects.json`                                                                                                                          |
@@ -225,7 +225,7 @@ These are reversible, so they are made here rather than asked.
   the accelerator only when the accelerator can give the same answer; otherwise it runs the CPU
   port. `allPairsShortestPath` already has such a rule (`acceleratorAnswersApsp`). The
   `labelPropagation` method gains one: a call with `randomSeed` set runs the CPU port, since the
-  GPU kernel has no seed. The element never bypasses the dispatcher to get this behaviour.
+  GPU kernel has no seed. The element never bypasses the dispatcher to get this behavior.
 - **GPU forwarding in the element.** This plan forwards only members whose cost record gives an
   unconditional crossover, each with its node floor from
   `design/decisions/2026-09-26-which-algorithms-earn-the-gpu.md`, taken from its re-derivation
@@ -332,7 +332,7 @@ second merge resolves conflicts there.
   counted the current label twice), and a different random generator.
 - It now stops when every label is dominant, so tie-rich graphs converge instead of running to
   `maxIterations`; `iterations` and `converged` change accordingly.
-- Directed graphs: in-neighbours now vote as well as out-neighbours.
+- Directed graphs: in-neighbors now vote as well as out-neighbors.
 - Self-loops no longer vote. Negative, NaN or infinite weights throw a `RangeError`.
 - Disjoint cliques, complete graphs and isolated nodes give the same partition as before.
 
@@ -344,10 +344,10 @@ graphty-element (element minor):
 - Floyd-Warshall now refuses a graph above 5,792 nodes with a coded error before the run starts.
   Before, it had no bound and a large graph ran until the tab ran out of memory.
 - Link prediction, Adamic-Adar method: the same pairs are scored, but a score can differ from
-  2.x in the last bits (up to about 2e-11), because the port rounds each shared neighbour's weight
+  2.x in the last bits (up to about 2e-11), because the port rounds each shared neighbor's weight
   1/ln(degree) to a multiple of 2^-36 before adding. Pairs whose scores tie exactly can therefore
   come out in another order, and at the `topK` cut-off a different one of the tied pairs can be
-  kept. The common-neighbours method is unchanged.
+  kept. The common-neighbors method is unchanged.
 - Max flow: when the capacities between one pair of nodes add up to a negative number, that pair
   now has capacity 0 and each of its edges publishes `capacity: 0`. Before, the edges published the
   negative sum (the flow was 0 either way).
@@ -407,7 +407,7 @@ owner.
 `feat/algorithms-indexed-label-propagation`, open a pull request for each (against master, so CI
 runs), and once each is green merge it into `feat/graph-format-migration`, resolving the
 shared-file conflicts in the second merge. File the six legacy label-propagation defects of the
-label-propagation design section 6 and the two legacy Floyd-Warshall initialisation defects as
+label-propagation design section 6 and the two legacy Floyd-Warshall initialization defects as
 issues with type, priority and effort labels. No test may raise coverage of the legacy Floyd-
 Warshall. Done when: both branches are merged into the integration branch, `indexed.allPairsShortestPath`
 and `indexed.labelPropagation` are reachable from the package barrel, `package-wiring.test.ts` and
@@ -469,7 +469,7 @@ are on the dispatcher, adapter tests match the legacy route on the existing fixt
 1e-9, identical coreness and degree, Louvain modularity within tolerance), routing tests cover both
 sides of each floor, and the visual change is reviewed. Merged into the integration branch; two readings differ
 from the legacy route on purpose: k-core no longer counts a self-loop, so a self-looped node and
-any node whose core leaned on self-looped neighbours can sit lower (the result equals the legacy
+any node whose core leaned on self-looped neighbors can sit lower (the result equals the legacy
 function's on the graph with self-loops removed); and Louvain's partition differs -- higher
 modularity on the cat network the stories load, lower on some graphs (0.26 against 0.30 on a
 six-node path; up to 0.05 lower on 11 of 600 random graphs of up to 28 nodes). The changed stories are recorded for the owner in
@@ -499,7 +499,7 @@ both paths.
 
 **port-path-centrality-family.** `degreeCentrality`, `closenessCentrality` (unweighted and
 weighted, one node or all), `betweennessCentrality` (Brandes, simple-graph sigma counting,
-endpoints, normalised, sampled sources in index space, keeping the node-id-0 fix of #555) and
+endpoints, normalized, sampled sources in index space, keeping the node-id-0 fix of #555) and
 `edgeBetweennessCentrality` with an optional alive-edge mask (Girvan-Newman needs it); dispatcher
 methods for betweenness, edge betweenness and closeness. Done when: scores equal legacy within 1e-9
 on undirected, directed, weighted and multigraph fixtures, sampled betweenness with explicit sources
@@ -539,7 +539,7 @@ and `maxFlow` over `bipartiteFlowNetwork` equals legacy over `createBipartiteFlo
 
 **port-matching-and-isomorphism-family.** `maximumBipartiteMatching`, `greedyBipartiteMatching`
 (matching as `Uint32Array` with `INVALID_INDEX`, sides from `indexed.isBipartite`), `isGraphIsomorphic`
-and `findAllIsomorphisms` (VF2 over two snapshots, simple-graph neighbourhoods, index-based match
+and `findAllIsomorphisms` (VF2 over two snapshots, simple-graph neighborhoods, index-based match
 callbacks). Done when: matching sizes equal legacy and every returned mapping is verified as an
 isomorphism, with counts equal to legacy including callbacks.
 
@@ -553,11 +553,11 @@ when: scores, orderings and metrics equal legacy on directed, undirected and mul
 **port-hierarchical-markov-spectral-clustering.** `hierarchicalClustering` (all linkages, members
 as index lists), `markovClustering`, `calculateMCLModularity` (`weightedDegree()`) and
 `spectralClustering` (Laplacian over the CSR). Done when: each equals legacy on the fixtures, or
-matches or beats it on its own quality metric where legacy is randomised.
+matches or beats it on its own quality metric where legacy is randomized.
 
 **port-research-clustering.** `syncClustering`, `teraHAC` (index-based, which removes its id/index
 defect) and `grsbm` (`weightedDegree()` modularity). Done when: each equals legacy on the
-fixtures, or matches or beats it on its own quality metric where legacy is randomised, and the
+fixtures, or matches or beats it on its own quality metric where legacy is randomized, and the
 teraHAC defect has a regression test.
 
 ### Phase 3 -- facades
@@ -591,7 +591,7 @@ the seven clustering and research functions.
 **element-adapters-traversal-and-paths.** BFS (target through the port; delete `legacyWalk`),
 DFS, Bellman-Ford, Prim (the port's spanning forest replaces the per-component legacy `Graph`s and
 the legacy `connectedComponents` call in `PrimAlgorithm.ts`), strongly connected components, and
-PageRank's remaining legacy route (personalisation, initial ranks, undirected; delete
+PageRank's remaining legacy route (personalization, initial ranks, undirected; delete
 `legacyPageRankReason`). Edge results through `edgeRemap`, not `edgePairKey`. Done when: all six
 are on the dispatcher, results equal the legacy route, both edges of a collapsed reciprocal pair and
 every member of a parallel group carry the tree or path flag, and the visual change is reviewed.
@@ -627,15 +627,15 @@ Done when: round-trip tests pass for 2D and 3D, `rescaleInPlace` matches `rescal
 shell (the node list may also name a node column), spiral, grid, random and radial; each legacy
 function becomes `toPositionMap(indexed.x(toLayoutSnapshot(G), ...), s.ids)`. Done when: every
 existing test for the six layouts passes unchanged and indexed tests cover dim 2 and 3, scale,
-centre, n = 0 and n = 1.
+center, n = 0 and n = 1.
 
 **layout-indexed-structural.** BFS, bipartite (a mask or bool column), multipartite (a node column
 name replaces the console warning fallback), planar and spectral over the CSR. Done when: existing
-tests pass or change only where CSR neighbour order changes, with the reason in the commit, and a
+tests pass or change only where CSR neighbor order changes, with the reason in the commit, and a
 string `subsetKey` reads a node column with no console output.
 
 **layout-indexed-force-and-kamada-kawai.** `indexed.kamadaKawai` (all-pairs from the CSR, weights
-as distances, zero weights honoured, parallel arcs by minimum, an injectable `Float32Array(n*n)`
+as distances, zero weights honored, parallel arcs by minimum, an injectable `Float32Array(n*n)`
 `dist` with non-finite entries as the 1e6 fill), `indexed.forceAtlas2` (with `nodeMass` and
 `nodeSize` accepting a `Float32Array` or a node column name as well as the legacy record) and
 `indexed.fruchtermanReingold` as one-shots over the simulations, `fruchtermanReingoldLayout` and
@@ -679,7 +679,7 @@ paths. Done when: corpus fixtures for each import with the expected counts and w
 adjacency file round-trips, and an unknown path is a recoverable issue.
 
 **graph-io-graphml-and-gml-gaps.** GraphML: map yFiles `ShapeNode` and `PolyLineEdge` graphics to
-position, size, colours, label, shape, arrows and per-edge direction, beside the existing JSON tree;
+position, size, colors, label, shape, arrows and per-edge direction, beside the existing JSON tree;
 accept a key's `name` and `type` when `attr.*` is absent. GML: a string node id under `nodeIdFrom:
 "id"` becomes that id with one warning instead of an error (amend design 8.4's GML line). Done when:
 a yEd fixture imports with values equal to today's element parser output, a string-id GML imports
@@ -705,7 +705,7 @@ change is reviewed.
 16.5 check passes, fast-xml-parser is gone, and the visual change is reviewed.
 
 **element-gml-dot-pajek-sources.** The three over the helper, deleting their hand-written parsers
-(`parsePajek` and `tokenizeLine` in `PajekDataSource.ts`, the tokenisers in `DOTDataSource.ts` and
+(`parsePajek` and `tokenizeLine` in `PajekDataSource.ts`, the tokenizers in `DOTDataSource.ts` and
 `GMLDataSource.ts`); a test that a truncated GML file emits `data-loading-error` with the open
 bracket's line and keeps the current graph (closes #503). Done when: that test and the existing
 GML, DOT and Pajek tests pass, and the visual change is reviewed.
@@ -846,11 +846,11 @@ Each changes a published contract that the design never specified.
    with an edge predicate on undirected graphs without self-loops. The ports differ on purpose in
    three cases:
     - `greedyBipartiteMatching` when legacy infers the sides: legacy visits left nodes in its
-      colouring BFS order and neighbours in insertion order; the port visits both in index order,
+      coloring BFS order and neighbors in insertion order; the port visits both in index order,
       because a snapshot's rows are sorted and keep no insertion order. The size can differ. Given
       the same visiting order the two choose the same pairs.
     - Arc direction in the matchings: the port ignores it by default (`arcs: "both"`); legacy
-      follows out-arcs of left nodes only. `arcs: "out"` gives the legacy behaviour.
+      follows out-arcs of left nodes only. `arcs: "out"` gives the legacy behavior.
     - `edgeMatch` on a directed graph or a self-loop: legacy offers it only the out-arcs of each
       newly mapped node to earlier ones, so an arc into that node from an earlier one, and every
       self-loop, is never compared. The port offers every arc and every self-loop once. Counts
@@ -868,7 +868,7 @@ Each changes a published contract that the design never specified.
    positional layout function, or when a `*DataSource.ts` in `graphty-element/src/data` does not
    import its importer from `@graphty/graph-io`, or when graphty-element src imports papaparse or
    fast-xml-parser, or when `csv-variant-detection.ts` or a parser function (`parsePajek`,
-   `tokenizeLine` and the DOT and GML tokenisers) exists in `graphty-element/src/data`.
+   `tokenizeLine` and the DOT and GML tokenizers) exists in `graphty-element/src/data`.
 2. **Export-list tests** in algorithms and layout pin every promoted name's snapshot signature at
    the type level and assert every removed name is gone. A migration table in the test maps each of
    the 90 legacy functions and 3 classes, and each of the 16 layouts, to its replacement or its
@@ -889,7 +889,7 @@ Each changes a published contract that the design never specified.
   to the GPU (issue #558), after PRs #549, #550 and #552 merge. That work also narrows the seam's
   option types for `allPairsShortestPath` and `labelPropagation`, which today take `SsspOptions`
   and `HitsOptionsLike`.
-- A neighbour query on the element session so the graphty app stops scanning edges in
+- A neighbor query on the element session so the graphty app stops scanning edges in
   `AppShell.tsx` (issue #314).
 - Per-edge direction in the element (issue #309), Neo4j APOC formats (#303, #304), SIF and CX2
   (#306, #307).

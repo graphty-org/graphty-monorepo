@@ -612,4 +612,62 @@ describe("the combined Style panel", () => {
             );
         });
     });
+
+    it("Enter on an unticked value ticks it; adding a field already carded goes back to its card", async () => {
+        const session = await openSample();
+        const run = await session.runs.start("louvain", {}, { style: false, seed: 1 });
+        const group = cardFields(session, "node").find((field) => field.path === `results.${run.runId}.group`);
+        const name = group?.name ?? "";
+        const layer = await layerOf(session, "Groups");
+        await cardsFor(session, "Groups");
+        const card = await addCard(name);
+        const [box] = within(within(card).getByRole("group", { name: `${name} values` })).getAllByRole("checkbox");
+        box.focus();
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            const leaf = leafOfLayer(session, layer.id);
+            assert.lengthOf(leaf?.kind === "categories" ? leaf.values : [], 1, "Enter ticks the value");
+        });
+        assert.isNotNull(screen.queryByRole("group", { name: "Which nodes" }), "and leaves the cards open");
+
+        const region = screen.getByRole("group", { name: "Which nodes" });
+        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
+        await waitFor(() => {
+            const cards = within(region).getAllByRole("group", { name: new RegExp(`^${name}(,|$)`) });
+            assert.lengthOf(cards, 1, "no second card on the field");
+            assert.isTrue(cards[0].contains(document.activeElement), "focus goes to the card it has");
+        });
+    });
+
+    it("a card that leaves selected layers with nothing says which", async () => {
+        const session = await openSample();
+        const nodes = session.data.nodes();
+        await session.data.updateNodes(
+            nodes.map((node) => ({
+                id: node.id,
+                values: { main: !String(session.data.name(node.id)).includes("Mme") },
+            })),
+        );
+        await layerOf(session, "Madames", {
+            match: "rule",
+            where: { kind: "text", reads: "data.name", mode: "substring", text: "Mme" },
+        });
+        await cardsFor(session, "Madames");
+        const said: string[] = [];
+        const status = [...document.querySelectorAll('[role="status"][aria-live="polite"]')];
+        const watch = new MutationObserver(() => {
+            said.push(...status.map((each) => each.textContent ?? ""));
+        });
+        for (const each of status) {
+            watch.observe(each, { childList: true, characterData: true, subtree: true });
+        }
+        await addCard("main");
+        await waitFor(() => {
+            const words = said.find((each) => each.startsWith("2 layers now match nothing: "));
+            assert.isDefined(words, "the layers left with nothing are said");
+            assert.sameMembers(words?.split(": ")[1]?.split(", ") ?? [], ["Madames", "Madames too"]);
+        });
+        watch.disconnect();
+    });
 });

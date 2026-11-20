@@ -133,7 +133,14 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "View",
         core: true,
         profiles: STANDARD,
-        actions: ["dimension", "camera", "zoom_to", "fit", "save", "restore", "remove_saved", "list_saved"],
+        actions: ["dimension", "camera", "zoom_to", "fit", "save", "restore", "remove_saved", "rename", "list_saved"],
+    },
+    {
+        name: "tour",
+        plainName: "Camera tours",
+        core: false,
+        profiles: STANDARD,
+        actions: ["list", "save", "play"],
     },
     {
         name: "hidden",
@@ -201,14 +208,14 @@ export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[] = Object.freeze
         plainName: "Project",
         core: false,
         profiles: STANDARD,
-        actions: ["settings", "generate_background", "rename", "rename_run", "declare", "status"],
+        actions: ["model_settings", "settings", "generate_background", "rename", "rename_run", "declare", "status"],
     },
     {
         name: "capture",
         plainName: "Capture",
         core: false,
         profiles: STANDARD,
-        actions: ["screenshot", "animation", "cancel"],
+        actions: ["screenshot", "animation", "cancel", "stop"],
     },
     {
         name: "immersive",

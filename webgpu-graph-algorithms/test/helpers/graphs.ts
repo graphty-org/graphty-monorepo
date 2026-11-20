@@ -101,7 +101,7 @@ export const KARATE_EDGES: readonly EdgeSpec[] = [
 ];
 
 /**
- * A w x h grid (4-neighbour), row-major node indices.
+ * A w x h grid (4-neighbor), row-major node indices.
  * @param w - columns
  * @param h - rows
  * @returns the edges
@@ -511,7 +511,7 @@ function oneCellPositions(n: number): F32 {
 }
 
 /**
- * Positions drawn from `blobs` Gaussian blobs (centres uniform in [-0.8, 0.8) per axis, sigma 0.02) by the
+ * Positions drawn from `blobs` Gaussian blobs (centers uniform in [-0.8, 0.8) per axis, sigma 0.02) by the
  * Box-Muller pair, the blob of node i being i % blobs.
  * @param n - node count
  * @param blobs - the blob count

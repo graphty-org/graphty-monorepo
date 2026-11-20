@@ -24,7 +24,7 @@ colors, and the board's color said.
 - The board's color was named "green" at step 12, the step the key first showed it ("board" with a
   green square, `12.png`). The drawn value `#009e73` is the reference value; the key accepts green
   or teal. Read from the key, so not "from the drawing alone".
-- Ties and other looks unchanged: 63 ties `#a9a9a9` (darkgrey, the default); node size 1 and
+- Ties and other looks unchanged: 63 ties `#a9a9a9` (darkgray, the default); node size 1 and
   shape icosphere as at the start.
 - One leftover: a one-node layer "v22" (Mei Tanaka) with its own Color bound to `role`, made by the
   wrong turn below. It paints v22 orange, the same color Everything gives a volunteer, so the

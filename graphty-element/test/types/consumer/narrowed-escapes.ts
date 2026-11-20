@@ -19,13 +19,13 @@ export function positionsAreReadOnly(): void {
     session.positions.read(0, at);
     void session.positions.set([{ id: "a", x: 1, y: 2 }]);
     // @ts-expect-error the lane's writer is not on the session
-    const _write = session.positions.write;
+    const _write: unknown = session.positions.write;
     // @ts-expect-error nor is the raw array
-    const _view = session.positions.view;
+    const _view: unknown = session.positions.view;
     // @ts-expect-error nor the pin bytes
-    const _setPinned = session.positions.setPinned;
+    const _setPinned: unknown = session.positions.setPinned;
     // @ts-expect-error the store's coordinates are read-only too
-    const _writeStore = session.data.store.positions.write;
+    const _writeStore: unknown = session.data.store.positions.write;
 }
 
 /** The configuration document on `Graph` cannot be replaced; settings go through the session. */
@@ -34,7 +34,7 @@ export function graphStylesIsReadOnly(): void {
     // @ts-expect-error `Graph.styles` is readonly
     graph.styles = styles;
     // @ts-expect-error the operation queue is private
-    const _queue = graph.operationQueue;
+    const _queue: unknown = graph.operationQueue;
 }
 
 /** A published session is the only writer of its graph and settings. */

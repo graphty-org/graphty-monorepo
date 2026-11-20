@@ -46,7 +46,7 @@ of graphty-element has them -- and one is a story defect.
 microtask, so the style edit is still in `pendingOperations` when the data arrives.
 `applyObsolescenceRules` aborts its controller and deletes it from `pendingOperations`,
 `queuedOperations` and `currentBatch` (`src/managers/OperationQueueManager.ts:355-375`). Because it
-never reached p-queue, the `.catch()` that reports an `AbortError` for a cancelled operation
+never reached p-queue, the `.catch()` that reports an `AbortError` for a canceled operation
 (`OperationQueueManager.ts:440-449`) never runs, and the operation's body is never invoked.
 
 The body is the run. `ManagedRun` settles only from inside its own body, from `cancel()`, or from a
@@ -83,7 +83,7 @@ repaint and no repaint has run (`src/session/styles/StylesApi.ts`, `encodingOf`;
 `src/session/styles/repaint.ts`, `lastPreparedFrom`).
 
 The picture on screen is the element's own fallback appearance, which happens to equal the default
-layer's colour, so the failure looks like success until a story asks for something else.
+layer's color, so the failure looks like success until a story asks for something else.
 
 Any later style edit repaints and the whole stack wakes up. That is why a layer added after the load
 works, which is why the tests pass.
@@ -103,20 +103,20 @@ paths reaches it.
 ### Element: a label, tooltip or marker never reaches the screen after the first paint
 
 `Node.paintFrom` returns early when the source mesh key has not changed, applying only the instance
-colour (`src/Node.ts:386-392`). `Edge.paintFrom` does the same and applies nothing
+color (`src/Node.ts:386-392`). `Edge.paintFrom` does the same and applies nothing
 (`src/Edge.ts:499-503`). The label build sits after that return (`src/Node.ts:505-512`).
 
 The mesh key is minted from the channels classified `role: "mesh"` in
 `src/session/styles/intern.ts` (`CHANNEL_ROLES`, `MESH_CHANNELS`). `node.label`, `node.labelStyle`,
 `node.tooltip`, `node.marker`, `edge.label`, `edge.labelStyle` and `edge.tooltip` are classified
 `content` and deliberately key nothing. `StylePainter` compensates for the two `instance` channels by
-folding colour and opacity into the renderer's key string (`nodePaintOf`, `edgePaintOf`), and nothing
+folding color and opacity into the renderer's key string (`nodePaintOf`, `edgePaintOf`), and nothing
 compensates for the content channels.
 
 So an edit that changes only a label is dropped: the pass marks the element dirty, `UpdateManager.syncStyles`
 hands the new paint to `applySessionPaint`, and `paintFrom` returns before the label is built. The
-comment on `syncStyles` states the early return as a cost optimisation -- "compare the source mesh
-they are handed with the one already on screen and rebuild only when it differs, so a colour change
+comment on `syncStyles` states the early return as a cost optimization -- "compare the source mesh
+they are handed with the one already on screen and rebuild only when it differs, so a color change
 on a node is one buffer write and no geometry at all" -- which is true of geometry and false of text.
 
 This is invisible in the stories as they stand, because the first repaint always moves the key from
@@ -177,7 +177,7 @@ by accident.
 The removed edge-label fallback is not a defect and is not the cause of anything reported.
 `Edge.extractLabelText` no longer falls back to the edge id, which is exactly what
 `design/element-api/edge-model-and-layout-state.md:1439-1444` decided ("the fallback is removed -- an
-unlabelled edge draws no label"), and the label stories that are blank are node-label stories driven
+unlabeled edge draws no label"), and the label stories that are blank are node-label stories driven
 by explicit layers. Lead killed.
 
 The 1.x `StyleManager.addLayer` defect -- "adding a layer does not apply it", recorded at
@@ -209,7 +209,7 @@ Render the story, run its play function, record the reports. A test fails if som
 is the entire assertion surface for all 131 stories.
 
 Counted across all 30 story files: **0 occurrences of `expect(` and 0 of `assert`.** The 131 tests
-contain no assertion about appearance, geometry, colour, text, layer count or element state. The play
+contain no assertion about appearance, geometry, color, text, layer count or element state. The play
 functions that exist are almost all one line, `await waitForGraphSettled(canvasElement)`.
 
 **29 of the 131 stories have no play function at all** -- every story in `LayeredStyles` (14) and
@@ -252,7 +252,7 @@ criticism of the lane that it did not.
 `test/browser/style-paint-pixels.test.ts` is the one test in the repository that compares the style
 model against real pixels, and its own header says why it exists: "there is a join nothing covered: a
 whole chain from a style layer, through the columnar repaint, through the painter, through the mesh
-cache and the instanced colour buffer, to the frame." It works. It missed these faults for three
+cache and the instanced color buffer, to the frame." It works. It missed these faults for three
 reasons, all structural.
 
 **Its `beforeEach` loads the data first, and through the queued path.**
@@ -272,16 +272,16 @@ happens. There is no data-source load anywhere in the file, so the missing repai
 the layers it adds come after the data, so the stranded run cannot occur.
 
 **It checks two channels.** The first test reads `node.color` from the element's own default layer;
-the second runs `degree` and reads the colours of an encoded ramp. Both go through
+the second runs `degree` and reads the colors of an encoded ramp. Both go through
 `styles.explain({node}).merged["node.color"]`. Nothing in the file reads a label, a shape, a size, an
 opacity, an arrowhead, a line style or anything about an edge.
 
-**A label is not a measurable hue.** The sampler deliberately looks for the most colourful pixel near
+**A label is not a measurable hue.** The sampler deliberately looks for the most colorful pixel near
 a node's projected position and skips anything whose channel spread is under 24, "because that is
-grey, which is the background, the edges and a specular highlight". The default label is black text on
-whitesmoke -- pure grey by that test -- so the one instrument that reads pixels is calibrated to
+gray, which is the background, the edges and a specular highlight". The default label is black text on
+whitesmoke -- pure gray by that test -- so the one instrument that reads pixels is calibrated to
 ignore exactly the thing the label stories are about. Reading a label off the canvas needs the
-opposite measurement: count near-black pixels in the neighbourhood, which is how the probes proved
+opposite measurement: count near-black pixels in the neighborhood, which is how the probes proved
 the labels were absent (`darkPx = 0 of 468,512`).
 
 `test/browser/style-layers.test.ts` is the other place layers meet a real graph, and it is honest
@@ -394,7 +394,7 @@ the merge.
   is a deliberate list of what should move, and it includes "Edge labels change, and most of them
   disappear" and "Edges appear where there were none". A reviewer facing 130 diffs with that document
   in hand would plausibly accept blank label stories as the intended change. A re-baseline of this
-  size is a review of 130 judgements, and the judgement needed here was "these two are blank for a
+  size is a review of 130 judgments, and the judgment needed here was "these two are blank for a
   different reason than the one in the document".
 - 27 of the changed stories now run with zero layout pre-steps, because their `setup.preSteps` is
   inert. An unstepped physics layout is a different picture every run, which is the failure mode
@@ -413,11 +413,11 @@ never landed".
 | Fault                                                                                                                       | Stories affected                                                                                                                                                                                               | Verdict                 | Change that caused it                                                                                                             |
 | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | A style edit issued before the data is set is discarded, and its `Run` never settles                                        | every story with inline `nodeData`/`edgeData`: all 14 LayeredStyles, EdgeStyles width/opacity/arrow-head/all-arrows/all-lines, ArrowText, AllNodeShapes, BezierEdges, bipartite-matching, connected-components | **element**             | `8036cc2d` (style writes became queued runs in the `algorithm-run` category, which `data-add` obsoletes)                          |
-| A `dataSource` load never triggers the first repaint, so nothing the stack says is ever painted                             | every story that loads over the network: all 11 LabelStyles, NodeStyles colour/shape/size/opacity/wireframe/label, GraphStyles layers, BidirectionalArrows, and all 27 algorithm stories                       | **element**             | `c3561815` (pull-based per-element styling replaced by one pushed repaint, wired only to the queued `data-add`)                   |
+| A `dataSource` load never triggers the first repaint, so nothing the stack says is ever painted                             | every story that loads over the network: all 11 LabelStyles, NodeStyles color/shape/size/opacity/wireframe/label, GraphStyles layers, BidirectionalArrows, and all 27 algorithm stories                        | **element**             | `c3561815` (pull-based per-element styling replaced by one pushed repaint, wired only to the queued `data-add`)                   |
 | A label, tooltip or marker is never rebuilt after the first paint                                                           | none as the stories stand; every consumer that toggles a label at runtime                                                                                                                                      | **element**             | `c3561815` (the `content` role and the mesh-key early return arrived together)                                                    |
 | `setup` is a dead property on stories whose meta has no `render: renderFn`; no algorithm runs, no story layer, no pre-steps | 27 algorithm stories, 21 Data stories, Graphty, and the `nodeEncode` of max-flow                                                                                                                               | **story**               | `ff12a515` (the `styleTemplate` arg, which was a real element property, was replaced by a convention only `renderFn` understands) |
 | 2D ForceAtlas2 lays out in 3D                                                                                               | `layout-2d--force-atlas-2`                                                                                                                                                                                     | **story**               | pre-existing; the story never passed `layoutConfig: { dim: 2 }`                                                                   |
-| An unlabelled edge draws no label                                                                                           | ArrowText, and any edge-label story with no explicit text                                                                                                                                                      | **neither -- intended** | `ecf4461e`, recorded in the edge-model design                                                                                     |
+| An unlabeled edge draws no label                                                                                            | ArrowText, and any edge-label story with no explicit text                                                                                                                                                      | **neither -- intended** | `ecf4461e`, recorded in the edge-model design                                                                                     |
 
 Where the probes disagreed, the code settles it:
 
@@ -425,7 +425,7 @@ Where the probes disagreed, the code settles it:
   rebound". It is simpler than that: prepared bindings are built by the repaint, and no repaint ever
   ran, so `explain()` truthfully reports no contributions. One defect, not two.
 - Probe 1 recorded the ArrowText layers as "suspected" victims of queue obsolescence. Confirmed:
-  `StylesApi` enqueues under `algorithm-run`, `data-add` obsoletes that category, and the cancelled
+  `StylesApi` enqueues under `algorithm-run`, `data-add` obsoletes that category, and the canceled
   operation was still pending so nothing rejected it.
 - Probe 3 attributed the algorithm stories' `runs = 0` to the element. It is the story: measured live,
   `element.algorithmsOnLoad` is never set at all, because those stories never pass through `renderFn`.
@@ -508,7 +508,7 @@ Owns:
 - `graphty-element/test/browser/story-contract.test.ts` _(new)_ -- the static pairing test: import
   every `stories/**/*.stories.ts` module and `renderFn`, and assert that a file whose stories declare
   `setup` has `meta.render === renderFn`. Also assert the inverse for the custom-render files, so
-  `CameraControls`, `Screenshot` and `Selection` either honour `setup` or do not declare it.
+  `CameraControls`, `Screenshot` and `Selection` either honor `setup` or do not declare it.
 - `graphty-element/test/browser/first-paint-after-load.test.ts` _(new)_ -- the load-path matrix, which
   is the regression test for the fault class rather than for one defect: {inline `nodeData` /
   `addNodes` / `addDataFromSource`} x {no layer / layer before the load, awaited / layer before the
@@ -547,7 +547,7 @@ Two element defects, one file each, plus the story-side repair that is in the sa
 
 Owns:
 
-- `graphty-element/src/managers/OperationQueueManager.ts` -- a cancelled operation must tell its
+- `graphty-element/src/managers/OperationQueueManager.ts` -- a canceled operation must tell its
   caller. Today `applyObsolescenceRules` aborts and deletes a pending operation and nothing rejects
   it; the operation carries `resolve`/`reject` handles (`queueOperationAsync` sets them) and the
   obsolescence path must call `reject` with the abort, so a `ManagedRun` settles. Separately decide
@@ -555,7 +555,7 @@ Owns:
 - `graphty-element/src/constants/obsolescence-rules.ts` -- `data-add` obsoletes `algorithm-run`, and
   three unrelated features share that category: algorithm runs, style writes and visibility changes
   (stated at `src/Graph.ts:360-367`). A style edit is a standing instruction, not a stale computation
-  over the old data, so it should not be cancelled by a load. Either give style writes their own
+  over the old data, so it should not be canceled by a load. Either give style writes their own
   category or narrow the rule. This is the real fix; rejecting the run is the safety net.
 - `graphty-element/src/Graph.ts` and `graphty-element/src/managers/DataManager.ts` -- the first repaint
   must happen on the data-source path. The element already solved this problem once for the on-load

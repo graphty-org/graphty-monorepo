@@ -32,7 +32,7 @@ import { isWritableDotText } from "../../common/escape.js";
 import { inferTextDtype, itemAt } from "../../common/text.js";
 import { type BendPoint, canonBends, canonNodeOffsets, flattenCubic } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
-import { canonEnum } from "../../styles/canon/enums.js";
+import { canonEnum, isBoldWeight, isNumericWeight } from "../../styles/canon/enums.js";
 import { canonNumber, DOT_POINTS_PER_INCH, num6 } from "../../styles/canon/number.js";
 import { graphvizFontName } from "../../styles/canon/postscript-font.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
@@ -76,8 +76,16 @@ import {
 } from "./drawing.js";
 import { type LabelTable, readLabelTable } from "./html-table.js";
 import { type LabelPlaceContext, leftOutEdgeLabels, leftOutXlabels, readLabelPlaces } from "./label-places.js";
-import { CLUSTER_COLUMN, DOT_META_KEY, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
-import { fontWidths, layoutRecord } from "./record.js";
+import {
+    CLUSTER_COLUMN,
+    DOT_META_KEY,
+    LABEL_ATTRIBUTE,
+    POS_ATTRIBUTE,
+    SOURCE_PORT_COLUMN,
+    TARGET_PORT_COLUMN,
+} from "./names.js";
+import { fontWidths, layoutRecord, MAX_RECORD_DEPTH, recordDepth } from "./record.js";
+import { CENTER_END, compassEnd, type LoopEnd, type LoopSide, selfLoopControls } from "./self-loops.js";
 
 /**
  * The graph attribute holding the `graphty.styles` block of a DOT file graphty wrote.
@@ -907,8 +915,8 @@ function drawsTableOutline(n: NodeRead): n is NodeRead & { readonly table: HtmlT
     if (shape === "plain") {
         return true;
     }
-    // ponytail: with a margin or a least size larger than the table, Graphviz draws the border inside the node's
-    // box, which graphty cannot draw yet (it draws the node's box), so it draws none
+    // with a margin or a least size larger than the table, the border is inside the node's box: the node draws no
+    // outline, and whoever draws the table (`labelTable`) draws its border where the table is
     // no margin (or an empty one) is Graphviz's 8 by 4 points
     const margin = (get("margin") ?? "")
         .split(",")
@@ -1013,9 +1021,16 @@ function readNodeSize(
 ): void {
     const { get, put, at, shape } = n;
     readSize(get, shape, n.point, put, at);
-    if (RECORD.has(shape) && label !== null && !htmlLabel) {
+    const record = RECORD.has(shape) && label !== null && !htmlLabel;
+    if (record && recordDepth(label) <= MAX_RECORD_DEPTH) {
         readRecord(n, label, names);
-    } else if (!n.point) {
+        return;
+    }
+    if (record) {
+        // too deep to lay out: the node keeps its plain label
+        noteAt(at("label"), STYLE_ISSUE.NESTING, `record fields nested deeper than ${MAX_RECORD_DEPTH}`);
+    }
+    if (!n.point) {
         readLabelFit(get, shape, label, shown, n.table, put);
         readQuantum(n, label);
     }
@@ -1510,7 +1525,7 @@ function readNodeOutline(n: NodeRead): void {
             readTableOutline(n);
             return;
         }
-        put("borderWidth", 0);
+        readBodilessOutline(n);
     } else {
         const outline = cx.cluster ? (nonEmpty(get("pencolor")) ?? n.color) : n.color;
         const alpha = readColor(outline, n.scheme, "line", "borderColor", null, put, at);
@@ -1531,6 +1546,18 @@ function readNodeOutline(n: NodeRead): void {
     }
     if (!cx.cluster) {
         readNodeRings(n);
+    }
+}
+
+/**
+ * The outline of a node whose shape draws none and that does not draw its table's outline as its own: none, but its
+ * table's cells and its table's outline inside its margin are drawn in the table's color, else the node's pen color.
+ * @param n - the node
+ */
+function readBodilessOutline(n: NodeRead): void {
+    n.put("borderWidth", 0);
+    if (n.table !== null) {
+        readColor(n.table.color ?? n.color, n.scheme, "line", "borderColor", null, n.put, n.at);
     }
 }
 
@@ -2168,7 +2195,9 @@ function readEndLabelFace(get: Attr, scheme: string | null, put: Put, at: At): v
 /**
  * Reads an edge's colored segments: a color list with a `;fraction` in it (`red;0.3:blue`) draws the line in one piece
  * per color along its length, which is a linear gradient with a hard switch at each band's end. A list with no
- * fraction draws parallel lines, which graphty does not draw (the line is in the first color).
+ * fraction draws parallel lines, which graphty does not draw (the line is in the first color). Graphviz draws the head's
+ * arrow in the last band's color (emit.c `emit_edge_graphics`: `headcolor`), the tail's in the first, which the line
+ * already has.
  * @param list - the edge's `color`
  * @param scheme - its color scheme
  * @param put - receives the values
@@ -2193,6 +2222,7 @@ function readEdgeSegments(list: string | null, scheme: string | null, put: Put, 
     put("gradientKind", "linear");
     put("gradientColors", colors.join(" "));
     put("gradientStops", stops.join(" "));
+    put("targetArrowColor", bands.at(-1)?.color ?? null);
 }
 
 /**
@@ -2240,13 +2270,69 @@ function splineBends(snapshot: GraphSnapshot, e: number, pos: string | null): st
 /**
  * The bends of an edge Graphviz laid, from its `pos` text (`[e,x,y] [s,x,y]` arrow tips, then each spline's
  * `3n + 1` control points, y up, splines separated by `;`), between the two nodes' centers in the same coordinates.
+ * A self-loop has no line between two centers to place bends against: given its node's size, its bends are offsets
+ * from the node's center as fractions of its half width and half height (as a self-loop's `bends` always are), its
+ * whole route included, ends and all -- the route Graphviz lays round a node with `splines=ortho`, say.
  * @param source - the source node's center
  * @param target - the target node's center
  * @param pos - the edge's `pos` text
+ * @param loopSize - for a self-loop, its node's width and height in the same units; without it a self-loop has no bends
  * @returns the `bends` value, or null for a straight route or a `pos` that is not a spline
  * @category Styles
  */
-export function graphvizPosBends(source: BendPoint, target: BendPoint, pos: string): string | null {
+export function graphvizPosBends(
+    source: BendPoint,
+    target: BendPoint,
+    pos: string,
+    loopSize?: BendPoint,
+): string | null {
+    const { splines, tips } = parsePos(pos);
+    if (loopSize !== undefined && source[0] === target[0] && source[1] === target[1]) {
+        const route = routePoints(splines, tips);
+        return route === null ? null : canonNodeOffsets(source, loopSize, route.points, false);
+    }
+    return graphvizRouteBends(source, target, splines, tips);
+}
+
+/**
+ * The route Graphviz laid an edge along, from its `pos`, sampled as {@link graphvizPosBends} samples it but kept when
+ * Graphviz drew it straight, with how far along it Graphviz measures each sample when it splits the line into color
+ * bands (`color="red;0.3:blue"`, lib/common/emit.c `splitBSpline`): each Bezier piece takes a share of the route as long
+ * as its control polygon, and a point a fraction t of the way along its piece's parameter lies that fraction through
+ * the piece's share. The arrow tips take the ends' measures, 0 and 1. So a band that ends at 0.3 ends at the sample
+ * where the measure rises past 0.3.
+ * @param source - the source node's center
+ * @param target - the target node's center
+ * @param pos - the edge's `pos` text
+ * @returns the samples as a `bends` value and one measure from 0 to 1 per sample, rising; null for a `pos` that is not
+ *     a spline, or ends at one place
+ * @category Styles
+ */
+export function graphvizPosCurve(
+    source: BendPoint,
+    target: BendPoint,
+    pos: string,
+): {
+    /** The samples as a `bends` value. */
+    points: string;
+    /** One measure from 0 to 1 per sample, rising. */
+    params: number[];
+} | null {
+    const { splines, tips } = parsePos(pos);
+    const route = routePoints(splines, tips);
+    const points = route === null ? null : canonBends(source, target, route.points, false);
+    return route === null || points === null ? null : { points, params: route.params };
+}
+
+/**
+ * A Graphviz `pos` text read into its splines' control points and its arrow tips.
+ * @param pos - the text
+ * @returns each spline's control points (y up) and the tips of the first spline's start and the last spline's end
+ */
+function parsePos(pos: string): {
+    splines: BendPoint[][];
+    tips: { start: BendPoint | null; end: BendPoint | null };
+} {
     // the arrow tips of the first spline's start and the last spline's end
     const tip = (spline: string | undefined, flag: "s" | "e"): BendPoint | null => {
         const token = (spline ?? "")
@@ -2269,38 +2355,52 @@ export function graphvizPosBends(source: BendPoint, target: BendPoint, pos: stri
                 return [x, y];
             }),
     );
-    return graphvizRouteBends(source, target, splines, tips);
+    return { splines, tips };
 }
 
 /** How far off the line between its nodes' centers, in points, a Graphviz route may pass and still be straight. */
 const GRAPHVIZ_STRAIGHT_POINTS = 1;
 
-/** How far apart Graphviz's neato lays the loops on one node, across (x) and along (y) its side, in points. */
-const GRAPHVIZ_LOOP_STEP = { x: 18, y: 9 } as const;
+/** How far apart Graphviz's neato lays the loops on one node, in points (`makeSelfArcs`' step). */
+const GRAPHVIZ_LOOP_STEP = 18;
+
+/** The route of a self-loop Graphviz lays itself: its bends, its ends' ports, and the side it goes round. */
+interface LaidLoop {
+    readonly bends: string;
+    readonly sourcePort: string | null;
+    readonly targetPort: string | null;
+    readonly side: LoopSide;
+}
 
 /**
- * The self-loops Graphviz lays itself, with no `pos` of their own and no ports: neato's `selfRight` (splines.c), on
- * the node's right side, the k-th of a node's n loops two cubic curves from its center out to `rw + 18k` points right
- * of it and back, `9k / n` points above and then below its center line (measured on Graphviz 14.1.2's and 2.43's
- * drawings of nodes from 0.33 to 1 inch).
+ * The self-loops Graphviz lays itself, with no `pos` of their own: neato's `makeSelfEdge` (splines.c), round the
+ * node's right side with no ports, or the side its compass ports (`tailport`, `headport`, `a:e -> a:n`) choose; the
+ * i-th of a node's loops with the same ends one 18-point step further out.
+ * ponytail: a node Graphviz grows to fit its label is taken at its stated width and height; a port naming a record
+ * field or an HTML cell keeps the element's loop
  * @param snapshot - the graph
- * @returns the bends of an edge that is such a loop, or null
+ * @returns the route of an edge that is such a loop, or null
  */
-function graphvizLoops(snapshot: GraphSnapshot): { bendsOf: (e: number, get: Attr) => string | null } {
-    const portless = (get: Attr): boolean =>
-        nonEmpty(get("tailport")) === null &&
-        nonEmpty(get("headport")) === null &&
-        nonEmpty(get(POS_ATTRIBUTE)) === null;
-    const onNode = new Map<number, number[]>();
-    // ponytail: ortho routes a loop round the node's corners and none draws no edge; both keep the element's loop.
+function graphvizLoops(snapshot: GraphSnapshot): { routeOf: (e: number, get: Attr) => LaidLoop | null } {
+    const portText = (get: Attr, attribute: string, e: number, column: string): string =>
+        (nonEmpty(get(attribute)) ?? nonEmpty(cellText(snapshot.edges, column, e)) ?? "").trim().toLowerCase();
+    const ends = (e: number, get: Attr): [string, string] => [
+        portText(get, "tailport", e, SOURCE_PORT_COLUMN),
+        portText(get, "headport", e, TARGET_PORT_COLUMN),
+    ];
+    const groups = new Map<string, number[]>();
+    // ortho routes a loop through its maze of the whole drawing, which no local rule lays: graphty-element has
+    // Graphviz route it (neato -n2, read back by graphvizPosBends with the node's size); none draws no edge
     const splines = (nonEmpty(cellText(snapshot.graph, "splines", 0)) ?? "").toLowerCase();
     // a file graphty wrote keeps its loops' look in its own block
     const laid =
         splines !== "ortho" && splines !== "none" && nonEmpty(cellText(snapshot.graph, STYLE_BLOCK_NAME, 0)) === null;
+    const keyOf = (e: number, get: Attr): string => `${String(snapshot.edgeSource(e))}|${ends(e, get).join("|")}`;
     for (let e = 0; e < snapshot.edgeCount && laid; e++) {
-        const n = snapshot.edgeSource(e);
-        if (n === snapshot.edgeTarget(e) && portless((name) => cellText(snapshot.edges, name, e))) {
-            onNode.set(n, [...(onNode.get(n) ?? []), e]);
+        const get: Attr = (name) => cellText(snapshot.edges, name, e);
+        if (snapshot.edgeSource(e) === snapshot.edgeTarget(e) && nonEmpty(get(POS_ATTRIBUTE)) === null) {
+            const key = keyOf(e, get);
+            groups.set(key, [...(groups.get(key) ?? []), e]);
         }
     }
     const inches = (n: number, name: string, fallback: number): number => {
@@ -2308,29 +2408,94 @@ function graphvizLoops(snapshot: GraphSnapshot): { bendsOf: (e: number, get: Att
         return (Number.isFinite(v) && v > 0 ? v : fallback) * DOT_POINTS_PER_INCH;
     };
     return {
-        bendsOf: (e, get) => {
+        routeOf: (e, get) => {
             const n = snapshot.edgeSource(e);
-            const list = onNode.get(n);
-            if (n !== snapshot.edgeTarget(e) || list === undefined || !portless(get)) {
+            const list = groups.get(keyOf(e, get));
+            if (n !== snapshot.edgeTarget(e) || list === undefined || nonEmpty(get(POS_ATTRIBUTE)) !== null) {
                 return null;
             }
-            // ponytail: a node Graphviz grows to fit its label is taken at its stated width and height
             const [w, h] = [inches(n, "width", 0.75), inches(n, "height", 0.5)];
-            const k = list.indexOf(e) + 1;
-            const dx = w / 2 + GRAPHVIZ_LOOP_STEP.x * k;
-            const dy = (GRAPHVIZ_LOOP_STEP.y * k) / list.length;
-            const curve = flattenCubic([
-                [0, 0],
-                [dx / 3, dy],
-                [dx, dy],
-                [dx, 0],
-                [dx, -dy],
-                [dx / 3, -dy],
-                [0, 0],
-            ]);
-            return curve === null ? null : canonNodeOffsets([0, 0], [w, h], curve.slice(1, -1), false);
+            const shape = (nonEmpty(cellText(snapshot.nodes, "shape", n)) ?? "").toLowerCase();
+            const [tail, head] = ends(e, get).map((t) => (t === "" ? CENTER_END : compassEnd(t, w, h, shape)));
+            if (tail === null || head === null) {
+                return null;
+            }
+            const { controls, side } = selfLoopControls(
+                tail,
+                head,
+                w,
+                h,
+                list.indexOf(e),
+                list.length,
+                GRAPHVIZ_LOOP_STEP,
+            );
+            const curve = flattenCubic(controls);
+            const bends = curve === null ? null : canonNodeOffsets([0, 0], [w, h], curve.slice(1, -1), false);
+            const port = (end: LoopEnd): string | null =>
+                end.defined ? canonNodeOffsets([0, 0], [w, h], [end.p], false) : null;
+            return bends === null ? null : { bends, sourcePort: port(tail), targetPort: port(head), side };
         },
     };
+}
+
+/**
+ * The points of a route Graphviz laid: its B-splines flattened end to end, run on to its arrow tips, each with where
+ * it lies along the route as {@link graphvizPosParams} measures it.
+ * @param splines - the control points of each spline
+ * @param tips - the arrow tips, as {@link graphvizRouteBends} takes them
+ * @param tips.start - the tail arrow's tip, or null
+ * @param tips.end - the head arrow's tip, or null
+ * @returns the points and their values, or null for control points that are not a spline
+ */
+function routePoints(
+    splines: readonly (readonly BendPoint[])[],
+    tips?: { readonly start: BendPoint | null; readonly end: BendPoint | null },
+): { points: BendPoint[]; params: number[] } | null {
+    const points: BendPoint[] = [];
+    // each point's piece and its parameter within it; a piece's share is its control polygon's length
+    const at: [piece: number, t: number][] = [];
+    const lengths: number[] = [];
+    for (const controls of splines) {
+        const flat = flattenCubic(controls);
+        if (flat === null || flat.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
+            return null;
+        }
+        const pieces = (controls.length - 1) / 3;
+        const steps = (flat.length - 1) / pieces;
+        flat.forEach((_, j) => {
+            const piece = j === 0 ? 0 : Math.ceil(j / steps) - 1;
+            at.push([lengths.length + piece, j === 0 ? 0 : (j - piece * steps) / steps]);
+        });
+        for (let s = 0; s + 3 < controls.length; s += 3) {
+            const [p0, p1, p2, p3] = controls.slice(s, s + 4);
+            lengths.push(
+                Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) +
+                    Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) +
+                    Math.hypot(p3[0] - p2[0], p3[1] - p2[1]),
+            );
+        }
+        points.push(...flat);
+    }
+    const before = [0];
+    for (const length of lengths) {
+        before.push((before.at(-1) ?? 0) + length);
+    }
+    const total = before.at(-1) ?? 0;
+    const params = at.map(([piece, t]) => (total > 0 ? (before[piece] + t * lengths[piece]) / total : 0));
+    // a tip where the spline already ends adds no point
+    const apart = (a: BendPoint, b: BendPoint | undefined): boolean =>
+        b === undefined || Math.hypot(a[0] - b[0], a[1] - b[1]) > 1e-6;
+    const start = tips?.start ?? null;
+    const end = tips?.end ?? null;
+    if (start !== null && apart(start, points[0])) {
+        points.unshift(start);
+        params.unshift(0);
+    }
+    if (end !== null && apart(end, points.at(-1))) {
+        points.push(end);
+        params.push(1);
+    }
+    return { points, params };
 }
 
 /**
@@ -2351,24 +2516,9 @@ export function graphvizRouteBends(
     splines: readonly (readonly BendPoint[])[],
     tips?: { readonly start: BendPoint | null; readonly end: BendPoint | null },
 ): string | null {
-    const points: BendPoint[] = [];
-    for (const controls of splines) {
-        const flat = flattenCubic(controls);
-        if (flat === null || flat.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
-            return null;
-        }
-        points.push(...flat);
-    }
-    // a tip where the spline already ends adds no point
-    const apart = (a: BendPoint, b: BendPoint | undefined): boolean =>
-        b === undefined || Math.hypot(a[0] - b[0], a[1] - b[1]) > 1e-6;
-    const start = tips?.start ?? null;
-    const end = tips?.end ?? null;
-    if (start !== null && apart(start, points[0])) {
-        points.unshift(start);
-    }
-    if (end !== null && apart(end, points.at(-1))) {
-        points.push(end);
+    const points = routePoints(splines, tips)?.points ?? null;
+    if (points === null) {
+        return null;
     }
     const [dx, dy] = [target[0] - source[0], target[1] - source[1]];
     const length = Math.hypot(dx, dy);
@@ -2405,11 +2555,14 @@ function readEdgeLine(get: Attr, tokens: readonly string[], cx: EdgeContext, put
     } else if (tokens.includes("tapered")) {
         put("lineStyle", "other:tapered");
         // Graphviz narrows a tapered line by its direction (lib/common/emit.c, taperfun): forward from the pen's width
-        // at the tail to a point at the head; back and both (a point at the tail, or at both ends) are no width ratio
-        // and stay a line of one width
+        // at the tail to a point at the head, back from a point at the tail to the pen's width at the head, both from
+        // a point at each end to the pen's width at the middle; none keeps one width
         const dir = (nonEmpty(get("dir")) ?? (cx.directed ? "forward" : "none")).trim().toLowerCase();
-        if (dir === "forward") {
+        if (dir === "forward" || dir === "both") {
             put("taper", 0);
+        }
+        if (dir === "back" || dir === "both") {
+            put("taperSource", 0);
         }
     }
 }
@@ -2733,21 +2886,30 @@ function writeGraphRotation(graph: GraphSnapshot["graph"], rotation: StyleValue 
 }
 
 /**
- * Reads the route of an edge: the one it stores, else the loop Graphviz lays itself, whose label `selfRight` hangs
- * outside it, the box's left side on the loop's far point, level with the node.
- * ponytail: a node's later loops clear an earlier one's label in Graphviz; here they run through it
+ * Reads the route of an edge: the one it stores, else the loop Graphviz lays itself, with its ports. `selfRight` hangs
+ * a loop's label outside it, the box's left side on the loop's far point, level with the node.
+ * ponytail: a node's later loops clear an earlier one's label in Graphviz; here they run through it, and a loop
+ * round another side keeps the element's label place
  * @param stored - the bends of its stored route, or null
- * @param loop - the bends of the loop Graphviz lays, or null for an edge that is no such loop
+ * @param loop - the loop Graphviz lays, or null for an edge that is no such loop
  * @param get - the edge's attributes
  * @param put - receives the values
  */
-function readEdgeRoute(stored: string | null, loop: () => string | null, get: Attr, put: Put): void {
+function readEdgeRoute(stored: string | null, loop: () => LaidLoop | null, get: Attr, put: Put): void {
     const laid = stored === null ? loop() : null;
-    const bends = stored ?? laid;
+    const bends = stored ?? laid?.bends ?? null;
     if (bends !== null) {
         put("bends", bends);
     }
-    if (laid !== null && get(LABEL_ATTRIBUTE) !== null) {
+    for (const [property, port] of [
+        ["sourcePort", laid?.sourcePort ?? null],
+        ["targetPort", laid?.targetPort ?? null],
+    ] as const) {
+        if (port !== null) {
+            put(property, port);
+        }
+    }
+    if (laid?.side === "right" && get(LABEL_ATTRIBUTE) !== null) {
         put("labelPosition", "center");
         put("labelShiftX", 0.5);
     }
@@ -2824,7 +2986,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         const put: Put = (p, v) => {
             edge.put(e, p, v);
         };
-        readEdgeRoute(splineBends(snapshot, e, get(POS_ATTRIBUTE)), () => loops.bendsOf(e, get), get, put);
+        readEdgeRoute(splineBends(snapshot, e, get(POS_ATTRIBUTE)), () => loops.routeOf(e, get), get, put);
         readLabelPlaces(snapshot, places, e, get, put, cx.edge(e).directed);
     }
     const graph = graphBackground(snapshot, notes);
@@ -3085,20 +3247,22 @@ function writeCommon(get: Get, approximate: Approximate, out: Map<string, Writte
         out.set("fontsize", size);
     }
     const font = get("labelFont");
-    const bold = get("labelWeight") === "bold";
+    const weight = get("labelWeight");
+    const bold = isBoldWeight(weight);
     const italic = get("labelItalic") === true;
     if (typeof font === "string") {
         const name = graphvizFontName(font, bold, italic);
         out.set("fontname", name);
         const drawn = graphvizFont(name);
-        if (drawn.bold !== bold) {
+        // Graphviz's PostScript faces are plain or bold: a numeric weight is drawn as the nearer of the two
+        if (drawn.bold !== bold || isNumericWeight(weight)) {
             approximate("labelWeight", get("labelWeight") ?? "normal");
         }
         if (drawn.italic !== italic) {
             approximate("labelItalic", italic);
         }
     } else if (bold || italic) {
-        approximate(bold ? "labelWeight" : "labelItalic", bold ? "bold" : true);
+        approximate(bold ? "labelWeight" : "labelItalic", bold ? (weight ?? "bold") : true);
     }
     const tip = get("tooltip");
     if (typeof tip === "string") {

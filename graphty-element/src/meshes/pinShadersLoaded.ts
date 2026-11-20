@@ -1,5 +1,5 @@
 /**
- * @file The flag that tells Babylon.js a material's shaders are already loaded, pinned per scene.
+ * @file The flag that tells Babylon.js a material class's shaders are already loaded.
  *
  * Kept apart from bundledStandardShaders.ts, with no run-time import at all, because the lazily
  * loaded models chunk (src/models/chunk.ts) uses it too: importing the Babylon.js barrel from that
@@ -7,47 +7,37 @@
  * every Storybook failed to load ("Cannot set properties of undefined (setting '.gltf')").
  */
 
-import type { Material } from "@babylonjs/core/Materials/material.js";
-import type { Scene } from "@babylonjs/core/scene.js";
-
-/** A Babylon material class, by the prototype its instances share. */
-interface MaterialClass {
-    readonly prototype: Material;
+/** One shader language's state in Babylon's loader. */
+interface LoaderState {
+    loaded: boolean;
 }
 
-/** The scenes whose materials of a class skip the lazy import, by the class's prototype. */
-const pinnedScenes = new WeakMap<object, WeakSet<Scene>>();
+/**
+ * A Babylon material class as Babylon.js 9 builds it: one private static loader per class that
+ * runs the shader `import()`s on the class's first compile in each language, and skips them once
+ * it marks that language loaded.
+ */
+interface MaterialClass {
+    readonly _ShaderLoader?: { readonly _webGL: LoaderState; readonly _webGPU: LoaderState };
+}
 
 /**
- * Make every material of `materialClass` in `scene` report its shaders as loaded from the moment
- * it is constructed, so Babylon never runs its lazy shader `import()` for it.
+ * Make every material of `materialClass` report its shaders as loaded, so Babylon never runs its
+ * lazy shader `import()` for it. Call it only once the shaders of both languages are in the
+ * ShaderStore: the import Babylon skips would only have put them there.
  *
- * Babylon keeps the flag in a private field, `_shadersLoaded`, that the class's constructor sets
- * to false and the first compile reads. Pinning it from `scene.onNewMaterialAddedObservable` is too
- * late: Babylon 8 announces a new material with `Tools.SetImmediate`, a later task, and a material
- * made in an update pass is compiled by the render that follows in the same task -- with the flag
- * still false, so it imported anyway and was not ready for that frame. So the flag is an accessor
- * on the class's prototype instead, which the constructor's write already goes through: it reads
- * true for a material of a pinned scene and keeps Babylon's own value for every other scene.
- * @param materialClass - The material class, whose prototype gets the accessor once.
- * @param scene - The scene whose materials are pinned.
+ * Babylon.js 9 keeps the flag per class, so a material made in an update pass and drawn by the
+ * render that follows in the same task compiles at once; before, the class's first material
+ * waited for the import, and a failed import (iPad Safari on a dev server, a chunk gone after a
+ * redeploy) left it never ready. Babylon 8 kept the flag on each material, pinned there per scene
+ * until this file was rewritten for 9. test/browser/node-shaders-load-up-front.test.ts fails if
+ * Babylon moves the flag again.
+ * @param materialClass - The material class (StandardMaterial, PBRMaterial).
  */
-export function pinShadersLoaded(materialClass: MaterialClass, scene: Scene): void {
-    let scenes = pinnedScenes.get(materialClass.prototype);
-    if (scenes === undefined) {
-        const pinned = new WeakSet<Scene>();
-        const own = new WeakMap<Material, boolean>();
-        scenes = pinned;
-        pinnedScenes.set(materialClass.prototype, pinned);
-        Object.defineProperty(materialClass.prototype, "_shadersLoaded", {
-            configurable: true,
-            get(this: Material): boolean {
-                return pinned.has(this.getScene()) || own.get(this) === true;
-            },
-            set(this: Material, value: boolean) {
-                own.set(this, value);
-            },
-        });
+export function pinShadersLoaded(materialClass: object): void {
+    const loader = (materialClass as MaterialClass)._ShaderLoader;
+    if (loader !== undefined) {
+        loader._webGL.loaded = true;
+        loader._webGPU.loaded = true;
     }
-    scenes.add(scene);
 }

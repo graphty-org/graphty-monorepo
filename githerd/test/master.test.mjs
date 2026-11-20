@@ -294,7 +294,7 @@ describe("masterVerdict", () => {
             { c3: "running", c2: "neutral", c1: "green" },
             { c2: "green", c1: "green" },
         );
-        // c3 is still running and c2's gpu run was cancelled by the push of c3.
+        // c3 is still running and c2's gpu run was canceled by the push of c3.
         expect(masterVerdict(lanes, CONFIG, { headSha: "c3", commits: CHAIN })).toEqual({
             verdict: "green",
             greenSha: "c1",

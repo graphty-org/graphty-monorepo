@@ -25,7 +25,7 @@
 //                                     nothing when a fix closed the commit's red issue in the last hour (fixed=<n>)
 //
 // Same-commit re-run, once (design/ci/channels-pipeline.md section 3): attempt 1 of a full or restart run that ends
-// red on a lane that failed (or was cancelled) records its verdict but files no red issue, dispatches no bisect and
+// red on a lane that failed (or was canceled) records its verdict but files no red issue, dispatches no bisect and
 // announces nothing: release-rerun.yml re-runs its failed jobs once, and that attempt decides. The verdict writes
 // verdict-<attempt>.json (env RECORD) for the next attempt and for release-rerun.yml. A run dispatched with a
 // workflow's GITHUB_TOKEN (GITHUB_ACTOR github-actions[bot]: release-due's restart and candidate runs) is never seen by
@@ -340,7 +340,7 @@ const JOB_RESULTS = new Set(["failure", "cancelled"]);
 
 /**
  * Whether attempt 1's red verdict waits for the one same-commit re-run (release-rerun.yml) instead of filing: every
- * red lane is a job that failed or was cancelled, which `gh run rerun --failed` runs again. A failed pick (it would
+ * red lane is a job that failed or was canceled, which `gh run rerun --failed` runs again. A failed pick (it would
  * pick again) and a capture missing while the re-capture job passed (nothing to re-run) decide at once.
  * @param o the facts
  * @param o.attempt the run attempt
@@ -477,8 +477,8 @@ export function changedSummary(changed) {
  */
 export function redIssue({ sha, red, lanes, run, bisect }) {
     const names = red.map((l) => LANES[l].name).join(", ");
-    // the verdict and the early red jobs run only when nobody cancelled the run (!cancelled()), so a lane GitHub
-    // reports as cancelled hit its job time limit (timeout-minutes): a real red, not a cancelled run (#4556)
+    // the verdict and the early red jobs run only when nobody canceled the run (!cancelled()), so a lane GitHub
+    // reports as canceled hit its job time limit (timeout-minutes): a real red, not a canceled run (#4556)
     const said = (r) => (r === "cancelled" ? "timed out (cancelled)" : (r ?? "skipped"));
     const results = Object.keys(LANES)
         .map((l) => `${LANES[l].name} ${said(lanes[l])}`)
@@ -1376,7 +1376,7 @@ async function fileDeferredMain(file, env) {
         console.log(`::notice::${file} defers nothing to file`);
         return;
     }
-    // a fix merged for this commit's red issue in the last hour: release-due cancelled the run on purpose to restart
+    // a fix merged for this commit's red issue in the last hour: release-due canceled the run on purpose to restart
     // on the fix, so its deferred red is that fix's, not a red to file again (or a commit to hold)
     const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const fixed = bestEffort(
@@ -1396,7 +1396,7 @@ async function fileDeferredMain(file, env) {
 /**
  * A red issue on this commit that a fixing merge closed in the last hour and that names this run: release-due is
  * about to cancel this run, so a lane ending red now files nothing (the verdict still files, if the run is not
- * cancelled after all). A run the issue does not name is one release-due leaves running (toCancel), so it files.
+ * canceled after all). A run the issue does not name is one release-due leaves running (toCancel), so it files.
  * @param closed the closed red issues, as listRedIssues returns them
  * @param sha the run's commit
  * @param runUrl the run's URL

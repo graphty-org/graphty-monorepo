@@ -18,7 +18,7 @@ Commands are run from `design/ui/studio/tool`, with
 
 Screenshot 01.png. The map I left last time: dots colored and sized by the ranking, the key at top
 left says Size and Color are PageRank. Left list: Selection, PageRank (77), Everything. Right side
-is the Style panel with a Nodes / Edges switch. The ties are thin grey lines. I need the ties with
+is the Style panel with a Nodes / Edges switch. The ties are thin gray lines. I need the ties with
 10 or more chapters to stand out. The ties are "edges" here, so I will try the Edges side of the
 Style panel first and see whether I can color them by their number.
 
@@ -53,7 +53,7 @@ pick it and see whether it lets me set a cutoff or only one color for every tie.
 Screenshot 05.png. The tool printed browser click-wait lines ("done scrolling", "performing click
 action"); I cut the output short and missed the start of the message, so I cannot say whether the
 click was refused. What I see: the Line heading still shows only its plus, nothing new under it,
-but the key at top left now has a new first entry, "Edge color: Everything" with a grey swatch,
+but the key at top left now has a new first entry, "Edge color: Everything" with a gray swatch,
 and the whole drawing jumped -- smaller and shifted, the dots in different places. So something
 was added, to "Everything" rather than to the ranking, and it did not show up where I added it.
 Not what I wanted, and the picture moving by itself bothers me. This route colors every tie the
@@ -147,7 +147,7 @@ put the 10 in ticks.
 
     node real.mjs --step $S --key Control+a --type "=shared_chapters >= \`10\`"
 
-Screenshot 15.png. Grey text now: "Rule: press Enter to select matches". It took it. No count yet.
+Screenshot 15.png. Gray text now: "Rule: press Enter to select matches". It took it. No count yet.
 Press Enter.
 
 ## Step 16 -- Enter
@@ -156,7 +156,7 @@ Press Enter.
 
 Screenshot 16.png. That is it. Under the box: "13 edges selected"; Selection in the list shows 13.
 On the drawing, 13 ties are now thick blue lines, and every other character and tie is still
-there in grey. The right panel says "13 edges selected" and has a table, "Selected edges", with
+there in gray. The right panel says "13 edges selected" and has a table, "Selected edges", with
 each pair and its shared_chapters: MmeMagloire -- Myriel 10, Thenardier -- MmeThenardier 13,
 Thenardier -- Valjean 12, Cosette -- Valjean 31, Javert -- Valjean 17, Marius -- Gillenormand 12,
 Marius -- Cosette 21, Marius -- Valjean 19, Combeferre -- Enjolras 15, Courfeyrac -- Enjolras 17,

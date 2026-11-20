@@ -117,7 +117,7 @@ function feedBuilder(builder: GraphBuilder, log: readonly Log[]): void {
     }
 }
 
-/** Compare a snapshot with a legacy graph: node order, distinct neighbour sets, hasEdge, first-arc weight. */
+/** Compare a snapshot with a legacy graph: node order, distinct neighbor sets, hasEdge, first-arc weight. */
 function compare(
     legacy: LegacyGraph,
     s: GraphSnapshot,

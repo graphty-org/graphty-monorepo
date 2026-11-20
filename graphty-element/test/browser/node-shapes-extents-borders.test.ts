@@ -21,7 +21,7 @@ import { wheel } from "../helpers/real-input";
 const WIDTH = 480;
 const HEIGHT = 360;
 
-/** The fill colour every probed node is painted, and the border colour, as bytes. */
+/** The fill color every probed node is painted, and the border color, as bytes. */
 const FILL = [255, 0, 0] as const;
 const BORDER = [0, 0, 255] as const;
 
@@ -188,10 +188,10 @@ async function frameOf(element: Graphty): Promise<Frame> {
 }
 
 /**
- * Whether a pixel is near a colour.
+ * Whether a pixel is near a color.
  * @param frame - The frame.
  * @param index - The pixel.
- * @param color - The colour.
+ * @param color - The color.
  * @returns True when every channel is within a few levels.
  */
 function isColor(frame: Frame, index: number, color: readonly [number, number, number]): boolean {
@@ -213,9 +213,9 @@ function isTouchedByRed(frame: Frame, index: number): boolean {
 }
 
 /**
- * How many pixels of the frame are near a colour, and the box they fill.
+ * How many pixels of the frame are near a color, and the box they fill.
  * @param frame - The frame.
- * @param color - The colour, or a test of one pixel.
+ * @param color - The color, or a test of one pixel.
  * @returns The count and the box, in device pixels.
  */
 function pixelsOf(
@@ -644,8 +644,8 @@ describe("one extent for every shape (#2495)", () => {
         // The drawn extent, from the geometry on screen: the same within a pixel.
         assert.isAtMost(spread(projected), 1, `projected: ${JSON.stringify(Object.fromEntries(projected))}`);
 
-        // The pixels themselves agree within two: a pixel is filled when its centre is inside the
-        // shape, so the very tip of a diamond, a star or a cone can fall between two centres on
+        // The pixels themselves agree within two: a pixel is filled when its center is inside the
+        // shape, so the very tip of a diamond, a star or a cone can fall between two centers on
         // each side while a flat side never does.
         assert.isAtMost(spread(rasterised), 2, `rasterised: ${JSON.stringify(Object.fromEntries(rasterised))}`);
     });

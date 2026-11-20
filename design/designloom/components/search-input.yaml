@@ -3,7 +3,8 @@ name: Search Input
 category: control
 description: Text input specialized for search with search icon, clear button, and keyboard shortcuts. Shows loading
     state during search operations.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/graph-place/FindBox.tsx with SearchInput, compact-mantine/src/components/inputs/."
 implements_capabilities:
     - search
 used_in_workflows:

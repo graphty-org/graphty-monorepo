@@ -16,7 +16,7 @@ anywhere in this window", and a small grey line "Files are read on this computer
 uploaded." Top right "Local only". Samples on the right. A box at the bottom asking to share
 usage data.
 
-Tom: "Right. First thing -- the grey line says files are read on this computer and never
+Tom: "Right. First thing -- the gray line says files are read on this computer and never
 uploaded, and it says Local only up top. That's what I'd want to know before putting anything in.
 It's tiny print though, I had to lean in. I'm not sharing usage data, so No thanks. Then I'll
 open the file -- 'Open project or file' looks like the obvious one."
@@ -31,9 +31,9 @@ Tom: "Open project or file, then pick friends.csv from Downloads."
 
 Command: `--step $S --click "Open project or file" --upload friends.csv` -> 03.png
 
-Saw: a drawing of blue balls joined by grey arrows, no names. Right side: "Graph, From
+Saw: a drawing of blue balls joined by gray arrows, no names. Right side: "Graph, From
 friends.csv", Nodes 20, Edges 41, Direction Directed, Density 0.1079, Components 1, Edges per
-node "3 to 6, mean 4.1". Bottom-left grey text: "Analyze (a flask icon) in the toolbar (Shift+A)
+node "3 to 6, mean 4.1". Bottom-left gray text: "Analyze (a flask icon) in the toolbar (Shift+A)
 to add results here". A small dark toolbar at the bottom with a flask, a chart-ish icon, "3D" and
 a magnifier.
 
@@ -49,7 +49,7 @@ Command: `--step $S --click-at 680,864` (button "Analyze") -> 04.png
 
 Saw: a list popped up over the drawing, "Rank nodes and edges": Degree, Betweenness, Edge
 betweenness, Closeness, PageRank (with a blue "Start here" tag), Eigenvector, Katz, HITS,
-All-pairs distance, and more below, each with a grey line under it.
+All-pairs distance, and more below, each with a gray line under it.
 
 Tom: "Oh. A list of names I don't know. Katz? HITS? I'm not learning these at 4 pm. But one of
 them says 'Start here' -- PageRank. That's the only thing on this list telling me what to do, so
@@ -89,7 +89,7 @@ Command: `--step $S --click "PageRank"` -> 07.png
 
 Saw: the row is highlighted, with an eye icon. The right side changed: "PageRank, Measure from
 PageRank, Oct 7", tabs Style / Values, Nodes / Edges, then rows: Fill (+), Color -- PageRank (-),
-Shape (+), Effects (+), Label (+), Tooltip (+). Small grey text.
+Shape (+), Effects (+), Label (+), Tooltip (+). Small gray text.
 
 Tom: "Now there's a list on the right. Color says PageRank, so that's the orange. I'm looking for
 the word Size and it's not there. Fill, Shape, Effects, Label, Tooltip. Label -- that's probably
@@ -109,11 +109,11 @@ Tom: "There it is -- Size. It was hiding under Shape. Good guess, but a guess. S
 Command: `--step $S --click "Size"` -> 09.png
 
 Saw: a box "Size by attribute" with "Find an attribute", "Fixed size", then under "PageRank":
-PageRank, PageRank rank, PageRank percentile. Below in grey: "Cannot be used: Holds groups, not
+PageRank, PageRank rank, PageRank percentile. Below in gray: "Cannot be used: Holds groups, not
 amounts -- id".
 
 Tom: "'Attribute', fine. Three PageRanks -- plain, rank, percentile. I don't know which is
-right; I want the plain one, the same thing the colors are. The grey bit at the bottom about
+right; I want the plain one, the same thing the colors are. The gray bit at the bottom about
 groups and amounts I'm skipping. PageRank."
 
 ## Step 10 -- size by PageRank
@@ -121,7 +121,7 @@ groups and amounts I'm skipping. PageRank."
 Command: `--step $S --click-at 1195,416` (option "PageRank") -> 10.png
 
 Saw: two balls near the bottom middle are now much bigger and dark brown; a few others medium.
-The key top-left now has two lines: "Size: PageRank 0.04382 to 0.06608" (a grey wedge) and
+The key top-left now has two lines: "Size: PageRank 0.04382 to 0.06608" (a gray wedge) and
 "Color: PageRank" (the orange bar). On the right, "Size 1 to 3".
 
 Tom: "Now THAT I can see. Two big ones at the bottom, a couple of middle-sized ones. The key says
@@ -151,7 +151,7 @@ hidden", "Show all labels".
 
 Tom: "Right, so 'id' WAS the names. It could have just said names. 20 labels, 0 hidden -- 20
 people, all there, good, I like a count. The two big ones are Ava and Farah; Ivan and Hana next.
-The writing is small, black on grey, and at the bottom it's a pile-up -- Farah, Chloe, Dev, Eli
+The writing is small, black on gray, and at the bottom it's a pile-up -- Farah, Chloe, Dev, Eli
 are on top of each other and Chloe's name is half under Farah's ball. I can read most of it with
 my glasses on. Names: done, mostly. Now a picture file I can paste. I'd look under the menu, the
 three lines top-left, like File."

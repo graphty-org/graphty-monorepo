@@ -116,6 +116,49 @@ export function flattenCubic(controls: readonly BendPoint[], steps = 8): BendPoi
 }
 
 /**
+ * The natural cubic spline through points, as the `3n + 1` control points of its cubic Bezier segments (for
+ * {@link flattenCubic}): one segment from each point to the next, the parameter uniform, the curve unbent at both ends.
+ * yEd draws a SplineEdge this way through its ends and bends (yed-graphml-specimen-edges-lines spline: its oracle fits
+ * it to 1e-4 px).
+ * @param points - the points the curve passes through, ends included
+ * @returns the control points, or null with fewer than two points
+ * @category Styles
+ */
+export function naturalSplineControls(points: readonly BendPoint[]): BendPoint[] | null {
+    const n = points.length - 1;
+    if (n < 1) {
+        return null;
+    }
+    // the tangents D solve 2 D0 + D1 = 3 (P1 - P0), D(i-1) + 4 Di + D(i+1) = 3 (P(i+1) - P(i-1)),
+    // D(n-1) + 2 Dn = 3 (Pn - P(n-1)): a tridiagonal system, solved by forward sweep and back substitution
+    const diag = (i: number): number => (i === 0 || i === n ? 2 : 4);
+    const rhs = (i: number, k: 0 | 1): number => 3 * (points[Math.min(i + 1, n)][k] - points[Math.max(i - 1, 0)][k]);
+    const c: number[] = [];
+    const d: [number, number][] = [];
+    for (let i = 0; i <= n; i++) {
+        const m = diag(i) - (i > 0 ? c[i - 1] : 0);
+        c.push(1 / m);
+        const prev = i > 0 ? d[i - 1] : [0, 0];
+        d.push([(rhs(i, 0) - prev[0]) / m, (rhs(i, 1) - prev[1]) / m]);
+    }
+    const tangents: [number, number][] = [];
+    tangents[n] = d[n];
+    for (let i = n - 1; i >= 0; i--) {
+        tangents[i] = [d[i][0] - c[i] * tangents[i + 1][0], d[i][1] - c[i] * tangents[i + 1][1]];
+    }
+    const out: BendPoint[] = [points[0]];
+    for (let i = 0; i < n; i++) {
+        const [a, b] = [points[i], points[i + 1]];
+        out.push(
+            [a[0] + tangents[i][0] / 3, a[1] + tangents[i][1] / 3],
+            [b[0] - tangents[i + 1][0] / 3, b[1] - tangents[i + 1][1] / 3],
+            b,
+        );
+    }
+    return out;
+}
+
+/**
  * Points placed on and around one node, each relative to its center as fractions of its half width and half height,
  * y up: `"1,0"` is the middle of its right side, `"0,1"` the middle of its top. The value of an edge end's port
  * (`sourcePort`, `targetPort`) and of a self-loop's `bends`, which have no line between two centers to be relative

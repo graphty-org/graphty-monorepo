@@ -33,6 +33,12 @@ const contentMap = [
         dest: "layout",
         exclude: [".vitepress", "decisions"],
     },
+    // The consumer docs only: the package's docs/ also holds its gate records, research and engineering reports.
+    {
+        src: "webgpu-graph-algorithms/docs",
+        dest: "webgpu-graph-algorithms",
+        exclude: [".vitepress", "decisions", "research", "HEADLESS_GPU_REPORT.md", "grid-memory-retention.md"],
+    },
     // The landing page (index.md), the guide and recipes under guide/, and the reference pages under reference/,
     // whose tables cytoscape-extensions/scripts/reference.ts generates.
     {
@@ -76,6 +82,12 @@ const contentMap = [
     {
         src: "babylonjs-map/docs",
         dest: "babylonjs-map",
+        exclude: [".vitepress", "decisions"],
+    },
+    // The guide pages include sections of babylonjs-models/README.md (its `<!-- #region -->` markers) when the site is built.
+    {
+        src: "babylonjs-models/docs",
+        dest: "babylonjs-models",
         exclude: [".vitepress", "decisions"],
     },
     // The overview, guide/ and reference/: the guide pages include sections of visual-review/README.md (its

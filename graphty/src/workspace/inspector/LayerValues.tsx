@@ -1,4 +1,5 @@
 import { ControlSection, DataRow, DataRowHeader, HistogramRow } from "@graphty/compact-mantine";
+import type { Binding } from "@graphty/graphty-element/schema";
 import {
     type Channel,
     type GraphSession,
@@ -150,7 +151,7 @@ function NumberValues({
     }
     const { min, median, max } = histogram;
     const previews = layers.flatMap((layer) =>
-        Object.entries(layer.encode ?? {}).flatMap(([channel, binding]) => {
+        Object.entries<Binding | undefined>(layer.encode ?? {}).flatMap(([channel, binding]) => {
             if (binding === undefined || !("by" in binding) || binding.by !== read.path) {
                 return [];
             }
@@ -230,7 +231,7 @@ function histogramOf(
         const field = read.run.fields.find((f) => f.name === read.field);
         // A community's number names a group; its spread measures nothing.
         const numeric = field?.type === "number" || field?.type === "integer";
-        if (!numeric || field?.measurement === "categorical" || read.run.result === undefined) {
+        if (!numeric || field.measurement === "categorical" || read.run.result === undefined) {
             return null;
         }
         return read.run.result.histogram(read.field);
@@ -260,7 +261,7 @@ function CategoryValues({
     layers,
 }: Readonly<{ session: GraphSession; read: ValueRead; layers: readonly Layer[] }>): React.JSX.Element | null {
     const found = layers.flatMap((layer) =>
-        Object.entries(layer.encode ?? {}).flatMap(([channel, binding]) =>
+        Object.entries<Binding | undefined>(layer.encode ?? {}).flatMap(([channel, binding]) =>
             binding !== undefined && "by" in binding && binding.by === read.path
                 ? [{ layer, channel: channel as Channel }]
                 : [],
@@ -501,7 +502,7 @@ function WhereItShows({
             layer,
             counts,
             channel: channel as Channel,
-            n: n ?? 0,
+            n,
         })),
     );
     if (rows.length === 0) {

@@ -14,7 +14,7 @@ the same build. No files were saved, and none were needed. Not from the particip
   description ("marriages between the leading families of Renaissance Florence") and the Overview
   (15, 20, 1 component). The extra claim, "the Medici, with 6 ties, the most of any family", matches
   06.png (Degree 6) and the Overview's range "1 to 6".
-- **No detour** on the success path: no file chooser, no cancelled dialog.
+- **No detour** on the success path: no file chooser, no canceled dialog.
 - **Measure, not graded -- "change it later":** right and checked on screen. After "No thanks"
   she read "Usage data stays off. Change this in Settings > Privacy" (03.png), then went to Main
   menu > Settings... > Privacy (07.png-09.png) and found the "Share usage data" switch, off.

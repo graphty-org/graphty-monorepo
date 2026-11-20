@@ -96,6 +96,9 @@ export interface FreezeContext {
  * the same bounds hold the same endpoints; the weights can be rewritten in place, so a copy of them
  * is compared.
  */
+/** Per-edge weights, or null when unweighted. */
+type EdgeWeights = F32 | F64 | null;
+
 export interface SortCache {
     /** The staging sorted. */
     readonly staging: Staging;
@@ -112,7 +115,7 @@ export interface SortCache {
     /** Whether the core was laid out in an arena. */
     readonly useArena: boolean;
     /** A copy of the per-edge weights sorted, or null when unweighted. */
-    readonly weights: F32 | F64 | null;
+    readonly weights: EdgeWeights;
     /** The sort. */
     readonly result: SortResult;
 }
@@ -1051,7 +1054,7 @@ function removedFromSort(
  * @param edgeRemap - old edge -> new edge, or INVALID_INDEX
  * @returns true when they match, or both are unweighted
  */
-function sameKeptWeights(was: F32 | F64 | null, now: F32 | F64 | null, edgeRemap: U32): boolean {
+function sameKeptWeights(was: EdgeWeights, now: EdgeWeights, edgeRemap: U32): boolean {
     if (was === null || now === null) {
         return was === now;
     }

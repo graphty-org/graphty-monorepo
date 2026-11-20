@@ -744,7 +744,7 @@ const LINEAR_COUNT = 8;
  * @returns the count
  */
 function countBelow(sorted: U32, value: number): number {
-    const length = sorted.length;
+    const { length } = sorted;
     if (length <= LINEAR_COUNT) {
         let below = 0;
         for (let i = 0; i < length; i++) {
@@ -773,7 +773,6 @@ function countBelow(sorted: U32, value: number): number {
  */
 function droppedArcs(old: CoreArrays, goneNodes: U32, goneEdges: U32, directed: boolean): { arcs: U32; loops: number } {
     const { rowPtr, colIdx } = old;
-    const arcToEdge = old.arcToEdge as U32;
     const edgeToArc = old.edgeToArc as U32;
     const arcs: number[] = [];
     for (const u of goneNodes) {
@@ -786,54 +785,48 @@ function droppedArcs(old: CoreArrays, goneNodes: U32, goneEdges: U32, directed: 
         const a = edgeToArc[e];
         arcs.push(a);
         const row = upperBound(rowPtr, 0, rowPtr.length, a) - 1;
-        const v = colIdx[a];
-        if (v === row) {
+        if (colIdx[a] === row) {
             loops++;
         } else if (!directed) {
-            // the mirror: in row v, among the arcs to `row`, the one of edge e
-            for (
-                let m = lowerBound(colIdx, rowPtr[v], rowPtr[v + 1], row);
-                m < rowPtr[v + 1] && colIdx[m] === row;
-                m++
-            ) {
-                if (arcToEdge[m] === e) {
-                    arcs.push(m);
-                    break;
-                }
-            }
+            arcs.push(mirrorArc(old, row, colIdx[a], e));
         }
     }
-    const sorted = Uint32Array.from(arcs).sort();
-    // a removed node's own arcs are also its removed edges' arcs: keep each once
+    return { arcs: uniqueSorted(arcs), loops };
+}
+
+/**
+ * An undirected edge's arc in its other end's row: among the arcs of row `v` to `row`, the one of the edge.
+ * @param old - the core
+ * @param row - the row of the edge's declared arc
+ * @param v - its other end
+ * @param e - the edge
+ * @returns the arc
+ */
+function mirrorArc(old: CoreArrays, row: number, v: number, e: number): number {
+    const { rowPtr, colIdx } = old;
+    const arcToEdge = old.arcToEdge as U32;
+    // the first arc to `row` is just past the arcs to targets below it
+    let m = row === 0 ? rowPtr[v] : upperBound(colIdx, rowPtr[v], rowPtr[v + 1], row - 1);
+    while (arcToEdge[m] !== e) {
+        m++;
+    }
+    return m;
+}
+
+/**
+ * A list sorted ascending with repeats left out: a removed node's own arcs are also its removed edges' arcs.
+ * @param values - the list
+ * @returns it, sorted, each value once
+ */
+function uniqueSorted(values: readonly number[]): U32 {
+    const sorted = Uint32Array.from(values).sort();
     let kept = 0;
     for (let i = 0; i < sorted.length; i++) {
         if (i === 0 || sorted[i] !== sorted[i - 1]) {
             sorted[kept++] = sorted[i];
         }
     }
-    return { arcs: sorted.subarray(0, kept), loops };
-}
-
-/**
- * The first arc of `[from, to)` whose target is at or above `target`.
- * @param colIdx - the targets
- * @param from - the row's first arc
- * @param to - one past its last arc
- * @param target - the target
- * @returns the arc index
- */
-function lowerBound(colIdx: U32, from: number, to: number, target: number): number {
-    let low = from;
-    let high = to;
-    while (low < high) {
-        const middle = (low + high) >>> 1;
-        if (colIdx[middle] < target) {
-            low = middle + 1;
-        } else {
-            high = middle;
-        }
-    }
-    return low;
+    return sorted.subarray(0, kept);
 }
 
 /** The indices a removal dropped, ascending, and its remap. */
@@ -921,7 +914,7 @@ function keptRowPtr(oldRowPtr: U32, nodeRemap: U32, dropped: U32, rowPtr: U32): 
         }
         rowPtr[row++] = start - before;
     }
-    rowPtr[row] = oldRowPtr[oldRowPtr.length - 1] - dropped.length;
+    rowPtr[row] = (oldRowPtr.at(-1) ?? 0) - dropped.length;
 }
 
 /**

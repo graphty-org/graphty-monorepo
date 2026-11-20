@@ -596,13 +596,6 @@ export const REQUESTED_LAYOUT_VALUE = "requestedLayout";
 export type RequestedLayoutValue = RequestedLayout;
 
 /**
- * The graph value holding what the loaded file's reader recorded under graph-format's `meta.extra`
- * (DOT's `strict` and HTML labels, GEXF's header, ...), by namespace, so an export writes it again
- * (issue #7600). A load writes it when its reader recorded anything.
- */
-export const META_EXTRA_VALUE = "metaExtra";
-
-/**
  * A source as the graph keeps it: without the inline text or the file, which the loaded rows
  * already hold and which history must not keep alive.
  * @param source - The source.

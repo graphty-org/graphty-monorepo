@@ -72,7 +72,7 @@ import {
 } from "../catalog/writerRegistry";
 import { GraphtyError } from "../errors";
 import { featureOff } from "../features/resolve";
-import { META_EXTRA_VALUE } from "../session/commands/data";
+import { SOURCE_VALUE } from "../session/commands/data";
 import { dispatcherOf, scopeResolverOfSession } from "../session/GraphSession";
 import { rowsOf } from "../session/notes/countIndex";
 import { resolveEdgeWeight } from "../session/project/ingest";
@@ -83,6 +83,7 @@ import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
 import type { EdgeRecord, GraphSession, GroupTableOptions, NodeRecord } from "../session/types";
 import { wholeGraph } from "../session/working/graphs";
 import { writtenPositions } from "./filePositions";
+import { sourceMetaExtra } from "./graph-io-import";
 
 export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 
@@ -599,8 +600,7 @@ export function buildExportSnapshot(
     });
     // What the loaded file's reader recorded under `meta.extra` (DOT's `strict` and HTML labels), so
     // the writer of that format writes it again (issue #7600).
-    const extra = dispatcherOf(session).state.graph.values.get(META_EXTRA_VALUE) as
-        Readonly<Record<string, unknown>> | undefined;
+    const extra = sourceMetaExtra(dispatcherOf(session).state.graph.values.get(SOURCE_VALUE));
     if (extra !== undefined) {
         builder.setMeta({ extra });
     }

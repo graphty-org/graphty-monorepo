@@ -761,6 +761,29 @@ export function readerMetaExtra(reader: object): Readonly<Record<string, unknown
     return READER_META_EXTRA.get(reader) ?? null;
 }
 
+/** What the file of each load recorded under `meta.extra`, by the load's `source` descriptor. */
+const SOURCE_META_EXTRA = new WeakMap<object, Readonly<Record<string, unknown>>>();
+
+/**
+ * Keep what a load's file recorded under `meta.extra` beside the load's `source` descriptor, so an
+ * export writes it again (issue #7600). It is session state, never a graph value or saved: its
+ * keys name the file's format, and undo and redo bring the descriptor, so its extra, back.
+ * @param source - the `source` graph value the load wrote
+ * @param extra - what the file recorded, by namespace
+ */
+export function keepSourceMetaExtra(source: object, extra: Readonly<Record<string, unknown>>): void {
+    SOURCE_META_EXTRA.set(source, extra);
+}
+
+/**
+ * What the file of a load recorded under `meta.extra`.
+ * @param source - the `source` graph value, or undefined when nothing was loaded
+ * @returns the values by namespace, or undefined when the file recorded none
+ */
+export function sourceMetaExtra(source: unknown): Readonly<Record<string, unknown>> | undefined {
+    return typeof source === "object" && source !== null ? SOURCE_META_EXTRA.get(source) : undefined;
+}
+
 /**
  * Pair an import with a mapping's column paths.
  * @param imported - the import

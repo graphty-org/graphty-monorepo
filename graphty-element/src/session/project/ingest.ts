@@ -20,7 +20,7 @@ import { DataSource, type DataSourceChunk, type DeclaredDirection, setReaderSign
 import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
-import { readerMetaExtra } from "../../data/graph-io-import";
+import { keepSourceMetaExtra, readerMetaExtra } from "../../data/graph-io-import";
 import type { GraphStore } from "../../data/GraphStore";
 import { GROUPS_VALUE, RANK_SETS_VALUE, readGroups, readRankSets } from "../../data/groups";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
@@ -46,7 +46,6 @@ import {
     type DataMutation,
     describeSource,
     type HeldRows,
-    META_EXTRA_VALUE,
     REQUESTED_LAYOUT_VALUE,
     SOURCE_VALUE,
     SOURCES_VALUE,
@@ -2720,14 +2719,16 @@ function keepRequestedLayout(reader: ChunkReader, writer: GraphWriter): void {
 }
 
 /**
- * Keep what the file recorded under `meta.extra` with the graph, so an export writes it again (issue #7600).
+ * Keep what the file recorded under `meta.extra` beside the load's `source` value, so an export
+ * writes it again (issue #7600).
  * @param read - The data source that read the file; none for held rows that kept no reader.
  * @param writer - The command's writer.
  */
 function keepMetaExtra(read: object | null | undefined, writer: GraphWriter): void {
     const extra = read === null || read === undefined ? null : readerMetaExtra(read);
-    if (extra !== null) {
-        writer.setGraphValues({ [META_EXTRA_VALUE]: extra });
+    const source = writer.graphValue(SOURCE_VALUE);
+    if (extra !== null && typeof source === "object" && source !== null) {
+        keepSourceMetaExtra(source, extra);
     }
 }
 

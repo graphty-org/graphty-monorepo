@@ -398,12 +398,6 @@ describe("gateRun: the structural cases, which are not the cap", () => {
         assert.equal(refusal(decision).code, "E_UNKNOWN_ALGORITHM");
     });
 
-    it("reports the removed all-paths name as E_UNKNOWN_ALGORITHM, like any name nothing registers", () => {
-        const decision = gateRun({ algorithm: "all-paths", statistics: statistics() });
-
-        assert.equal(refusal(decision).code, "E_UNKNOWN_ALGORITHM");
-    });
-
     it("reports a requirement this graph does not meet as E_UNSUPPORTED", () => {
         const decision = gateRun({
             algorithm: "kruskal",

@@ -181,6 +181,7 @@ export const KNOWN_ALGORITHMS = [
     "spectral-clustering",
     "hierarchical-clustering",
     "astar",
+    "all-paths",
     "edge-betweenness",
     "removal-impact",
 ] as const;

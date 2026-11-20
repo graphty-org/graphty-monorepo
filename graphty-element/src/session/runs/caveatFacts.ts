@@ -69,6 +69,10 @@ import type { CodedFact, CodedFactParam } from "../shared";
  *
  * One algorithm's own:
  *
+ * - `all-paths.length-bounded` -- only paths of at most `maxLength` edges were looked for:
+ *   `{ maxLength }`.
+ * - `all-paths.capped` -- the search stopped at its path cap, or at its own step budget, before it
+ *   had found every path: `{ maxPaths, found }`.
  * - `astar.straight-line` -- A* was steered by straight-line distance, so its route is the
  *   cheapest only when every edge weighs at least the distance it spans.
  * - `betweenness.sampled` -- betweenness was estimated from sampled sources, unscaled:
@@ -167,6 +171,8 @@ export type CaveatCode =
     | "sampled.instead-of-exact"
     | "sampled.exact-past-cap"
     | "sampled.still-past-cap"
+    | "all-paths.length-bounded"
+    | "all-paths.capped"
     | "astar.straight-line"
     | "betweenness.sampled"
     | "betweenness.halved"

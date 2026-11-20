@@ -510,6 +510,9 @@ const LINE_MAIN: readonly LineSpec[] = [
     { channel: "edge.taper", name: "Taper" },
     { channel: "edge.minScreenWidth", name: "Min width", glyph: "weight" },
     { channel: "edge.blending" },
+    // Lift draws only in 3D: dimmed in 2D from graphty-element's view fact, like every one-view line.
+    { channel: "edge.lift", name: "Lift" },
+    { channel: "edge.animationSpeed", name: "Flow speed" },
 ];
 
 /** An edge line's sub-groups (design 7.2). */
@@ -519,13 +522,6 @@ const LINE_GROUPS: readonly SubGroup[] = [
         lines: [
             { channel: "edge.fadeStart", name: "Fade", pair: "edge.fadeEnd" },
             { channel: "edge.fadeOpacity", name: "Opacity" },
-        ],
-    },
-    {
-        name: "3D",
-        lines: [
-            { channel: "edge.lift", name: "Lift" },
-            { channel: "edge.animationSpeed", name: "Flow speed" },
         ],
     },
     {

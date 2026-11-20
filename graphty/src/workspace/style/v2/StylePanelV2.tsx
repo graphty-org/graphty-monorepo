@@ -23,6 +23,7 @@ import { AddButton, type AddOption, Section } from "../Section";
 import { addShader, pickedShader, placeOf, shaderEntries, type ShaderEntry } from "../shaderSlots";
 import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
+import { viewDim } from "./drawn";
 import { groupOutlineShaders, isGroupOutline, replaceUse } from "./families";
 import { drawnItems, firstColors, ITEM_LISTS, LISTS } from "./lists";
 import { PlusList } from "./PlusList";
@@ -189,9 +190,17 @@ function ThingSection({
     const takesOutlines = part.id === "order" && ctx.side === "node";
     const groups: AddOption[][] = [
         ...things.map((group) =>
-            group.flatMap(({ thing }) => {
+            group.flatMap(({ thing }): AddOption[] => {
                 if (!shown.some((each) => each.thing === thing)) {
-                    return [{ key: thing.id, label: thing.name }];
+                    // A thing that draws nothing in this view (a 3D-only one in 2D) is dimmed, still pickable.
+                    const main = thing.start ?? thing.main[0];
+                    return [
+                        {
+                            key: thing.id,
+                            label: thing.name,
+                            dimmed: main === undefined ? undefined : viewDim(ctx, main),
+                        },
+                    ];
                 }
                 return thing.id === "label" ? [{ key: thing.id, label: thing.name, disabled: true }] : [];
             }),

@@ -26,6 +26,7 @@ import { GradientBar } from "../parts/GradientRow";
 import { Field, type RowContext } from "../PropertyRow";
 import { ValueField } from "../ValueField";
 import { enumWords, positionWord } from "../words";
+import { labelDimOf } from "./drawn";
 import {
     flatOf,
     LABEL_OPTION_NAMES,
@@ -474,6 +475,7 @@ export function LabelFieldLine({
             onRemove={() => {
                 write(Object.fromEntries(fields.map((each) => [each, undefined])));
             }}
+            dimmed={labelDimOf(label.ctx, label.kind.style, style, field)}
         />
     );
 }

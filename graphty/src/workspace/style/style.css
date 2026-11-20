@@ -18,6 +18,15 @@
     min-width: 0;
 }
 
+/* A line or "+" item graphty-element draws nothing for in this view or with what the row holds now (a
+   3D-only line in 2D): shown and usable, dimmed, its tooltip saying why (Style panel v2). */
+.ws-row[data-dimmed],
+.ws-dim[data-dimmed],
+.ws-gallery-tile[data-dimmed],
+[role="menuitem"][data-dimmed] {
+    opacity: 0.55;
+}
+
 /* A field: one line of about 28px -- its name in the label column, the control, then the vary and
    Clear columns. Without a name (a field its row already names), the control starts the line. */
 .ws-field {

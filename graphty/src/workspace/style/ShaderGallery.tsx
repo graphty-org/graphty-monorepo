@@ -6,6 +6,7 @@ import React, { useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { roveTiles } from "./tileRoving";
+import { shaderViewDim } from "./v2/drawn";
 import {
     GALLERY_WORDS,
     layersWord,
@@ -334,6 +335,7 @@ export function ShaderGallery({
                 facts={bare ? undefined : <ShaderFacts descriptor={descriptor} />}
                 second={bare ? undefined : (reason ?? originWords(descriptor))}
                 quiet={bare}
+                dimmed={bare ? shaderViewDim(session, descriptor.views) : undefined}
                 description={description}
                 disabled={reason !== undefined}
                 marked={used}
@@ -466,6 +468,7 @@ export function ShaderGallery({
  * @param props.stop - whether it is the gallery's one Tab stop
  * @param props.onPick - picks it
  * @param props.quiet - its second line only in its tooltip
+ * @param props.dimmed - why it draws nothing in this view: dimmed, still pickable, these words its tooltip
  * @returns The tile
  */
 function GalleryTile({
@@ -481,6 +484,7 @@ function GalleryTile({
     stop,
     onPick,
     quiet = false,
+    dimmed,
     ...handlers
 }: Readonly<
     // A context menu's handlers, on the tile.
@@ -498,6 +502,8 @@ function GalleryTile({
         onPick: (id: string) => void;
         /** Its second line only in its tooltip, never under its name (#8739). */
         quiet?: boolean;
+        /** Why it draws nothing in this view ("3D only"), Style panel v2: dimmed, still pickable. */
+        dimmed?: string;
     }
 >): React.JSX.Element {
     const describedBy = useId();
@@ -509,6 +515,7 @@ function GalleryTile({
             aria-describedby={description === undefined || description === "" ? undefined : describedBy}
             data-shader={id}
             data-marked={marked ? "" : undefined}
+            data-dimmed={dimmed === undefined ? undefined : ""}
             aria-disabled={disabled ? true : undefined}
             tabIndex={stop && !disabled ? 0 : -1}
             onClick={() => {
@@ -550,5 +557,8 @@ function GalleryTile({
             )}
         </UnstyledButton>
     );
+    if (dimmed !== undefined) {
+        return <Tooltip label={dimmed}>{button}</Tooltip>;
+    }
     return disabled && second !== undefined ? <Tooltip label={second}>{button}</Tooltip> : button;
 }

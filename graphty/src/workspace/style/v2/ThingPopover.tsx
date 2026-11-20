@@ -14,6 +14,7 @@ import { Field, type RowContext, VarySlot } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 import { AddButton } from "../Section";
 import { COMBINE_WORDS, failureWords, takesBinding } from "../words";
+import { dimOf } from "./drawn";
 import { groupSet, unsetIn } from "./lineWrites";
 import { PlusList } from "./PlusList";
 import { lineChannels, type ThingRubric } from "./rubric";
@@ -50,6 +51,8 @@ interface PopoverShellProps<G extends { readonly name: string }> {
     readonly extra?: React.ReactNode;
     /** A sub-group always shown after Main (a list thing's list, R15). */
     readonly after?: React.ReactNode;
+    /** Why a sub-group draws nothing in this view, for its dimmed "+" item (every line of it a 3D-only one). */
+    readonly dimmedOf?: (group: G) => string | undefined;
 }
 
 /**
@@ -67,6 +70,7 @@ interface PopoverShellProps<G extends { readonly name: string }> {
  * @param props.first - see PopoverShellProps
  * @param props.extra - see PopoverShellProps
  * @param props.after - see PopoverShellProps
+ * @param props.dimmedOf - see PopoverShellProps
  * @returns The contents
  */
 export function PopoverShell<G extends { readonly name: string }>({
@@ -82,6 +86,7 @@ export function PopoverShell<G extends { readonly name: string }>({
     first,
     extra,
     after,
+    dimmedOf,
 }: PopoverShellProps<G>): React.JSX.Element {
     const [added, setAdded] = useState<readonly string[]>([]);
     const box = useRef<HTMLDivElement>(null);
@@ -97,7 +102,7 @@ export function PopoverShell<G extends { readonly name: string }>({
             <AddButton
                 kind={ctx.side}
                 title={`${title.replace(/^(Node|Edge) /, "")} settings`}
-                groups={[addable.map((group) => ({ key: group.name, label: group.name }))]}
+                groups={[addable.map((group) => ({ key: group.name, label: group.name, dimmed: dimmedOf?.(group) }))]}
                 alwaysMenu
                 onAdd={(name) => {
                     setAdded((now) => [...now, name]);
@@ -184,6 +189,10 @@ export function ThingPopover({
             after={after}
             groups={rubric.groups ?? []}
             isSet={(group) => groupSet(ctx, group)}
+            dimmedOf={(group) => {
+                const why = group.lines.map((line) => dimOf(ctx, line.channel));
+                return why.every((each) => each !== undefined) ? why[0] : undefined;
+            }}
             onUnset={(group) => {
                 unsetIn(
                     ctx,

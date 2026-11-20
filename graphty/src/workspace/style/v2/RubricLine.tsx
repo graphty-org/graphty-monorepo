@@ -24,6 +24,7 @@ import { Field, FieldLine, type RowContext } from "../PropertyRow";
 import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { channelWord, failureWords, fieldName, FONTS, isPercent } from "../words";
+import { dimOf } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
 import { moveUnit, ruleOf, unsetIn } from "./lineWrites";
@@ -609,23 +610,6 @@ function modifierOf(
 }
 
 /**
- * Whether graphty-element draws a channel with what the row holds now (`appliesWhen`): a gradient's
- * direction only on a linear one, a dash's length only on a dashed or dotted line. An unset line
- * that does nothing is not offered; a set one stays, so it can be taken off.
- * @param ctx - the row.
- * @param descriptor - the channel.
- * @returns true when it is drawn.
- */
-function applies(ctx: RowContext, descriptor: ChannelDescriptor): boolean {
-    const when = descriptor.appliesWhen;
-    if (when === undefined) {
-        return true;
-    }
-    const now = lineIn(ctx, when.channel)?.value ?? ctx.session.styles.defaultValue(when.channel);
-    return typeof now === "string" && when.values.includes(now);
-}
-
-/**
  * A line drawn by another editor: a structured list (R15), or today's field for a list, an asset, a
  * text source, a value varying by data, or several layers each holding their own value (the
  * "Layer" palette, design 10.4).
@@ -692,13 +676,19 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
     const own = lineIn(ctx, channel);
     const set = setOn(ctx, channel) || (line.pair !== undefined && setOn(ctx, line.pair));
     const descriptor = shownChannel(session, side, channel, set);
-    if (descriptor?.renderable !== true || (!set && !applies(ctx, descriptor))) {
+    if (descriptor?.renderable !== true) {
         return null;
     }
+    // A line graphty-element draws nothing for now (a 3D-only line in 2D) is dimmed, never hidden.
+    const dimmed = dimOf(ctx, channel);
     const rule = ruleOf(line, descriptor);
     const kept = keptField(ctx, line, row, descriptor, rule, set);
     if (kept !== undefined || rule === "field" || rule === "R15") {
-        return kept ?? null;
+        return kept === undefined ? null : (
+            <div className="ws-dim" data-dimmed={dimmed === undefined ? undefined : ""} title={dimmed}>
+                {kept}
+            </div>
+        );
     }
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords(channelWord(channel), "changed", error), error: true } });
@@ -746,6 +736,7 @@ export function RubricLine({ ctx, line, row }: RubricLineProps): React.JSX.Eleme
             modifier={row?.slot ?? modifierOf(ctx, line, write)}
             removeName={set || row !== undefined ? removeName : undefined}
             onRemove={onRemove}
+            dimmed={dimmed}
         />
     );
 }
@@ -778,6 +769,7 @@ export function RemoveButton({ label, onClick }: Readonly<{ label: string; onCli
  * @param props.modifier - its modifier slot's contents
  * @param props.removeName - its minus's name; none draws no minus
  * @param props.onRemove - what its minus does
+ * @param props.dimmed - why graphty-element draws nothing for it now, for its dimmed look and tooltip
  * @returns The line
  */
 export function LineFrame({
@@ -789,6 +781,7 @@ export function LineFrame({
     modifier,
     removeName,
     onRemove,
+    dimmed,
 }: Readonly<{
     line: string;
     name: string | null;
@@ -798,9 +791,18 @@ export function LineFrame({
     modifier: React.ReactNode;
     removeName: string | undefined;
     onRemove: () => void;
+    /** Why graphty-element draws nothing for it now ("2D only"): the line is dimmed, with these words as its tooltip. */
+    dimmed?: string;
 }>): React.JSX.Element {
     return (
-        <div className="ws-row" data-line={line} data-set={set ? "" : undefined} data-rule={rule}>
+        <div
+            className="ws-row"
+            data-line={line}
+            data-set={set ? "" : undefined}
+            data-rule={rule}
+            data-dimmed={dimmed === undefined ? undefined : ""}
+            title={dimmed}
+        >
             <FieldLine name={name} settings={null}>
                 <div className="ws-field-control">{control}</div>
                 <span className="ws-slot ws-vary">{modifier}</span>

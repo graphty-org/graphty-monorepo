@@ -1,0 +1,124 @@
+/**
+ * Style panel v2's dimmed lines and "+" items (design/ui/style-panel-v2/design.md, "a style that only does
+ * anything in one view stays visible in the other view but is dimmed there"): whether graphty-element draws
+ * a channel or a label field with what the row holds now and in the view shown now, read from the element's
+ * own facts (`channelDrawn`, `labelFieldDrawn`), and the tooltip words saying why not. Nothing is hidden,
+ * reordered or removed for it.
+ */
+
+import {
+    type Channel,
+    type ChannelCondition,
+    channelDescriptor,
+    channelDrawn,
+    type LabelFieldCondition,
+    labelFieldDrawn,
+} from "@graphty/graphty-element/catalog";
+import type { LabelStyle } from "@graphty/graphty-element/schema";
+import type { GraphSession } from "@graphty/graphty-element/session";
+
+import type { RowContext } from "../PropertyRow";
+import { lineIn } from "../row";
+import { channelWord, enumWords } from "../words";
+import { labelFieldDescriptor } from "./labelRubric";
+
+/**
+ * The view shown now.
+ * @param session - the element's session.
+ * @returns 2D or 3D.
+ */
+export function viewOf(session: GraphSession): "2d" | "3d" {
+    return session.layout.dimension;
+}
+
+/**
+ * The tooltip words for a condition that is not met: "2D only", "Only when Pattern is dash or dot".
+ * @param unmet - the condition.
+ * @param name - the name of the channel or field it is on.
+ * @returns the words.
+ */
+function unmetWords(unmet: ChannelCondition | LabelFieldCondition, name: string): string {
+    if ("dimension" in unmet) {
+        return unmet.dimension === "2d" ? "2D only" : "3D only";
+    }
+    if ("set" in unmet) {
+        return `Only when ${name} is set`;
+    }
+    if ("unset" in unmet) {
+        return `Only while ${name} is not set`;
+    }
+    const SWITCH: Readonly<Record<string, string>> = { true: "on", false: "off" };
+    const values = unmet.values.map((value) => SWITCH[value] ?? enumWords(value));
+    return `Only when ${name} is ${values.join(" or ")}`;
+}
+
+/**
+ * Why a channel draws nothing with what the row holds now in the view shown now, or undefined when it draws.
+ * @param ctx - the row.
+ * @param channel - the channel.
+ * @returns the tooltip words, or undefined.
+ */
+export function dimOf(ctx: RowContext, channel: Channel): string | undefined {
+    if (channelDescriptor(channel) === undefined) {
+        return undefined;
+    }
+    const read = (other: Channel): unknown => lineIn(ctx, other)?.value ?? ctx.beneath(other).value;
+    const found = channelDrawn(channel, read, viewOf(ctx.session));
+    return found.drawn
+        ? undefined
+        : unmetWords(found.unmet, "channel" in found.unmet ? channelWord(found.unmet.channel) : "");
+}
+
+/**
+ * Why a label style field draws nothing with what the row holds now in the view shown now, or undefined.
+ * @param ctx - the row.
+ * @param styleChannel - the text kind's label style channel.
+ * @param style - the layer's own label style.
+ * @param field - the field.
+ * @returns the tooltip words, or undefined.
+ */
+export function labelDimOf(
+    ctx: RowContext,
+    styleChannel: Channel,
+    style: Readonly<LabelStyle>,
+    field: keyof LabelStyle,
+): string | undefined {
+    const beneath = ctx.beneath(styleChannel).value;
+    const below = typeof beneath === "object" && beneath !== null ? (beneath as Readonly<Record<string, unknown>>) : {};
+    const read = (other: keyof LabelStyle): unknown =>
+        (style as Readonly<Record<string, unknown>>)[other] ?? below[other];
+    const found = labelFieldDrawn(field, read, viewOf(ctx.session));
+    if (found.drawn) {
+        return undefined;
+    }
+    const name =
+        "field" in found.unmet ? (labelFieldDescriptor(found.unmet.field)?.plainName ?? found.unmet.field) : "";
+    return unmetWords(found.unmet, name);
+}
+
+/**
+ * Why a channel draws nothing in the view shown now, from graphty-element's view fact alone (a "+" item for a
+ * thing not added yet: Lift in 2D), or undefined.
+ * @param ctx - the row.
+ * @param channel - the channel.
+ * @returns "2D only", "3D only", or undefined.
+ */
+export function viewDim(ctx: Pick<RowContext, "session">, channel: Channel): string | undefined {
+    const other = channelDescriptor(channel)?.drawnWhen?.find(
+        (condition) => "dimension" in condition && condition.dimension !== viewOf(ctx.session),
+    );
+    return other === undefined ? undefined : unmetWords(other, "");
+}
+
+/**
+ * Why a shader draws nothing in the view shown now, from the views its catalog entry declares, or undefined.
+ * @param session - the element's session.
+ * @param views - the shader's declared views; unset is both.
+ * @returns "2D only", "3D only", or undefined.
+ */
+export function shaderViewDim(session: GraphSession, views: readonly ("2d" | "3d")[] | undefined): string | undefined {
+    if (views === undefined || views.includes(viewOf(session))) {
+        return undefined;
+    }
+    return views.includes("2d") ? "2D only" : "3D only";
+}

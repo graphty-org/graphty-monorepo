@@ -26,6 +26,7 @@ import {
 } from "../shaderSlots";
 import { failureWords } from "../words";
 import { swatchesOf } from "./colorItems";
+import { dimOf } from "./drawn";
 import { familyOf, pickReplace, replaceUse } from "./families";
 import { ItemListEditor } from "./ItemListEditor";
 import { LabelRow } from "./LabelRow";
@@ -147,7 +148,45 @@ function ReplacePreset({ ctx, shader }: Readonly<{ ctx: RowContext; shader: stri
  * @param props.slots - its settings button and whole-thing minus
  * @returns The line
  */
-function MainLine({
+function MainLine(
+    props: Readonly<{
+        ctx: RowContext;
+        thing: ThingSpec;
+        main: ChannelDescriptor;
+        row: LineSpec | undefined;
+        replacing: string | undefined;
+        pending: boolean;
+        onCancel: () => void;
+        slots: RowSlots;
+    }>,
+): React.JSX.Element {
+    // A row graphty-element draws nothing for now (Order in 3D) is dimmed, its tooltip saying why.
+    // A rubric line drawing the row dims itself.
+    const dimmed =
+        props.replacing === undefined && props.row === undefined ? dimOf(props.ctx, props.main.channel) : undefined;
+    return dimmed === undefined ? (
+        <MainControl {...props} />
+    ) : (
+        <div className="ws-dim" data-dimmed="" title={dimmed}>
+            <MainControl {...props} />
+        </div>
+    );
+}
+
+/**
+ * A thing row's main line's control and frame: see `MainLine`.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.thing - the thing
+ * @param props.main - its main value
+ * @param props.row - its rubric's line for the row, if any
+ * @param props.replacing - the shader drawn in the shapes' place, if any
+ * @param props.pending - added with "+" and waiting for its first value
+ * @param props.onCancel - takes a waiting thing away again
+ * @param props.slots - its settings button and whole-thing minus
+ * @returns The line
+ */
+function MainControl({
     ctx,
     thing,
     main,

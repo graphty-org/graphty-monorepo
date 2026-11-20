@@ -71,4 +71,12 @@ describe("Style panel v2's shared components", () => {
         assert.match(SOURCES["ThingRow.tsx"], /<MemberMenu\b/);
         assert.deepEqual(using(/data-switch-to/), []);
     });
+
+    it("decides nothing by view itself: which styles draw in 2D or 3D comes from graphty-element (drawn.ts)", () => {
+        const panel = Object.fromEntries(Object.entries(SOURCES).filter(([file]) => file !== "GraphSettingsV2.tsx"));
+        const named = Object.entries(panel)
+            .filter(([file, text]) => file !== "drawn.ts" && /"[23][dD]"/.test(text))
+            .map(([file]) => file);
+        assert.deepEqual(named, [], "a view named outside drawn.ts is a hand-made view list");
+    });
 });

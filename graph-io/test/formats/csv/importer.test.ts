@@ -542,6 +542,103 @@ describe("csvImporter: header and delimiter handling", () => {
     });
 });
 
+const STRING_EXPORT = [
+    "#node1\tnode2\tnode1_string_id\tnode2_string_id\tneighborhood_on_chromosome\tgene_fusion\tphylogenetic_cooccurrence\thomology\tcoexpression\texperimentally_determined_interaction\tdatabase_annotated\tautomated_textmining\tcombined_score",
+    "ATM\tTP53\t9606.ENSP00000278616\t9606.ENSP00000269305\t0\t0\t0\t0\t0.062\t0.991\t0.9\t0.997\t0.999",
+    "MDM2\tTP53\t9606.ENSP00000258149\t9606.ENSP00000269305\t0\t0\t0\t0\t0.13\t0.999\t0.9\t0.997\t0.999",
+    "",
+].join("\n");
+
+const STRING_LINKS = [
+    "protein1 protein2 combined_score",
+    "9606.ENSP00000000233 9606.ENSP00000356607 173",
+    "9606.ENSP00000000233 9606.ENSP00000427567 154",
+    "",
+].join("\n");
+
+const BIOGRID_HEADER = [
+    "#BioGRID Interaction ID",
+    "Entrez Gene Interactor A",
+    "Entrez Gene Interactor B",
+    "BioGRID ID Interactor A",
+    "BioGRID ID Interactor B",
+    "Systematic Name Interactor A",
+    "Systematic Name Interactor B",
+    "Official Symbol Interactor A",
+    "Official Symbol Interactor B",
+    "Synonyms Interactor A",
+    "Synonyms Interactor B",
+    "Experimental System",
+    "Experimental System Type",
+    "Author",
+    "Publication Source",
+    "Organism ID Interactor A",
+    "Organism ID Interactor B",
+    "Throughput",
+    "Score",
+    "Modification",
+    "Qualifications",
+    "Tags",
+    "Source Database",
+];
+
+const BIOGRID_TAB3 = [
+    BIOGRID_HEADER.join("\t"),
+    "103\t6416\t2318\t112315\t108607\t-\t-\tMAP2K4\tFLNC\tJNKK|MEK4|MKK4\tABP-280|FLN2\tTwo-hybrid\tphysical\tMarti A (1997)\tPUBMED:9006895\t9606\t9606\tLow Throughput\t-\t-\t-\t-\tBIOGRID",
+    "117\t84665\t88\t124185\t106603\t-\t-\tMYPN\tACTN2\tCMD1DD|MYOP\tCMYP6\tTwo-hybrid\tphysical\tBang ML (2001)\tPUBMED:11309420\t9606\t9606\tLow Throughput\t-\t-\t-\t-\tBIOGRID",
+    "",
+].join("\n");
+
+describe("csvImporter: STRING and BioGRID downloads", () => {
+    it("reads a STRING network export by its # header, combined_score as the weight", async () => {
+        const { snapshot, report } = await load(STRING_EXPORT);
+        expect(codes(report)).toEqual([]);
+        expect(edgesOf(snapshot)).toEqual(["ATM->TP53", "MDM2->TP53"]);
+        expect(weightsOf(snapshot)).toEqual([0.999, 0.999]);
+        expect(column(snapshot, "edges", "node1_string_id")).toEqual(["9606.ENSP00000278616", "9606.ENSP00000258149"]);
+        expect(column(snapshot, "edges", "experimentally_determined_interaction")).toEqual([0.991, 0.999]);
+        expect(snapshot.edges.get("combined_score")).toBeNull();
+    });
+
+    it("reads STRING protein links and keeps an explicit weightFrom", async () => {
+        const links = await load(STRING_LINKS);
+        expect(codes(links.report)).toEqual([]);
+        expect(edgesOf(links.snapshot)).toEqual([
+            "9606.ENSP00000000233->9606.ENSP00000356607",
+            "9606.ENSP00000000233->9606.ENSP00000427567",
+        ]);
+        expect(weightsOf(links.snapshot)).toEqual([173, 154]);
+        const coexpression = await load(STRING_EXPORT, { weightFrom: "coexpression" });
+        expect(weightsOf(coexpression.snapshot)).toEqual([0.062, 0.13]);
+        expect(column(coexpression.snapshot, "edges", "combined_score")).toEqual([0.999, 0.999]);
+    });
+
+    it("reads BioGRID TAB3 by its official symbols, every other column an attribute", async () => {
+        const { snapshot, report } = await load(BIOGRID_TAB3);
+        expect(codes(report)).toEqual([]);
+        expect(edgesOf(snapshot)).toEqual(["MAP2K4->FLNC", "MYPN->ACTN2"]);
+        expect(weightsOf(snapshot)).toEqual([undefined, undefined]);
+        expect(column(snapshot, "edges", "BioGRID Interaction ID")).toEqual([103, 117]);
+        expect(column(snapshot, "edges", "Experimental System")).toEqual(["Two-hybrid", "Two-hybrid"]);
+        // the same table without the # reads the same way
+        const plain = await load(BIOGRID_TAB3.slice(1));
+        expect(edgesOf(plain.snapshot)).toEqual(["MAP2K4->FLNC", "MYPN->ACTN2"]);
+    });
+
+    it("leaves the # header alone under header: false and lets endpoint options win", async () => {
+        const headerless = await load(STRING_LINKS.replace("protein1", "#protein1"), { header: false });
+        expect(edgesOf(headerless.snapshot)).toEqual([
+            "9606.ENSP00000000233->9606.ENSP00000356607",
+            "9606.ENSP00000000233->9606.ENSP00000427567",
+        ]);
+        const entrez = await load(BIOGRID_TAB3, {
+            sourceColumn: "Entrez Gene Interactor A",
+            targetColumn: "Entrez Gene Interactor B",
+        });
+        expect(edgesOf(entrez.snapshot)).toEqual(["6416->2318", "84665->88"]);
+    });
+});
+
 describe("csvImporter: ids, weights and direction", () => {
     it("applies the canonical rule: 1 becomes a number while 01, 1.0 and +1 stay strings", async () => {
         const { snapshot } = await load("source,target\n1,01\n1.0,+1\n-0,0\n");

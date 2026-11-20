@@ -2,7 +2,8 @@
 
 CSV and TSV files hold one table per file. graph-io reads three kinds of table: an edge list
 (one edge per row), a node table (one node per row), and an adjacency list (a node and its
-neighbors per row). It understands the column names Gephi, NetworkX, SNAP and KONECT use.
+neighbors per row). It understands the column names Gephi, NetworkX, SNAP and KONECT use, and the
+interaction downloads of STRING and BioGRID.
 
 ## At a glance
 
@@ -243,6 +244,22 @@ those labels.
 | Edge direction       | `Type`, only in a Gephi table (a header with exactly `Source` and `Target`)                             | `typeColumn`           |
 
 <!-- generated:end -->
+
+### STRING and BioGRID downloads
+
+The protein interaction tables of STRING and BioGRID read with no options. graph-io recognizes
+them by their header, also when the header line starts with `#` as both databases write it.
+
+| Download                                   | Source column                  | Target column                  | Weight           |
+| ------------------------------------------ | ------------------------------ | ------------------------------ | ---------------- |
+| STRING network export (`#node1 node2 ...`) | `node1`                        | `node2`                        | `combined_score` |
+| STRING protein links (`protein1 protein2`) | `protein1`                     | `protein2`                     | `combined_score` |
+| BioGRID TAB3                               | `Official Symbol Interactor A` | `Official Symbol Interactor B` | none             |
+
+Every other column (STRING's evidence scores, BioGRID's `Experimental System`, `Throughput` and the
+rest) is an edge attribute. Pass `weightFrom` to weight the edges by another column, or
+`sourceColumn` and `targetColumn` to key the nodes by other ids, such as BioGRID's
+`Entrez Gene Interactor A` and `Entrez Gene Interactor B`.
 
 ## What a saved file keeps and loses
 

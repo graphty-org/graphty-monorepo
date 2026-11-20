@@ -1,6 +1,6 @@
 /**
  * @file A vector figure (`exportFigure`, issue #819) draws each node where and in the color the
- * canvas draws it, with its border and each edge's arrowheads, keeps labels and the key as text, and fails with a code for a format it does
+ * canvas draws it, with its border, each edge along its curve and stopped at its arrowheads, keeps labels and the key as text, and fails with a code for a format it does
  * not write.
  */
 
@@ -174,6 +174,96 @@ test("each arrowhead is drawn in its color with its tip at its target node", asy
     }
     const pdf = new TextDecoder("latin1").decode(await exportFigure(graph, { format: "pdf" }).blob.arrayBuffer());
     assert.include(pdf, "1 0 1 rg", "the arrowheads are filled magenta in the PDF");
+});
+
+/**
+ * A figure's edge lines as the points each is drawn through.
+ * @param svg - The figure.
+ * @returns One list of points per line or polyline.
+ */
+function edgePaths(svg: SVGSVGElement): number[][][] {
+    return [...svg.querySelectorAll("line, polyline")].map((line) =>
+        line.tagName === "line"
+            ? [
+                  [Number(line.getAttribute("x1")), Number(line.getAttribute("y1"))],
+                  [Number(line.getAttribute("x2")), Number(line.getAttribute("y2"))],
+              ]
+            : (line.getAttribute("points") ?? "").split(" ").map((p) => p.split(",").map(Number)),
+    );
+}
+
+/**
+ * How far a point is from the straight line through two others.
+ * @param p - The point.
+ * @param a - One end of the line.
+ * @param b - The other.
+ * @returns The distance.
+ */
+function offLine(p: number[], a: number[], b: number[]): number {
+    const cross = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+    return Math.abs(cross) / Math.hypot(b[0] - a[0], b[1] - a[1]);
+}
+
+test("a curved edge is drawn along the curve the canvas draws", async () => {
+    graph = await createTestGraphWithData();
+    await graph.getSession().styles.add({
+        name: "Curved",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.curvature": true },
+    });
+    await graph.waitForStableFrame();
+
+    const paths = edgePaths(await parse(exportFigure(graph).blob));
+    assert.equal(paths.length, 2, "one line per edge");
+    for (const [path, [from, to]] of paths.map(
+        (p, i) =>
+            [
+                p,
+                [
+                    ["1", "2"],
+                    ["2", "3"],
+                ][i],
+            ] as const,
+    )) {
+        const a = graph.nodeScreenPosition(from);
+        const b = graph.nodeScreenPosition(to);
+        assert.ok(a?.visible && b?.visible);
+        assert.isAbove(path.length, 2, "drawn through the curve's points");
+        const bow = Math.max(...path.map((p) => offLine(p, [a.x, a.y], [b.x, b.y])));
+        assert.isAbove(bow, 2, `edge ${from}-${to} bows off the straight line between its nodes`);
+    }
+    const pdf = new TextDecoder("latin1").decode(await exportFigure(graph, { format: "pdf" }).blob.arrayBuffer());
+    assert.equal(
+        pdf.match(/ m\n(?:[^\n]+ l\n){2,}S\n/g)?.length,
+        2,
+        "each edge is one stroke through its curve in the PDF",
+    );
+});
+
+test("an edge's line stops at its arrowhead instead of running to the node's center", async () => {
+    graph = await createTestGraphWithData();
+    await graph.getSession().styles.add({
+        name: "Arrows",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.arrowHead": "normal" },
+    });
+    await graph.waitForStableFrame();
+
+    const paths = edgePaths(await parse(exportFigure(graph).blob));
+    const pdf = new TextDecoder("latin1").decode(await exportFigure(graph, { format: "pdf" }).blob.arrayBuffer());
+    assert.equal(paths.length, 2, "one line per edge");
+    for (const [path, target] of paths.map((p, i) => [p, ["2", "3"][i]] as const)) {
+        const at = graph.nodeScreenPosition(target);
+        assert.ok(at?.visible);
+        const [x, y] = path.at(-1) ?? [];
+        assert.isAbove(Math.hypot(x - at.x, y - at.y), at.radius, `the line to node ${target} ends outside it`);
+        const ends = [...pdf.matchAll(/(-?[\d.]+) (-?[\d.]+) l\nS\n/g)].map((m) => [Number(m[1]), Number(m[2])]);
+        const height = Number(/\/MediaBox \[0 0 [\d.]+ ([\d.]+)\]/.exec(pdf)?.[1]);
+        const same = ends.some(([px, py]) => Math.hypot(px - x, height - py - y) < 0.05);
+        assert.ok(same, `the PDF's line to node ${target} ends at the same point`);
+    }
 });
 
 test("a node's border is a ring in its color around the node", async () => {

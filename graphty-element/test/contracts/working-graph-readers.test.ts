@@ -170,6 +170,10 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.deriveScore()": "writes",
     "data.derivedColumns()": "not the graph",
     // A collapse or an expand edits the original graph, hidden members included, so nothing is lost.
+    "graphs.create()": "writes",
+    "graphs.currentId": "state",
+    "graphs.list()": "state",
+    "graphs.switch()": "writes",
     "groups.collapse()": "writes",
     "groups.expand()": "writes",
     // The groups the project holds collapsed: project state, kept whatever a filter hides.
@@ -294,6 +298,16 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.overRepresented()": { view: (s) => s.data.overRepresented("data.type") },
     "data.pendingSourceLoads()": "not the graph",
     "data.prepare()": "writes",
+    "data.preparePage()": {
+        view: async (s) => {
+            await s.data.preparePage("node", { sort: { key: "id" } });
+            return s.data.nodePage({ limit: 50, sort: { key: "id" } });
+        },
+        whole: async (s) => {
+            await s.data.preparePage("node", { scope: "graph", sort: { key: "id" } });
+            return s.data.nodePage({ limit: 50, scope: "graph", sort: { key: "id" } });
+        },
+    },
     "data.previewSource()": "not the graph",
     "data.previewType()": "not the graph",
     "data.readableValues()": "not the graph",
@@ -668,6 +682,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "visibility.edges": "the filter's own",
     "visibility.filter": "the filter's own",
     "visibility.isVisible()": "names its target",
+    "visibility.moveStep()": "writes",
     "visibility.nodeMask()": "the filter's own",
     "visibility.nodes": "the filter's own",
     "visibility.notDrawn": "state",
@@ -677,6 +692,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "visibility.setSteps()": "writes",
     "visibility.setWindow()": "writes",
     "visibility.showContext": "the filter's own",
+    "visibility.stepCounts()": "the filter's own",
     "visibility.steps": "the filter's own",
     "visibility.summary.totalEdges": "the filter's own",
     "visibility.summary.totalNodes": "the filter's own",

@@ -19,6 +19,7 @@ import {
     type ProjectSaveReport,
 } from "@graphty/graphty-element/session";
 
+import { count, detail } from "../../lib/analytics";
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
@@ -165,10 +166,11 @@ export interface FileSource {
     /**
      * Loads the file when `project.open` reads it as data (`opened: "graph"`) rather than a
      * project: the draft it was read into (read onto the graph when the graph holds data), or, for
-     * a file the element could not read as data, none, so the caller reads it and says why;
-     * `fresh` when it opens a new project from the start screen.
+     * a file the element could not read as data, the element's refusal (`refused`), for the caller
+     * to say why without reading the file again; `fresh` when it opens a new project from the
+     * start screen.
      */
-    onData?: (ctx: CommandContext, fresh: boolean, draft?: LoadDraft) => Promise<void>;
+    onData?: (ctx: CommandContext, fresh: boolean, draft?: LoadDraft, refused?: unknown) => Promise<void>;
 }
 
 /** A file waiting to open, and whether it opens a new project from the start screen. */
@@ -513,6 +515,7 @@ export async function saveLocalCopy({ workspace, element, session }: CommandCont
         } else {
             await element.downloadProject({ assets, fileName, markSaved: false });
         }
+        count("export_done", { kind: "project", destination: "download" });
     } catch {
         workspace.set({ notice: { message: `A copy of ${name} could not be saved.`, error: true } });
     }
@@ -639,6 +642,8 @@ function openedData(
         }
         return;
     }
+    // A graphty document that is not a project (styles, notes, a graph) is the reader's own file too.
+    count("own_file_opened", { format: "graphty", via: "file" });
     // Opened as a new graph, it started its history (`history: "start"`).
     focusLater(fresh);
     if (!fresh) {
@@ -674,6 +679,12 @@ async function openedProject(
             resolve();
         });
     });
+    // A file the reader picked or dropped counts as their own file; a Recent or browser-kept project is a reopen.
+    if (pending.storedId === undefined && pending.recentId === undefined) {
+        count("own_file_opened", { format: "graphty", via: "file" });
+    } else {
+        detail("project_reopened");
+    }
     const state = fileState(workspace);
     state.target = pending.storedId ?? null;
     // The choices of the project it replaced are not this one's.
@@ -843,8 +854,9 @@ async function openInSession(
     } catch (error) {
         focusLater(false);
         if (onData !== undefined && isGraphtyError(error) && DATA_REFUSALS.has(error.code)) {
-            // A data file the element could not read: the data import says why, in its own words.
-            await onData(ctx, fresh);
+            // A data file the element could not read: the data import says why, in its own words,
+            // from this refusal. Read once: a second read would fail, and count, a second time.
+            await onData(ctx, fresh, undefined, error);
             return true;
         }
         return openFailed(ctx, session, pending, error);

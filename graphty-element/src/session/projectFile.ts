@@ -466,7 +466,9 @@ export interface ProjectOpenOptions {
      * @beta
      */
     readonly columns?: {
+        /** Node columns: each name a style section reads, mapped to the open data's column. */
         readonly node?: Readonly<Record<string, string>>;
+        /** Edge columns: each name a style section reads, mapped to the open data's column. */
         readonly edge?: Readonly<Record<string, string>>;
     };
     /**
@@ -1902,8 +1904,11 @@ async function restoreAssetsOf(session: GraphSession, doc: ReadDocument, problem
     }
 }
 
-/** The transaction opening a document that is not a project into the session. */
-const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", params: {} } };
+/**
+ * The transaction opening a document that is not a project into the session. Its member entries
+ * carry `trigger: "project"`, as a project open's do: the file's commands, not the reader's.
+ */
+const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", params: {} }, trigger: "project" };
 
 /**
  * Delete every row of the style tree, folders with their layers; the element's own layers stay.
@@ -3488,6 +3493,7 @@ export function projectOf(
         const opening: TransactionOptions = {
             fact: { code: "project.open", params: { name: name ?? null } },
             starts: true,
+            trigger: "project",
         };
         const loads: SourcesRead = readSourcesMember(member, {
             pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,

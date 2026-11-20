@@ -25,6 +25,7 @@ import { assertComputesOverScope, type Build, coveredBy, handBuilt, runScoped, r
 
 /** Each registered algorithm's `scopeInput`: on computes over the scope, off over the whole graph. */
 const EXPECTED: Readonly<Record<string, "on" | "off">> = {
+    "graphty:all-paths": "on",
     "graphty:astar": "on",
     "graphty:bellman-ford": "on",
     "graphty:betweenness": "on",
@@ -63,6 +64,7 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
 const OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
     "graphty:dijkstra": { source: "a", target: "c" },
     "graphty:astar": { source: "a", target: "c" },
+    "graphty:all-paths": { source: "a", target: "c" },
     "graphty:bfs": { source: "a" },
     "graphty:removal-impact": { nodes: ["a"] },
 };

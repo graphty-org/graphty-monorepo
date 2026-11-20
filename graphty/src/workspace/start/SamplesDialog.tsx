@@ -19,6 +19,7 @@ import {
     openNetworkSample,
     openProject,
     openSeparate,
+    sampleKey,
 } from "./open";
 import { SampleCard } from "./SampleCard";
 import {
@@ -134,7 +135,11 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
     const open = (target: Target): void => {
         if (source.kind === "sample") {
             const { name, url } = source.sample;
-            bringFile(ctx, { name, source: { config: { url }, name }, origin: "sample" }, target);
+            bringFile(
+                ctx,
+                { name, source: { config: { url }, name }, origin: "sample", callerKey: sampleKey(source.sample) },
+                target,
+            );
         } else if (source.kind === "generator") {
             configure(source.generator, target);
         } else if (isLarge(source.dataset)) {

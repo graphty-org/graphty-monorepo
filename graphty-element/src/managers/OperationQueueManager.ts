@@ -34,6 +34,7 @@ interface Operation {
     reject?: (reason?: unknown) => void;
 }
 
+/** The kind of work a queued operation does, which the queue orders and obsoletes by. */
 export type OperationCategory =
     | "style-init" // Initialize style template
     | "style-apply" // Apply styles to existing elements
@@ -73,6 +74,25 @@ export type OperationCategory =
     | "render-update"; // Update rendering settings
 
 /**
+ * One reading of the work an export or a screenshot is waiting behind, handed to their
+ * `onProgress` option: `operations` queued or running (0 once the queue has drained), and the
+ * `category` and `percent` (0 to 100) of the one running now, or null when none is.
+ */
+export interface PendingWorkProgress {
+    /** Always `PENDING_WORK`. */
+    readonly code: "PENDING_WORK";
+    /** How much is left, and the running operation's category and percent. */
+    readonly params: {
+        /** How many operations are queued or running; 0 when none is left. */
+        readonly operations: number;
+        /** The running operation's category; null when none is running. */
+        readonly category: OperationCategory | null;
+        /** The running operation's progress, 0 to 100; null when none is running. */
+        readonly percent: number | null;
+    };
+}
+
+/**
  * Manages a queue of graph operations with dependency resolution and batching
  * Ensures operations execute in the correct order based on their dependencies
  */
@@ -86,6 +106,8 @@ export class OperationQueueManager implements Manager {
 
     // Progress tracking
     private readonly operationProgress = new Map<string, OperationProgress>();
+    /** Who is watching the pending work: told on every start, finish and progress update. */
+    private readonly workWatchers = new Set<() => void>();
 
     // Active operation controllers for cancellation
     private readonly activeControllers = new Map<string, AbortController>();
@@ -223,6 +245,9 @@ export class OperationQueueManager implements Manager {
         this.queue.on("idle", () => {
             this.eventManager.emit("operation-queue-idle", {});
         });
+
+        this.queue.on("active", this.tellWatchers);
+        this.queue.on("next", this.tellWatchers);
     }
 
     /**
@@ -253,6 +278,7 @@ export class OperationQueueManager implements Manager {
         this.queue.clear();
         this.pendingOperations.clear();
         this.operationProgress.clear();
+        this.workWatchers.clear();
         this.currentBatch.clear();
         this.activeControllers.clear();
         this.runningOperations.clear();
@@ -820,6 +846,7 @@ export class OperationQueueManager implements Manager {
      * @param progress - Current progress state
      */
     private emitProgressUpdate(id: string, category: OperationCategory, progress: OperationProgress): void {
+        this.tellWatchers();
         this.eventManager.emit("operation-progress", {
             id,
             category,
@@ -847,6 +874,49 @@ export class OperationQueueManager implements Manager {
             category: operation.category,
             description: operation.metadata?.description,
         });
+    }
+
+    private readonly tellWatchers = (): void => {
+        this.workWatchers.forEach((watcher) => {
+            watcher();
+        });
+    };
+
+    /**
+     * The work queued or running now, as the coded fact `onProgress` receives.
+     * @returns How many operations are left, and the running one's category and percent.
+     */
+    pendingWork(): PendingWorkProgress {
+        const [running] = this.runningOperations.values();
+        return {
+            code: "PENDING_WORK",
+            params: {
+                operations: this.currentBatch.size + this.queue.size + this.queue.pending,
+                category: running?.category ?? null,
+                percent: running === undefined ? null : (this.operationProgress.get(running.id)?.percent ?? 0),
+            },
+        };
+    }
+
+    /**
+     * Report the pending work to `onProgress` now and on every operation start, finish and
+     * progress update, until the returned function is called.
+     * @param onProgress - Told each reading; a throw from it is logged, never passed to the queue.
+     * @returns Stops the reports.
+     */
+    watchPendingWork(onProgress: (fact: PendingWorkProgress) => void): () => void {
+        const watcher = (): void => {
+            try {
+                onProgress(this.pendingWork());
+            } catch (error) {
+                this.logger.warn("onProgress threw", { error: String(error) });
+            }
+        };
+        this.workWatchers.add(watcher);
+        watcher();
+        return () => {
+            this.workWatchers.delete(watcher);
+        };
     }
 
     /**

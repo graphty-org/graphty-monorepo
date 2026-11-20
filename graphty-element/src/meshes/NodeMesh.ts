@@ -791,14 +791,11 @@ export class NodeMesh {
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
             const piecesOf = (round: Point2[]): RingPiece[] => borderRing(round, width, border?.style ?? "solid", wave);
-            const mesh = ringSlab("node-border", piecesOf(outline), depth, scene);
-            placeByZIndex(mesh, shape, options.is2D);
-            if (!flat && !options.is2D) {
-                this.followView(mesh, fill, depth, piecesOf);
-            }
-            mesh.material = this.createBorderMaterial(border?.color ?? "#000000", opacity, scene);
+            const color = border?.color ?? "#000000";
 
-            return mesh;
+            const ring = { outline, depth, piecesOf, flat, color, opacity };
+
+            return this.borderSlab("node-border", ring, shape, options, fill, scene);
         });
 
         instance.sourceMesh.isPickable = false;
@@ -857,14 +854,10 @@ export class NodeMesh {
                     const base = at > 0 ? mitredEdges(round, [at])[0] : round;
                     return borderRing(base, width, outerBorder?.style ?? "solid");
                 }).flat();
-            const mesh = ringSlab("node-outer-border", piecesOf(outline), depth, scene);
-            placeByZIndex(mesh, shape, options.is2D);
-            if (!flat && !options.is2D) {
-                this.followView(mesh, fill, depth, piecesOf);
-            }
-            mesh.material = this.createBorderMaterial(outerBorder?.color ?? "#000000", opacity, scene);
+            const color = outerBorder?.color ?? "#000000";
+            const ring = { outline, depth, piecesOf, flat, color, opacity };
 
-            return mesh;
+            return this.borderSlab("node-outer-border", ring, shape, options, fill, scene);
         });
 
         instance.sourceMesh.isPickable = false;
@@ -1230,6 +1223,48 @@ export class NodeMesh {
         const grow = drawn > 0 ? extents.across / drawn : 1;
 
         return grow === 1 ? outline : outline.map(([x, y]): Point2 => [x * grow, y * grow]);
+    }
+
+    /**
+     * A border or outer border ring's source mesh: built round its outline, placed by the node's z-index, in its
+     * color, and for a solid in a 3D view kept on the outline the camera sees.
+     * @param name - The mesh's name.
+     * @param ring - The ring.
+     * @param ring.outline - The node's outline the ring is built round first.
+     * @param ring.depth - How deep the ring is along z.
+     * @param ring.piecesOf - The ring's pieces round an outline.
+     * @param ring.flat - Whether the node's shape is flat.
+     * @param ring.color - The ring's color.
+     * @param ring.opacity - The ring's opacity, 0..1.
+     * @param shape - The node's shape block.
+     * @param options - The node's mesh options.
+     * @param fill - The node's own mesh.
+     * @param scene - The scene.
+     * @returns The mesh.
+     */
+    private static borderSlab(
+        name: string,
+        ring: {
+            outline: Point2[];
+            depth: number;
+            piecesOf: (outline: Point2[]) => RingPiece[];
+            flat: boolean;
+            color: string;
+            opacity: number;
+        },
+        shape: NodeStyleConfig["shape"],
+        options: NodeMeshOptions,
+        fill: AbstractMesh,
+        scene?: Scene,
+    ): Mesh {
+        const mesh = ringSlab(name, ring.piecesOf(ring.outline), ring.depth, scene);
+        placeByZIndex(mesh, shape, options.is2D);
+        if (!ring.flat && !options.is2D) {
+            this.followView(mesh, fill, ring.depth, ring.piecesOf);
+        }
+        mesh.material = this.createBorderMaterial(ring.color, ring.opacity, scene);
+
+        return mesh;
     }
 
     private static solidOutline(fill: AbstractMesh, view?: Matrix, at?: Vector3): Point2[] {

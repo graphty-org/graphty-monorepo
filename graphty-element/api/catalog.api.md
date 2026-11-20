@@ -2753,7 +2753,6 @@ export type ScopeInput = Exclude<Scope, {
 * Under the `source-steps` experiment: the nodes whose one type (`graphty.type`) is listed and
 * the edges between them. Read back as its canonical `{ where }` on `graphty.type`.
 * Experimental: may change or be removed in a minor release.
-* @beta
 */
 | {
     types: readonly string[];
@@ -2877,7 +2876,6 @@ export type Selector = {
 *     selector: { match: "type", types: ["account"] }, set: { "node.color": "#4c6ef5" } });
 * ```
 * Experimental: may change or be removed in a minor release.
-* @beta
 */
 | {
     match: "type";

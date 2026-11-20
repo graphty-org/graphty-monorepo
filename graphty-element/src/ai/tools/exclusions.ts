@@ -421,6 +421,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "pick",
                 "use",
                 "removeStep",
+                "setStepOff",
                 "add",
                 "lineage",
                 "values",

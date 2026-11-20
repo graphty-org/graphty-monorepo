@@ -3,41 +3,20 @@
 // See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/instancedMesh.js";
 
-import type { AbstractMesh, InstancedMesh, SubMesh } from "@babylonjs/core";
+import type { InstancedMesh } from "@babylonjs/core";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
+import { drawAt } from "./drawOrder";
 import { EdgeLineBatch } from "./EdgeLineBatch";
 import { NodeBatch } from "./NodeBatch";
 import type { PulledLineBatch } from "./PulledLineBatch";
 
 type MeshCreatorFn = () => Mesh;
 
-/** Sources drawn in another source's place in the opaque sort: see {@link MeshCache.sourceFor}. */
-const drawnInPlaceOf = new WeakMap<AbstractMesh, number>();
-
-/**
- * Babylon's `RenderingGroup.PainterSortCompare` (by material creation, else by mesh), but a source
- * built to stand in for another sorts where that one's material does. A node whose mesh a consumer
- * read under `"batched"` draws from a source of its own, built after its look's border; sorted by
- * its own material it drew its fill over the border, and over every overlapping node, where the
- * shared source draws it under them. Every other mesh sorts exactly as Babylon's own compare does.
- * @param a - A submesh.
- * @param b - Another.
- * @returns Negative when a draws first.
- */
-export function painterSortCompare(a: SubMesh, b: SubMesh): number {
-    const meshA = a.getMesh();
-    const meshB = b.getMesh();
-    if (meshA.material && meshB.material) {
-        const orderA = drawnInPlaceOf.get(meshA) ?? meshA.material.uniqueId;
-        const orderB = drawnInPlaceOf.get(meshB) ?? meshB.material.uniqueId;
-        return orderA - orderB;
-    }
-
-    return meshA.uniqueId - meshB.uniqueId;
-}
+/** The key of the shared source each held node's own source stands in for. */
+const standsFor = new WeakMap<Mesh, string>();
 
 /**
  * Cache for mesh instances to improve rendering performance
@@ -63,6 +42,12 @@ export class MeshCache {
 
     /** The node batches, by the source mesh they share a material with, which they die with. */
     nodeBatchMap = new Map<Mesh, NodeBatch>();
+
+    /**
+     * The second batch of a look, which draws its rows after the rows of it a consumer holds
+     * (`NodeBatches`, a held span), by the same source as {@link MeshCache.nodeBatchMap}.
+     */
+    afterBatchMap = new Map<Mesh, NodeBatch>();
 
     /**
      * Sources whose rows a batch draws. A batch is built from one source of its shape and draws the
@@ -112,7 +97,11 @@ export class MeshCache {
             this.#drawOrders.set(name, mesh.material?.uniqueId ?? mesh.uniqueId);
         } else {
             // Just after the source it stands in for, and before anything built after that one.
-            drawnInPlaceOf.set(mesh, order + 0.5);
+            drawAt(mesh, order + 0.5);
+        }
+
+        if (inPlaceOf !== undefined) {
+            standsFor.set(mesh, inPlaceOf);
         }
 
         // Hide the original mesh - instances will still be visible
@@ -200,6 +189,37 @@ export class MeshCache {
     }
 
     /**
+     * Get or create the batch that draws a look's rows after its held span (see {@link MeshCache.afterBatchMap}).
+     * @param source - The source mesh.
+     * @param places - The table that places the rows.
+     * @param root - What the rows are drawn inside.
+     * @returns The batch.
+     */
+    afterBatchFor(
+        source: Mesh,
+        places: ConstructorParameters<typeof NodeBatch>[1],
+        root: TransformNode | null,
+    ): NodeBatch {
+        let batch = this.afterBatchMap.get(source);
+        if (batch === undefined) {
+            batch = new NodeBatch(source, places, root);
+            this.afterBatchMap.set(source, batch);
+        }
+
+        return batch;
+    }
+
+    /**
+     * The shared source a held node's own source stands in for.
+     * @param source - A source.
+     * @returns The shared source, or undefined when it stands in for none.
+     */
+    sharedOf(source: Mesh): Mesh | undefined {
+        const key = standsFor.get(source);
+        return key === undefined ? undefined : this.meshCacheMap.get(key);
+    }
+
+    /**
      * Reset cache statistics (hits and misses)
      */
     reset(): void {
@@ -244,6 +264,7 @@ export class MeshCache {
             if (
                 mesh.instances.length === 0 &&
                 !this.nodeBatchMap.get(mesh)?.liveSlots &&
+                !this.afterBatchMap.get(mesh)?.liveSlots &&
                 !this.batchedSources.has(mesh)
             ) {
                 this.disposeSource(mesh);
@@ -285,6 +306,8 @@ export class MeshCache {
     private disposeSource(mesh: Mesh): void {
         this.nodeBatchMap.get(mesh)?.dispose();
         this.nodeBatchMap.delete(mesh);
+        this.afterBatchMap.get(mesh)?.dispose();
+        this.afterBatchMap.delete(mesh);
         this.batchedSources.delete(mesh);
         const { material } = mesh;
         mesh.dispose();

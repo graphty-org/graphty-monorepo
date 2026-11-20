@@ -421,8 +421,11 @@ export const dataManagerInternals = {} as {
     unbuiltAt(manager: DataManager, index: number): NodeIdType | undefined;
     /** The record of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
     unbuiltRecord(manager: DataManager, index: number): Record<string | number, unknown> | undefined;
-    /** Build the `Node` of a row stored with no `Node` yet, and hand it back. */
-    buildRow(manager: DataManager, id: NodeIdType): Node | undefined;
+    /**
+     * Build the `Node` of a row stored with no `Node` yet, and hand it back; `painted` false leaves
+     * its paint to the caller, a style pass that paints it in row order.
+     */
+    buildRow(manager: DataManager, id: NodeIdType, painted?: boolean): Node | undefined;
     /** Build the `Node` of every row stored with no `Node` yet, then the `Edge` of every edge stored with none. */
     buildAll(manager: DataManager): void;
     /**
@@ -780,7 +783,7 @@ export class DataManager implements Manager {
             const row = manager.unbuilt.get(index);
             return row === undefined ? undefined : manager.recordOf(row.id, row.record);
         };
-        dataManagerInternals.buildRow = (manager, id) => manager.buildRow(id);
+        dataManagerInternals.buildRow = (manager, id, painted) => manager.buildRow(id, painted);
         dataManagerInternals.nodeList = (manager) => manager.nodeMap.lazyValues();
         dataManagerInternals.buildAll = (manager) => {
             for (const id of manager.unbuiltRows.ids()) {
@@ -2663,6 +2666,7 @@ export class DataManager implements Manager {
      *     false for a row stored earlier, which already did both
      * @param look - What a batch drew the row as: the `Node` is built from the same source and takes
      *     the paint it had, as the row's `Node` would have had them built at store time.
+     * @param painted - For a row stored earlier: paint it now, unless the caller paints it.
      * @returns the `Node`
      */
     private buildNode(
@@ -2671,6 +2675,7 @@ export class DataManager implements Manager {
         index: number,
         announce = true,
         look: { sourcePaint: NodePaint; paint: NodePaint } | null = null,
+        painted = true,
     ): Node {
         if (!this.graphContext) {
             throw new Error("GraphContext not set. Call setGraphContext before adding nodes.");
@@ -2681,6 +2686,8 @@ export class DataManager implements Manager {
         // and no frame is drawn before then. A row stored earlier with no Node keeps its key
         // among the unpainted until a pass paints it; once painted, no pass will come for it,
         // so its paint is queued and only the next frame's update is waited for.
+        // A paint still waiting for its pass is drawn by that pass, in row order, as every other row's is.
+        const pending = this.graphContext.getStylePainter?.()?.isNodePending(index) === true;
         if (announce) {
             this.builtUnpainted(`n:${JSON.stringify(nodeId)}`, "node", index);
         } else {
@@ -2707,7 +2714,7 @@ export class DataManager implements Manager {
 
         // after the engine has it: drawing reads its place from the engine
         if (!announce) {
-            this.paintBuiltRow(n, index);
+            this.paintBuiltRow(n, index, pending || !painted);
         }
 
         // Emit node added event
@@ -2724,22 +2731,25 @@ export class DataManager implements Manager {
     /**
      * Draw a `Node` built for a row a batch drew with no `Node` as that row was drawn, at once: a
      * caller that asked for the `Node` reads its mesh and place before the next frame paints it.
+     * A paint the row's pass has not drawn yet is left to that pass, as the objects path leaves it:
+     * drawn here, a `Node` read between a style change and its pass built its new look's source
+     * before every other row's, and under `"batched"` that look then drew over the others.
      * @param node - The new `Node`.
      * @param index - Its row.
+     * @param pending - Whether the row's newest paint waits for a pass, or the caller is that pass.
      */
-    private paintBuiltRow(node: Node, index: number): void {
-        const paint = this.graphContext?.getStylePainter?.()?.nodePaint(index) ?? null;
-        if (paint === null) {
-            return;
+    private paintBuiltRow(node: Node, index: number, pending: boolean): void {
+        const paint = pending ? null : (this.graphContext?.getStylePainter?.()?.nodePaint(index) ?? null);
+        if (paint !== null) {
+            if (nodeRebuildsFor(node, paint)) {
+                disposeReleased([node], [], () => {
+                    releaseNodeMesh(node);
+                });
+            }
+
+            node.applySessionPaint(paint);
         }
 
-        if (nodeRebuildsFor(node, paint)) {
-            disposeReleased([node], [], () => {
-                releaseNodeMesh(node);
-            });
-        }
-
-        node.applySessionPaint(paint);
         // and at its place, which a frame's update would otherwise write only at the next frame
         node.update();
     }
@@ -2801,9 +2811,11 @@ export class DataManager implements Manager {
     /**
      * Build the `Node` of a row stored with no `Node`, which then draws the row in its place.
      * @param id - The id.
+     * @param painted - False when the caller paints it: a style pass, which paints its rows in row
+     *     order, so a look's source is built when the objects path builds it.
      * @returns The `Node`, or undefined for an id with no such row.
      */
-    private buildRow(id: NodeIdType): Node | undefined {
+    private buildRow(id: NodeIdType, painted = true): Node | undefined {
         const index = this.unbuiltRowOf(id);
         const row = this.unbuilt.get(index);
         if (row === undefined) {
@@ -2816,7 +2828,7 @@ export class DataManager implements Manager {
         const look = batches?.lookOf(index) ?? null;
         batches?.unpaintRow(index);
         const before = this.nodeVersion;
-        const node = this.buildNode(id, this.recordOf(id, row.record), index, false, look);
+        const node = this.buildNode(id, this.recordOf(id, row.record), index, false, look, painted);
         this.lateNodeVersions += this.nodeVersion - before;
         this.graphContext?.getUpdateManager?.().adoptBuiltNode(node);
         return node;

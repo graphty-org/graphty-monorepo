@@ -607,14 +607,12 @@ export class Node implements ModelUser {
      * the private field, and every other file a `drawn*` accessor (`local/node-mesh-funnel`).
      * Under `render-path="batched"`, reading it keeps this node drawn by its own mesh from then on,
      * never by a node batch, so what a consumer does to the mesh shows. The rest of its look stays
-     * on the batch.
+     * on the batch, but for the rows between it and another read row of its look: those are drawn by
+     * their own meshes too, so every row keeps its place in the look's draw order, as on `"objects"`.
      * @returns The mesh.
      */
     get mesh(): AbstractMesh {
-        if (!this.#meshHeld) {
-            this.#meshHeld = true;
-            this.holdOffBatch();
-        }
+        this.holdInPlace();
 
         if (this.#mesh === null) {
             this.drawInBatch(null);
@@ -3001,6 +2999,18 @@ export class Node implements ModelUser {
             ...this.sourceArgs(meshKey, o, image),
             this.context.getScene(),
         );
+    }
+
+    /**
+     * Keep this node drawn by its own mesh from now on, as a read of {@link Node.mesh} does: for that
+     * read, and for the rows of its look a batch would otherwise draw out of turn with it (`NodeBatches`).
+     * @internal
+     */
+    holdInPlace(): void {
+        if (!this.#meshHeld) {
+            this.#meshHeld = true;
+            this.holdOffBatch();
+        }
     }
 
     /**

@@ -5,7 +5,9 @@
  * look's border. The opaque sort orders by material creation, so that source drew its fill over its
  * border (thin rims) and over every overlapping node's border, where the objects path draws the fill
  * first; and a node read alone drew over the rest of its look, which the objects path draws in node
- * order. Runs in "browser" and "forced-batched"; each check picks its paths itself.
+ * order. A look a batch draws drew a read node after the whole batch, over the rest of its look, and a
+ * node read between a style change and the frame that draws it built its new look first, over the other
+ * looks. Runs in "browser" and "forced-batched"; each check picks its paths itself.
  */
 
 import "../../src/graphty-element";
@@ -16,7 +18,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { nodeInternals } from "../../src/Node";
-import { pixelsOverBar, readCanvas } from "../helpers/whole-canvas";
+import { type CanvasFrame, pixelsOverBar, readCanvas } from "../helpers/whole-canvas";
 
 const cleanups: (() => void)[] = [];
 
@@ -33,16 +35,27 @@ const NODES = Array.from({ length: 12 }, (_, id) => ({
     color: ["#e11d48", "#16a34a", "#f59e0b"][id % 3],
 }));
 
+/** The looks {@link ringedLooks} paints: ringed, two shapes, or one plain shape a batch draws. */
+type Looks = "ringed" | "two shapes" | "one shape" | "translucent";
+
 /**
  * Mount an element and load the circles in 2D.
- * @param ringed - Whether they have rings, which no batch draws.
+ * @param looks - Which looks: rings no batch draws, or plain shapes a batch draws.
+ * @param options - How.
+ * @param options.path - The render path to start on.
+ * @param options.settle - False to return before a frame paints the looks.
  * @returns The element.
  */
-async function ringedLooks(ringed = true): Promise<Graphty> {
+async function ringedLooks(
+    looks: Looks | boolean = true,
+    { path = "objects", settle = true }: { path?: "objects" | "batched"; settle?: boolean } = {},
+): Promise<Graphty> {
+    const ringed = looks === true || looks === "ringed";
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";
+    element.renderPath = path;
     document.body.appendChild(element);
     cleanups.push(() => {
         element.remove();
@@ -62,8 +75,12 @@ async function ringedLooks(ringed = true): Promise<Graphty> {
             selector: { match: "ids", nodes },
             set: ringed
                 ? { "node.shape": "ellipse", "node.size": size, "node.borderColor": ring, "node.borderWidth": 0.15 }
-                : // two shapes: a batch draws rows of one shape at any size
-                  { "node.shape": parity === 0 ? "ellipse" : "rectangle", "node.size": size },
+                : // a batch draws rows of one shape at any size
+                  {
+                      "node.shape": parity === 0 || looks !== "two shapes" ? "ellipse" : "rectangle",
+                      "node.size": 1.6,
+                      ...(looks === "translucent" ? { "node.opacity": 0.6 } : {}),
+                  },
         } as never);
     }
 
@@ -78,7 +95,10 @@ async function ringedLooks(ringed = true): Promise<Graphty> {
     }
 
     await operationQueueOf(element.graph).waitForCompletion();
-    await element.waitForStableFrame();
+    if (settle) {
+        await element.waitForStableFrame();
+    }
+
     return element;
 }
 
@@ -207,5 +227,69 @@ describe("a node whose mesh was read under batched", () => {
         assert.notEqual(graph.getNode(0)?.drawnSourceMesh, shared, "a batch hides the look's source: it has its own");
         assert.deepEqual(await fillOrder(graph), objects);
         assert.equal(graph.rowCounts.batchedNodes, NODES.length - 1, "a batch draws every plain node but the read one");
+    });
+
+    for (const [label, ids, held] of [
+        ["two of them", [0, 2], 3],
+        ["one in the middle", [5], 1],
+        ["the last", [11], 1],
+        ["the first and the last", [0, 11], 12],
+    ] as const) {
+        it(`keeps its place among the rows of its look a batch draws when ${label} is read`, async () => {
+            const { graph } = await ringedLooks("one shape");
+            graph.setRenderPath("objects");
+            const objects = await readCanvas(graph);
+
+            await holdMeshes(graph, ids);
+            const picture = await readCanvas(graph);
+            // The rows between the first and the last read one draw with them; the rest stay on the batch.
+            assert.equal(graph.rowCounts.objectNodes, held, "the read rows and the rows between them");
+            assert.equal(graph.rowCounts.batchedNodes, NODES.length - held);
+            assert.equal(pixelsOverBar(objects, picture), 0);
+        });
+    }
+
+    it("keeps its place among the rows of a translucent look a batch draws", async () => {
+        const { graph } = await ringedLooks("translucent");
+        graph.setRenderPath("objects");
+        const objects = await readCanvas(graph);
+
+        await holdMeshes(graph, [3, 5]);
+        const picture = await readCanvas(graph);
+        // drawn back to front, its own source first: the rows from the look's first to the last read one
+        assert.equal(graph.rowCounts.objectNodes, 6);
+        assert.equal(pixelsOverBar(objects, picture), 0);
+    });
+
+    it("keeps its place among the rows of its look a batch draws, with a look of another shape over it", async () => {
+        const { graph } = await ringedLooks("two shapes");
+        graph.setRenderPath("objects");
+        const objects = await readCanvas(graph);
+
+        await holdMeshes(graph, [0, 1, 3]);
+        assert.equal(pixelsOverBar(objects, await readCanvas(graph)), 0);
+    });
+
+    it("draws a node read before its new look's frame where the objects path draws that look", async () => {
+        const pictures: CanvasFrame[] = [];
+        for (const path of ["objects", "batched"] as const) {
+            // Read between the layers' change and the frame that paints it, while the row has no `Node` yet.
+            const element = await ringedLooks("ringed", { path, settle: false });
+            assert.isFalse(element.graph.getNode(0)?.mesh.isDisposed());
+            await element.session.styles.add({
+                name: "recolor",
+                target: "node",
+                selector: { match: "ids", nodes: [0, 4, 8] },
+                set: { "node.borderColor": "#9333ea", "node.borderWidth": 0.25 },
+            } as never);
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            pictures.push(await readCanvas(element.graph));
+        }
+
+        const [objects, batched] = pictures;
+        assert.isDefined(objects);
+        assert.isDefined(batched);
+        assert.equal(pixelsOverBar(objects, batched), 0);
     });
 });

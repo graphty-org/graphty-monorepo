@@ -10,7 +10,14 @@
  *   that read named; on `"objects"` a walk over every `Edge`;
  * - the edge hover a pointer move runs (`hoverEdgeAt`, called as the element calls it, so the CDP round trip of a
  *   mouse event is not in the time): on `"batched"` it reads the edge ID target and measures only the lines drawn
- *   near the pointer; on `"objects"` it measures every edge.
+ *   near the pointer; on `"objects"` it measures every edge;
+ * - the edge pick a click runs (`clickEdgeAt`) at points no hover has read: on `"batched"` WebGPU it waits for the
+ *   edge ID target's read instead of walking every line, so its time holds a frame;
+ * - a selection followed by the next pick: the selection draws the selected edge with an `Edge`, which takes its
+ *   row line away, and the pick that follows rewrites the target's rows for it (`rowsWrittenPerSelect`).
+ *
+ * A WebGPU hover or click waits for a frame, so `frameMs` (one requested frame, as `waitForStableFrame` waits for it)
+ * is printed beside them: on SwiftShader a frame of 100,000 lines takes seconds, on a GPU milliseconds.
  *
  * Also printed: how many picks named an edge (each point is on one, unless a node covers it), how many row lines a
  * pick measured, and the first hover, which rebuilds the edge ID target's line list. Nothing is asserted but that
@@ -23,8 +30,9 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it } from "vitest";
 
-import { operationQueueOf } from "../../src/Graph";
+import { operationQueueOf, renderManagerOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
+import * as picks from "../../src/render/PickService";
 import { edgePickWork, hoverEdgeAt } from "../../src/render/PickService";
 import { hover } from "../helpers/real-input";
 
@@ -63,6 +71,15 @@ function seeded(seed: number): () => number {
 function median(values: number[]): number {
     const sorted = [...values].sort((a, b) => a - b);
     return sorted[Math.floor(sorted.length / 2)] ?? Number.NaN;
+}
+
+/**
+ * Where the largest of some numbers is.
+ * @param values - The numbers.
+ * @returns Its index.
+ */
+function largestAt(values: number[]): number {
+    return values.indexOf(Math.max(...values));
 }
 
 /**
@@ -194,6 +211,40 @@ describe("edge pick cost", () => {
                 const hoverLines = ((edgePickWork as { rowLines?: number }).rowLines ?? 0) - lines1;
                 const hoverEdgesMeasured = edgePickWork.measured + edgePickWork.fromRows - measured1;
 
+                // One requested frame: what a WebGPU read waits for.
+                const frameStart = performance.now();
+                await new Promise<void>((resolve) => {
+                    graph.scene.onAfterRenderObservable.addOnce(() => {
+                        resolve();
+                    });
+                    renderManagerOf(graph).requestFrame();
+                });
+                const frameMs = performance.now() - frameStart;
+
+                // A click at points no hover has read: on WebGPU it waits for the edge ID target's read. The code
+                // before this bench's fix has no `clickEdgeAt`; there a click ran `elementAt`'s pick.
+                const { clickEdgeAt } = picks as { clickEdgeAt?: (...args: unknown[]) => unknown };
+                const clickTimes: number[] = [];
+                let clickEdges = 0;
+                const lines2 = (edgePickWork as { rowLines?: number }).rowLines ?? 0;
+                for (const point of points.map((p) => ({ x: p.x + 0.5, y: p.y + 0.5 }))) {
+                    const start = performance.now();
+                    const got =
+                        clickEdgeAt === undefined
+                            ? element.elementAt(point)?.id
+                            : await clickEdgeAt(
+                                  graph.scene,
+                                  builtEdges,
+                                  point.x,
+                                  point.y,
+                                  (p: { x: number; y: number; z: number }) => graph.worldToScreen(p),
+                                  lines,
+                              );
+                    clickTimes.push(performance.now() - start);
+                    clickEdges += got === undefined ? 0 : 1;
+                }
+                const clickLines = ((edgePickWork as { rowLines?: number }).rowLines ?? 0) - lines2;
+
                 // A press where a hover's read has come back, as a click follows the pointer's move.
                 const restedTimes: number[] = [];
                 let restedLines = 0;
@@ -213,6 +264,27 @@ describe("edge pick cost", () => {
                     restedLines += ((edgePickWork as { rowLines?: number }).rowLines ?? 0) - before;
                 }
 
+                // A selection, then the next pick: what the edge ID target writes again for it.
+                const target = graph.getEdgeIdTarget() as { counts: { rowsWritten?: number } } | null;
+                const selectPoint = points.find((point) => element.elementAt(point)?.kind === "edge") ?? points[0];
+                const selected = element.elementAt(selectPoint)?.id;
+                const writtenBefore = target?.counts.rowsWritten ?? Number.NaN;
+                if (selected !== undefined) {
+                    await element.session.selection.apply({ edges: [selected as never] }, "replace", { cause: "user" });
+                }
+                await operationQueueOf(graph).waitForCompletion();
+                const selectStart = performance.now();
+                await (hoverEdgeAt as (...args: unknown[]) => unknown)(
+                    graph.scene,
+                    builtEdges,
+                    selectPoint.x,
+                    selectPoint.y,
+                    (p: { x: number; y: number; z: number }) => graph.worldToScreen(p),
+                    lines,
+                );
+                const afterSelectHoverMs = performance.now() - selectStart;
+                const rowsWrittenPerSelect = (target?.counts.rowsWritten ?? Number.NaN) - writtenBefore;
+
                 record({
                     bench: "edge-pick",
                     path,
@@ -231,6 +303,14 @@ describe("edge pick cost", () => {
                     hoverMedianMs: Number(median(hoverTimes).toFixed(3)),
                     hoverEdgesFound: hoverEdges,
                     hoverMaxMs: Number(Math.max(...hoverTimes).toFixed(3)),
+                    hoverMaxAt: largestAt(hoverTimes),
+                    frameMs: Number(frameMs.toFixed(2)),
+                    clickMedianMs: Number(median(clickTimes).toFixed(3)),
+                    clickMaxMs: Number(Math.max(...clickTimes).toFixed(3)),
+                    clickEdgesFound: clickEdges,
+                    clickRowLinesPerPick: clickLines / POINTS,
+                    afterSelectHoverMs: Number(afterSelectHoverMs.toFixed(3)),
+                    rowsWrittenPerSelect,
                     hoverRowLinesPerMove: hoverLines / POINTS,
                     hoverEdgeObjectsPerMove: hoverEdgesMeasured / POINTS,
                     edgeObjectsAfter: dataManagerInternals.edgesLive(manager),

@@ -346,7 +346,9 @@ const LineStyle = z.strictObject({
      */
     strands: z
         .strictObject({
+            /** The strands' CSS colors, separated by spaces, first on the right. */
             colors: z.string().optional(),
+            /** How far apart the strands' middles are, in the line's width units (unset, 1). */
             spacing: z.number().nonnegative().optional(),
         })
         .optional(),

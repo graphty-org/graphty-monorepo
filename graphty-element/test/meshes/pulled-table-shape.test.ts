@@ -6,6 +6,7 @@
 import { assert, describe, it } from "vitest";
 
 import { GraphtyError } from "../../src/errors/GraphtyError";
+import { curveShape, ROUTE_SPLIT } from "../../src/meshes/pulledCurve";
 import { tableShape } from "../../src/meshes/PulledLineBatch";
 
 /**
@@ -53,5 +54,32 @@ describe("tableShape", () => {
             codeOf(() => tableShape(1024, 16384, 2 ** 24 + 1)),
             "E_TOO_LARGE",
         );
+    });
+
+    it("holds a million curves, an entry of four texels each, on the smallest WebGL2 card", () => {
+        const { width, texels } = tableShape(1_000_000 * 4, 2048, 1_000_000);
+        assert.isAtMost(texels / width, 2048);
+        assert.isAtMost(width, 2048);
+    });
+
+    it("holds a million 65-point routes on an 8192 card, past what a float names", () => {
+        const { width, texels } = tableShape(65_000_000, 8192, 0);
+        assert.strictEqual(width, 8192);
+        assert.isAtMost(texels / width, 8192);
+    });
+
+    it("keeps every width a power of two on a card whose largest texture is not one", () => {
+        assert.deepStrictEqual(tableShape(1000, 600), { width: 512, texels: 1024 });
+    });
+});
+
+describe("curveShape", () => {
+    it("names a route texel past 2^24 exactly, in two floats", () => {
+        const route = 2 ** 24 + 3;
+        const [low, kind, high] = curveShape({ bends: [0.5, 0.1] } as never, route);
+        assert.strictEqual(kind, 8);
+        assert.strictEqual(high * ROUTE_SPLIT + low, route);
+        assert.strictEqual(Math.fround(low), low);
+        assert.strictEqual(Math.fround(high), high);
     });
 });

@@ -139,21 +139,32 @@ export const LEAN_TEMPLATE_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
  * piece each slot draws, four slots to a texel, so they draw in the object path's order; otherwise
  * (`edgeOrdered` 0) a slot draws the piece of its own number and the table is never read.
  */
+/**
+ * A GLSL function that reads texel `i` of a pulled batch's table at whatever width the batch made it, a power of two
+ * (`PulledLineBatch`'s `tableShape`), read from the texture itself. One function a table: WebGPU's GLSL takes no
+ * sampler as an argument.
+ * @param table - The table's sampler.
+ * @param name - The function's name.
+ * @returns The function.
+ */
+export function pulledTexelGlsl(table: string, name: string): string {
+    return `
+vec4 ${name}(int i) {
+    int width = textureSize(${table}, 0).x;
+    return texelFetch(${table}, ivec2(i & (width - 1), i >> findMSB(width)), 0);
+}
+`;
+}
+
 export const PULLED_ORDER_GLSL = `
 uniform float edgeOrdered;
 uniform highp sampler2D edgeOrder;
-
-// texel i of a pulled batch's table, at whatever width the batch made it (PulledLineBatch's tableShape)
-vec4 pulledTexel(highp sampler2D table, int i) {
-    int width = textureSize(table, 0).x;
-    return texelFetch(table, ivec2(i % width, i / width), 0);
-}
-
+${pulledTexelGlsl("edgeOrder", "pulledOrderTexel")}
 int pulledPiece(int slot) {
     if (edgeOrdered < 0.5) {
         return slot;
     }
-    vec4 order = pulledTexel(edgeOrder, slot >> 2);
+    vec4 order = pulledOrderTexel(slot >> 2);
     return int(dot(order, vec4(equal(ivec4(0, 1, 2, 3), ivec4(slot & 3)))) + 0.5);
 }
 `;
@@ -191,12 +202,12 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
  * pixel the line covers, a smoothstep of its distance from the center line: the smooth edge with no
  * multisampling and no discard. Its ends stay square at the node centers, under the nodes.
  *
- * A CURVE's piece (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its point along the
- * edge's cut path, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). Its six
- * points are points of that path, picked as `EdgeLineBatch.writeFlat` picks a run's neighbors (they
- * stop at the run's ends), and its run is zero: a solid line that does not taper never reads it (its
- * `perTotal` is 0 and the pattern branch is off). A piece at or past the span's last point draws
- * nothing, so an edge holds as many pieces as its longest cut.
+ * A CURVE's entry (`EDGE_PULLED_CURVE`) takes four texels, one per edge: the third and fourth hold the
+ * edge's span (`meshes/pulledCurve.ts`). The draw gives each entry `edgeStride` slots in a row, and slot j of
+ * them draws the path's piece j. Its six points are points of that path, picked as `EdgeLineBatch.writeFlat`
+ * picks a run's neighbors (they stop at the run's ends), and its run is zero: a solid line that does not taper
+ * never reads it (its `perTotal` is 0 and the pattern branch is off). A piece at or past the span's last point
+ * draws nothing.
  */
 /**
  * A straight pulled piece's ends at translucent rows (#8281): a body drawn under opacity 1 shows the line through it,
@@ -306,6 +317,8 @@ const vec3 JOIN_TEMPLATE[${String(JOIN_TEMPLATE_VERTICES)}] = vec3[${String(JOIN
 vec4 pulledRow(int r) {
     return texelFetch(rowPosition, ivec2(r & 1023, r >> 10), 0);
 }
+${pulledTexelGlsl("edgeRows", "pulledRowsTexel")}
+${pulledTexelGlsl("edgeHidden", "pulledHiddenTexel")}
 
 ${PULLED_ORDER_GLSL}
 #ifdef EDGE_PULLED_LEAN
@@ -319,6 +332,8 @@ const int CORNER_OF[PIECE_CORNERS] = int[PIECE_CORNERS](${JOIN_TEMPLATE_INDICES.
 #ifdef EDGE_PULLED_CURVE
 ${PULLED_CURVE_GLSL}
 
+// pieces the draw gives each curve: the most any of the batch's spans asks for (PulledLineBatch.stride)
+uniform float edgeStride;
 const int PIECE_TEXELS = 4;
 #else
 const int PIECE_TEXELS = 2;
@@ -328,11 +343,17 @@ ${PULLED_TRIM_GLSL}
 void pullEdge() {
     int slot = gl_VertexID / PIECE_CORNERS;
     position = JOIN_TEMPLATE[CORNER_OF[gl_VertexID - slot * PIECE_CORNERS]];
+#ifdef EDGE_PULLED_CURVE
+    // a curve's entry draws edgeStride pieces in a row: slot j of them is its piece j
+    int stride = max(int(edgeStride + 0.5), 1);
+    int j = slot % stride;
+    slot /= stride;
+#endif
     int piece = pulledPiece(slot);
     int texel = piece * PIECE_TEXELS;
-    vec4 head = pulledTexel(edgeRows, texel);
-    vec4 tint = pulledTexel(edgeRows, texel + 1);
-    vec4 hiddenFlags = pulledTexel(edgeHidden, piece >> 2);
+    vec4 head = pulledRowsTexel(texel);
+    vec4 tint = pulledRowsTexel(texel + 1);
+    vec4 hiddenFlags = pulledHiddenTexel(piece >> 2);
     // a hidden piece reads as a free one: its flag is the byte (piece & 3) of its texel
     vec2 rows = dot(hiddenFlags, vec4(equal(ivec4(0, 1, 2, 3), ivec4(piece & 3)))) > 0.5 ? vec2(-1.0) : head.xy;
     pieceWidth = head.z;
@@ -343,9 +364,8 @@ void pullEdge() {
         vec4 a = pulledRow(int(rows.x + 0.5));
         vec4 b = pulledRow(int(rows.y + 0.5));
 #ifdef EDGE_PULLED_CURVE
-        vec4 span = pulledTexel(edgeRows, texel + 2);
-        vec4 end = pulledTexel(edgeRows, texel + 3);
-        int j = int(tint.a + 0.5);
+        vec4 span = pulledRowsTexel(texel + 2);
+        vec4 end = pulledRowsTexel(texel + 3);
         int pieces = int(span.z + 0.5);
         if (a.w * b.w != 0.0 && j < pieces) {
             vec4 counts = vec4(span.xyz, end.w);

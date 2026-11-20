@@ -8,7 +8,10 @@
  * table passes 8192 lines of 1024 texels: before issue #9160 WebGL refused it (INVALID_VALUE) and
  * the curves drew nothing. Each row gives the time from adding the edges to the first stable frame,
  * the median of ten frames drawn after it, the GL errors, and the pixels inked, so a run before and
- * after a change shows both what it costs and whether it draws.
+ * after a change shows both what it costs and whether it draws. Each frame ends with a one-pixel read, so its time
+ * includes the GPU's work, not only its submission. The "mixed" row joins each node to its four nearest neighbors
+ * (short curves, 10 pieces) and one long chord (64): the batched path draws every curve with the most pieces any
+ * asks for, so this is where that costs most. Each row also gives the vertices the curve batch draws.
  */
 
 import "../../src/graphty-element";
@@ -20,17 +23,18 @@ import { readCanvas } from "../helpers/whole-canvas";
 
 const N = 2000;
 const SIZES = [
-    { label: "small", perNode: 1 },
-    { label: "medium", perNode: 5 },
-    { label: "large", perNode: 30 },
+    { label: "small", perNode: 1, near: 0 },
+    { label: "medium", perNode: 5, near: 0 },
+    { label: "large", perNode: 30, near: 0 },
+    { label: "mixed", perNode: 1, near: 4 },
 ] as const;
 const PATHS = ["objects", "batched"] as const;
 const FRAMES = 10;
 
 describe("curved edges", () => {
     for (const path of PATHS) {
-        for (const { label, perNode } of SIZES) {
-            it(`${label} (${String(N * perNode)} curves) on ${path}`, async () => {
+        for (const { label, perNode, near } of SIZES) {
+            it(`${label} (${String(N * (perNode + near))} curves) on ${path}`, async () => {
                 const element = document.createElement("graphty-element");
                 element.renderPath = path;
                 element.style.display = "block";
@@ -46,6 +50,10 @@ describe("curved edges", () => {
                 for (let i = 0; i < N; i++) {
                     for (let k = 0; k < perNode; k++) {
                         edges.push({ src: i, dst: (i + N / 2 - perNode + 2 * k) % N });
+                    }
+
+                    for (let k = 1; k <= near; k++) {
+                        edges.push({ src: i, dst: (i + k) % N });
                     }
                 }
 
@@ -68,15 +76,21 @@ describe("curved edges", () => {
                 const loadMs = performance.now() - start;
 
                 const { scene } = element.graph;
+                const gl = (element.graph.engine as unknown as { _gl?: WebGL2RenderingContext })._gl;
+                const pixel = new Uint8Array(4);
                 const times: number[] = [];
                 for (let f = 0; f < FRAMES; f++) {
                     const at = performance.now();
                     scene.render();
+                    // waits for the GPU to finish the frame
+                    gl?.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
                     times.push(performance.now() - at);
                 }
 
                 times.sort((a, b) => a - b);
-                const gl = (element.graph.engine as unknown as { _gl?: WebGL2RenderingContext })._gl;
+                const curveVertices = scene.meshes
+                    .filter((mesh) => mesh.name.endsWith("|curve"))
+                    .reduce((sum, mesh) => sum + (mesh.subMeshes[0]?.verticesCount ?? 0), 0);
                 const errors: number[] = [];
                 for (let e = gl?.getError(); e !== undefined && e !== 0 && errors.length < 10; e = gl?.getError()) {
                     errors.push(e);
@@ -99,6 +113,7 @@ describe("curved edges", () => {
                         curves: edges.length,
                         loadMs: Math.round(loadMs),
                         frameMedianMs: Number((times[FRAMES / 2] ?? 0).toFixed(2)),
+                        curveVertices,
                         glErrors: errors,
                         inked,
                     })}`,

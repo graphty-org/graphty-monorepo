@@ -38,7 +38,10 @@ const CONTROL_OFFSET = 0.3;
 const DENSITY = 8;
 
 /** The most and fewest pieces a curve is sampled with (`EDGE_CONSTANTS.BEZIER_MAX_SEGMENTS`, and `createBezierLine`'s 10). */
-const MAX_PIECES = 64;
+export const MAX_PIECES = 64;
+
+/** A route block's first texel is written as (texel % ROUTE_SPLIT, texel / ROUTE_SPLIT): see {@link curveShape}. */
+export const ROUTE_SPLIT = 65_536;
 const MIN_PIECES = 10;
 
 /** Where a curve's drawn path starts and stops, as {@link curveSpan} finds it. */
@@ -429,8 +432,9 @@ function along(src: Xyz, dst: Xyz, t: number): Xyz {
  * (its height first), 5 for a great-circle arc (its height first), or for a self-loop's teardrop (its controls'
  * mean x first) 6 plus its share k, under tan(pi / 5), 7 for a curve through a support point (its share along
  * first), 8 for a straight line through bends or a center arc (the texel its cut path starts at in the route table
- * first); where that
- * curve stops, a great-circle arc's angle, the teardrop's mean y, or the support point's share across), the last three
+ * first, modulo {@link ROUTE_SPLIT}); where that
+ * curve stops, a great-circle arc's angle, the teardrop's mean y, or the support point's share across; the routed
+ * texel over {@link ROUTE_SPLIT}), the last three
  * of a curve piece's fourth texel.
  * @param span - The span, or null.
  * @param route - For a routed path ({@link routed}), the route table texel its cut path starts at, one point to a texel.
@@ -438,7 +442,8 @@ function along(src: Xyz, dst: Xyz, t: number): Xyz {
  */
 export function curveShape(span: Shape | null, route = 0): [number, number, number] {
     if ((span?.bends ?? null) !== null) {
-        return [route, 8, 0];
+        // the block's first texel in two floats, as a float names every whole number only up to 2^24
+        return [route % ROUTE_SPLIT, 8, Math.floor(route / ROUTE_SPLIT)];
     }
 
     const loop = span?.loop ?? null;
@@ -469,7 +474,7 @@ export function curveShape(span: Shape | null, route = 0): [number, number, numb
     // a center arc is routed too: the shader's float32 sine and cosine put its points a last bit off the object
     // path's, which flips a multisample on its edge (#6392)
     if ((span?.turn ?? null) !== null) {
-        return [route, 8, 0];
+        return [route % ROUTE_SPLIT, 8, Math.floor(route / ROUTE_SPLIT)];
     }
 
     const bow = span?.bow ?? null;
@@ -875,9 +880,9 @@ vec3 pulledCurvePoint(vec3 src, vec3 dst, vec4 span, vec4 cut, int j) {
     if (cut.w > 7.5) {
         // a straight line through bends: its cut path's point j, read from the route table from texel cut.z, at the
         // width the batch made it (PulledLineBatch's tableShape)
-        int texel = int(cut.z + 0.5) + j;
+        int texel = int(cut.z + 0.5) + int(span.w + 0.5) * ${String(ROUTE_SPLIT)} + j;
         int width = textureSize(edgeRoutes, 0).x;
-        return texelFetch(edgeRoutes, ivec2(texel % width, texel / width), 0).xyz;
+        return texelFetch(edgeRoutes, ivec2(texel & (width - 1), texel >> findMSB(width)), 0).xyz;
     }
     if (abs(cut.w - 3.0) < 0.5) {
         // the lone curve between two points of the chord, where a gap moves an uncut curve's ends

@@ -634,6 +634,7 @@ void main(void) {
                     "dashA",
                     "dashB",
                     ...(options.pulled === true ? ["edgeOrdered"] : []),
+                    ...(options.pulled === true && options.pulledCurve === true ? ["edgeStride"] : []),
                     ...(widened ? ["edgeReach"] : []),
                     ...(fade === undefined ? [] : ["edgeFade"]),
                     ...(program?.uniforms ?? []),

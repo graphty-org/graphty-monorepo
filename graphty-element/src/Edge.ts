@@ -18,6 +18,7 @@ import {
 import { drawnText, labelTextOf, richTextLabelOptions } from "./config/RichTextStyle";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
+import { GraphtyError } from "./errors/GraphtyError";
 import type { Graph } from "./Graph";
 import { type EdgePosition, layoutEngineInternals } from "./layout/LayoutEngine";
 import type { LocationMapFrame } from "./layout/locationMap/place";
@@ -982,8 +983,8 @@ export class Edge {
         /** The look's name and visibility, as a batch of its own would carry them ({@link Edge.drawnLine}). */
         name: string;
         visibility: number;
-        /** A lone curve's further pieces, after `piece`: as many as its longest cut so far ({@link Edge.pullCurve}). */
-        run: number[] | null;
+        /** Whether `piece` is a curve batch's entry, whose span each placement writes ({@link Edge.pullCurve}). */
+        curve: boolean;
         /** The look its pieces are given, for the pieces a curve takes later. */
         look: { color: Color3; opacity: number; width: number };
         /** A curve's last span and the centers it was cut between, null while it draws nothing ({@link Edge.drawnCurve}). */
@@ -2244,8 +2245,7 @@ export class Edge {
         // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
         const pulls = this.wantsPull(style);
         const samePull =
-            pulls === (this.pulled !== null) &&
-            (this.pulled === null || (this.pulled.run !== null) === this.pullsCurve(style));
+            pulls === (this.pulled !== null) && (this.pulled === null || this.pulled.curve === this.pullsCurve(style));
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
         // from a batch of its own, so asking for another one rebuilds the line.
@@ -3008,7 +3008,7 @@ export class Edge {
      */
     private followRoute(): void {
         const style = this.drawnStyle;
-        if (this.pulled !== null && style !== null && (this.pulled.run !== null) !== this.pullsCurve(style)) {
+        if (this.pulled !== null && style !== null && this.pulled.curve !== this.pullsCurve(style)) {
             this.updateStyle();
         }
     }
@@ -3047,7 +3047,15 @@ export class Edge {
         if (animationSpeed) {
             look = { color: movingTexel(color), opacity, width: options.width / 40 };
         }
-        const piece = batch.acquire(look.width);
+        let piece: number;
+        try {
+            piece = batch.acquire(look.width);
+        } catch (error) {
+            // a batch the card cannot hold more of: this line is drawn as the object path draws it
+            this.refuseTooLarge(batch, error);
+            return null;
+        }
+
         batch.setLook(piece, look.color, look.opacity, look.width);
         if (animationSpeed) {
             batch.setSpeed(piece, animationSpeed);
@@ -3056,7 +3064,7 @@ export class Edge {
         const curve = this.pullsCurve(style);
         if (curve) {
             // nothing drawn until the first placement writes the span
-            batch.setCurve(piece, 0, null);
+            batch.setCurve(piece, null);
         }
 
         pulledLines.version++;
@@ -3068,7 +3076,7 @@ export class Edge {
             drawn: true,
             name: `edge-style-${options.styleId}-pulled`,
             visibility: Math.min(opacity, 1),
-            run: curve ? [] : null,
+            curve,
             look,
         };
         this.pullRows();
@@ -3088,7 +3096,7 @@ export class Edge {
      * @param dst - The target node's center.
      */
     private pullCurve(src: Vector3, dst: Vector3): void {
-        if ((this.pulled?.run ?? null) === null) {
+        if (this.pulled?.curve !== true) {
             return;
         }
 
@@ -3155,28 +3163,41 @@ export class Edge {
     }
 
     /**
-     * Write a pulled curve's span to its pieces, taking more while the span needs more than they hold.
+     * Write a pulled curve's span to its entry, and its routed path's points to the batch's route table. Past what the
+     * card can hold, the curve draws nothing and the graph says so once ({@link Edge.refuseTooLarge}).
      * @param span - The span, or null to draw nothing.
      * @param src - The source center it was cut between.
      * @param dst - The target center.
      */
     private pullSpan(span: CurveSpan | null, src: Vector3, dst: Vector3): void {
         const { pulled } = this;
-        const run = pulled?.run ?? null;
-        if (pulled === null || run === null) {
+        if (pulled?.curve !== true) {
             return;
         }
 
         pulled.path = span === null ? null : { src: src.clone(), dst: dst.clone(), span };
 
-        const { batch, look } = pulled;
-        while (run.length + 1 < (span?.pieces ?? 0)) {
-            const piece = batch.acquire(look.width);
-            batch.setLook(piece, look.color, look.opacity, look.width);
-            batch.setRows(piece, pulled.source, pulled.target);
-            run.push(piece);
+        const { batch } = pulled;
+        try {
+            this.writeSpan(pulled, span, src, dst);
+        } catch (error) {
+            this.refuseTooLarge(batch, error);
+            batch.releaseRoute(pulled.route?.at ?? -1);
+            pulled.route = null;
+            pulled.path = null;
+            batch.setCurve(pulled.piece, null);
         }
+    }
 
+    /**
+     * {@link Edge.pullSpan}'s writes, which throw `E_TOO_LARGE` past what the card can hold.
+     * @param pulled - The pulled curve.
+     * @param span - The span, or null.
+     * @param src - The source center.
+     * @param dst - The target center.
+     */
+    private writeSpan(pulled: NonNullable<Edge["pulled"]>, span: CurveSpan | null, src: Vector3, dst: Vector3): void {
+        const { batch } = pulled;
         const kept = pulled.route ?? null;
         // a routed path's points themselves (a line through bends' ends and bends, a center arc's cut samples), placed in
         // doubles as the object path places them, so the card draws the very points the object path does
@@ -3195,10 +3216,24 @@ export class Edge {
             pulled.route = { at: batch.writeRoute(kept?.at ?? -1, points), points };
         }
         const at = pulled.route?.at ?? 0;
-        batch.setCurve(pulled.piece, 0, span, at);
-        run.forEach((piece, i) => {
-            batch.setCurve(piece, i + 1, span, at);
-        });
+        batch.setCurve(pulled.piece, span, at);
+    }
+
+    /**
+     * Say once a pulled batch, or its route table, is past what the card can hold: the graph's `error` event, with
+     * `E_TOO_LARGE`. The edge that asked is drawn another way or not at all; the caller decides which.
+     * @param batch - The batch.
+     * @param error - What it threw: anything but `E_TOO_LARGE` is thrown on.
+     */
+    private refuseTooLarge(batch: PulledLineBatch, error: unknown): void {
+        if (!(error instanceof GraphtyError) || error.code !== "E_TOO_LARGE") {
+            throw error;
+        }
+
+        if (!batch.refusalReported) {
+            batch.refusalReported = true;
+            this.context.getEventManager?.()?.emitGraphError(this.context, error, "other", { ...error.details });
+        }
     }
 
     /**
@@ -3220,9 +3255,6 @@ export class Edge {
         const target = pulled.drawn ? this.endRow("target") : -1;
         if (source !== pulled.source || target !== pulled.target) {
             pulled.batch.setRows(pulled.piece, source, target);
-            for (const piece of pulled.run ?? []) {
-                pulled.batch.setRows(piece, source, target);
-            }
 
             pulled.source = source;
             pulled.target = target;
@@ -3247,7 +3279,7 @@ export class Edge {
      * @internal
      */
     get followsRows(): boolean {
-        return this.pulled !== null && this.pulled.run === null && this.route === "straight";
+        return this.pulled !== null && !this.pulled.curve && this.route === "straight";
     }
 
     /**
@@ -3322,9 +3354,6 @@ export class Edge {
     private releaseLine(): void {
         if (this.pulled) {
             this.pulled.batch.release(this.pulled.piece);
-            for (const piece of this.pulled.run ?? []) {
-                this.pulled.batch.release(piece);
-            }
 
             this.pulled.batch.releaseRoute(this.pulled.route?.at ?? -1);
 

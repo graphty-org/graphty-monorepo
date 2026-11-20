@@ -16,7 +16,7 @@ import {
 import { markEdgeLineBatchMesh } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
 import { takePoolReserve } from "./poolReserve";
-import { curveShape, type CurveSpan } from "./pulledCurve";
+import { curveShape, type CurveSpan, MAX_PIECES } from "./pulledCurve";
 
 /**
  * @file Straight edges drawn from the row table: a piece is two row numbers, not twenty floats.
@@ -34,9 +34,12 @@ import { curveShape, type CurveSpan } from "./pulledCurve";
  * share one batch and one draw (stage 19): a thousand colors are one draw, not a thousand.
  *
  * A CURVE batch (stage 21, `EDGE_PULLED_CURVE`) draws curves (`line.bezier`), lone or fanned out of a
- * bundle: an edge takes a run of pieces, each naming its point along the cut path, and the shader works out
- * the path from the two rows' places and the span the edge writes (`meshes/pulledCurve.ts`). Its pieces
- * take two more texels: (samples, first, pieces, startAt), then (endAt, bow, 1 for a fanned arc, unused).
+ * bundle: an edge takes ONE entry, its rows, its look and its span, two texels more than a straight piece's:
+ * (samples, first, pieces, startAt), then (endAt and the shape, `curveShape`). The draw gives every entry
+ * {@link PulledLineBatch.stride} pieces, the most any of its curves has asked for, and the shader works out
+ * piece j's place along the cut path from the two rows' places and the span (`meshes/pulledCurve.ts`); a piece
+ * past its own curve's draws nothing. An entry per edge, not per piece, keeps a million long curves (64 pieces
+ * each) to 64 MB and a 2048 x 2048 table, inside every WebGL2 card (#9160).
  *
  * A curve batch also keeps a ROUTE TABLE (`edgeRoutes`) for lines through bends (`line.bends`): an edge's
  * cut path, its ends and the bends between, one (x, y, z) to a texel, in a block of its own that its span names
@@ -74,15 +77,46 @@ export type LeanLines = boolean | "smooth";
 /**
  * Texels across a table at first, as across the row table. A table taller than the card allows (`maxTextureSize`) is
  * made wider instead, a power of two at a time: texel `i` is at `(i % width, i / width)`, and the shaders read the
- * width from the texture itself (`pulledTexel`), so the CPU copy is the same at any width.
+ * width from the texture itself (`pulledTexelGlsl`), so the CPU copy is the same at any width.
  */
 const TABLE_WIDTH = 1024;
 
 /**
- * The most entries a table may name: the draw order table and a curve's span name pieces and route texels as floats,
- * which count every whole number only up to 2^24.
+ * The most entries a table may name: the draw order table names entries as floats, which count every whole number
+ * only up to 2^24. A curve's span names its route block in two floats ({@link ROUTE_SPLIT}), so the route table
+ * has no such limit.
  */
 const MOST_ENTRIES = 2 ** 24;
+
+/** The most vertices one draw may ask for: `drawArrays` takes a signed 32-bit count. */
+const MOST_VERTICES = 2 ** 31 - 1;
+
+/**
+ * Routes of at most this many points take a block of the next power of two, so a path a point longer
+ * keeps its block; longer ones take exactly what they need, which keeps a million 65-point center arcs
+ * (65 million texels) inside one 8192 x 8192 table.
+ */
+const ROUTE_ROUNDED = 32;
+
+/**
+ * The refusal of a table the card cannot hold, or a draw it cannot make.
+ * @param texels - Texels the table would hold.
+ * @param most - The card's `maxTextureSize`.
+ * @param entries - Entries it would name.
+ * @param mostEntries - The most it may name.
+ * @returns The `E_TOO_LARGE` error.
+ */
+function tooLargeError(texels: number, most: number, entries: number, mostEntries: number): GraphtyError {
+    return new GraphtyError({
+        code: "E_TOO_LARGE",
+        source: "view",
+        message:
+            `An edge table of ${texels.toLocaleString("en-US")} texels and ${entries.toLocaleString("en-US")} entries ` +
+            `does not fit what one ${most.toLocaleString("en-US")} x ${most.toLocaleString("en-US")} texture and one draw hold. ` +
+            "Draw fewer edges.",
+        details: { texels, maxTextureSize: most, entries, mostEntries },
+    });
+}
 
 /**
  * The shape of a table that holds at least `texels` texels on a card whose textures are at most `most` a side.
@@ -93,28 +127,22 @@ const MOST_ENTRIES = 2 ** 24;
  * @throws GraphtyError `E_TOO_LARGE` when no table the card can hold has room.
  */
 export function tableShape(texels: number, most: number, entries = texels): { width: number; texels: number } {
-    let width = Math.min(TABLE_WIDTH, most);
-    while (width < most && Math.ceil(texels / width) > most) {
+    // a power of two, which the shaders split a texel number by with a mask and a shift
+    let width = Math.min(TABLE_WIDTH, 2 ** Math.floor(Math.log2(most)));
+    while (width * 2 <= most && Math.ceil(texels / width) > most) {
         width *= 2;
     }
 
     if (Math.ceil(texels / width) > most || entries > MOST_ENTRIES) {
-        throw new GraphtyError({
-            code: "E_TOO_LARGE",
-            source: "view",
-            message:
-                `An edge table of ${texels.toLocaleString("en-US")} texels does not fit in one ` +
-                `${most.toLocaleString("en-US")} x ${most.toLocaleString("en-US")} texture. Draw fewer or shorter curved edges.`,
-            details: { texels, maxTextureSize: most, entries, mostEntries: MOST_ENTRIES },
-        });
+        throw tooLargeError(texels, most, entries, MOST_ENTRIES);
     }
 
     return { width, texels: Math.ceil(texels / width) * width };
 }
 
 /**
- * Texels a piece takes: (source row, target row, width, opacity), then (red, green, blue, point);
- * a curve's piece two more (see the file comment).
+ * Texels an entry takes: (source row, target row, width, opacity), then (red, green, blue, speed);
+ * a curve's two more (see the file comment).
  */
 const TEXELS_PER_PIECE = 2;
 const TEXELS_PER_CURVE_PIECE = 4;
@@ -285,6 +313,21 @@ export class PulledLineBatch {
     /** Floats a piece takes in the table. */
     private readonly pieceFloats: number;
 
+    /** Whether this is a curve batch, whose entries each draw {@link PulledLineBatch.stride} pieces. */
+    private readonly curve: boolean;
+
+    /**
+     * Pieces the draw gives each entry of a curve batch: the most any span written to it has asked for, never fewer
+     * than 1. It only grows, as an edge's run of pieces used to.
+     */
+    private piecesEach = 1;
+
+    /**
+     * Whether a write past what the card can hold has been reported (`Edge.refuseTooLarge`): once a batch is enough.
+     * @internal
+     */
+    refusalReported = false;
+
     /**
      * Start a batch on a joined line mesh made with `pulled: true`.
      * @param mesh - The mesh (`CustomLineRenderer.createJoinedLineMesh`), parented as the rows'
@@ -317,6 +360,7 @@ export class PulledLineBatch {
         this.mesh = mesh;
         const texels = curve ? TEXELS_PER_CURVE_PIECE : TEXELS_PER_PIECE;
         this.pieceFloats = texels * TEXEL_FLOATS;
+        this.curve = curve;
         markEdgeLineBatchMesh(mesh);
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;
@@ -385,6 +429,14 @@ export class PulledLineBatch {
      */
     get drawnCount(): number {
         return this.highWater;
+    }
+
+    /**
+     * Pieces the draw gives each entry: the most a curve's span has asked for, 1 in a straight batch.
+     * @returns The count.
+     */
+    get stride(): number {
+        return this.piecesEach;
     }
 
     /**
@@ -492,7 +544,7 @@ export class PulledLineBatch {
 
     /**
      * Give an animated line's piece its speed, a multiple of the element's own pace (`pulledAnimatedLine.ts`), in the
-     * slot a straight piece leaves unused.
+     * slot a plain piece leaves unused.
      * @param piece - The piece.
      * @param speed - Its `line.animationSpeed`.
      */
@@ -502,16 +554,26 @@ export class PulledLineBatch {
     }
 
     /**
-     * Give a curve batch's piece its point along its edge's cut path and the edge's span: written when
-     * the edge is placed, which its nodes moving does, but never more than its own pieces.
-     * @param piece - The piece.
-     * @param point - Which piece of the path it draws: from point `point` to `point + 1`.
+     * Give a curve batch's entry its edge's span: written when the edge is placed, which its nodes moving does. The
+     * draw gives every entry as many pieces as the longest span asks for ({@link PulledLineBatch.stride}).
+     * @param piece - The entry.
      * @param span - The span (`curveSpan`), or null to draw nothing.
-     * @param route - For a line through bends, its block in the route table ({@link PulledLineBatch.writeRoute}).
+     * @param route - For a routed path, its block in the route table ({@link PulledLineBatch.writeRoute}).
      */
-    setCurve(piece: number, point: number, span: CurveSpan | null, route = 0): void {
+    setCurve(piece: number, span: CurveSpan | null, route = 0): void {
         const at = piece * this.pieceFloats;
-        this.rows[at + 7] = point;
+        const pieces = span?.pieces ?? 0;
+        if (pieces > this.piecesEach) {
+            // a line through many bends may ask for more than a curve's most: only while one draw still reaches it
+            const corners = this.template.indices.length;
+            if (this.rows.length / this.pieceFloats > Math.floor(MOST_VERTICES / (corners * pieces))) {
+                throw tooLargeError(this.rows.length / TEXEL_FLOATS, this.mostTexture(), this.highWater, MOST_ENTRIES);
+            }
+
+            this.piecesEach = pieces;
+            this.setCount();
+        }
+
         this.rows[at + 8] = span?.samples ?? 0;
         this.rows[at + 9] = span?.first ?? 0;
         this.rows[at + 10] = span?.pieces ?? 0;
@@ -529,7 +591,7 @@ export class PulledLineBatch {
      */
     writeRoute(at: number, points: readonly number[]): number {
         const count = points.length / 3;
-        const size = 2 ** Math.ceil(Math.log2(Math.max(1, count)));
+        const size = count > ROUTE_ROUNDED ? count : 2 ** Math.ceil(Math.log2(Math.max(1, count)));
         let block = at;
         if (at < 0 || (this.routeSizes.get(at) ?? 0) < size) {
             this.releaseRoute(at);
@@ -577,9 +639,12 @@ export class PulledLineBatch {
         let block = this.freeRoutes.get(size)?.pop();
         if (block === undefined) {
             block = this.routeHighWater;
-            this.routeHighWater += size;
-            while (this.routes !== null && this.routeHighWater * TEXEL_FLOATS > this.routes.length) {
-                const { width, texels } = this.shape((this.routes.length / TEXEL_FLOATS) * 2);
+            const highWater = block + size;
+            while (this.routes !== null && highWater * TEXEL_FLOATS > this.routes.length) {
+                // doubled, but no more than the card's largest texture holds unless the block needs it: then E_TOO_LARGE,
+                // before anything is handed out
+                const doubled = Math.min((this.routes.length / TEXEL_FLOATS) * 2, this.mostTexture() ** 2);
+                const { width, texels } = this.shape(Math.max(doubled, highWater), 0);
                 this.routeWidth = width;
                 const grown = new Float32Array(texels * TEXEL_FLOATS);
                 grown.set(this.routes);
@@ -589,6 +654,8 @@ export class PulledLineBatch {
                 this.routesFirst = -1;
                 this.routesLast = -1;
             }
+
+            this.routeHighWater = highWater;
         }
 
         this.routeSizes.set(block, size);
@@ -831,9 +898,16 @@ export class PulledLineBatch {
         const doubled = (this.rows.length / this.pieceFloats) * 2;
         const reserved = this.highWater + takePoolReserve(this.scene, "lines");
         const texels = this.pieceFloats / TEXEL_FLOATS;
-        // the most pieces the card's largest texture holds: past them, a table of the most, and E_TOO_LARGE once full
-        const most = Math.min(this.mostTexture() ** 2 / texels, MOST_ENTRIES);
-        const wanted = this.highWater < most ? Math.min(Math.max(doubled, reserved), most) : this.highWater + 1;
+        // the most entries the card's largest texture holds, the draw order names and one draw reaches: past them, a
+        // table of the most, and E_TOO_LARGE once full
+        const corners = Math.max(this.template.indices.length, LEAN_TEMPLATE.indices.length);
+        const reach = Math.floor(MOST_VERTICES / (corners * (this.curve ? MAX_PIECES : 1)));
+        const most = Math.min(Math.floor(this.mostTexture() ** 2 / texels), MOST_ENTRIES, reach);
+        if (this.highWater >= most) {
+            throw tooLargeError(this.highWater * texels, this.mostTexture(), this.highWater + 1, most);
+        }
+
+        const wanted = Math.min(Math.max(doubled, reserved), most);
         const shape = this.shape(wanted * texels, wanted);
         this.tableWidth = shape.width;
         const pieces = shape.texels / texels;
@@ -940,7 +1014,10 @@ export class PulledLineBatch {
         const [subMesh] = this.mesh.subMeshes;
         subMesh.verticesStart = 0;
         const corners = this.lean ? LEAN_TEMPLATE.indices.length : this.template.indices.length;
-        subMesh.verticesCount = this.highWater * corners;
+        subMesh.verticesCount = this.highWater * this.piecesEach * corners;
+        if (this.curve) {
+            (this.mesh.material as ShaderMaterial | null)?.setFloat("edgeStride", this.piecesEach);
+        }
         subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
     }
 }

@@ -7642,8 +7642,9 @@ export class Graph implements GraphContext {
      * @remarks
      * This waits for the operation QUEUE -- data loading, layout changes, algorithm runs -- and
      * for nothing else. When it resolves, everything asked for has been carried out; the layout
-     * may still be running and the camera may still be moving, because neither of those is a
-     * queued operation.
+     * may still be running, the camera may still be moving, and a picture -- a background image,
+     * a node's image or 3D model -- may still be loading, because none of those is a queued
+     * operation.
      *
      * For a picture that will not change again -- a screenshot, a video frame, a visual
      * regression snapshot -- wait for {@link Graph.waitForStableFrame} instead, which waits for
@@ -7666,9 +7667,9 @@ export class Graph implements GraphContext {
      * await graph.waitForSettled();
      * graph.zoomToFit();
      *
-     * // Wait before taking a screenshot
+     * // Wait for the finished picture -- pictures loaded, layout at rest -- before a screenshot
      * await graph.setLayout('circular');
-     * await graph.waitForSettled();
+     * await graph.waitForStableFrame();
      * const screenshot = await graph.captureScreenshot();
      *
      * // Chain operations with settle

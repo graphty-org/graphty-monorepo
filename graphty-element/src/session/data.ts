@@ -4124,6 +4124,17 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * The id space and key of a node in the graph, by its id.
+     * @param id - The node's id.
+     * @returns The reference, or null for an id no node holds.
+     */
+    nodeRef(id: NodeId): SourceNodeRef | null {
+        this.requireSteps("nodeRef");
+        const node = this.stepsBuild().result.nodes.get(String(id));
+        return node === undefined ? null : { space: node.space, key: node.key };
+    }
+
+    /**
      * Dispatch one act on the sources and steps, as one undoable step.
      * @param verb - The door, for a refusal.
      * @param act - The act.

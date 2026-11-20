@@ -6592,6 +6592,7 @@ export interface SessionDataApi {
         readonly columns: readonly PageColumn[];
     };
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
+    nodeRef(id: NodeId_2): SourceNodeRef | null;
     nodes(options?: {
         readonly scope?: "graph" | "visible";
     }): readonly NodeRecord[];

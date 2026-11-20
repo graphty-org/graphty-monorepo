@@ -2851,6 +2851,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             types: READ,
             edits: READ,
             ref: READ,
+            nodeRef: READ,
             stage: SOURCE_STEPS_WRITE,
             declareType: SOURCE_STEPS_WRITE,
             removeEdit: SOURCE_STEPS_WRITE,

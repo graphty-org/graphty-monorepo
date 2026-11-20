@@ -1652,6 +1652,20 @@ export interface SessionDataApi {
      */
     ref(key: string, options?: { readonly space?: string }): SourceNodeRef | null;
     /**
+     * The id space and key of a node in the graph, by its id: what a join on the node's type, or a
+     * reader edit naming it, takes. The inverse of {@link SessionDataApi.ref}.
+     *
+     * ```ts
+     * const at = session.data.nodeRef(session.selection.nodes[0]);
+     * // { space: "person", key: "B1" }
+     * ```
+     * @param id - The node's id, as `nodes()` lists it.
+     * @returns The reference, or null for an id no node holds.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    nodeRef(id: NodeId): SourceNodeRef | null;
+    /**
      * Merge: fold each node of a source into the node its field names, as one undoable step. A
      * staged source is added in its own space first. Its values meet the nodes' under `clash`
      * (default `"keep"`).

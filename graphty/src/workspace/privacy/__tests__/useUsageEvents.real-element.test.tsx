@@ -435,23 +435,19 @@ describe("usage counts from the real element", () => {
             provenance: { via: "assistant" },
         });
         assert.strictEqual(session.history.steps.at(-1)?.provenance.via, "assistant");
-        const entries: JournalEntry[] = [];
-        const off = session.on("journal:appended", ({ entry }) => {
-            entries.push(entry);
-        });
-        // 3D while already in 3D: the element writes the entry and records no step.
+        // 3D while already in 3D changes nothing and records no step, so it sends nothing; the
+        // first view_mode after it is the 2D switch, the reader's own.
         const switched = next("view_mode");
+        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+        await userEvent.click(within(toolbar).getByRole("button", { name: "Mode, 3D" }));
         await userEvent.click(
-            within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", { name: "Mode, 3D" }),
+            within(await screen.findByRole("menu", { name: /^Mode/ })).getByRole("menuitemradio", { name: /^3D/ }),
         );
-        const menu = await screen.findByRole("menu", { name: /^Mode/ });
-        await userEvent.click(within(menu).getByRole("menuitemradio", { name: /^3D/ }));
-        assert.deepEqual({ ...(await switched) }, { mode: "3d" });
-        off();
-        assert.deepEqual(
-            entries.map(({ command, step }) => [command.op, step]),
-            [["view.dimension", undefined]],
+        await userEvent.click(within(toolbar).getByRole("button", { name: "Mode, 3D" }));
+        await userEvent.click(
+            within(await screen.findByRole("menu", { name: /^Mode/ })).getByRole("menuitemradio", { name: /^2D/ }),
         );
+        assert.deepEqual({ ...(await switched) }, { mode: "2d" });
         sendsNone("SECRET_TURN", "SECRET_AUTHOR");
     });
 
@@ -755,7 +751,7 @@ describe("usage counts from the real element", () => {
         assert.include(["1-100", "101-1k", "1k-10k", "10k+"], ownProps.size);
         await projectElement();
 
-        // Kept in this browser under a name, then reopened from Recent projects.
+        // Kept in this browser under a name, then reopened from Recent projects: "browser", where it is kept.
         await userEvent.keyboard("{Control>}s{/Control}");
         const save = await screen.findByRole("dialog", { name: /^Save .* as$/ });
         await userEvent.clear(within(save).getByRole("textbox", { name: "Name" }));
@@ -795,7 +791,7 @@ describe("usage counts from the real element", () => {
         assert.notInclude(actionOps().slice(actionsBefore), "config.set");
         // The open set the place and page itself: no panel the reader opened.
         assert.lengthOf(sent("panel_opened").posthog, panelsBefore);
-        assert.deepEqual(sent("project_reopened").counted, [{ from: "recent" }]);
+        assert.deepEqual(sent("project_reopened").counted, [{ from: "browser" }]);
         assert.lengthOf(sent("own_file_opened").posthog, 2, "the TSV and the dropped project file, not the reopen");
         sendsNone("SECRET_PROJECT_FILE", "SECRET_LAYER", "SECRET_GENES", "SECRET_SAVED");
     });

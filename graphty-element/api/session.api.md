@@ -5918,7 +5918,6 @@ export interface ScreenshotPreset {
     readonly enhanceQuality?: boolean;
     readonly format: "png" | "jpeg" | "webp";
     readonly height?: number;
-    // (undocumented)
     readonly id: ScreenshotPresetId;
     readonly multiplier?: number;
     readonly quality?: number;
@@ -7948,7 +7947,6 @@ export type TimeResultsPolicy = "keep" | "stale" | "rerun";
 
 // @beta
 export interface TimeSeries {
-    // (undocumented)
     readonly rows: readonly TimeSeriesRow[];
 }
 
@@ -7966,16 +7964,11 @@ export interface TimeSeriesOptions {
 
 // @beta
 export interface TimeSeriesRow {
-    // (undocumented)
     readonly entered: TimeCountPair;
-    // (undocumented)
     readonly from: number;
-    // (undocumented)
     readonly left: TimeCountPair;
-    // (undocumented)
     readonly to: number;
     readonly values: Readonly<Record<string, number | null>>;
-    // (undocumented)
     readonly visible: TimeCountPair;
 }
 

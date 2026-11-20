@@ -154,6 +154,25 @@ describe("settled sizes, labels and order", () => {
         expect(values("node", "drawOrder")).toEqual([0, 50, 100]);
     });
 
+    it("stacks Cytoscape's nodes by their stored z, then in file order", async () => {
+        const node = (id: string, z: number): string =>
+            `<node id="${id}" label="${id}"><graphics type="ELLIPSE" x="0" y="0" z="${String(z)}"/></node>`;
+        const xgmml = `<?xml version="1.0"?>
+<graph id="g" label="g" xmlns="http://www.cs.rpi.edu/XGMML" xmlns:cy="http://www.cytoscape.org">
+${node("a", 2)}${node("b", 0)}${node("c", 1)}${node("d", 1)}
+</graph>`;
+        const { values } = await load(xgmml, "xgmml");
+        expect(values("node", "drawOrder")).toEqual([100, 0, 33, 67]);
+    });
+
+    it("stacks Cytoscape.js's nodes by z-index, then in element order", async () => {
+        const doc = JSON.stringify({
+            elements: { nodes: [{ data: { id: "a" } }, { data: { id: "b" } }, { data: { id: "c" } }], edges: [] },
+            style: [{ selector: "#a", style: { "z-index": 5 } }],
+        });
+        expect((await load(doc, "json")).values("node", "drawOrder")).toEqual([100, 0, 50]);
+    });
+
     it("places Cytoscape.js's outside labels by their words", async () => {
         const doc = JSON.stringify({
             elements: { nodes: [{ data: { id: "a", label: "A" } }], edges: [] },

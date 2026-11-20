@@ -16,7 +16,7 @@ import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
-import { screen, waitFor, within } from "../../../test/test-utils";
+import { cleanup, screen, waitFor, within } from "../../../test/test-utils";
 import { openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 /** The node tab's sections, in the design's order. */
@@ -193,9 +193,20 @@ describe("Style panel v2's '+' lists", () => {
         for (const plus of pop.querySelectorAll("[data-plus]")) {
             assert.isNotNull(plus.closest('[data-plus-list="group"]'), "a pop-over's '+' is in a group list");
         }
-        const main = pop.querySelector<HTMLElement>('[data-plus-list="group"]');
-        assert.isNotNull(main);
-        await onlyPlusAdds(session, main, "Shape's Main");
+        // Every group the pop-over opens with, each found again by its title as a "+" may redraw the pop-over.
+        const groupTitle = (group: Element): string =>
+            group.querySelector('[data-testid="control-group-label"]')?.textContent ?? "";
+        const titles = [...pop.querySelectorAll('[data-plus-list="group"]')].map(groupTitle);
+        assert.isNotEmpty(titles, "Shape's pop-over has groups");
+        for (const title of titles) {
+            const group = [
+                ...document.querySelectorAll<HTMLElement>('[data-thing-popover] [data-plus-list="group"]'),
+            ].find((each) => groupTitle(each) === title);
+            assert.isDefined(group, `Shape's ${title} group`);
+            if (group !== undefined) {
+                await onlyPlusAdds(session, group, `Shape's ${title}`);
+            }
+        }
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(document.querySelector("[data-thing-popover]"));
@@ -214,6 +225,25 @@ describe("Style panel v2's '+' lists", () => {
         });
         if (slices !== undefined) {
             await onlyPlusAdds(session, slices, "Pie's slices");
+        }
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector("[data-thing-popover]"));
+        });
+
+        // A points list: Inner lines opens its pop-over on its lines.
+        const border = sectionOf(tab, "node-border");
+        await userEvent.click(within(border).getByRole("button", { name: "Add to node border" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Inner lines" }));
+        const lines = await waitFor(() => {
+            const found = [
+                ...document.querySelectorAll<HTMLElement>('[data-thing-popover] [data-plus-list="group"]'),
+            ].find((each) => each.querySelector('[data-testid="control-group-label"]')?.textContent === "Lines");
+            assert.isDefined(found);
+            return found;
+        });
+        if (lines !== undefined) {
+            await onlyPlusAdds(session, lines, "Inner lines' lines");
         }
     });
 
@@ -252,9 +282,21 @@ describe("Style panel v2's '+' lists", () => {
             });
             assert.equal(layersNow(session), before, "collapsing writes nothing to the project");
             assert.equal(localStorage.getItem(key), "collapsed", "kept as the reader's own");
+            const { text } = await session.project.save({ markSaved: false });
+            assert.notInclude(text, "styleSectionCollapsed", "the saved project holds no collapse");
+            assert.notInclude(text, "collapsed", "the saved project holds no collapse");
+
+            // The workspace mounted again: still collapsed.
+            cleanup();
+            const again = await openProject();
+            const reopened = sectionOf(await openStyle("Key people"), "node-fill");
+            await waitFor(() => {
+                const content = reopened.querySelector<HTMLElement>('[data-testid="control-section-content"]');
+                assert.isTrue(content?.hidden, "still collapsed after the workspace mounts again");
+            });
 
             // Another layer: still collapsed.
-            await session.styles.add({
+            await again.session.styles.add({
                 name: "Others",
                 target: "node",
                 selector: { match: "everything" },
@@ -272,7 +314,7 @@ describe("Style panel v2's '+' lists", () => {
         }
     });
 
-    it("a collapsed section stays collapsed when the workspace mounts again, and its '+' opens it", async () => {
+    it("a collapsed section's '+' opens it", async () => {
         const key = "graphty.styleSectionCollapsed.v1:node:fill";
         localStorage.setItem(key, "collapsed");
         try {
@@ -284,7 +326,7 @@ describe("Style panel v2's '+' lists", () => {
                 assert.isNotNull(found);
                 return found;
             });
-            assert.isTrue(content.hidden, "collapsed after a remount");
+            assert.isTrue(content.hidden, "collapsed as the reader left it");
             await userEvent.click(within(fill).getByRole("button", { name: "Add to node fill" }));
             await waitFor(() => {
                 assert.isFalse(content.hidden, "its '+' opens it");

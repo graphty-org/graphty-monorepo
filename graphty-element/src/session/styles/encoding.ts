@@ -1168,15 +1168,15 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
  * What it paints is read through a function rather than one value: {@link PreparedBinding.paint}
  * is handed `(path) => value` for the element, because a template reads several paths.
  * @param descriptor - The channel.
- * @param template - The lines, as authored.
+ * @param binding - The template binding: its lines, as authored, and its number format.
  * @param options - Everything preparing it was given, for the columns `|count` and `|rank` read.
  * @returns The prepared binding.
- * @throws A `GraphtyError` with code `E_BAD_LAYER` for a channel that is not a text channel, or
- *   a template that does not parse.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` for a channel that is not a text channel, a
+ *   template that does not parse, or a format `Intl.NumberFormat` refuses.
  */
 function prepareTemplateBinding(
     descriptor: ChannelDescriptor,
-    template: unknown,
+    binding: Extract<Binding, { template: readonly string[] }>,
     options: PrepareBindingOptions,
 ): PreparedBinding {
     if (!TEMPLATE_CHANNELS.includes(descriptor.channel)) {
@@ -1186,7 +1186,11 @@ function prepareTemplateBinding(
         });
     }
 
-    const text = prepareTemplate(parseTemplate(template), (path) => options.columnOf?.(path) ?? []);
+    const text = prepareTemplate(
+        parseTemplate(binding.template),
+        (path) => options.columnOf?.(path) ?? [],
+        numberWriter(descriptor, binding.format),
+    );
     const paint = (read: unknown): EncodedValue | undefined =>
         typeof read === "function" ? text(read as (path: Path) => unknown) : undefined;
 
@@ -2312,7 +2316,7 @@ export function prepareBinding(options: PrepareBindingOptions): PreparedBinding 
     const { binding } = options;
 
     if ("template" in binding) {
-        return prepareTemplateBinding(descriptor, binding.template, options);
+        return prepareTemplateBinding(descriptor, binding, options);
     }
 
     return "value" in binding ? prepareLiteral(descriptor, binding) : prepareRule(descriptor, binding, options);
@@ -3043,7 +3047,7 @@ function prepareParamBinding(address: ShaderParamTarget, options: PrepareBinding
             : binding;
     let prepared: PreparedBinding;
     if ("template" in ranged) {
-        prepared = prepareTemplateBinding(descriptor, ranged.template, options);
+        prepared = prepareTemplateBinding(descriptor, ranged, options);
     } else if ("value" in ranged) {
         prepared = prepareLiteral(descriptor, ranged);
     } else {

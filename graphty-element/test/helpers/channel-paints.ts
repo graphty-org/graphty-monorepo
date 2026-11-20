@@ -300,6 +300,8 @@ const PROBE_VALUES: Readonly<Partial<Record<string, unknown>>> = {
     // the clip of the model ENUM_SETUP-style base below loads
     "node.modelAnimation": "spin",
     "edge.fadeStart": 1999,
+    // a raised arc: "bundled", the list's last value, draws two edges on one line as they are
+    "edge.route": "arc",
     ...Object.fromEntries(
         ["Head", "Tail", "MiddleHead", "MiddleTail"].map((end) => [`edge.arrow${end}Stack`, "dot normal"]),
     ),

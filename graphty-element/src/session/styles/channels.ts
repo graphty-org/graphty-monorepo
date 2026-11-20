@@ -632,6 +632,8 @@ export interface ChannelValues {
     "edge.supportScale": EdgeSupportScaleValue;
     "edge.route": EdgeRouteValue;
     "edge.arcHeight": number;
+    "edge.bundleStrength": number;
+    "edge.bundleIterations": number;
     "edge.nodeGap": number;
     "edge.sourceNodeGap": number;
     "edge.targetNodeGap": number;
@@ -1209,7 +1211,8 @@ const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpo
 const EDGE_SUPPORT_MODEL_VALUES: readonly EdgeSupportModelValue[] = ["barnesHut", "forceAtlas2"];
 const EDGE_SUPPORT_SCALE_VALUES: readonly EdgeSupportScaleValue[] = ["unit", "drawing"];
 const SUPPORT_CAVEAT = " Only an edge with an `edge.supportModel` has a support point; any other ignores it.";
-const EDGE_ROUTE_VALUES: readonly EdgeRouteValue[] = ["straight", "arc", "great-circle"];
+const EDGE_ROUTE_VALUES: readonly EdgeRouteValue[] = ["straight", "arc", "great-circle", "bundled"];
+const BUNDLED: ChannelCondition = { channel: "edge.route", values: ["bundled"] };
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
@@ -5201,8 +5204,43 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             'The path an edge takes between its nodes: "straight"; "arc", raised toward the viewer in the ' +
             'vertical plane through both ends; "great-circle", along the great circle about the scene\'s ' +
-            "origin, lifted at its middle. Left unset, the layout decides: the location map raises arcs " +
-            "over its flat map in 3D and draws great circles on its globe; every other layout draws straight.",
+            'origin, lifted at its middle; "bundled", through the points force-directed edge bundling gives it ' +
+            "among every other edge drawn bundled (Holten and van Wijk 2009), so edges running the same way " +
+            "gather (`edge.bundleStrength`, `edge.bundleIterations`). Left unset, the layout decides: the location " +
+            "map raises arcs over its flat map in 3D and draws great circles on its globe; every other layout " +
+            "draws straight.",
+    },
+    "edge.bundleStrength": {
+        channel: "edge.bundleStrength",
+        target: "edge",
+        plainName: "Edge Bundle Strength",
+        shortName: "Bundle strength",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        step: 0.05,
+        stylePath: "line.bundleStrength",
+        renderable: true,
+        caveat: 'How far an `edge.route` "bundled" edge is drawn toward its bundle: 0 straight, 1 fully bundled.',
+    },
+    "edge.bundleIterations": {
+        channel: "edge.bundleIterations",
+        target: "edge",
+        plainName: "Edge Bundle Iterations",
+        shortName: "Bundle iterations",
+        group: "line",
+        default: 50,
+        accepts: "number",
+        min: 1,
+        max: 500,
+        step: 1,
+        stylePath: "line.bundleIterations",
+        renderable: true,
+        caveat:
+            'How many steps an `edge.route` "bundled" bundle takes in its first cycle; more gathers tighter ' +
+            "bundles. Edges with different strengths or iterations bundle apart.",
     },
     "edge.arcHeight": {
         channel: "edge.arcHeight",
@@ -5736,6 +5774,9 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     ["edge.supportCentralGravity", SUPPORT],
     ["edge.supportUnit", SUPPORT],
     ["edge.supportScale", SUPPORT],
+    // "How far an `edge.route` "bundled" edge is drawn toward its bundle."
+    ["edge.bundleStrength", [BUNDLED]],
+    ["edge.bundleIterations", [BUNDLED]],
     ["edge.arcRadius", [CURVED]],
     ["edge.bendCurve", [CURVED]],
     ["edge.fanned", [CURVED]],

@@ -527,4 +527,7 @@ export const OWNER_REQUESTED: readonly Requested[] = [
         quote: "animated edges are a missing style. ... implement all missing styles",
         date: "2026-11-18",
     },
+    // The Route row's Bundling (edge.route "bundled") and its two settings.
+    { channel: "edge.bundleStrength", quote: "edge bundling doesn't do anything, fix it", date: "2026-11-18" },
+    { channel: "edge.bundleIterations", quote: "edge bundling doesn't do anything, fix it", date: "2026-11-18" },
 ];

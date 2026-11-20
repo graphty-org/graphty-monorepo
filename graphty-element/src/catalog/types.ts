@@ -918,6 +918,8 @@ export type Channel =
     | "edge.supportUnit"
     | "edge.supportScale"
     | "edge.route"
+    | "edge.bundleStrength"
+    | "edge.bundleIterations"
     | "edge.arcHeight"
     | "edge.nodeGap"
     | "edge.sourceNodeGap"

@@ -20,7 +20,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
-import { sectionOf, written } from "./v2Harness";
+import { picture, pixelsApart, sectionOf, written } from "./v2Harness";
 
 /**
  * Opens three nodes, two edges and a layer "Links" over every edge that sets only its color, on
@@ -277,5 +277,41 @@ describe("Style panel v2's edge things", () => {
         await waitFor(() => {
             assert.notEqual(written(session, id, "edge.route"), "arc", "one Undo switches back");
         });
+    });
+
+    it("the Route row's Bundling draws the edges bundled: the graph changes", async () => {
+        const { session, id, tab } = await openEdges();
+        // Six near-parallel edges, held still, so the picture changes only by how they are drawn.
+        await session.layout.set("fixed");
+        await session.data.addNodes(
+            Array.from({ length: 6 }, (_, i) => [
+                { id: `l${String(i)}`, position: { x: -20, y: i * 2, z: 0 } },
+                { id: `r${String(i)}`, position: { x: 20, y: i * 2 + 1, z: 0 } },
+            ]).flat(),
+        );
+        await session.data.addEdges(
+            Array.from({ length: 6 }, (_, i) => ({ source: `l${String(i)}`, target: `r${String(i)}` })),
+        );
+        await session.styles.settled();
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        if (element === null) {
+            return;
+        }
+        const row = await addFromTitle(tab, "edge-route", "Route", "route");
+        await waitFor(() => {
+            assert.isDefined(written(session, id, "edge.route"));
+        });
+        await session.styles.settled();
+        const before = await picture(element);
+        const radio = within(row).getByRole("radio", { name: "Bundling" });
+        const label = document.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
+        assert.isNotNull(label);
+        await userEvent.click(label);
+        await waitFor(() => {
+            assert.equal(written(session, id, "edge.route"), "bundled");
+        });
+        await session.styles.settled();
+        assert.isAbove(pixelsApart(before, await picture(element)), 0, "the edges are drawn bundled");
     });
 });

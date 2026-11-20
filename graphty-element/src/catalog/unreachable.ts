@@ -359,6 +359,28 @@ const GROUP_SIZING_CHANNELS: readonly Channel[] = [
 export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
     {
         kind: "by-design",
+        channel: "edge.bundleStrength",
+        reason:
+            "A BUNDLED EDGE IS DRAWN BUNDLED, so this waiver is about the reading and not about the capability. " +
+            "Force-directed bundling pulls an edge toward edges that run beside it; the gate here paints into a " +
+            "probe scene of two edges between the same two nodes, which already lie on one line, so a bundle has " +
+            "nothing to gather and nothing changes. `test/browser/edge-route-bundled.test.ts` is where it is " +
+            "proved: twenty near-parallel edges gather to under half their spread in 2D and 3D, and strength 0 " +
+            "draws them straight.",
+    },
+    {
+        kind: "by-design",
+        channel: "edge.bundleIterations",
+        reason:
+            "A BUNDLED EDGE IS DRAWN BUNDLED, so this waiver is about the reading and not about the capability. " +
+            "Force-directed bundling pulls an edge toward edges that run beside it; the gate here paints into a " +
+            "probe scene of two edges between the same two nodes, which already lie on one line, so a bundle has " +
+            "nothing to gather and nothing changes. `test/browser/edge-route-bundled.test.ts` is where it is " +
+            "proved: twenty near-parallel edges gather to under half their spread in 2D and 3D, and strength 0 " +
+            "draws them straight.",
+    },
+    {
+        kind: "by-design",
         channel: "node.tooltip",
         reason:
             "A NODE TOOLTIP IS DRAWN, so this waiver is about the reading and not about the " +

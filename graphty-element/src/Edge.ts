@@ -28,6 +28,7 @@ import { bootstrapEdgePaint, type DrawnLabel, type EdgePaint } from "./managers/
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
 import type { JoinedPatternKind } from "./meshes/CustomLineRenderer";
+import type { BundleEdge, BundleOptions } from "./meshes/edgeBundling";
 import type { EdgeEffectBatch, ShadedEdgeBatch } from "./meshes/EdgeEffectBatch";
 import { gradientPieceColors } from "./meshes/edgeGradient";
 import { EDGE_STATE_BITS } from "./meshes/edgeJoinShader";
@@ -1164,6 +1165,9 @@ export class Edge {
     /** Where the line's support point was when the line was last placed (`line.supportModel`). */
     private _lastVia: Xyz | null = null;
 
+    /** The force-directed bundles this edge was last drawn along (`line.route` "bundled"). */
+    private _lastForceBundles = -1;
+
     /**
      * Set once {@link Edge.dispose} has run. Guards the two methods that would otherwise rebuild
      * this edge's meshes -- see the comment on `dispose` for why a disposed Edge still receives
@@ -1521,6 +1525,58 @@ export class Edge {
     invalidatePositionCache(): void {
         this._lastSrcPos = null;
         this._lastDstPos = null;
+        // a restyle or a resize may take this edge into or out of the force-directed bundles
+        this.context.getDataManager().forceBundles.touch();
+    }
+
+    /**
+     * This edge's ends and bundling options, when it is drawn with `line.route` "bundled".
+     * @returns Them, or undefined for an edge drawn another way.
+     * @internal
+     */
+    forceBundleInput(): { edge: BundleEdge; options: BundleOptions } | undefined {
+        const line = this.drawnStyle?.line;
+        const lnk = line?.route === "bundled" ? this.laidOutPosition() : undefined;
+        if (lnk === undefined || this.isLoop) {
+            return undefined;
+        }
+        return {
+            edge: { src: { x: lnk.src.x, y: lnk.src.y }, dst: { x: lnk.dst.x, y: lnk.dst.y } },
+            options: { strength: line?.bundleStrength ?? 1, iterations: line?.bundleIterations ?? 50 },
+        };
+    }
+
+    /**
+     * The inner points this edge's force-directed bundle draws it through (`line.route` "bundled"), as bends: each
+     * point's share of the way along the line between the two centers and across it ({@link bendPoints}).
+     * @param src - The source center.
+     * @param dst - The target center.
+     * @returns Them, flat along, across pairs, or undefined when it is drawn straight.
+     */
+    private forceBundleBends(src: Vector3, dst: Vector3): readonly number[] | undefined {
+        if (this.drawnStyle?.line?.route !== "bundled") {
+            return undefined;
+        }
+        const data = this.context.getDataManager();
+        const bends = data.forceBundles.bendsOf(
+            this,
+            () => data.edges.values(),
+            (edge) => edge.forceBundleInput(),
+        );
+        this._lastForceBundles = data.forceBundles.version;
+        const dx = dst.x - src.x;
+        const dy = dst.y - src.y;
+        const length2 = dx * dx + dy * dy;
+        if (bends.length === 0 || length2 === 0) {
+            return undefined;
+        }
+        const pairs: number[] = [];
+        for (let i = 0; i + 1 < bends.length; i += 2) {
+            const rx = bends[i] - src.x;
+            const ry = bends[i + 1] - src.y;
+            pairs.push((rx * dx + ry * dy) / length2, (ry * dx - rx * dy) / length2);
+        }
+        return pairs;
     }
 
     /**
@@ -1607,7 +1663,16 @@ export class Edge {
         const via = this.drawnStyle?.line?.supportModel === undefined ? null : this.supportVia();
         const viaMoved = via !== this._lastVia;
 
-        if (!srcMoved && !dstMoved && !viaMoved && edgeVersion === this.bundleVersion) {
+        // A force-directed bundle moves when any edge in it does: one moving end works every bundle out again.
+        const forceBundles =
+            this.drawnStyle?.line?.route === "bundled" ? this.context.getDataManager().forceBundles : null;
+        if (forceBundles !== null && (srcMoved || dstMoved)) {
+            forceBundles.touch();
+        }
+        const forceMoved =
+            forceBundles !== null && (forceBundles.stale || forceBundles.version !== this._lastForceBundles);
+
+        if (!srcMoved && !dstMoved && !viaMoved && !forceMoved && edgeVersion === this.bundleVersion) {
             return;
         }
 
@@ -1648,7 +1713,11 @@ export class Edge {
             this.bundled = false;
             this.placeLifted(this.lineBatch, src, dst, lift);
         } else {
-            bent = this.placeLine(src, dst, lnk.bends, lnk.lineEnds);
+            const forced = this.forceBundleBends(src, dst);
+            bent =
+                forced === undefined
+                    ? this.placeLine(src, dst, lnk.bends, lnk.lineEnds)
+                    : this.placeLine(src, dst, forced);
         }
 
         if (bentBefore !== (this.bundled || this.lifted)) {
@@ -4187,7 +4256,8 @@ export class Edge {
     private routeOf(style: EdgeStyleConfig | null): "straight" | "arc" | "great-circle" {
         const asked = style?.line?.route;
         if (asked !== undefined) {
-            return asked;
+            // a bundled edge is a straight line through the points its bundle gives it
+            return asked === "bundled" ? "straight" : asked;
         }
 
         // Read by shape, not by class: the layout module is not imported here.

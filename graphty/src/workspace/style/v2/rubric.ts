@@ -114,6 +114,7 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
         straight: { name: "Straight", glyph: "routeStraight" },
         arc: { name: "Arc", glyph: "routeArc" },
         "great-circle": { name: "Great circle", glyph: "routeGreatCircle" },
+        bundled: { name: "Bundling", glyph: "routeBundled" },
     },
     "edge.gradientKind": {
         linear: { name: "Linear", glyph: "gradientLinear" },
@@ -604,9 +605,17 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     middleTarget: edgeEnd("arrowMiddleHead"),
     middleSource: edgeEnd("arrowMiddleTail"),
     route: {
-        row: { channel: "edge.route", name: "Route", rule: "R8" },
+        // No name: its section is Route, and four routes, Bundling among them, need the full width.
+        row: { channel: "edge.route", name: null, rule: "R8" },
         main: [],
         groups: [
+            {
+                name: "Bundling",
+                lines: [
+                    { channel: "edge.bundleStrength", name: "Strength" },
+                    { channel: "edge.bundleIterations", name: "Iterations" },
+                ],
+            },
             {
                 name: "Curve",
                 lines: [

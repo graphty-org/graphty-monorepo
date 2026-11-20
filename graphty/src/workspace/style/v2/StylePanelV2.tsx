@@ -329,7 +329,7 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
     });
     const body =
         query.trim() === "" ? (
-            // Every section is shown, an empty one as its header with its "+" (B.8: no reader switch).
+            // Every section is shown, an empty one as its header with its "+" (there is no reader switch for it).
             sections.map(({ part, section }) =>
                 part.id === "shaders" ? (
                     <Section

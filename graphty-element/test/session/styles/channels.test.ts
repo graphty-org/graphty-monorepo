@@ -282,6 +282,8 @@ const DECLARED = [
     "edge.supportUnit",
     "edge.supportScale",
     "edge.route",
+    "edge.bundleStrength",
+    "edge.bundleIterations",
     "edge.arcHeight",
     "edge.nodeGap",
     "edge.sourceNodeGap",
@@ -450,9 +452,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and eighteen node channels and one hundred and seventy-five edge channels", () => {
+    it("splits into two hundred and eighteen node channels and one hundred and seventy-seven edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 218);
-        assert.strictEqual(channelsFor("edge").length, 175);
+        assert.strictEqual(channelsFor("edge").length, 177);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -1519,6 +1521,8 @@ describe("every sub-setting names its part", () => {
 describe("a channel's range", () => {
     /** Every declared max at the start of style panel round 5: a max refuses values, so none may move. */
     const MAX_SNAPSHOT: Readonly<Record<string, number>> = {
+        "edge.bundleIterations": 500,
+        "edge.bundleStrength": 1,
         "edge.arrowHeadOpacity": 1,
         "edge.arrowHeadPosition": 1,
         "edge.arrowHeadTextOpacity": 1,

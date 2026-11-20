@@ -101,6 +101,7 @@ import {
     MapPin,
     Maximize2,
     Menu,
+    Merge,
     MessageSquare,
     Mic,
     Minimize2,
@@ -456,6 +457,7 @@ export const GLYPHS = {
     routeStraight: Slash,
     routeArc: Rainbow,
     routeGreatCircle: Earth,
+    routeBundled: Merge,
     // Which side of its line a one-sided arrowhead sits on.
     sideLeft: PanelLeft,
     sideRight: PanelRight,

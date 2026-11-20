@@ -202,7 +202,7 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
         {
             part: "route",
             groups: [
-                [{ id: "route", name: "Route", items: ["route"], main: ["edge.route"] }],
+                [{ id: "route", name: "Route", items: ["route"], main: ["edge.route"], unnamed: true }],
                 [
                     {
                         id: "bundling",

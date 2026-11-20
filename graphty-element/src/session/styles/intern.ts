@@ -476,6 +476,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.supportScale": "content",
     "edge.route": "content",
     "edge.arcHeight": "content",
+    "edge.bundleStrength": "content",
+    "edge.bundleIterations": "content",
     "edge.nodeGap": "content",
     "edge.sourceNodeGap": "content",
     "edge.targetNodeGap": "content",

@@ -411,9 +411,20 @@ const LineStyle = z.strictObject({
      * great-circle arcs on its globe; every other layout, and the 2D view, a straight line);
      * "straight", a straight line; "arc", a raised arc in the vertical plane through both ends,
      * bowed toward the viewer (-z); "great-circle", along the great circle about the scene's origin
-     * between the two ends, lifted at its middle. A self-loop ignores it.
+     * between the two ends, lifted at its middle; "bundled", through the points force-directed edge
+     * bundling (Holten and van Wijk 2009) gives it among every other edge drawn "bundled", so edges
+     * running the same way gather into bundles (`bundleStrength`, `bundleIterations`). A self-loop
+     * ignores it.
      */
-    route: z.enum(["straight", "arc", "great-circle"]).optional(),
+    route: z.enum(["straight", "arc", "great-circle", "bundled"]).optional(),
+    /**
+     * How far a "bundled" route's edges are drawn toward their bundle: 0 straight, 1 (unset) fully bundled.
+     */
+    bundleStrength: z.number().min(0).max(1).optional(),
+    /**
+     * How many steps a "bundled" route's first cycle takes; more gathers tighter bundles. Unset, 50.
+     */
+    bundleIterations: z.number().int().min(1).max(500).optional(),
     /**
      * How high a raised route (`route` "arc" or "great-circle") rises at its middle, as a share of
      * the straight distance between its ends (across the map for an arc). Unset, 0.25 for an arc

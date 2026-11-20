@@ -833,6 +833,11 @@ export class Edge {
     followRenumberedRows(): void;
     // @internal
     get followsRows(): boolean;
+    // @internal
+    forceBundleInput(): {
+        edge: BundleEdge;
+        options: BundleOptions;
+    } | undefined;
     getInterceptPoints(): InterceptPoint;
     readonly id: string;
     get index(): number;

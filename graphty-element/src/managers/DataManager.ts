@@ -24,6 +24,7 @@ import { GraphtyError } from "../errors/GraphtyError";
 import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
 import { type EdgeRow, type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
+import { ForceBundles } from "../meshes/edgeBundling";
 import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
@@ -3433,6 +3434,12 @@ export class DataManager implements Manager {
      * @internal
      */
     readonly supportPoints = new SupportPoints<Edge>();
+
+    /**
+     * The force-directed bundles of the edges drawn with `line.route` "bundled", worked out together.
+     * @internal
+     */
+    readonly forceBundles = new ForceBundles<Edge>();
 
     /**
      * Every edge running from one node to another.

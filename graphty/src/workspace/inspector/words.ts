@@ -365,6 +365,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",
     "edge.arcHeight": "Arc height",
+    "edge.bundleStrength": "Bundle strength",
+    "edge.bundleIterations": "Bundle iterations",
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Arrow",
     "edge.arrowHeadOutlineWidth": "Arrow",

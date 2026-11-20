@@ -889,6 +889,8 @@ export class DataManager implements Manager {
     get edges(): ReadonlyMap<string, Edge>;
     get edgesByIndex(): readonly (Edge | undefined)[];
     edgeVersion: number;
+    // @internal
+    readonly forceBundles: ForceBundles<Edge>;
     getEdge(edgeId: string): Edge | undefined;
     getEdgesBetween(srcNodeId: NodeIdType, dstNodeId: NodeIdType): readonly Edge[];
     getNode(nodeId: NodeIdType): Node_2 | undefined;
@@ -1135,6 +1137,11 @@ export class Edge {
     followRenumberedRows(): void;
     // @internal
     get followsRows(): boolean;
+    // @internal
+    forceBundleInput(): {
+        edge: BundleEdge;
+        options: BundleOptions;
+    } | undefined;
     getInterceptPoints(): InterceptPoint;
     readonly id: string;
     get index(): number;
@@ -2056,7 +2063,10 @@ export const EdgeStyle: z.ZodObject<{
             arc: "arc";
             straight: "straight";
             "great-circle": "great-circle";
+            bundled: "bundled";
         }>>;
+        bundleStrength: z.ZodOptional<z.ZodNumber>;
+        bundleIterations: z.ZodOptional<z.ZodNumber>;
         arcHeight: z.ZodOptional<z.ZodNumber>;
         nodeGap: z.ZodOptional<z.ZodNumber>;
         sourceNodeGap: z.ZodOptional<z.ZodNumber>;

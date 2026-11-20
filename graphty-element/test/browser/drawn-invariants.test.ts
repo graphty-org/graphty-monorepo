@@ -223,7 +223,7 @@ describe.each(
         await assertAllDrawn(element, "after the load");
     });
 
-    // #9226/#9228: a click built Nodes for the selected node and its neighbours only, and the rest stopped drawing.
+    // #9226/#9228: a click built Nodes for the selected node and its neighbors only, and the rest stopped drawing.
     it("keeps every node and edge drawn after a click selects one", async () => {
         const element = await ring(path, view, edges, rows);
         assertLazy(element, path, edges);
@@ -276,7 +276,7 @@ describe.each(
         await assertAllDrawn(element, `after a switch back to ${view}`);
     });
 
-    // #9222: a capless edge was laid at the layout's answer while its nodes travelled there.
+    // #9222: a capless edge was laid at the layout's answer while its nodes traveled there.
     it.each(MOVING)("keeps each edge's ends on its nodes as drawn at held poses of %s", async (transition) => {
         for (const hold of [0.3, 0.7]) {
             const element = await ring(path, view, edges, rows);

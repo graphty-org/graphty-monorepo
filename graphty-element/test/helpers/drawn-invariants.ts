@@ -84,7 +84,7 @@ function near(pic: Picture, x: number, y: number, test: (p: readonly number[]) =
 }
 
 /**
- * Whether a pixel is the edges' magenta (#ff00ff), or magenta blended into its neighbours.
+ * Whether a pixel is the edges' magenta (#ff00ff), or magenta blended into its neighbors.
  * @param p - The pixel.
  * @returns True when red and blue both lead green.
  */
@@ -123,7 +123,7 @@ function toSegment(x: number, y: number, a: { x: number; y: number }, b: { x: nu
  * @param id - The node.
  * @returns Its center in CSS pixels, or undefined when the element places it nowhere.
  */
-function centre(element: Graphty, id: string): { x: number; y: number } | undefined {
+function center(element: Graphty, id: string): { x: number; y: number } | undefined {
     return element.nodeScreenPosition(id);
 }
 
@@ -140,7 +140,7 @@ export async function undrawnNodes(element: Graphty, ids: readonly string[]): Pr
     const ink = (p: readonly number[]): boolean =>
         !magenta(p) && Math.abs(p[0] - bg[0]) + Math.abs(p[1] - bg[1]) + Math.abs(p[2] - bg[2]) > 60;
     return ids.filter((id) => {
-        const at = centre(element, id);
+        const at = center(element, id);
         return at === undefined || !near(pic, at.x, at.y, ink);
     });
 }
@@ -158,8 +158,8 @@ export async function undrawnEdges(
 ): Promise<(readonly [string, string])[]> {
     const pic = await picture(element);
     return pairs.filter(([src, dst]) => {
-        const a = centre(element, src);
-        const b = centre(element, dst);
+        const a = center(element, src);
+        const b = center(element, dst);
         return (
             a === undefined ||
             b === undefined ||
@@ -182,7 +182,7 @@ export async function strayInk(
     pairs: readonly (readonly [string, string])[],
 ): Promise<string[]> {
     const pic = await picture(element);
-    const at = new Map(ids.map((id) => [id, centre(element, id)]));
+    const at = new Map(ids.map((id) => [id, center(element, id)]));
     const nodes = [...at.values()].filter((c) => c !== undefined);
     // A node's drawn radius, walked out from its center while the pixels stay node blue: the camera
     // frames each pose afresh, so a fixed band would not fit both a wide ring and a narrow one.

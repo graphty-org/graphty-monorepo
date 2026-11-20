@@ -3254,6 +3254,7 @@ export function turnModelOrientation(current: ModelOrientation, step: ModelTurnS
 
 // @beta
 export interface UnionBranch {
+    readonly autoName?: boolean;
     readonly color?: string;
     readonly id?: string;
     readonly name?: string;

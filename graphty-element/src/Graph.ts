@@ -6992,6 +6992,10 @@ export class Graph implements GraphContext {
         // building one for it cost 8.7 KB a row (#8204).
         const nodes = [...dataManagerInternals.builtNodes(this.dataManager)];
         const edges = [...this.builtEdges()];
+        // The edge rows drawn with no `Edge` are drawn in line batches the cache is about to dispose: taken out of
+        // them now, while they are live, and painted again into the new dimension's batches below (#9223).
+        const lineRows = this.#edgeRowLines?.rows() ?? [];
+        this.#edgeRowLines?.clear();
 
         // Every mesh goes in one bulk teardown, then every mesh is built again. Disposed one
         // element at a time, each mesh, action manager and drag handler left scene-wide lists by
@@ -7031,6 +7035,10 @@ export class Graph implements GraphContext {
         const painter = this.getStylePainter();
         for (const row of dataManagerInternals.unbuiltRows(this.dataManager)) {
             painter.queue("node", row);
+        }
+
+        for (const row of lineRows) {
+            painter.queue("edge", row);
         }
 
         this.updateManager.meshesAdded();

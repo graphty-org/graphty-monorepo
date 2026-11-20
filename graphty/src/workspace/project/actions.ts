@@ -10,6 +10,7 @@
 import {
     type AssetStorage,
     browserProjects,
+    type CodedFact,
     type GraphSession,
     isGraphtyError,
     type LoadDraft,
@@ -17,13 +18,16 @@ import {
     projectFileName,
     type ProjectOpenOptions,
     type ProjectSaveReport,
+    type SourceCopyChoice,
+    type SourceKey,
 } from "@graphty/graphty-element/session";
 
 import { count, graphSizeBucket } from "../../lib/analytics";
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
-import { saveFilesV2On } from "../features";
+import { sourceName } from "../data-place/words";
+import { saveFilesV2On, sourceReferencesOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { runHeld, withHeldShaders } from "../settings/heldShaders";
 import { addSource, incomingFiles } from "../start/open";
@@ -33,7 +37,7 @@ import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
 // The version 2 dialogs load on first use, so the landing page does not carry them.
 import type { SaveV2Choices } from "./saveV2";
-import { notReadWords } from "./words";
+import { notReadWords, referenceWords } from "./words";
 
 /** The dialog ids this package opens in the workspace's one dialog slot. */
 export const SAVE_AS_DIALOG = "save-as";
@@ -125,14 +129,42 @@ export function askAssetChoices(store: WorkspaceStore, session: GraphSession): P
 }
 
 /**
- * The saved notice, with what of the models the save could not keep as asked.
+ * The saved notice, with what of the models and data sources the save could not keep as asked.
+ * @param session - the project's session.
  * @param message - the notice's sentence.
  * @param report - what the save reported, when it reported.
  * @returns the notice's words.
  */
-function withModelsLeftOut(message: string, report: ProjectSaveReport | undefined): string {
-    const lines = (report?.leftOut ?? []).filter((fact) => /^[EW]_MODEL_/.test(fact.code)).map(chipLine);
-    return [message, ...lines].join(" ");
+function withLeftOut(session: GraphSession, message: string, report: ProjectSaveReport | undefined): string {
+    const leftOut = report?.leftOut ?? [];
+    const models = leftOut.filter((fact) => /^[EW]_MODEL_/.test(fact.code)).map(chipLine);
+    return [message, ...models, ...referenceLines(session, leftOut, true)].join(" ");
+}
+
+/**
+ * What became of the data sources kept as references (the source references experiment), one
+ * sentence each, naming the source: by its row in the graph, else by the name or address the
+ * element reports, else by its key.
+ * @param session - the project's session.
+ * @param facts - what the element reported (a save's `leftOut`, an open's `problems`).
+ * @param saving - true for a save, false for an open.
+ * @returns the sentences; none with the experiment off.
+ */
+function referenceLines(session: GraphSession, facts: readonly CodedFact[], saving: boolean): string[] {
+    if (!sourceReferencesOn(session)) {
+        return [];
+    }
+    const loads = session.data.sources();
+    return facts.flatMap((fact) => {
+        const { source, name, url } = fact.params;
+        const load = loads.find((each) => each.key === source);
+        const shown =
+            load === undefined
+                ? [name, url, source].find((each): each is string => typeof each === "string" && each !== "")
+                : sourceName(load);
+        const words = referenceWords(fact, shown ?? "A data source", saving);
+        return words === undefined ? [] : [words];
+    });
 }
 
 /** Where the open project's Save goes, and what is waiting on the reader. Per workspace store. */
@@ -296,7 +328,10 @@ export function saveProblemSentence(name: string, error: unknown): string {
         case "E_TOO_LARGE":
             return `${name} could not be saved: this browser's storage for graphty is full.`;
         case "E_UNSUPPORTED":
-            return `${name} could not be saved: this browser does not let graphty keep projects. Save a local copy instead.`;
+            // "no-indexeddb": the browser has no storage; "storage-failed": it has storage that refused the write.
+            return isGraphtyError(error) && error.details.reason === "storage-failed"
+                ? `${name} could not be saved: this browser's storage refused it. Save a local copy instead.`
+                : `${name} could not be saved: this browser does not let graphty keep projects. Save a local copy instead.`;
         default:
             return `${name} could not be saved.`;
     }
@@ -344,7 +379,7 @@ async function writeProject(
         state.v2 = v2;
     }
     await refreshStored();
-    workspace.set({ notice: { message: withModelsLeftOut(`Saved ${name} in this browser.`, saved.report) } });
+    workspace.set({ notice: { message: withLeftOut(session, `Saved ${name} in this browser.`, saved.report) } });
     // Save as reports what the save left out; a later Save says only that it saved.
     if (on && v2 !== null) {
         await reportSave(workspace, session, `Saved ${name}`, saved.report);
@@ -428,7 +463,7 @@ export async function saveProjectAsV2(
             ...(Object.keys(assets).length === 0 ? {} : { assets }),
         });
         count("project_saved", { kind: "file", as: "new" });
-        workspace.set({ notice: { message: withModelsLeftOut(`Saved ${fileName}`, report) } });
+        workspace.set({ notice: { message: withLeftOut(session, `Saved ${fileName}`, report) } });
         await reportSave(workspace, session, `Saved ${fileName}`, report);
     } catch {
         workspace.set({ notice: { message: `${fileName} could not be saved.`, error: true } });
@@ -710,11 +745,14 @@ async function openedProject(
         await focused;
         return;
     }
-    const lost = report.problems.length;
+    // The references said one by one, by name; every other problem counted.
+    const references = referenceLines(session, report.problems, false);
+    const lost = report.problems.length - references.length;
     const parts = lost === 1 ? "part" : "parts";
+    const opened = lost === 0 ? `Opened ${name}` : `Opened ${name}. ${String(lost)} ${parts} did not come back.`;
     workspace.set({
         notice: heldNotice(workspace, session, {
-            message: lost === 0 ? `Opened ${name}` : `Opened ${name}. ${String(lost)} ${parts} did not come back.`,
+            message: references.length === 0 ? opened : [`${opened}${lost === 0 ? "." : ""}`, ...references].join(" "),
         }),
     });
     await focused;
@@ -1031,4 +1069,22 @@ export async function removeRecent(entry: RecentProject): Promise<void> {
     }
     await browserProjects.remove(entry.id);
     await refreshStored();
+}
+
+/**
+ * Hands the dialog's pending choices to graphty-element (`data.setCopy`), as its Save is pressed;
+ * a source removed while the dialog was open is skipped.
+ * @param session - the element's session, or null.
+ * @param pending - the dialog's choices.
+ */
+export function applyCopies(session: GraphSession | null, pending: ReadonlyMap<SourceKey, SourceCopyChoice>): void {
+    if (session === null || !sourceReferencesOn(session)) {
+        return;
+    }
+    const listed = new Set(session.data.sources().map((each) => each.key));
+    for (const [source, copy] of pending) {
+        if (listed.has(source)) {
+            session.data.setCopy(source, copy);
+        }
+    }
 }

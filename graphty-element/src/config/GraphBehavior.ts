@@ -369,10 +369,12 @@ export const GraphBehaviorOpts = z.strictObject({
     fetchNodes: z.optional(z.instanceof(Function)),
     /** A host function that returns the edges of a node (see `FetchEdgesFn`). */
     fetchEdges: z.optional(z.instanceof(Function)),
-    /*
-     * Unset BY DEFAULT, so an expansion adds the expanded node's own edges and its neighbors and
-     * nothing else. Set, an expansion also hands it the ids of the nodes it fetched and adds the
-     * edges it returns whose ends are both in the graph or just fetched, in the same step.
+    /**
+     * A host function that returns the edges of the nodes an expansion just fetched (see
+     * `FetchNeighborEdgesFn`). Unset BY DEFAULT, so an expansion adds the expanded node's own
+     * edges and its neighbors and nothing else. Set, an expansion also hands it the ids of the
+     * nodes it fetched and adds the edges it returns whose ends are both in the graph or just
+     * fetched, in the same step.
      */
     fetchNeighborEdges: z.optional(z.instanceof(Function)),
 });

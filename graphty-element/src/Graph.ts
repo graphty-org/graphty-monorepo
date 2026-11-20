@@ -916,6 +916,10 @@ export class Graph implements GraphContext {
     // graph
     fetchNodes?: FetchNodesFn;
     fetchEdges?: FetchEdgesFn;
+    /**
+     * The parsed `layoutBehavior.fetchNeighborEdges`, read by expansion; set it through that option.
+     * @internal
+     */
     fetchNeighborEdges?: FetchNeighborEdgesFn;
     initialized = false;
 

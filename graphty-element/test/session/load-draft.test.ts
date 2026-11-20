@@ -563,13 +563,21 @@ describe("session.data.prepare", () => {
     it("takes a mapping named by side, for one table or a pair (#9078)", async () => {
         const session = createGraphSession();
         const one = await session.data.prepare({ type: "csv", config: { data: PEOPLE } });
-        assert.deepInclude(one.resolve({ mapping: { edges: { source: "id", target: "team" } } }).tables.rows, {
-            rowsAre: "edges",
-            source: { column: "id" },
-            target: { column: "team" },
+        assert.strictEqual(one.mapping.tables.rows.rowsAre, "nodes");
+        assert.deepInclude(one.resolve({ mapping: { nodes: { label: "team" } } }).tables.rows, {
+            rowsAre: "nodes",
+            label: "team",
         });
+        // The side picks the table and never changes what its rows are: a side no table is read as
+        // is refused, and the roles' own rowsAre turns the table.
+        const other = await refusal(one.report({ mapping: { edges: { source: "id", target: "team" } } }));
+        assert.strictEqual(other?.code, "E_BAD_COMMAND");
         const both = await refusal(one.report({ mapping: { nodes: {}, edges: {} } }));
         assert.strictEqual(both?.code, "E_BAD_COMMAND");
+        assert.deepInclude(
+            one.resolve({ mapping: { nodes: { rowsAre: "edges", source: "id", target: "team" } } }).tables.rows,
+            { rowsAre: "edges", source: { column: "id" }, target: { column: "team" } },
+        );
         one.dispose();
 
         const draft = await pair(session);

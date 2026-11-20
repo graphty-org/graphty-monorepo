@@ -69,6 +69,7 @@ export { CAMERA_GESTURE_KINDS } from "./src/cameras/gestureEnd";
 export type { FeatureId } from "./src/features/registry";
 export type { EnabledFeatures } from "./src/features/resolve";
 export type {
+    ByTableMapping,
     ColumnHistogram,
     ColumnRole,
     CommandOutcome,
@@ -139,6 +140,7 @@ export type {
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
+    LoadedChoices,
     LoadedSource,
     LoadedSourceKind,
     LoadedWeight,

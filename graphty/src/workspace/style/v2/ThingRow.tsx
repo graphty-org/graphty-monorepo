@@ -29,11 +29,12 @@ import { swatchesOf } from "./colorItems";
 import { dimOf } from "./drawn";
 import { familyOf, pickReplace, replaceUse } from "./families";
 import { ItemListEditor } from "./ItemListEditor";
+import { kindGroupOf, type KindMember } from "./kindGroups";
 import { LabelRow } from "./LabelRow";
 import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
 import { firstItemWords, ITEM_LISTS, LISTS } from "./lists";
-import { MemberMenu, ReplaceGallery } from "./MemberMenu";
+import { KindMenu, MemberMenu, ReplaceGallery } from "./MemberMenu";
 import {
     lineChannels,
     type LineSpec,
@@ -305,6 +306,25 @@ function MainControl({
 }
 
 /**
+ * A row's Switch to: its graphty-element family's members, or its kind group's kinds.
+ * @param ctx - the row.
+ * @param thing - the thing.
+ * @param title - its name with its kind ("Node fill").
+ * @param kind - the kind the row draws, for a kind group's row.
+ * @returns the menu, or nothing for a thing with neither.
+ */
+function switchTo(ctx: RowContext, thing: ThingSpec, title: string, kind: KindMember | undefined): React.ReactNode {
+    const family = familyOf(ctx.side, thing.id);
+    if (family !== undefined) {
+        return <MemberMenu ctx={ctx} family={family} title={title} />;
+    }
+    const kinds = kindGroupOf(ctx.side, thing.id);
+    return kinds === undefined || kind === undefined ? undefined : (
+        <KindMenu ctx={ctx} group={kinds} now={kind} title={title} />
+    );
+}
+
+/**
  * One thing's row: see the file header.
  * @param props - Component props
  * @param props.ctx - the row and kind
@@ -314,6 +334,7 @@ function MainControl({
  * @param props.opening - just added: opens its pop-over on its list, or an Image's picker (design 5.1)
  * @param props.onOpened - told once it has opened
  * @param props.onCancel - takes a waiting thing away again
+ * @param props.kind - the kind it draws, for a kind group's row (its channels are that kind's)
  * @returns The row, or nothing when the element offers none of its main channels here
  */
 export function ThingRow({
@@ -324,11 +345,13 @@ export function ThingRow({
     opening = false,
     onOpened,
     onCancel,
+    kind,
 }: Readonly<{
     ctx: RowContext;
     thing: ThingSpec;
     channels: readonly Channel[];
     pending: boolean;
+    kind?: KindMember;
     opening?: boolean;
     onOpened?: () => void;
     onCancel: () => void;
@@ -349,13 +372,14 @@ export function ThingRow({
         }
         onOpened?.();
     }, [opening, thing.id, onOpened]);
-    const main = mainOf(ctx, thing, channels);
+    // A kind group's row (a Label of kind Text or Glyph) edits its kind's main channel.
+    const main = mainOf(ctx, kind === undefined ? thing : { ...thing, main: [kind.head], start: kind.head }, channels);
     if (main === undefined) {
         return null;
     }
-    const kind = ctx.side === "node" ? "Node" : "Edge";
-    const title = `${kind} ${thing.name.toLowerCase()}`;
-    const family = familyOf(ctx.side, thing.id);
+    const kindWord = ctx.side === "node" ? "Node" : "Edge";
+    const title = `${kindWord} ${thing.name.toLowerCase()}`;
+    const member = switchTo(ctx, thing, title, kind);
     const list = ctx.side === "node" ? LISTS[thing.id] : undefined;
     // A shader drawn in the shapes' place is the Shape row's member (design 5): its row names it.
     const replacing = thing.id === "shape" ? replaceUse(ctx) : undefined;
@@ -413,7 +437,7 @@ export function ThingRow({
     };
     const removeLabel = `Remove ${title.toLowerCase()}`;
     const text = TEXT_THINGS[ctx.side][thing.id] as TextThing | undefined;
-    if (text !== undefined) {
+    if (text?.words === main.channel) {
         return (
             <div data-thing={thing.id}>
                 <LabelRow
@@ -423,6 +447,7 @@ export function ThingRow({
                     title={title}
                     channels={channels}
                     pending={pending}
+                    member={member}
                     removeLabel={removeLabel}
                     onRemove={remove}
                 />
@@ -463,9 +488,7 @@ export function ThingRow({
     return (
         <div ref={box} data-thing={thing.id}>
             {picker}
-            <ThingLine
-                member={family === undefined ? undefined : <MemberMenu ctx={ctx} family={family} title={title} />}
-            >
+            <ThingLine member={member}>
                 <MainLine
                     ctx={ctx}
                     thing={thing}

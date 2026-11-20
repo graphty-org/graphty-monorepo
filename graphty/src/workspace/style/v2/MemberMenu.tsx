@@ -19,6 +19,7 @@ import type { RowContext } from "../PropertyRow";
 import { ShaderGallery } from "../ShaderGallery";
 import { failureWords } from "../words";
 import { currentMember, isHeld, type MemberChoice, type MemberPick, membersOf, switchMember } from "./families";
+import { type KindGroup, type KindMember, kindsShown, switchKind } from "./kindGroups";
 
 /** The places a shader for the shapes' place is picked from. */
 const REPLACE_PLACES: readonly ShaderPlace[] = ["replace"];
@@ -75,6 +76,124 @@ export function ReplaceGallery({
 }
 
 /**
+ * The Switch to glyph and its menu of kinds, the current one checked (and `aria-current`): shared by a
+ * graphty-element family's row and a kind group's row.
+ * @param props - Component props
+ * @param props.boxRef - the box it is drawn in, for a picker opened beside it
+ * @param props.attribute - the box's data attribute naming what it switches
+ * @param props.title - the thing's name with its kind ("Node fill")
+ * @param props.members - the kinds, in order
+ * @param props.now - the current kind's key
+ * @param props.onChoose - told the kind picked
+ * @param props.children - what opens beside it (a picker)
+ * @returns The glyph and its menu
+ */
+function SwitchMenu<T extends { readonly key: string; readonly name: string; readonly disabled: boolean }>({
+    boxRef,
+    attribute,
+    title,
+    members,
+    now,
+    onChoose,
+    children,
+}: Readonly<{
+    boxRef?: React.RefObject<HTMLSpanElement | null>;
+    attribute: Readonly<Record<string, string>>;
+    title: string;
+    members: readonly T[];
+    now: string;
+    onChoose: (member: T) => void;
+    children?: React.ReactNode;
+}>): React.JSX.Element {
+    const label = `Switch ${title.toLowerCase()} to`;
+    const current = members.find((member) => member.key === now);
+    return (
+        <span ref={boxRef} className="ws-member" {...attribute}>
+            <Menu position="bottom-start">
+                <Menu.Target>
+                    <Tooltip label={current === undefined ? label : `${label}: ${current.name}`}>
+                        <ActionIcon variant="subtle" size="sm" aria-label={label}>
+                            <GLYPHS.switchTo size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                </Menu.Target>
+                <Menu.Dropdown>
+                    {members.map((member) => (
+                        <Menu.Item
+                            key={member.key}
+                            aria-current={member.key === now ? "true" : undefined}
+                            disabled={member.disabled && member.key !== now}
+                            leftSection={
+                                member.key === now ? (
+                                    <GLYPHS.check size={14} aria-hidden />
+                                ) : (
+                                    <span className="ws-member-blank" />
+                                )
+                            }
+                            onClick={() => {
+                                onChoose(member);
+                            }}
+                        >
+                            {member.name}
+                        </Menu.Item>
+                    ))}
+                </Menu.Dropdown>
+            </Menu>
+            {children}
+        </span>
+    );
+}
+
+/**
+ * A kind group's Switch to (kindGroups.ts): Text or Glyph on a node's Label row. A switch moves the shared
+ * slots and holds the rest, in one undo step.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.group - the kind group
+ * @param props.now - the row's kind
+ * @param props.title - the thing's name with its kind ("Node label")
+ * @returns The glyph and its menu
+ */
+export function KindMenu({
+    ctx,
+    group,
+    now,
+    title,
+}: Readonly<{ ctx: RowContext; group: KindGroup; now: KindMember; title: string }>): React.JSX.Element {
+    const { store } = useWorkspace();
+    // A kind another row of the thing already draws is listed, not picked.
+    const taken = new Set(kindsShown(ctx, group).map((member) => member.id));
+    const members = group.members.map((member) => ({
+        key: member.id,
+        name: member.plainName,
+        disabled: member.id !== now.id && taken.has(member.id),
+    }));
+    return (
+        <SwitchMenu
+            attribute={{ "data-kind-menu": group.id }}
+            title={title}
+            members={members}
+            now={now.id}
+            onChoose={(choice) => {
+                const to = group.members.find((member) => member.id === choice.key);
+                if (to === undefined || to.id === now.id) {
+                    return;
+                }
+                switchKind(ctx, group, now, to)
+                    .then(() => {
+                        store.set({ announcement: `${group.plainName} now ${to.plainName}` });
+                    })
+                    .catch((error: unknown) => {
+                        store.set({
+                            notice: { message: failureWords(group.plainName, "changed", error), error: true },
+                        });
+                    });
+            }}
+        />
+    );
+}
+
+/**
  * The menu: see the file header.
  * @param props - Component props
  * @param props.ctx - the row
@@ -119,40 +238,15 @@ export function MemberMenu({
     const close = (): void => {
         setPicking(null);
     };
-    const label = `Switch ${title.toLowerCase()} to`;
-    const current = members.find((member) => member.key === now);
     return (
-        <span ref={box} className="ws-member" data-member-menu={family.id}>
-            <Menu position="bottom-start">
-                <Menu.Target>
-                    <Tooltip label={current === undefined ? label : `${label}: ${current.name}`}>
-                        <ActionIcon variant="subtle" size="sm" aria-label={label}>
-                            <GLYPHS.switchTo size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                </Menu.Target>
-                <Menu.Dropdown>
-                    {members.map((member) => (
-                        <Menu.Item
-                            key={member.key}
-                            aria-current={member.key === now ? "true" : undefined}
-                            disabled={member.disabled && member.key !== now}
-                            leftSection={
-                                member.key === now ? (
-                                    <GLYPHS.check size={14} aria-hidden />
-                                ) : (
-                                    <span className="ws-member-blank" />
-                                )
-                            }
-                            onClick={() => {
-                                choose(member);
-                            }}
-                        >
-                            {member.name}
-                        </Menu.Item>
-                    ))}
-                </Menu.Dropdown>
-            </Menu>
+        <SwitchMenu
+            boxRef={box}
+            attribute={{ "data-member-menu": family.id }}
+            title={title}
+            members={members}
+            now={now}
+            onChoose={choose}
+        >
             {picking?.pick === "model" && (
                 <ModelsPopover
                     opened
@@ -187,6 +281,6 @@ export function MemberMenu({
                     onClose={close}
                 />
             )}
-        </span>
+        </SwitchMenu>
     );
 }

@@ -195,7 +195,7 @@ const held = new WeakMap<GraphSession, { row: string; values: Map<string, StyleF
  * @param ctx - the row.
  * @returns the map.
  */
-function heldFor(ctx: RowContext): Map<string, StyleFamilyValues> {
+export function heldFor(ctx: RowContext): Map<string, StyleFamilyValues> {
     const row = `${ctx.side}:${ctx.row.join(",")}`;
     const now = held.get(ctx.session);
     if (now?.row === row) {
@@ -211,7 +211,7 @@ function heldFor(ctx: RowContext): Map<string, StyleFamilyValues> {
  * @param values - the values.
  * @returns true when they set, bind or use something.
  */
-function holdsAny(values: StyleFamilyValues | undefined): values is StyleFamilyValues {
+export function holdsAny(values: StyleFamilyValues | undefined): values is StyleFamilyValues {
     return (
         values !== undefined &&
         (Object.keys(values.set).length > 0 || Object.keys(values.encode).length > 0 || values.uses.length > 0)

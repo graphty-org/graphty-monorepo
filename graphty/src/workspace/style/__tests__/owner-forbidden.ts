@@ -40,4 +40,10 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         ledger: "E178",
         selector: "svg.lucide-sliders-horizontal",
     },
+    {
+        what: "Glyph as a style of its own beside Label (it is a kind of the Label row)",
+        ledger: "E275, E276",
+        text: /^Glyph$/,
+        selector: '[data-thing="glyph"]',
+    },
 ];

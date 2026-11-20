@@ -165,7 +165,7 @@ describe("Graph settings v2", () => {
             return id;
         };
 
-        await clickSegment(panel, "Glyphs");
+        await clickSegment(panel, "Atlas");
         await waitFor(() => {
             assert.strictEqual(labels().labelText, "glyphs");
         });

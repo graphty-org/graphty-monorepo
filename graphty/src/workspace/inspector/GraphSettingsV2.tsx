@@ -54,7 +54,8 @@ const EXTENT_OPTIONS = FRAMING_EXTENT_VALUES.map((value) => ({ value, name: EXTE
 /** Each way labels draw their words, as the panel names it. */
 const LABEL_TEXT_WORDS: Readonly<Record<(typeof LABEL_TEXT_VALUES)[number], string>> = {
     canvas: "Canvas",
-    glyphs: "Glyphs",
+    // "Atlas", not "Glyphs": the Label row's Glyph kind is a different thing (E275).
+    glyphs: "Atlas",
 };
 
 /** The ways labels draw their words, in the element's order. */

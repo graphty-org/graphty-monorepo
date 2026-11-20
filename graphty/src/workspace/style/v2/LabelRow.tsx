@@ -32,7 +32,7 @@ import {
 } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
 import { LineFrame } from "./RubricLine";
-import { RowSettings } from "./ThingLine";
+import { RowSettings, ThingLine } from "./ThingLine";
 import { setOn } from "./things";
 import { ValueButton } from "./ValueButton";
 
@@ -181,6 +181,8 @@ interface LabelRowProps {
     readonly channels: readonly Channel[];
     /** Just added with "+", waiting for its source. */
     readonly pending: boolean;
+    /** Its Switch to, when it has kinds (a node's Label: Text or Glyph). */
+    readonly member?: React.ReactNode;
     readonly removeLabel: string;
     readonly onRemove: () => void;
 }
@@ -194,6 +196,7 @@ interface LabelRowProps {
  * @param props.title - see LabelRowProps
  * @param props.channels - see LabelRowProps
  * @param props.pending - see LabelRowProps
+ * @param props.member - see LabelRowProps
  * @param props.removeLabel - see LabelRowProps
  * @param props.onRemove - see LabelRowProps
  * @returns The row and its common lines
@@ -205,6 +208,7 @@ export function LabelRow({
     title,
     channels,
     pending,
+    member,
     removeLabel,
     onRemove,
 }: LabelRowProps): React.JSX.Element {
@@ -308,23 +312,25 @@ export function LabelRow({
     );
     return (
         <>
-            <LineFrame
-                line={kind.words}
-                name={name}
-                set
-                rule="R12"
-                control={
-                    <TextSource
-                        ctx={ctx}
-                        kind={kind}
-                        title={title}
-                        opensAtOnce={pending && lineIn(ctx, kind.words) === undefined}
-                    />
-                }
-                modifier={settings}
-                removeName={removeLabel}
-                onRemove={onRemove}
-            />
+            <ThingLine member={member}>
+                <LineFrame
+                    line={kind.words}
+                    name={name}
+                    set
+                    rule="R12"
+                    control={
+                        <TextSource
+                            ctx={ctx}
+                            kind={kind}
+                            title={title}
+                            opensAtOnce={pending && lineIn(ctx, kind.words) === undefined}
+                        />
+                    }
+                    modifier={settings}
+                    removeName={removeLabel}
+                    onRemove={onRemove}
+                />
+            </ThingLine>
             {/* Every line of the label the layer sets, in the pop-over's order, named (design 2.5). */}
             {setLines.map((line) => (
                 <LabelFieldLine key={`${line.field}-${line.name ?? ""}`} label={label} line={line} named />

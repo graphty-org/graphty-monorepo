@@ -100,15 +100,21 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
         {
             part: "text",
             groups: [
-                [{ id: "label", name: "Label", items: ["label"], main: ["node.label"] }],
+                // Label is Text or Glyph, picked from its row (kindGroups.ts): Glyph is no thing of its own (E275).
+                [
+                    {
+                        id: "label",
+                        name: "Label",
+                        items: ["label", "glyph"],
+                        main: ["node.label", "node.glyph"],
+                        start: "node.label",
+                    },
+                ],
                 [
                     { id: "xlabel", name: "External label", items: ["xlabel"], main: ["node.xlabel"] },
                     { id: "tooltip", name: "Tooltip", items: ["tooltip"], main: ["node.tooltip"] },
                 ],
-                [
-                    { id: "glyph", name: "Glyph", items: ["glyph"], main: ["node.glyph"] },
-                    { id: "record", name: "Record", items: ["record"], main: ["node.shapeTexts"] },
-                ],
+                [{ id: "record", name: "Record", items: ["record"], main: ["node.shapeTexts"] }],
             ],
         },
         {

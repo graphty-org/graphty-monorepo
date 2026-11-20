@@ -25,6 +25,7 @@ import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { viewDim } from "./drawn";
 import { groupOutlineShaders, isGroupOutline, replaceUse } from "./families";
+import { kindGroupOf, type KindMember, kindsShown, ownsOf } from "./kindGroups";
 import { drawnItems, firstColors, ITEM_LISTS, LISTS } from "./lists";
 import { PlusList } from "./PlusList";
 import { FIT_TO_LABEL, lineFor, V2_LABELS } from "./rubric";
@@ -185,6 +186,28 @@ function foundLine(ctx: RowContext, channel: Channel): React.ReactNode {
 }
 
 /**
+ * A thing's rows: one, or for a kind group one per kind its layers draw, each with that kind's channels.
+ * @param ctx - the row.
+ * @param thing - the thing.
+ * @param channels - its channels.
+ * @returns the rows.
+ */
+function rowsOf(
+    ctx: RowContext,
+    thing: ThingSpec,
+    channels: readonly Channel[],
+): readonly { thing: ThingSpec; channels: readonly Channel[]; kind?: KindMember }[] {
+    const group = kindGroupOf(ctx.side, thing.id);
+    if (group === undefined) {
+        return [{ thing, channels }];
+    }
+    return kindsShown(ctx, group).map((kind) => {
+        const owns = ownsOf(group, kind);
+        return { thing, channels: channels.filter((channel) => owns.includes(channel)), kind };
+    });
+}
+
+/**
  * One section: see the file header.
  * @param props - Component props
  * @param props.ctx - the row and kind
@@ -312,22 +335,25 @@ function ThingSection({
                     )
                 }
             >
-                {shown.map(({ thing, channels }) => (
-                    <ThingRow
-                        key={thing.id}
-                        ctx={ctx}
-                        thing={thing}
-                        channels={channels}
-                        pending={waiting.includes(thing.id)}
-                        opening={opening === thing.id}
-                        onOpened={() => {
-                            setOpening(undefined);
-                        }}
-                        onCancel={() => {
-                            setWaiting((now) => now.filter((each) => each !== thing.id));
-                        }}
-                    />
-                ))}
+                {shown
+                    .flatMap(({ thing, channels }) => rowsOf(ctx, thing, channels))
+                    .map(({ thing, channels, kind }) => (
+                        <ThingRow
+                            key={kind === undefined ? thing.id : `${thing.id}:${kind.id}`}
+                            ctx={ctx}
+                            thing={thing}
+                            channels={channels}
+                            kind={kind}
+                            pending={waiting.includes(thing.id)}
+                            opening={opening === thing.id}
+                            onOpened={() => {
+                                setOpening(undefined);
+                            }}
+                            onCancel={() => {
+                                setWaiting((now) => now.filter((each) => each !== thing.id));
+                            }}
+                        />
+                    ))}
                 {outlines.map((entry) => (
                     <ShaderUseRow key={entry.key} ctx={ctx} entry={entry} outline />
                 ))}

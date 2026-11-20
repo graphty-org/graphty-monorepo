@@ -27,7 +27,7 @@ The box went away.
 
 ### 3. `--click "Les Miserables"` -> 03.png
 
-Saw: a drawing of blue balls joined by thin grey lines on a light background. No names anywhere.
+Saw: a drawing of blue balls joined by thin gray lines on a light background. No names anywhere.
 Left panel: "Graph Les Miserables", a search box, "Selection", "Everything". Right panel headed
 "Graph", tabs "Style" and "Values" (Values open: Nodes 77, Edges 254, Density, Components...).
 A floating toolbar of five icons at the bottom with no words on them.
@@ -58,7 +58,7 @@ Thinking: "I want the character's name. 'name'."
 ### 7. `--click-at 1117,486` (option "name") -> 07.png
 
 Saw: small names appeared above most dots (Blacheville, Fameuil, Myriel, Napoleon, Old Man...).
-The Label row now reads "Aa Above Abc name", and under it in small grey text: "77 labels, 7
+The Label row now reads "Aa Above Abc name", and under it in small gray text: "77 labels, 7
 hidden to avoid overlap". The names are very small; in the crowded middle many are unreadable.
 
 Thinking: "There they are! But it says seven are hidden, and the task says every name. Maybe if I
@@ -104,7 +104,7 @@ Session ended.
   "Seed") -- nothing for dots. I only found the label control because "Everything" on the left
   happened to look like "all the dots".
 - Step 7 onward: the note "77 labels, 7 hidden to avoid overlap" told me the task was not done, but
-  gave me no way to finish it. It is plain grey text, not a control, and hovering it says nothing.
+  gave me no way to finish it. It is plain gray text, not a control, and hovering it says nothing.
 - Steps 8 and 12: scrolling over the drawing did not zoom, so I could not check whether the hidden
   names come back up close.
 

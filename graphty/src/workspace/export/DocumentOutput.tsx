@@ -51,7 +51,7 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
         }
         if (kind === "recipe") {
             const recipe = session.recipe();
-            const leftOut = recipe.leftOut.reduce((sum, fact) => sum + Number(fact.params?.count ?? 1), 0);
+            const leftOut = recipe.leftOut.reduce((sum, fact) => sum + Number(fact.params.count ?? 1), 0);
             return {
                 rows: [
                     { label: "Data sources", value: recipe.sources.length },
@@ -77,7 +77,7 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
 
     const save = async (): Promise<void> => {
         if (kind === "project") {
-            // The node models experiment first asks how to keep each model named by web address.
+            // It first asks how to keep each model named by web address.
             const assets = session === null ? {} : await askAssetChoices(store, session);
             if (assets === null) {
                 return;

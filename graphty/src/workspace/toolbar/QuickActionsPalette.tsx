@@ -86,7 +86,12 @@ export function QuickActionsPalette({ onClose }: Readonly<{ onClose: () => void 
     const workspace = useWorkspace();
     const rows = workspace.registry.paletteRows(workspace);
     const actions = [...workspace.registry.live, ...rows]
-        .filter((command) => command.id !== "quick-actions.open" && command.shown?.(workspace) !== false)
+        .filter(
+            (command) =>
+                command.id !== "quick-actions.open" &&
+                command.inPalette !== false &&
+                command.shown?.(workspace) !== false,
+        )
         .sort((a, b) => groupRank(a.group) - groupRank(b.group))
         .map((command) => {
             const reason = command.disabled?.(workspace) ?? null;

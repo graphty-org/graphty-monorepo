@@ -4,8 +4,8 @@ import * as generators from "../../src/generators/index.js";
 import { GENERATOR_CATALOG } from "../../src/index.js";
 
 /**
- * Exported functions that are not generators the catalogue lists: helpers that take or return
- * something other than a whole graph from a few numbers, and the catalogue runner itself.
+ * Exported functions that are not generators the catalog lists: helpers that take or return
+ * something other than a whole graph from a few numbers, and the catalog runner itself.
  */
 const NOT_IN_CATALOG = new Set([
     "generateGraph",
@@ -17,9 +17,9 @@ const NOT_IN_CATALOG = new Set([
 ]);
 
 /**
- * The catalogue name of a generator function: its name in kebab case, without "Graph".
+ * The catalog name of a generator function: its name in kebab case, without "Graph".
  * @param fn - the function's name
- * @returns the catalogue name
+ * @returns the catalog name
  */
 function catalogName(fn: string): string {
     return fn

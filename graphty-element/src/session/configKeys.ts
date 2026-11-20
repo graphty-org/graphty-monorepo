@@ -2,7 +2,7 @@
  * @file The keys of the project settings `config.set` writes, one per leaf, named by its dotted
  * path, each with its group and its schema: every leaf of the zod `DataConfig` schema under
  * `data.`, whether the on-load algorithms run, the background, the selection style, the pinned style, the starting rows, the run placement, three
- * layout-behaviour keys, the layout transition, the view rotation, the framing, the minimum mark size, the author stamped on notes, and the project's name. Kept apart from the
+ * layout-behavior keys, the layout transition, the view rotation, the framing, the minimum mark size, the author stamped on notes, and the project's name. Kept apart from the
  * command so a reader of the settings (the assistant's `project` tool) loads the schemas alone.
  */
 
@@ -20,6 +20,7 @@ type ConfigGroup =
     | "selectionStyle"
     | "pinnedStyle"
     | "startingRows"
+    | "startingCamerasWritten"
     | "runPlacement"
     | "layoutBehavior"
     | "layoutTransition"
@@ -85,6 +86,8 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
     ["timelineHiddenLook", { group: "startingRows", schema: z.enum(["hidden", "ghost"]).default("hidden") }],
     // Whether the timeline has written its Timeline Hidden row: set with the row, so it is written once.
     ["timelineHiddenAdded", { group: "startingRows", schema: z.boolean().default(false) }],
+    // Whether the session's starting cameras were written into this project: set when they are, so once.
+    ["startingCamerasWritten", { group: "startingCamerasWritten", schema: z.boolean().default(false) }],
     ["runPlacement", { group: "runPlacement", schema: z.enum(["beneath", "top"]).default("beneath") }],
     ...(["preSteps", "stepMultiplier", "minDelta"] as const).map((name): [string, ConfigKey] => [
         `layoutBehavior.${name}`,

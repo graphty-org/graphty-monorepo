@@ -224,7 +224,7 @@ try {
             throw new Error(`rows left the batched path after ${stage}: ${JSON.stringify(rows)}`);
     };
     await checkBatched("load");
-    // What a labelled run really built: with sampling on, only the cells' winners.
+    // What a labeled run really built: with sampling on, only the cells' winners.
     if (labels && lib === "graphty")
         log(
             "labelCounts",

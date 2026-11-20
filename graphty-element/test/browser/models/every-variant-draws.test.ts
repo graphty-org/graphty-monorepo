@@ -131,7 +131,7 @@ describe("every model variant draws", () => {
         assert.isAtLeast(await differingShare(...pictures), 0.03, "the texture changes the picture");
     });
 
-    it("an unbundled SOG whose meta file has another name", async () => {
+    it("refuses an unbundled SOG (Gaussian splats) whose meta file has another name", async () => {
         const sog = (manifest as Variant[]).find((v) => v.id === "sog") as Variant;
         const [bundle] = (await filesOf(sog)).values();
         const files = new Map<string, Uint8Array>(Object.entries(unzipSync(bundle)));
@@ -139,8 +139,8 @@ describe("every model variant draws", () => {
         files.delete("meta.json");
         const element = await mount();
         const record = await element.session.assets.add({ files });
-        assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
-        const picture = await element.modelThumbnail(record.id, { size: 96 });
-        assert.isAtLeast(await drawnShare(picture), 0.03, "the model is drawn");
+        assert.strictEqual(record.state, "rejected");
+        assert.deepInclude(record.problems[0], { code: "E_MODEL_FORMAT_UNSUPPORTED" });
+        assert.strictEqual(record.problems[0]?.params.format, "sog");
     });
 });

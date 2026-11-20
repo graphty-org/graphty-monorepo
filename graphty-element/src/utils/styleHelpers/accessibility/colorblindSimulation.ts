@@ -8,7 +8,7 @@
 import { hexToRgb, rgbToHex } from "../color/interpolation";
 
 /**
- * Convert hex color to RGB components, throwing on anything that is not a six-digit hex colour.
+ * Convert hex color to RGB components, throwing on anything that is not a six-digit hex color.
  * @param hex - Hex color string (e.g., "#FF0000" or "FF0000")
  * @returns Tuple of RGB values [r, g, b] where each component is 0-255
  */

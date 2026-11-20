@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { edgeIdOf, EdgeIdRows } from "../../src/data/edgeIdentity";
-import { RowIdRecords, RowMap } from "../../src/data/RowMap";
+import { RowEdges, RowIdRecords, RowMap } from "../../src/data/RowMap";
 
 describe("RowMap", () => {
     it("keeps each value by its row, set out of order, far apart, replaced and deleted", () => {
@@ -67,5 +67,39 @@ describe("EdgeIdRows", () => {
         assert.isFalse(rows.has("3"));
         rows.clear();
         assert.equal(rows.size, 0);
+    });
+});
+
+describe("RowEdges", () => {
+    it("keeps each edge by its row as columns, answers the row as its edgeIndex, and walks in row order", () => {
+        const edges = new RowEdges<number | string, object>();
+        const record = { weight: 2 };
+        edges.set(7, { record, sourceId: "a", targetId: 3, edgeIndex: 7, edgeId: 41 });
+        edges.set(2, { record, sourceId: 1, targetId: 2, edgeIndex: 2, edgeId: 40 });
+        assert.equal(edges.size, 2);
+        assert.deepEqual(edges.get(7), { record, sourceId: "a", targetId: 3, edgeIndex: 7, edgeId: 41 });
+        assert.strictEqual(edges.get(7)?.record, record, "the record is kept, not copied");
+        assert.equal(edges.edgeIdAt(2), 40);
+        assert.isUndefined(edges.get(3));
+        assert.deepEqual([...edges.keys()], [2, 7]);
+        assert.deepEqual(
+            [...edges].map(([row, edge]) => [row, edge.edgeId]),
+            [
+                [2, 40],
+                [7, 41],
+            ],
+        );
+        assert.deepEqual(
+            [...edges.values()].map((edge) => edge.edgeIndex),
+            [2, 7],
+        );
+
+        assert.isTrue(edges.delete(7));
+        assert.isFalse(edges.delete(7), "a row deleted twice counts once");
+        assert.equal(edges.size, 1);
+        assert.isUndefined(edges.edgeIdAt(7));
+        edges.clear();
+        assert.equal(edges.size, 0);
+        assert.deepEqual([...edges], []);
     });
 });

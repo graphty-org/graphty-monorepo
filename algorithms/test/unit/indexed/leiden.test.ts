@@ -30,7 +30,7 @@ describe("indexed.leiden", () => {
         { name: "random 300 nodes, 1200 weighted edges", graph: gnm(300, 1200, false, 31337, true) },
     ]) {
         it(`reaches at least the legacy leiden's modularity, at the default seed and on average, on ${name}`, () => {
-            // Both are randomised heuristics with different random streams, so for one seed either
+            // Both are randomized heuristics with different random streams, so for one seed either
             // can come out ahead; the claim is the default seed and the mean over forty seeds.
             const s = checksummedSnapshot(graph);
             expect(leiden(s).modularity).toBeGreaterThanOrEqual((legacyResult() as LeidenResult).modularity - 1e-12);

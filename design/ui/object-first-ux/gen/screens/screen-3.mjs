@@ -1,13 +1,13 @@
 // Screen 3: the tree after two runs and a filter, Group 2 selected, its Style
 // tab (round-2/screens.md). The canvas paint is derived from karate.mjs so the
 // member lists are never typed twice. Outlines and the Set's ring chip are
-// "ink" (the theme's outline colour), so screen 12 is this spec in the dark
+// "ink" (the theme's outline color), so screen 12 is this spec in the dark
 // theme.
 
 import { COMMUNITIES, DEGREE } from "../karate.mjs";
 import { OKABE_4, OVERRIDE } from "../palettes.mjs";
 
-// Group 2's inherited colour is OKABE_4[1] (sky blue), overridden to vermillion.
+// Group 2's inherited color is OKABE_4[1] (sky blue), overridden to vermillion.
 const GROUP_COLOR = (g) => (g === 2 ? OVERRIDE : OKABE_4[g - 1]);
 const OUTLINE = { color: "ink", width: 2 }; // the "Degree > 8" Set's style
 

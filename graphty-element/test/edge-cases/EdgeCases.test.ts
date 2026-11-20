@@ -114,7 +114,7 @@ describe("Edge Case Handling", () => {
          * An edge of one line type, placed by `Edge.update()` between nodes `distance` apart along x. The
          * nodes are small enough (0.02) that even the 0.1 gap leaves a line between their surfaces, and the
          * edge has no arrow head, so the line itself is what is measured.
-         * @param distance - How far apart the two nodes' centres are.
+         * @param distance - How far apart the two nodes' centers are.
          * @param type - The line type.
          * @returns The placed edge.
          */
@@ -154,7 +154,7 @@ describe("Edge Case Handling", () => {
         }
 
         /**
-         * Asserts a point is finite and lies on the segment between the two node centres, near the x axis
+         * Asserts a point is finite and lies on the segment between the two node centers, near the x axis
          * (a wave swings off it by its amplitude, within the line's width). A point left at the placeholder
          * ends a patterned line is built with, (0, 0, -0.5) and (0, 0, 0.5), fails this on the short edge.
          * @param p - The point.

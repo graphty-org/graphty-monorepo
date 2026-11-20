@@ -252,7 +252,7 @@ export interface DegreeOrderOptions {
 /**
  * The structural row-walking interface implemented by GraphSnapshot and by ReverseView (design
  * section 7.2), so an algorithm that only walks rows takes either without a wrapper: an
- * in-neighbour BFS is the out-neighbour BFS over reverse(). Rows are sorted by target with ties in
+ * in-neighbor BFS is the out-neighbor BFS over reverse(). Rows are sorted by target with ties in
  * ascending arcToEdge order (invariant I4); no INVALID_INDEX appears in any array (I2).
  */
 export interface AdjacencyView {
@@ -278,7 +278,7 @@ export interface AdjacencyView {
  * with an identity fwdArc, and arcToEdge is the very same array as the snapshot's.
  */
 export interface ReverseView extends AdjacencyView {
-    /** Reverse arc k -> forward arc index; the identity for undirected snapshots (materialised lazily). */
+    /** Reverse arc k -> forward arc index; the identity for undirected snapshots (materialized lazily). */
     readonly fwdArc: U32;
 }
 
@@ -424,7 +424,7 @@ export interface ByteLengthOptions {
  * attribute tables, the flags and a per-instance view cache. Topology, counts, flags, id map and
  * immutable columns never change after freeze() returns (invariant I17); the column SET of nodes /
  * edges / graph and the CONTENTS of columns declared mutable are mutable side tables (design section
- * 5.8). Every view is a pure function of the core, memoised once and SHARED: writing into a view is
+ * 5.8). Every view is a pure function of the core, memoized once and SHARED: writing into a view is
  * a contract violation; call .slice() for scratch. Index-taking queries are total for in-range
  * arguments and unchecked otherwise (design section 11.1): an out-of-range index never throws, and
  * the result is unspecified unless the method says otherwise (findArc / hasArc still report a miss);
@@ -432,7 +432,7 @@ export interface ByteLengthOptions {
  *
  * Instance contract of the GraphSnapshot class in src/snapshot/graph-snapshot.ts, which implements
  * it; the public barrel exports the class and every public type names the class. isGraphSnapshot()
- * recognises instances structurally through SNAPSHOT_BRAND and formatVersion, never instanceof.
+ * recognizes instances structurally through SNAPSHOT_BRAND and formatVersion, never instanceof.
  */
 export interface GraphSnapshotContract extends AdjacencyView {
     /** Symbol.for brand read by isGraphSnapshot() (design section 7.5). */
@@ -463,12 +463,12 @@ export interface GraphSnapshotContract extends AdjacencyView {
      */
     readonly weights: F32 | null;
     /**
-     * arcCount entries: logical edge of each arc (invariant I5); materialised on first access when
+     * arcCount entries: logical edge of each arc (invariant I5); materialized on first access when
      * flags.arcToEdgeIsIdentity.
      */
     readonly arcToEdge: U32;
     /**
-     * edgeCount entries: the arc holding the declared orientation (invariant I5); materialised on first access when
+     * edgeCount entries: the arc holding the declared orientation (invariant I5); materialized on first access when
      * identity.
      */
     readonly edgeToArc: U32;
@@ -579,7 +579,7 @@ export interface GraphSnapshotContract extends AdjacencyView {
      */
     edgeList(): EdgeListView;
     /**
-     * rowPtr differences materialised; a self-loop counted once. Cached and shared.
+     * rowPtr differences materialized; a self-loop counted once. Cached and shared.
      * @returns Uint32Array(n)
      */
     outDegree(): U32;
@@ -659,7 +659,7 @@ export interface GraphSnapshotContract extends AdjacencyView {
     isSymmetric(): boolean;
     /**
      * Compute a set of views eagerly (inside freeze() through FreezeOptions.prepare, or off the critical path).
-     * @param views - the views to materialise
+     * @param views - the views to materialize
      * @returns this snapshot
      */
     prepare(views: readonly ViewName[]): this;
@@ -715,7 +715,7 @@ export interface GraphSnapshotContract extends AdjacencyView {
     inducedSubgraph(selection: U32 | { readonly mask: NodeMask }): DerivedGraph;
     /**
      * Contract the nodes of each partition block into one node (design section 7.3): labels already forming 0..k-1 are
-     * kept as block indices, any other labelling is renumbered in first-seen order; E_PARTITION for a wrong length or
+     * kept as block indices, any other labeling is renumbered in first-seen order; E_PARTITION for a wrong length or
      * an INVALID_INDEX label.
      * @param partition - one label per node
      * @param options - weight reducer, self-loop and parallel policies, column reducers
@@ -771,7 +771,7 @@ export interface GraphSnapshotContract extends AdjacencyView {
      */
     transferables(): ArrayBuffer[];
     /**
-     * The plain-object wire form: a JSON-serialisable manifest plus ArrayBuffers (design section 9.1). Allocates
+     * The plain-object wire form: a JSON-serializable manifest plus ArrayBuffers (design section 9.1). Allocates
      * nothing for typed data except lazily kept representations on first use.
      * @param options - transfer mode, views and columns to include
      * @returns the wire snapshot; E_UNSUPPORTED on a big-endian host

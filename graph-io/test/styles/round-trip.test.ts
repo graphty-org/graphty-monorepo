@@ -153,8 +153,8 @@ describe("the built-in formats", () => {
         expect(styled.filter((f) => !writers.has(f))).toEqual([]);
     });
 
-    it("each one without a style writer is CSV, Neo4j CSV or OBO", () => {
-        expect([...unstyled].sort()).toEqual(["csv", "neo4j", "obo"]);
+    it("each one without a style writer is CSV, Neo4j CSV, OBO or SIF", () => {
+        expect([...unstyled].sort()).toEqual(["csv", "neo4j", "obo", "sif"]);
     });
 });
 

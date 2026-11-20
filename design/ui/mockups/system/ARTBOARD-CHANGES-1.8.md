@@ -3,7 +3,7 @@
 File: `ImportFlow.dc.html`. State: the import flow as one machine -- Ways in, The dialog (nine bands),
 Ways out, Ways back in, and the eight-row decision table. No shell, no canvas, no legend. Frame 1440 by 900.
 
-1. **SET-WIDE, read this first.** Nothing in this checklist adds an icon, a word or a colour that is not
+1. **SET-WIDE, read this first.** Nothing in this checklist adds an icon, a word or a color that is not
    already in `VOCAB.md` (sections 1 to 13 plus the new section 14, "1.8 additions") or in this board's own
    copy. Keep `<script src="./support.js"></script>` exactly. Static board: no `<script data-dc-script>`,
    no handlebars, no `<sc-for>`. Plain ASCII, `--` for dashes, straight quotes. Do not edit `canvas.json`.
@@ -28,7 +28,7 @@ Ways out, Ways back in, and the eight-row decision table. No shell, no canvas, n
 
 4. **POP-ROLE: band 4 gains its one leader line -- the column Role chip is a door.** Region: the leader-line
    column, line 230, which is currently the empty 28px spacer standing opposite band 4 (`<div style="height:
-   28px;"></div>`). Replace that one spacer with the leader-line form its neighbours already use, so band 4
+   28px;"></div>`). Replace that one spacer with the leader-line form its neighbors already use, so band 4
    reads out its own pop-over:
    ```html
    <div style="display: flex; align-items: center; gap: 8px; height: 28px;">
@@ -98,11 +98,11 @@ File: `ImportOptions.dc.html`. State: Import options over the Empty shell, nothi
 `fraud-ring-synthetic.csv`, 38 KB, one guessed type column, the type column's Role menu drawn open.
 Dialog frame 720. No canvas toolbar, minimap or legend.
 
-1. **SET-WIDE, read this first.** No new icons, words or colours beyond `VOCAB.md` (now including section
+1. **SET-WIDE, read this first.** No new icons, words or colors beyond `VOCAB.md` (now including section
    14, "1.8 additions") and this board's own copy. Keep `<script src="./support.js"></script>` exactly.
    Static board. Plain ASCII, `--` for dashes, straight quotes. Do not edit `canvas.json`. Do not touch any
    other `.dc.html`. Target for this board, from DECISIONS-1.8 section H: **12 resident rows outside the
-   preview grid -> 9.** Count a labelled field as one row and a flex row of several fields as that many
+   preview grid -> 9.** Count a labeled field as one row and a flex row of several fields as that many
    rows, which is how the 12 was counted. If your count lands one off after applying every item below,
    record the achieved count in the file comment; do not invent or preserve a row to hit the number.
 
@@ -164,7 +164,7 @@ Dialog frame 720. No canvas toolbar, minimap or legend.
    right surface and its trailing slot carries the one fact a door stub would have carried.
 
 7. **A6-1: no gear on this board draws dimmed by accident.** Region: the whole dialog. This board has no
-   gear (Parsing is a collapsed row here, not a door), so A6 has nothing to colour. Record it: add to the
+   gear (Parsing is a collapsed row here, not a door), so A6 has nothing to color. Record it: add to the
    file comment, after item 4's replacement, `REVISION 1.8, A6: a door glyph draws in the dimmed ink when
    everything behind it is at its default and in the primary ink when anything behind it is not. This board
    draws no gear -- Parsing is a collapsed row, not a door -- so the only stub it owes is the Role chip's
@@ -211,15 +211,15 @@ Dialog frame 720. No canvas toolbar, minimap or legend.
 
 ## ImportRecognised
 
-File: `ImportRecognised.dc.html`. State: Import options over the Empty shell, nothing loaded, a recognised
+File: `ImportRecognised.dc.html`. State: Import options over the Empty shell, nothing loaded, a recognized
 STRING export (`string_interactions.tsv`), 318 nodes, 1,104 edges, twelve columns mapped, the Identifier
 system info bubble drawn open. Dialog frame 1120. No canvas toolbar, minimap or legend.
 
-1. **SET-WIDE, read this first.** No new icons, words or colours beyond `VOCAB.md` (now including section
+1. **SET-WIDE, read this first.** No new icons, words or colors beyond `VOCAB.md` (now including section
    14) and this board's own copy. Keep `<script src="./support.js"></script>` exactly. Static board. Plain
    ASCII, `--` for dashes, straight quotes. Do not edit `canvas.json`. Do not touch any other `.dc.html`.
    Target for this board, from DECISIONS-1.8 section H: **15 resident rows outside the preview grid -> 7**,
-   the largest reduction in the Data set. Count a labelled field as one row and a section header as none.
+   the largest reduction in the Data set. Count a labeled field as one row and a section header as none.
    If your count lands one off after applying every item, record the achieved count in the file comment.
 
 2. **LEG-0: this board draws no legend, and that is now a recorded fact.** Region: file comment, the line
@@ -323,7 +323,7 @@ File: `ImportLargeFile.dc.html`. State: Import options over the Empty shell, not
 `netflow-2026-q2.csv`, 3.2 GB, above the render ceiling, Busiest nodes 50,000 pre-selected. No canvas
 toolbar, minimap or legend.
 
-1. **SET-WIDE, read this first.** No new icons, words or colours beyond `VOCAB.md` (now including section
+1. **SET-WIDE, read this first.** No new icons, words or colors beyond `VOCAB.md` (now including section
    14) and this board's own copy. Keep `<script src="./support.js"></script>` exactly. Static board. Plain
    ASCII, `--` for dashes, straight quotes. Do not edit `canvas.json`. Do not touch any other `.dc.html`.
    Target for this board, from DECISIONS-1.8 section H: **13 resident rows outside the preview grid -> 10.**
@@ -350,7 +350,7 @@ toolbar, minimap or legend.
    all three cells. Every control sits at its shipped default and no count can be known until the file
    parses -- 3.2 GB of it, read to 256 KB -- which is Rule 7a's own named example and D5 names this board
    by hand for it. The full sentences the fields carried are not lost: they are already the shipped default
-   behaviour and they return the moment a policy deviates. Net: -3 rows.
+   behavior and they return the moment a policy deviates. Net: -3 rows.
 
 5. **POP-ROLE-1: the prose role line goes, and its two facts move onto the two Role chips.** Region: the
    caption under the preview grid, the line reading
@@ -417,7 +417,7 @@ File: `ImportParseError.dc.html`. State: Import options over the Empty shell, no
 `malformed-export.csv`, 1.2 MB, parse error, Parsing drawn open with Separator focused, Import disabled
 with "Skip 4 rows and import" beside it. No canvas toolbar, minimap or legend.
 
-1. **SET-WIDE, read this first.** No new icons, words or colours beyond `VOCAB.md` (now including section
+1. **SET-WIDE, read this first.** No new icons, words or colors beyond `VOCAB.md` (now including section
    14) and this board's own copy. Keep `<script src="./support.js"></script>` exactly. Static board. Plain
    ASCII, `--` for dashes, straight quotes. Do not edit `canvas.json`. Do not touch any other `.dc.html`.
    Target for this board, from DECISIONS-1.8 section H: **10 resident rows outside the preview grid -> 9.**
@@ -465,7 +465,7 @@ with "Skip 4 rows and import" beside it. No canvas toolbar, minimap or legend.
    7 Parsing group, drawn open with Separator focused. Change nothing. Add to its comment: `1.8, A6: a door
    glyph draws dimmed at defaults and primary at a deviation. This board draws no Parsing door at all --
    item 8's override draws the group OPEN with Separator focused, because a user who once collapsed Parsing
-   would otherwise never see the control that fixes their file. An open group has no stub to colour.`
+   would otherwise never see the control that fixes their file. An open group has no stub to color.`
 
 8. **CONFIRM-1: the footer note and the two verbs stay inline.** Region: file comment, after item 5's
    replacement. Add: `REVISION 1.8, B4 and 14.4: a cost estimate, cap or destructive confirm is a pop-out
@@ -486,7 +486,7 @@ File: `ImportAddToGraph.dc.html`. State: the "What do you want to do with this f
 fraud graph, Data panel open at Loaded data, canvas encoded on two channels, minimap and legend drawn.
 Frame 1440 by 900.
 
-1. **SET-WIDE, read this first.** No new icons, words or colours beyond `VOCAB.md` (now including section
+1. **SET-WIDE, read this first.** No new icons, words or colors beyond `VOCAB.md` (now including section
    14, "1.8 additions") and this board's own copy. Keep `<script src="./support.js"></script>` exactly.
    Static board. Plain ASCII, `--` for dashes, straight quotes. Do not edit `canvas.json`. Do not touch any
    other `.dc.html`. Two set-wide decisions land on this board: the legend loses its category counts (item
@@ -612,7 +612,7 @@ File: `TableJoin.dc.html`. State: the Table join dialog over the ovarian STRING 
 `expression.tsv` matched on gene against preferredName, 312 of 340 matched, Data panel open behind the
 scrim, canvas encoded on one channel, minimap and legend drawn. Frame 1440 by 900.
 
-1. **SET-WIDE, read this first.** No new icons, words or colours beyond `VOCAB.md` (now including section
+1. **SET-WIDE, read this first.** No new icons, words or colors beyond `VOCAB.md` (now including section
    14) and this board's own copy. Keep `<script src="./support.js"></script>` exactly. Static board. Plain
    ASCII, `--` for dashes, straight quotes. Do not edit `canvas.json`. Do not touch any other `.dc.html`.
 
@@ -700,7 +700,7 @@ File: `DataPanelLoaded.dc.html`. State: Data panel in the Loaded state over the 
 (`fraud-ring-synthetic.json`, 200 nodes, 612 edges), Graph summary inspector, canvas encoded on two
 channels, minimap and legend drawn, no drawer and no slider. Frame 1440 by 900.
 
-1. **SET-WIDE, read this first.** No new icons, words or colours beyond `VOCAB.md` (now including section
+1. **SET-WIDE, read this first.** No new icons, words or colors beyond `VOCAB.md` (now including section
    14) and this board's own copy. Keep `<script src="./support.js"></script>` exactly. Static board. Plain
    ASCII, `--` for dashes, straight quotes. Do not edit `canvas.json`. Do not touch any other `.dc.html`.
    Target for the panel, from DECISIONS-1.8 section H: **19 resident rows -> 17**, and both removals are
@@ -803,7 +803,7 @@ channels, minimap and legend drawn, no drawer and no slider. Frame 1440 by 900.
     the pop-out this door opens takes the activity-panel lane (left edge 336, 8px clear of the panel's
     328), and its SHARED EDGE LINE is this row's -- top to top, or bottom to bottom when a 470px surface
     cannot sit top-to-top in a 40-to-616 region. It carries a 6px caret on its leading edge at the vertical
-    centre of THIS row, clamped 12px inside its own corners. While this row is in the panel the pop-out
+    center of THIS row, clamped 12px inside its own corners. While this row is in the panel the pop-out
     follows it; when this row scrolls out the pop-out docks to the edge it left through, drops its caret,
     keeps this row lit and grows a 20px return strip naming it; when this section collapses or the region
     changes activity, the pop-out closes. It carries no pin (E2 closes the pin set at four comparative
@@ -823,7 +823,7 @@ File: `DataTableDrawer.dc.html`. State: the Data table drawer open on the fraud 
 docked above it (30-day window), 3 nodes selected, the Selection inspector open, no activity panel, the
 minimap hidden, the legend compacted, and the betweenness column's info bubble drawn open. Frame 1440 by 900.
 
-1. **SET-WIDE, read this first.** No new icons, words or colours beyond `VOCAB.md` (now including section
+1. **SET-WIDE, read this first.** No new icons, words or colors beyond `VOCAB.md` (now including section
    14) and this board's own copy. Keep `<script src="./support.js"></script>` exactly. Static board. Plain
    ASCII, `--` for dashes, straight quotes. Do not edit `canvas.json`. Do not touch any other `.dc.html`.
 
@@ -864,7 +864,7 @@ minimap hidden, the legend compacted, and the betweenness column's info bubble d
 5. **ANC-1: the betweenness info bubble is re-anchored to its own info circle.** Region: line 743, the
    bubble `<div style="position: absolute; left: 0; top: 20px; width: 250px; ...">` inside the betweenness
    header cell. Measured today at [732,721 250x58] against an info circle at [848,701 14x14]: it is
-   centre-anchored to the cell with a 6px gap and it covers the betweenness value in all three visible
+   center-anchored to the cell with a 6px gap and it covers the betweenness value in all three visible
    rows. Two edits. (a) Change `left: 0;` to `left: 116px;` so the bubble's left edge sits at shell x 848,
    the info circle's own left edge -- B4's corrected rect [848,721 250x58]. (b) Because the bubble at that
    position still covers that column's own cells, B4 makes the flip above the header row MANDATORY: change
@@ -899,7 +899,7 @@ minimap hidden, the legend compacted, and the betweenness column's info bubble d
 
 9. **PIN-1: the pin narrows to four comparative surfaces, and none of them is on this board's toolbar.**
    Region: file comment. Add: `REVISION 1.8, E2: a pin toggle renders only on a pop-out whose content is
-   comparative across selections, and the set is closed at four -- the colour and gradient picker, Selection
+   comparative across selections, and the set is closed at four -- the color and gradient picker, Selection
    statistics with a pin active, the group profile, and the AI console. Every other pop-out loses its pin
    glyph and the 32px header it sat in. The Columns pop-over and the time slider settings pop-out carry no
    pin. The inspector's "Pin as A" button is a different control and is untouched.` Check the board and
@@ -917,7 +917,7 @@ File: `ValidationPopout.dc.html`. State: the Validation report pop-out open from
 Validation report door, the Data table drawer open and filtered to the first issue, the time slider docked,
 the minimap hidden and the legend compacted, on the fraud graph. Frame 1440 by 900.
 
-1. **SET-WIDE, read this first.** No new icons, words or colours beyond `VOCAB.md` (now including section
+1. **SET-WIDE, read this first.** No new icons, words or colors beyond `VOCAB.md` (now including section
    14) and this board's own copy. Keep `<script src="./support.js"></script>` exactly. Static board. Plain
    ASCII, `--` for dashes, straight quotes. Do not edit `canvas.json`. Do not touch any other `.dc.html`.
    This board is one of B4's ten measured anchor corrections and its correction is the largest of them.
@@ -958,7 +958,7 @@ the minimap hidden and the legend compacted, on the fraud graph. Frame 1440 by 9
      <div style="position: absolute; left: 3px; top: 1px; width: 10px; height: 10px; transform: rotate(45deg); background: #1f2428; border-left: 1px solid #48525c; border-bottom: 1px solid #48525c; box-sizing: border-box;"></div>
    </div>
    ```
-   Arithmetic, so the next pass can check it: the opener row is shell [64,452 255x32], its vertical centre
+   Arithmetic, so the next pass can check it: the opener row is shell [64,452 255x32], its vertical center
    is 468; the pop-out's top is 196, so the caret's unclamped top is 468 - 196 - 6 = 266; the clamp is 12px
    inside the pop-out's own corners, which on a 288px surface is a maximum of 264; so `top: 264px`. Note in
    the comment that VOCAB 14.2's snippet comment ("caret on the LEFT edge, pointing back at the panel") is
@@ -968,7 +968,7 @@ the minimap hidden and the legend compacted, on the fraud graph. Frame 1440 by 9
 
 5. **PIN-1: the pin comes off.** Region: line 969, the 24px `title="Pin this open"` control in the pop-out
    header. DELETE the whole div including its SVG. E2 closes the pin set at four comparative surfaces --
-   the colour and gradient picker, Selection statistics with a pin active, the group profile, and the AI
+   the color and gradient picker, Selection statistics with a pin active, the group profile, and the AI
    console -- and names this board's pin among the three it removes. The header then holds the name,
    `Re-ran after step 2` dimmed, and the close X. Update the header comment (line 956) from `... the pin in
    its pop-out form, and the register's close X` to `... and the register's close X. 1.8, E2: no pin. Pin
@@ -1033,7 +1033,7 @@ the minimap hidden and the legend compacted, on the fraud graph. Frame 1440 by 9
 ## Welcome
 
 State after the edit: unchanged Empty state, 1440 x 900, Data panel open, Welcome
-block centred on the canvas, no canvas overlays. One control is deleted; everything
+block centered on the canvas, no canvas overlays. One control is deleted; everything
 else on this board is a record that stops a later pass from "fixing" it.
 
 1. **Data panel, Open file section header, the `Import settings` gear (lines 199-201).**
@@ -1060,7 +1060,7 @@ else on this board is a record that stops a later pass from "fixing" it.
    fails: "Of the twelve content rows in the Loaded state, eight are 6.10 floor items
    and three are the front door", and Empty is the front door itself. Add to the panel
    comment block ending at line 36: `1.8 / D5, D9: Data is a section you OPERATE, not
-   one you configure once and read out of, so the Present split does not generalise to
+   one you configure once and read out of, so the Present split does not generalize to
    it. Empty stays at 7 rows. No row on this board goes behind a door.`
 5. **A2 record, so the veto is visible where the import path starts.** Add to the same
    panel comment: `A2 (6.10a): a control whose wrong value is invisible until it does
@@ -1105,7 +1105,7 @@ other board copies -- and both need geometry work.
 3. **Schema pop-out header (lines 766-769): delete the pin toggle.** Current: a 24px
    `title="Pin this open"` div between the title and the close X. New: delete it; the
    close X moves left into its slot and the header stays 32px. E2 narrows the pin to a
-   closed set of four comparative surfaces -- the colour and gradient picker, Selection
+   closed set of four comparative surfaces -- the color and gradient picker, Selection
    statistics with a pin active, the group profile, and the AI console. Schema is a
    report of what is currently true, has nothing to hold still across a selection
    change, and "pinning it produces a stale panel that lies". Record the reason in the
@@ -1113,8 +1113,8 @@ other board copies -- and both need geometry work.
 4. **Schema pop-out: add the caret (VOCAB 14.2).** New element, first child of the
    pop-out div, using the inspector spelling -- an inspector pop-out carries its 6px
    caret on the **right** edge (it opens left, so the leading edge points back at the
-   inspector). Position it at the vertical centre of the Schema row: the row's top is
-   473 and it is 32 tall, so the caret's centre is y 489, i.e. `top: 10px` inside a
+   inspector). Position it at the vertical center of the Schema row: the row's top is
+   473 and it is 32 tall, so the caret's center is y 489, i.e. `top: 10px` inside a
    pop-out whose top is 473, clamped 12px inside the corners. Mirror VOCAB 14.2's
    snippet, swapping `left: -6px` for `right: -6px` and the border pair for
    `border-right` + `border-top`.
@@ -1192,7 +1192,7 @@ other board copies -- and both need geometry work.
     (the Schema pop-out's anchor is correct and is now cited by pixel in 6.11), E2 (the
     Schema pop-out loses its pin -- the pin is narrowed to four comparative surfaces),
     B3 / VOCAB 14.2 (the pop-out gains a 6px caret on its leading edge at the opener
-    row's vertical centre), D4 (Explore panel 14 -> 10: the zero-rule Filter builder is
+    row's vertical center), D4 (Explore panel 14 -> 10: the zero-rule Filter builder is
     one row, Selection actions is deleted into the Select menu, Around the selection
     moves to the inspector, Expand neighbors becomes the Neighborhood expansion door
     row), C6 (legend cap 334 -> 240), D8 (the ? reference is non-modal).`
@@ -1248,7 +1248,7 @@ behind another door, and the legend's comment.
    profile keep their anchors. Riders: (a) the group profile KEEPS its pin -- it is one
    of E2's closed set of four comparative surfaces; (b) the run-record pop-out LOSES
    any pin it would have carried, for the same reason Schema loses one. Both gain the
-   6px leading-edge caret (VOCAB 14.2) at the vertical centre of the row that opened
+   6px leading-edge caret (VOCAB 14.2) at the vertical center of the row that opened
    them, on the right edge because they are inspector pop-outs.
 7. **Legend (line 710): this board encodes TWO channels -- Color: Groups (Communities,
    Louvain), four category rows drawn WITHOUT counts, and Size: Most connected (degree
@@ -1306,7 +1306,7 @@ inspector action block is already correct.
    every dataset, learned once, and caused by an action the reader just performed."
    **What replaces them on THIS board:** `Selected` -> the inspector header, which
    names acct-4471, and the status bar's selection slot; `Linked to the selection` ->
-   the inspector's neighbour section with its In / Out / All tabs, which is what the
+   the inspector's neighbor section with its In / Out / All tabs, which is what the
    ring reports; `Open notes` -> the status bar's notes chip and the inspector's Notes
    section. All three also render in the exported legend, which has none of those
    regions, and in Help's "What the marks mean".
@@ -1325,7 +1325,7 @@ inspector action block is already correct.
 6. **Legend comment (lines 1363-1381).** Rewrite the two THIS BOARD sentences that
    assert counts and state rows. Current: `Node-type rows are in count order (96 / 48 /
    34 / 22) like every other board.` and `the selection ring and the accent edges it
-   draws on about 37 neighbours are the state rows under it, and they carry no counts.`
+   draws on about 37 neighbors are the state rows under it, and they carry no counts.`
    New: `Node-type rows are in count order and carry no counts on canvas (C3): the
    Schema table, the Data table drawer and the exported legend own the four numbers.
    The selection ring and the linked-edge mark are app chrome, not encoded channels, so
@@ -1348,7 +1348,7 @@ inspector action block is already correct.
    click. A3 forbids by name the Advanced parameter block behind the History door; the
    run record behind a card's own Details chevron is not that shape.` Each pop-out
    gains the 6px caret (VOCAB 14.2) on its left edge -- these are activity-panel
-   pop-outs at left 336 -- at the vertical centre of the chevron's row, and carries NO
+   pop-outs at left 336 -- at the vertical center of the chevron's row, and carries NO
    pin (E2).
 9. **Recipes section, below the clip: record A4.** Add to the panel comment where SAV-8
    is cited: `A4: Recipes was proposed as a door and refused -- it buys none of width
@@ -1436,7 +1436,7 @@ largest split in the revision -- 24 resident rows to 14, three doors in seven se
 7. **Inspector, Size section: three things the floor keeps OUT of that door.** Record in
    the section comment: `D2, floor: the Palette select stays resident (LEGEND-1.8
    section 2 pins the palette name to Style's Palette select and the legend body has no
-   other home for it -- this layer's colour is fixed, so no Palette select renders
+   other home for it -- this layer's color is fixed, so no Palette select renders
    here); the clamp departure line renders resident under the ramp, because 6.10's
    separation clause binds a departure to the channel it describes -- nothing is clamped
    on this board, so nothing is drawn (Rule 7's corollary); and the attribute chip stays
@@ -1653,12 +1653,12 @@ drawn -- and the two corrections are small and exact.
    History is on 6.11's refused list. A later compaction pass may not turn either into a
    door.`
 8. **The `+ Analysis` row (lines 391-402): record the one refusal where the user's
-   instruction and 6.11's geometry disagree.** Add: `D3: the catalogue is refused as an
+   instruction and 6.11's geometry disagree.** Add: `D3: the catalog is refused as an
    anchored pop-over, and it is the one place in the revision where "anchor pop-overs to
    their parents" and 6.11's geometry point in opposite directions. It is not one member
    of a list and not a report read once; it is the index of the product, seven groups and
    twenty-six cards. And with the panel open the canvas band runs x 328 to 1160, so the
-   AnalyzePicker preview's fixed centred home occupies x 604 to 884: a 360 pop-out at x
+   AnalyzePicker preview's fixed centered home occupies x 604 to 884: a 360 pop-out at x
    336 runs to 696 and a 280 one to 616, so EVERY rung of the width ladder collides with
    the preview. The picker stays the product's one panel-scale drill-down; 5.3 stops
    calling it a popover and 6.11's worked-examples table gains the row.`
@@ -1683,24 +1683,24 @@ drawn -- and the two corrections are small and exact.
 ## AnalyzePicker
 
 State after the edit: unchanged picker state, the `+ Analysis` drill-down filling the
-280px activity panel column, the hover preview drawn open over the canvas centre,
+280px activity panel column, the hover preview drawn open over the canvas center,
 canvas 832 x 836. Nothing on this board moves. Every item is a record that fixes the
 one place where the user's anchor instruction and 6.11's geometry disagree.
 
 1. **The preview (line 780): keep it exactly as drawn.** Current: `position: absolute;
    left: 276px; top: 336px; width: 280px` -- measured [604,376 280x163] in root
-   coordinates, centred on the canvas band. B5 records it among the five already-correct
-   surfaces, with the reason spelled out: "correctly centred on the canvas band's centre
+   coordinates, centered on the canvas band. B5 records it among the five already-correct
+   surfaces, with the reason spelled out: "correctly centered on the canvas band's center
    and correctly unanchored; a preview takes no lane." Add that sentence to the preview
    comment so a later anchor pass does not give it one.
 2. **The picker itself: record why it is NOT an anchored pop-over.** Add to the file
-   comment: `D3: the + Analysis catalogue is refused as an anchored pop-over, and this
+   comment: `D3: the + Analysis catalog is refused as an anchored pop-over, and this
    is the one place in the revision where the user's "anchor pop-overs to their parents"
    instruction and 6.11's geometry point in opposite directions. Two reasons, the second
    measured. It is not one member of a list and not a report read once; it is the index
    of the product, seven groups and twenty-six cards, which 5.3 says in its own words.
    And with the panel open the canvas band runs x 328 to 1160, so the preview's fixed
-   centred home occupies x 604 to 884; a 360 pop-out at x 336 runs to 696 and a 280 one
+   centered home occupies x 604 to 884; a 360 pop-out at x 336 runs to 696 and a 280 one
    to 616 -- every rung of the width ladder collides with the preview, and 6.11's own
    remedy ("where that fallback is in play, the preview does not open") would cost the
    picker the one thing it has that a list of names does not. So the picker is the
@@ -1729,15 +1729,15 @@ one place where the user's anchor instruction and 6.11's geometry disagree.
 7. **The toolbar / minimap / legend clearance sentence (lines 622-630).** It measures
    the legend at "200 wide" -- stale, from before LEGEND-1.8 fixed 256. Re-measure and
    rewrite with the real numbers: the legend is 256 wide at right 12 on the 832 canvas,
-   so its left edge is at canvas x 564 and root x 892; the centred 246px toolbar spans
+   so its left edge is at canvas x 564 and root x 892; the centered 246px toolbar spans
    root x 481 to 727 when no panel is open and canvas x 293 to 539 here. Keep the
    sentence's point (the toolbar carries the only shadow; the minimap and the legend
    stay flat at radius 4 and read as content boxes; that rule governs the three RESIDENT
    canvas overlays and does not reach the preview).
-8. **File comment header.** Add: `Revision 1.8: D3 (the + Analysis catalogue is refused
+8. **File comment header.** Add: `Revision 1.8: D3 (the + Analysis catalog is refused
    as an anchored pop-over on two grounds, the second measured against this board's own
    preview geometry; the picker is named a panel-scale drill-down and 6.11 gains the
-   row), B5 (the preview's centred, unanchored home is confirmed by pixel and a preview
+   row), B5 (the preview's centered, unanchored home is confirmed by pixel and a preview
    takes no lane), C6 (legend cap 334 -> 240). Nothing on this board moves.`
 
 ---
@@ -1783,7 +1783,7 @@ occupy about 445px -- and two door rows plus one state clause fix it.
    draws. **-3 rows.**
 4. **Console: two riders that must be recorded, because they are the only two
    exceptions in the panel.** (a) `E2: the Console KEEPS its pin -- it is one of the
-   closed set of four comparative surfaces that earn one (the colour and gradient
+   closed set of four comparative surfaces that earn one (the color and gradient
    picker, Selection statistics with a pin active, the group profile, the AI console).
    Every other pop-out in the set loses its pin glyph.` (b) `D6: width is not the
    argument and it was checked -- the widest console line measures 219px inside the
@@ -1808,7 +1808,7 @@ occupy about 445px -- and two door rows plus one state clause fix it.
    contradicting rules in one file.
 6. **The three Details chevrons: caret, no pin, depth checked.** Each 360 pop-out gains
    the 6px caret on its LEFT edge (activity-panel pop-outs open right from left 336;
-   VOCAB 14.2's snippet is drawn for exactly this case) at the vertical centre of its
+   VOCAB 14.2's snippet is drawn for exactly this case) at the vertical center of its
    step row, clamped 12px inside the corners. None carries a pin (E2). Each is one click
    from the row that owns the record (A3).
 7. **The panel header gear (line 152, `title="Settings"`): record A6.** Add: `A6: a gear
@@ -2235,8 +2235,8 @@ at 1440x900 in a 1600x1000 viewport.
    which is why rising to clear the legend is the one move that destroys the tether. When
    the surface will not fit, the gap to the opener is the LAST thing surrendered and the
    shared edge line is the FIRST: slide along the shared-edge axis, then flip the edge
-   line, then drop a width rung, and only then open centred over the canvas with "from
-   <opener name>" in the header. Sliding is enough here, so the centred fallback is not
+   line, then drop a width rung, and only then open centered over the canvas with "from
+   <opener name>" in the header. Sliding is enough here, so the centered fallback is not
    needed. It may cover the toolbar and the minimap, which are dismissible chrome; only
    the legend is floor item 5. With the legend hidden it returns to right edge 1148 on
    the gear. The former amendment -- that a canvas-overlay pop-out clears the legend by
@@ -2262,7 +2262,7 @@ at 1440x900 in a 1600x1000 viewport.
 5. **Time slider settings pop-out header (lines 1354-1358): delete the pin toggle.**
    Current: a 24px `title="Pin this open"` div before the close X. New: gone; the close X
    moves left into its slot. E2 narrows the pin to a closed set of four comparative
-   surfaces -- the colour and gradient picker, Selection statistics with a pin active,
+   surfaces -- the color and gradient picker, Selection statistics with a pin active,
    the group profile, and the AI console -- and names this board: "It removes the pin from
    HistoryPopover, ValidationPopout and TimeSlider as currently drawn." A pop-out whose
    content is the parameters of the row that opened it has nothing to hold still.
@@ -2452,7 +2452,7 @@ and one action-block cap.
    carries an 8px caret at the anchored edge instead of an edge line, because nothing
    aligns meaningfully to a 14px control." 236 is narrower than 280, so use VOCAB 14.2's
    8px caret snippet, mirrored to the pop-out's RIGHT edge (it opens left from the
-   inspector) and centred on the opener chip's vertical centre at root y 425.
+   inspector) and centered on the opener chip's vertical center at root y 425.
 3. **Confirm pop-out: record its surface class.** Add to its comment: `B4 / VOCAB 14.4: a
    cost estimate, cap or destructive confirm is a POP-OUT WITH TWO VERBS, not a floating
    card. It takes its region's lane and its opener row's shared edge line, its width
@@ -2551,9 +2551,9 @@ mid-edit with its cost gate pending. Legend measured today: **306px**, four enco
    ```
    The arithmetic, so it is checkable: the six groups are 118 / 71 / 52 / 38 / 24 / 15 = 318; the five
    largest are 303; Other rolls up one group, 15 nodes, 4.7% -> **5% of nodes**. Do NOT repaint group 6's
-   canvas nodes grey. The Other row is a roll-up row, not a colour key -- its text says how many groups it
+   canvas nodes gray. The Other row is a roll-up row, not a color key -- its text says how many groups it
    rolls up and its click opens the table that lists every one with its own swatch. The canvas keeps its six
-   Okabe-Ito colours and the exported legend keeps all six named rows with their counts (C2, C4).
+   Okabe-Ito colors and the exported legend keeps all six named rows with their counts (C2, C4).
 
 3. **C3 cut 1, state rows: nothing to do, and say so.** Region: the legend. This legend draws no state-row
    block, so cut 1 removes nothing here. Add one clause to the legend comment saying the cut was checked and
@@ -2565,7 +2565,7 @@ mid-edit with its cost gate pending. Legend measured today: **306px**, four enco
    endpoints, the median or midpoint, the scale in words and every departure line, and this board carries
    four of each). C6's shortening rule -- "categorical blocks shorten by one row at a time from the smallest
    channel upward" -- would take the Color block to one row plus Other before 240 is reached, which is below
-   C3's own five-plus-Other spelling and would leave five distinct canvas colours keyed by one grey row, a
+   C3's own five-plus-Other spelling and would leave five distinct canvas colors keyed by one gray row, a
    legend swatch the canvas does not paint (LEGEND-1.8 section 4, last bullet). **Keep `max-height: 334px`
    on this one board** and write this into the legend comment, in these words:
    ```
@@ -2601,7 +2601,7 @@ mid-edit with its cost gate pending. Legend measured today: **306px**, four enco
    `SECTION Parameters` header row, the 24px `title="Advanced"` gear at line ~395. Current: `title="Advanced"`.
    New: `title="Layout parameters"`, ink unchanged at `#7a828e` (Edge length 30 and Pull to center -1.2 are
    ngraph's own defaults, so nothing behind it deviates). This is the same gear-and-pop-out mechanism as the
-   Analyze card gear -- two gears in the product, one behaviour (D2) -- and the row stays a door, not a
+   Analyze card gear -- two gears in the product, one behavior (D2) -- and the row stays a door, not a
    collapsed section, because a 6-row schema group over the four-row threshold is what 6.2 routes to a 3a
    pop-out. No row is added and none is removed.
 
@@ -2648,10 +2648,10 @@ File: `StyleLibrary.dc.html`. State: Loaded, `cat-social-network.json`, the Huma
 the Styles section's overflow menu open and the Save as style dialog up over a full-frame scrim.
 Legend measured today: **139px**, two blocks (Color: style layers, three rows, no counts; Size: age).
 
-1. **B4, the biggest correction on this board: Save as style stops being a centred modal.** Region: the
+1. **B4, the biggest correction on this board: Save as style stops being a centered modal.** Region: the
    Save as style surface, currently `<div style="position: absolute; left: 0; top: 0; width: 1440px;
    height: 900px; ... background: rgba(13, 17, 23, 0.6); z-index: 20;">` wrapping a 480px card. Current:
-   a 3b dialog, scrimmed, centred. New: a **280 activity-panel pop-out at `left: 336px; top: 474px`**,
+   a 3b dialog, scrimmed, centered. New: a **280 activity-panel pop-out at `left: 336px; top: 474px`**,
    panel lane, its top on the Styles section header row's own top; the opener is the header's
    `title="Save as style..."` bookmark button at [295,478 24x24], which stays lit with
    `background: #28364e; color: #4a7ee8`. Delete the scrim div entirely and re-parent the card as a
@@ -2698,7 +2698,7 @@ Legend measured today: **139px**, two blocks (Color: style layers, three rows, n
    ```
 
 5. **E2, no pin on this surface.** Region: the new pop-out's 32px header. Draw the close X and **no pin
-   glyph**. The pin is now closed at four comparative surfaces -- the colour and gradient picker, Selection
+   glyph**. The pin is now closed at four comparative surfaces -- the color and gradient picker, Selection
    statistics with a pin active, the group profile and the AI console -- and a naming surface is none of
    them. Record that in the header's comment.
 
@@ -2743,7 +2743,7 @@ Legend measured today: **139px**, two blocks (Color: style layers, three rows, n
 12. **A6, the Parameters door reports its state.** Region: the panel's Parameters section header gear.
     Current title `"Advanced"`. New `title="Layout parameters"`, ink `#7a828e`. This board is right where
     StylePanel is wrong -- it already omits Edge length 30 and Pull to center -1.2 under Rule 7a -- so keep
-    the omission and add: "settled by DECISIONS-1.8 D2 in this board's favour; StylePanel draws the two
+    the omission and add: "settled by DECISIONS-1.8 D2 in this board's favor; StylePanel draws the two
     defaults and loses them."
 
 13. **Show legend: no change.** Region: the Canvas section's pressed `title="Show legend (L)"` toggle. Same
@@ -2862,7 +2862,7 @@ rows. This is the board DECISIONS-1.8 C6 measures the cap against.
    clause as StyleFromAnalysis item 11.
 
 10. **E2, no pin survives on this board.** Region: the file comment. After item 6 this board draws no
-    pop-out at all, so it draws no pin. Add: "E2 narrows the pin to four comparative surfaces -- the colour
+    pop-out at all, so it draws no pin. Add: "E2 narrows the pin to four comparative surfaces -- the color
     and gradient picker, Selection statistics with a pin active, the group profile and the AI console. The
     Size cost surface was none of them and is now not a surface."
 
@@ -2875,7 +2875,7 @@ rows. This is the board DECISIONS-1.8 C6 measures the cap against.
 File: `CompareSplit.dc.html`. State: Result, compare split. `fraud-ring-synthetic.json`, 200 nodes,
 612 edges. Two halves of one 66-node window, A = Louvain r=0.5 (4 groups), B = Louvain r=1.5 (11 groups),
 acct-4471 selected in both. Legends measured today: **A [canvas x 148, bottom 112, 256x218]**,
-**B [canvas x 564, bottom 112, 256x330]**; minimap bottom 12; toolbar centred at bottom 12.
+**B [canvas x 564, bottom 112, 256x330]**; minimap bottom 12; toolbar centered at bottom 12.
 This board spends 548px of legend on 832px of canvas and is the whole of DECISIONS-1.8 C5.
 
 1. **C5, the shared Size block is drawn once, in a strip above the toolbar.** Region: both legends. Current:
@@ -2883,7 +2883,7 @@ This board spends 548px of legend on 832px of canvas and is the whole of DECISIO
    1 / median 6 / 44 stops and the same `sqrt scale` line -- the encoding is identical in both halves, and
    the spec used to acknowledge the duplication by making B's header read "size as A". New: **delete the
    Size block and its preceding 1px `#374047` divider from BOTH legends**, and draw the block once in a new
-   shared strip, centred on the canvas rect, riding 12px above the toolbar on the toolbar's own offset
+   shared strip, centered on the canvas rect, riding 12px above the toolbar on the toolbar's own offset
    ladder (the toolbar does not move):
    ```html
    <!-- C5: the shared-channel strip. Size is encoded identically in both halves, so it is drawn once.
@@ -2908,7 +2908,7 @@ This board spends 548px of legend on 832px of canvas and is the whole of DECISIO
    `Outline: matched to a different group` with its `Moved 22` row, 31px, plus its preceding 1px divider.
    Current: printed twice, and a third time on the Difference chip at canvas top 48. New: **delete the
    Outline block and its divider from BOTH legends.** The Difference chip already owns it -- it draws the
-   grey "Same group 178" and the red-ringed "Moved 22" and carries the full rule on its info circle
+   gray "Same group 178" and the red-ringed "Moved 22" and carries the full rule on its info circle
    ("Moved: a node whose group in B is matched to a different group in A. Groups are matched by their
    largest shared membership, so a group that only split is not a move.") -- and that chip is the region
    5.1's One fact, one region assigns it to. Floor item 5 is not breached: C5 states the exception in
@@ -2941,7 +2941,7 @@ This board spends 548px of legend on 832px of canvas and is the whole of DECISIO
    (View B 12 + Color 111 + one 6px gap + 15 of box); the shared strip's top edge is 123 above the canvas
    bottom, so the legends' bottom edge is 123 + 12 = 135. Legend A stays at `left: 148px` (canvas
    coordinates) and legend B at `right: 12px`. The minimap stays at `bottom: 12px` and the toolbar at
-   `bottom: 12px`; nothing else on the bottom stack moves. Two legends totalling 548 become 256 plus a 63px
+   `bottom: 12px`; nothing else on the bottom stack moves. Two legends totaling 548 become 256 plus a 63px
    shared strip -- **319, a 42% cut** -- and the "Legend, view B (size as A)" header form and the Compare
    counts exception both disappear from the vocabulary.
 
@@ -3046,7 +3046,7 @@ state block "Selected", 13). Pop-out measured at **[792,412 360x238]**.
 9. **C2, the two obligations.** Region: the legend comment. Append the paragraph from StyleFromAnalysis
    item 5. This board's export legend carries **2 channels** -- Color: node type with all four categories
    and their counts, Size: Most connected 1 / median 6 / 44 sqrt -- plus **one state row, Selected**, drawn
-   with its colour-agnostic white ring, because a static figure has no inspector header to name it.
+   with its color-agnostic white ring, because a static figure has no inspector header to name it.
 
 10. **D4, the Selection actions section is deleted.** Region: the panel, the whole `Selection actions`
     section: (a) the section header row with its chevron; (b) the RT-7 row reading `7 nodes, 4 edges` with
@@ -3129,7 +3129,7 @@ Pop-out measured at **[554,44 360x446]**; preview banner at [540,704 407x28] i.e
 
 4. **E2, the pin comes off.** Region: the pop-out header's `title="Pin this open"` 24px glyph. Current: a
    pin between the "12 entries, 6 undone" state line and the close X. New: **delete the glyph.** E2 closes
-   the pin at four comparative surfaces -- the colour and gradient picker, Selection statistics with a pin
+   the pin at four comparative surfaces -- the color and gradient picker, Selection statistics with a pin
    active, the group profile and the AI console -- and History is none of them: "a pop-out whose content is
    the parameters of the row that opened it has nothing to hold still, and pinning it produces a stale panel
    that lies." Rewrite the R2-M24 paragraph's sentence about the 32px header contract to list the surface's
@@ -3146,7 +3146,7 @@ Pop-out measured at **[554,44 360x446]**; preview banner at [540,704 407x28] i.e
 6. **C3 cut 1, the current-point footer leaves the legend, and the banner takes its sentence.** Region: the
    legend's trailing 26px line "At the current point: Color: Groups (Communities, Louvain), 7 groups" and
    the 1px `#374047` rule above it. Current: the legend names a channel the drawn frame does not paint --
-   the preview shows the point before Groups was encoded, so every node carries the single default colour.
+   the preview shows the point before Groups was encoded, so every node carries the single default color.
    New: **delete the line and its rule**, and extend the banner's sentence so the fact stays in the region
    that owns it:
    ```html
@@ -3155,7 +3155,7 @@ Pop-out measured at **[554,44 360x446]**; preview banner at [540,704 407x28] i.e
    LEGEND-1.8 section 8 is the rule: no block for an unencoded channel. The current point's Color: Groups
    encoding is named by the Analyze panel's Groups result card and by the History row itself, and it returns
    to the legend the moment the hover ends or Restore is pressed. The banner's rect grows from 407 to about
-   470 and stays centred; it is still 12px clear of the legend below it after item 8 shortens that legend.
+   470 and stays centered; it is still 12px clear of the legend below it after item 8 shortens that legend.
 
 7. **C3 cuts 2 and 3, checked and empty.** Region: the legend. There is no categorical block on this board,
    so neither the counts cut nor the five-plus-Other cap has anything to act on. One clause in the comment.
@@ -3165,7 +3165,7 @@ Pop-out measured at **[554,44 360x446]**; preview banner at [540,704 407x28] i.e
    14 of box, so **the `min-height: 80px` floor decides it and the box renders at 80**, down from 120. Its
    top edge moves from y 744 to y 784. The preview banner's offset therefore recomputes: 12 (legend inset)
    + 80 (legend height) + 12 (gap) = **`bottom: 104px`**, replacing the 144 the 1.10 pass derived from a
-   120px legend. Vertical only -- the banner stays centred on the canvas. Update both the banner's style and
+   120px legend. Vertical only -- the banner stays centered on the canvas. Update both the banner's style and
    the 1.10 paragraph in its comment that shows the arithmetic.
 
 9. **C2, the two obligations.** Region: the legend comment. Append the paragraph from StyleFromAnalysis item
@@ -3211,7 +3211,7 @@ triple rendering of one result body the correction that matters here.
    five rows (Group 1 to Group 5: 41, 38, 33, 29, 24), then the Other row from StyleFromAnalysis item 2 with
    `background: #6b7480` and the text `Other (2 groups, 18% of nodes)`. Arithmetic, checkable:
    41+38+33+29+24+20+15 = 200; the five largest are 165; Other rolls up two groups, 35 nodes, 17.5% ->
-   **18%**. The canvas keeps all seven colours; the Other row is a roll-up and its click opens the groups
+   **18%**. The canvas keeps all seven colors; the Other row is a roll-up and its click opens the groups
    table.
 
 3. **C3 cut 1, state rows: checked and empty.** Region: the legend. No state-row block is drawn. One clause
@@ -3326,7 +3326,7 @@ rule's 360 pop-out drawn open at [336,277] and the Expression door focus-ringed.
    a visible relationship.
 
 3. **E2, the pin comes off the rule pop-out.** Region: the pop-out header's `title="Pin this open"` 24px
-   glyph, beside the close X. New: **delete the glyph.** E2's closed set of four -- the colour and gradient
+   glyph, beside the close X. New: **delete the glyph.** E2's closed set of four -- the color and gradient
    picker, Selection statistics with a pin active, the group profile, the AI console -- does not include a
    rule editor, and E2's reason is exactly this surface: "a pop-out whose content is the parameters of the
    row that opened it has nothing to hold still, and pinning it produces a stale panel that lies." The board
@@ -3358,7 +3358,7 @@ rule's 360 pop-out drawn open at [336,277] and the Expression door focus-ringed.
 8. **C2, the two obligations.** Region: the legend comment. Append the paragraph from StyleFromAnalysis
    item 5. This board's export legend carries **1 channel** -- Size: Most connected, 1 / median 5 / 41,
    sqrt -- plus **one state row, Selected**, and, because a filter is live in the frame, the `Matches filter`
-   state row too, both with their colour-agnostic swatches, because a static figure has no filter strip and
+   state row too, both with their color-agnostic swatches, because a static figure has no filter strip and
    no status bar.
 
 9. **A5, one control at two scopes, and it licenses what this board already draws.** Region: the rule rows
@@ -3388,7 +3388,7 @@ rule's 360 pop-out drawn open at [336,277] and the Expression door focus-ringed.
 
 ## CategoryTable
 
-File: `CategoryTable.dc.html`. State: Result. `ovarian_de_string.tsv`, 318 nodes, 1,104 edges, coloured by
+File: `CategoryTable.dc.html`. State: Result. `ovarian_de_string.tsv`, 318 nodes, 1,104 edges, colored by
 a Tight clusters (Markov clustering, MCL) run of six groups with the Okabe-Ito palette; the imported
 "Categories for group 3" table selected, its 360 pop-out drawn open at [792,300]. Legend measured today:
 **201px** (Color: Tight clusters, six rows with counts and a two-line header, 124 / Size, 49).
@@ -3415,7 +3415,7 @@ a Tight clusters (Markov clustering, MCL) run of six groups with the Okabe-Ito p
    118+71+52+38+24+15 = 318; the five largest are 303; Other rolls up one group, 15 nodes, 4.7% -> **5%**.
    The height does not change -- six rows before, six rows after -- and saying so is part of applying it
    honestly: the cap here is a rule change and a duplication change, not a pixel change. The canvas keeps all
-   six Okabe-Ito colours; the Other row is a roll-up and its click opens the groups table.
+   six Okabe-Ito colors; the Other row is a roll-up and its click opens the groups table.
 
 3. **C3 cut 1, state rows: checked and empty.** Region: the legend. No state-row block. One clause.
 
@@ -3423,7 +3423,7 @@ a Tight clusters (Markov clustering, MCL) run of six groups with the Okabe-Ito p
    **201** after items 1 and 2 -- unchanged, because the row count is unchanged -- so it sits comfortably
    under the cap and its top edge stays at y 663. The pop-out's bottom is 560, 103px clear. Keep the
    two-line Color header: "Color: Tight clusters (Markov clustering, MCL)" is 250px at 11px in a 238px
-   content box and no legend width both holds it on one line and clears the centred toolbar, so the wrap is
+   content box and no legend width both holds it on one line and clears the centered toolbar, so the wrap is
    the honest outcome (LEGEND-1.8 section 1).
 
 5. **C2, the two obligations.** Region: the legend comment. Append the paragraph from StyleFromAnalysis item
@@ -3583,7 +3583,7 @@ state block holding `Selected` (13).
    -4.2 / midpoint 0 / 3.8 with the clamp line "clamped at -4.2 and 3.8; 12 nodes beyond the ends" and the
    `not measured (6 nodes)` row; Size: significance (padj), 0.05 / median 1e-3 / 1e-12, -log10; Edge width:
    confidence (combined_score), 0.4 / median 0.6 / 0.99, linear -- plus **one state row, Selected**, with its
-   colour-agnostic white ring, because a static figure has no inspector header. This board is the genomics
+   color-agnostic white ring, because a static figure has no inspector header. This board is the genomics
    persona's own board and the persona's complaint is named in the requirement set as "figures that need to
    be rebuilt in Illustrator because the legend is not exported"; add that sentence, and C4's answer: in the
    SVG and PDF paths the composed legend is emitted as **vector text**, which is exactly the rebuild being
@@ -3616,7 +3616,7 @@ state block holding `Selected` (13).
    words the 1.8 user question asks about); only a note ROW's editor pops out, anchored to the row it edits.
    POP-10's 380px refusal stands."
 
-8. **A5, the two-home licence, recorded for the pinned encodings.** Region: the Attributes section, where
+8. **A5, the two-home license, recorded for the pinned encodings.** Region: the Attributes section, where
    log2FoldChange and padj are pinned at the top because Color and Size are bound to them. Add: "A5 licenses
    a control at two scopes and forbids a later compaction pass from deduplicating it: the encoding lives in
    Style, the value lives here, and they are different facts about the same attribute. What Rule 8 does
@@ -3625,7 +3625,7 @@ state block holding `Selected` (13).
 
 9. **F's rejected list, applied to this board's two scan surfaces.** Region: the Attributes list (ten rows
    with the resident "Show all 36 attributes" link) and the Neighbors list. No change to either. Add: "F
-   rejects putting the attribute profile, the neighbour list or any floor-7 scan surface behind a door, and
+   rejects putting the attribute profile, the neighbor list or any floor-7 scan surface behind a door, and
    6.4's reachability rule is why the count sits on the link and not on the header -- a numeral a keyboard or
    touch reader cannot reach fails floor item 4. Recorded so a compaction pass reading '25 rows move behind
    doors this revision' does not reach for these."
@@ -3743,7 +3743,7 @@ no inspector are drawn, so none of D1-D7's panel splits reaches this board.
    comment: `The drawer-open compact legend stops being a separately specified
    component in 1.8 (C6): it is this board's legend with the swatch rows and the
    ramps subtracted and the header lines kept, same 256 width, same right edge,
-   no scroll. It is not drawn in this slice because at a 698 canvas the centred
+   no scroll. It is not drawn in this slice because at a 698 canvas the centered
    246 bar runs x 226 to 472 and a right-anchored 256 legend runs x 430 to 686,
    which overlap -- the slice would have to draw the two-line reflow that SLICE 3
    exists to show. The compact form is drawn on DataTableDrawer and
@@ -3765,7 +3765,7 @@ one channel. Inspector: Graph summary, nothing selected.
    MENU (5.6), open. TB-8: it now opens UPWARD ... -->` (from line 303), the
    `<div style="position: absolute; left: 533px; bottom: 52px; width: 248px; ...
    z-index: 15;">`. Current content: `left: 533px`, which renders the menu at
-   `[581,483 248x341]` against a Views button at `[687,832 36x28]` -- centred on
+   `[581,483 248x341]` against a Views button at `[687,832 36x28]` -- centered on
    the opener, so its right edge overhangs the button by 106px and the toolbar's
    right end by 102px. New content: `left: 427px`, everything else in the style
    attribute unchanged. That renders the menu at `[475,483 248x341]`: right edge
@@ -3777,7 +3777,7 @@ one channel. Inspector: Graph summary, nothing selected.
 2. **The menu gains an 8px caret (B1, VOCAB 14.2).** Region: the same menu div,
    as its first child. Current content: none -- the menu carries no caret, and
    the lit Views button is the only mark of the relationship. New content: a
-   caret on the menu's bottom edge, centred on the Views button and clamped 12px
+   caret on the menu's bottom edge, centered on the Views button and clamped 12px
    inside the menu's own corners. A surface narrower than 280 carries an 8px
    caret instead of an edge line, which is what B1 says and what VOCAB 14.2 spells
    for `every menu under 280`. Snippet, the 14.2 caret mirrored to point down and
@@ -3787,8 +3787,8 @@ one channel. Inspector: Graph summary, nothing selected.
      <div style="position: absolute; left: 3px; top: -5px; width: 10px; height: 10px; transform: rotate(45deg); background: #2a3035; border-right: 1px solid #48525c; border-bottom: 1px solid #48525c; box-sizing: border-box;"></div>
    </div>
    ```
-   The arithmetic: the button's centre is at canvas x 657, the menu's left edge is
-   427, so the caret's centre wants x 230 inside the menu; a 16px box centred
+   The arithmetic: the button's center is at canvas x 657, the menu's left edge is
+   427, so the caret's center wants x 230 inside the menu; a 16px box centered
    there ends 10px from the menu's right corner, so the clamp fires and the box
    sits at `left: 220px`, 12px inside. Record that the clamp fired.
 3. **The caret points back at the opener, and that is the rule (VOCAB 14.2).**
@@ -3912,7 +3912,7 @@ Status bar carries `1 selected` and `4 data issues`.
    New content: unchanged geometry, plus this in the comment: `B2 gives every
    transient surface a lane, a gap axis and a shared edge line, and names two
    exceptions that take none: a context menu, which takes the pointer, and a
-   preview, which takes the centred home. This menu is the first. It carries no
+   preview, which takes the centered home. This menu is the first. It carries no
    caret either: a caret marks the edge line back to an opener's anchor box, and
    a pointer has no anchor box. 14.2's "every menu under 280 carries an 8px
    caret" is about menus that hang off a control.`
@@ -3966,7 +3966,7 @@ channel.
    `<div style="position: absolute; left: 0; top: 0; width: 1440px; height:
    900px; display: flex; align-items: center; justify-content: center;
    background: rgba(13, 17, 23, 0.6); z-index: 20;">`. Current content: a
-   full-frame scrim centring a 760px card; the panel, canvas, inspector and
+   full-frame scrim centering a 760px card; the panel, canvas, inspector and
    status bar all read through a 60% wash. New content: replace that wrapper with
    a container over the **canvas rect only**, with no background:
    ```html
@@ -3974,7 +3974,7 @@ channel.
    ```
    The card inside is unchanged except for its cap: `max-height: 800px` becomes
    `max-height: 812px` (the canvas rect's 836 less the 12px overlay inset top and
-   bottom, VOCAB 14.8). That renders the card at `[364,151 760x614]`: centred on
+   bottom, VOCAB 14.8). That renders the card at `[364,151 760x614]`: centered on
    the canvas rect, clear of the panel and the inspector, 12px clear of nothing it
    must clear, and 21px above the legend's top edge at 784. Removing the scrim
    un-dims the whole shell in one edit -- there is no second element to repaint.
@@ -3987,7 +3987,7 @@ channel.
    formula, Run a recipe), so "if no, it is never a dialog"; and 760 is over the
    480 pop-out ceiling, so it is not a pop-out either. Non-modal: no scrim, no
    focus trap, the canvas keeps pointer and keyboard, Escape closes, the card is
-   centred on the canvas rect and may cover the insights strip and the minimap,
+   centered on the canvas rect and may cover the insights strip and the minimap,
    which are dismissible chrome, but not the legend, which is floor item 5. The
    modality was defeating the use: you read a binding and the very next thing you
    do is press it, which a frozen canvas forbids, and the keyboard-shortcuts
@@ -4041,7 +4041,7 @@ channel.
    ExplorerNotes, ExplorerExpert, FilterBuilderExpert, InspectorGenomics,
    IpadInspector). This board is not one of them and its panel is a background
    state, not an Explore study. It is now read without a wash, which is a
-   difference worth recording; it is not a licence to invent seven sections here.`
+   difference worth recording; it is not a license to invent seven sections here.`
 9. **The Escape ladder and the palette route, recorded (E4, D8).** Region: the
    overlay comment. Add: `Escape closes the overlay and returns focus to
    whatever opened it -- the ? key, the Help menu row, or the palette. Nothing
@@ -4093,7 +4093,7 @@ at `[892,784 256x80]`, one channel.
    to the left. Use the **pop-out container, anchored form** from VOCAB section 12
    with three changes: `position: absolute; left: 915px; top: 201px; width:
    280px;`, **delete the pin div** (E2 closes the pin set at four comparative
-   surfaces -- the colour and gradient picker, Selection statistics with a pin
+   surfaces -- the color and gradient picker, Selection statistics with a pin
    active, the group profile and the AI console -- and a pop-out whose content is
    the parameters of the row that opened it has nothing to hold still), and title
    it with the action's own name. Contents, top to bottom:
@@ -4110,7 +4110,7 @@ at `[892,784 256x80]`, one channel.
    Height follows that content, about 148.
 4. **The caret goes on the edge that faces the opener (B3, VOCAB 14.2).** Region:
    the new pop-over, as its first child. The opener is to its right, so the caret
-   is on the right edge, pointing right, 6px, at the vertical centre of the
+   is on the right edge, pointing right, 6px, at the vertical center of the
    opener's row and clamped 12px inside the pop-out's corners. Snippet, 14.2
    mirrored:
    ```html
@@ -4118,7 +4118,7 @@ at `[892,784 256x80]`, one channel.
      <div style="position: absolute; left: -7px; top: 1px; width: 10px; height: 10px; transform: rotate(45deg); background: #1f2428; border-top: 1px solid #48525c; border-right: 1px solid #48525c; box-sizing: border-box;"></div>
    </div>
    ```
-   The chip's centre is 9px below the pop-out's top, so the 12px clamp fires and
+   The chip's center is 9px below the pop-out's top, so the 12px clamp fires and
    the caret sits at `top: 12px`. Record that it fired.
 5. **Rewrite the rebind paragraph of the section comment (D7).** Region: the
    comment headed `<!-- Rebinding has no button (IK-7, IK-8, C2): the key chip is
@@ -4305,7 +4305,7 @@ hover state. Status bar carries `4 issue types (27)`, `5 notes` and `1 selected`
    not an encoded channel, so the Open notes row leaves the canvas legend with
    the Selected row: the marker is on the node, the status bar reads "5 notes",
    and the inspector's Notes section lists them. Both rows are drawn in the
-   EXPORTED legend, in LEGEND-1.8 section 5's order with their colour-agnostic
+   EXPORTED legend, in LEGEND-1.8 section 5's order with their color-agnostic
    swatches, because a static figure has no status bar and no inspector.`
 6. **Record where the note editor opens from (D4, B1, B2).** Region: the
    inspector's Notes section, the newest note drawn in its hover state -- the
@@ -4317,7 +4317,7 @@ hover state. Status bar carries `4 issue types (27)`, `5 notes` and `1 selected`
    inspector that is the inspector lane: 280 wide, right edge 1152 (8px clear of
    the inspector's 1160 edge) so left = 872, top on this card's top, 419, and a
    6px caret on the pop-out's right edge, the edge that faces the opener, at the
-   card's vertical centre and clamped 12px inside the corners. It carries no pin
+   card's vertical center and clamped 12px inside the corners. It carries no pin
    (E2 closes the pin set at four comparative surfaces and a note editor is not
    one of them). It follows the card while the card is in the region; when the
    card scrolls out it docks to the edge it left through, keeps the opener lit,
@@ -4473,7 +4473,7 @@ its work is confirmation plus one inventory fix.
     a 280 pop-out in the ACTIVITY PANEL lane: left edge 336, 8px clear of the
     panel's 328 edge, top on the card's own top -- 437 for this first card -- and
     a 6px caret on the pop-out's LEFT edge, the edge that faces the panel, at the
-    card's vertical centre, clamped 12px inside the corners (VOCAB 14.2, the
+    card's vertical center, clamped 12px inside the corners (VOCAB 14.2, the
     snippet verbatim). No pin (E2). It follows the card while the card is in the
     region, docks to the edge it left through with a 20px return strip if the
     list scrolls it out (VOCAB 14.3), and closes if the Notes section collapses
@@ -4503,7 +4503,7 @@ Performance mode chip.
 1. **The legend decision, this board's version (C1, C2, C6).** Region: the legend
    at `[892,784 256x80]`, the block from line 2807. This board encodes **one
    channel and it has no domain yet**: `Size: uniform (measuring)`, one swatch
-   labelled `every node`, and the line `sized after load`. What the legend
+   labeled `every node`, and the line `sized after load`. What the legend
    becomes: unchanged. It carries no category counts, no categorical rows and no
    state rows, so all three of C3's cuts pass over it, and `sized after load` is
    a DEPARTURE line, which C2's screen obligation keeps on the canvas by name.
@@ -4543,21 +4543,21 @@ Performance mode chip.
    door and its pop-out is 280 in the ACTIVITY PANEL lane: left edge 336, 8px
    clear of the panel's 328 edge, top on this row's own top (237 on this board,
    the row running 237 to 269), with a 6px caret on its left edge at the row's
-   vertical centre, clamped 12px inside the corners (VOCAB 14.2 verbatim). A3's
+   vertical center, clamped 12px inside the corners (VOCAB 14.2 verbatim). A3's
    depth obligation: exactly one click from the row that owns the property, and a
    door may never sit behind another door. It carries no pin (E2). Drawn open on
    AnalyzeParameters, where the gear is primary because a parameter deviates.`
 6. **Record what the `+ Analysis` row is, and what it is not (D3).** Region: the
-   comment headed `<!-- the whole 26-card catalogue lives one click behind this
+   comment headed `<!-- the whole 26-card catalog lives one click behind this
    row ... -->` (from line 297) and the `+ Analysis` control at
-   `[64,305 224x24]`. Current content: the comment describes the catalogue.
-   New content: unchanged drawing, plus: `1.8 refuses the catalogue as an
+   `[64,305 224x24]`. Current content: the comment describes the catalog.
+   New content: unchanged drawing, plus: `1.8 refuses the catalog as an
    anchored pop-over and this is the one place where "anchor pop-overs to their
    parents" and 6.11's geometry point in opposite directions. Two reasons, the
    second measured: it is not one member of a list and not a report read once, it
    is the index of the product -- seven groups and twenty-six cards; and with the
    panel open the canvas band runs x 328 to 1160, so the method preview's fixed
-   centred home occupies x 604 to 884, while a 360 pop-out at x 336 runs to 696
+   centered home occupies x 604 to 884, while a 360 pop-out at x 336 runs to 696
    and a 280 one to 616. Every rung of the width ladder collides with the
    preview, and 6.11's own remedy ("where that fallback is in play, the preview
    does not open") would cost the picker the one thing it has that a list of
@@ -4617,7 +4617,7 @@ one board where C3's categorical cap actually bites**.
    `#cc79a7`, `#b58a3c`, `#66c2a5`, `#8da0cb` and `#e78ac3`. **Do not touch the
    canvas, the minimap or any node fill**: the picture still paints eleven groups
    and the Okabe-Ito spelling LEGEND-1.8 settled is unchanged. The legend stops
-   ENUMERATING groups 6 to 11; it does not claim they are grey.
+   ENUMERATING groups 6 to 11; it does not claim they are gray.
 3. **Delete the five remaining counts and rebuild the Other row (C3 items 2 and
    3, VOCAB 14.5).** Region: the five surviving rows and the Other row. Current
    content: each row is `justify-content: space-between` with a trailing count
@@ -4636,7 +4636,7 @@ one board where C3's categorical cap actually bites**.
    The string `(3,388 groups, 43% of nodes)` is unchanged and stays true: it is
    the neutral bucket the canvas actually paints, and C3's own spec text quotes
    this board's number.
-4. **Keep the colouring departure, reworded (floor item 2, C2).** Region: the
+4. **Keep the coloring departure, reworded (floor item 2, C2).** Region: the
    line under the Color block,
    `<span style="font-size: 10px; line-height: 1.2; color: #7a828e;">Top 11 of
    3,399 groups colored</span>`. Current content: it reads as a coverage footer,
@@ -4644,10 +4644,10 @@ one board where C3's categorical cap actually bites**.
    10px `#7a828e`, and change the string to `Top 11 of 3,399 groups colored; the
    5 largest named`. It is not a duplicate of the Other row: it reports the
    CANVAS cut (how many groups get their own ink) and now also the LEGEND cap
-   (how many are named), which is what stops a reader counting more colours than
+   (how many are named), which is what stops a reader counting more colors than
    rows. The arithmetic to keep straight, and to put in the comment: five named
-   rows hold 51,051 nodes, Other holds the 52,241 in the 3,388 uncoloured
-   groups, and the 17,126 in the six coloured-but-unnamed groups are the gap this
+   rows hold 51,051 nodes, Other holds the 52,241 in the 3,388 uncolored
+   groups, and the 17,126 in the six colored-but-unnamed groups are the gap this
    line accounts for. C2's screen obligation keeps every departure line on the canvas.
 5. **The one number in the legend box (C6).** Region: the legend div. Current
    content: `max-height: 334px`. New content: `max-height: 240px`. The measured
@@ -4660,12 +4660,12 @@ one board where C3's categorical cap actually bites**.
    name in the body, no category counts, no state rows, five categorical rows
    plus Other, and no block for a channel that is not encoded (C3). Floor item 5
    is two obligations from 1.8. Screen, this board: two channel blocks, five
-   group rows, the Other row carrying its coverage footer, the colouring
+   group rows, the Other row carrying its coverage footer, the coloring
    departure line, and the Size ramp with its scale word. Export, this board, and
    none of it optional: both channels; the twelve largest categories with their
    counts, which on this fixture is the eleven FIXTURES names -- 18,412 / 11,206
    / 8,930 / 7,415 / 5,088 / 4,271 / 3,640 / 2,905 / 2,462 / 2,118 / 1,730 --
-   and no invented twelfth; then Other with the coverage footer; the colouring
+   and no invented twelfth; then Other with the coverage footer; the coloring
    departure; and one row per state drawn in the frame. It is composed
    from the encoding model at export scale and drawn into the image, never
    captured from this DOM overlay -- ScreenshotCapture.ts calls
@@ -4688,7 +4688,7 @@ one board where C3's categorical cap actually bites**.
    nothing, here and on ten other boards. New content: unchanged drawing, plus in
    the card comment: `The chevron opens the run record as a 360 pop-out in the
    activity panel lane: left edge 336, top on this row's own top, 671, with a 6px
-   caret on its left edge at the row's vertical centre, clamped 12px inside the
+   caret on its left edge at the row's vertical center, clamped 12px inside the
    corners (VOCAB 14.2 verbatim), no pin (E2). 360 is the rung 6.11 gives a
    sentence-plus-user-ids report. A3: one click from the row that owns the
    record, and no door behind a door. Drawn open on RunRecordPopout.`
@@ -4703,7 +4703,7 @@ one board where C3's categorical cap actually bites**.
    drawn. What 1.8 does change is the shape of a CONFIRM -- a cost estimate, cap
    or destructive confirm is a pop-out with two verbs, taking its region's lane
    and its opener row's shared edge line, 280 wide, with no close X and no pin,
-   Escape cancelling and returning focus to the opener (VOCAB 14.4). StyleDiverging
+   Escape canceling and returning focus to the opener (VOCAB 14.4). StyleDiverging
    drew that as a free-floating card and is corrected; this board's gate is not
    that thing and must not be turned into one.`
 10. **Record the two Analyze refusals that touch this panel (D3, A4).** Region:
@@ -4801,7 +4801,7 @@ before, about 25 after, and the whole difference is item 1.
    is dropped: these are capability names and their data, which is floor item 6.
 4. **The caret goes on the edge that faces the opener (B3, VOCAB 14.2).** Region:
    the new pop-out, as its first child. The opener is to its right, so the caret
-   is on the right edge, 6px, at the vertical centre of the opener's row (389,
+   is on the right edge, 6px, at the vertical center of the opener's row (389,
    which is 14px below the pop-out's top and clears the 12px corner clamp):
    ```html
    <div style="position: absolute; right: -6px; top: 8px; width: 6px; height: 12px; overflow: hidden;">

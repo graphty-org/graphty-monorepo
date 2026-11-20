@@ -2,7 +2,8 @@ id: spinner
 name: Spinner
 category: display
 description: Loading spinner animation for indicating pending operations. Used inline or as page-level loading indicator.
-status: planned
+status: implemented
+notes: "Ships: Mantine Loader, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
 used_in_workflows: []
 dependencies: []

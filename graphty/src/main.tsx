@@ -42,7 +42,7 @@ if (import.meta.env.DEV) {
 
 /** Logs what a remote log reader needs to tie a session to a server, a browser and a navigation. */
 function logPageStart(): void {
-    const [navigation] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+    const navigation = (performance.getEntriesByType("navigation") as PerformanceNavigationTiming[]).at(0);
     GraphtyLogger.getLogger(["graphty", "workspace"]).info("page start", {
         origin: location.origin,
         path: location.pathname,
@@ -62,8 +62,9 @@ function logUncaught(): void {
             column: event.colno,
         });
     });
-    globalThis.addEventListener("unhandledrejection", (event) => {
-        const { reason } = event as PromiseRejectionEvent & { reason: unknown };
+    // `reason` is typed any in the DOM's types; reading it through this view keeps it unknown.
+    globalThis.addEventListener("unhandledrejection", (event: { reason: unknown }) => {
+        const { reason } = event;
         log.error("unhandled rejection", reason instanceof Error ? reason : new Error(String(reason)));
     });
 }

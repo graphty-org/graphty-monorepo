@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import { GRAPHVIZ_DECORATED_BOXES, GRAPHVIZ_POLYGON_SHAPES } from "../../../src/formats/dot/drawing.js";
 import { DOT_STYLE_BLOCK_ATTRIBUTE, dotExporter, type DotExportOptions } from "../../../src/formats/dot/index.js";
+import { compassEnd, selfLoopControls } from "../../../src/formats/dot/self-loops.js";
 import { createRegistry } from "../../../src/registry.js";
 import { CSS_COLORS } from "../../../src/styles/canon/color-tables.js";
 import {
@@ -233,12 +234,13 @@ describe("DOT styles: Graphviz's rules", () => {
         expect(drawn(styles, snapshot, "edge", "lineStyle")).toEqual(["dashed", "solid"]);
     });
 
-    it("narrows a forward tapered line to a point at its head, as Graphviz's taperfun does by direction", async () => {
+    it("narrows a tapered line to a point at its head, its tail or both, as Graphviz's taperfun does by direction", async () => {
         const { snapshot, styles } = await load(`digraph {
             a -> b [style=tapered, penwidth=7]; c -> d [style=tapered, dir=back];
             e -> f [style=tapered, dir=both]; g -> h [style=tapered, dir=none]; i -> j;
         }`);
-        expect(drawn(styles, snapshot, "edge", "taper")).toEqual([0, null, null, null, null]);
+        expect(drawn(styles, snapshot, "edge", "taper")).toEqual([0, null, 0, null, null]);
+        expect(drawn(styles, snapshot, "edge", "taperSource")).toEqual([null, 0, 0, null, null]);
         expect(drawn(styles, snapshot, "edge", "width")[0]).toBe(7);
         const undirected = await load("graph { a -- b [style=tapered] }");
         expect(drawn(undirected.styles, undirected.snapshot, "edge", "taper")).toEqual([null]);
@@ -649,6 +651,102 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         // and 9 / 2 and 9 points of control above and below its center line: the curve runs 3/4 of that up
         expect(Math.max(...bends[0].map(([, y]) => y)) * 12).toBeCloseTo(0.75 * 4.5, 1);
         expect(Math.min(...bends[1].map(([, y]) => y)) * 12).toBeCloseTo(-0.75 * 9, 1);
+    });
+
+    it("lays a self-loop with compass ports as neato does, round the side its ports choose", () => {
+        // neato -n2 -Tsvg control points, in points off the node's center, y up (dir=none, so no arrowhead clips them)
+        const graphviz: [string, number, number, string, string, number, number[][]][] = [
+            // specimen-edges-lines' loop-port-s: e -> n on a 24-point circle, round the right side
+            [
+                "circle",
+                24,
+                24,
+                "e",
+                "n",
+                1,
+                [
+                    [12, 0],
+                    [18, -9],
+                    [30, -9],
+                    [30, 6],
+                    [30, 21],
+                    [10, 21],
+                    [0, 12],
+                ],
+            ],
+            [
+                "box",
+                72,
+                36,
+                "nw",
+                "sw",
+                2,
+                [
+                    [-36, 18],
+                    [-48, 27],
+                    [-72, 27],
+                    [-72, 0],
+                    [-72, -27],
+                    [-48, -27],
+                    [-36, -18],
+                ],
+            ],
+            [
+                "ellipse",
+                72,
+                36,
+                "w",
+                "e",
+                1,
+                [
+                    [-36, 0],
+                    [-54, 12],
+                    [-54, 36],
+                    [0, 36],
+                    [54, 36],
+                    [54, 12],
+                    [36, 0],
+                ],
+            ],
+            [
+                "ellipse",
+                72,
+                36,
+                "se",
+                "s",
+                1,
+                [
+                    [16, -16],
+                    [34, -7],
+                    [54, -7],
+                    [54, -17],
+                    [54, -27],
+                    [18, -27],
+                    [0, -18],
+                ],
+            ],
+        ];
+        for (const [shape, w, h, tail, head, count, want] of graphviz) {
+            const t = compassEnd(tail, w, h, shape);
+            const hd = compassEnd(head, w, h, shape);
+            if (t === null || hd === null) {
+                throw new Error(`${tail} or ${head} is no compass point`);
+            }
+            const got = selfLoopControls(t, hd, w, h, count - 1, count).controls;
+            got.forEach(([x, y], k) => {
+                expect(Math.hypot(x - want[k][0], y - want[k][1])).toBeLessThan(1);
+            });
+        }
+        // a port naming a field is not a compass point: the element keeps its own loop
+        expect(compassEnd("f0", 72, 36, "record")).toBeNull();
+    });
+
+    it("writes a ported self-loop's ends as its ports", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            a [shape=circle, fixedsize=true, width=0.3333, height=0.3333, pos="0,0!"]; a:e -> a:n;
+        }`);
+        expect(resolveStyles(styles, "edge", "sourcePort", snapshot)).toEqual(["1,0"]);
+        expect(resolveStyles(styles, "edge", "targetPort", snapshot)).toEqual(["0,1"]);
     });
 
     it("keeps a distorted polygon reaching past its box, as Graphviz draws it, and draws its corners unstretched", async () => {

@@ -13,6 +13,7 @@ import type { CodedFact } from "../shared";
 import type { HistoryCode } from "../types";
 import { ALGO_DEFINITIONS } from "./algo";
 import { ANNOTATIONS_DEFINITIONS } from "./annotations";
+import { ASSET_DEFINITIONS } from "./assets";
 import { CONFIG_DEFINITIONS } from "./config";
 import { DATA_DEFINITIONS } from "./data";
 import { DERIVE_DEFINITIONS } from "./derive";
@@ -24,10 +25,11 @@ import { SHADER_DEFINITIONS } from "./shaders";
 import { SOURCE_EXPAND_DEFINITIONS } from "./source-expand";
 import { SOURCE_LOAD_DEFINITIONS } from "./source-load";
 import { STYLE_DEFINITIONS } from "./style";
+import { TOUR_DEFINITIONS } from "./tour";
 import { VIEW_DEFINITIONS } from "./view";
 import { VISIBILITY_DEFINITIONS } from "./visibility";
 
-/** `batch`: commands that are one step, as data. A serialisable transaction. */
+/** `batch`: commands that are one step, as data. A serializable transaction. */
 export interface BatchCommand {
     readonly op: "batch";
     /** The commands, dispatched in order; each takes its own lane. */
@@ -105,10 +107,12 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...SOURCE_EXPAND_DEFINITIONS,
     ...STYLE_DEFINITIONS,
     ...SHADER_DEFINITIONS,
+    ...ASSET_DEFINITIONS,
     ...VISIBILITY_DEFINITIONS,
     ...SET_DEFINITIONS,
     ...NOTE_DEFINITIONS,
     ...VIEW_DEFINITIONS,
+    ...TOUR_DEFINITIONS,
     ...CONFIG_DEFINITIONS,
     ...POSITIONS_DEFINITIONS,
     ...LAYOUT_DEFINITIONS,

@@ -1,4 +1,3 @@
-import type { BaseTexture } from "@babylonjs/core";
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
 import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Engine } from "@babylonjs/core/Engines/engine.js";
@@ -38,9 +37,12 @@ import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer, type PatternType } from "./PatternedLineRenderer";
 import { ANIMATED_TEMPLATE, createPulledAnimatedLineMesh, followRenderSize } from "./pulledAnimatedLine";
-import { LEAN_TEMPLATE, type LeanLines, PulledLineBatch } from "./PulledLineBatch";
+import { LEAN_TEMPLATE, type LeanLines, PulledLineBatch, type PulledRowTextures } from "./PulledLineBatch";
 import type { WaveShape } from "./shapeOutlines";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
+
+/** The line types a dash array (`line.dashArray`) draws in place of their own elements. */
+const DASH_ARRAY_TYPES: ReadonlySet<string> = new Set(["dash", "dot", "dash-dot"]);
 
 /** The line types drawn as a run of pattern elements rather than as one line. */
 /** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
@@ -79,7 +81,7 @@ interface ArrowHeadOptions {
     image?: string; // The picture an "image" cap draws (a URL or a data URL)
     side?: "left" | "right"; // Draw only the cap's half on this side of its line (unset: all of it)
     outline?: number; // An open cap's outline thickness, in the line's width units (unset: the cap's own thin frame)
-    fill?: string; // An open cap's inside colour (unset: the inside is left empty)
+    fill?: string; // An open cap's inside color (unset: the inside is left empty)
 }
 
 /**
@@ -183,19 +185,19 @@ function widened(mesh: Mesh, breadth: number): Mesh {
 
 /**
  * What an open cap draws besides its shape, each part of its batch's key since a batch holds one geometry and one inside
- * colour.
+ * color.
  *
  * AN OPEN CAP'S OUTLINE WIDTH (#5800), when set, frames its outline as thick as that width of line, as Graphviz and
  * Cytoscape.js stroke an open arrow with the edge's own pen: in scene units `outline / 40` (the line's, see
  * createPatternedLine) over the cap's length. Unset, the cap keeps its own thin frame.
  *
- * AN OPEN CAP'S INSIDE (#7565), when given a colour, is filled inside its frame, as yEd fills a framed edge's
+ * AN OPEN CAP'S INSIDE (#7565), when given a color, is filled inside its frame, as yEd fills a framed edge's
  * arrowheads: the frame drawn as an outline (the cap's own thin one when it has no width), its inside apart from it.
  * @param type - The cap type; only open caps with an outline take either.
  * @param options - The cap's options.
  * @param length - The cap's length in scene units.
  * @param widthKey - The key so far.
- * @returns The frame's thickness in the cap's lengths, the inside's colour, and the key with both.
+ * @returns The frame's thickness in the cap's lengths, the inside's color, and the key with both.
  */
 function openLook(
     type: string,
@@ -337,7 +339,7 @@ export class EdgeMesh {
      */
     static drawsAsPattern(style: EdgeStyleConfig): boolean {
         const lineType = style.line?.type ?? "solid";
-        if (!PATTERNED_TYPES.has(lineType)) {
+        if (!PATTERNED_TYPES.has(lineType) || this.dashArrayOf(style) !== null) {
             return false;
         }
 
@@ -402,7 +404,7 @@ export class EdgeMesh {
      *   `finalWorld` and so draws thin instances as it drew instanced meshes
      * - everything else is the straight solid 3D line
      *
-     * A slot is sixteen floats; the mesh and the material are the batch's, so the colour, the
+     * A slot is sixteen floats; the mesh and the material are the batch's, so the color, the
      * width and the opacity stay folded into the key, and there is one batch per appearance --
      * except with `byShape`, below.
      *
@@ -438,7 +440,7 @@ export class EdgeMesh {
         const shared = byShape && !widened;
         // a program's own dash length and gap (`line.dashLength`, `line.dashGap`) are the batch's pattern, so they
         // part batches as the line type does
-        const dashes = `${String(style.line?.dashLength ?? "")}|${String(style.line?.dashGap ?? "")}`;
+        const dashes = `${String(style.line?.dashLength ?? "")}|${String(style.line?.dashGap ?? "")}|${String(this.dashArrayOf(style))}`;
         const key = shared
             ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${this.pulledPass(style)}|${String(style.line?.patternCount ?? "")}|${dashes}`
             : styleKey;
@@ -471,7 +473,8 @@ export class EdgeMesh {
         // are placed along a straight line from end to end, so they cannot follow a bend. Its
         // width and element sizes are the pattern elements' own (world units), so a bent dashed
         // edge is as thick as the straight one beside it.
-        if (Object.hasOwn(JOINED_PATTERN_KINDS, lineType)) {
+        const dashArray = this.dashArrayOf(style);
+        if (Object.hasOwn(JOINED_PATTERN_KINDS, lineType) || dashArray !== null) {
             const is2D = this.is2DMode(scene);
             const width = options.width / 40;
             return cache.getBatch(
@@ -487,7 +490,15 @@ export class EdgeMesh {
                             minScreenWidth: style.line?.minScreenWidth,
                             fade,
                             opaque,
-                            pattern: this.joinedPattern(lineType as JoinedPatternKind, width, style),
+                            pattern:
+                                dashArray === null
+                                    ? this.joinedPattern(lineType as JoinedPatternKind, width, style)
+                                    : {
+                                          kind: "dash",
+                                          elementLength: width * dashArray[0],
+                                          gap: width * (dashArray.reduce((a, b) => a + b, 0) - dashArray[0]),
+                                          dashes: dashArray.map((d) => d * width),
+                                      },
                         },
                         scene,
                     ),
@@ -528,6 +539,28 @@ export class EdgeMesh {
     }
 
     /**
+     * A dashed, dotted or dash-dot line's own dash array (`line.dashArray`), in widths: an even count, at most 8, an
+     * odd count repeated once, as an SVG dash array is.
+     * ponytail: past 8 numbers the rest are dropped; the shader walks two vec4s.
+     * @param style - The resolved style.
+     * @returns The dashes and gaps, or null where none is drawn.
+     */
+    static dashArrayOf(style: EdgeStyleConfig): number[] | null {
+        const text = style.line?.dashArray;
+        if (text === undefined || !DASH_ARRAY_TYPES.has(style.line?.type ?? "solid")) {
+            return null;
+        }
+        const read = text
+            .split(/[\s,]+/)
+            .filter((t) => t !== "")
+            .map(Number);
+        const all = read.length % 2 === 1 ? [...read, ...read] : read;
+        const dashes = all.slice(0, 8);
+        const valid = dashes.length >= 2 && dashes.every((d) => Number.isFinite(d) && d >= 0);
+        return valid && dashes.reduce((a, b) => a + b, 0) > 0 ? dashes : null;
+    }
+
+    /**
      * The elements of a patterned joined line, in world units.
      * @param kind - Dashes, dots, boxes, diamonds or stars.
      * @param width - The line's width, in world units.
@@ -544,11 +577,14 @@ export class EdgeMesh {
         const dashLength = own ? style.line?.dashLength : undefined;
         const dashGap = own ? style.line?.dashGap : undefined;
         // A dot is drawn round, one width across; a dot length of its own (a program's dotted pattern, Graphviz
-        // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference.
-        const dotShort = kind === "dot" ? (dashLength ?? 1) - 1 : 0;
+        // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference. A dot
+        // shorter than the line is wide cannot be a disc: it is drawn as the short square-ended dash it is
+        // (Cytoscape.js's dotted line, 1 px on and 1 px off at any width), else such dots would merge into a solid line.
+        const drawn = kind === "dot" && dashLength !== undefined && dashLength < 1 ? "dash" : kind;
+        const dotShort = drawn === "dot" ? (dashLength ?? 1) - 1 : 0;
         return {
-            kind,
-            elementLength: kind === "dash" ? width * (dashLength ?? 3) : width,
+            kind: drawn,
+            elementLength: drawn === "dash" ? width * (dashLength ?? 3) : width,
             count: style.line?.patternCount,
             gap: dashGap === undefined ? undefined : width * Math.max(0, dashGap + dotShort),
         };
@@ -573,7 +609,7 @@ export class EdgeMesh {
     }
 
     /**
-     * The batch a plain straight line between node centres is pulled into, drawn from the row table
+     * The batch a plain straight line between node centers is pulled into, drawn from the row table
      * (`PulledLineBatch`). A piece carries its color, width and opacity itself
      * (`PulledLineBatch.setLook`), so they key no batch: one batch per minimum screen width and
      * per pass (translucent lines draw in the transparent pass, as the plain line's do). A lone curve
@@ -583,7 +619,7 @@ export class EdgeMesh {
      * @param options - The line's look.
      * @param style - The resolved style.
      * @param scene - The scene.
-     * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
+     * @param rows - The row table's textures, asked each frame.
      * @param edge - How the edge is drawn.
      * @param edge.loop - Whether the edge is a self-loop ({@link EdgeMesh.pullsCurve}).
      * @param edge.route - The route the edge takes ({@link EdgeMesh.pullsCurve}).
@@ -597,7 +633,7 @@ export class EdgeMesh {
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
-        rowPositions: () => BaseTexture,
+        rows: () => PulledRowTextures,
         edge: { loop?: boolean; route?: NonNullable<EdgeStyleConfig["line"]>["route"]; lean?: LeanLines } = {},
     ): PulledLineBatch {
         const { loop = false, route = style.line?.route, lean = false } = edge;
@@ -606,9 +642,7 @@ export class EdgeMesh {
         const pass = this.pulledPass(style);
         const curve = this.pullsCurve(style, loop, route);
         if (!curve && style.line?.animationSpeed) {
-            return cache.getPulledBatch("edge-pulled|animated", () =>
-                this.createPulledAnimatedBatch(scene, rowPositions),
-            );
+            return cache.getPulledBatch("edge-pulled|animated", () => this.createPulledAnimatedBatch(scene, rows));
         }
 
         // a 2D line's width is in world units, so the view keys the batch and a 2D/3D switch builds another
@@ -639,10 +673,11 @@ export class EdgeMesh {
             return new PulledLineBatch(
                 mesh,
                 scene,
-                rowPositions,
+                () => rows().positionTexture,
                 curve,
                 leanLine === false ? undefined : LEAN_TEMPLATE,
                 kind === true,
+                curve ? null : rows,
             );
         });
     }
@@ -696,10 +731,10 @@ export class EdgeMesh {
      * callback: it moves the one `scroll` uniform for every piece, each scrolling at its own speed, and parks it at 0
      * while the scene does not animate, as {@link EdgeMesh.applyAnimatedTexture} parks a greased line's texture.
      * @param scene - The scene.
-     * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
+     * @param rows - The row table's textures, asked each frame.
      * @returns The batch.
      */
-    private static createPulledAnimatedBatch(scene: Scene, rowPositions: () => BaseTexture): PulledLineBatch {
+    private static createPulledAnimatedBatch(scene: Scene, rows: () => PulledRowTextures): PulledLineBatch {
         const mesh = createPulledAnimatedLineMesh(scene);
         mesh.parent = scene.getTransformNodeByName("graph-root");
         const material = mesh.material as ShaderMaterial;
@@ -715,7 +750,7 @@ export class EdgeMesh {
             releaseFrames();
             stopFrames();
         });
-        return new PulledLineBatch(mesh, scene, rowPositions, false, ANIMATED_TEMPLATE);
+        return new PulledLineBatch(mesh, scene, () => rows().positionTexture, false, ANIMATED_TEMPLATE, false, rows);
     }
 
     /**
@@ -730,7 +765,7 @@ export class EdgeMesh {
      * In 3D mode, uses shader-based billboard rendering.
      *
      * The head is a thin-instance slot in a batch its scene shares with every head of the same
-     * shape (and, where the material holds them, the same colour and opacity), so a graph's
+     * shape (and, where the material holds them, the same color and opacity), so a graph's
      * arrowheads cost one draw call and one material per batch, and nothing at all per edge.
      * See `ArrowCapBatch`.
      * @param options - Arrow head options including type, width, color, size, and opacity
@@ -761,7 +796,7 @@ export class EdgeMesh {
 
         // AN IMAGE CAP IS ITS PICTURE on a flat quad, drawn by a StandardMaterial that holds the
         // texture, so it is a batch per picture and is laid in the XY plane turned along its line in
-        // 3D as in 2D: the billboard shader draws a single colour and no texture.
+        // 3D as in 2D: the billboard shader draws a single color and no texture.
         if (options.type === "image") {
             const src = options.image;
             if (src === undefined || src === "") {
@@ -825,7 +860,7 @@ export class EdgeMesh {
                   );
 
         if (is2D) {
-            // StandardMaterial (no shader, XY rotation). Colour and opacity live on the material,
+            // StandardMaterial (no shader, XY rotation). Color and opacity live on the material,
             // so they are part of the batch key; the size and the turn are the slot's matrix.
             return FilledArrowRenderer.capOf(
                 scene,
@@ -858,7 +893,7 @@ export class EdgeMesh {
             return this.createSphereDot(length, options.color, opacity, scene);
         }
 
-        // 3D mode: shader-based billboard arrows; size and colour are per instance.
+        // 3D mode: shader-based billboard arrows; size and color are per instance.
         return FilledArrowRenderer.createArrowCap(
             `${arrowType}${openKey}`,
             () => sided(open() ?? widened(this.createArrowShape(arrowType, scene), breadth), side),
@@ -874,7 +909,7 @@ export class EdgeMesh {
     }
 
     /**
-     * A 3D sphere-dot arrowhead: an unlit sphere, batched by colour and opacity, sized by the
+     * A 3D sphere-dot arrowhead: an unlit sphere, batched by color and opacity, sized by the
      * slot's own scale.
      * @param length - Arrow length in world units
      * @param color - Arrow color as hex string
@@ -1063,7 +1098,7 @@ export class EdgeMesh {
                 // "convert back from scaled width to match 3D line thickness".
                 width: options.width / 40,
                 colorMode: GreasedLineMeshColorMode.COLOR_MODE_MULTIPLY,
-                // Babylon otherwise binds one colours texture shared by every engine on the page
+                // Babylon otherwise binds one colors texture shared by every engine on the page
                 // and disposed with whichever engine goes first. WebGL tolerates the stale
                 // binding; WebGPU refuses the draw ("Trying to bind a null gpu texture").
                 colorsTexture: this.emptyColorsTexture(scene),
@@ -1083,7 +1118,7 @@ export class EdgeMesh {
     }
 
     /**
-     * An empty colours texture for one animated line, disposed with it. Not shared: the line's
+     * An empty colors texture for one animated line, disposed with it. Not shared: the line's
      * mesh disposes its material's textures when it goes, so a shared one would be disposed under
      * every other line still using it.
      * @param scene - The scene the line is drawn in.
@@ -1160,7 +1195,7 @@ export class EdgeMesh {
         const stopFrames = animatedEdgeFrames.join(scene, () => {
             // PARKED AT THE START OF THE GRADIENT WHEN THE SCENE SAYS NOT TO ANIMATE, rather than
             // left wherever the last frame put it. `scene.animationsEnabled` is Babylon's own
-            // switch for "do not animate", and honouring it is what lets a visual baseline of an
+            // switch for "do not animate", and honoring it is what lets a visual baseline of an
             // animated edge exist at all: the line is still built and drawn by this renderer, so
             // a defect in it still shows up in the picture, but the picture is the same one every
             // time. Stopping without resetting would have made every snapshot differ by however

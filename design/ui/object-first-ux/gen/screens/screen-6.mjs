@@ -1,7 +1,7 @@
-// Screen 6: a Measure selected, continuous encoding (colour scale plus size)
+// Screen 6: a Measure selected, continuous encoding (color scale plus size)
 // (round-2/screens.md). Influence (PageRank) paints every node on the viridis
 // ramp and sizes it by the same value; Communities beneath is fully covered
-// on Colour, so its chip is faded and its legend block is gone. The values
+// on Color, so its chip is faded and its legend block is gone. The values
 // are karate.mjs's PAGERANK (node 12 at 0.010, node 34 at 0.101).
 
 import { NODES, PAGERANK } from "../karate.mjs";
@@ -20,7 +20,7 @@ export default {
     objects: { rows: [
       { kind: "dataset", name: "Karate Club", nodes: 34, edges: 78, locked: true, chip: { type: "locked" }, expanded: true, children: [
         { kind: "measure", name: "Influence (PageRank)", values: 34, chip: rampChip, selected: true },
-        // Fully covered on Colour by Influence above it: the strip chip at 50 percent.
+        // Fully covered on Color by Influence above it: the strip chip at 50 percent.
         { kind: "grouping", name: "Communities (Louvain)", groups: 4, expanded: false, chip: { type: "strip", colors: OKABE_4, faded: true } },
       ] },
     ] },

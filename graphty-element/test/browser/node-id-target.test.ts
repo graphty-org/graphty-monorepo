@@ -152,6 +152,88 @@ function pixelCenters(element: Graphty, seed: number): { x: number; y: number }[
     });
 }
 
+/**
+ * Labeled nodes on a 2D grid, close enough that labels cover their neighbors.
+ * @param from - The first node's number.
+ * @param count - How many nodes.
+ * @param side - Nodes in a row of the grid.
+ * @returns The nodes.
+ */
+function gridNodes(
+    from: number,
+    count: number,
+    side: number,
+): { id: string; position: { x: number; y: number; z: number } }[] {
+    return Array.from({ length: count }, (_, k) => {
+        const i = from + k;
+        return {
+            id: `n${String(i)}`,
+            position: { x: ((i % side) - side / 2) * 1.5, y: (Math.floor(i / side) - side / 2) * 1.5, z: 0 },
+        };
+    });
+}
+
+/**
+ * A 2D grid of labeled nodes drawn on one path.
+ * @param path - The render path.
+ * @param count - How many nodes.
+ * @param side - Nodes in a row of the grid.
+ * @returns The element.
+ */
+async function labeledGraph(
+    path: "objects" | "batched",
+    count: number,
+    side = Math.ceil(Math.sqrt(count)),
+): Promise<Graphty> {
+    const element = document.createElement("graphty-element");
+    element.style.display = "block";
+    element.style.width = `${String(WIDTH)}px`;
+    element.style.height = `${String(HEIGHT)}px`;
+    document.body.appendChild(element);
+    cleanups.push(() => {
+        element.remove();
+    });
+    await element.updateComplete;
+    await element.setViewMode("2d");
+    await operationQueueOf(element.graph).waitForCompletion();
+    element.graph.setRenderPath(path);
+    await element.session.styles.add({
+        name: "labels",
+        target: "node",
+        selector: { match: "everything" },
+        encode: { "node.label": { by: "data.id", scale: "passthrough" } },
+    });
+    await element.session.data.addNodes(gridNodes(0, count, side));
+    await element.graph.setLayout("fixed", { dim: 3 });
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
+    return element;
+}
+
+/**
+ * Where a node and its label are on the canvas, in CSS pixels.
+ * @param element - The element.
+ * @param id - The node.
+ * @returns The node's center, and its label's center when it has one drawn.
+ */
+function nodeAndLabel(element: Graphty, id: string): { x: number; y: number }[] {
+    const { graph } = element;
+    const node = graph.getNode(id);
+    assert.isDefined(node);
+    const scaling = graph.scene.getEngine().getHardwareScalingLevel();
+    const css = (p: Vector3): { x: number; y: number } => {
+        const screen = graph.worldToScreen(p);
+        return { x: screen.x * scaling, y: screen.y * scaling };
+    };
+    const points = [css(node?.drawnWorldPosition ?? Vector3.Zero())];
+    const label = node?.label?.labelMesh;
+    if (label && label.isEnabled() && label.isVisible) {
+        points.push(css(label.getBoundingInfo().boundingBox.centerWorld));
+    }
+
+    return points;
+}
+
 describe("the node ID target", () => {
     for (const viewMode of ["3d", "2d"] as const) {
         for (const shape of ["sphere", "box", "icosphere"]) {
@@ -363,5 +445,62 @@ describe("the node ID target", () => {
         assert.strictEqual(target.counts.draws - draws, 1, "the stale target was drawn once");
         assert.strictEqual(target.read(point.x, point.y), node?.index, "a second read reads the same drawing");
         assert.strictEqual(target.counts.draws - draws, 1, "and draws nothing");
+    });
+
+    it("does not redraw the target on each pointer move over hundreds of labels (#9466)", async () => {
+        // Each canvas label is a mesh of its own. Redrawing every one of them into the target on
+        // each pointer move made hover several times slower on "batched" than on "objects".
+        const side = 18;
+        const element = await labeledGraph("batched", 16, side);
+        // Ready while few labels are drawn, so a read can draw it.
+        const target = await readyTarget(element);
+        await element.session.data.addNodes(gridNodes(16, 300 - 16, side));
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const { graph } = element;
+        const labels = [...graph.getNodes()].filter((node) => node.label?.labelMesh?.isEnabled() === true).length;
+        assert.isAtLeast(labels, 200, "hundreds of labels are drawn");
+        const ids = ["n0", "n37", "n101", "n150", "n222", "n299"];
+        const { draws } = target.counts;
+        for (const id of ids) {
+            await hover(element, nodeAndLabel(element, id)[0]);
+            await element.waitForStableFrame();
+            assert.isNotNull(element.session.selection.hovered ?? null, `a move over ${id} hovers a node`);
+        }
+
+        assert.strictEqual(
+            target.counts.draws - draws,
+            0,
+            `${String(ids.length)} moves over ${String(labels)} labels redraw the target`,
+        );
+    });
+
+    it("hovers the node or label objects hovers, labels on top included (#9466)", async () => {
+        const hovered = async (path: "objects" | "batched", count: number): Promise<(string | undefined)[]> => {
+            const element = await labeledGraph(path, count);
+            if (path === "batched" && count < 64) {
+                // Few labels: the target draws them and answers. Many: the mesh pick does, at once.
+                await readyTarget(element);
+            }
+
+            const answers: (string | undefined)[] = [];
+            for (const id of ["n0", "n5", "n12", "n20", "n27"]) {
+                for (const point of nodeAndLabel(element, id)) {
+                    await hover(element, point);
+                    await element.waitForStableFrame();
+                    const now = element.session.selection.hovered;
+                    answers.push(now === null || now === undefined ? undefined : String(now));
+                }
+            }
+
+            element.remove();
+            return answers;
+        };
+        // Few labels (the target draws them) and many (the mesh pick answers for them).
+        for (const count of [30, 300]) {
+            const objects = await hovered("objects", count);
+            assert.isAbove(objects.filter((id) => id !== undefined).length, 4, "the points hover nodes");
+            assert.deepEqual(await hovered("batched", count), objects, `${String(count)} labeled nodes`);
+        }
     });
 });

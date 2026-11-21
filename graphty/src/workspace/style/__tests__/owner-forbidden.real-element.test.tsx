@@ -466,11 +466,15 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
                     (line) => line.dataset.result ?? "",
                 );
                 if (kind === "node" && word === "Glyph") {
-                    // a glyph is the Label row's Glyph kind, found under the Label
+                    // a glyph is the Label row's Glyph kind, found under the Label and headed by its kind (01469b21ac)
                     const label = [...results.querySelectorAll<HTMLElement>("[data-find-group]")].find(
                         (group) => group.querySelector('[data-result="node.glyph"]') !== null,
                     );
-                    assert.equal(label?.firstElementChild?.textContent.trim(), "Text - Label", "glyph is under Label");
+                    assert.equal(
+                        label?.firstElementChild?.textContent.trim(),
+                        "Text - Label (Glyph)",
+                        "glyph is under Label",
+                    );
                 }
                 for (const forbidden of OWNER_FORBIDDEN) {
                     const why = `${kind} Find "${word}": ${forbidden.what} (${forbidden.ledger})`;

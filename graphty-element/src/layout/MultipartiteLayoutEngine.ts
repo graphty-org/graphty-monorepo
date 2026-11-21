@@ -3,6 +3,7 @@ import { multipartite } from "@graphty/layout";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { columnLayoutConfigShape, columnLayoutOptions } from "./columnOptions";
 import { groupRows } from "./groupBy";
 import { SimpleLayoutConfig } from "./LayoutEngine";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
@@ -26,32 +27,7 @@ const multipartiteLayoutOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    align: {
-        schema: z.enum(["vertical", "horizontal"]).default("vertical"),
-        meta: {
-            label: "Alignment",
-            description: "Direction of multipartite partitions",
-        },
-    },
-    scale: {
-        schema: z.number().positive().default(1),
-        meta: {
-            label: "Scale",
-            description: "Scale factor for the layout",
-            step: 0.1,
-        },
-    },
-    aspectRatio: {
-        schema: z
-            .number()
-            .positive()
-            .default(4 / 3),
-        meta: {
-            label: "Aspect Ratio",
-            description: "Width to height ratio the columns are spread to",
-            step: 0.1,
-        },
-    },
+    ...columnLayoutOptions("Direction of multipartite partitions", "Width to height ratio the columns are spread to"),
 });
 
 const MultipartiteLayoutConfig = z.strictObject({
@@ -59,13 +35,7 @@ const MultipartiteLayoutConfig = z.strictObject({
     scalingFactor: z.number().default(40),
     subsetKey: z.record(z.string(), z.array(z.string().or(z.number()))).optional(),
     groupBy: z.string().nullable().default(null),
-    align: z.enum(["vertical", "horizontal"]).default("vertical"),
-    scale: z.number().positive().default(1),
-    center: z.array(z.number()).length(2).or(z.null()).default(null),
-    aspectRatio: z
-        .number()
-        .positive()
-        .default(4 / 3),
+    ...columnLayoutConfigShape,
 });
 type MultipartiteLayoutConfigType = z.infer<typeof MultipartiteLayoutConfig>;
 type MultipartiteLayoutOpts = Partial<MultipartiteLayoutConfigType>;

@@ -2245,7 +2245,7 @@ function compileSourceScoped(context: CompileContext, scoped: SourceScopedRule):
  * @param rule - The rule.
  * @returns The paths.
  */
-function valuePaths(rule: RuleTree): Path[] {
+export function valuePaths(rule: RuleTree): Path[] {
     switch (rule.kind) {
         case "range":
         case "categories":

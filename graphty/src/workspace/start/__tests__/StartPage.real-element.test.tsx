@@ -416,6 +416,31 @@ describe("the start page's graph", () => {
     });
 });
 
+describe("the start page's fact bar", () => {
+    it("counts as many layouts as the Layout list offers", async () => {
+        const { store } = await startPage();
+        const bar = screen.getByRole("complementary", { name: "graphty at a glance" });
+        const said = within(bar)
+            .getByText(/layouts$/)
+            .querySelector("b")?.textContent;
+        assert.isDefined(said, "the bar shows a layout count");
+
+        await commands.chooseNextFile(
+            "triangle.json",
+            "application/json",
+            JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [{ src: "a", dst: "b" }] }),
+        );
+        await openBy(store, () => userEvent.click(screen.getByRole("button", { name: /^Open a file/ })));
+        const tool = screen.getByRole("button", { name: "Layout" });
+        await waitFor(() => {
+            assert.isFalse(tool.hasAttribute("aria-disabled"));
+        });
+        await userEvent.click(tool);
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        assert.equal(Number(said), within(popover).getAllByRole("option").length);
+    });
+});
+
 describe("the start page's ways in", () => {
     it("opens the file chosen from Open a file as a project", async () => {
         const { store } = await startPage();

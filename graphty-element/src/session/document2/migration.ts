@@ -38,6 +38,7 @@
  *   keeps only its style. A session member gives no recipe: opening restores the view.
  */
 
+import { withParentIds } from "../parentIds";
 import { ENGINE_VERSIONS } from "../runs/engine";
 import { rewriteOldPaths } from "../styles/fileStyles/oldLooks";
 import { addedColumns, canonicalJson, READER } from "./codecs/dataRefs";
@@ -1471,7 +1472,13 @@ function sectionsOf(
     const data =
         dataMember === undefined
             ? undefined
-            : migrateData({ data: dataMember, session, sources: members.get("graphty-sources"), generator, problems });
+            : migrateData({
+                  data: withParentIds(dataMember),
+                  session,
+                  sources: members.get("graphty-sources"),
+                  generator,
+                  problems,
+              });
     const runs = objectsOf(members.get("graphty-results")?.runs);
     const context = contextOf(members, generator, data, runs, problems);
 

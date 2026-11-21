@@ -147,8 +147,8 @@ function catchDownloads(): string[] {
     return names;
 }
 
-// The usage-analytics experiment on, with PostHog's ids, in both test configurations: these counts
-// are its own, and the survey corner is shown only where the page sends PostHog.
+// PostHog's ids, in both test configurations: these counts
+// need them, and the survey corner is shown only where the page sends PostHog.
 withPostHogSite();
 
 describe("usage counts when a project opens", () => {

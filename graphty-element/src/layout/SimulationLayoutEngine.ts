@@ -74,6 +74,7 @@ import type { Node } from "../Node";
 import type { DrawnTarget } from "../render/RowTable";
 import { wholeGraph } from "../session/working/graphs";
 import { readCommunities, readRowCommunities, sameCommunities } from "./clusterForce";
+import { forceAtlas2MaxIterFor } from "./forceAtlas2Iterations";
 import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
 
 /**
@@ -772,6 +773,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #paused = false;
     #iterations = 1;
     #iterationsDone = 0;
+    /** ForceAtlas2's iteration cap this simulation was built with; undefined for the other types. */
+    #maxIter: number | undefined = undefined;
 
     /**
      * Moves at every {@link SimulationLayoutEngine.loadArrangement}. A batch submitted before the
@@ -1043,7 +1046,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
             simulation === null ||
             decision.accelerated !== this.#accelerated ||
             massStale ||
-            loadable.weight !== this.#weightSpec
+            loadable.weight !== this.#weightSpec ||
+            // A cap scaled to the graph is handed over at creation, so a graph that grew past it rebuilds.
+            this.#resolveMaxIter(simGraph.nodeCount) !== this.#maxIter
         ) {
             this.replaceSimulation();
             return;
@@ -2438,6 +2443,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#seed(snapshot, simPositions);
         this.#nodeMass = this.#resolveNodeMass(undirected);
         this.#iterations = this.#resolveIterations(snapshot.nodeCount);
+        this.#maxIter = this.#resolveMaxIter(snapshot.nodeCount);
         this.#simulation = createSimulation(
             this.simulationType,
             this.#simulationOptions(),
@@ -2589,7 +2595,22 @@ export class SimulationLayoutEngine extends LayoutEngine {
         } = this.#options;
         const resolved = this.#nodeMass === null ? {} : { nodeMass: this.#nodeMass };
         const weight = this.#weightSpec === undefined ? {} : { weight: this.#weightSpec };
-        return { ...common, ...model, ...resolved, ...weight, iterationsPerStep: this.#iterations };
+        const cap = this.#maxIter === undefined ? {} : { maxIter: this.#maxIter };
+        return { ...common, ...model, ...resolved, ...weight, ...cap, iterationsPerStep: this.#iterations };
+    }
+
+    /**
+     * ForceAtlas2's iteration cap over a graph this size: the consumer's `maxIter`, else one scaled
+     * to the graph ({@link forceAtlas2MaxIterFor}).
+     * @param nodeCount - The graph this load is over.
+     * @returns The cap, or undefined for a simulation that is not ForceAtlas2.
+     */
+    #resolveMaxIter(nodeCount: number): number | undefined {
+        if (this.simulationType !== "forceatlas2") {
+            return undefined;
+        }
+
+        return (this.#options.model as { maxIter?: number }).maxIter ?? forceAtlas2MaxIterFor(nodeCount);
     }
 
     /**

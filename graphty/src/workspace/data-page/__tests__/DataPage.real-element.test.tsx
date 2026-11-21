@@ -13,11 +13,15 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
 import POSTER from "../../../../../design/ui/studio/tool/files/lesmis-poster.graphty.json?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { openDataPage } from "../request";
+
+// A second source opens the join screen only with sources and steps off: on, it is staged.
+withoutFeatures(["source-steps"]);
 
 declare module "vitest/browser" {
     interface BrowserCommands {

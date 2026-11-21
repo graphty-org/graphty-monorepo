@@ -11,6 +11,7 @@ import { GLYPHS } from "../glyphs";
 import { runFailureWords, selectedNameWords } from "../inspector/words";
 import { layoutWarningWords } from "../layout/refusalWords";
 import { runName } from "../runWords";
+import { BeforeAfterChip } from "../source-steps/BeforeAfterChip";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
 import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
@@ -402,6 +403,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
                 <LegendCard blocks={blocks} session={session} />
             ) : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
+            <BeforeAfterChip />
         </>
     );
 }

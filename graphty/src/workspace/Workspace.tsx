@@ -28,6 +28,7 @@ import { REGISTRATIONS } from "./registrations";
 import { cardPalette } from "./selection/cardPalette";
 import { readAuthor, readPreference, TIMELINE_STYLE } from "./settings/preferences";
 import { SettingsDialog } from "./settings/SettingsDialog";
+import { DraftOpenDialog } from "./source-steps/DraftOpenDialog";
 import { openAgain, useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
@@ -461,6 +462,7 @@ export function Workspace({
                 {usageAnalytics ? <SurveyCard /> : null}
             </div>
             <ProjectDialogs />
+            <DraftOpenDialog />
             {/* The one status line, outside the start screen, the frame and every surface the Data
                 page hides, so it is on the page, empty, before anything is written to it and a
                 message is spoken once, politely, as it happens. Each write puts in a new text node,

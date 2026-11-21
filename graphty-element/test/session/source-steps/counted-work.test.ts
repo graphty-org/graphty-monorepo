@@ -128,6 +128,25 @@ describe("source-steps: counted work of the diff apply", () => {
         );
     });
 
+    it("changing a staged source's key and type adds the same bytes however many rows it holds", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const session = await loaded(size);
+                const rows = Array.from({ length: size }, (_, i) => `p${String(i)},q${String(i)}`).join("\n");
+                const staged = await session.data.stage(
+                    { type: "csv", config: { data: `badge,name\n${rows}` } },
+                    { key: "name" },
+                );
+                const before = stepBytes(session);
+                await session.data.setMapping(staged, { nodes: { key: "badge" }, type: "person" });
+                const added = stepBytes(session) - before;
+                session.dispose();
+                return added;
+            },
+            { sizes: [500, 2_000], growth: "constant", counter: "bytes the mapping change adds to its step" },
+        );
+    });
+
     it("turning a step off and back on retains bytes in step with the rows it builds", async () => {
         await assertScalesLinearly(
             async (size) => {

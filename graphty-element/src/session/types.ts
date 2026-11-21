@@ -1579,21 +1579,41 @@ export interface SessionDataApi {
      * await session.data.import({ type: "csv", config: { data: messages }, name: "messages.csv" }, { mode: "merge" });
      * session.data.sources().map((each) => [each.name, each.added.edges]); // [["friends.csv", 41], ["messages.csv", 23]]
      * ```
+     *
+     * While the source-steps experiment is on, a staged source ({@link stage}) is no part of the
+     * graph and is left out; {@link staged} lists it, and `staged: true` lists it here too.
+     * @param options - What to list besides the loads in the graph.
+     * @param options.staged - `true` lists staged sources too, in their place. Experimental (source-steps).
      * @returns the loads, or an empty list when no import loaded the graph
      * @since 3.30.0
      */
-    sources(): readonly LoadedSource[];
+    sources(options?: { readonly staged?: boolean }): readonly LoadedSource[];
+    /**
+     * The staged sources ({@link stage}), oldest first: held, read by no step, and no part of the
+     * graph until a step adds or joins them.
+     *
+     * ```ts
+     * await session.data.stage({ type: "csv", config: { data: visitors }, name: "visitors.csv" });
+     * session.data.staged().map((each) => each.name); // ["visitors.csv"]
+     * session.data.sources().some((each) => each.name === "visitors.csv"); // false
+     * ```
+     * @returns The staged sources; empty while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    staged(): readonly LoadedSource[];
     /**
      * Hold a source's rows without building anything from them: a staged source, which no step
      * reads, is saved and listed with `state: "staged"`. It is no undo step of its own: it joins the
      * step before it, and with no step before it, it is part of the state history starts from.
      * @param source - What `import` takes.
-     * @param options - Its key, type, space and edge ends.
+     * @param options - Its key, type, space and edge ends, and how to guess the ones left out.
+     * @param options.guess - `"values"` also reads the values when no header names the key or the
+     *   edge ends, as `prepare` does; `"names"` (the default) reads the headers only.
      * @returns The new source's id.
      * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
      * @experimental source-steps
      */
-    stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
+    stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
     /**
      * Every step the graph is built from, in order, with its counts in the committed build.
      * @returns The steps; empty while the source-steps experiment is off.
@@ -1671,6 +1691,20 @@ export interface SessionDataApi {
      * @experimental source-steps
      */
     ref(key: string, options?: { readonly space?: string }): SourceNodeRef | null;
+    /**
+     * The id space and key of a node in the graph, by its id: what a join on the node's type, or a
+     * reader edit naming it, takes. The inverse of {@link SessionDataApi.ref}.
+     *
+     * ```ts
+     * const at = session.data.nodeRef(session.selection.nodes[0]);
+     * // { space: "person", key: "B1" }
+     * ```
+     * @param id - The node's id, as `nodes()` lists it.
+     * @returns The reference, or null for an id no node holds.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    nodeRef(id: NodeId): SourceNodeRef | null;
     /**
      * Merge: fold each node of a source into the node its field names, as one undoable step. A
      * staged source is added in its own space first. Its values meet the nodes' under `clash`
@@ -1816,6 +1850,47 @@ export interface SessionDataApi {
      * @experimental source-steps
      */
     matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
+    /**
+     * One source's rows as read, staged or built: its tables and one column's profile, building
+     * nothing (design 5.1, 5.2).
+     * @param source - The source, by the key `sources()` lists it with.
+     * @returns The table.
+     * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source, or `E_FEATURE_OFF`
+     *   while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    sourceTable(source: SourceKey): SourceTable;
+    /**
+     * The profile of the keys of the nodes one id space holds: the join card's Key field.
+     * @param options - The space.
+     * @param options.space - The space, as `spaces()` names it.
+     * @returns The profile; every count 0 for a space no node lives in.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    profile(options: { readonly space: SourceSpaceName }): SourceColumnProfile;
+    /**
+     * Change what a staged source's rows are and are for -- nodes, edges or both, its key, space,
+     * type, edge ends and roles --
+     * outside a draft (design 5.1). A type picked writes its whole-source or end rule at once.
+     * Like staging, it is no undo step of its own: it joins the step before it.
+     *
+     * ```ts
+     * const visitors = await session.data.stage(visitorsCsv);
+     * await session.data.setMapping(visitors, { nodes: { key: "badge" }, type: "person" });
+     * ```
+     * @param source - The staged source.
+     * @param patch - The change.
+     * @returns Settles once it is recorded.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"not-staged"`) for a source a
+     *   step reads, `"no-nodes"` or `"no-edges"` for roles of a table it does not hold, `"no-ends"`
+     *   for edge rows with no column for an end, `"many-tables"` for `rows` on a source that read
+     *   more than one table; `E_UNKNOWN_ATTRIBUTE` (`details` `{ source, column, table }`) for a
+     *   column its rows do not hold; `E_LOAD_UNKNOWN`, `E_SPACE_RESERVED`, `E_DRAFT_OPEN` while a
+     *   draft is open, or `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    setMapping(source: SourceKey, patch: SourceMappingPatch): Promise<void>;
     /**
      * Where one node or edge came from.
      * @param ref - The element.
@@ -3612,6 +3687,13 @@ export interface LoadedSource extends DataSourceDescriptor {
      * @experimental source-steps
      */
     readonly issues?: readonly SourceSpaceOverlap[];
+    /**
+     * For a staged source: the committed source it is named like (the same `name`), which a
+     * replace of that source would read it as. Absent when none is, and for a source that is not
+     * staged. Present only under the source-steps experiment.
+     * @experimental source-steps
+     */
+    readonly sameName?: SourceKey;
 }
 
 /**
@@ -4238,6 +4320,16 @@ export interface ImportOptions {
 }
 
 /**
+ * How `data.stage` and a draft's `stage` read a source: an import's choices, and how to guess the
+ * key and edge ends they leave out.
+ * @experimental source-steps
+ */
+export interface StageOptions extends ImportOptions {
+    /** `"values"` also reads the values when no header names the roles; `"names"` (the default) reads the headers only. */
+    readonly guess?: "names" | "values";
+}
+
+/**
  * One edge end of a source loaded under the source-steps experiment.
  * @experimental source-steps
  */
@@ -4312,6 +4404,12 @@ export interface SourceStepCounts {
     readonly typeDiffers: number;
     /** For `join.merge`: nodes of the space merged into that no row reached. */
     readonly untouched: number;
+    /**
+     * For `join.merge`: source 2's nodes the step leaves in the graph as nodes of their own (the
+     * new nodes the merge brings): those that met no node 1, or more than one. 0 under
+     * `unmatchedFrom: "drop"`, which leaves the unmatched out.
+     */
+    readonly keptNew: number;
     /** For `join.merge`: how many nodes each merged node was made from, largest first. */
     readonly groups: readonly number[];
     /** Edges whose two ends are one node. */
@@ -4326,7 +4424,10 @@ export interface SourceStepCounts {
     readonly rowsDifferIn: Readonly<Record<string, number>>;
     /** End pairs the step joined with an edge when an earlier edge already joined them. */
     readonly parallelPairs: number;
-    /** Edge ends that found a node already built, by the id space they look in. */
+    /**
+     * Edge ends that found a node already built, by the id space they look in. For `join.add`, its
+     * node rows whose key found a node an earlier step built count here too.
+     */
     readonly endsMeet: Readonly<Record<SourceSpaceName, number>>;
     /** Edge ends that found no node, so made one or left the row out, by id space. */
     readonly endsMissing: Readonly<Record<SourceSpaceName, number>>;
@@ -4820,8 +4921,14 @@ export interface SourceDraftCells {
 export interface SourcePickAllOptions {
     /** The column. */
     readonly column: string;
-    /** The source whose value to take. */
-    readonly source: SourceKey;
+    /** The source whose value to take. Give this or `otherThan`. */
+    readonly source?: SourceKey;
+    /**
+     * Instead of `source`: in each cell, take the value of the first source other than this one, in
+     * {@link SourceConflict.values} order. Passing a merge's incoming source takes the value held
+     * before it, whichever source holds it in each cell.
+     */
+    readonly otherThan?: SourceKey;
     /** `"open"` (default): cells no reader decision settles; `"decided"`; `"all"`. */
     readonly only?: "all" | "open" | "decided";
     /** Only cells this step counts under its Values differ (see {@link SourceConflict.steps}). */
@@ -4875,6 +4982,55 @@ export interface SourceStepRow {
     readonly buckets: SourceStepCounts | null;
     /** One `W_VALUES_DIFFER` per column whose values from different sources differ at this step. */
     readonly valuesDiffer: readonly SourceValuesDiffer[];
+    /**
+     * The rows it leaves out (its excluded list): the column `draft.exclude` reads and the keys
+     * listed, which `draft.include` takes off; null when it leaves none out.
+     */
+    readonly except: SourceRowFilter | null;
+    /**
+     * For a step a join act made (`draft.merge`, or `draft.connect` on node rows): that act's
+     * fields and choices, read back so an application can show the step as it was made and make it
+     * again with a field or the act changed (`draft.removeStep`, then the new act, in one draft).
+     * Null for any other step. Its Values differ rules are in `valuesDiffer`, its excluded keys in
+     * `except`.
+     */
+    readonly act: SourceStepAct | null;
+}
+
+/**
+ * A join step read back as the act that makes it (see {@link SourceStepRow.act}).
+ * @example
+ * ```ts
+ * const merge = session.data.steps().find((s) => s.act?.act === "merge");
+ * merge?.act?.from; // { source: "hr", field: "badge" }
+ * merge?.act?.into; // { space: "person" }
+ * ```
+ * @experimental source-steps
+ */
+export interface SourceStepAct {
+    /** `"connect"` for Make an edge, `"merge"` for Merge 2 into 1. */
+    readonly act: "connect" | "merge";
+    /** Field 2: the source the step reads and the column it matches on. */
+    readonly from: SourceField;
+    /**
+     * Node 1: the space it lives in, with the source and column a value translates through when
+     * the step matches on a column that is not node 1's key. `connect` and `merge` take it as it is.
+     */
+    readonly into: SourceJoinInto & { readonly space: SourceSpaceName };
+    /** Make an edge: which way the edges run, as `connect` takes it. */
+    readonly direction?: "into-from" | "from-into";
+    /** Make an edge: the type its edges carry, when one was given. */
+    readonly edgeType?: SourceTypeName;
+    /** Values that differ only in case match. */
+    readonly ignoreCase: boolean;
+    /** Values that differ only in spaces match. */
+    readonly ignoreSpaces: boolean;
+    /** Which row a key the source repeats keeps; null when `aggregate` settles it or nothing was set. */
+    readonly repeated: "first" | "last" | "both" | null;
+    /** The columns reduced over a repeated key's rows; null for none. */
+    readonly aggregate: Readonly<Record<string, JoinReduce>> | null;
+    /** Merge: what becomes of source 2's rows that meet no node 1. */
+    readonly unmatchedFrom?: "keep" | "drop";
 }
 
 /**
@@ -4896,6 +5052,12 @@ export interface SourceValuesDiffer {
         readonly rule: SourceClashRule;
         /** How many of those cells a reader decision (a pick or an edit) settles. */
         readonly decided: number;
+        /**
+         * The rules the column takes: every rule but `min`, `max` and `mean` always; `min` and
+         * `max` when every value that meets is a number or every one a date, `mean` when every one
+         * is a number. `draft.editStep` refuses any other with `E_CLASH_RULE_TYPE`.
+         */
+        readonly rules: readonly SourceClashRule[];
     };
 }
 
@@ -4910,6 +5072,11 @@ export interface SourceSpaceRow {
     readonly nodes: number;
     /** The sources whose rows built or named its nodes. */
     readonly sources: readonly SourceKey[];
+    /**
+     * For a source's own space, the one its rows are keyed in when no space is named: that source.
+     * Absent for a space a consumer named.
+     */
+    readonly ownedBy?: SourceKey;
 }
 
 /**
@@ -5243,6 +5410,8 @@ export interface SourceConnectOptions {
     readonly edgeType?: SourceTypeName;
     /** Match keys ignoring case. */
     readonly ignoreCase?: boolean;
+    /** Match keys ignoring spaces, so `" B1"` meets `B1`. */
+    readonly ignoreSpaces?: boolean;
 }
 
 /**
@@ -5304,6 +5473,17 @@ export interface SourceStepPatch {
     readonly repeated?: "first" | "last" | "both" | null;
     /** Keep the step but build nothing from it. */
     readonly off?: boolean;
+    /**
+     * A merge's node 2 that names no node 1: `"keep"` keeps it as its own node, `"drop"` leaves it
+     * out. Only a merge step takes it.
+     */
+    readonly unmatchedFrom?: "keep" | "drop";
+    /**
+     * Per column, how the rows of one repeated key are reduced into one value (`"first"`, `"last"`,
+     * `"count"`, `"sum"`, `"min"`, `"max"`, `"mean"` or `"list"`); other columns follow `repeated`.
+     * `null` takes it off. A merge, node-values or edge step takes it.
+     */
+    readonly aggregate?: Readonly<Record<string, JoinReduce>> | null;
 }
 
 /**
@@ -5337,6 +5517,11 @@ export interface SourceRolePatch {
  * @experimental source-steps
  */
 export interface SourceMappingPatch {
+    /**
+     * What its rows are: `"nodes"`, `"edges"` or `"both"`. Only for a source that read one table,
+     * such as a CSV file. Edge rows need a column for each end, named in `edges` or already held.
+     */
+    readonly rows?: "nodes" | "edges" | "both";
     /** The id space its node keys live in; naming one means Add never asks the key-overlap question. */
     readonly space?: SourceSpaceName;
     /** Its node type, written as its whole-source rule; `null` for none. */
@@ -5363,6 +5548,141 @@ export interface SourceMappingPatch {
         /** What a larger weight means, such as `"strength"` or `"distance"`. */
         readonly weightMeaning?: string;
     };
+    /**
+     * The node types of its edge ends, each written as its end rule `{ source, end }`; `null` takes
+     * an end's type off.
+     */
+    readonly endTypes?: {
+        /** The type of the nodes its source ends name. */
+        readonly source?: SourceTypeName | null;
+        /** The type of the nodes its target ends name. */
+        readonly target?: SourceTypeName | null;
+    };
+}
+
+/**
+ * What most of a column's filled cells read as, in a {@link SourceColumnProfile}.
+ * @experimental source-steps
+ */
+export type SourceProfileKind = "text" | "number" | "date" | "boolean";
+
+/**
+ * One column's profile, counted over every row as read, building nothing (design 5.1, 5.2).
+ * @experimental source-steps
+ */
+export interface SourceColumnProfile {
+    /** What most of its filled cells read as; a tie reads as `"text"`. */
+    readonly kind: SourceProfileKind;
+    /** How many rows the table holds. */
+    readonly rows: number;
+    /** Filled cells that read as `kind`. */
+    readonly valid: number;
+    /** Empty cells. */
+    readonly empty: number;
+    /** Distinct filled values, compared as text after Unicode normalization. */
+    readonly distinct: number;
+    /** Values held by more than one row. */
+    readonly repeated: {
+        /** How many such values. */
+        readonly keys: number;
+        /** How many rows hold them. */
+        readonly rows: number;
+    };
+    /** The first five distinct values, in the order first read. */
+    readonly samples: readonly SourceCellValue[];
+}
+
+/**
+ * One table of a source as read.
+ * @experimental source-steps
+ */
+export interface SourceTablePart {
+    /** Node rows or edge rows. */
+    readonly table: "nodes" | "edges";
+    /** How many rows. */
+    readonly rows: number;
+    /** Its columns, under their working names, in the order its rows hold them. */
+    readonly columns: readonly string[];
+}
+
+/**
+ * What a source's rows are and what reading them recorded, from `sourceTable(id).summary()`.
+ * @experimental source-steps
+ */
+export interface SourceTableFacts {
+    /** Each table it holds, node rows first. */
+    readonly tables: readonly SourceTablePart[];
+    /** Its copy id: `sha256:` and the digest of the bytes as read, or a minted id. */
+    readonly origin: string;
+    /** The data source that read it (`"csv"`, `"json"`, ...). */
+    readonly format?: string;
+    /** The size of what was read, in bytes; absent for a URL not fetched by the element and after a reopen. */
+    readonly size?: number;
+    /** When it was read, as RFC 3339; absent after a reopen. */
+    readonly loadedAt?: string;
+    /** A CSV file's separator, as `DraftTable.delimiter` says it; absent after a reopen. */
+    readonly delimiter?: DraftTable["delimiter"];
+    /** What its rows are for now: what a staged section shows and `setMapping` changes. */
+    readonly mapping: SourceTableMapping;
+}
+
+/**
+ * What a source's rows are for, from `sourceTable(id).summary().mapping`: the values a staged
+ * section's Rows are, Key, Space, Type and edge end pickers show. A space reads only once one was
+ * named (at staging or with `setMapping`); unset, Add proposes the source's type, else its own space.
+ * @experimental source-steps
+ */
+export interface SourceTableMapping {
+    /** Whether its rows are nodes, edges, or both. */
+    readonly rows: "nodes" | "edges" | "both";
+    /** The node key column; absent keys each row by its place. */
+    readonly key?: string;
+    /** The node id space, once one was named. */
+    readonly space?: SourceSpaceName;
+    /** The node type it was staged or set with. */
+    readonly type?: SourceTypeName;
+    /** Its edge rows' ends and their spaces, each space only once one was named. */
+    readonly edges?: {
+        readonly source: string;
+        readonly target: string;
+        readonly sourceSpace?: SourceSpaceName;
+        readonly targetSpace?: SourceSpaceName;
+        readonly edgeId?: string;
+    };
+    /** The node types of its edge ends. */
+    readonly endTypes?: { readonly source?: SourceTypeName; readonly target?: SourceTypeName };
+}
+
+/**
+ * One source's rows as read, from `session.data.sourceTable(id)`: what a staged section and a join
+ * card show before anything is built. Each call reads the rows as they are then.
+ *
+ * ```ts
+ * const table = session.data.sourceTable(entries);
+ * table.summary().tables; // [{ table: "nodes", rows: 6, columns: ["badge", "door", "entry"] }]
+ * table.profile("badge"); // { kind: "text", distinct: 4, repeated: { keys: 2, rows: 4 }, ... }
+ * ```
+ * @experimental source-steps
+ */
+export interface SourceTable {
+    /** The source. */
+    readonly source: SourceKey;
+    /**
+     * Rows and columns per table, and what reading it recorded.
+     * @returns The facts.
+     * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` once the source is gone.
+     */
+    summary(): SourceTableFacts;
+    /**
+     * One column's profile.
+     * @param column - The column, by its working name.
+     * @param options - Which table; absent, the table its node rows live in, else its edge rows.
+     * @param options.table - The table.
+     * @returns The profile.
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` `{ source, column, table }` for a column the
+     *   table does not hold, or `E_LOAD_UNKNOWN` once the source is gone.
+     */
+    profile(column: string, options?: { readonly table?: "nodes" | "edges" }): SourceColumnProfile;
 }
 
 /**
@@ -5421,7 +5741,7 @@ export interface SourceOverlapQuestion {
  * as one undoable step. One draft is open at a time; while it is open every data write and
  * `session.undo()` / `redo()` are refused with `E_DRAFT_OPEN { draft }`, and view, style, filter,
  * selection, set and note writes go ahead, as do value labels and hiding or showing columns. A project saved while a draft is open saves the committed
- * project and leaves the draft open; opening a project or `data.clear()` discards it.
+ * project and leaves the draft open; opening a project file or `data.clear()` discards it (opening a data file does not).
  *
  * ```ts
  * await session.data.import(entriesCsv, { key: "entry", type: "entry" });
@@ -5433,9 +5753,12 @@ export interface SourceOverlapQuestion {
  * ```
  *
  * The acts throw what the data door of the same name throws, and leave the draft as it was.
+ * `matchCounts`, `matchValues`, `sourceTable` and `profile` read as the data doors of the same
+ * name do, over the draft's sources and its build: a source the draft staged can be side 2 or be
+ * read.
  * @experimental source-steps
  */
-export interface SourceDraft {
+export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "matchValues" | "sourceTable" | "profile"> {
     /** The draft's id, as `E_DRAFT_OPEN` and `data:draft-changed` name it. */
     readonly id: string;
     /** Whether the draft is still open: false once committed or discarded. */
@@ -5443,10 +5766,10 @@ export interface SourceDraft {
     /**
      * Read a source and hold it staged in the draft (as `data.stage` does).
      * @param source - What `import` takes.
-     * @param options - Its key, type, space and edge ends.
+     * @param options - Its key, type, space and edge ends, and how to guess the ones left out.
      * @returns The new source's id.
      */
-    stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
+    stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
     /**
      * Read a source and add it with its own `join.add`, as one act of the draft.
      * @param source - What `import` takes.
@@ -5573,8 +5896,27 @@ export interface SourceDraft {
      */
     removeStep(index: number): void;
     /**
+     * Move one step to another place in the build order; the steps between shift by one. Editing a
+     * step's field or act removes it and makes the new act, which lands last: moving it back keeps
+     * the step's place.
+     *
+     * ```ts
+     * draft.removeStep(2);
+     * draft.connect({ from: { source: entries, field: "badge" }, into: { space: "person" } });
+     * draft.moveStep(draft.steps().length - 1, 2);
+     * ```
+     * @param index - The step's place, as {@link SourceDraft.steps} lists it.
+     * @param to - Its new place.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`: `details.reason` `"no-step"` for no such place,
+     *   `"order"` when a step would read a source before the step that adds it.
+     */
+    moveStep(index: number, to: number): void;
+    /**
      * Take out one source and every step that reads it.
      * @param source - The source.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`, `details.reason` `"not-in-steps"`, for a
+     *   source no step reads, such as one a file saved without the source-steps experiment brought
+     *   in: `data.removeSource` takes that one out.
      */
     removeSource(source: SourceKey): void;
     /**
@@ -5609,21 +5951,6 @@ export interface SourceDraft {
      * @returns The edits.
      */
     edits(): readonly ReaderEditRow[];
-    /**
-     * Live match counts of two fields in the draft, as `data.matchCounts` counts them: a source
-     * the draft staged can be side 2.
-     * @param pair - The two fields.
-     * @param options - Whether case and spaces count.
-     * @returns The counts.
-     */
-    matchCounts(pair: SourceMatchPair, options?: SourceMatchOptions): SourceMatchCounts;
-    /**
-     * The value-overlap list of two fields in the draft, as `data.matchValues` lists it.
-     * @param pair - The two fields.
-     * @param options - Which values, which page, and whether case and spaces count.
-     * @returns The page and the total.
-     */
-    matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
     /**
      * What committing the draft would do: totals before and after, each step's buckets counted
      * over every row and their change from the committed counts, each source's counts, reader

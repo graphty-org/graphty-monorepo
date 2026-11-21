@@ -20,6 +20,7 @@ import type {
     NoteTargetInput,
     ScopeInput,
     ScoreTerm,
+    SourceDraftBucket,
     SourceKey,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
@@ -78,6 +79,97 @@ export interface ReportPin {
     /** The reader's words about it, put in the report as written; blank leaves it out. */
     readonly note: string;
 }
+
+/**
+ * Field 1 of the Join card: the nodes in a space, matched on their key (`field` absent) or on a
+ * column of a source that supplied them.
+ */
+export interface JoinField1 {
+    readonly space: string;
+    readonly source?: SourceKey;
+    readonly field?: string;
+}
+
+/** Field 2 of the Join card: a source and, once picked, its field. */
+export interface JoinField2 {
+    readonly source: SourceKey;
+    readonly field?: string;
+}
+
+/** The Join card's picks (the source-steps experiment); nothing is written until it commits. */
+export interface JoinCardState {
+    readonly kind: "join";
+    readonly field1: JoinField1 | null;
+    readonly field2: JoinField2 | null;
+    /** Make an edge, Merge 2 into 1, or null until the reader picks one. */
+    readonly act: "edge" | "merge" | null;
+    /** Make an edge's edge type; empty for none. */
+    readonly edgeType: string;
+    /** Make an edge from 2 to 1 rather than 1 to 2. */
+    readonly reversed: boolean;
+    readonly ignoreCase: boolean;
+    readonly ignoreSpaces: boolean;
+    /** The table dock as it was when the card opened, given back when it closes. */
+    readonly dockWas: { readonly open: boolean; readonly tab: string };
+    /** How a merge settles a key source 2's rows repeat: a row (the first or the last) or an aggregate. */
+    readonly repeated: JoinRepeats;
+    /** A merge's rows that meet no node 1: kept as their own nodes, or dropped. */
+    readonly unmatchedFrom: "keep" | "drop";
+    /**
+     * Set once Preview made the act in the element's draft: the step it made, and the choices as
+     * they were before each change made since, so Undo puts them back. Null while picking.
+     */
+    readonly preview: {
+        readonly step: number;
+        readonly undo: readonly JoinChoices[];
+        /** The card reopened a committed step as it is: nothing the card made yet to take back. */
+        readonly reopened?: boolean;
+    } | null;
+    /**
+     * The committed step the card edits (Edit on a Steps row), or null for a new join. A field or
+     * act changed while editing removes that step and makes the new act in the same draft.
+     */
+    readonly editing: number | null;
+    /** What the dock's Preview tab shows once the reader clicked a count or a Values differ column. */
+    readonly drill: JoinDrill | null;
+}
+
+/**
+ * The card that removes a committed step or a committed source (the source-steps experiment): its
+ * draft holds the removal, and the card shows what the commit would change.
+ */
+export interface StepCardState {
+    readonly kind: "step";
+    readonly remove: { readonly step: number } | { readonly source: SourceKey };
+}
+
+/**
+ * The dock's Preview tab: the rows behind one count of the previewed step, or the cells of one
+ * Values differ column, with the ids of those the reader selected.
+ */
+export type JoinDrill =
+    | {
+          readonly kind: "rows";
+          readonly bucket: SourceDraftBucket;
+          readonly changedOnly: boolean;
+          readonly selected: readonly string[];
+      }
+    | {
+          readonly kind: "cells";
+          readonly column: string;
+          readonly only: "all" | "open" | "decided";
+          readonly selected: readonly string[];
+      };
+
+/**
+ * How a merge settles a key source 2's rows repeat: keep the first row's values or the last's, as
+ * the step's `repeated`, or reduce every column's rows to their count or their list, as its
+ * `aggregate`.
+ */
+export type JoinRepeats = "first" | "last" | "count" | "list";
+
+/** The Join card's choices that a preview changes in the element's draft step. */
+export type JoinChoices = Pick<JoinCardState, "ignoreCase" | "ignoreSpaces" | "repeated" | "unmatchedFrom">;
 
 /** The chrome state. */
 export interface WorkspaceState {
@@ -252,6 +344,31 @@ export interface WorkspaceState {
      * Role): the load is read again as edges once both are picked.
      */
     readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
+    /**
+     * The card open over the sources (the source-steps experiment): Add, while it asks the
+     * key-overlap question, or Join, with the reader's picks. A draft it opens is the element's
+     * (`data.currentDraft()`).
+     */
+    readonly sourceCard: { readonly kind: "add"; readonly source: SourceKey } | JoinCardState | StepCardState | null;
+    /** The Data place's Reader edits list is open (the source-steps experiment). */
+    readonly readerEditsOpen: boolean;
+    /**
+     * Edges picked in a staged source's Rows are before both ends are (the source-steps
+     * experiment): held here until both are, then written to the element. While it is set, that
+     * source cannot be added, since the element still holds its old rows.
+     */
+    readonly stagedEnds: {
+        readonly source: SourceKey;
+        readonly rows: "edges" | "both";
+        readonly from: string | null;
+        readonly to: string | null;
+    } | null;
+    /**
+     * A data write the element refused while a source card's draft is open (`E_DRAFT_OPEN`, the
+     * source-steps experiment): the question Commit / Discard / Cancel, and the write to try again
+     * after Commit or Discard.
+     */
+    readonly draftOpen: { readonly retry: () => Promise<unknown> } | null;
     /** The Sources row the reader picked, kept while they visit another place; null: the newest load. */
     readonly pickedSource: SourceKey | null;
     /** The Data place's tab: what was loaded or what was calculated; kept per project, Loaded first. */
@@ -467,6 +584,10 @@ export const ON_RELOAD = {
     joining: "fresh: holds a read file that cannot be saved",
     editingJoin: "fresh: an edit in progress on the join screen",
     ends: "fresh: a half-made choice of edge ends",
+    sourceCard: "fresh: its draft lives in the element, which a reload replaced",
+    readerEditsOpen: "fresh: a list opened for a look",
+    stagedEnds: "fresh: a half-made choice of edge ends",
+    draftOpen: "fresh: a question about a draft a reload discarded",
     pickedSource: "kept",
     dataTab: "kept",
     timelineOpen: "kept",
@@ -588,6 +709,10 @@ const INITIAL: WorkspaceState = {
     joining: null,
     editingJoin: null,
     ends: null,
+    sourceCard: null,
+    readerEditsOpen: false,
+    stagedEnds: null,
+    draftOpen: null,
     pickedSource: null,
     dataTab: "loaded",
     timelineOpen: false,

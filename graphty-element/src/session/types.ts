@@ -6410,8 +6410,10 @@ export interface HoverDrawn {
     /** The node's center, from the top edge. */
     readonly y: number;
     /**
-     * The radius hover picks the node within: the radius it is drawn at, but never under 1.5
-     * device pixels, so a node drawn smaller than a pixel can still be pointed at.
+     * The radius hover picks the node within: the radius it is drawn at, but never under 0.71
+     * device pixels (half a pixel's diagonal), so a node drawn smaller than a pixel can still be
+     * pointed at. Where nothing else is drawn near it, hover also finds such a node a little
+     * farther out, up to 1.5 device pixels from its center.
      */
     readonly radius: number;
 }

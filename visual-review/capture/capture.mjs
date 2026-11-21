@@ -40,7 +40,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { hostname, tmpdir } from "node:os";
+import { availableParallelism, hostname, tmpdir } from "node:os";
 import { dirname, extname, join, normalize, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -371,16 +371,82 @@ async function extract(browser, base) {
 }
 
 /**
- * Renders one story and mode, retrying once in a new context when it fails.
+ * Lets renders run side by side, and a retry run alone. A heavy story (the graphty Style panel
+ * review stories cost about 8 CPU-seconds each, mostly SwiftShader and CPU rasterizing at SCALE)
+ * that ran out of time because the other workers' stories shared its CPU (#8457) would only run
+ * out of time again beside them: `alone` waits until no render is in flight and holds new ones
+ * back until it is done, so the retry has every core to itself.
+ * @returns {{ shared: typeof shared, alone: typeof shared }} the gate: each runs `fn` and returns
+ *     what it returns
+ */
+export function renderGate() {
+    let active = 0;
+    let wake = null;
+    let waiting = 0;
+    let queue = Promise.resolve();
+    /**
+     * Runs a render beside the others, once no retry waits.
+     * @template T
+     * @param {() => Promise<T>} fn the render
+     * @returns {Promise<T>} its result
+     */
+    async function shared(fn) {
+        if (waiting > 0) {
+            await queue;
+            return shared(fn);
+        }
+        active++;
+        try {
+            return await fn();
+        } finally {
+            active--;
+            if (active === 0) {
+                wake?.();
+                wake = null;
+            }
+        }
+    }
+    /**
+     * Runs a retry with no other render in flight.
+     * @template T
+     * @param {() => Promise<T>} fn the retry
+     * @returns {Promise<T>} its result
+     */
+    function alone(fn) {
+        waiting++;
+        // The retries run one after another, and none of the others starts while one waits, so
+        // once `active` reached 0 it stays there.
+        const run = queue
+            .then(async () => {
+                if (active > 0) {
+                    await new Promise((r) => {
+                        wake = r;
+                    });
+                }
+                return fn();
+            })
+            .finally(() => waiting--);
+        queue = run.then(
+            () => {},
+            () => {},
+        );
+        return run;
+    }
+    return { shared, alone };
+}
+
+/**
+ * Renders one story and mode, retrying once in a new context, alone, when it fails.
  * @param {import("playwright").Browser} browser the browser
  * @param {string} url the story's full URL
  * @param {{ delay: number, waitFor: object | null }} options as for shootOnce
+ * @param {ReturnType<typeof renderGate>} gate the run's gate
  * @returns {Promise<{ png: Buffer | null, reason: string | null, console: string[] }>} the
  *     second attempt's result when the first failed
  */
-async function shoot(browser, url, options) {
-    const first = await shootOnce(browser, url, options);
-    return first.png ? first : shootOnce(browser, url, options);
+async function shoot(browser, url, options, gate) {
+    const first = await gate.shared(() => shootOnce(browser, url, options));
+    return first.png ? first : gate.alone(() => shootOnce(browser, url, options));
 }
 
 /**
@@ -1042,8 +1108,10 @@ export async function capture({
     const [server, base] = await serve(storybook);
     // One browser per worker: every page of a browser shares its one GPU process, so with
     // SwiftShader a busy WebGL page on one worker stalls the others' renders and screenshots.
+    // At most one per CPU core this process may use: a heavy story needs about a core to itself
+    // to finish inside RENDER_TIMEOUT (#8457).
     const browsers = await Promise.all(
-        Array.from({ length: Math.max(1, workers) }, () =>
+        Array.from({ length: Math.max(1, Math.min(workers, availableParallelism())) }, () =>
             chromium.launch({ args: CHROMIUM_ARGS, env: chromiumEnv(fontEnv) }),
         ),
     );
@@ -1103,7 +1171,8 @@ export async function capture({
             items.push(await goneItem(file, baselines, out, newlyExcluded));
         }
 
-        const run = (b, job) => captureJob(b, job, { baselines, out, refs, waitFor });
+        const gate = renderGate();
+        const run = (b, job) => captureJob(b, job, { baselines, out, refs, waitFor, gate });
 
         let next = 0;
         await Promise.all(
@@ -1297,10 +1366,11 @@ async function writeJobImages(job, result, { first, second, baseline, out }) {
  * Shoots one job (twice when needsSecondShot() says so), classifies it and writes its images.
  * @param {object} browser the worker's browser
  * @param {object} job the job
- * @param {{ baselines: string, out: string, refs: object, waitFor: object | null }} ctx the run's context
+ * @param {{ baselines: string, out: string, refs: object, waitFor: object | null,
+ *     gate: ReturnType<typeof renderGate> }} ctx the run's context
  * @returns {Promise<object>} the item
  */
-async function captureJob(browser, job, { baselines, out, refs, waitFor }) {
+async function captureJob(browser, job, { baselines, out, refs, waitFor, gate }) {
     const { url, delay, from, ...rest } = job;
     // `from` only on a renamed story, so results.json of a project with no renames is as before.
     const common = from ? { ...rest, from } : rest;
@@ -1315,14 +1385,14 @@ async function captureJob(browser, job, { baselines, out, refs, waitFor }) {
         reason: prefix + shot.reason,
         console: clip(shot.console),
     });
-    const first = await shoot(browser, url, { delay, waitFor });
+    const first = await shoot(browser, url, { delay, waitFor }, gate);
     if (!first.png) {
         return failed(first);
     }
     let result = classify({ baseline, first: first.png, ...opts });
     let second = null;
     if (needsSecondShot(result.status, sha256(first.png), refs.changed.get(job.file))) {
-        second = await shoot(browser, url, { delay, waitFor });
+        second = await shoot(browser, url, { delay, waitFor }, gate);
         if (!second.png) {
             return failed(second, "second capture: ");
         }

@@ -11,6 +11,7 @@ import {
     hasEmojiFont,
     loadSettings,
     pinnedFonts,
+    renderGate,
     selectStoryIds,
     serve,
     storyIds,
@@ -31,6 +32,44 @@ describe("chromiumEnv", () => {
         } finally {
             if (saved !== undefined) process.env.FC_FONTATIONS = saved;
         }
+    });
+});
+
+describe("renderGate", () => {
+    it("runs a retry only once every render in flight finished, and holds new renders until it is done (#8457)", async () => {
+        const gate = renderGate();
+        const log = [];
+        const a = Promise.withResolvers();
+        const b = Promise.withResolvers();
+        const retry = Promise.withResolvers();
+        const run = (name, d) => async () => {
+            log.push(`${name} start`);
+            await d.promise;
+            log.push(`${name} end`);
+            return name;
+        };
+        const ra = gate.shared(run("a", a));
+        const rb = gate.shared(run("b", b));
+        const rr = gate.alone(run("retry", retry));
+        const rc = gate.shared(run("c", { promise: Promise.resolve() }));
+        await Promise.resolve();
+        a.resolve();
+        await ra;
+        expect(log).toEqual(["a start", "b start", "a end"]);
+        b.resolve();
+        await rb;
+        await new Promise((r) => setImmediate(r));
+        expect(log).toEqual(["a start", "b start", "a end", "b end", "retry start"]);
+        retry.resolve();
+        expect(await rr).toBe("retry");
+        expect(await rc).toBe("c");
+        expect(log).toEqual(["a start", "b start", "a end", "b end", "retry start", "retry end", "c start", "c end"]);
+    });
+
+    it("lets renders go on after a retry that threw", async () => {
+        const gate = renderGate();
+        await expect(gate.alone(() => Promise.reject(new Error("boom")))).rejects.toThrow("boom");
+        expect(await gate.shared(async () => "next")).toBe("next");
     });
 });
 

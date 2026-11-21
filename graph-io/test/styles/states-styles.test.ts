@@ -55,4 +55,17 @@ describe("statesStyles", () => {
         }
         expect(statesStyles({ ...styles, styles: { ...styles.styles, graph: { background: "#123456" } } })).toBe(true);
     });
+    it("is true for a GEXF file without viz values drawn under Preview settings given at import", async () => {
+        const gexf = `<gexf xmlns="http://gexf.net/1.3" version="1.3"><graph defaultedgetype="directed">
+            <nodes><node id="a"/><node id="b"/></nodes><edges><edge id="e" source="a" target="b"/></edges></graph></gexf>`;
+        const read = async (gephiPreview: Record<string, string>): Promise<boolean> => {
+            const result = await registry.importGraph(gexf, { format: "gexf", styles: true, gephiPreview });
+            if (result.styles === null || result.styles === undefined) {
+                throw new Error("no styles read");
+            }
+            return statesStyles(result.styles);
+        };
+        expect(await read({})).toBe(false);
+        expect(await read({ "edge.color": "#ff0000" })).toBe(true);
+    });
 });

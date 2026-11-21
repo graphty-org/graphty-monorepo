@@ -617,12 +617,17 @@ function styleKeysOf(rule: StyleRule): string[] {
  * and the values settling derives from them; this tells a consumer that wants to draw only what a file states that
  * there is nothing to draw.
  * @param extracted - the styles, settled or not
- * @returns true when a rule, a note or a graph value comes from the file rather than its program's defaults
+ * @returns true when a rule, a note or a graph value comes from the file rather than its program's defaults, or the
+ * import was given program settings of its own (`gephiPreview`)
  * @category Styles
  */
 export function statesStyles(extracted: ExtractedStyles): boolean {
     const { rules, notes, graph, source } = extracted.styles;
-    if (notes.length > 0 || rules.some((rule) => rule.origin !== "tool" && markOf(rule)?.derived !== true)) {
+    if (
+        source.settingsGiven === true ||
+        notes.length > 0 ||
+        rules.some((rule) => rule.origin !== "tool" && markOf(rule)?.derived !== true)
+    ) {
         return true;
     }
     const defaults = (source.tool === null ? null : toolDefaults(source.tool)?.graph) as

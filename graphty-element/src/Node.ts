@@ -4250,11 +4250,18 @@ export class Node implements ModelUser {
      * @internal
      */
     get surfaceIsClosedForm(): boolean {
-        return (
-            this.drawnModel === null &&
-            CLOSED_FORM_SHAPES.has(this.shapeType ?? "") &&
-            (this.drawnStyle?.shape?.rotation ?? 0) % 360 === 0
-        );
+        return this.drawnModel === null && Node.closedForm(this.shapeType, this.drawnStyle?.shape?.rotation);
+    }
+
+    /**
+     * {@link Node.surfaceIsClosedForm} for a shape with no model, as a row drawn with no `Node` reads it.
+     * @param shape - The shape's type.
+     * @param rotation - Its turn, in degrees.
+     * @returns True for a box or a rectangle left unturned.
+     * @internal
+     */
+    static closedForm(shape: string | undefined, rotation: number | undefined): boolean {
+        return CLOSED_FORM_SHAPES.has(shape ?? "") && (rotation ?? 0) % 360 === 0;
     }
 
     /**

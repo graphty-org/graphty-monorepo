@@ -240,6 +240,7 @@ export const KNOWN_LAYOUT_IDS = [
     "fixed",
     "random",
     "location-map",
+    "geographic",
 ] as const;
 
 /** A layout id: a built-in name, or a plugin's. */

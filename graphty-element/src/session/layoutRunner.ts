@@ -26,6 +26,7 @@ import {
 import { arrangedDimension, LAYOUT_CATALOG } from "../catalog/layouts";
 import type { ElementPositions } from "../data/positions";
 import { GraphtyError } from "../errors/GraphtyError";
+import { forceAtlas2MaxIterFor } from "../layout/forceAtlas2Iterations";
 import type { ArrangementEngine } from "./project/arrangement";
 import type { LayoutChoice } from "./project/state";
 import type { LayoutMotion } from "./types";
@@ -337,9 +338,12 @@ export class LayoutRunner implements ArrangementEngine {
         const dim = arrangedDimension(choice) === "2d" ? 2 : 3;
         const type = SIMULATED[choice.engine];
         if (type !== undefined) {
+            // A null ForceAtlas2 cap is scaled to the graph, as the drawn layout's bridge scales it.
+            const capped =
+                type === "forceatlas2" ? { ...options, maxIter: options.maxIter ?? forceAtlas2MaxIterFor(n) } : options;
             const simulation = createSimulation(
                 type,
-                STAND_INS.has(choice.engine) ? { seed: options.seed as number | undefined, dim } : { ...options, dim },
+                STAND_INS.has(choice.engine) ? { seed: options.seed as number | undefined, dim } : { ...capped, dim },
             );
             simulation.load(graph, view);
             const fixed = makeMask(n);

@@ -17,7 +17,16 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { cleanup, screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { layersNow, onlyPlusAdds, openProject, openStyle, sectionOf, switchView, written } from "./v2Harness";
+import {
+    layersNow,
+    onlyPlusAdds,
+    openGraph,
+    openProject,
+    openStyle,
+    sectionOf,
+    switchView,
+    written,
+} from "./v2Harness";
 
 /** Each tab's sections, in ia-design.md's order (E675), "|" where the separator between the two groups sits. */
 const SECTION_ORDER = {
@@ -27,7 +36,7 @@ const SECTION_ORDER = {
 
 /** Each tab's Effects "+" items, "|" where a divider sits: every shader is the one Shader item (E668). */
 const EFFECTS_ITEMS = {
-    node: ["Ring", "Shader", "Glow", "|", "Drop shadow", "Raised edge", "Underlay", "Overlay"],
+    node: ["Ring", "Shader", "Glow", "|", "Drop shadow", "Raised edge", "Plate"],
     edge: ["Shader", "Animation", "|", "Underlay", "Overlay"],
 } as const;
 
@@ -57,11 +66,12 @@ describe("Style panel v2 on", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
     it("draws each tab's sections and Effects '+' items in ia-design's order, in 2D and in 3D (E668, E675)", async () => {
-        await openProject();
-        const tab = await openStyle("Key people");
+        await openGraph();
         for (const view of ["2D", "3D"] as const) {
             await switchView(view);
             for (const side of ["node", "edge"] as const) {
+                // Key people styles nodes and Links edges: each layer's Style tab shows its own kind.
+                const tab = await openStyle(side === "node" ? "Key people" : "Links");
                 await showKind(side);
                 const panel = await waitFor(() => {
                     const found = tab.querySelector<HTMLElement>(`[data-style-panel-v2][data-group="${side}"]`);
@@ -146,7 +156,7 @@ describe("Style panel v2 on", () => {
             within(menu)
                 .getAllByRole("menuitem")
                 .map((item) => item.textContent),
-            ["Ring", "Shader", "Glow", "Drop shadow", "Raised edge", "Underlay", "Overlay"],
+            ["Ring", "Shader", "Glow", "Drop shadow", "Raised edge", "Plate"],
         );
         assert.lengthOf(menu.querySelectorAll(".mantine-Menu-divider"), 1, "a divider between the two groups");
         await userEvent.click(within(menu).getByRole("menuitem", { name: "Ring" }));

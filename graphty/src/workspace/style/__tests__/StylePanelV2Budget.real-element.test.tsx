@@ -83,7 +83,7 @@ describe("Style panel v2's budget", () => {
         assert.isAtMost(marksIn(tab), 8);
     });
 
-    it("the minus is the far-right slot of every set line, but for a row's settings '...' after it (E550)", async () => {
+    it("the minus is the far-right slot of every set line but its modifier slot ('...' or the by-data link, E550)", async () => {
         const { session, id } = await openProject();
         await session.styles.update(id, {
             set: { "node.color": "#E8590C", "node.shape": "star", "node.size": 2, "node.borderColor": "#111111" },
@@ -105,12 +105,11 @@ describe("Style panel v2's budget", () => {
                 /^Remove /,
                 `${String(line.dataset.line)} ends in its minus`,
             );
-            const right = Math.max(
-                ...[...line.querySelectorAll("*")]
-                    .filter((each) => !settings || !buttons.at(-1)?.contains(each))
-                    .map((each) => each.getBoundingClientRect().right),
-            );
-            assert.isAtLeast((last?.getBoundingClientRect().right ?? 0) + 1, right, "nothing sits right of the minus");
+            const edge = (last?.getBoundingClientRect().right ?? 0) + 1;
+            const beyond = [...line.querySelectorAll("*")]
+                .filter((each) => each.closest(".ws-vary") === null && each.getBoundingClientRect().right > edge)
+                .map((each) => `${each.tagName.toLowerCase()}.${each.getAttribute("class") ?? ""}`);
+            assert.deepEqual(beyond, [], `${String(line.dataset.line)}: nothing sits right of the minus`);
         }
     });
 

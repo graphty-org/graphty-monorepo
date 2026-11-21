@@ -98,27 +98,39 @@ describe("Style panel v2 dims what draws nothing in this view", () => {
         });
     });
 
-    for (const side of ["node", "edge"] as const) {
-        it(`${side} Underlay and Overlay draw only in 2D: in 3D their '+' items are dimmed '2D only', in 2D not (E669)`, async () => {
+    // A node's Plate (its underlay and overlay, E669) and an edge's Underlay and Overlay draw only in 2D.
+    for (const [side, names] of [
+        ["node", ["Plate"]],
+        ["edge", ["Underlay", "Overlay"]],
+    ] as const) {
+        it(`${side} ${names.join(" and ")}: in 3D the '+' items are dimmed '2D only', in 2D not (E669)`, async () => {
             await openGraph();
             const tab = await openStyle(side === "node" ? "Key people" : "Links");
             await showKind(side);
             const effects = sectionOf(tab, `${side}-effects`);
-            const items = async (): Promise<Record<string, string | null>> => {
+            const items = async (): Promise<(string | null)[]> => {
                 await userEvent.click(
                     within(effects).getByRole("button", { name: new RegExp(`^Add to ${side} effects`) }),
                 );
-                const found: Record<string, string | null> = {};
-                for (const name of ["Underlay", "Overlay"]) {
-                    found[name] = dimmed(await screen.findByRole("menuitem", { name }));
+                const found: (string | null)[] = [];
+                for (const name of names) {
+                    found.push(dimmed(await screen.findByRole("menuitem", { name })));
                 }
                 await userEvent.keyboard("{Escape}");
                 return found;
             };
             await switchView("3D");
-            assert.deepEqual(await items(), { Underlay: "2D only", Overlay: "2D only" }, "dimmed in 3D");
+            assert.deepEqual(
+                await items(),
+                names.map(() => "2D only"),
+                "dimmed in 3D",
+            );
             await switchView("2D");
-            assert.deepEqual(await items(), { Underlay: null, Overlay: null }, "not dimmed in 2D");
+            assert.deepEqual(
+                await items(),
+                names.map(() => null),
+                "not dimmed in 2D",
+            );
         });
     }
 

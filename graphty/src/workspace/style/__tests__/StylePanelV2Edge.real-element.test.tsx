@@ -1,6 +1,6 @@
 /**
  * Style panel v2's edge things on the REAL graphty-element, driven by real clicks and typing
- * (design/ui/style-panel-v2/design.md, sections 4.2, 7.2 and 8): Ends adds a Target end whose
+ * (design/ui/style-panel-v2/design.md, sections 4.2, 7.2 and 8): Arrows adds a Target arrow whose
  * arrow comes from a list shown one section at a time, with a Size line under it; the Line's Width
  * line, its Pattern sub-group and the dash length | gap pair; a caption's distance from its end in
  * its Position sub-group; the Route row's icon segments. Each write is undone in one step (edits of
@@ -126,7 +126,7 @@ function rowNames(list: HTMLElement): string[] {
 /**
  * Opens a row's settings pop-over and waits for one of its lines: an unset line shows only there (design 2.5).
  * @param row - the row.
- * @param title - the thing's name with its kind ("Edge target end").
+ * @param title - the thing's name with its kind ("Edge target").
  * @param selector - the line.
  * @returns the line.
  */
@@ -139,9 +139,12 @@ async function settingsLine(row: HTMLElement, title: string, selector: string): 
 describe("Style panel v2's edge things", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("Ends adds a Target end once; its arrow comes from a sectioned list; Size writes and undoes", async () => {
+    it("Arrows' '+' adds a Target arrow; its arrow comes from a sectioned list; Size writes and undoes", async () => {
         const { session, id, tab } = await openEdges();
-        const row = await addFromTitle(tab, "edge-arrows", "Target end", "target");
+        // Arrows holds one item, Arrow (C6): its "+" adds it at once, the first free end being the target.
+        const arrows = sectionOf(tab, "edge-arrows");
+        await userEvent.click(within(arrows).getByRole("button", { name: /^Add to edge arrows/ }));
+        const row = await found(arrows, '[data-thing="arrow"]');
         await waitFor(() => {
             assert.isDefined(written(session, id, "edge.arrowHead"), "the end starts with its arrow");
         });
@@ -163,7 +166,7 @@ describe("Style panel v2's edge things", () => {
             assert.equal(written(session, id, "edge.arrowHead"), "crow");
         });
 
-        const size = await settingsLine(row, "Edge target end", '.ws-row[data-line="edge.arrowHeadSize"]');
+        const size = await settingsLine(row, "Edge target", '.ws-row[data-line="edge.arrowHeadSize"]');
         await typeInto(size, "3");
         await waitFor(() => {
             assert.equal(written(session, id, "edge.arrowHeadSize"), 3);
@@ -172,10 +175,6 @@ describe("Style panel v2's edge things", () => {
                 "set, Size shows under the row",
             );
         });
-        await userEvent.keyboard("{Escape}");
-        await userEvent.click(within(sectionOf(tab, "edge-arrows")).getByRole("button", { name: /^Add/ }));
-        await screen.findByRole("menuitem", { name: "Source end" });
-        assert.isNull(screen.queryByRole("menuitem", { name: "Target end" }), "each end is added once");
         await userEvent.keyboard("{Escape}");
         await undo();
         await waitFor(() => {
@@ -227,17 +226,17 @@ describe("Style panel v2's edge things", () => {
 
     it("a caption's Position adds its distance from its end, and the legend's minus takes it off in one step", async () => {
         const { session, id, tab } = await openEdges();
-        const row = await addFromTitle(tab, "edge-text", "Target caption", "targetCaption");
+        const row = await addFromTitle(tab, "edge-text", "End caption", "endCaption");
         await userEvent.keyboard("{Escape}");
         await typeInto(
-            await settingsLine(row, "Edge target caption", '.ws-row[data-line="edge.arrowHeadTextStyle.size"]'),
+            await settingsLine(row, "Edge target", '.ws-row[data-line="edge.arrowHeadTextStyle.size"]'),
             "12",
         );
         await waitFor(() => {
             assert.deepEqual(written(session, id, "edge.arrowHeadTextStyle"), { size: 12 });
         });
         const pop = await found(document, "[data-thing-popover]");
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to edge target caption settings" }));
+        await userEvent.click(within(pop).getByRole("button", { name: "Add to edge target settings" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Position" }));
         const position = await within(pop).findByRole("group", { name: "Position" });
         await typeInto(await found(position, '.ws-row[data-line="edge.arrowHeadTextDistance"]'), "0.5");

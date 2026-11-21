@@ -40,11 +40,109 @@ export interface KindGroup {
     readonly side: "node" | "edge";
     /** The thing (things.ts) whose row it is. */
     readonly thing: string;
+    /** The `parts.ts` items its kinds' channels come from, when not the one named as the thing. */
+    readonly items?: readonly string[];
+    /** A switch carries the main value over too (an arrowhead's shape, a caption's words). */
+    readonly moveHead?: true;
     readonly members: readonly KindMember[];
 }
 
-/** Every kind group. */
+/**
+ * A kind whose channels all start with one name (an arrow's `edge.arrowHead*`), with the channels its color and
+ * size move to and from.
+ * @param id - its id.
+ * @param plainName - its name.
+ * @param head - its main channel.
+ * @param slots - its color and size channels.
+ * @param slots.color - the channel its color moves to and from.
+ * @param slots.size - the channel its size moves to and from.
+ * @param prefix - what its channels start with, when not its head's name (a plate's `node.underlay`).
+ * @returns the kind.
+ */
+function prefixKind(
+    id: string,
+    plainName: string,
+    head: Channel,
+    slots: { readonly color?: Channel; readonly size?: Channel },
+    prefix: string = head,
+): KindMember {
+    const others = KIND_HEADS.filter((other) => other !== prefix && other.startsWith(prefix));
+    return {
+        id,
+        plainName,
+        head,
+        owns: (channel) => channel.startsWith(prefix) && !others.some((other) => channel.startsWith(other)),
+        slots: {
+            color: slots.color === undefined ? undefined : [slots.color],
+            size: slots.size === undefined ? undefined : [slots.size],
+        },
+        start: () => ({ [head]: channelDescriptor(head)?.start ?? channelDescriptor(head)?.default }),
+    };
+}
+
+/** Heads one of which starts with another's name: a kind owns none of the longer one's channels. */
+const KIND_HEADS: readonly Channel[] = ["edge.arrowHead", "edge.arrowHeadText", "edge.arrowTail", "edge.arrowTailText"];
+
+/** Every kind group (ia-design 2; the collapse candidates of implementation plan 6.2). */
 export const KIND_GROUPS: readonly KindGroup[] = [
+    // C6: the four arrows have the same settings, so they are one Arrow item; a row's kind says which end.
+    {
+        id: "edge.arrow",
+        plainName: "Arrow",
+        side: "edge",
+        thing: "arrow",
+        items: ["target", "source", "middleTarget", "middleSource"],
+        moveHead: true,
+        members: [
+            prefixKind("target", "Target", "edge.arrowHead", {
+                color: "edge.arrowHeadColor",
+                size: "edge.arrowHeadSize",
+            }),
+            prefixKind("source", "Source", "edge.arrowTail", {
+                color: "edge.arrowTailColor",
+                size: "edge.arrowTailSize",
+            }),
+            prefixKind("middleTarget", "Middle to target", "edge.arrowMiddleHead", {
+                color: "edge.arrowMiddleHeadColor",
+                size: "edge.arrowMiddleHeadSize",
+            }),
+            prefixKind("middleSource", "Middle to source", "edge.arrowMiddleTail", {
+                color: "edge.arrowMiddleTailColor",
+                size: "edge.arrowMiddleTailSize",
+            }),
+        ],
+    },
+    // C1: the two end captions are one End caption item, its kind which end.
+    {
+        id: "edge.endCaption",
+        plainName: "End caption",
+        side: "edge",
+        thing: "endCaption",
+        items: ["targetCaption", "sourceCaption"],
+        moveHead: true,
+        members: [
+            prefixKind("target", "Target", "edge.arrowHeadText", {
+                color: "edge.arrowHeadTextColor",
+                size: "edge.arrowHeadTextSize",
+            }),
+            prefixKind("source", "Source", "edge.arrowTailText", {
+                color: "edge.arrowTailTextColor",
+                size: "edge.arrowTailTextSize",
+            }),
+        ],
+    },
+    // C2: a node's underlay and overlay are one Plate item, Behind or Over the node (ia-design 2).
+    {
+        id: "node.plate",
+        plainName: "Plate",
+        side: "node",
+        thing: "plate",
+        items: ["underlay", "overlay"],
+        members: [
+            prefixKind("behind", "Behind", "node.underlayColor", { color: "node.underlayColor" }, "node.underlay"),
+            prefixKind("over", "Over", "node.overlayColor", { color: "node.overlayColor" }, "node.overlay"),
+        ],
+    },
     {
         id: "node.label",
         plainName: "Label",
@@ -93,9 +191,10 @@ export function kindGroupOf(side: "node" | "edge", thing: string): KindGroup | u
  */
 export function ownsOf(group: KindGroup, member: KindMember): readonly Channel[] {
     const items = partsFor(group.side, new Set()).flatMap((part) => part.items);
-    // the thing's item: a Label row's is the Label item, its glyph channels the Glyph kind's
+    // the thing's items: a Label row's is the Label item, its glyph channels the Glyph kind's
+    const ids = group.items ?? [group.thing];
     return items
-        .filter((item) => item.id === group.thing)
+        .filter((item) => ids.includes(item.id))
         .flatMap((item) => itemChannels(item))
         .filter((channel) => member.owns(channel));
 }
@@ -218,6 +317,9 @@ export async function switchKind(ctx: RowContext, group: KindGroup, from: KindMe
         next = back;
     } else {
         const set: Record<string, unknown> = {};
+        if (group.moveHead === true) {
+            writeSlot(set, [to.head], left.set[from.head]);
+        }
         writeSlot(set, to.slots.color, readSlot(left.set, from.slots.color));
         writeSlot(set, to.slots.size, readSlot(left.set, from.slots.size));
         next = { set: Object.keys(set).length > 0 ? set : { ...to.start() }, encode: {} };

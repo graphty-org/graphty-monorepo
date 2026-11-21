@@ -181,6 +181,22 @@ function rowsOf(
 }
 
 /**
+ * The first kind of a thing's kind group that no row draws yet, for a thing with several kinds at once (Arrow,
+ * End caption, Plate); never for Label, whose further rows are further labels.
+ * @param ctx - the row.
+ * @param thing - the thing.
+ * @returns the kind, or undefined.
+ */
+function freeKind(ctx: RowContext, thing: ThingSpec): KindMember | undefined {
+    const group = kindGroupOf(ctx.side, thing.id);
+    if (group === undefined || thing.id === "label") {
+        return undefined;
+    }
+    const drawn = new Set(kindsShown(ctx, group).map((member) => member.id));
+    return group.members.find((member) => !drawn.has(member.id) && !setOn(ctx, member.head));
+}
+
+/**
  * One section: see the file header.
  * @param props - Component props
  * @param props.ctx - the row and kind
@@ -239,6 +255,10 @@ function ThingSection({
                         },
                     ];
                 }
+                // A kind group with a kind still free adds it (a second Arrow is the source end, ia-design 2).
+                if (freeKind(ctx, thing) !== undefined) {
+                    return [{ key: thing.id, label: thing.name, hint: thing.hint }];
+                }
                 return thing.id === "label" ? [{ key: thing.id, label: thing.name, disabled: true }] : [];
             }),
         ),
@@ -252,7 +272,19 @@ function ThingSection({
         }
         const found = things.flat().find((each) => each.thing.id === id);
         const thing = found?.thing;
-        const main = found === undefined ? undefined : mainOf(ctx, found.thing, found.channels);
+        // A kind group already drawn adds its first free kind.
+        const free =
+            found === undefined || !shown.some((each) => each.thing === found.thing)
+                ? undefined
+                : freeKind(ctx, found.thing);
+        const main =
+            found === undefined
+                ? undefined
+                : mainOf(
+                      ctx,
+                      free === undefined ? found.thing : { ...found.thing, main: [free.head], start: free.head },
+                      found.channels,
+                  );
         if (thing === undefined || main === undefined) {
             return;
         }

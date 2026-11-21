@@ -60,7 +60,7 @@ describe('Style panel v2\'s "+" writes what a style needs to draw', () => {
 
     it("the table covers the things whose styles need a partner", () => {
         const ids = ADDS.map(({ side, thing }) => `${side}.${thing.id}`);
-        for (const id of ["node.border", "node.rings", "node.shadow", "node.underlay", "edge.outline", "edge.target"]) {
+        for (const id of ["node.border", "node.rings", "node.shadow", "node.plate", "edge.outline", "edge.arrow"]) {
             assert.include(ids, id);
         }
     });

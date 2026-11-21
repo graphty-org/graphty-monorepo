@@ -130,4 +130,14 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         ledger: "E674",
         selector: '.ws-row[data-line$="labelStyle.weight"] [data-testid="toggle-icon-button"]',
     },
+    {
+        what: "a Shaders section of its own: every shader is Effects' Shader item (or a Shape kind)",
+        ledger: "E668, E675",
+        selector: '[data-section$="-shaders"]',
+    },
+    {
+        what: "one '+' item per arrow end or per end caption: each is one item whose row picks the end",
+        ledger: "E495, E675",
+        plusItem: /^(Target|Source|Middle target|Middle source) (end|caption)$/,
+    },
 ];

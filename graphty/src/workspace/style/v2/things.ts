@@ -185,17 +185,13 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         main: ["node.raisedBorderWidth"],
                         own: RAISED_CHANNELS,
                     },
+                    // Underlay and overlay are one Plate, Behind or Over the node (kindGroups.ts, C2).
                     {
-                        id: "underlay",
-                        name: "Underlay",
-                        items: ["underlay"],
-                        main: ["node.underlayColor"],
-                    },
-                    {
-                        id: "overlay",
-                        name: "Overlay",
-                        items: ["overlay"],
-                        main: ["node.overlayColor"],
+                        id: "plate",
+                        name: "Plate",
+                        items: ["underlay", "overlay"],
+                        main: ["node.underlayColor", "node.overlayColor"],
+                        start: "node.underlayColor",
                     },
                 ],
             ],
@@ -223,22 +219,14 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
             id: "arrows",
             title: "Arrows",
             groups: [
-                [
-                    { id: "target", name: "Target end", items: ["target"], main: ["edge.arrowHead"] },
-                    { id: "source", name: "Source end", items: ["source"], main: ["edge.arrowTail"] },
-                ],
+                // The four arrows are one Arrow item, a row per end in use (kindGroups.ts, C6).
                 [
                     {
-                        id: "middleTarget",
-                        name: "Middle target end",
-                        items: ["middleTarget"],
-                        main: ["edge.arrowMiddleHead"],
-                    },
-                    {
-                        id: "middleSource",
-                        name: "Middle source end",
-                        items: ["middleSource"],
-                        main: ["edge.arrowMiddleTail"],
+                        id: "arrow",
+                        name: "Arrow",
+                        items: ["target", "source", "middleTarget", "middleSource"],
+                        main: ["edge.arrowHead", "edge.arrowTail", "edge.arrowMiddleHead", "edge.arrowMiddleTail"],
+                        start: "edge.arrowHead",
                     },
                 ],
             ],
@@ -262,23 +250,17 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
             part: "text",
             groups: [
                 [{ id: "label", name: "Label", items: ["label"], main: ["edge.label"] }],
+                // The two end captions are one End caption item, a row per end (kindGroups.ts, C1).
                 [
-                    { id: "xlabel", name: "External label", items: ["xlabel"], main: ["edge.xlabel"] },
+                    {
+                        id: "endCaption",
+                        name: "End caption",
+                        items: ["targetCaption", "sourceCaption"],
+                        main: ["edge.arrowHeadText", "edge.arrowTailText"],
+                        start: "edge.arrowHeadText",
+                    },
                     { id: "record", name: "Record", items: [], main: ["edge.labelTable"], own: ["edge.labelTable"] },
-                ],
-                [
-                    {
-                        id: "targetCaption",
-                        name: "Target caption",
-                        items: ["targetCaption"],
-                        main: ["edge.arrowHeadText"],
-                    },
-                    {
-                        id: "sourceCaption",
-                        name: "Source caption",
-                        items: ["sourceCaption"],
-                        main: ["edge.arrowTailText"],
-                    },
+                    { id: "xlabel", name: "External label", items: ["xlabel"], main: ["edge.xlabel"] },
                 ],
             ],
         },

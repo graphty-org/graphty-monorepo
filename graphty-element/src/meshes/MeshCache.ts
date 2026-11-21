@@ -8,15 +8,11 @@ import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
-import { drawAt } from "./drawOrder";
 import { EdgeLineBatch } from "./EdgeLineBatch";
 import { NodeBatch } from "./NodeBatch";
 import type { PulledLineBatch } from "./PulledLineBatch";
 
 type MeshCreatorFn = () => Mesh;
-
-/** The key of the shared source each held node's own source stands in for. */
-const standsFor = new WeakMap<Mesh, string>();
 
 /**
  * Cache for mesh instances to improve rendering performance
@@ -44,21 +40,11 @@ export class MeshCache {
     nodeBatchMap = new Map<Mesh, NodeBatch>();
 
     /**
-     * The further batches of a look, one for its rows after each run of the rows of it a consumer
-     * holds (`NodeBatches.refill`), by the same source as {@link MeshCache.nodeBatchMap}.
-     */
-    afterBatchMap = new Map<Mesh, NodeBatch[]>();
-
-    /**
      * Sources whose rows a batch draws. A batch is built from one source of its shape and draws the
      * other sizes scaled, so those sources have no instance and no batch of their own; this keeps
      * a prune from taking them while their rows are drawn.
      */
     readonly batchedSources = new Set<Mesh>();
-
-    /** The material uniqueId each key's newest source was built with, kept through a prune. */
-    // ponytail: one number per key ever built until the next clear(); drop pruned keys if that grows.
-    readonly #drawOrders = new Map<string, number>();
     hits = 0;
     misses = 0;
 
@@ -66,11 +52,10 @@ export class MeshCache {
      * Get or create a cached mesh instance
      * @param name - Cache key for the mesh
      * @param creator - Function to create the mesh if not cached
-     * @param inPlaceOf - As for {@link MeshCache.sourceFor}.
      * @returns Instanced mesh from cache or newly created
      */
-    get(name: string, creator: MeshCreatorFn, inPlaceOf?: string): InstancedMesh {
-        return this.sourceFor(name, creator, inPlaceOf).createInstance(name);
+    get(name: string, creator: MeshCreatorFn): InstancedMesh {
+        return this.sourceFor(name, creator).createInstance(name);
     }
 
     /**
@@ -78,12 +63,9 @@ export class MeshCache {
      * drawn and picked from.
      * @param name - Cache key for the mesh
      * @param creator - Function to create the mesh if not cached
-     * @param inPlaceOf - The key of a source this one draws in place of: the new source is drawn
-     *     where that one's newest build sorts (see {@link painterSortCompare}), not after everything
-     *     built before it.
      * @returns The source mesh
      */
-    sourceFor(name: string, creator: MeshCreatorFn, inPlaceOf?: string): Mesh {
+    sourceFor(name: string, creator: MeshCreatorFn): Mesh {
         let mesh = this.meshCacheMap.get(name);
         if (mesh) {
             this.hits++;
@@ -92,18 +74,6 @@ export class MeshCache {
 
         this.misses++;
         mesh = creator();
-        const order = inPlaceOf === undefined ? undefined : this.#drawOrders.get(inPlaceOf);
-        if (order === undefined) {
-            this.#drawOrders.set(name, mesh.material?.uniqueId ?? mesh.uniqueId);
-        } else {
-            // Just after the source it stands in for, and before anything built after that one.
-            drawAt(mesh, order + 0.5);
-        }
-
-        if (inPlaceOf !== undefined) {
-            standsFor.set(mesh, inPlaceOf);
-        }
-
         // Hide the original mesh - instances will still be visible
         mesh.isVisible = false;
         mesh.position.set(0, -10000, 0);
@@ -189,58 +159,6 @@ export class MeshCache {
     }
 
     /**
-     * Get, create or drop the batches that draw a look's rows after each run of its held rows, to
-     * a given count (see {@link MeshCache.afterBatchMap}).
-     * @param source - The source mesh.
-     * @param count - How many.
-     * @param places - The table that places the rows.
-     * @param root - What the rows are drawn inside.
-     * @returns The batches, in draw order.
-     */
-    afterBatchesFor(
-        source: Mesh,
-        count: number,
-        places: ConstructorParameters<typeof NodeBatch>[1],
-        root: TransformNode | null,
-    ): NodeBatch[] {
-        const batches = this.afterBatchMap.get(source) ?? [];
-        for (const extra of batches.splice(count)) {
-            extra.dispose();
-        }
-
-        while (batches.length < count) {
-            batches.push(new NodeBatch(source, places, root));
-        }
-
-        if (batches.length === 0) {
-            this.afterBatchMap.delete(source);
-        } else {
-            this.afterBatchMap.set(source, batches);
-        }
-
-        return batches;
-    }
-
-    /**
-     * Whether a source is a held node's own, standing in for a shared one.
-     * @param source - A source.
-     * @returns True when it is.
-     */
-    standsInFor(source: Mesh): boolean {
-        return standsFor.has(source);
-    }
-
-    /**
-     * The shared source a held node's own source stands in for.
-     * @param source - A source.
-     * @returns The shared source, or undefined when it stands in for none.
-     */
-    sharedOf(source: Mesh): Mesh | undefined {
-        const key = standsFor.get(source);
-        return key === undefined ? undefined : this.meshCacheMap.get(key);
-    }
-
-    /**
      * Reset cache statistics (hits and misses)
      */
     reset(): void {
@@ -256,7 +174,6 @@ export class MeshCache {
             this.disposeSource(mesh);
         }
         this.meshCacheMap.clear();
-        this.#drawOrders.clear();
 
         for (const batch of this.batchCacheMap.values()) {
             batch.dispose();
@@ -281,22 +198,10 @@ export class MeshCache {
      * until the next dataset boundary. A name that is asked for again is simply built again.
      */
     prune(): void {
-        // A shared source a held node's own source stands in for lives as long as that one does, as
-        // the held node's instance keeps it on the objects path: rebuilt, its look would draw later.
-        const stoodFor = new Set<string>();
-        for (const mesh of this.meshCacheMap.values()) {
-            const key = standsFor.get(mesh);
-            if (key !== undefined && mesh.instances.length > 0) {
-                stoodFor.add(key);
-            }
-        }
-
         for (const [name, mesh] of this.meshCacheMap) {
             if (
                 mesh.instances.length === 0 &&
-                !stoodFor.has(name) &&
                 !this.nodeBatchMap.get(mesh)?.liveSlots &&
-                !this.afterBatchMap.get(mesh)?.some((batch) => batch.liveSlots > 0) &&
                 !this.batchedSources.has(mesh)
             ) {
                 this.disposeSource(mesh);
@@ -338,11 +243,6 @@ export class MeshCache {
     private disposeSource(mesh: Mesh): void {
         this.nodeBatchMap.get(mesh)?.dispose();
         this.nodeBatchMap.delete(mesh);
-        for (const batch of this.afterBatchMap.get(mesh) ?? []) {
-            batch.dispose();
-        }
-
-        this.afterBatchMap.delete(mesh);
         this.batchedSources.delete(mesh);
         const { material } = mesh;
         mesh.dispose();

@@ -12,7 +12,8 @@ import type { Scene } from "@babylonjs/core/scene.js";
  *
  * A node batch draws many rows of one look in one draw call. A row's place lives in the
  * `rowPosition` texture (`render/RowTable.ts`), so moving a row moves one texel and never touches
- * the batch. The per-instance `graphtyRow` attribute says which texel is whose.
+ * the batch. The per-instance `graphtyRow` attribute says which texel is whose. A row written
+ * -row - 2 is drawn from its own matrix (`NodeBatch.own`), and reads only whether it is hidden.
  *
  * The plugin sits on the material the object rows draw with; its define is on only for a batch
  * mesh, so those rows compile the shader they always did.
@@ -44,8 +45,13 @@ mat4 finalWorld=mat4(world0,world1,world2,world3);
 #endif
 `,
     CUSTOM_VERTEX_UPDATE_WORLDPOS: `#ifdef ROW_PULL
-int grRow = int(graphtyRow + 0.5);
-vec4 grPlace = graphtyRow < 0.0 ? vec4(0.0) : texelFetch(rowPosition, ivec2(grRow & 1023, grRow >> 10), 0);
+bool grOwn = graphtyRow < -1.5;
+float grAt = grOwn ? -2.0 - graphtyRow : graphtyRow;
+int grRow = int(grAt + 0.5);
+vec4 grPlace = grAt < 0.0 ? vec4(0.0) : texelFetch(rowPosition, ivec2(grRow & 1023, grRow >> 10), 0);
+if (grOwn) {
+grPlace = vec4(0.0, 0.0, 0.0, grPlace.w > 0.0 ? 1.0 : 0.0);
+}
 vec3 grOrigin = world[3].xyz;
 worldPos = vec4((worldPos.xyz - grOrigin) * grPlace.w + grOrigin + mat3(world) * grPlace.xyz, worldPos.w);
 #endif
@@ -68,10 +74,15 @@ var finalWorld=mat4x4<f32>(vertexInputs.world0,vertexInputs.world1,vertexInputs.
 #endif
 `,
     CUSTOM_VERTEX_UPDATE_WORLDPOS: `#ifdef ROW_PULL
-let grRow: i32 = i32(vertexInputs.graphtyRow + 0.5);
+let grOwn: bool = vertexInputs.graphtyRow < -1.5;
+let grAt: f32 = select(vertexInputs.graphtyRow, -2.0 - vertexInputs.graphtyRow, grOwn);
+let grRow: i32 = i32(grAt + 0.5);
 var grPlace: vec4f = vec4f(0.0);
-if (vertexInputs.graphtyRow >= 0.0) {
+if (grAt >= 0.0) {
 grPlace = textureLoad(rowPosition, vec2<i32>(grRow & 1023, grRow >> 10), 0);
+}
+if (grOwn) {
+grPlace = vec4f(0.0, 0.0, 0.0, select(0.0, 1.0, grPlace.w > 0.0));
 }
 #ifdef WORLD_UBO
 let grWorld: mat4x4f = mesh.world;

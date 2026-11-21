@@ -2216,7 +2216,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             togglesOwnMeshes: READ,
             walksEachFrame: READ,
             drawInBatch: RENDER,
-            holdOffBatch: RENDER,
+            drawnHeld: READ,
             drawnRayHit: READ,
             drawnScale: RENDER,
             // How the node's drawn size follows the camera, as its style sets it (`node.sizeSpace`).

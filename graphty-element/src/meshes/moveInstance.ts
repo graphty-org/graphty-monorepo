@@ -87,36 +87,3 @@ export function drawLast(moved: readonly AbstractMesh[]): void {
         }
     }
 }
-
-/**
- * Put meshes just after another in their scene's mesh list, in the order given, keeping the order
- * of the rest: where they draw among translucent meshes that tie by distance (see {@link drawLast}).
- * One pass over the list. Meshes not in the list stay out of it; with the anchor gone, they go last.
- * @param anchor - The mesh they follow.
- * @param moved - The meshes, all of the anchor's scene.
- */
-export function drawAfter(anchor: AbstractMesh, moved: readonly AbstractMesh[]): void {
-    const after = new Set(moved);
-    after.delete(anchor);
-    if (after.size === 0) {
-        return;
-    }
-
-    const { meshes } = anchor.getScene();
-    const found = new Set<AbstractMesh>();
-    const rest: AbstractMesh[] = [];
-    for (const mesh of meshes) {
-        if (after.has(mesh)) {
-            found.add(mesh);
-        } else {
-            rest.push(mesh);
-        }
-    }
-
-    const placed = [...after].filter((mesh) => found.has(mesh));
-    const at = rest.indexOf(anchor) + 1 || rest.length;
-    meshes.length = 0;
-    for (const mesh of [...rest.slice(0, at), ...placed, ...rest.slice(at)]) {
-        meshes.push(mesh);
-    }
-}

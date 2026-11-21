@@ -605,13 +605,18 @@ export class Node implements ModelUser {
     /**
      * The node's own mesh, for a consumer. Nothing in graphty-element reads it: the element reads
      * the private field, and every other file a `drawn*` accessor (`local/node-mesh-funnel`).
-     * Under `render-path="batched"`, reading it keeps this node drawn by its own mesh from then on,
-     * never by a node batch, so what a consumer does to the mesh shows. The rest of its look stays
-     * on the batch, and every row keeps its place in the look's draw order, as on `"objects"`.
+     * Under `render-path="batched"`, reading it keeps this node's own mesh from then on, and its
+     * look's batch draws the row from that mesh's world matrix and visibility, in the row's own
+     * place among its look, so what a consumer does to the mesh shows as on `"objects"`.
      * @returns The mesh.
      */
     get mesh(): AbstractMesh {
-        this.holdInPlace();
+        if (!this.#meshHeld) {
+            this.#meshHeld = true;
+            if (!this.disposed) {
+                this.context.getNodeBatches?.()?.sync(this);
+            }
+        }
 
         if (this.#mesh === null) {
             this.drawInBatch(null);
@@ -2056,7 +2061,6 @@ export class Node implements ModelUser {
         const style = this.drawnStyle ?? null;
         return (
             style !== null &&
-            !this.#meshHeld &&
             // A row the batch draws gave up its instance: only an instance can leave its mesh.
             (this.#mesh === null || this.#mesh instanceof InstancedMesh) &&
             !this.drawnAsGroup &&
@@ -3000,84 +3004,17 @@ export class Node implements ModelUser {
         );
     }
 
-    /** Keep this node drawn by its own mesh from now on, as a read of {@link Node.mesh} does. */
-    private holdInPlace(): void {
-        if (!this.#meshHeld) {
-            this.#meshHeld = true;
-            this.holdOffBatch();
-        }
-    }
-
     /**
-     * Give a held node a source mesh of its own while node batches draw: on a read of its mesh, and
-     * when the graph switches to batched drawing after that read. A batch hides its whole source, so
-     * a held node sharing it took every row of its look off the batch (#8038, #8073). When the graph
-     * switches back to the objects path, it shares its look's source again, as a node read there does.
+     * Whether a consumer read this node's mesh ({@link Node.mesh}), which keeps it from then on.
+     * @returns True when one did.
      * @internal
      */
-    holdOffBatch(): void {
-        if (!this.#meshHeld || this.disposed) {
-            return;
-        }
-
-        const batches = this.context.getNodeBatches?.();
-        if (!batches) {
-            this.drawFromOwnSource();
-            return;
-        }
-
-        batches.leave(this);
-        this.drawFromOwnSource();
-        batches.sync(this);
-    }
-
-    /**
-     * Move a held node's instance onto the source {@link Node.sourceArgs} names for it (its own, or its
-     * look's when no batch draws that look), if it is not there.
-     */
-    private drawFromOwnSource(): void {
-        const mesh = this.#mesh;
-        if (!(mesh instanceof InstancedMesh) || this.drawnModel !== null) {
-            return;
-        }
-
-        const { meshKey, style } = this.#fit;
-        const source = NodeMesh.source(
-            this.context.getMeshCache(),
-            ...this.sourceArgs(meshKey, style, this.drawnImage),
-            this.context.getScene(),
-        );
-        // A group draws from a fill of its own, built over the shared source it stands for (see fitGroupFill)
-        const drawn = mesh.sourceMesh === this.groupFill ? this.groupFillKeep?.sourceMesh : mesh.sourceMesh;
-        if (source !== drawn) {
-            moveInstance(mesh, source);
-            this.#source = source;
-            // A new source has no color buffer until a paint registers one: paint the instance again.
-            this.applyInstancePaint(this.drawnStyle ?? style, this.drawnColor);
-            // and a group's fill is rebuilt over it at once, never drawn stretched until the next frame
-            const box = this.context.getLayoutManager().groupBox(this.id);
-            if (box !== undefined && this.drawnAsGroup) {
-                this.drawAsGroup(box);
-            }
-        }
-    }
-
-    /**
-     * Whether this node draws from a source of its own: a consumer holds its mesh while node batches
-     * draw its look, which hides the shared source. The objects path keeps sharing, and so does a
-     * look no batch draws (a border, a model, a picture): its source stays drawn, and the node keeps
-     * its place among its look's instances, as on the objects path.
-     * @param o - The resolved style.
-     * @returns True when it does.
-     */
-    private drawsOwnSource(o: NodeStyleConfig): boolean {
-        return this.#meshHeld && !this.disposed && this.context.getNodeBatches?.()?.batches(o) === true;
+    get drawnHeld(): boolean {
+        return this.#meshHeld;
     }
 
     /**
      * What {@link NodeMesh.create} and {@link NodeMesh.source} are asked for this node's source mesh.
-     * A held node under node batches draws from a source of its own, so a batch can keep hiding
-     * the shared one.
      * @param meshKey - The source mesh key.
      * @param o - The resolved style.
      * @param image - The picture on its shape, or null.
@@ -3088,17 +3025,12 @@ export class Node implements ModelUser {
         o: NodeStyleConfig,
         image: BaseTexture | null,
     ): [Parameters<typeof NodeMesh.source>[1], Parameters<typeof NodeMesh.source>[2]] {
-        // A source mesh with its picture is another source mesh than the one drawn while it loads.
-        const shared = `${meshKey}${image === null ? "" : "|image"}`;
-        const held = this.drawsOwnSource(o);
         return [
+            // A source mesh with its picture is another source mesh than the one drawn while it loads.
             {
-                // one source per run of its look's held rows (`NodeBatches.runOf`)
-                styleId: held ? `${shared}|held${this.context.getNodeBatches?.()?.runOf(this) ?? ""}` : shared,
+                styleId: `${meshKey}${image === null ? "" : "|image"}`,
                 is2D: this.context.is2D(),
                 size: this.size,
-                // drawn where the shared source is, under its look's border, as on the objects path
-                inPlaceOf: held ? shared : undefined,
             },
             { shape: o.shape, texture: o.texture, effect: o.effect, border: o.border, picture: image },
         ];

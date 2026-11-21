@@ -2,8 +2,8 @@ import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
 import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { Matrix } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
-import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
@@ -15,11 +15,9 @@ import { RowMap } from "../data/RowMap";
 import { batchableOf, type BatchView, isPlainPaint, type NodePaint, shaderPartOf } from "../managers/StylePainter";
 import type { Node } from "../Node";
 import type { RowMeasure } from "../render/RowTable";
-import { blendWith, drawAt, drawOrderOf } from "./drawOrder";
 import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
 import type { MeshCache } from "./MeshCache";
-import { drawAfter, drawLast } from "./moveInstance";
 import { NodeMesh, styleOpacity } from "./NodeMesh";
 import { attachRowPull } from "./RowPullPlugin";
 import type { Point2 } from "./shapeOutlines";
@@ -53,6 +51,11 @@ export interface RowCounts {
 
 const FIRST_CAPACITY = 16;
 const HOLE = -1;
+/**
+ * A slot's `graphtyRow` at or below this is a row drawn from its own matrix ({@link NodeBatch.own}):
+ * row r is written -r - 2, and the shader reads only its hidden flag from the table.
+ */
+const OWNED = -2;
 const NO_SLOT = -1;
 const MATRIX_FLOATS = 16;
 const COLOR_FLOATS = 4;
@@ -61,9 +64,24 @@ const ROWS_PER_RANK = 2 ** 24;
 /** The share of a batch's slots that may be holes before a repaint compacts them. */
 const MOST_HOLES = 0.25;
 
+/** Scratch matrices for {@link NodeBatches.mirror}. */
+const TO_BATCH = new Matrix();
+const SCALE = new Matrix();
+const WORLD = new Matrix();
+const OWN = new Matrix();
+
 /** The rows a batch reads its places from. */
 interface RowPlaces {
     readonly positionTexture: RawTexture;
+}
+
+/**
+ * The row a slot's `graphtyRow` names.
+ * @param value - The value: a row, or one drawn from its own matrix ({@link OWNED}).
+ * @returns The row.
+ */
+function rowOf(value: number): number {
+    return value <= OWNED ? OWNED - value : value;
 }
 
 /** One look's thin instances: a slot per row, in draw order (source rank, then row). */
@@ -89,6 +107,9 @@ export class NodeBatch {
     private rowsDirty = false;
     private colorsDirty = false;
     private matricesDirty = false;
+    /** The first and last slot whose own matrix ({@link NodeBatch.own}) changed since the last upload. */
+    private ownedFrom = Infinity;
+    private ownedTo = -1;
 
     /**
      * Build the mesh: a sibling of the source, since a mesh with thin instances ignores ordinary
@@ -169,12 +190,74 @@ export class NodeBatch {
             this.colorsDirty = true;
         }
 
+        // A row drawn from its own matrix keeps it; any other slot's is its scale alone.
         const m = slot * MATRIX_FLOATS;
         const matrices = this.matrices ?? (Math.fround(scale) === 1 ? undefined : this.scaleRows());
-        if (matrices !== undefined && matrices[m] !== Math.fround(scale)) {
+        if (matrices !== undefined && (this.rows[slot] ?? 0) > OWNED && !isScale(matrices, m, scale)) {
+            matrices.fill(0, m, m + MATRIX_FLOATS);
             matrices[m] = matrices[m + 5] = matrices[m + 10] = scale;
+            matrices[m + 15] = 1;
             this.matricesDirty = true;
         }
+    }
+
+    /**
+     * Draw a row of a slot from a matrix of its own, not from its table place: a node whose mesh a
+     * consumer holds, drawn as that mesh is, in the row's place in the batch's draw order. Only the
+     * table's hidden flag still applies. The matrix goes up alone ({@link NodeBatch.flushOwned}).
+     * @param row - The row, which has a slot.
+     * @param matrix - Its matrix against the batch mesh, 16 floats.
+     */
+    own(row: number, matrix: ArrayLike<number>): void {
+        const slot = this.slotOfRow(row);
+        if (slot === NO_SLOT || this.rows[slot] === HOLE) {
+            return;
+        }
+
+        if (this.rows[slot] !== OWNED - row) {
+            this.rows[slot] = OWNED - row;
+            this.ownedChanged(slot);
+        }
+
+        const matrices = this.matrices ?? this.scaleRows();
+        const m = slot * MATRIX_FLOATS;
+        for (let i = 0; i < MATRIX_FLOATS; i++) {
+            if (matrices[m + i] !== Math.fround(matrix[i] ?? 0)) {
+                matrices.set(matrix, m);
+                this.ownedChanged(slot);
+                break;
+            }
+        }
+    }
+
+    /**
+     * Note a slot {@link NodeBatch.own} changed.
+     * @param slot - The slot.
+     */
+    private ownedChanged(slot: number): void {
+        this.ownedFrom = Math.min(this.ownedFrom, slot);
+        this.ownedTo = Math.max(this.ownedTo, slot);
+    }
+
+    /**
+     * Upload the slots {@link NodeBatch.own} changed, from the first to the last in one write: a held
+     * row moves every frame a layout does, and the whole buffer would cost the size of the batch.
+     * @returns Whether the batch started or stopped drawing, as {@link NodeBatch.flush} says.
+     */
+    flushOwned(): boolean {
+        if (this.rowsDirty || this.matricesDirty) {
+            return this.flush();
+        }
+
+        if (this.ownedTo >= this.ownedFrom) {
+            const count = this.ownedTo - this.ownedFrom + 1;
+            this.mesh.thinInstancePartialBufferUpdate("graphtyRow", count, this.ownedFrom);
+            this.mesh.thinInstancePartialBufferUpdate("matrix", count, this.ownedFrom);
+        }
+
+        this.ownedFrom = Infinity;
+        this.ownedTo = -1;
+        return false;
     }
 
     /**
@@ -222,6 +305,12 @@ export class NodeBatch {
             this.mesh.thinInstanceBufferUpdated("matrix");
         }
 
+        // the rows went up whole; matrices only when they did too
+        if ((this.rowsDirty || whole) && (this.matrices === undefined || this.matricesDirty || whole)) {
+            this.ownedFrom = Infinity;
+            this.ownedTo = -1;
+        }
+
         this.rowsDirty = false;
         this.colorsDirty = false;
         this.matricesDirty = false;
@@ -257,9 +346,9 @@ export class NodeBatch {
     private compact(): void {
         const live: { row: number; key: number; from: number }[] = [];
         for (let slot = 0; slot < this.slots; slot++) {
-            const row = this.rows[slot] ?? HOLE;
-            if (row !== HOLE) {
-                live.push({ row, key: this.keys[slot] ?? 0, from: slot });
+            const value = this.rows[slot] ?? HOLE;
+            if (value !== HOLE) {
+                live.push({ row: value, key: this.keys[slot] ?? 0, from: slot });
             }
         }
 
@@ -276,7 +365,7 @@ export class NodeBatch {
                 matrices?.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS) ?? [],
                 slot * MATRIX_FLOATS,
             );
-            this.setSlot(row, slot);
+            this.setSlot(rowOf(row), slot);
         });
         this.slots = live.length;
         this.holes = 0;
@@ -354,6 +443,26 @@ export class NodeBatch {
         this.matricesDirty = true;
         return matrices;
     }
+}
+
+/**
+ * Whether a slot's matrix is a uniform scale alone.
+ * @param matrices - The matrices.
+ * @param m - Where the slot's starts.
+ * @param scale - The scale.
+ * @returns True when it is.
+ */
+function isScale(matrices: Float32Array, m: number, scale: number): boolean {
+    const s = Math.fround(scale);
+    for (let i = 0; i < MATRIX_FLOATS; i++) {
+        // the diagonal is the scale, but for its last entry
+        const wanted = i % 5 === 0 ? s : 0;
+        if (matrices[m + i] !== (i === MATRIX_FLOATS - 1 ? 1 : wanted)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -439,10 +548,8 @@ interface RowFamily {
     readonly canonical: Mesh;
     readonly groups: Set<RowGroup>;
     batch: NodeBatch | null;
-    /** The batch of the rows after each run of its held rows, by run (see {@link NodeBatches.refill}). */
-    after: NodeBatch[];
-    /** The first and last draw key of each run of its held rows, in draw order, while a batch draws it. */
-    runs: { first: number; last: number }[];
+    /** The lowest row its batch draws, the row the objects path meets its first instance at. */
+    firstRow: number;
 }
 
 /**
@@ -788,11 +895,13 @@ export class NodeBatches {
     /** The nodes a frame's walk still visits: every member a batch does not draw, and any with an overlay. */
     private readonly walked = new Set<Node>();
     private readonly dirty = new Set<RowGroup>();
-    /** The groups of looks whose held rows changed: the next flush rebuilds their runs. */
-    private readonly runsMoved = new Set<RowGroup>();
-    /** The held source each held row draws from, past its look's first run ({@link NodeBatches.runOf}). */
-    private readonly runLabels = new WeakMap<Node, string>();
+    /**
+     * Members whose mesh a consumer holds (`Node.mesh`). Each keeps its mesh, as an object row does,
+     * and while its look is batched the batch draws its slot from that mesh ({@link NodeBatches.mirror}).
+     */
+    private readonly held = new Set<Node>();
     private readonly stopFlush: () => void;
+    private readonly stopMirror: () => void;
     private view: BatchView;
 
     /**
@@ -808,6 +917,13 @@ export class NodeBatches {
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
         });
+        // per camera, after every before-render observer has moved the meshes
+        const mirror = scene.onBeforeCameraRenderObservable.add(() => {
+            this.mirror();
+        });
+        this.stopMirror = (): void => {
+            mirror?.remove();
+        };
         this.syncAll();
     }
 
@@ -832,9 +948,6 @@ export class NodeBatches {
         let total = entries(this);
         for (const family of this.families.values()) {
             total += family.batch === null ? 0 : entries(family.batch);
-            for (const after of family.after) {
-                total += entries(after);
-            }
         }
 
         return total;
@@ -878,17 +991,12 @@ export class NodeBatches {
             rows += group.batched ? group.members.size : 0;
         }
 
-        return rows;
-    }
+        // a held row keeps a mesh of its own, so it counts as an object row
+        for (const node of this.held) {
+            rows -= this.nodeGroups.get(node)?.batched === true ? 1 : 0;
+        }
 
-    /**
-     * Whether a batch can draw a look in the current view, so its source is hidden while it does.
-     * A held node of a look no batch draws keeps sharing its source, in its place in the draw order.
-     * @param style - The look.
-     * @returns True when a batch can draw it.
-     */
-    batches(style: NodePaint["style"]): boolean {
-        return batchableOf({ style }, this.view);
+        return rows;
     }
 
     /**
@@ -897,7 +1005,7 @@ export class NodeBatches {
      * @returns True when it does.
      */
     draws(node: Node): boolean {
-        return this.nodeGroups.get(node)?.batched === true;
+        return this.nodeGroups.get(node)?.batched === true && !this.held.has(node);
     }
 
     /**
@@ -970,6 +1078,13 @@ export class NodeBatches {
 
         const group = this.groupOf(node) ?? this.join(node, source);
         const object = !node.batchableIn(this.view);
+        const held = !object && !(node instanceof ColumnRow) && node.drawnHeld;
+        if (held) {
+            this.held.add(node);
+        } else if (!(node instanceof ColumnRow)) {
+            this.held.delete(node);
+        }
+
         if (object !== this.objectRows.has(node)) {
             if (object) {
                 this.objectRows.add(node);
@@ -983,15 +1098,9 @@ export class NodeBatches {
         }
 
         if (group.batched && !object) {
-            this.noteInsideRun(group, node.index);
-            this.batchOf(group, node.index)?.put(
-                node.index,
-                node.drawnInstanceColor,
-                group.scale * node.wholeScale,
-                group.rank,
-            );
-            // A row the table does not hold yet keeps its mesh until the flush settles its group.
-            this.draw(node, node.index < this.host.places.rows ? group.source : null, group.restVisibility);
+            group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale * node.wholeScale, group.rank);
+            // A row the table does not hold yet keeps its mesh until the flush settles its group, and a held one for good.
+            this.draw(node, !held && node.index < this.host.places.rows ? group.source : null, group.restVisibility);
             this.dirty.add(group);
         } else {
             this.draw(node, null);
@@ -1005,12 +1114,7 @@ export class NodeBatches {
     rescale(node: BatchRow): void {
         const group = this.groupOf(node);
         if (group?.batched === true && !this.objectRows.has(node)) {
-            this.batchOf(group, node.index)?.put(
-                node.index,
-                node.drawnInstanceColor,
-                group.scale * node.wholeScale,
-                group.rank,
-            );
+            group.family?.batch?.put(node.index, node.drawnInstanceColor, group.scale * node.wholeScale, group.rank);
             this.dirty.add(group);
         }
     }
@@ -1030,6 +1134,7 @@ export class NodeBatches {
             group.columns--;
         } else {
             this.nodeGroups.delete(node);
+            this.held.delete(node);
         }
 
         this.draw(node, null);
@@ -1038,10 +1143,8 @@ export class NodeBatches {
         }
 
         if (group.batched) {
-            this.batchOf(group, node.index)?.free(node.index);
+            group.family?.batch?.free(node.index);
         }
-
-        this.noteHeld(group);
 
         // The cache prunes right after a repaint, before the next flush settles this group: a source
         // with no members left draws nothing, so let that prune dispose it.
@@ -1236,6 +1339,7 @@ export class NodeBatches {
     /** Stop: every source draws its rows again. */
     dispose(): void {
         this.stopFlush();
+        this.stopMirror();
         for (const group of this.groups.values()) {
             this.settle(group, false);
         }
@@ -1247,16 +1351,50 @@ export class NodeBatches {
         this.host.meshesChanged();
     }
 
+    /**
+     * Draw each held row's slot as its mesh is drawn on the objects path: its world matrix against
+     * the batch, and nothing while the mesh is hidden or disabled. The row keeps its slot, so it
+     * keeps its place among its look in one draw call, and the cost is a matrix per held row.
+     */
+    private mirror(): void {
+        if (this.held.size === 0) {
+            return;
+        }
+
+        const root = this.host.root();
+        const toBatch = root === null ? Matrix.IdentityReadOnly : root.computeWorldMatrix().invertToRef(TO_BATCH);
+        const owned = new Set<NodeBatch>();
+        for (const node of this.held) {
+            const group = this.nodeGroups.get(node);
+            const batch = group?.batched === true ? group.family?.batch : null;
+            const mesh = node.drawnPickMesh;
+            if (group === undefined || batch === null || batch === undefined || mesh === null) {
+                continue;
+            }
+
+            const scale = mesh.isEnabled() && mesh.isVisible ? group.scale : 0;
+            Matrix.ScalingToRef(scale, scale, scale, SCALE);
+            SCALE.multiplyToRef(mesh.computeWorldMatrix(), WORLD).multiplyToRef(toBatch, OWN);
+            batch.own(node.index, OWN.m);
+            owned.add(batch);
+        }
+
+        let changed = false;
+        for (const batch of owned) {
+            changed = batch.flushOwned() || changed;
+        }
+
+        if (changed) {
+            this.host.meshesChanged();
+        }
+    }
+
     /** Bring every batch up to date before a frame. */
     private flush(): void {
         const view = this.host.view();
         if (view.flatOutline !== this.view.flatOutline || view.sizeSpace !== this.view.sizeSpace) {
             this.view = view;
             this.syncAll();
-            // A held node draws from its look's source or one of its own by whether the view batches its look.
-            for (const node of this.host.nodes()) {
-                node.holdOffBatch();
-            }
         }
 
         for (const family of this.families.values()) {
@@ -1267,13 +1405,6 @@ export class NodeBatches {
 
         const flushes = new Set<RowFamily>();
         const changed = this.settleDirty(flushes);
-        // after the settle, which puts a newly batched look in its family; a look on no batch yet waits for one
-        for (const group of this.runsMoved) {
-            if (group.family !== null) {
-                this.refills.add(group.family);
-            }
-        }
-
         if (this.drain(flushes) || changed) {
             this.host.meshesChanged();
         }
@@ -1325,9 +1456,6 @@ export class NodeBatches {
         for (const family of flushes) {
             if (!this.refills.has(family)) {
                 changed = (family.batch?.flush() ?? false) || changed;
-                for (const after of family.after) {
-                    changed = after.flush() || changed;
-                }
             }
         }
 
@@ -1397,12 +1525,6 @@ export class NodeBatches {
         }
 
         group.highest = Math.max(group.highest, node.index);
-        this.noteHeld(group);
-        if (this.host.cache.standsInFor(source)) {
-            // a held row's own source blends where a batch of its look would, until its family's batch says
-            blendWith(source, undefined, this.host.root());
-        }
-
         this.dirty.add(group);
         return group;
     }
@@ -1430,7 +1552,7 @@ export class NodeBatches {
         // Each member trades its mesh for an anchor, or back: together, or it costs the scene's size each (#3247).
         const source = batched ? group.source : null;
         handOverTogether(group.source.getScene(), this.host.root(), group.members, (node) => {
-            this.draw(node, source, group.restVisibility);
+            this.draw(node, node instanceof ColumnRow || !this.held.has(node) ? source : null, group.restVisibility);
         });
 
         group.source.visibility = batched ? 0 : group.restVisibility;
@@ -1469,7 +1591,7 @@ export class NodeBatches {
         const key = alone ? `${look}#${String(source.uniqueId)}` : look;
         let family = this.families.get(key);
         if (family === undefined) {
-            family = { key, canonical: source, groups: new Set(), batch: null, after: [], runs: [] };
+            family = { key, canonical: source, groups: new Set(), batch: null, firstRow: Infinity };
             this.families.set(key, family);
         }
 
@@ -1511,18 +1633,11 @@ export class NodeBatches {
     /**
      * Rebuild a family's batch from every batched row of its groups, a source's rows after the
      * rows of every source the objects path draws before it, each source's in row order.
-     * The rows of its look a consumer holds (`Node.holdOffBatch`) draw from sources of their own,
-     * one per run of them ({@link NodeBatches.heldRuns}): the batch draws the rows before the first
-     * run, and the rows after each run go to a batch drawn after it, so every row keeps its place.
      * @param family - The family.
-     * @returns Whether a batch started or stopped drawing, or a held row changed source.
+     * @returns Whether the batch started or stopped drawing.
      */
     private refill(family: RowFamily): boolean {
         family.batch?.clear();
-        for (const after of family.after) {
-            after.clear();
-        }
-
         const rows: { node: BatchRow; group: RowGroup }[] = [];
         let restVisibility = 1;
         [...family.groups].sort(drawsBefore).forEach((group, rank) => {
@@ -1536,307 +1651,57 @@ export class NodeBatches {
             }
         });
 
-        rows.sort((a, b) => a.group.rank - b.group.rank || a.node.index - b.node.index);
-        const runs = this.heldRuns(family, rows);
-        const moved = this.labelRuns(runs);
-        family.runs = rows.length > 0 ? runs.map(({ first, last }) => ({ first, last })) : [];
-        // one batch for the rows after each run, while the family's own draws the rows before the first
-        family.after = this.host.cache.afterBatchesFor(
-            family.canonical,
-            family.runs.length,
-            this.host.places,
-            this.host.root(),
-        );
-        for (const after of family.after) {
-            after.mesh.visibility = restVisibility;
-        }
-
+        family.firstRow = Math.min(...rows.map(({ node }) => node.index));
         if (rows.length > 0) {
             const made = family.batch === null;
             family.batch ??= this.host.cache.batchFor(family.canonical, this.host.places, this.host.root());
             family.batch.mesh.visibility = restVisibility;
             if (made && restVisibility < 1) {
-                this.orderTranslucent(family.batch.mesh, family.canonical.uniqueId);
+                this.orderTranslucent(family);
             }
 
+            rows.sort((a, b) => a.group.rank - b.group.rank || a.node.index - b.node.index);
             for (const { node, group } of rows) {
-                this.batchOf(group, node.index)?.put(
-                    node.index,
-                    node.drawnInstanceColor,
-                    group.scale * node.wholeScale,
-                    group.rank,
-                );
+                family.batch.put(node.index, node.drawnInstanceColor, group.scale * node.wholeScale, group.rank);
             }
         }
 
-        this.orderRuns(family, runs);
-        // its own moves noted its runs again: they are settled
-        for (const group of family.groups) {
-            this.runsMoved.delete(group);
-        }
-
-        let changed = (family.batch?.flush() ?? false) || moved;
-        for (const after of family.after) {
-            changed = after.flush() || changed;
-        }
-
-        return changed;
-    }
-
-    /**
-     * The draw key of a batched row: where its group's source and its row put it.
-     * @param group - The row's group.
-     * @param row - The row.
-     * @returns The key.
-     */
-    private static keyOf(group: RowGroup, row: number): number {
-        return group.rank * ROWS_PER_RANK + row;
-    }
-
-    /**
-     * How many of a family's runs of held rows draw before a batched row.
-     * @param family - The family.
-     * @param key - The row's draw key.
-     * @returns How many.
-     */
-    private static runsBefore(family: RowFamily, key: number): number {
-        const { runs } = family;
-        let lo = 0;
-        let hi = runs.length;
-        while (lo < hi) {
-            const mid = (lo + hi) >> 1;
-            if ((runs[mid]?.last ?? 0) < key) {
-                lo = mid + 1;
-            } else {
-                hi = mid;
-            }
-        }
-
-        return lo;
-    }
-
-    /**
-     * The batch that draws a row of a batched group: the family's own for the rows before its first
-     * run of held rows, else the one after the last run before the row ({@link NodeBatches.refill}).
-     * @param group - The row's group.
-     * @param row - The row.
-     * @returns The batch, or null or undefined while none is built.
-     */
-    private batchOf(group: RowGroup, row: number): NodeBatch | null | undefined {
-        const { family } = group;
-        if (family === null) {
-            return undefined;
-        }
-
-        const before = NodeBatches.runsBefore(family, NodeBatches.keyOf(group, row));
-        return before === 0 ? family.batch : family.after[before - 1];
-    }
-
-    /**
-     * A batched row joined its batch: when it falls inside a run of held rows, the run is split at
-     * the next flush, which rebuilds the family.
-     * @param group - The row's group.
-     * @param row - The row.
-     */
-    private noteInsideRun(group: RowGroup, row: number): void {
-        const { family } = group;
-        if (family === null || family.runs.length === 0) {
-            return;
-        }
-
-        const key = NodeBatches.keyOf(group, row);
-        const run = family.runs[NodeBatches.runsBefore(family, key)];
-        if (run !== undefined && run.first < key) {
-            this.refills.add(family);
-        }
-    }
-
-    /**
-     * A group's members changed: when it is a held node's own source, its look's runs may have.
-     * @param group - The group.
-     */
-    private noteHeld(group: RowGroup): void {
-        const shared = this.host.cache.sharedOf(group.source);
-        const of = shared === undefined ? undefined : this.groups.get(shared);
-        if (of !== undefined) {
-            this.runsMoved.add(of);
-        }
-    }
-
-    /**
-     * The runs of a family's held rows. A row a consumer read the mesh of draws from a source of its
-     * own (`Node.holdOffBatch`); the held rows with no batched row of the look between them are one
-     * run, and share one, so the work is bounded by the reads, never by the rows between them.
-     * ponytail: a run is a source and a draw, so a look read at every other row draws as many runs
-     * as it has read rows, as the objects path would draw them all.
-     * @param family - The family.
-     * @param rows - Its batched rows, in draw order.
-     * @returns The runs, in draw order, each with its first and last key.
-     */
-    private heldRuns(
-        family: RowFamily,
-        rows: readonly { node: BatchRow; group: RowGroup }[],
-    ): { first: number; last: number; rows: Node[] }[] {
-        const held = this.heldRows(family).sort((a, b) => a.key - b.key);
-        const runs: { first: number; last: number; rows: Node[] }[] = [];
-        let next = 0;
-        let previous = -1;
-        for (const { key, row } of held) {
-            // past every batched row drawn before this one
-            for (let at = rows[next]; at !== undefined && NodeBatches.keyOf(at.group, at.node.index) < key;) {
-                next++;
-                at = rows[next];
-            }
-
-            const run = runs.at(-1);
-            if (run !== undefined && previous === next) {
-                run.rows.push(row as Node);
-                run.last = key;
-            } else {
-                runs.push({ first: key, last: key, rows: [row as Node] });
-            }
-
-            previous = next;
-        }
-
-        return runs;
-    }
-
-    /**
-     * Give each held row the source of its run: the first run keeps its look's held source, and each
-     * later one draws from one named for its first row.
-     * @param runs - The runs, in draw order.
-     * @returns Whether a held row changed source.
-     */
-    private labelRuns(runs: readonly { rows: Node[] }[]): boolean {
-        const moved: Node[] = [];
-        runs.forEach((run, at) => {
-            const label = at === 0 ? "" : `@${String(run.rows[0]?.index ?? 0)}`;
-            for (const node of run.rows) {
-                if (this.runOf(node) !== label) {
-                    if (label === "") {
-                        this.runLabels.delete(node);
-                    } else {
-                        this.runLabels.set(node, label);
-                    }
-
-                    moved.push(node);
-                }
-            }
-        });
-
-        for (const node of moved) {
-            node.holdOffBatch();
-        }
-
-        return moved.length > 0;
-    }
-
-    /**
-     * Which of its look's held sources a held row draws from ({@link NodeBatches.labelRuns}).
-     * @param node - The row.
-     * @returns A suffix for that source's name: empty for the first run.
-     */
-    runOf(node: Node): string {
-        return this.runLabels.get(node) ?? "";
-    }
-
-    /**
-     * Draw each run of a family's held rows between the batches either side of it: among the opaque
-     * meshes by their place in the sort, and among the translucent ones, which tie by distance, by
-     * their order in the scene's mesh list. Each run's rows are listed in row order, which is the
-     * order their source draws them in.
-     * @param family - The family.
-     * @param runs - Its runs, in draw order.
-     */
-    private orderRuns(family: RowFamily, runs: readonly { rows: Node[] }[]): void {
-        const batch = family.batch?.mesh;
-        // after every source of the look, in the order the batch's rows and the runs come
-        const base = Math.max(...[...family.groups].map((group) => drawOrderOf(group.source)));
-        const steps = 2 * runs.length + 1;
-        const listed: AbstractMesh[] = [];
-        runs.forEach((run, at) => {
-            const first = run.rows[0]?.drawnPickMesh;
-            if (first instanceof InstancedMesh) {
-                drawAt(first.sourceMesh, base + (2 * at + 1) / steps);
-                blendWith(first.sourceMesh, batch, this.host.root());
-            }
-
-            listed.push(...run.rows.flatMap((node) => node.drawnPickMesh ?? []));
-            const after = family.after[at];
-            if (after !== undefined) {
-                drawAt(after.mesh, base + (2 * at + 2) / steps);
-                listed.push(after.mesh);
-            }
-        });
-
-        if (batch !== undefined && batch.visibility < 1) {
-            drawAfter(batch, listed);
-        } else if (listed.length > 1) {
-            drawLast(listed.filter((mesh) => mesh instanceof InstancedMesh));
-        }
-    }
-
-    /**
-     * The rows of a family held on sources of their own, with their draw keys.
-     * @param family - The family.
-     * @returns They, in no order.
-     */
-    private heldRows(family: RowFamily): { key: number; row: BatchRow }[] {
-        const rows: { key: number; row: BatchRow }[] = [];
-        for (const { held, of } of this.heldGroups(family)) {
-            for (const row of held.members) {
-                rows.push({ key: NodeBatches.keyOf(of, row.index), row });
-            }
-        }
-
-        return rows;
-    }
-
-    /**
-     * The groups of a family's held rows' own sources, each with the family's group it stands in for.
-     * @param family - The family.
-     * @returns They, in no order.
-     */
-    private heldGroups(family: RowFamily): { held: RowGroup; of: RowGroup }[] {
-        const found: { held: RowGroup; of: RowGroup }[] = [];
-        for (const group of this.groups.values()) {
-            const shared = this.host.cache.sharedOf(group.source);
-            const of = shared === undefined ? undefined : this.groups.get(shared);
-            if (of?.family === family) {
-                found.push({ held: group, of });
-            }
-        }
-
-        return found;
+        return family.batch?.flush() ?? false;
     }
 
     /**
      * Put a new translucent batch among the other translucent batches in `scene.meshes` in the
-     * order their sources were made. Every source sits at one place and every batch at another, so
-     * Babylon's back-to-front sort ties them all and draws them in the order they reach it: a
-     * source's when its first instance is met in `scene.meshes`, a batch's when it is.
-     * ponytail: source creation order stands in for the objects path's instance order, which
-     * repaint history can reorder; a translucent row's order would need tracking per instance.
-     * @param mesh - The new batch.
-     * @param sourceId - Its source's unique id.
+     * order the objects path meets their looks' first instances, which it lists in row order (as it
+     * builds them, and as `Graph.setRenderPath` lists them on the way back): by each one's lowest
+     * row. Every source sits at one place and every batch at another, so Babylon's back-to-front
+     * sort ties them all and draws them in the order they reach it. Not by source creation: a
+     * source a held instance kept outlives the others' through a trip to the objects path.
+     * ponytail: a repaint on the objects path can list a row's instance out of row order.
+     * @param family - The family of the new batch.
      */
-    private orderTranslucent(mesh: Mesh, sourceId: number): void {
+    private orderTranslucent(family: RowFamily): void {
+        const mesh = family.batch?.mesh;
+        if (mesh === undefined) {
+            return;
+        }
+
         const later = new Set<AbstractMesh>();
+        const earlier = new Set<AbstractMesh>();
         for (const other of this.families.values()) {
-            if (other.batch !== null && other.batch.mesh !== mesh && other.batch.mesh.visibility < 1) {
-                if (other.canonical.uniqueId > sourceId) {
-                    later.add(other.batch.mesh);
-                }
+            if (other.batch !== null && other !== family && other.batch.mesh.visibility < 1) {
+                (other.firstRow > family.firstRow ? later : earlier).add(other.batch.mesh);
             }
         }
 
         const { meshes } = mesh.getScene();
-        const at = meshes.findIndex((candidate) => later.has(candidate));
-        if (at !== -1) {
-            meshes.splice(meshes.indexOf(mesh), 1);
-            meshes.splice(at, 0, mesh);
-        }
+        const from = meshes.indexOf(mesh);
+        meshes.splice(from, 1);
+        const before = meshes.findIndex((candidate) => later.has(candidate));
+        let after = -1;
+        meshes.forEach((candidate, at) => {
+            after = earlier.has(candidate) ? at + 1 : after;
+        });
+        meshes.splice(before !== -1 ? before : Math.max(after, from), 0, mesh);
     }
 
     /**
@@ -1860,7 +1725,6 @@ export class NodeBatches {
      */
     private forget(group: RowGroup): void {
         this.groups.delete(group.source);
-        this.runsMoved.delete(group);
         this.host.cache.batchedSources.delete(group.source);
         for (const node of group.members) {
             this.draw(node, null);

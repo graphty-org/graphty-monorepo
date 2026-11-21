@@ -20,6 +20,7 @@ import { type Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vec
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
 import { Observable } from "@babylonjs/core/Misc/observable.js";
+import { RenderingGroup } from "@babylonjs/core/Rendering/renderingGroup.js";
 import { Scene } from "@babylonjs/core/scene.js";
 import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 import type { GraphSnapshot } from "@graphty/graph-format";
@@ -228,7 +229,6 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
-import { painterSortCompare, transparentSortCompare } from "./meshes/drawOrder";
 import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
@@ -5587,11 +5587,6 @@ export class Graph implements GraphContext {
                 },
                 this.scene,
             );
-            // A node whose mesh was read on the objects path shares its look's source, which the batch hides.
-            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
-                node.holdOffBatch();
-            }
-
             this.#edgeRowLines = new EdgeRowLines({
                 scene: this.scene,
                 cache: this.dataManager.meshCache,
@@ -5634,12 +5629,7 @@ export class Graph implements GraphContext {
             this.#edgeRowLines = null;
             this.#nodeBatches.dispose();
             this.#nodeBatches = null;
-            // A node whose mesh was read under batches drew from a source of its own: it shares its look's again.
             const nodes = [...dataManagerInternals.builtNodes(this.dataManager)];
-            for (const node of nodes) {
-                node.holdOffBatch();
-            }
-
             // Translucent instances blend in the order the scene lists them: in row order, as the objects path
             // builds them, not with the Nodes built under batches (a read, a hover) before the rest.
             nodes.sort((a, b) => a.index - b.index);
@@ -6422,8 +6412,7 @@ export class Graph implements GraphContext {
         }
 
         if (mapped) {
-            const { nodeBatchMap, afterBatchMap } = this.dataManager.meshCache;
-            for (const batch of [...nodeBatchMap.values(), ...[...afterBatchMap.values()].flat()]) {
+            for (const batch of this.dataManager.meshCache.nodeBatchMap.values()) {
                 this.#nodeMeshes.add(batch.mesh);
             }
         }
@@ -6464,21 +6453,19 @@ export class Graph implements GraphContext {
 
             return this.#nodeMeshes.has(mesh) ? 4 : 0;
         };
-        // Everything else in Babylon's own order (a held node's own source where its shared one sorts),
-        // then the map, then the edges' bands, their lines,
+        // Everything else in Babylon's own order, then the map, then the edges' bands, their lines,
         // then the nodes over them (nodes rank with everything else when no map is drawn) -- in the
         // blended pass too over a map, where the edge lines (antialiased) and their outlines are drawn.
         const byRank =
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
                 rank(a.getMesh()) - rank(b.getMesh()) || then(a, b);
-        const opaque = byRank(painterSortCompare);
+        const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
         this.scene.setRenderingOrder(
             0,
             opaque,
             opaque,
-            // a held node's own source at its batch's distance (`blendWith`)
-            mapped ? byRank(transparentSortCompare) : transparentSortCompare,
+            mapped ? byRank((a, b) => RenderingGroup.defaultTransparentSortCompare(a, b)) : null,
         );
         this.renderManager.requestFrame();
     }

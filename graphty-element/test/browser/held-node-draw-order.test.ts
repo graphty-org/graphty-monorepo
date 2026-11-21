@@ -244,7 +244,7 @@ describe("a node whose mesh was read under batched", () => {
         assert.equal(graph.getNode(0)?.drawnSourceMesh, shared, "no batch hides a ringed look's source: it is shared");
     });
 
-    it("draws from a source of its own where its look's source is drawn, when a batch draws its look", async () => {
+    it("is drawn by its look's batch from its own mesh, when a batch draws its look", async () => {
         const { graph } = await ringedLooks(false);
         graph.setRenderPath("objects");
         const objects = await fillOrder(graph);
@@ -252,7 +252,9 @@ describe("a node whose mesh was read under batched", () => {
         const shared = graph.getNode(0)?.drawnSourceMesh;
 
         await holdMeshes(graph, [0]);
-        assert.notEqual(graph.getNode(0)?.drawnSourceMesh, shared, "a batch hides the look's source: it has its own");
+        const held = graph.getNode(0)?.mesh;
+        assert.instanceOf(held, InstancedMesh, "it keeps its own mesh");
+        assert.equal(held.sourceMesh, shared, "on its look's source: no source of its own");
         assert.deepEqual(await fillOrder(graph), objects);
         assert.equal(graph.rowCounts.batchedNodes, NODES.length - 1, "a batch draws every plain node but the read one");
     });
@@ -446,13 +448,19 @@ describe("a node whose mesh was read under batched", () => {
         });
     }
 
-    for (const opacity of [1, 0.6]) {
-        it(`builds only the read rows of a long look, within limits.objectRows, at opacity ${opacity}`, async () => {
+    const LONG = Array.from({ length: 50 }, (_, id) => id);
+    for (const [label, reads, opacity] of [
+        ["three", [0, 25, 49], 1],
+        ["three", [0, 25, 49], 0.6],
+        ["every other one", LONG.filter((id) => id % 2 === 1), 1],
+        ["every other one", LONG.filter((id) => id % 2 === 1), 0.6],
+    ] as const) {
+        it(`builds only the read rows of a long look, ${label} read, within limits.objectRows and one batch, at opacity ${opacity}`, async () => {
             const differ = await pathsDiffer(async (path) => {
                 const element = await mountElement(path);
                 const warnings: unknown[] = [];
                 element.addEventListener("limits-warning", (event) => warnings.push(event));
-                element.limits = { objectRows: 10 };
+                element.limits = { objectRows: reads.length + 10 };
                 // fifty overlapping circles of one look, in a row
                 await element.session.data.addNodes(
                     Array.from({ length: 50 }, (_, id) => ({ id, position: { x: id * 0.1 - 2.5, y: 0, z: 0 } })),
@@ -473,7 +481,9 @@ describe("a node whose mesh was read under batched", () => {
                 }
                 await operationQueueOf(element.graph).waitForCompletion();
                 await element.waitForStableFrame();
-                for (const id of [0, 25, 49]) {
+                const { scene } = element.graph;
+                const meshes = scene.meshes.length;
+                for (const id of reads) {
                     assert.isFalse(element.graph.getNode(id)?.mesh.isDisposed());
                 }
 
@@ -481,9 +491,13 @@ describe("a node whose mesh was read under batched", () => {
                 const picture = await readCanvas(element.graph);
                 if (path === "batched") {
                     // The rows between the read ones stay on the look's batches: no `Node` each, none past the budget.
-                    assert.equal(element.graph.rowCounts.objectNodes, 3, "only the read rows are built");
-                    assert.equal(element.graph.rowCounts.batchedNodes, 47);
+                    assert.equal(element.graph.rowCounts.objectNodes, reads.length, "only the read rows are built");
+                    assert.equal(element.graph.rowCounts.batchedNodes, 50 - reads.length);
                     assert.lengthOf(warnings, 0, "no row goes past limits.objectRows");
+                    // however scattered the reads, one instance each and nothing more: one batch draws the look
+                    assert.equal(scene.meshes.length - meshes, reads.length, "one mesh a read");
+                    const batches = scene.meshes.filter((mesh) => mesh.name.endsWith("-batch") && mesh.isEnabled());
+                    assert.lengthOf(batches, 1, "one batch, never cut");
                 }
 
                 return picture;
@@ -491,4 +505,25 @@ describe("a node whose mesh was read under batched", () => {
             assert.equal(differ, 0);
         });
     }
+
+    it("shows what a consumer does to a read mesh as the objects path does: scaled, moved, hidden", async () => {
+        const differ = await pathsDiffer(async (path) => {
+            const { graph } = await ringedLooks("translucent shapes", { path });
+            const [scaled, moved, hidden] = [2, 5, 7].map((id) => graph.getNode(id)?.mesh);
+            assert.isDefined(scaled);
+            assert.isDefined(moved);
+            assert.isDefined(hidden);
+            scaled.scaling.scaleInPlace(0.5);
+            moved.position.y += 0.4;
+            hidden.isVisible = false;
+            await readCanvas(graph);
+            const picture = await readCanvas(graph);
+            if (path === "batched") {
+                assert.equal(graph.rowCounts.objectNodes, 3);
+            }
+
+            return picture;
+        });
+        assert.equal(differ, 0);
+    });
 });

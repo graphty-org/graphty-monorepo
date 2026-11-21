@@ -7,8 +7,6 @@
  * get the same checks as graphty-element's `FEATURES`.
  */
 
-import { siteConfig } from "./siteConfig";
-
 /** An experiment of the app alone. */
 interface AppFeature {
     /** The id a site file or `?features=` names: `never` while none is declared; the next one makes it a string union. */
@@ -27,16 +25,7 @@ export const APP_FEATURES: readonly AppFeature[] = Object.freeze([]);
 
 /**
  * Ids of the app's experiments that have shipped: a site file or `?features=` naming one is accepted
- * and changes nothing. tools/check-features.mjs fails where code still names one.
+ * and changes nothing. tools/check-features.mjs reads it as text and fails where code still names one.
+ * @public
  */
 export const GRADUATED_FEATURES: readonly string[] = Object.freeze(["usage-analytics"]);
-
-/**
- * Whether one of the app's own experiments is on. Off until `loadSiteConfig` settles.
- * @param id - the experiment.
- * @param features - the combined raw list; the loaded site configuration's by default.
- * @returns true when the list names it, or names "all".
- */
-export function appFeatureOn(id: AppFeature["id"], features: readonly string[] = siteConfig().features): boolean {
-    return features.includes(id) || features.includes("all");
-}

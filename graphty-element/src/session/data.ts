@@ -119,6 +119,7 @@ import {
     type DataDeriveCommand,
     derivedColumnsOf,
     derivedRows,
+    derivedValues,
     isTerms,
     scoreExpression,
     type ValuesWhere,
@@ -189,6 +190,7 @@ import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
+import { draftOpenError, SourceDraftHandle } from "./sourceDraft";
 import { ExpansionState, type HostEdge, type LoadStamp, type SourceHost } from "./sources/host";
 import {
     isSourceFactKey,
@@ -231,6 +233,8 @@ import {
     withDigest,
     withoutJoin,
 } from "./sources/steps/compile";
+import type { DraftMark, DraftMarks } from "./sources/steps/draft";
+import { matchCounts, matchValues } from "./sources/steps/match";
 import { RECORD_PATHS } from "./sources/steps/paths";
 import {
     applyEdit,
@@ -241,11 +245,13 @@ import {
     diffGraph,
     editRows,
     EMPTY_STEPS,
+    type GraphDiff,
     mintCopyId,
     mintEditId,
     mintSourceId,
     nodeIdsOf,
     projectBuild,
+    type ProjectedGraph,
     refOf,
     SOURCE_COPIES_VALUE,
     SOURCE_EDGE_IDS_VALUE,
@@ -370,12 +376,19 @@ import type {
     SourceConnectOptions,
     SourceCopy,
     SourceCopyChoice,
+    SourceDraft,
+    SourceDraftOptions,
     SourceEditChoice,
     SourceElementRef,
     SourceElementsFilter,
     SourceExtractOptions,
     SourceLineage,
     SourceLoaded,
+    SourceMatchCounts,
+    SourceMatchOptions,
+    SourceMatchPair,
+    SourceMatchValues,
+    SourceMatchValuesOptions,
     SourceMergeOptions,
     SourceMoveColumnsOptions,
     SourceNodeRef,
@@ -391,7 +404,7 @@ import type {
     ValueType,
 } from "./types";
 import { typedValueLabelsAt, valueLabelsAt } from "./valueLabels";
-import type { FilterValueSource } from "./visibility/filter";
+import { type FilterValueSource, valuePaths } from "./visibility/filter";
 import { wholeGraph } from "./working/graphs";
 import type { WorkingGraph, WorkingScope, WorkingView } from "./working/view";
 
@@ -466,6 +479,15 @@ interface DataWrites {
      * not hold): what a rebuild under the source-steps experiment may leave unbound.
      */
     references?(): { readonly nodes: readonly NodeId[]; readonly edges: readonly (EdgeId | undefined)[] };
+    /** A drawn source draft's After on the graph: taken off and put back around what must not see it. */
+    readonly drawing?: {
+        /** Settles once the graph draws what the open draft shows now. */
+        drawn(): Promise<void>;
+        /** Take After off the graph now, synchronously. */
+        stop(): void;
+        /** Draw what the open draft shows again. */
+        resume(): void;
+    };
 }
 
 /** What a page of records reads beside the snapshot. */
@@ -607,6 +629,31 @@ interface NeighborList {
     readonly measuredBy: WeightMeaning | null;
     readonly missing: number;
 }
+
+/**
+ * The ops a reader may dispatch while a draft's After is drawn, by prefix: they read and name no
+ * node or edge of the graph. Anything not listed is refused then, so a new op is safe until it is.
+ */
+const AFTER_ALLOWS = [
+    "batch",
+    "style.",
+    "config.",
+    "shader.",
+    "view.camera",
+    "view.save",
+    "view.remove",
+    "view.immersive",
+    "visibility.set",
+    "visibility.window",
+    "visibility.context",
+    "visibility.steps",
+    "visibility.conditions",
+    "visibility.playback",
+    "layout.transport",
+    "algo.move",
+    "algo.rename",
+    "algo.remove",
+] as const;
 
 /** How many neighbor lists are kept per revision: an inspector re-reads the last few. */
 const NEIGHBOR_LISTS_KEPT = 8;
@@ -1193,6 +1240,8 @@ function withStartMode(source: string, config: Record<string, unknown>): Record<
     return declared.values?.some((each) => each.value === asked) === true ? { ...config, mode: asked } : config;
 }
 
+/** The session edge ids of a graph no step built an edge of. */
+const NO_EDGE_IDS: Readonly<Record<string, EdgeId>> = Object.freeze({});
 /** Refreshes a source a version 2 open held, or gives undefined for a key it does not hold. */
 type HeldRefresh = (load: string, options: SourceLoadOptions) => Promise<SourceRefreshReport | undefined>;
 
@@ -1223,7 +1272,22 @@ export class SessionData implements SessionDataApi {
         { readonly whole: readonly AttributeDescriptor[]; readonly shown: readonly AttributeDescriptor[] }
     >();
     /** The draft `prepare` returned last, until it is loaded or disposed: one is held at a time. */
-    private draft: Draft | null = null;
+    private heldDraft: Draft | null = null;
+    /** The draft of the sources and steps open now, under the source-steps experiment. */
+    private sourceDraft: SourceDraftHandle | null = null;
+    /**
+     * While a drawn draft's After is on the graph: the session id of every edge its build makes, by
+     * built id, the ones only the draft makes included. Null otherwise.
+     */
+    private afterEdgeIds: Readonly<Record<string, EdgeId>> | null = null;
+    /** While After is drawn, the report its commit would leave, as {@link drawnReport} reads it. */
+    private afterReport: LoadReport | null = null;
+    /** The drawn draft's edge marks by session id, kept for the marks and edge ids they came from. */
+    private shownMarks: {
+        readonly marks: DraftMarks;
+        readonly ids: Readonly<Record<string, EdgeId>>;
+        readonly edges: ReadonlyMap<string, DraftMark>;
+    } | null = null;
     /** Row orders computed for pages, by what they were asked with, for the current revision. */
     private readonly orders: RevisionCache<Uint32Array>;
     /** The last few neighbor lists, by node and options, for the current revision. */
@@ -1530,6 +1594,7 @@ export class SessionData implements SessionDataApi {
      */
     async clear(): Promise<void> {
         this.requireLive("clear");
+        this.discardDraft();
         // A load still reading when the clear is asked for is canceled: it rejects with
         // E_SUPERSEDED and adds nothing, so the cleared graph does not come back (issue #3524). An
         // edit still waiting resolves and adds nothing either.
@@ -1871,12 +1936,17 @@ export class SessionData implements SessionDataApi {
         const mark = historyMark(options);
         const send = (command: DataImportCommand | BatchCommand): ReturnType<typeof noted> =>
             noted({ ...command, ...mark });
+        // Refused here, before the waiting loads are let go: the dispatch would refuse it only after.
+        const refusal = this.draftRefusal();
+        if (refusal !== null) {
+            throw refusal;
+        }
         if ((options.mode ?? "replace") === "replace") {
             // A file, a URL, a generated graph or a dataset replacing the graph replaces what its source loads brought too; their
             // records stay in the ledger, unlisted, so undoing the replacement lists them again.
             this.pendingLoads.clear();
         }
-        this.draft?.dispose();
+        this.heldDraft?.dispose();
         if (readsThroughDraft(options) || (this.stepsOn() && sample?.held === undefined)) {
             const draft = await this.prepare(source, options.signal === undefined ? {} : { signal: options.signal });
             try {
@@ -2334,16 +2404,26 @@ export class SessionData implements SessionDataApi {
      * @returns the member and its ids
      */
     sourceFile(references?: ReadonlyMap<SourceKey, ReferenceEntry>): SourcesWrite {
+        // With references off every load is written as a copy, so the writer reads the facts without
+        // `copy`. The facts it gives a load that had none go back into the session, so the next save
+        // writes the same loadedAt.
+        const facts = this.referencesOn()
+            ? this.loadFacts
+            : new Map([...this.loadFacts].map(([key, { copy: _copy, ...rest }]) => [key, rest]));
         const write = writeSourcesMember({
             sources: this.sources(),
             loads: this.loads(),
-            facts: this.referencesOn()
-                ? this.loadFacts
-                : new Map([...this.loadFacts].map(([key, { copy: _copy, ...facts }]) => [key, facts])),
+            facts,
             waiting: [...this.pendingLoads],
             provenance: this.provenance(),
             ...(references === undefined || references.size === 0 ? {} : { references }),
         });
+        for (const [key, given] of facts) {
+            if (!this.loadFacts.has(key)) {
+                this.loadFacts.set(key, given);
+            }
+        }
+
         const skipped = this.skippedMember;
         // A member the file held and this release skipped goes back in place while the loads are
         // the ones the file opened with.
@@ -2586,7 +2666,7 @@ export class SessionData implements SessionDataApi {
         } = {},
     ): Promise<Draft> {
         this.requireLive("prepare");
-        this.draft?.dispose();
+        this.heldDraft?.dispose();
         const read = await readWithProgress(source, options.signal, (change) => {
             this.writes.progress?.(change);
             options.onProgress?.(change);
@@ -2610,7 +2690,7 @@ export class SessionData implements SessionDataApi {
         read: ReadSource,
         options: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" } = {},
     ): Promise<Draft> {
-        this.draft?.dispose();
+        this.heldDraft?.dispose();
         // With the file styles experiment off a draft does not say what styles the file carries.
         const styles = this.pages.fileStyles?.() === false ? null : await draftStyles(read, options.signal);
         const draft = new Draft(
@@ -2661,8 +2741,8 @@ export class SessionData implements SessionDataApi {
                 },
                 measure: (command, config) => this.writes.measure(command, config),
                 released: (released) => {
-                    if (this.draft === released) {
-                        this.draft = null;
+                    if (this.heldDraft === released) {
+                        this.heldDraft = null;
                     }
                 },
                 ...(options.onto === "graph"
@@ -2683,7 +2763,7 @@ export class SessionData implements SessionDataApi {
             styles,
             options.guess,
         );
-        this.draft = draft;
+        this.heldDraft = draft;
         return draft;
     }
 
@@ -3843,7 +3923,10 @@ export class SessionData implements SessionDataApi {
      * @returns The ids by built edge id.
      */
     private stepsEdgeIds(): Readonly<Record<string, EdgeId>> {
-        return (this.writes.slice().values.get(SOURCE_EDGE_IDS_VALUE) as Record<string, EdgeId> | undefined) ?? {};
+        // One empty object, so a reader keyed on its identity (shownDraft) is not rebuilt per read.
+        return (
+            (this.writes.slice().values.get(SOURCE_EDGE_IDS_VALUE) as Record<string, EdgeId> | undefined) ?? NO_EDGE_IDS
+        );
     }
 
     /**
@@ -3903,29 +3986,334 @@ export class SessionData implements SessionDataApi {
      */
     async stage(source: DataSourceInput, options: ImportOptions = {}): Promise<string> {
         this.requireSteps("stage");
+        const read = await this.readStaged(source, options);
+        if (read === null) {
+            return "";
+        }
+        // Staging is no undo step (8.9): it joins the step before it.
+        await this.stepsEdit(() => ({ kind: "add", source: read.source, staged: true }), read.copies, true);
+        return read.source.id;
+    }
+
+    /**
+     * Read a source as a staged source, dispatching nothing.
+     * @param source - What `import` takes.
+     * @param options - Its key, type, space and edge ends.
+     * @returns The source and its rows as read, or null when the read held no rows.
+     */
+    private async readStaged(
+        source: DataSourceInput,
+        options: ImportOptions,
+    ): Promise<{ source: StepsSource; copies: Copies } | null> {
         checkSpace(options.space);
         const draft = await this.prepare(source);
         const digest = await copyDigest(source.config);
-        let id = "";
+        let read: { source: StepsSource; copies: Copies } | null = null;
         try {
             await draft.loadVia(
                 (command) => {
                     const load = (command.op === "batch" ? command.steps.at(-1) : command) as DataImportCommand;
                     const compiled = compileImport(withDigest(load, digest), options, this.readConfig().knownFields);
-                    if (compiled === null) {
-                        return Promise.resolve();
+                    if (compiled !== null) {
+                        read = { source: compiled.edit.source, copies: compiled.copies ?? EMPTY_COPIES };
                     }
-                    const staged = compiled.edit.source;
-                    ({ id } = staged);
-                    // Staging is no undo step (8.9): it joins the step before it.
-                    return this.stepsEdit(() => ({ kind: "add", source: staged, staged: true }), compiled.copies, true);
+                    return Promise.resolve();
                 },
                 withStepsMapping({ ...options, mode: "merge" }),
             );
         } finally {
             draft.dispose();
         }
-        return id;
+        return read;
+    }
+
+    /**
+     * Open a draft of the sources and steps (design 5.6).
+     * @param options - Whether its adds ask the key-overlap question.
+     * @returns The draft.
+     * @throws A `GraphtyError` with `E_DRAFT_OPEN` while one is open, or `E_FEATURE_OFF` while the
+     *   source-steps experiment is off.
+     */
+    draft(options: SourceDraftOptions = {}): SourceDraft {
+        this.requireSteps("draft");
+        if (this.sourceDraft !== null) {
+            throw draftOpenError(this.sourceDraft.id);
+        }
+        const draft = new SourceDraftHandle(
+            {
+                read: (source, options) => this.readStaged(source, options),
+                send: (edit, copies, removed) => this.draftCommit(edit, copies, removed),
+                committedCopies: () => this.stepsCopies(),
+                previewContext: () => ({
+                    refs: this.boundNow().refs,
+                    filters: this.writes
+                        .readers()
+                        .visibility.conditions.filter((each) => each.on && each.effect !== "select")
+                        .map((each) => ({
+                            filter: each.id,
+                            paths: valuePaths(each.rule),
+                            ...(each.source === undefined ? {} : { source: each.source }),
+                        })),
+                    derive: (valuesWhere) => derivedValues(this.derivedColumns(), valuesWhere),
+                }),
+                release: () => {
+                    // A draft discarded while its commit was landing never releases one opened since.
+                    if (this.sourceDraft === draft) {
+                        this.sourceDraft = null;
+                    }
+                },
+                emit: (change) => this.writes.emit?.("data:draft-changed", change),
+                drawn: () => this.writes.drawing?.drawn() ?? Promise.resolve(),
+                redraw: () => this.writes.drawing?.resume(),
+            },
+            { value: this.stepsValue(), copies: this.stepsCopies() },
+            { ...(options.askOverlap === undefined ? {} : { askOverlap: options.askOverlap }) },
+        );
+        this.sourceDraft = draft;
+        this.writes.emit?.("data:draft-changed", { draft: draft.id, reason: "opened" });
+        return draft;
+    }
+
+    /**
+     * Dispatch a draft's commit: its `data.steps-set`, and the filters of the sources it removes
+     * taken out in the same step, so one Undo gives both back (7.12), as `removeSource` does.
+     * @param edit - The whole value.
+     * @param copies - The rows as read of the sources the draft staged.
+     * @param removed - The committed sources the draft removes.
+     * @returns Settles once it is recorded and drawn.
+     */
+    private draftCommit(edit: StepsEdit, copies: Copies, removed: readonly string[]): Promise<unknown> {
+        const send = this.writes.importer();
+        // The commit writes over the committed graph, so a drawn After comes off it first.
+        this.writes.drawing?.stop();
+        return this.loadLine.edit(() => {
+            const step = { op: "data.steps-set", edit, copies } as const;
+            const { conditions } = this.writes.readers().visibility;
+            const kept = conditions.filter((each) => each.source === undefined || !removed.includes(each.source));
+            return send(
+                kept.length === conditions.length
+                    ? step
+                    : {
+                          op: "batch",
+                          label: "Set the sources",
+                          fact: { code: "data.steps-set", params: { kind: "set", source: null, name: null } },
+                          steps: [step, { op: "visibility.conditions", conditions: kept }],
+                      },
+            );
+        }, undefined);
+    }
+
+    /**
+     * Run a read of the project (a save) on the committed graph: a drawn draft's After is taken off
+     * the graph while it runs, until a promise it returns settles, and drawn again after, so the
+     * read never holds what the draft adds.
+     * @param read - The read.
+     * @returns What it returned.
+     */
+    withoutDrawnDraft<T>(read: () => T): T {
+        const { drawing } = this.writes;
+        if (drawing === undefined) {
+            return read();
+        }
+        drawing.stop();
+        let result: T;
+        try {
+            result = read();
+        } catch (error) {
+            drawing.resume();
+            throw error;
+        }
+        if (result instanceof Promise) {
+            // An asynchronous read keeps the committed graph until it settles.
+            return result.finally(() => {
+                drawing.resume();
+            }) as T;
+        }
+        drawing.resume();
+        return result;
+    }
+
+    /**
+     * The draft open now.
+     * @returns It, or null.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     */
+    currentDraft(): SourceDraft | null {
+        this.requireSteps("currentDraft");
+        return this.sourceDraft;
+    }
+
+    /**
+     * Live match counts of two fields in the committed sources, building nothing (design 5.2).
+     * @param pair - The two fields.
+     * @param options - Whether case and spaces count.
+     * @returns The counts.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off,
+     *   `E_LOAD_UNKNOWN` or `E_AMBIGUOUS_ID`.
+     */
+    matchCounts(pair: SourceMatchPair, options: SourceMatchOptions = {}): SourceMatchCounts {
+        this.requireSteps("matchCounts");
+        return matchCounts(this.stepsValue(), this.stepsCopies(), pair, options);
+    }
+
+    /**
+     * The value-overlap list of two fields in the committed sources, building nothing (design 5.2).
+     * @param pair - The two fields.
+     * @param options - Which values, which page, and whether case and spaces count.
+     * @returns The page and the total.
+     * @throws As {@link matchCounts}.
+     */
+    matchValues(pair: SourceMatchPair, options: SourceMatchValuesOptions = {}): SourceMatchValues {
+        this.requireSteps("matchValues");
+        return matchValues(this.stepsValue(), this.stepsCopies(), pair, options);
+    }
+
+    /**
+     * The refusal a data write or an undo meets while a draft is open, its own commit aside.
+     * @param command - The data command, or undefined for an undo or redo.
+     * @param command.op - Its op.
+     * @returns `E_DRAFT_OPEN`, or null when no draft is open or the command is the draft's commit.
+     */
+    draftRefusal(command?: { readonly op: string }): GraphtyError | null {
+        if (this.sourceDraft === null) {
+            return null;
+        }
+        // A value's name in the legend and a column hidden or shown are presentation, not the data
+        // the draft holds: they go ahead (design 5.6).
+        if (command?.op === "data.label" || (command?.op === "data.columns" && this.onlyHides(command))) {
+            return null;
+        }
+        // The draft's own commit: the one data write it lets through while it holds the data.
+        const edit = command?.op === "data.steps-set" ? (command as DataStepsSetCommand).edit : null;
+        if (edit?.kind === "set" && edit.draftBase?.draft === this.sourceDraft.id) {
+            return null;
+        }
+        return draftOpenError(this.sourceDraft.id);
+    }
+
+    /**
+     * Why a reader's command is refused while the open draft's After is drawn: the graph then is the
+     * draft's, not the project's, so a run would measure it and a pin, a note, a set or a hidden
+     * element could name an element the committed graph lacks. What reads neither goes ahead:
+     * styles, settings, views, filters, the run list's order and names, and moving a node the
+     * committed graph has. Data writes are left to {@link SessionData.draftRefusal}.
+     * @param command - The command.
+     * @param command.op - Its op.
+     * @returns `E_DRAFT_OPEN { draft, side: "after" }`, or null.
+     */
+    afterRefusal(command: { readonly op: string }): GraphtyError | null {
+        const draft = this.sourceDraft;
+        const { op } = command;
+        if (draft === null || op.startsWith("data.") || AFTER_ALLOWS.some((allowed) => op.startsWith(allowed))) {
+            return null;
+        }
+        if (op === "positions.set") {
+            const added = draft.marks()?.nodes;
+            const { entries } = command as unknown as { readonly entries: readonly { readonly id: NodeId }[] };
+            if (entries.every(({ id }) => added?.get(String(id)) !== "new")) {
+                return null;
+            }
+        }
+        return draftOpenError(draft.id, "after");
+    }
+
+    /**
+     * Whether a column settings write changes only which columns are hidden.
+     * @param command - The `data.columns` command.
+     * @param command.op - Its op.
+     * @param command.settings - The settings it writes.
+     * @param command.move - The column it moves, if any.
+     * @returns True when its types and renames are today's and it moves no column.
+     */
+    private onlyHides(command: {
+        readonly op: string;
+        readonly settings?: ColumnSettings;
+        readonly move?: unknown;
+    }): boolean {
+        const { settings, move } = command;
+        if (settings === undefined) {
+            return false;
+        }
+        const now = this.columnSettings();
+        const same = (a: Readonly<Record<string, unknown>>, b: Readonly<Record<string, unknown>>): boolean =>
+            Object.keys(a).length === Object.keys(b).length &&
+            Object.entries(a).every(([key, value]) => b[key] === value);
+        return move === undefined && same(settings.types, now.types) && same(settings.renamed, now.renamed);
+    }
+
+    /**
+     * The draft drawn now (`draft.display(true)`): what its commit does to each element, by session
+     * id, and the side it draws. The marks are never written anywhere, so a save and the history
+     * read none of them.
+     * @returns The marks and the side, or null while no draft is drawn or the experiment is off.
+     */
+    shownDraft(): {
+        readonly nodes: ReadonlyMap<string, DraftMark>;
+        readonly edges: ReadonlyMap<string, DraftMark>;
+        readonly side: "before" | "after";
+    } | null {
+        const draft = this.sourceDraft;
+        const marks = this.stepsOn() ? (draft?.marks() ?? null) : null;
+        if (draft === null || marks === null) {
+            return null;
+        }
+        const ids = (draft.side === "after" ? this.afterEdgeIds : null) ?? this.stepsEdgeIds();
+        if (this.shownMarks?.marks !== marks || this.shownMarks.ids !== ids) {
+            // A drawn edge goes by its session id; one not drawn on this side keeps its built id.
+            const edges = new Map([...marks.edges].map(([built, mark]) => [ids[built] ?? built, mark]));
+            this.shownMarks = { marks, ids, edges };
+        }
+        return { nodes: marks.nodes, edges: this.shownMarks.edges, side: draft.side };
+    }
+
+    /**
+     * The writes that turn the committed graph into the drawn draft's After: what the commit would
+     * remove, patch and add, as `data.steps-set` would write them, but none of the sources and steps.
+     * @returns The writes and the node id path, or null while no draft is drawn.
+     */
+    draftAfterDiff(): { readonly diff: GraphDiff; readonly idPath: string; readonly after: ProjectedGraph } | null {
+        const drawn = this.stepsOn() ? (this.sourceDraft?.drawnValue() ?? null) : null;
+        if (drawn === null) {
+            return null;
+        }
+        const value = this.stepsValue();
+        const idPath = this.readConfig().knownFields.nodeIdPath;
+        const after = projectBuild(buildOf(drawn.value, drawn.copies), drawn.value, idPath);
+        const diff = diffGraph(
+            projectBuild(buildOf(value, this.stepsCopies()), value, idPath),
+            after,
+            this.stepsEdgeIds(),
+        );
+        return { diff, idPath, after };
+    }
+
+    /**
+     * Say which session id each of the draft's edges has while its After is drawn, or that it is not.
+     * @param ids - The ids by built id, or null once After is taken off the graph.
+     * @param report - The load report the draft's commit would leave, or null when it leaves the one
+     *     the graph holds.
+     */
+    drawnAfter(ids: Readonly<Record<string, EdgeId>> | null, report: LoadReport | null = null): void {
+        this.afterEdgeIds = ids;
+        this.afterReport = ids === null ? null : report;
+    }
+
+    /**
+     * The load report the drawn draft's commit would leave, when it differs from the one the graph
+     * holds: After's writes seal a report for the edges they add, and the commit then names the ends
+     * of its whole build, so a record read while After shows hides the same end columns.
+     * @returns The report, or null.
+     */
+    drawnReport(): LoadReport | null {
+        return this.afterReport;
+    }
+
+    /** Discard the open draft, if any: a project opened or the graph cleared replaces what it drafted. */
+    discardDraft(): void {
+        const draft = this.sourceDraft;
+        // A draft whose commit is landing is closed already, so it lets go of the data here.
+        this.sourceDraft = null;
+        draft?.dispose();
     }
 
     /**
@@ -6602,7 +6990,7 @@ export class SessionData implements SessionDataApi {
      */
     lastImport(): LoadReport | null {
         this.requireLive("lastImport");
-        const recorded = this.writes.slice().values.get("importReport") as LoadReport | undefined;
+        const recorded = this.afterReport ?? (this.writes.slice().values.get("importReport") as LoadReport | undefined);
         return recorded ?? this.graphStore.lastImport ?? null;
     }
 
@@ -7856,9 +8244,12 @@ export class SessionData implements SessionDataApi {
      */
     async derive(name: string, expression: Query, options: DeriveOptions = {}): Promise<void> {
         this.requireLive("derive");
-        return this.afterLoads(
-            () => this.deriveNow(name, expression, options.kind ?? "node"),
-            () => undefined,
+        // Computed over the committed graph: a drawn draft's After comes off while it is written.
+        return this.withoutDrawnDraft(() =>
+            this.afterLoads(
+                () => this.deriveNow(name, expression, options.kind ?? "node"),
+                () => undefined,
+            ),
         );
     }
 
@@ -8032,14 +8423,22 @@ export class SessionData implements SessionDataApi {
             }
         }
 
-        await this.send(
-            {
-                op: "batch",
-                label: hidden ? `Hid ${String(changing.length)} columns` : `Showed ${String(changing.length)} columns`,
-                fact: { code: hidden ? "data.hide-columns" : "data.show-columns", params: { count: changing.length } },
-                steps: [{ op: "data.columns", settings: { ...settings, hidden: [...now] } }],
-            },
-            "hide columns",
+        // A drawn draft's After holds the graph's settings while it is on: it comes off while this is written.
+        await this.withoutDrawnDraft(() =>
+            this.send(
+                {
+                    op: "batch",
+                    label: hidden
+                        ? `Hid ${String(changing.length)} columns`
+                        : `Showed ${String(changing.length)} columns`,
+                    fact: {
+                        code: hidden ? "data.hide-columns" : "data.show-columns",
+                        params: { count: changing.length },
+                    },
+                    steps: [{ op: "data.columns", settings: { ...settings, hidden: [...now] } }],
+                },
+                "hide columns",
+            ),
         );
     }
 
@@ -8366,6 +8765,7 @@ export class SessionData implements SessionDataApi {
      * one either way.
      */
     dispose(): void {
+        this.discardDraft();
         this.disposed = true;
         this.derived = null;
     }

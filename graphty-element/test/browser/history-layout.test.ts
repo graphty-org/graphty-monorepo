@@ -20,6 +20,7 @@ import { Graph, graphContextOf, operationQueueOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
 
@@ -94,7 +95,11 @@ function agrees(graph: Graph, dimension: "2d" | "3d", what: string): void {
     assert.strictEqual(graph.getSession().layout.dimension, dimension, `${what}: the slice`);
     assert.strictEqual(context.is2D(), twoD, `${what}: GraphContext.is2D`);
     assert.strictEqual(graph.getLayoutManager().dimension, twoD ? 2 : 3, `${what}: the engine's dimension`);
-    assert.strictEqual(graph.getScene().metadata?.twoD, twoD, `${what}: scene.metadata.twoD`);
+    assert.strictEqual(
+        (graph.getScene().metadata as GraphSceneMetadata | null)?.twoD,
+        twoD,
+        `${what}: (scene.metadata as GraphSceneMetadata).twoD`,
+    );
 
     assert.strictEqual(graph.styles.config.graph.twoD, twoD, `${what}: Styles.config.graph.twoD`);
     assert.strictEqual(graph.styles.config.graph.viewMode, dimension, `${what}: Styles.config.graph.viewMode`);

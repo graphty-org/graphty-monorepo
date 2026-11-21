@@ -652,7 +652,9 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
 `assets`.
 
 1. A layer has `id` (REQUIRED, unique in the section), `name`, `target` (`node` or `edge`),
-   `selector`, and `set` and/or `encode`; optionally `source`, `enabled` and `userData`. A layer
+   `selector`, and `set` and/or `encode`; optionally `source`, `enabled`, `userData` and `row`
+   (in style and view alike: the id of the layer that keys its row, shared by the node and edge
+   parts of one row, which open again as one row). A layer
    has no `kind`: there are no special layers. `source.by` is `run`, `template` or `plugin`; a
    layer no run, template or plugin made writes no `source`, in style and view alike.
 2. `set` maps channel names (`node.color`) to values; `encode` maps channel names to bindings
@@ -784,7 +786,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
 | Member          | Holds                                                                                                                               |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `camera`        | graphty-element's `CameraState` members as they are but `type`, points as `{ x, y, z }`, plus `dimension` and `controller` (rule 2) |
-| `views`         | saved views: `{ "name", "camera" }`                                                                                                 |
+| `views`         | saved views: `{ "name", "camera", "follows", "key", "filters", "layers", "hidden", "positions", "legend" }`, `camera` or `follows`  |
 | `selection`     | `{ "nodes": [...], "edges": [...] }` element references                                                                             |
 | `pinned`        | the pinned nodes only: `{ "node", "position": { "x", "y", "z" } }`                                                                  |
 | `groups`        | the collapsed groups, in the order they are collapsed again: `{ "groupBy", "group", "position", "pinned", "edges" }` (rule 8)       |

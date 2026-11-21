@@ -2104,11 +2104,12 @@ export interface StyleRefusal {
 /**
  * What a repaint the element started on its own was for, as `style:repaint-failed` names it:
  * `selection`, `hover` and `peek` follow the reader's state, `sets` a set whose members changed,
- * `branches` a branches view, `hidden` nodes hidden or shown (`session.hidden`), and `layer` a
- * layer a pass could not paint at all.
+ * `branches` a branches view, `hidden` nodes hidden or shown (`session.hidden`), `layer` a
+ * layer a pass could not paint at all, and `draft` a source draft drawn or shown otherwise
+ * (experimental: source-steps).
  * @since 3.52.0
  */
-export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer";
+export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer" | "draft";
 
 /**
  * A repaint nobody awaited that failed, or a layer a pass could not paint, as
@@ -4458,6 +4459,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                       selection: config?.selectionStyle ?? DEFAULT_SELECTION_STYLE,
                       ...(editableBase() ? { everything: { ...baseValues("node"), ...baseValues("edge") } } : {}),
                       ...(config?.pinnedStyle === undefined ? {} : { pinned: config.pinnedStyle }),
+                      // Only under the source-steps experiment: with it off the rows are today's.
+                      ...(dispatcher.services.sourceSteps?.() === true ? { draft: true } : {}),
                   },
         );
         let stack = current();

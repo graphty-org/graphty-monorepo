@@ -48,7 +48,7 @@ import type { EdgeId, NodeId, Path, RunId, TopTies } from "../../catalog/types";
 import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/paths";
 import { RESULT_ROOT, type RunResult } from "../results";
 import { edgeSpaceOf } from "../scope/spaces";
-import { RECORD_PATHS } from "../sources/steps/paths";
+import { DRAFT_PATH, RECORD_PATHS } from "../sources/steps/paths";
 import type { SessionRecordSource } from "../types";
 import type { SelectorSource, SelectorTarget } from "./predicate";
 
@@ -93,6 +93,16 @@ export interface SelectorSourceParts {
      * paths read nothing, as they do on an element no note names.
      */
     readonly notes?: NoteFactsReader;
+    /**
+     * What a drawn draft's commit does to one node or edge, for the `graphty.draft` path, read
+     * under the source-steps experiment only. Absent, or answering undefined, the path reads nothing.
+     */
+    readonly draft?: (target: SelectorTarget, id: string) => string | undefined;
+    /**
+     * How many nodes one node holds directly, for the {@link MEMBERS_PATH} path: undefined for a
+     * node that holds none. Absent, the path reads nothing.
+     */
+    readonly members?: (id: NodeId) => number | undefined;
     /**
      * Whether the source-steps experiment is on. While it is off, the readable paths
      * (`graphty.type`, ...) read nothing, as before the experiment, even on a record that happens
@@ -263,6 +273,13 @@ export function structureValuesOf(graph: GraphSnapshot, path: Path): ArrayLike<n
     }
 }
 
+/**
+ * The node path a group answers: how many nodes it holds directly (a Cytoscape.js compound node,
+ * a Graphviz cluster, a yEd group, a node others name as their `parent`). Every other node reads
+ * nothing, so `{ match: "has", path: MEMBERS_PATH }` selects the groups.
+ */
+export const MEMBERS_PATH = "graphty.members";
+
 /** What a path names, settled once when the path is first seen. */
 type PathKind =
     /** A node's value read at one end of an edge, under `graphty.source.` or `graphty.target.`. */
@@ -271,8 +288,12 @@ type PathKind =
     | "attribute"
     /** One of the note values, under `graphty.notes.`. */
     | "note"
+    /** What a drawn draft does to the element, at `graphty.draft`. */
+    | "draft"
     /** A node's structural value, one of {@link STRUCTURE_PATHS}. */
     | "structure"
+    /** How many nodes a group holds, at {@link MEMBERS_PATH}. */
+    | "members"
     /** Nothing this session can answer, so every read of it is absent. */
     | "none"
     /** One per-element field of one run's result. */
@@ -364,6 +385,14 @@ function parseElementPath(path: Path): PathEntry {
     const note = noteFieldOf(path);
     if (note !== undefined) {
         return { kind: "note", key: "", runId: "", field: note };
+    }
+
+    if (path === DRAFT_PATH) {
+        return { kind: "draft", key: "", runId: "", field: "" };
+    }
+
+    if (path === MEMBERS_PATH) {
+        return { kind: "members", key: "", runId: "", field: "" };
     }
 
     return NOTHING;
@@ -563,6 +592,10 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
             return parseElementPath(path);
         }
 
+        if (path === DRAFT_PATH && parts.sourceSteps?.() !== true) {
+            return NOTHING;
+        }
+
         const held = paths.get(path);
 
         if (held !== undefined) {
@@ -697,6 +730,34 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
     };
 
     /**
+     * What a drawn draft does to one element.
+     * @param held - The frame.
+     * @param target - Whether the asking layer paints nodes or edges.
+     * @param index - The element's dense index.
+     * @returns Its mark, or undefined while no draft is drawn.
+     */
+    const draftAt = (held: Frame, target: SelectorTarget, index: number): string | undefined => {
+        const read = parts.draft;
+        if (read === undefined || index < 0 || index >= (target === "node" ? held.nodeCount : held.edgeCount)) {
+            return undefined;
+        }
+
+        return read(target, target === "node" ? String(held.graph.ids.idOf(index)) : edgeIdAt(held, index));
+    };
+
+    /**
+     * How many nodes one node holds directly.
+     * @param held - The frame.
+     * @param target - Whether the asking layer paints nodes or edges.
+     * @param index - The element's dense index.
+     * @returns The count, or undefined for an edge or a node that holds none.
+     */
+    const membersAt = (held: Frame, target: SelectorTarget, index: number): number | undefined =>
+        target === "node" && index >= 0 && index < held.nodeCount
+            ? parts.members?.(held.graph.ids.idOf(index))
+            : undefined;
+
+    /**
      * One element's value for a path.
      * @param target - Whether the asking layer paints nodes or edges.
      * @param index - The element's dense index.
@@ -715,6 +776,14 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
         }
 
         const held = current();
+
+        if (entry.kind === "draft") {
+            return draftAt(held, target, index);
+        }
+
+        if (entry.kind === "members") {
+            return membersAt(held, target, index);
+        }
 
         // The node at one end of an edge: nodes have no ends, so they read nothing.
         if (entry.kind === "end") {
@@ -759,7 +828,7 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
 
         const held = current();
 
-        if (entry.kind === "end" || entry.kind === "structure") {
+        if (entry.kind === "end" || entry.kind === "structure" || entry.kind === "draft" || entry.kind === "members") {
             return isPresent(valueOf(target, index, path));
         }
 

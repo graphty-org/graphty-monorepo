@@ -251,6 +251,7 @@ export const KNOWN_FORMAT_IDS = [
     "cx",
     "cys",
     "obo",
+    "xlsx",
     "graphty",
 ] as const;
 

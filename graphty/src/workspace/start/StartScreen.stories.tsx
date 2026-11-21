@@ -63,15 +63,15 @@ async function heroDrawn(canvasElement: HTMLElement): Promise<void> {
 }
 
 /**
- * A story's `beforeEach` that switches the usage-analytics experiment on, as graphty.app's site.json
- * would with PostHog ids (the words follow whether the page sends PostHog anything), keeping
- * whatever else the configuration has on. PostHog's code never arrives, so nothing is sent.
- * @returns the cleanup, which switches it off again.
+ * A story's `beforeEach` that gives the site PostHog ids, as graphty.app's site.json does (the words
+ * follow whether the page sends PostHog anything), keeping whatever experiments the configuration
+ * has on. PostHog's code never arrives, so nothing is sent.
+ * @returns the cleanup, which takes the ids away again.
  */
 async function withUsageAnalytics(): Promise<() => void> {
     const kept = siteConfig().features;
     resetSiteConfig();
-    const site = { site: "production", features: ["usage-analytics", ...kept], analytics: TEST_ANALYTICS };
+    const site = { site: "production", features: kept, analytics: TEST_ANALYTICS };
     await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
     setAnalyticsCallsForTests({ hostname: () => "graphty.app", importPostHog: () => new Promise(() => undefined) });
     return () => {
@@ -242,10 +242,10 @@ export const SettingsPrivacyOn: Story = {
     },
 };
 
-/** First launch with the usage-analytics experiment on: the question says anonymous counts are sent. */
+/** First launch on a site with PostHog ids: the question says anonymous counts are sent. */
 export const UsageAnalyticsFirstRun: Story = { beforeEach: withUsageAnalytics };
 
-/** Settings > Privacy, usage data off, with the usage-analytics experiment on: the counts and the privacy page. */
+/** Settings > Privacy, usage data off, on a site with PostHog ids: the counts and the privacy page. */
 export const UsageAnalyticsSettingsPrivacy: Story = {
     args: { initialState: { dialog: "settings:privacy" } },
     beforeEach: withUsageAnalytics,

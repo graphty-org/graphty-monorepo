@@ -40185,7 +40185,7 @@
             "label.anchor": [],
             "label.background": [],
             "label.backgroundBorder": [],
-            "stray.present": ["text@315,814,351,825"],
+            "stray.present": [],
             "label.backgroundBox": ["label-shape-hexagon","label-shape-pill","label-shape-squircle"]
         },
         "yed-live-graphml-specimen-labels-p2": {
@@ -40436,7 +40436,7 @@
             "label.anchor": [],
             "label.background": [],
             "label.backgroundBorder": [],
-            "stray.present": ["text@315,814,351,825"],
+            "stray.present": [],
             "label.backgroundBox": ["label-shape-hexagon","label-shape-pill","label-shape-squircle"]
         },
         "yed-live-graphml-specimen-mappings-bypass": {

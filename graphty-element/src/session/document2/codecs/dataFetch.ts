@@ -377,8 +377,14 @@ async function networkRead(record: JsonObject, how: RefetchOptions): Promise<Ref
  * @param record - The record.
  * @param how - The open's options.
  * @param duplicateIds - The `duplicateIds` of the `join.add` that builds it, if it carries one.
+ * @param read - Its bytes, when another source over the same bytes already reads them.
  */
-export async function refetch(record: JsonObject, how: RefetchOptions, duplicateIds?: unknown): Promise<void> {
+export async function refetch(
+    record: JsonObject,
+    how: RefetchOptions,
+    duplicateIds?: unknown,
+    read?: ReturnType<typeof bytesOf>,
+): Promise<void> {
     if (record.kind === "network") {
         REFETCHED.set(record, how.accept === true ? await networkRead(record, how) : { unavailable: "copy-changed" });
         return;
@@ -386,7 +392,7 @@ export async function refetch(record: JsonObject, how: RefetchOptions, duplicate
 
     let bytes: Awaited<ReturnType<typeof bytesOf>>;
     try {
-        bytes = await bytesOf(record, how);
+        bytes = await (read ?? bytesOf(record, how));
     } catch (error) {
         how.signal?.throwIfAborted();
         const large = isGraphtyError(error) && error.code === "E_TOO_LARGE";
@@ -453,5 +459,41 @@ export async function refetchSources(value: JsonObject, how: RefetchOptions): Pr
         return;
     }
 
-    await Promise.all(referenced.map((record) => refetch(record, how, own.get(record.id))));
+    // Sources over one file's bytes (one copy id at one address: one collection or sheet each)
+    // read them once, so they are refreshed together; a file picked for any of them serves them all.
+    const groups = new Map<string, JsonObject[]>();
+    for (const record of referenced) {
+        const key = sharedBytesKey(record);
+        if (key !== null) {
+            groups.set(key, [...(groups.get(key) ?? []), record]);
+        }
+    }
+    const reads = new Map<string, ReturnType<typeof bytesOf>>();
+    const readOf = (record: JsonObject): ReturnType<typeof bytesOf> => {
+        const key = sharedBytesKey(record);
+        if (key === null) {
+            return bytesOf(record, how);
+        }
+
+        let read = reads.get(key);
+        if (read === undefined) {
+            const members = groups.get(key) ?? [record];
+            read = bytesOf(members.find((member) => how.files?.[String(member.id)] !== undefined) ?? record, how);
+            reads.set(key, read);
+        }
+
+        return read;
+    };
+    await Promise.all(referenced.map((record) => refetch(record, how, own.get(record.id), readOf(record))));
+}
+
+/**
+ * What a referenced source's bytes are shared by: its copy id and its address.
+ * @param record - The record.
+ * @returns The key, or null for a source with no copy id or no `url` or `path`.
+ */
+function sharedBytesKey(record: JsonObject): string | null {
+    const origin = record.origin as JsonObject;
+    const where = [origin.url, origin.path].find((each): each is string => typeof each === "string");
+    return typeof origin.copy === "string" && where !== undefined ? `${origin.copy}\n${where}` : null;
 }

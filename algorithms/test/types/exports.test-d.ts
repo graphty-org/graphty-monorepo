@@ -42,6 +42,7 @@ import type {
     DirectionOptimizedBfsOptions,
     EdgeBetweennessOptions,
     EdgeScoresResult,
+    EdgeSetResult,
     EigenvectorOptions,
     EigenvectorResult,
     GirvanNewmanOptions,
@@ -76,6 +77,7 @@ import type {
     MstOptions,
     MstResult,
     NodePairs,
+    NodeSetResult,
     PageRankOptions,
     PageRankResult,
     PathOptions,
@@ -181,6 +183,8 @@ expectTypeOf(algorithms.findAllIsomorphisms).toEqualTypeOf<
 expectTypeOf(algorithms.isGraphIsomorphic).toEqualTypeOf<
     (s1: GraphSnapshot, s2: GraphSnapshot, options?: IsomorphismOptions) => IsomorphismResult
 >();
+expectTypeOf(algorithms.articulationPoints).toEqualTypeOf<(s: GraphSnapshot) => NodeSetResult>();
+expectTypeOf(algorithms.bridges).toEqualTypeOf<(s: GraphSnapshot) => EdgeSetResult>();
 expectTypeOf(algorithms.kCoreDecomposition).toEqualTypeOf<(s: GraphSnapshot) => CorenessResult>();
 expectTypeOf(algorithms.katzCentrality).toEqualTypeOf<(s: GraphSnapshot, o?: KatzOptions) => KatzResult>();
 expectTypeOf(algorithms.labelPropagation).toEqualTypeOf<
@@ -242,6 +246,9 @@ expectTypeOf(algorithms.stoerWagner).toEqualTypeOf<(s: GraphSnapshot, options?: 
 expectTypeOf(algorithms.modularity).toEqualTypeOf<
     (s: AdjacencyView, labels: U32, options?: ModularityOptions) => number
 >();
+expectTypeOf(algorithms.partitionAgreement).toEqualTypeOf<
+    (a: ArrayLike<string | number>, b: ArrayLike<string | number>) => algorithms.PartitionAgreement
+>();
 expectTypeOf(algorithms.kruskalMST).toEqualTypeOf<(s: GraphSnapshot, o?: MstOptions) => MstResult>();
 expectTypeOf(algorithms.primMST).toEqualTypeOf<(s: GraphSnapshot, o?: PrimOptions) => PrimResult>();
 expectTypeOf(algorithms.pageRank).toEqualTypeOf<(s: GraphSnapshot, o?: PageRankOptions) => PageRankResult>();
@@ -296,12 +303,14 @@ type Promoted =
     | "allSimplePaths"
     | "APSP_DEFAULT_MAX_NODES"
     | "arcSourceIn"
+    | "articulationPoints"
     | "astar"
     | "bellmanFord"
     | "betweennessCentrality"
     | "bidirectionalDijkstra"
     | "bipartiteFlowNetwork"
     | "breadthFirstSearch"
+    | "bridges"
     | "closenessCentrality"
     | "commonNeighborsForPairs"
     | "commonNeighborsPrediction"

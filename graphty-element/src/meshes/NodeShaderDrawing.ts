@@ -1077,7 +1077,8 @@ export class NodeShaderDrawing {
         const arrived = this.arrivals.get(node);
         if (arrived !== undefined && this.runtime !== null) {
             this.arrivals.delete(node);
-            entry.causedAt = arrived;
+            // A `Node` built long before its first shader (a batched row given one) keeps the later cause.
+            entry.causedAt = Math.max(entry.causedAt, arrived);
             data.stamp(entry.row, "changed", this.runtime.uniforms.now() - (performance.now() - arrived) / 1000);
         }
 

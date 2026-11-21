@@ -267,6 +267,8 @@ const DECLARED = [
     "edge.gradientColors",
     "edge.gradientStops",
     "edge.gradientKind",
+    "edge.strandColors",
+    "edge.strandSpacing",
     "edge.style",
     "edge.patternCount",
     "edge.waveAmplitude",
@@ -463,9 +465,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and twenty-four node channels and one hundred and eighty-four edge channels", () => {
+    it("splits into two hundred and twenty-four node channels and one hundred and eighty-six edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 224);
-        assert.strictEqual(channelsFor("edge").length, 184);
+        assert.strictEqual(channelsFor("edge").length, 186);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -689,8 +691,6 @@ describe("what a style editor needs to draw a row", () => {
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
         "edge.fadeEnd",
-        // Unset, the line is drawn in its own `edge.color`.
-        "edge.colorFrom",
         // Unset, a group reaches its largest member's radius past its members.
         "node.groupPadding",
         "node.groupPaddingRatio",
@@ -831,6 +831,8 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, a line is painted in its color.
         "edge.gradientColors",
         "edge.gradientStops",
+        // Unset, a line is one strand in its color.
+        "edge.strandColors",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
         "edge.arrowHeadTextLetterSize",

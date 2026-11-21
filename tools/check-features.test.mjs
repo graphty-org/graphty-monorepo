@@ -119,7 +119,6 @@ describe("check-features", () => {
                 "graphty/src/features.ts": appRows(`    { id: "usage-analytics", issue: 8818, since: "2026-11-18" },`),
                 "graphty/src/Card.tsx": `const on = useAppFeature("usage-analytics");\nappFeatureOn("nope");\n`,
                 "graphty/sites/canary.json": `{ "site": "canary", "features": ["usage-analytics"] }\n`,
-                "graphty/src/Chip.tsx": `const sends = useAnalyticsSends();\n`,
             }),
         );
         assert.deepEqual(found, [
@@ -128,7 +127,6 @@ describe("check-features", () => {
         assert.deepEqual(flags.find((f) => f.id === "usage-analytics")?.files, [
             "graphty/sites/canary.json",
             "graphty/src/Card.tsx",
-            "graphty/src/Chip.tsx",
         ]);
         assert.deepEqual(
             problems({
@@ -139,6 +137,21 @@ describe("check-features", () => {
             [
                 'graphty/src/features.ts: APP_FEATURES row "usage-analytics" names no tracking issue (issue: <number>)',
                 'graphty/src/features.ts: APP_FEATURES row "timeline" is also a graphty-element FEATURES row',
+            ],
+        );
+    });
+
+    it("fails where code or a site file still names one of the app's graduated experiments", () => {
+        assert.deepEqual(
+            problems({
+                "graphty/src/features.ts":
+                    "export const APP_FEATURES: readonly AppFeature[] = Object.freeze([]);\n" +
+                    'export const GRADUATED_FEATURES: readonly string[] = Object.freeze(["usage-analytics"]);\n',
+                "graphty/src/Card.tsx": `const on = appFeatureOn("usage-analytics");\n`,
+            }),
+            [
+                'graphty/src/Card.tsx:1: app gate names "usage-analytics", which is not in FEATURES or APP_FEATURES',
+                'graphty/src/Card.tsx:1: graduated feature "usage-analytics" is still named',
             ],
         );
     });

@@ -12,8 +12,10 @@ import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
 import { algorithmLog } from "../logging/algorithmLog";
+import type { SessionData } from "../session/data";
 import type { RunResult } from "../session/results";
 import type { Caveats } from "../session/runs/types";
+import { edgeSpaceOf } from "../session/scope/spaces";
 import { type InputColumns, sessionColumns } from "./input/columns";
 import type { InputOrientation, SimplifyPolicy } from "./input/derivedInputs";
 import {
@@ -22,6 +24,7 @@ import {
     type ElementScopedInput,
     orientationOf,
     runInputOf,
+    runScopeOf,
     type ScopedInputOptions,
     type ScopeInputDeclaration,
 } from "./input/ScopedInput";
@@ -387,6 +390,12 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
 
     /**
      * Creates a new algorithm instance
+     *
+     * Constructing a class directly is the element's internal door: it checks the values of the
+     * options the class declares but drops a name it does not declare, because the run path hands
+     * every class the parameters that only chose it (a shortest path's `method`). The checked door
+     * is `session.runs`, which refuses an undeclared name with `E_UNKNOWN_OPTION`, as does a class
+     * written with `defineAlgorithm`.
      * @param g - The graph to run the algorithm on
      * @param options - Optional configuration options (uses schema defaults if not provided)
      */
@@ -413,7 +422,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         this.#weightReading ??= resolveRunWeight(
             cls.weightMeaning,
             this.#weightAsked,
-            loadedWeightOf(this.graph),
+            loadedWeightOf(this.graph, this),
             this.graph.getDataManager().lastImport?.weights.attribute ?? null,
         );
         return this.#weightReading;
@@ -927,12 +936,27 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
  * else the one the last load read -- and its meaning. A bare test graph with no session reads the
  * last load's report. A graph with no load report has none.
  * @param graph - The graph.
+ * @param algorithm - The run's algorithm, whose scope the one weight rule is judged over.
  * @returns The weight, or null.
  */
-function loadedWeightOf(graph: Graph): LoadedWeightFact | null {
+function loadedWeightOf(graph: Graph, algorithm: object): LoadedWeightFact | null {
     const session = (graph as Partial<Pick<Graph, "getSession">>).getSession?.();
     if (session !== undefined) {
-        return session.data.loadedWeight();
+        // The one weight rule is judged over the edges the run reads (design 8.6).
+        const data = session.data as typeof session.data & Partial<Pick<SessionData, "loadedWeightOver">>;
+        const loaded = data.loadedWeightOver === undefined ? data.loadedWeight() : data.loadedWeightOver(null);
+        const scope = loaded?.mixed === undefined ? null : runScopeOf(algorithm);
+        if (scope === null || data.loadedWeightOver === undefined) {
+            return loaded;
+        }
+        const space = edgeSpaceOf(scope.graph);
+        const read = new Set<string>();
+        for (let index = 0; index < scope.graph.edgeCount; index++) {
+            if (maskTest(scope.resolution.edges, index)) {
+                read.add(space.idOf(index));
+            }
+        }
+        return data.loadedWeightOver((edge) => read.has(edge));
     }
 
     const attribute = graph.getDataManager().lastImport?.weights.attribute ?? null;

@@ -45,6 +45,7 @@ import {
     KEY_ATTRIBUTE,
     LABEL_ATTRIBUTE,
     PARENT_COLUMN,
+    PIN_ATTRIBUTE,
     POS_ATTRIBUTE,
     RANK_COLUMN,
     RANK_SET_COLUMN,
@@ -156,8 +157,8 @@ function isCharset(column: Column): boolean {
     return column.meta.name.toLowerCase() === "charset";
 }
 
-/** The roles DOT has a slot for (the label attribute, key, ports, clusters); every other role is reported. */
-const KEPT_ROLES: ReadonlySet<string> = new Set(["label", "id", "sourcePort", "targetPort", "parent"]);
+/** The roles DOT has a slot for (the label attribute, key, ports, clusters, `pin`); every other role is reported. */
+const KEPT_ROLES: ReadonlySet<string> = new Set(["label", "id", "sourcePort", "targetPort", "parent", "fixed"]);
 
 /** The column name the importer gives each mapped role on re-import. */
 const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({
@@ -167,6 +168,7 @@ const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({
     targetPort: TARGET_PORT_COLUMN,
     parent: PARENT_COLUMN,
     position: POS_ATTRIBUTE,
+    fixed: PIN_ATTRIBUTE,
 });
 
 const CAPABILITIES: ExportCapabilities = capabilities({
@@ -537,6 +539,8 @@ class ExportPlan {
 
     /** The node and edge label role columns, written under `label` whatever their name. */
     private readonly nodeLabel: Column | null;
+    /** The node fixed role column, written as Graphviz's `pin`. */
+    private readonly nodeFixed: Column | null;
 
     private readonly edgeLabel: Column | null;
 
@@ -589,6 +593,7 @@ class ExportPlan {
         this.sourcePort = edges.byRole("sourcePort");
         this.targetPort = edges.byRole("targetPort");
         this.nodeLabel = nodes.byRole("label");
+        this.nodeFixed = nodes.byRole("fixed");
         this.edgeLabel = edges.byRole("label");
         this.nodeColumns = [...nodes].filter((c) => this.writesNodeColumn(c));
         this.edgeColumns = [...edges].filter((c) => this.writesEdgeColumn(c));
@@ -708,6 +713,10 @@ class ExportPlan {
         }
         if (name === POS_ATTRIBUTE && role !== "position") {
             this.clash("node", name, "the position role is written as pos");
+            return false;
+        }
+        if (name === PIN_ATTRIBUTE && this.nodeFixed !== null && this.nodeFixed !== column) {
+            this.clash("node", name, "the fixed role is written as pin");
             return false;
         }
         return this.labelFree("node", column, this.nodeLabel);
@@ -1087,12 +1096,15 @@ class ExportPlan {
     }
 
     /**
-     * The attribute a column is written as: `label` for a node or edge label role column (the
-     * importer gives that attribute the role back), the column name otherwise.
+     * The attribute a column is written as: `label` for a node or edge label role column and `pin` for the node
+     * fixed role column (the importer gives those attributes the role back), the column name otherwise.
      * @param column - the column
      * @returns the attribute name
      */
     private attributeName(column: Column): string {
+        if (column === this.nodeFixed) {
+            return PIN_ATTRIBUTE;
+        }
         return column === this.nodeLabel || column === this.edgeLabel ? LABEL_ATTRIBUTE : column.meta.name;
     }
 

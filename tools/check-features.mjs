@@ -56,7 +56,8 @@ export function readRegistry(text, rowsName = "FEATURES") {
 }
 
 // The app's gates named for what they decide rather than for their experiment, with the id each reads.
-const GATE_ALIASES = { analyticsSends: "usage-analytics", useAnalyticsSends: "usage-analytics" };
+// Empty while no app experiment has one; a name added here is matched by the references below.
+const GATE_ALIASES = {};
 
 // Every place a file names an experiment id: [{ id, line, kind }].
 function references(file, text) {
@@ -72,7 +73,8 @@ function references(file, text) {
     add(/\bfeatures\.has\(\s*["']([^"']+)["']/g, "features.has call");
     add(/\b(?:appFeatureOn|useAppFeature)\(\s*["']([^"']+)["']/g, "app gate");
     // Gates that read an app experiment under a name of their own: whoever retires the id finds them too.
-    add(/\b(useAnalyticsSends|analyticsSends)\(/g, "app gate", (m) => [GATE_ALIASES[m[1]]]);
+    for (const [name, id] of Object.entries(GATE_ALIASES))
+        add(new RegExp(String.raw`\b${name}\(`, "g"), "app gate", () => [id]);
     if (/\.stories\.[cm]?[jt]sx?$/.test(file))
         add(/\bfeatures:\s*\[([^\]]*)\]/g, "story features parameter", (m) => quoted(m[1]));
     if (file.startsWith("graphty/sites/") && file.endsWith(".json")) {
@@ -168,8 +170,8 @@ export function checkFeatures(root) {
     const problems = [];
     const read = (file) => (existsSync(join(root, file)) ? readFileSync(join(root, file), "utf8") : "");
     const element = readRegistry(read(REGISTRY));
-    const app = readRegistry(read(APP_REGISTRY), "APP_FEATURES").rows;
-    const { graduated } = element;
+    const { rows: app, graduated: appGraduated } = readRegistry(read(APP_REGISTRY), "APP_FEATURES");
+    const graduated = [...element.graduated, ...appGraduated];
     const rows = [...element.rows, ...app];
     const declared = new Set(rows.map((r) => r.id));
     const files = new Map(rows.map((r) => [r.id, new Set()]));

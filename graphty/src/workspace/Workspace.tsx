@@ -6,7 +6,6 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { flushSync } from "react-dom";
 
 import { bootSignal } from "../bootSignal";
-import { appFeatureOn } from "../features";
 import { APP_CALLER_KEY } from "../lib/analytics";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
@@ -175,14 +174,11 @@ export function Workspace({
                   }),
             ...(author === "" || session.config.author === author ? {} : { author }),
         };
-        // With usage analytics on, the starting choices are one step marked as the app's own, so
-        // they are not counted as the reader's; off, they are written as before.
+        // The starting choices are one step marked as the app's own, so they are not counted as the reader's.
         const writeDefaults = (): Promise<unknown> =>
-            appFeatureOn("usage-analytics")
-                ? session.transaction("Starting settings", (tx) => tx.config.set(patch), {
-                      callerKey: APP_CALLER_KEY,
-                  })
-                : session.config.set(patch);
+            session.transaction("Starting settings", (tx) => tx.config.set(patch), {
+                callerKey: APP_CALLER_KEY,
+            });
         const defaults = starting.then(() =>
             project?.id === startProjectId || Object.keys(patch).length === 0 ? undefined : writeDefaults(),
         );
@@ -468,7 +464,7 @@ export function Workspace({
             {/* One corner for the usage data question (on whatever page a first visit lands, until it
                 is answered) and a short survey, only while usage data is shared (usage-analytics.md
                 section 4.4): stacked, so neither covers or hides the other. Where the page sends PostHog
-                nothing (the usage-analytics experiment off, or a site with no PostHog ids), the
+                nothing (a site with no PostHog ids, or off the site's own host), the
                 question alone, with no survey, in a plain wrapper that draws nothing: the card keeps
                 its place in the tree when site.json switches PostHog on, so it is not remounted and
                 keeps its answer line and focus. */}

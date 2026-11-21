@@ -208,7 +208,7 @@ export const GENERATOR_CATALOG: readonly GeneratorDescriptor[] = Object.freeze([
         "A ring of near-complete groups, each with one edge rewired to its neighbor group.",
         [int("cliques", "Cliques", 8, 2), int("size", "Clique size", 6, 2)],
     ),
-    gen("cycle", "Cycle", "Nodes joined in a single ring.", [nodes(30)]),
+    gen("cycle", "Cycle", "Nodes joined in a single ring.", [nodes(30, 3)]),
     gen(
         "degree-corrected-sbm",
         "Degree-corrected block model",
@@ -233,7 +233,7 @@ export const GENERATOR_CATALOG: readonly GeneratorDescriptor[] = Object.freeze([
         "duplication-divergence",
         "Duplication-divergence",
         "A network grown by copying nodes and losing some copied edges, a model of protein interactions.",
-        [nodes(100, 2), num("retention", "Edge retention", 0.4, 0, 1), SEED],
+        [nodes(100, 2), num("retention", "Edge retention", 0.4, 0.01, 1), SEED],
     ),
     gen("empty", "Empty graph", "Nodes with no edges at all.", [nodes(20, 0)]),
     gen(
@@ -358,10 +358,10 @@ export const GENERATOR_CATALOG: readonly GeneratorDescriptor[] = Object.freeze([
         ],
     ),
     gen("lollipop", "Lollipop", "A complete graph with a path hanging from it.", [
-        int("cliqueSize", "Clique size", 8, 1),
+        int("cliqueSize", "Clique size", 8, 2),
         int("pathLength", "Path length", 10, 0),
     ]),
-    gen("mobius-ladder", "Mobius ladder", "A ladder bent into a ring with a half twist.", [nodes(20, 4)]),
+    gen("mobius-ladder", "Mobius ladder", "A ladder bent into a ring with a half twist.", [nodes(20, 3)]),
     gen("named", "Named graph", "A famous small graph from graph theory, chosen by name.", [
         { name: "name", plainName: "Graph", type: "choice", default: "frucht", choices: NAMED_GRAPH_NAMES },
     ]),
@@ -479,7 +479,7 @@ export const GENERATOR_CATALOG: readonly GeneratorDescriptor[] = Object.freeze([
         "Random points joined with a probability that falls with their distance, a model of the Internet.",
         [nodes(200, 0), num("alpha", "Distance scale", 0.05, 0.0001), prob("beta", "Density", 1), SEED],
     ),
-    gen("wheel", "Wheel", "A cycle with a hub joined to every node of it.", [nodes(20)]),
+    gen("wheel", "Wheel", "A cycle with a hub joined to every node of it.", [nodes(20, 4)]),
     gen("wilson-maze", "Maze", "A random spanning tree of a grid: a perfect maze.", [
         int("rows", "Rows", 12, 1),
         int("cols", "Columns", 12, 1),

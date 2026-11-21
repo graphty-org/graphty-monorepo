@@ -20,6 +20,7 @@ import { expandedGraph } from "../../groups";
 import { ISSUES_VALUE, type IssueState } from "../../issues";
 import { type LoadFacts, redactedParams } from "../../sources/member";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex } from "../../sources/provenance";
+import { refusalOf } from "../../sources/references";
 import type { EdgeRecord, GraphSession, LoadedSource, NodeRecord } from "../../types";
 import { projectMemory } from "../memory";
 import type {
@@ -1659,9 +1660,15 @@ function drawnOf(session: GraphSession, key: string): JsonObject {
  * @returns The origin.
  */
 function networkOrigin(source: ModelSource, model: DataModel, copy: string): JsonObject {
-    const live = model.session.data.loads().find((record) => record.key === source.load.key);
+    // A load the session made is recorded under its own key; one an open restored, under its key.
+    const key = source.load.loadKey ?? source.load.key;
+    const live = model.session.data.loads().find((record) => record.key === key);
     const read = memoryOf(model.session).origins.get(source.id);
-    if (live === undefined && read !== undefined) {
+    // The origin as read, while the session holds no record of its own or the one the open
+    // restored from its ledger, unchanged.
+    const restored =
+        live !== undefined && isPlainObject(read?.ledger) && canonicalJson(read.ledger) === canonicalJson({ ...live });
+    if (read !== undefined && (live === undefined || restored)) {
         return { ...read, copy };
     }
 
@@ -1673,7 +1680,10 @@ function networkOrigin(source: ModelSource, model: DataModel, copy: string): Jso
         ...(slot === undefined ? {} : { credentials: { slot } }),
         ...(etag === undefined ? {} : { etag }),
         ...(lastModified === undefined ? {} : { lastModified }),
-        ...(live === undefined ? {} : { ledger: jsonSafe({ ...live, key: source.id }) }),
+        // Its params as a file keeps them, without what marks a credential.
+        ...(live === undefined
+            ? {}
+            : { ledger: jsonSafe({ ...live, config: redactedParams(live.config), key: source.id }) }),
     };
 }
 
@@ -2174,11 +2184,19 @@ function embedReason(source: ModelSource, model: DataModel): SourceEmbeddedReaso
     }
 
     const tables = Object.keys(source.load.mapping?.tables ?? {}).length;
-    // A CSV this session read whose roles were neither named nor read by its header columns has no
+    // A table this session read whose roles were neither named nor read by its header columns has no
     // spelling. ponytail: one opened from an embedded copy keeps the copy's role names, right only
     // for a `source,target` header; keep the header columns in the embedded record to know them.
+    // A JSON collection a pointer names is a table too; a pointer to an object, read whole, has no
+    // read columns either. ponytail: that one is embedded with reason `mapping`; record the shape read
+    // on the load to reference it.
+    const table =
+        source.load.type === "csv" ||
+        (source.load.type === "json" &&
+            typeof source.load.config?.pointer === "string" &&
+            source.load.config.pointer !== "");
     const unnamed =
-        source.load.type === "csv" &&
+        table &&
         tables === 0 &&
         !memoryOf(model.session).origins.has(source.id) &&
         readByOf(model.session, source.load.key) === undefined;
@@ -2314,6 +2332,17 @@ function checkChoices(model: DataModel, choices: SourceChoices): void {
     }
 }
 
+/**
+ * Whether the session keeps a load as a reference (`session.data.setCopy`, the `source-references`
+ * experiment): a save that asks nothing else writes it referenced.
+ * @param session - The session.
+ * @param key - The load's key.
+ * @returns True when it does.
+ */
+function referencedInSession(session: GraphSession, key: string): boolean {
+    return session.data.copies().some((each) => each.source === key && each.copy === "reference");
+}
+
 /** The kinds an open reads again (spec 8.3): the others are embedded when asked to be referenced. */
 const REFETCHED_KINDS = new Set(["file", "url"]);
 
@@ -2345,12 +2374,33 @@ function storageOf(
 
     const memory = memoryOf(model.session);
     const kind = kindOfSource(source, memory);
+    // Why the session's own source references refuse the load (`session.data.copies()`): a source
+    // read from a file keeps what that file said of it.
+    const { load } = source;
+    const refusal = memory.origins.has(source.id)
+        ? undefined
+        : refusalOf(
+              load,
+              factsOf(model.session, load.key),
+              model.session.data.loads().find((record) => record.key === load.loadKey),
+          );
     if (kind === "derived") {
+        if (refusal === "join") {
+            problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id, reason: refusal } });
+        }
+
         return "embedded";
     }
 
     if (kind === "file" && path === undefined && !handled) {
-        problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id, reason: "file" } });
+        const reason = refusal === "inline" ? refusal : "file";
+        problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id, reason } });
+        return "embedded";
+    }
+
+    // A file the saver names by path or handle can be referenced, whatever the session knows of it.
+    if (refusal !== undefined && refusal !== "file" && refusal !== "inline") {
+        problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id, reason: refusal } });
         return "embedded";
     }
 
@@ -2420,7 +2470,7 @@ function sourceRecordsOf(
 
         // A source read by reference stays one unless the caller asks otherwise (spec 8.1 rule 5).
         const memory = memoryOf(model.session);
-        const read = memory.referenced.has(source.id);
+        const read = memory.referenced.has(source.id) || referencedInSession(model.session, source.load.key);
         const asked = chosenFor(choices.embed, source) ?? (read ? "referenced" : "embedded");
         const { path, handle, copyId } = locatorOf(source, model, choices);
         const storage = storageOf(source, model, asked, path, problems, handle !== undefined);
@@ -2683,7 +2733,10 @@ export function sourceChoicesOf(
             name: load.name ?? load.fileName ?? source.id,
             kind,
             ...(load.type === undefined ? {} : { format: load.type }),
-            storage: memory.referenced.has(source.id) || neverFetched ? "referenced" : "embedded",
+            storage:
+                memory.referenced.has(source.id) || neverFetched || referencedInSession(session, load.key)
+                    ? "referenced"
+                    : "embedded",
             referable: neverFetched || asked === "referenced",
             ...(problems.length === 0 ? {} : { refused: problems[0] }),
             nodes: source.nodes.length,

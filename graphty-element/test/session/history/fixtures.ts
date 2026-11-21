@@ -12,6 +12,7 @@
  */
 
 import type { LayerSpec } from "../../../src/catalog/types";
+import { pageDefaultFeatures, setDefaultFeatures } from "../../../src/features/resolve";
 import type { SessionCommand } from "../../../src/session/planning";
 import type { GraphSession } from "../../../src/session/types";
 
@@ -30,7 +31,341 @@ export interface RoundTripFixture {
      * the state after them.
      */
     readonly before?: (session: GraphSession) => Promise<void>;
+    /** The experiments the command needs switched on; it is refused while they are off. */
+    readonly features?: readonly string[];
 }
+
+/**
+ * Run a fixture's case with the experiments it needs switched on, and put the page default back.
+ * @param fixture - The fixture.
+ * @param run - The case.
+ * @returns What the case returns.
+ */
+export async function withFixtureFeatures<T>(fixture: RoundTripFixture, run: () => Promise<T>): Promise<T> {
+    const before = pageDefaultFeatures();
+    if (fixture.features !== undefined) {
+        setDefaultFeatures([...before, ...fixture.features]);
+    }
+    try {
+        return await run();
+    } finally {
+        setDefaultFeatures(before);
+    }
+}
+
+/** A source of the source-steps experiment, its rows as read kept as copy `fixture-copy`. */
+const STEPS_SOURCE = {
+    id: "src_fixture",
+    origin: { copy: "fixture-copy" },
+    mapping: { nodes: { key: "id" }, edges: { source: "source", target: "target" } },
+    kind: "file",
+    label: "steps.csv",
+    tables: [],
+} as const;
+
+/** The rows as read of {@link STEPS_SOURCE}. */
+const STEPS_COPIES = {
+    "fixture-copy": {
+        nodes: [{ id: "s1", name: "one" }, { id: "s2" }],
+        edges: [{ source: "s1", target: "s2" }],
+    },
+} as const;
+
+/** The step adding {@link STEPS_SOURCE}. */
+const STEPS_ADD: SessionCommand = {
+    op: "data.steps-set",
+    edit: { kind: "add", source: STEPS_SOURCE },
+    copies: STEPS_COPIES,
+};
+
+/**
+ * Add {@link STEPS_SOURCE} before a fixture.
+ * @param session - The session.
+ */
+async function stepsSource(session: GraphSession): Promise<void> {
+    await session.execute(STEPS_ADD);
+}
+
+/** A second source, staged: node rows meeting {@link STEPS_SOURCE}'s keys. */
+const STAGED_SOURCE = {
+    id: "src_b",
+    origin: { copy: "fixture-copy-b" },
+    mapping: { nodes: { key: "id" } },
+    kind: "file",
+    label: "b.csv",
+    tables: [],
+} as const;
+
+/**
+ * Add {@link STEPS_SOURCE} and stage {@link STAGED_SOURCE} before a fixture.
+ * @param session - The session.
+ */
+async function stepsAndStaged(session: GraphSession): Promise<void> {
+    await stepsSource(session);
+    await session.execute({
+        op: "data.steps-set",
+        edit: { kind: "add", source: STAGED_SOURCE, staged: true },
+        copies: { "fixture-copy-b": { nodes: [{ id: "s1", name: "uno" }] } },
+    });
+}
+
+/**
+ * One act's fixture.
+ * @param variant - The act.
+ * @param act - The act's command payload.
+ * @param before - What runs first.
+ * @returns The fixture.
+ */
+function actFixture(
+    variant: string,
+    act: Extract<SessionCommand, { op: "data.steps-set" }>["edit"],
+    before: (session: GraphSession) => Promise<void> = stepsSource,
+): RoundTripFixture {
+    return {
+        name: `data.steps-set: the ${variant} act`,
+        variant,
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        before,
+        command: { op: "data.steps-set", edit: act },
+    };
+}
+
+/** The `data.steps-set` fixtures: one per edit kind and act. */
+const STEPS_FIXTURES: readonly RoundTripFixture[] = [
+    actFixture(
+        "merge",
+        {
+            kind: "act",
+            act: { act: "merge", options: { from: { source: "src_b", field: "id" }, into: { source: "src_fixture" } } },
+        },
+        stepsAndStaged,
+    ),
+    actFixture(
+        "connect",
+        {
+            kind: "act",
+            act: {
+                act: "connect",
+                options: { from: { source: "src_b", field: "id" }, into: { source: "src_fixture" } },
+            },
+        },
+        stepsAndStaged,
+    ),
+    actFixture("extract", {
+        kind: "act",
+        act: { act: "extract", source: "src_fixture", options: { column: "target", space: "other" } },
+    }),
+    actFixture("move-columns", {
+        kind: "act",
+        act: { act: "move-columns", source: "src_fixture", options: { columns: ["target"], to: "source" } },
+    }),
+    actFixture("rename", {
+        kind: "act",
+        act: { act: "rename", rename: { source: "src_fixture", table: "nodes", from: "name", to: "label" } },
+    }),
+    actFixture("pick", {
+        kind: "act",
+        act: {
+            act: "pick",
+            id: "edit_p",
+            ref: { space: "source:src_fixture", key: "s1" },
+            column: "name",
+            source: "src_fixture",
+        },
+    }),
+    actFixture("remove-step", { kind: "act", act: { act: "remove-step", index: 0 } }),
+    actFixture("set-step-off", { kind: "act", act: { act: "set-step-off", index: 0, off: true } }),
+    actFixture("add-staged", { kind: "act", act: { act: "add-staged", source: "src_b" } }, stepsAndStaged),
+    {
+        name: "data.steps-set: a source added with join.add",
+        variant: "add",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        command: STEPS_ADD,
+    },
+    {
+        name: "data.steps-set: the whole value set, a source and its step",
+        variant: "set",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        command: {
+            op: "data.steps-set",
+            edit: {
+                kind: "set",
+                value: {
+                    sources: { [STEPS_SOURCE.id]: STEPS_SOURCE },
+                    steps: [{ op: "join.add", source: STEPS_SOURCE.id }],
+                    types: [],
+                    reader: [],
+                },
+            },
+            copies: STEPS_COPIES,
+        },
+    },
+    {
+        name: "data.steps-set: a saved value restored over the graph a file embedded",
+        variant: "restore",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        command: {
+            op: "data.steps-set",
+            edit: {
+                kind: "restore",
+                value: {
+                    sources: { [STEPS_SOURCE.id]: STEPS_SOURCE },
+                    steps: [{ op: "join.add", source: STEPS_SOURCE.id }],
+                    types: [],
+                    reader: [],
+                    build: "01JZ0000000000000000000003",
+                },
+            },
+            copies: STEPS_COPIES,
+        },
+    },
+    {
+        name: "data.steps-set: reader edits add a node and an edge and edit a built node",
+        variant: "reader",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        before: stepsSource,
+        command: {
+            op: "data.steps-set",
+            edit: {
+                kind: "reader",
+                ops: [
+                    { id: "edit_1", op: "add", node: { space: "source:reader", key: "s9" }, columns: { id: "s9" } },
+                    {
+                        id: "edit_2",
+                        op: "add-edge",
+                        edge: { load: "reader", key: "edit_2" },
+                        from: { space: "source:reader", key: "s9" },
+                        to: { space: "source:src_fixture", key: "s1" },
+                    },
+                    {
+                        id: "edit_3",
+                        op: "edit",
+                        node: { space: "source:src_fixture", key: "s2" },
+                        column: "name",
+                        value: "two",
+                    },
+                ],
+            },
+        },
+    },
+    {
+        name: "data.steps-set: a reader edit taken back",
+        variant: "remove-edit",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        before: async (session) => {
+            await stepsSource(session);
+            await session.execute({
+                op: "data.steps-set",
+                edit: {
+                    kind: "reader",
+                    ops: [{ id: "edit_r", op: "remove", node: { space: "source:src_fixture", key: "s1" } }],
+                },
+            });
+        },
+        command: { op: "data.steps-set", edit: { kind: "remove-edit", id: "edit_r" } },
+    },
+    {
+        name: "data.steps-set: a source removed with its step",
+        variant: "remove-source",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        before: stepsSource,
+        command: { op: "data.steps-set", edit: { kind: "remove-source", id: STEPS_SOURCE.id } },
+    },
+    {
+        name: "data.steps-set: a source's copy swapped for newer rows",
+        variant: "replace-copy",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        before: stepsSource,
+        command: {
+            op: "data.steps-set",
+            edit: { kind: "replace-copy", id: STEPS_SOURCE.id, copy: "fixture-copy-2", label: "newer.csv" },
+            copies: {
+                "fixture-copy-2": {
+                    nodes: [{ id: "s1", name: "uno" }, { id: "s3" }],
+                    edges: [{ source: "s1", target: "s3" }],
+                },
+            },
+        },
+    },
+    {
+        name: "data.steps-set: a reader edit whose source moved, kept",
+        variant: "settle-edit",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        before: async (session) => {
+            await stepsSource(session);
+            await session.execute({
+                op: "data.steps-set",
+                edit: {
+                    kind: "reader",
+                    ops: [
+                        {
+                            id: "edit_s",
+                            op: "edit",
+                            node: { space: "source:src_fixture", key: "s1" },
+                            column: "name",
+                            value: "mine",
+                            was: "one",
+                        },
+                    ],
+                },
+            });
+            await session.execute({
+                op: "data.steps-set",
+                edit: { kind: "replace-copy", id: STEPS_SOURCE.id, copy: "fixture-copy-3" },
+                copies: {
+                    "fixture-copy-3": {
+                        ...STEPS_COPIES["fixture-copy"],
+                        nodes: [{ id: "s1", name: "uno" }, { id: "s2" }],
+                    },
+                },
+            });
+        },
+        command: { op: "data.steps-set", edit: { kind: "settle-edit", id: "edit_s", choice: "keep" } },
+    },
+    {
+        name: "data.steps-set: a held step given the column that took the vanished one's place",
+        variant: "resolve-step",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        before: async (session) => {
+            await stepsSource(session);
+            await session.execute({
+                op: "data.steps-set",
+                edit: { kind: "replace-copy", id: STEPS_SOURCE.id, copy: "fixture-copy-4" },
+                copies: {
+                    "fixture-copy-4": {
+                        nodes: [{ ident: "s1", name: "one" }, { ident: "s2" }],
+                        edges: [{ source: "s1", target: "s2" }],
+                    },
+                },
+            });
+        },
+        command: { op: "data.steps-set", edit: { kind: "resolve-step", index: 0, column: "ident" } },
+    },
+    {
+        name: "data.steps-set: a type declared",
+        variant: "declare-type",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        before: stepsSource,
+        command: {
+            op: "data.steps-set",
+            edit: {
+                kind: "declare-type",
+                entry: { name: "thing", kind: "node", rules: [{ source: "src_fixture" }] },
+            },
+        },
+    },
+];
 
 /** Both twins run every style and visibility fixture. */
 const BOTH = ["session", "renderer"] as const;
@@ -277,6 +612,7 @@ export const FIXTURES: readonly RoundTripFixture[] = [
             },
         },
     },
+    ...STEPS_FIXTURES,
     {
         name: "data.expand: a fetched neighbourhood, one edge of it already held",
         tags: BOTH,
@@ -533,6 +869,13 @@ export const FIXTURES: readonly RoundTripFixture[] = [
             await session.styles.moveRow("fixture-a_1", { parent: folder.id });
         },
         command: { op: "style.patch", action: "deleteRow", id: "folder:fixture-folder_1" },
+    },
+    {
+        name: "style.patch duplicateRow",
+        variant: "duplicateRow",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: { op: "style.patch", action: "duplicateRow", id: "fixture-a_1" },
     },
     {
         name: "style.patch addDefaultRows",

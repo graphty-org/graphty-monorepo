@@ -25,7 +25,8 @@ function labelled(name: string): GraphSnapshot {
 // Every W_COLUMN_NAME_CHANGED note check() makes must name a column that really is renamed when the
 // export is read back by the same format's importer (issue #962: CX2 reported the edge label).
 describe("W_COLUMN_NAME_CHANGED names only columns that are renamed on re-import", () => {
-    for (const format of GRAPH_FORMATS as readonly FormatName[]) {
+    // a workbook is read only
+    for (const format of GRAPH_FORMATS.filter((name) => name !== "xlsx") as readonly FormatName[]) {
         for (const name of ["label", "title"]) {
             it(`${format}, label columns named "${name}"`, async () => {
                 const snapshot = labelled(name);

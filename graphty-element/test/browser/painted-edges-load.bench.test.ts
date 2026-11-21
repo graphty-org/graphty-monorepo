@@ -1,7 +1,7 @@
 /**
  * @file What it costs to load and settle a graph whose edges no row line can draw (colored arrows), on both render
  * paths: the gephi-worldcup style fidelity sample (736 labeled nodes, 9,228 edges in 228 colors) loaded as its
- * fidelity story loads it, and a generated graph of 750 labeled nodes and 3,000 colored arrows.
+ * fidelity story loads it, and a generated graph of 3,000 labeled nodes and 12,000 colored arrows.
  *
  * Runs in the `browser-bench` project (npx vitest run --project=browser-bench
  * test/browser/painted-edges-load.bench.test.ts), never under coverage. Each case prints, as `[painted-edges-load]`:
@@ -25,11 +25,11 @@ import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { createSampleElement, importSample, sampleData } from "../fidelity/load-sample";
 
 const SAMPLE = "../graph-io/test/corpus/styles/json/fidelity/gephi-worldcup.json.gz";
-// Small on purpose: the bound below separates the fixed code (a handful of meshes disposed) from the old defect
-// (about three per edge) at any size, while drawing the labels costs more than linearly on the software renderer CI
-// uses. At 3,000 nodes and 12,000 arrows this case took 130 seconds per path and pushed the Performance Benchmarks
-// job past its time budget (issue #9217); at this size it takes a few seconds.
-const GENERATED = { nodes: 750, edges: 3000 };
+// Large on purpose: 3,000 labeled nodes are more than ten of the label texture sweep's 256-a-frame steps. The sweep
+// once took frames in proportion to the labels, each drawing the whole graph, so this case took 130 seconds per path
+// on the software renderer CI uses and was cut to 750 nodes (issue #9217); now the sweep takes the same frames at any
+// size and the case settles in about the time its frames take to draw (issue #9364).
+const GENERATED = { nodes: 3000, edges: 12000 };
 
 afterEach(() => {
     document.body.replaceChildren();

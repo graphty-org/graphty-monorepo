@@ -8,7 +8,17 @@
 // lies over that pull-back). The reticle, shockwave and glow are compiled in setup on layers matching
 // nothing, and the hit points them at their nodes, so their first visible frame is the shader (a
 // reticle added at the hit drew one frame of a flat mint square).
-import { addLayer, bankIntro, CINE_CLIP, edgesAmong, noCursor, onElement, shade, tween } from "../r4-intro/cine.js";
+import {
+    addLayer,
+    bankIntro,
+    CINE_CLIP,
+    dimAll,
+    edgesAmong,
+    noCursor,
+    onElement,
+    shade,
+    tween,
+} from "../r4-intro/cine.js";
 import { FLAT, MARK, RING } from "../r4-intro-hunt/hunt.js";
 import { rig, shapeLook } from "../r4-intro-shape/shape.js";
 
@@ -100,20 +110,7 @@ export default {
             set: { "edge.color": "#ff6a3d", "edge.width": 1 },
         });
         await aim(h, s.glow, ring);
-        const dim = {
-            nodes: await addLayer(h, {
-                name: "Dim nodes",
-                target: "node",
-                selector: { match: "everything" },
-                set: { "node.opacity": 1 },
-            }),
-            edges: await addLayer(h, {
-                name: "Dim edges",
-                target: "edge",
-                selector: { match: "everything" },
-                set: { "edge.opacity": 1 },
-            }),
-        };
+        const dim = await dimAll(h);
         // the ring on top of the dimming
         await addLayer(h, {
             name: "Ring lit",

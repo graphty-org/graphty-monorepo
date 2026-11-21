@@ -56,6 +56,18 @@ export async function openFile(page, file) {
 }
 
 /**
+ * Close the data table if it is open: it opens with a new file and takes the lower half of the canvas.
+ * @param page - the Playwright page
+ */
+export async function closeTable(page) {
+    const table = page.getByRole("button", { name: "Table", exact: true, pressed: true });
+    if (await table.isVisible()) {
+        await table.click();
+        await page.getByRole("button", { name: "Table", exact: true, pressed: false }).waitFor();
+    }
+}
+
+/**
  * The opened graph laid out flat and framed, as most clips start (setup only): the data table closed, Mode 2D, the layout
  * left to come to rest (the project's own seed gives the same drawing every take), Fit, then one
  * wheel notch out so the lowest nodes clear the canvas toolbar. A clip starts on this settled
@@ -63,12 +75,7 @@ export async function openFile(page, file) {
  * @param page - the Playwright page
  */
 export async function ready2D(page) {
-    // the data table opens with a new file and takes the lower half of the canvas: close it
-    const table = page.getByRole("button", { name: "Table", exact: true, pressed: true });
-    if (await table.isVisible()) {
-        await table.click();
-        await page.getByRole("button", { name: "Table", exact: true, pressed: false }).waitFor();
-    }
+    await closeTable(page);
     await mode(page, "2D");
     await settled(page);
     await camera(page, "Fit");

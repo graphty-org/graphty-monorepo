@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { OUT } from "../../lib/env.mjs";
 import {
     addLayer,
+    dimAll,
     backdrop,
     bankIntro,
     camera,
@@ -155,20 +156,7 @@ export async function lockRing(h, ring) {
     }
     await h.pause(300);
     h.mark("dark");
-    const dim = {
-        nodes: await addLayer(h, {
-            name: "Dim nodes",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.opacity": 1 },
-        }),
-        edges: await addLayer(h, {
-            name: "Dim edges",
-            target: "edge",
-            selector: { match: "everything" },
-            set: { "edge.opacity": 1 },
-        }),
-    };
+    const dim = await dimAll(h);
     await addLayer(h, {
         name: "Ring",
         target: "node",

@@ -2,24 +2,13 @@
 // record.mjs does not take it for a clip. Builds on the cinematic helpers (../r4-intro/cine.js):
 // no cursor, the camera flown through graphty-element's public API, light from shader styles.
 import { ALZ } from "../r2-2-alzheimer/alz.js";
+import { closeTable } from "../../lib/app.mjs";
 import { analyze } from "../r2-1-fraud-ring/bank.js";
 import { hideLegend } from "../r2-5b-and-more/more.js";
 import { canvasColor, everythingSize, onElement, shade } from "../r4-intro/cine.js";
 
 /** The reticle's color: the speck the network shrinks to, and the airport the globe opens on. */
 export const SPECK = "#5cffb0";
-
-/**
- * Close the data table if it opened with the graph (setup only).
- * @param page - the Playwright page
- */
-export async function closeTable(page) {
-    const table = page.getByRole("button", { name: "Table", exact: true, pressed: true });
-    if (await table.isVisible()) {
-        await table.click();
-        await page.getByRole("button", { name: "Table", exact: true, pressed: false }).waitFor();
-    }
-}
 
 /**
  * Wait until the running layout has come to rest (session.layout.motion is "settled"), checked

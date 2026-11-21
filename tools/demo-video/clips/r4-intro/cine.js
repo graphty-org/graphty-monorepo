@@ -242,6 +242,26 @@ export async function backdrop(h, { color = DARK, shader, params } = {}) {
 export const addLayer = (h, spec) => onElement(h, async (el, s) => (await el.session.styles.add(s)).id, spec);
 
 /**
+ * Two layers over every node and every edge at full opacity, to fade down later (a dimmed backdrop).
+ * @param h - the hand
+ * @returns the layer ids, { nodes, edges }
+ */
+export const dimAll = async (h) => ({
+    nodes: await addLayer(h, {
+        name: "Dim nodes",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.opacity": 1 },
+    }),
+    edges: await addLayer(h, {
+        name: "Dim edges",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.opacity": 1 },
+    }),
+});
+
+/**
  * Animate a layer's numeric channels from one set of values to another, in the page, about 15
  * steps a second (session.styles.update with the whole `set` each step, so tween only layers whose
  * every channel it names, such as addLayer's). Resolves when the last value is written.

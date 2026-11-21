@@ -12,14 +12,13 @@ import React, { useState } from "react";
 
 import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
-import { cardSummary } from "../cardLines";
 import { SourcePicker } from "../LabelSection";
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
-import { type DataBinding, type Line, lineIn, propose, sourceName, textBinding, writeIn } from "../row";
+import { type DataBinding, type Line, lineIn, propose, textBinding, writeIn } from "../row";
 import { ValueField } from "../ValueField";
-import { failureWords, positionWord } from "../words";
-import { entryIds, entryOf, entryWords, listChannel, writeEntry } from "./labelEntries";
+import { failureWords } from "../words";
+import { entryOf, entryWords, listChannel, writeEntry } from "./labelEntries";
 import { LabelFieldLine, type LabelLineContext, type LabelPatch } from "./LabelFieldLine";
 import { LabelPopover } from "./LabelPopover";
 import {
@@ -31,41 +30,12 @@ import {
     labelLineFields,
     type TextThing,
 } from "./labelRubric";
+import { sharedWhere, sourceText, styleOf } from "./labelWords";
 import { unsetIn } from "./lineWrites";
 import { LineFrame } from "./RubricLine";
 import { RowSettings, ThingLine } from "./ThingLine";
 import { setOn } from "./things";
 import { ValueButton } from "./ValueButton";
-
-/**
- * A layer's label style as written, or an empty one.
- * @param line - the line that writes the style channel, if any.
- * @returns the style.
- */
-function styleOf(line: Line | undefined): Readonly<LabelStyle> {
-    const value = line?.value;
-    return typeof value === "object" && !Array.isArray(value) && !("r" in value) ? (value as LabelStyle) : {};
-}
-
-/**
- * Where the words come from, as the source field shows it: the value they read, a card's summary,
- * the typed words, or nothing.
- * @param ctx - the row.
- * @param words - the words line.
- * @returns the words.
- */
-function sourceText(ctx: RowContext, words: Line | undefined): string {
-    if (words === undefined) {
-        return "";
-    }
-    if (words.template !== undefined) {
-        return cardSummary(ctx.session, words.template);
-    }
-    if (words.binding !== undefined) {
-        return sourceName(ctx.session, words.binding) ?? words.binding.by;
-    }
-    return typeof words.value === "string" ? words.value : "";
-}
 
 /**
  * The text source (R12): a field showing where the words come from, which opens today's source
@@ -158,31 +128,6 @@ function TextSource({
             />
         </SourcePicker>
     );
-}
-
-/**
- * Where a label sits, in words, when another label of the row reads the same source ("above"), else nothing: two
- * labels of one source are told apart by place (ledger E265).
- * @param ctx - the row.
- * @param kind - the text thing.
- * @param entry - the further label's id, or undefined for the main label.
- * @returns the words, or "".
- */
-function sharedWhere(ctx: RowContext, kind: TextThing, entry: string | undefined): string {
-    if (kind.words !== `${ctx.side}.label`) {
-        return "";
-    }
-    const main = lineIn(ctx, kind.words);
-    const mainStyle = styleOf(lineIn(ctx, kind.style));
-    // A further label with no words of its own draws the main label's.
-    const sourceOf = (id: string | undefined): string =>
-        sourceText(ctx, id === undefined ? main : (entryWords(ctx, id) ?? main));
-    const placeOf = (id: string | undefined): LabelStyle["location"] =>
-        (id === undefined ? undefined : entryOf(ctx, id)?.style?.location) ?? mainStyle.location;
-    const rows = [...(main === undefined ? [] : [undefined]), ...entryIds(ctx)];
-    const mine = sourceOf(entry);
-    const twins = rows.filter((id) => id !== entry && sourceOf(id) === mine);
-    return mine === "" || twins.length === 0 ? "" : positionWord(placeOf(entry)).toLowerCase();
 }
 
 /** Props for LabelRow. */

@@ -9,7 +9,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { LabelEntry } from "@graphty/graphty-element/catalog";
+import { LABEL_CAP, type LabelEntry } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -17,7 +17,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openGraph, openStyle, sectionOf, written } from "./v2Harness";
+import { openGraph, openStyle, picture, pixelsApart, sectionOf, written } from "./v2Harness";
 
 /**
  * Clicks a Text section's "+" and one of its items, then picks Node id from the source list that opens, or on the
@@ -82,7 +82,7 @@ describe("a label's look is a kind of its row", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
     it("'+' Card writes the look card; '+' Label then adds a further Text label; its Switch to writes only its look", async () => {
-        const { session, nodes } = await openGraph();
+        const { session, element, nodes } = await openGraph();
         const tab = await openStyle("Key people");
         await plus(tab, "node", "Card", "Node card");
         await waitFor(() => {
@@ -100,7 +100,8 @@ describe("a label's look is a kind of its row", () => {
         assert.isNull(pop.querySelector('.ws-row[data-line$=".look"]'), "no Look line");
         await userEvent.keyboard("{Escape}");
 
-        // "+" Label always adds a Text label: here a further one, with no look of its own.
+        // "+" Label always adds a Text label: here a further one beside a Card, so it names the plain look, which
+        // graphty-element draws plain (a further label naming no look draws in the main label's).
         const id = session.styles.newLabelId(nodes);
         await plus(tab, "node", "Label", "Node label 2");
         await waitFor(() => {
@@ -109,20 +110,105 @@ describe("a label's look is a kind of its row", () => {
                 value?.map((entry) => entry.id),
                 [id],
             );
-            assert.isUndefined(value?.[0]?.style?.look, "a Text label");
+            assert.equal(value?.[0]?.style?.look, "default", "a Text label");
         });
         const entry = await waitFor(() => {
             const found = text.querySelector<HTMLElement>(`[data-label-entry="${id}"]`);
             assert.isNotNull(found);
+            assert.isNotNull(within(found).queryByRole("button", { name: "Switch node label 2 to" }), "named Label");
             return found;
         });
+        // Below the card, so its look shows apart from the card's.
+        await session.styles.update(nodes, {
+            set: {
+                ...session.styles.get(nodes)?.set,
+                "node.labels": [{ id, style: { look: "default", location: "bottom" } }],
+            },
+        });
+        await session.styles.settled();
+        const plain = await picture(element);
         const before = restOf(session, nodes, "node.labels");
-        await switchTo(entry, "node label 2", "Pill");
+        await switchTo(entry, "node label 2", "Card");
         await waitFor(() => {
             const value = written(session, nodes, "node.labels") as readonly LabelEntry[] | undefined;
-            assert.deepEqual(value, [{ id, style: { look: "pill" } }], "only the further label's look");
+            assert.deepEqual(
+                value,
+                [{ id, style: { look: "card", location: "bottom" } }],
+                "only the further label's look",
+            );
         });
         assert.equal(restOf(session, nodes, "node.labels"), before, "and nothing else");
+        await session.styles.settled();
+        // Had the Text label been drawn in the main label's Card, switching it to Card would change nothing.
+        assert.isAbove(pixelsApart(plain, await picture(element)), 0, "the Text label was drawn plain, not as a card");
+        await switchTo(entry, "node card 2", "Text");
+        await waitFor(() => {
+            const value = written(session, nodes, "node.labels") as readonly LabelEntry[] | undefined;
+            assert.deepEqual(
+                value,
+                [{ id, style: { look: "default", location: "bottom" } }],
+                "Text names the plain look",
+            );
+        });
+        await session.styles.settled();
+        assert.equal(pixelsApart(plain, await picture(element)), 0, "and draws plain again");
+    });
+
+    it("a row over a Card beneath shows the Card, and its Switch to Text draws it plain", async () => {
+        const { session, element, nodes } = await openGraph();
+        await session.styles.update(nodes, {
+            set: { ...session.styles.get(nodes)?.set, "node.label": "x", "node.labelStyle": { look: "card" } },
+        });
+        await session.styles.add({
+            name: "Hubs",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelStyle": { size: 2 } },
+        });
+        await session.styles.settled();
+        const card = await picture(element);
+        const tab = await openStyle("Hubs");
+        const text = sectionOf(tab, "node-text");
+        await waitFor(() => {
+            assert.isNotNull(within(text).queryByRole("button", { name: "Switch node card to" }), "the Card it draws");
+        });
+        await switchTo(text, "node card", "Text");
+        const hubs = session.styles.list().find((layer) => layer.name === "Hubs")?.id ?? "";
+        await waitFor(() => {
+            assert.deepEqual(styleOf(session, hubs, "node.labelStyle"), { size: 2, look: "default" });
+        });
+        await session.styles.settled();
+        assert.isAbove(pixelsApart(card, await picture(element)), 0, "the card is gone from the picture");
+    });
+
+    it("'+' stops offering a further Label at graphty-element's cap", async () => {
+        const { session, nodes } = await openGraph();
+        const eight = Array.from({ length: LABEL_CAP }, (_, at) => ({ id: `l${String(at)}`, text: "x" }));
+        await session.styles.update(nodes, {
+            set: { ...session.styles.get(nodes)?.set, "node.label": "x", "node.labels": eight.slice(1) },
+        });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        const open = async (): Promise<HTMLElement | null> => {
+            await userEvent.click(
+                within(sectionOf(tab, "node-text")).getByRole("button", { name: "Add to node text" }),
+            );
+            const menu = await screen.findByRole("menu");
+            const item = within(menu).queryByRole("menuitem", { name: "Label" });
+            await userEvent.keyboard("{Escape}");
+            return item;
+        };
+        const room = await open();
+        assert.isNotNull(room, "room for one more");
+        assert.notEqual(room.getAttribute("data-disabled"), "true");
+        await session.styles.update(nodes, { set: { ...session.styles.get(nodes)?.set, "node.labels": eight } });
+        await session.styles.settled();
+        await waitFor(async () => {
+            const full = await open();
+            assert.isTrue(
+                full === null || full.getAttribute("data-disabled") === "true" || full.hasAttribute("disabled"),
+            );
+        });
     });
 
     it("'+' Label on an empty Text adds a Text label, and its Switch to Card writes only the look", async () => {

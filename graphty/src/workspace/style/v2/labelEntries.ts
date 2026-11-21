@@ -7,12 +7,21 @@
  * `{ id, style }`, which graphty-element merges into that label by id.
  */
 
-import { type Channel, type LabelEntry, labelFieldAddress, MAIN_LABEL_ID } from "@graphty/graphty-element/catalog";
+import {
+    type Channel,
+    LABEL_CAP,
+    LABEL_LOOKS,
+    type LabelEntry,
+    labelFieldAddress,
+    type LabelLookId,
+    MAIN_LABEL_ID,
+} from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
 import type { Encoding, Layer } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "../PropertyRow";
 import { type DataBinding, type Line, lineIn, lineOf, writeLine } from "../row";
+import { lookOf, PLAIN_LOOK } from "./kindGroups";
 import { TEXT_THINGS } from "./labelRubric";
 
 /**
@@ -51,28 +60,51 @@ function layersBeneath(ctx: RowContext): readonly Layer[] {
 }
 
 /**
- * The further labels the layers beneath the row draw, in the order they were added, each with the last fixed
- * words a layer gave it: an entry switched off leaves the list.
+ * The further labels the layers beneath the row add, by id, as graphty-element merges them (`styles.labelsBeneath`):
+ * in the order they were added, each with the words and style the layers gave it, those switched off left out.
  * @param ctx - the row.
- * @returns their words, by id.
+ * @returns the entries, by id.
  */
-function drawnBeneath(ctx: RowContext): ReadonlyMap<string, string | undefined> {
-    const channel = listChannel(ctx.side);
-    const drawn = new Map<string, string | undefined>();
-    for (const layer of layersBeneath(ctx)) {
-        const held = layer.set?.[channel];
-        for (const entry of Array.isArray(held) ? (held as readonly LabelEntry[]) : []) {
-            if (entry.id === MAIN_LABEL_ID) {
-                continue;
-            }
-            if (entry.off === true) {
-                drawn.delete(entry.id);
-            } else {
-                drawn.set(entry.id, entry.text ?? drawn.get(entry.id));
-            }
-        }
+function drawnBeneath(ctx: RowContext): ReadonlyMap<string, LabelEntry> {
+    if (ctx.many !== undefined) {
+        return new Map();
     }
-    return drawn;
+    const lowest = ctx.layers[0];
+    const below = ctx.session.styles.list().some((layer) => layer.id === lowest?.id) ? lowest?.id : undefined;
+    return new Map(ctx.session.styles.labelsBeneath(ctx.side, below).map((entry) => [entry.id, entry]));
+}
+
+/**
+ * A further label as the layers beneath the row draw it.
+ * @param ctx - the row.
+ * @param id - its id.
+ * @returns the entry, or undefined when no layer beneath adds it.
+ */
+export function beneathEntry(ctx: RowContext, id: string): LabelEntry | undefined {
+    return drawnBeneath(ctx).get(id);
+}
+
+/**
+ * The look a further label draws in: the one it names, on the row or beneath, else the main label's, which
+ * graphty-element draws a further label naming no look in.
+ * @param ctx - the row.
+ * @param id - its id.
+ * @returns the look.
+ */
+export function entryLook(ctx: RowContext, id: string): LabelLookId {
+    const named = entryOf(ctx, id)?.style?.look ?? beneathEntry(ctx, id)?.style?.look;
+    const main = TEXT_THINGS[ctx.side].label?.style;
+    return LABEL_LOOKS.find((each) => each.id === named)?.id ?? (main === undefined ? PLAIN_LOOK : lookOf(ctx, main));
+}
+
+/**
+ * Whether one more further label would be drawn: graphty-element draws at most `LABEL_CAP` beside the main one.
+ * @param ctx - the row.
+ * @param ids - the row's further labels, waiting ones included.
+ * @returns true while there is room.
+ */
+export function roomForLabel(ctx: RowContext, ids: readonly string[]): boolean {
+    return new Set([...drawnBeneath(ctx).keys(), ...ids]).size < LABEL_CAP;
 }
 
 /**
@@ -138,7 +170,7 @@ export function entryWords(ctx: RowContext, id: string): Line | undefined {
     }
     // A label a layer beneath draws reads its words there until the row gives it words of its own.
     const beneath = layersBeneath(ctx);
-    const text = drawnBeneath(ctx).get(id);
+    const text = drawnBeneath(ctx).get(id)?.text;
     const bottom = beneath.at(-1);
     return (
         lineOf(beneath, labelFieldAddress(ctx.side, id, "text") as Channel) ??

@@ -25,7 +25,7 @@ import { ShaderGallery } from "../ShaderGallery";
 import { failureWords } from "../words";
 import { currentMember, isHeld, type MemberChoice, type MemberPick, membersOf, switchMember } from "./families";
 import { type KindGroup, type KindMember, kindsShown, lookOf, PLAIN_LOOK, switchKind, writeLook } from "./kindGroups";
-import { entryOf, writeEntry } from "./labelEntries";
+import { entryLook, entryOf, writeEntry } from "./labelEntries";
 import { TEXT_THINGS } from "./labelRubric";
 
 /** The places a shader for the shapes' place is picked from. */
@@ -255,7 +255,7 @@ export function EntryLookMenu({
 }: Readonly<{ ctx: RowContext; entry: string; title: string }>): React.JSX.Element {
     const { store } = useWorkspace();
     const style = entryOf(ctx, entry)?.style ?? {};
-    const now = style.look ?? PLAIN_LOOK;
+    const now = entryLook(ctx, entry);
     const members = LABEL_LOOKS.map((each) => ({
         key: each.id,
         name: each.id === PLAIN_LOOK ? "Text" : each.plainName,
@@ -271,10 +271,8 @@ export function EntryLookMenu({
                 if (choice.key === now) {
                     return;
                 }
+                // Text names the plain look: a further label naming none draws in the main label's look.
                 const next: Record<string, unknown> = { ...style, look: choice.key };
-                if (choice.key === PLAIN_LOOK) {
-                    Reflect.deleteProperty(next, "look");
-                }
                 writeEntry(ctx, entry, { style: next })
                     .then(() => {
                         store.set({ announcement: `Label now ${choice.name}` });

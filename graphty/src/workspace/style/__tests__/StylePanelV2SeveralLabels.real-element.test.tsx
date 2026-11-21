@@ -170,7 +170,10 @@ describe("several labels per node", () => {
         await userEvent.click(
             within(sectionOf(hubTab, "node-text")).getByRole("button", { name: /^Add to node text/ }),
         );
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Label 2" }));
+        // Named by what it draws, as its row reads it.
+        const offered = await screen.findByRole("menuitem", { name: /^Label 2/ });
+        assert.include(offered.textContent, "Node id", "the item says what the label draws");
+        await userEvent.click(offered);
         const hubRow = await entryRow(hubTab, expected);
         // It reads the words Key people gives it, so no source list opens.
         await waitFor(() => {

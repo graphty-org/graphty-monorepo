@@ -30,7 +30,7 @@ import { dimOf } from "./drawn";
 import { familyOf, pickReplace, replaceUse } from "./families";
 import { ItemListEditor } from "./ItemListEditor";
 import { kindGroupOf, type KindMember, PLAIN_LOOK } from "./kindGroups";
-import { entryOf, removeEntry } from "./labelEntries";
+import { entryLook, removeEntry } from "./labelEntries";
 import { LabelRow } from "./LabelRow";
 import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
@@ -343,8 +343,8 @@ function rowNames(
     kind: KindMember | undefined,
     entry: { readonly id: string; readonly n: number } | undefined,
 ): { readonly name: string; readonly title: string } {
-    const entryLook = entry === undefined ? undefined : entryOf(ctx, entry.id)?.style?.look;
-    const lookName = LABEL_LOOKS.find((each) => each.id === entryLook && each.id !== PLAIN_LOOK)?.plainName;
+    const entryLooks = entry === undefined ? undefined : entryLook(ctx, entry.id);
+    const lookName = LABEL_LOOKS.find((each) => each.id === entryLooks && each.id !== PLAIN_LOOK)?.plainName;
     const named = kind !== undefined && kind.id !== "text" && (kind.look === undefined || thing.id === "label");
     const name = lookName ?? (named ? kind.plainName : thing.name);
     const kindWord = ctx.side === "node" ? "Node" : "Edge";

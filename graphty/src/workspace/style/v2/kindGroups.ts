@@ -195,15 +195,34 @@ const KIND_HEADS: readonly Channel[] = ["edge.arrowHead", "edge.arrowHeadText", 
 export const PLAIN_LOOK: LabelLookId = "default";
 
 /**
- * A label style's look as the row writes it: graphty-element's look id, the plain one when none is written.
+ * The look a label style value names, if any.
+ * @param value - the value.
+ * @returns graphty-element's look id, or undefined.
+ */
+function namedLook(value: unknown): LabelLookId | undefined {
+    const look = typeof value === "object" && value !== null ? (value as { look?: unknown }).look : undefined;
+    return LABEL_LOOKS.find((each) => each.id === look)?.id;
+}
+
+/**
+ * A label style's look as the row draws it: the look the row writes, else the one the layers beneath draw
+ * (graphty-element stacks a style naming no look over the look beneath), else the plain one.
  * @param ctx - the row.
  * @param style - the label style channel.
  * @returns the look.
  */
-export function lookOf(ctx: Pick<RowContext, "many" | "layers">, style: Channel): LabelLookId {
-    const value = lineIn(ctx, style)?.value;
-    const look = typeof value === "object" && value !== null ? (value as { look?: unknown }).look : undefined;
-    return LABEL_LOOKS.find((each) => each.id === look)?.id ?? PLAIN_LOOK;
+export function lookOf(ctx: Pick<RowContext, "many" | "layers" | "beneath">, style: Channel): LabelLookId {
+    return namedLook(lineIn(ctx, style)?.value) ?? lookBeneath(ctx, style);
+}
+
+/**
+ * The look the layers beneath a row draw a label style in, the plain one when they name none.
+ * @param ctx - the row.
+ * @param style - the label style channel.
+ * @returns the look.
+ */
+function lookBeneath(ctx: Pick<RowContext, "many" | "beneath">, style: Channel): LabelLookId {
+    return (ctx.many === undefined ? namedLook(ctx.beneath(style).value) : undefined) ?? PLAIN_LOOK;
 }
 
 /**
@@ -507,7 +526,8 @@ export async function writeLook(ctx: RowContext, style: Channel, look: LabelLook
         const held = own?.set?.[style];
         const next: Record<string, unknown> =
             typeof held === "object" && !Array.isArray(held) ? { ...(held as Readonly<Record<string, unknown>>) } : {};
-        if (look === PLAIN_LOOK) {
+        // Text over a look beneath names the plain look, which graphty-element draws without the look beneath.
+        if (look === PLAIN_LOOK && lookBeneath(ctx, style) === PLAIN_LOOK) {
             Reflect.deleteProperty(next, "look");
         } else {
             next.look = look;

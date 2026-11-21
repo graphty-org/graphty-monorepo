@@ -33,9 +33,27 @@ import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { viewDim } from "./drawn";
 import { replaceUse } from "./families";
-import { kindGroupOf, type KindMember, kindsShown, kindStarts, lineWidthOf, ownsOf, PLAIN_LOOK } from "./kindGroups";
-import { entryIds, entryNumber, freshEntryId, labelsBeneath, listChannel, writeEntry } from "./labelEntries";
+import {
+    kindGroupOf,
+    type KindMember,
+    kindsShown,
+    kindStarts,
+    lineWidthOf,
+    lookOf,
+    ownsOf,
+    PLAIN_LOOK,
+} from "./kindGroups";
+import {
+    entryIds,
+    entryNumber,
+    freshEntryId,
+    labelsBeneath,
+    listChannel,
+    roomForLabel,
+    writeEntry,
+} from "./labelEntries";
 import { TEXT_THINGS } from "./labelRubric";
+import { labelWords } from "./labelWords";
 import { drawnItems, firstColors, ITEM_LISTS, LISTS } from "./lists";
 import { PlusList, PlusListKind } from "./PlusList";
 import { lineFor, V2_LABELS } from "./rubric";
@@ -445,6 +463,10 @@ function ThingSection({
     // The thing "+" just added whose pop-over or picker opens at once (a list, an image).
     const [opening, setOpening] = useState<string | undefined>(undefined);
     const { things, shown } = thingsOf(ctx, part, section, waiting);
+    const shownIds = [
+        ...entryIds(ctx),
+        ...waiting.filter((key) => key.startsWith(ENTRY_WAIT)).map((key) => key.slice(ENTRY_WAIT.length)),
+    ];
     // A one-only thing leaves the menu once set. Label stays: once one is drawn, it adds a further label (E265).
     const groups: AddOption[][] = [
         ...things.map((group) =>
@@ -472,18 +494,21 @@ function ThingSection({
                     return [{ key: thing.id, label: thing.name, hint: thing.hint, dimmed: viewDim(ctx, free.head) }];
                 }
                 // Several rows edited together share plain channels only, so a further label waits for one row.
+                // graphty-element draws at most LABEL_CAP further labels, so "+" stops offering one there.
                 return thing.id === "label"
-                    ? [{ key: thing.id, label: thing.name, disabled: ctx.many === undefined ? undefined : true }]
+                    ? [
+                          {
+                              key: thing.id,
+                              label: thing.name,
+                              disabled: ctx.many === undefined && roomForLabel(ctx, shownIds) ? undefined : true,
+                          },
+                      ]
                     : [];
             }),
         ),
     ];
     // Label's "+" also adds a label in each look but the plain one, which Label adds (E196): never a Glyph. It
     // also offers, by number, each further label a layer beneath draws, to restyle that label here (E263, E265).
-    const shownIds = [
-        ...entryIds(ctx),
-        ...waiting.filter((key) => key.startsWith(ENTRY_WAIT)).map((key) => key.slice(ENTRY_WAIT.length)),
-    ];
     const beneathOptions = (label: AddOption): AddOption[] =>
         labelsBeneath(ctx)
             .filter((id) => !shownIds.includes(id))
@@ -491,6 +516,10 @@ function ThingSection({
                 ...label,
                 key: `${ENTRY_WAIT}${id}`,
                 label: `${label.label} ${String(entryNumber(ctx, shownIds, id))}`,
+                // Named by what it draws, the words its row shows ("name, below"), so the reader knows which it is.
+                detail: labelWords(ctx, id),
+                // Restyling a label already drawn adds none, so the cap never holds it back.
+                disabled: ctx.many === undefined ? undefined : true,
                 dimmed: undefined,
                 hint: undefined,
             }));
@@ -514,9 +543,12 @@ function ThingSection({
             return false;
         }
         setWaiting((now) => [...now, `${ENTRY_WAIT}${entry}`]);
-        // A look's label is written at once, so its row shows its look while it waits for its source.
-        if (look !== undefined) {
-            writeEntry(ctx, entry, { style: { look } }).catch(fail);
+        // A look's label is written at once, so its row shows its look while it waits for its source. A plain Label
+        // beside a label in a look names the plain look: a further label naming none draws in the main label's.
+        const main = TEXT_THINGS[ctx.side].label?.style;
+        const named = look ?? (main !== undefined && lookOf(ctx, main) !== PLAIN_LOOK ? PLAIN_LOOK : undefined);
+        if (named !== undefined) {
+            writeEntry(ctx, entry, { style: { look: named } }).catch(fail);
         }
         return true;
     };

@@ -162,7 +162,7 @@ export default {
         });
         await h.app.settled();
         // the camera already on the one airport, framing the first newcomers before they come
-        await follow(h, { fill: 0.85, least: 14, tau: S(500), aheadMs: S(1500), box: BOX });
+        await follow(h, { fill: 0.72, least: 14, tau: S(450), aheadMs: S(2500), box: BOX });
         await h.app.frames(120);
         await noCursor(h);
     },

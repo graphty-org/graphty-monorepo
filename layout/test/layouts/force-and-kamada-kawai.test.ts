@@ -269,6 +269,21 @@ describe("forceAtlas2", () => {
         }
         assert.throws(() => layout.forceAtlas2(s, { pos: new Float32Array(5) }), /6/);
     });
+
+    it("keeps the nodes of the fixed option and of the role-fixed column where pos puts them, unrescaled", () => {
+        const pinned = makeMask(9);
+        maskSet(pinned, 4, true);
+        const pos = Float32Array.from({ length: 18 }, (_, i) => 5 + Math.cos(i));
+        for (const [s, options] of [
+            [grid(3, 3), { fixed: pinned }],
+            [grid(3, 3, { pinned: { data: pinned, decl: { dtype: "bool", role: "fixed" } } }), {}],
+        ] as const) {
+            const r = layout.forceAtlas2(s, { pos, maxIter: 30, seed: 1, ...options });
+            assert.equal(r.positions[8], pos[8]);
+            assert.equal(r.positions[9], pos[9]);
+            assert.notEqual(r.positions[0], pos[0], "a free node moved");
+        }
+    });
 });
 
 describe("fruchtermanReingold", () => {

@@ -26,14 +26,17 @@ vi.mock("../../../src/session/visibility/filter", async (original) => {
 /** How many times a filter was evaluated since the last reset. */
 const evaluations = vi.mocked(filterModule.compileVisibility);
 
-/** The coalescing window, and a pause long enough to end it. */
-const LAPSE_MS = 5000;
-
 /** Hosts only. */
 const HOSTS: Filter = { kind: "categories", attribute: "data.type", values: ["host"] };
 
 /** Services only. */
 const SERVICES: Filter = { kind: "categories", attribute: "data.type", values: ["service"] };
+
+/**
+ * Services only, as an expression: a filter with no coalesce key, so a step of its own even right
+ * after a categories edit of the same attribute, which would merge into it.
+ */
+const SERVICES_APART: Filter = { kind: "expression", where: "data.type == 'service'" };
 
 const harnesses: Harness[] = [];
 
@@ -239,8 +242,6 @@ describe("mask copies", () => {
         assert.strictEqual(evaluations.mock.calls.length, 1, "only the last value was evaluated");
         assert.strictEqual(session.history.bytes, 512, "no mask copy while the drag is the coalesce target");
         assert.deepEqual(visible(session), ["n5"]);
-
-        advance(LAPSE_MS);
         await session.visibility.set(HOSTS);
 
         // Six nodes and five edges: the drag's after-masks, copied once when the next step
@@ -249,10 +250,9 @@ describe("mask copies", () => {
     });
 
     it("puts a kept copy back on undo and redo instead of evaluating, and the mask revision still moves", async () => {
-        const { session, advance } = clocked();
+        const { session } = clocked();
         await session.visibility.set(HOSTS);
-        advance(LAPSE_MS);
-        await session.visibility.set(SERVICES);
+        await session.visibility.set(SERVICES_APART);
         const { version } = session.visibility.masks.nodes();
         evaluations.mockClear();
 
@@ -269,10 +269,9 @@ describe("mask copies", () => {
     });
 
     it("does not use a copy taken before a node attribute changed", async () => {
-        const { harness, session, advance } = clocked();
+        const { harness, session } = clocked();
         await session.visibility.set(HOSTS);
-        advance(LAPSE_MS);
-        await session.visibility.set(SERVICES);
+        await session.visibility.set(SERVICES_APART);
 
         // n0 becomes a service beneath the session, written the way a write the history does not
         // record is: in place, with the store told and the graph token moved.
@@ -286,11 +285,9 @@ describe("mask copies", () => {
     });
 
     it("puts a copy back once a data step after it is undone, because the rows come back exactly", async () => {
-        const { session, advance } = clocked();
+        const { session } = clocked();
         await session.visibility.set(HOSTS);
-        advance(LAPSE_MS);
-        await session.visibility.set(SERVICES);
-        advance(LAPSE_MS);
+        await session.visibility.set(SERVICES_APART);
         await session.data.addNodes([{ id: "extra", type: "host" }]);
         await session.undo();
         evaluations.mockClear();
@@ -308,7 +305,7 @@ describe("mask copies", () => {
     it("does not use a copy taken under results a later undo has replaced", async () => {
         // A re-run is a step of its own. The filter's copy is taken under the re-run's numbers,
         // so undoing the re-run, which puts the earlier numbers back, has to evaluate again.
-        const { session, advance } = clocked();
+        const { session } = clocked();
         scores = { n0: 5, n1: 5 };
         await session.runs.start("degree", {}, { as: "score", style: false });
         await session.visibility.set({ kind: "expression", where: "results.score.value > `1`" });
@@ -319,7 +316,6 @@ describe("mask copies", () => {
         assert.isDefined(rerun);
         await rerun.rerun();
         assert.deepEqual(visible(session), ["n4"], "the filter reads the re-run's numbers");
-        advance(LAPSE_MS);
         await session.visibility.set(SERVICES);
 
         evaluations.mockClear();
@@ -333,11 +329,9 @@ describe("mask copies", () => {
     });
 
     it("drops mask copies before any step when the byte budget is exceeded", async () => {
-        const { session, advance } = clocked(1000);
+        const { session } = clocked(1000);
         await session.visibility.set(HOSTS);
-        advance(LAPSE_MS);
-        await session.visibility.set(SERVICES);
-        advance(LAPSE_MS);
+        await session.visibility.set(SERVICES_APART);
         await session.visibility.set(null);
 
         assert.strictEqual(session.history.bytes, 3 * 512 + 2 * (1000 + 999), "two copies kept");

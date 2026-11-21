@@ -344,7 +344,8 @@ describe("generated graphs", () => {
     it("place nodes at the generator's coordinates", async () => {
         const cy = core();
         await cy.graphtyGenerate("grid", { rows: 2, cols: 3, positions: true });
-        expect(cy.$("#4").position()).toEqual({ x: 1, y: 1 });
+        // the generator's y grows up; Cytoscape's grows down
+        expect(cy.$("#4").position()).toEqual({ x: 1, y: -1 });
         expect(cy.$("#4").data()).toEqual({ id: "4" });
         const geometric = core();
         await geometric.graphtyGenerate("random-geometric", { n: 5, radius: 0.5, seed: 1 });

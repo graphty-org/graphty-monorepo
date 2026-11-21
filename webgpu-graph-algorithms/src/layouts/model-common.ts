@@ -5,6 +5,8 @@
  * calls one function instead of holding its own copy. Layout zone.
  */
 
+import { type GraphSnapshot, type NodeMask } from "@graphty/graph-format";
+
 import { MAX_ITERATIONS_PER_STEP } from "../constants.js";
 import { WebGpuGraphError } from "../errors.js";
 import { type DispatchPlan, plan1d } from "../kernel/dispatch.js";
@@ -413,4 +415,75 @@ export function subset(merged: Overrides, defaults: Overrides): Overrides {
         out[name] = name in merged ? merged[name] : defaults[name];
     }
     return out;
+}
+
+/** A `fixed` option: a mask, the name of a bool node column, or null. */
+export type FixedSpec = NodeMask | string | null;
+
+/**
+ * The `fixed` option of a record: the given value, else the previous record's.
+ * @param given - the option as given (undefined: not given)
+ * @param fallback - the previous record's value
+ * @returns a NodeMask, the name of a bool node column, or null
+ */
+export function pickFixed(given: unknown, fallback: FixedSpec): FixedSpec {
+    const fixed: unknown = given === undefined ? fallback : given;
+    if (fixed !== null && typeof fixed !== "string" && !(fixed instanceof Uint32Array)) {
+        throw invalid("fixed", fixed, "a NodeMask (Uint32Array), the name of a bool node column, or null");
+    }
+    return fixed as FixedSpec;
+}
+
+/**
+ * Refuses a setParams patch that sets `fixed`: it is applied at load, and pins change through setFixed().
+ * @param patch - the setParams patch
+ * @param patch.fixed - the `fixed` it must not carry
+ */
+export function assertNoFixedPatch(patch: { readonly fixed?: unknown }): void {
+    if ("fixed" in patch) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", "setParams({ fixed }) is not a live option", {
+            argument: "fixed",
+            value: patch.fixed,
+            expected: "absent",
+            hint: "use setFixed(mask); fixed is applied at load()",
+        });
+    }
+}
+
+/**
+ * The fixed mask of a load (the rule of `layout/src/simulation/fruchterman-reingold.ts:576-606` minus its
+ * "previous pins" clause, which ForceSimulation.load() implements by keeping the words on a same-size reload): a
+ * string names a bool node column (E_INVALID_ARGUMENT when absent or not bool); a mask is copied; null takes the
+ * role-"fixed" bool column when present, else null (leave the words as they are).
+ * @param s - the snapshot being loaded
+ * @param spec - the resolved `fixed` option
+ * @returns the mask words to apply at load, or null
+ */
+export function resolveFixed(s: GraphSnapshot, spec: FixedSpec): NodeMask | null {
+    const words = Math.ceil(s.nodeCount / 32);
+    if (typeof spec === "string") {
+        const column = s.nodes.get(spec);
+        if (column === null) {
+            throw invalid(
+                "fixed",
+                spec,
+                `the name of a bool node column (the snapshot holds no node column "${spec}")`,
+            );
+        }
+        if (column.dtype !== "bool") {
+            throw invalid("fixed", spec, `the name of a bool node column ("${spec}" is ${column.dtype})`);
+        }
+        return new Uint32Array(column.data.subarray(0, words));
+    }
+    if (spec !== null) {
+        if (spec.length < words) {
+            throw invalid("fixed", spec.length, `a mask of at least ${words} words for ${s.nodeCount} nodes`);
+        }
+        return new Uint32Array(spec.subarray(0, words));
+    }
+    const byRole = s.nodes.byRole("fixed");
+    if (byRole !== null && byRole.dtype === "bool") {
+        return new Uint32Array(byRole.data.subarray(0, words));
+    }
+    return null;
 }

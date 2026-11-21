@@ -3016,12 +3016,18 @@ export class Node implements ModelUser {
     /**
      * Give a held node a source mesh of its own while node batches draw: on a read of its mesh, and
      * when the graph switches to batched drawing after that read. A batch hides its whole source, so
-     * a held node sharing it took every row of its look off the batch (#8038, #8073).
+     * a held node sharing it took every row of its look off the batch (#8038, #8073). When the graph
+     * switches back to the objects path, it shares its look's source again, as a node read there does.
      * @internal
      */
     holdOffBatch(): void {
-        const batches = this.disposed ? undefined : this.context.getNodeBatches?.();
-        if (!this.#meshHeld || !batches) {
+        if (!this.#meshHeld || this.disposed) {
+            return;
+        }
+
+        const batches = this.context.getNodeBatches?.();
+        if (!batches) {
+            this.drawFromOwnSource();
             return;
         }
 

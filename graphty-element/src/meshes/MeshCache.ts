@@ -106,9 +106,7 @@ export class MeshCache {
 
         // Hide the original mesh - instances will still be visible
         mesh.isVisible = false;
-        // A held node's own source stays where the node batches are: translucent meshes blend back to
-        // front, and a source far below drew its held rows before every batch, out of their turn.
-        mesh.position.set(0, inPlaceOf === undefined ? -10000 : 0, 0);
+        mesh.position.set(0, -10000, 0);
 
         // CRITICAL: InstancedMesh inherits isPickable from source mesh
         // Must set pickable on source for instances to be pickable

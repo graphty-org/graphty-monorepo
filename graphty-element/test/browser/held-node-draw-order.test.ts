@@ -36,10 +36,18 @@ const NODES = Array.from({ length: 12 }, (_, id) => ({
 }));
 
 /** The looks {@link ringedLooks} paints: ringed, two shapes, or one plain shape a batch draws. */
-type Looks = "ringed" | "two shapes" | "one shape" | "translucent" | "translucent shapes";
+type Looks = "ringed" | "two shapes" | "one shape" | "translucent" | "translucent shapes" | "translucent solids";
+
+/** The shapes of the even and the odd looks, for the looks of plain shapes. */
+const SHAPES: Partial<Record<Looks, [string, string]>> = {
+    "two shapes": ["ellipse", "rectangle"],
+    "translucent shapes": ["ellipse", "rectangle"],
+    // in 3D: neither's bounds are centered on its node the same way
+    "translucent solids": ["tetrahedron", "sphere"],
+};
 
 /**
- * Mount an element and load the circles in 2D.
+ * Mount an element and load the circles, in 2D (or 3D for the solids).
  * @param looks - Which looks: rings no batch draws, or plain shapes a batch draws.
  * @param options - How.
  * @param options.path - The render path to start on.
@@ -63,7 +71,7 @@ async function ringedLooks(
     await element.updateComplete;
     await element.session.data.addNodes(NODES);
     await element.graph.setLayout("fixed", { dim: 3 });
-    await element.setViewMode("2d");
+    await element.setViewMode(looks === "translucent solids" ? "3d" : "2d");
     for (const [parity, ring, size] of [
         [0, "#000000", 1.6],
         [1, "#2563eb", 1],
@@ -77,12 +85,9 @@ async function ringedLooks(
                 ? { "node.shape": "ellipse", "node.size": size, "node.borderColor": ring, "node.borderWidth": 0.15 }
                 : // a batch draws rows of one shape at any size
                   {
-                      "node.shape":
-                          parity === 1 && (looks === "two shapes" || looks === "translucent shapes")
-                              ? "rectangle"
-                              : "ellipse",
+                      "node.shape": (typeof looks === "string" ? SHAPES[looks] : undefined)?.[parity] ?? "ellipse",
                       "node.size": 1.6,
-                      ...(looks === "translucent" || looks === "translucent shapes" ? { "node.opacity": 0.6 } : {}),
+                      ...(typeof looks === "string" && looks.startsWith("translucent") ? { "node.opacity": 0.6 } : {}),
                   },
         } as never);
     }
@@ -278,6 +283,67 @@ describe("a node whose mesh was read under batched", () => {
                 if (path === "batched") {
                     assert.equal(graph.rowCounts.objectNodes, ids.length, "only the read rows leave the batches");
                 }
+            }
+
+            const [objects, batched] = pictures;
+            assert.isDefined(objects);
+            assert.isDefined(batched);
+            assert.equal(pixelsOverBar(objects, batched), 0);
+        });
+    }
+
+    for (const ids of [[0], [1], [2, 5]]) {
+        it(`blends among translucent 3D looks as it did unread when ${ids.join(" and ")} is read`, async () => {
+            // A held node's own source blends at its batch's distance, whatever its shape's bounds.
+            const pictures: CanvasFrame[] = [];
+            for (const reads of [[], ids]) {
+                const { graph } = await ringedLooks("translucent solids", { path: "batched" });
+                for (const id of reads) {
+                    assert.isFalse(graph.getNode(id)?.mesh.isDisposed());
+                }
+
+                await readCanvas(graph);
+                pictures.push(await readCanvas(graph));
+                assert.equal(graph.rowCounts.objectNodes, reads.length);
+            }
+
+            const [unread, read] = pictures;
+            assert.isDefined(unread);
+            assert.isDefined(read);
+            assert.equal(pixelsOverBar(unread, read), 0);
+        });
+    }
+
+    for (const [ids, there] of [
+        [[0], ["objects"]],
+        [[1], ["objects"]],
+        [[2, 5], ["objects"]],
+        [[0], ["objects", "batched"]],
+        [[1], ["objects", "batched"]],
+    ] as const) {
+        it(`keeps its place among translucent looks when ${ids.join(" and ")} is read, then the graph goes to ${there.join(" then ")}`, async () => {
+            const pictures: CanvasFrame[] = [];
+            for (const path of ["objects", "batched"] as const) {
+                const { graph } = await ringedLooks("translucent shapes", { path });
+                for (const id of ids) {
+                    assert.isFalse(graph.getNode(id)?.mesh.isDisposed());
+                }
+
+                await readCanvas(graph);
+                // the objects mount stays where it is; the batched one leaves batched, and may come back
+                for (const next of path === "batched" ? there : []) {
+                    graph.setRenderPath(next);
+                    await operationQueueOf(graph).waitForCompletion();
+                    await readCanvas(graph);
+                }
+
+                if (graph.renderPath === "objects") {
+                    const [id] = ids;
+                    const other = graph.getNode(id + 6)?.drawnSourceMesh;
+                    assert.equal(graph.getNode(id)?.drawnSourceMesh, other, "it shares its look's source again");
+                }
+
+                pictures.push(await readCanvas(graph));
             }
 
             const [objects, batched] = pictures;

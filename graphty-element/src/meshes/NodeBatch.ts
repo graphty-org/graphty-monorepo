@@ -14,7 +14,7 @@ import { RowMap } from "../data/RowMap";
 import { batchableOf, type BatchView, isPlainPaint, type NodePaint, shaderPartOf } from "../managers/StylePainter";
 import type { Node } from "../Node";
 import type { RowMeasure } from "../render/RowTable";
-import { drawAt, drawOrderOf } from "./drawOrder";
+import { blendWith, drawAt, drawOrderOf } from "./drawOrder";
 import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
 import type { MeshCache } from "./MeshCache";
@@ -1549,9 +1549,13 @@ export class NodeBatches {
             }
         }
 
-        // Translucent meshes blend in the order the scene lists them, the batches and the held rows'
-        // own source tied by distance (`MeshCache.sourceFor`): the held rows after the rows before
-        // them, then the rows after them, all before the next look's batch.
+        // Translucent meshes blend back to front, ties in the order the scene lists them. The held rows'
+        // own sources blend at the batch's distance, so they tie with it whatever their shape's bounds:
+        // the held rows after the rows before them, then the rows after them, before the next look's batch.
+        for (const { held } of this.heldGroups(family)) {
+            blendWith(held.source, family.batch?.mesh);
+        }
+
         if (family.span !== null && family.batch !== null && family.batch.mesh.visibility < 1) {
             drawAfter(family.batch.mesh, [
                 ...this.heldMeshes(family),
@@ -1631,17 +1635,31 @@ export class NodeBatches {
      */
     private heldRows(family: RowFamily): { key: number; row: BatchRow }[] {
         const rows: { key: number; row: BatchRow }[] = [];
-        for (const group of this.groups.values()) {
-            const shared = this.host.cache.sharedOf(group.source);
-            const of = shared === undefined ? undefined : this.groups.get(shared);
-            if (of?.family === family) {
-                for (const row of group.members) {
-                    rows.push({ key: of.rank * ROWS_PER_RANK + row.index, row });
-                }
+        for (const { held, of } of this.heldGroups(family)) {
+            for (const row of held.members) {
+                rows.push({ key: of.rank * ROWS_PER_RANK + row.index, row });
             }
         }
 
         return rows;
+    }
+
+    /**
+     * The groups of a family's held rows' own sources, each with the family's group it stands in for.
+     * @param family - The family.
+     * @returns They, in no order.
+     */
+    private heldGroups(family: RowFamily): { held: RowGroup; of: RowGroup }[] {
+        const found: { held: RowGroup; of: RowGroup }[] = [];
+        for (const group of this.groups.values()) {
+            const shared = this.host.cache.sharedOf(group.source);
+            const of = shared === undefined ? undefined : this.groups.get(shared);
+            if (of?.family === family) {
+                found.push({ held: group, of });
+            }
+        }
+
+        return found;
     }
 
     /**

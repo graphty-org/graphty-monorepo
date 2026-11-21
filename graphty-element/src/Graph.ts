@@ -20,7 +20,6 @@ import { type Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vec
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
 import { Observable } from "@babylonjs/core/Misc/observable.js";
-import { RenderingGroup } from "@babylonjs/core/Rendering/renderingGroup.js";
 import { Scene } from "@babylonjs/core/scene.js";
 import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 import type { GraphSnapshot } from "@graphty/graph-format";
@@ -229,7 +228,7 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
-import { painterSortCompare } from "./meshes/drawOrder";
+import { painterSortCompare, transparentSortCompare } from "./meshes/drawOrder";
 import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
@@ -243,6 +242,7 @@ import {
     type ModelPreviewOptions,
     PreviewEngines,
 } from "./meshes/ModelPreview";
+import { drawLast } from "./meshes/moveInstance";
 import { type ColumnRow, NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
@@ -5638,6 +5638,16 @@ export class Graph implements GraphContext {
             this.#edgeRowLines = null;
             this.#nodeBatches.dispose();
             this.#nodeBatches = null;
+            // A node whose mesh was read under batches drew from a source of its own: it shares its look's again.
+            const nodes = [...dataManagerInternals.builtNodes(this.dataManager)];
+            for (const node of nodes) {
+                node.holdOffBatch();
+            }
+
+            // Translucent instances blend in the order the scene lists them: in row order, as the objects path
+            // builds them, not with the Nodes built under batches (a read, a hover) before the rest.
+            nodes.sort((a, b) => a.index - b.index);
+            drawLast(nodes.flatMap((node) => node.drawnPickMesh ?? []));
         }
 
         // Plain edges are pulled on "batched" (`Edge.pullsLine`): repaint them when that changes.
@@ -6471,7 +6481,8 @@ export class Graph implements GraphContext {
             0,
             opaque,
             opaque,
-            mapped ? byRank((a, b) => RenderingGroup.defaultTransparentSortCompare(a, b)) : null,
+            // a held node's own source at its batch's distance (`blendWith`)
+            mapped ? byRank(transparentSortCompare) : transparentSortCompare,
         );
         this.renderManager.requestFrame();
     }

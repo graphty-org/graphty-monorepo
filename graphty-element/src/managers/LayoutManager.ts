@@ -486,6 +486,12 @@ interface BuildOptions {
     readonly transition?: boolean;
     /** A simulation starts from the seed, not from the element's arrangement: see `restart`. */
     readonly fromSeed?: boolean;
+    /**
+     * A switch of the same layout from 3D to 2D: a force engine starts from the arrangement it
+     * replaces, flattened onto the plane, with no pre-steps, so the first frame draws every node where
+     * it was (issue #9279).
+     */
+    readonly flatten?: boolean;
 }
 
 /**
@@ -1535,6 +1541,10 @@ export class LayoutManager implements Manager {
 
             this.addLateArrivals(engine, nodeArray, edgeArray, edgeRows);
 
+            // A 2D/3D switch starts a force engine from where its nodes are drawn, not from the
+            // seed's jumble around the origin, which the camera then framed as giant nodes (#9279).
+            this.flattenOnSwitch(engine, how);
+
             // AFTER init(), and before any step runs. See `replayPins`.
             this.replayPins(engine, nodeArray);
             this.members = members;
@@ -2069,7 +2079,13 @@ export class LayoutManager implements Manager {
             // Under renderPath "batched" a row with no Node is something to step as well.
             const batched = this.dataManager.renderLimits?.batched() ?? false;
             const nothingToStep = batched ? this.dataManager.nodes.size === 0 : nodeArray.length === 0;
-            if (nothingToStep || this.sizesToCome(engine)) {
+            if (this.flattens(engine, how)) {
+                // The arrangement it starts from is already laid out: stepping it before the first
+                // frame would move every node away from where the reader just saw it. Nor does the
+                // first frame step it: that frame draws the flattened arrangement as it is.
+                this.preStepsOwed = false;
+                this.#holdOneFrame = true;
+            } else if (nothingToStep || this.sizesToCome(engine)) {
                 this.preStepsOwed = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
                 throw cancelledBuild();
@@ -2098,6 +2114,32 @@ export class LayoutManager implements Manager {
 
             // Request zoom to fit when layout changes
             this.eventManager.emitLayoutInitialized(type, true);
+        }
+    }
+
+    /**
+     * Whether this build starts its engine from the element's arrangement: a 2D/3D switch of a
+     * force engine that would otherwise place its bodies from the seed. A static layout computes
+     * its own answer for the new dimension, and a {@link SimulationLayoutEngine} adopts the array.
+     * @param engine - The engine being built.
+     * @param how - How it is built.
+     * @returns True to load the arrangement and skip the pre-steps.
+     */
+    private flattens(engine: LayoutEngine, how: BuildOptions): boolean {
+        return how.flatten === true && (engine instanceof NGraphEngine || engine instanceof D3GraphEngine);
+    }
+
+    /**
+     * On a 2D/3D switch, start a force engine from the arrangement it replaces, on the plane in 2D.
+     * See {@link LayoutManager.flattens}.
+     * @param engine - The engine being built, initialized.
+     * @param how - How it is built.
+     */
+    private flattenOnSwitch(engine: LayoutEngine, how: BuildOptions): void {
+        // The engine drops the Z itself (a 2D engine holds its bodies on the plane), so its first
+        // publish flattens every row, and `putOnPlane` builds no `Node` for a row to drop one.
+        if (this.flattens(engine, how)) {
+            engine.loadArrangement();
         }
     }
 
@@ -2383,6 +2425,9 @@ export class LayoutManager implements Manager {
                 restoring,
                 live,
                 explicitScope: options.explicitScope === true,
+                // Only the dimension changed, to 2D: `sameLayout` fell through because the engine
+                // redraws. Not to 3D, where a force engine started flat has no force out of the plane.
+                flatten: sameLayout && !restoring && dimension === 2,
                 // A first layout, a restore and a 2D/3D switch place the nodes in one frame.
                 transition:
                     !restoring && built !== null && this.layoutEngine !== undefined && !sameArrangement(built, choice),
@@ -3343,6 +3388,21 @@ export class LayoutManager implements Manager {
      * then drawn once. Set by the graph from its `reducedMotion` setting.
      */
     reducedMotion = false;
+
+    /** Set by a 2D/3D switch that flattened the arrangement, so the next frame draws it unstepped. */
+    #holdOneFrame = false;
+
+    /**
+     * Whether this frame takes no layout steps, which is once after a 2D/3D switch flattened the
+     * arrangement: that frame draws every node where it was (issue #9279). Asked once per frame.
+     * @returns True for the one frame held.
+     * @internal
+     */
+    takeFrameHold(): boolean {
+        const held = this.#holdOneFrame;
+        this.#holdOneFrame = false;
+        return held;
+    }
 
     /** Steps taken unseen under reduced motion since the last publish; see `MAX_UNSEEN_STEPS`. */
     #unseenSteps = 0;

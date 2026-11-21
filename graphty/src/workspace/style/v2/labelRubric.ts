@@ -16,7 +16,6 @@ import {
 } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
 
-import type { GLYPHS } from "../../glyphs";
 import type { OptionName, Rule } from "./rubric";
 
 /** A field of a label style. */
@@ -45,10 +44,7 @@ export interface LabelLineSpec {
     readonly units?: readonly LabelField[];
     /** A Unit line: which unit's field holds the value; picking one moves it there. */
     readonly unit?: readonly LabelUnit[];
-    /** A boolean modifying the line, drawn as a toggle in its modifier slot (R6). */
-    readonly toggle?: LabelField;
-    readonly toggleGlyph?: keyof typeof GLYPHS;
-    /** R6 sides: top, right, bottom and left; one number writes all four until the sides toggle splits them. */
+    /** R6 sides: top, right, bottom and left; one number writes all four until its Separate sides line splits them. */
     readonly sides?: readonly [LabelField, LabelField, LabelField, LabelField];
 }
 
@@ -342,7 +338,7 @@ export function labelFieldDescriptor(field: LabelField): LabelStyleFieldDescript
 }
 
 /**
- * Every field a line edits: its own, its pair's, its other units', its toggle's and its units'
+ * Every field a line edits: its own, its pair's, its other units' and its units'
  * (with what they write besides).
  * @param line - the line.
  * @returns the fields.
@@ -353,7 +349,6 @@ export function labelLineFields(line: LabelLineSpec): readonly LabelField[] {
         ...(line.pair === undefined ? [] : [line.pair]),
         ...(line.sides?.filter((side) => side !== line.field) ?? []),
         ...(line.units ?? []),
-        ...(line.toggle === undefined ? [] : [line.toggle]),
         ...(line.unit ?? []).flatMap((unit) => [unit.field, ...(Object.keys(unit.also ?? {}) as LabelField[])]),
     ];
 }

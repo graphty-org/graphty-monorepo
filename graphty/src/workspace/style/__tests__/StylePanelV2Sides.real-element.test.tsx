@@ -1,8 +1,9 @@
 /**
- * Style panel v2's sides toggle (design/ui/style-panel-v2/design.md, rubric R6 sides and R17) on the REAL
+ * Style panel v2's sides (design/ui/style-panel-v2/design.md, rubric R6 sides and R17) on the REAL
  * graphty-element, driven by real clicks and typing: a label's Margin is one number writing all four sides until
- * the Sides toggle splits it into top | right and bottom | left; a shape's Fit to label padding is one number
- * writing X and Y until the toggle splits it into the pair. Each typed value is one undo step.
+ * its "Separate sides" checkbox line splits it into top | right and bottom | left; a shape's Fit to label padding
+ * is one number writing X and Y until its "Separate sides" line splits it into the pair. The modifier is a line of
+ * its own (design 2.6, E674), never a toggle beside the number. Each typed value is one undo step.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -63,7 +64,7 @@ async function popoverOf(row: HTMLElement, name: RegExp): Promise<HTMLElement> {
     });
 }
 
-describe("Style panel v2 splits a padding into its sides", () => {
+describe("Style panel v2 splits a padding into its sides from a line of its own", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
     it("a label's Margin writes all four sides from one number, and four once Sides is on", async () => {
@@ -91,7 +92,9 @@ describe("Style panel v2 splits a padding into its sides", () => {
         });
         assert.strictEqual(session.history.position, steps + 1, "one step");
 
-        await userEvent.click(within(margin).getByRole("button", { name: "Sides" }));
+        assert.isNull(within(margin).queryByRole("button", { name: "Sides" }), "no toggle beside the number");
+        const separate = await lineOf(pop, "node.labelStyle.marginTop:sides");
+        await userEvent.click(within(separate).getByRole("checkbox", { name: "Separate sides" }));
         await waitFor(() => {
             assert.lengthOf(inputsOf(margin), 4, "top, right, bottom and left once split");
         });
@@ -105,7 +108,7 @@ describe("Style panel v2 splits a padding into its sides", () => {
         });
 
         // Joined again, every side takes the top's value.
-        await userEvent.click(within(margin).getByRole("button", { name: "Sides" }));
+        await userEvent.click(within(separate).getByRole("checkbox", { name: "Separate sides" }));
         await waitFor(() => {
             const style = written(session, id, "node.labelStyle") as Record<string, unknown>;
             assert.strictEqual(style.marginRight, 6);
@@ -139,7 +142,9 @@ describe("Style panel v2 splits a padding into its sides", () => {
         });
         assert.strictEqual(session.history.position, steps + 1, "one step");
 
-        await userEvent.click(within(padding).getByRole("button", { name: "Sides" }));
+        assert.isNull(within(padding).queryByRole("button", { name: "Sides" }), "no toggle beside the number");
+        const separate = await lineOf(pop, "node.labelPaddingX:sides");
+        await userEvent.click(within(separate).getByRole("checkbox", { name: "Separate sides" }));
         await waitFor(() => {
             assert.lengthOf(inputsOf(padding), 2, "X and Y once split");
         });

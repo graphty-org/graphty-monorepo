@@ -566,7 +566,6 @@ function channelsOfLine(line: LineSpec): readonly Channel[] {
         ...(line.pair === undefined ? [] : [line.pair]),
         ...(line.units ?? []),
         ...(line.unit?.map(([, channel]) => channel) ?? []),
-        ...(line.toggle === undefined ? [] : [line.toggle]),
     ];
 }
 

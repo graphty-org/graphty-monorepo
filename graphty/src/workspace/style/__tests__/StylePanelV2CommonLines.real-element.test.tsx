@@ -23,8 +23,8 @@ const WIDGETS = 'svg, button, [role="switch"], [role="radio"], [role="combobox"]
 
 /**
  * A line's widgets, as words: everything on the line but its name, its number's scrub slot, its "-", a row's
- * settings "..." (the parts every line shares) and a value list's picture of its value, so a glyph beside the
- * name or after the control counts too.
+ * settings "..." (the parts every line shares), a value list's picture of its value and a pictured segment's
+ * option icon, so a glyph beside the name or after the control counts too.
  * @param line - the line.
  * @returns the sorted words.
  */
@@ -36,6 +36,11 @@ function widgetsOf(line: Element): string[] {
                 // a value list shows its value's own picture (a shape, an arrowhead, a route) with its name, on
                 // every list alike: that is the value, not a glyph beside the line
                 !(each.tagName.toLowerCase() === "svg" && each.closest("[data-value-listbox]") !== null) &&
+                // and a pictured option set shows each option's own icon in its segment (design 6, "Pictured"): the
+                // option, not a glyph beside the line; whether a set is pictured is the widths test's
+                !(
+                    each.tagName.toLowerCase() === "svg" && each.closest('[class*="SegmentedControl-control"]') !== null
+                ) &&
                 each.closest('button[aria-label^="Remove "]') === null &&
                 each.closest('button[aria-label$=" settings"]') === null,
         )
@@ -50,6 +55,10 @@ function widgetsOf(line: Element): string[] {
  * @returns the kind.
  */
 function kindOf(line: string): string {
+    // A padding's Separate sides line is a checkbox of its own (design 2.6).
+    if (line.endsWith(":sides")) {
+        return "boolean";
+    }
     const channel = channelDescriptor(line);
     if (channel !== undefined) {
         return channel.accepts;
@@ -123,10 +132,30 @@ describe("Style panel v2's lines are one common pattern (E674)", () => {
                 "node.borderWidth": 0.1,
                 "node.label": "{id}",
                 // a label field of every kind: a choice, a switch, a number, a color, words
-                "node.labelStyle": { weight: "bold", italic: true, size: 1, color: "#ff0000", font: "serif" },
+                "node.labelStyle": {
+                    weight: "bold",
+                    italic: true,
+                    size: 1,
+                    color: "#ff0000",
+                    font: "serif",
+                    marginTop: 2,
+                    marginRight: 2,
+                    marginBottom: 2,
+                    marginLeft: 2,
+                },
                 "node.glow": "#FFC800",
                 "node.outerBorderColor": "#2266ff",
                 "node.shadowColor": "#000000",
+                // the lines that once carried a toggle the others lack: a padding's sides, an image's ratio lock
+                "node.size": 1,
+                "node.labelFit": "inside",
+                "node.labelPaddingX": 0.2,
+                "node.labelPaddingY": 0.2,
+                "node.image": "data:image/png;base64,AAAA",
+                "node.imageFit": "none",
+                "node.imageWidth": 0.5,
+                "node.imageHeight": 0.5,
+                "node.imageAspect": true,
             },
         });
         await session.styles.update(edges, {
@@ -169,5 +198,13 @@ describe("Style panel v2's lines are one common pattern (E674)", () => {
             }
         }
         assert.deepEqual(special, [], "lines with a widget their kind's other lines lack");
+        // The lines that once carried a toggle are walked, and their modifiers are lines of their own (design 2.6).
+        for (const line of ["node.labelPaddingX", "node.imageWidth", "node.imageAspect", "node.labelPaddingX:sides"]) {
+            assert.isTrue(seen.has(line), `the walk reached ${line}`);
+        }
+        assert.isTrue(
+            [...seen.keys()].some((line) => line.endsWith("labelStyle.marginTop")),
+            "the walk reached a label's Margin",
+        );
     });
 });

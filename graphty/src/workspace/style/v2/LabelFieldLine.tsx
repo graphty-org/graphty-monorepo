@@ -7,7 +7,7 @@
  * that channel's field in the line's place, so it shows once, where it belongs.
  */
 
-import { AlignmentMatrix, type AlignmentMatrixValue, PanelField, ToggleIconButton } from "@graphty/compact-mantine";
+import { AlignmentMatrix, type AlignmentMatrixValue, PanelField } from "@graphty/compact-mantine";
 import {
     type Channel,
     type ChannelDescriptor,
@@ -20,7 +20,6 @@ import type { LabelStyle } from "@graphty/graphty-element/schema";
 import { Checkbox, Group, Stack } from "@mantine/core";
 import React from "react";
 
-import { GLYPHS } from "../../glyphs";
 import { shownChannel } from "../offered";
 import { GradientBar } from "../parts/GradientRow";
 import { Field, type RowContext } from "../PropertyRow";
@@ -37,7 +36,7 @@ import {
     type TextThing,
 } from "./labelRubric";
 import { segmentOptions } from "./rubric";
-import { FontSelect, LineFrame, NumberLine, PresetLine, SegmentsLine, SidesToggle } from "./RubricLine";
+import { FontSelect, LineFrame, NumberLine, PresetLine, SegmentsLine, SeparateSidesLine } from "./RubricLine";
 import { setOn } from "./things";
 
 /** A write to a label style: each field's new value, undefined taking the field off. */
@@ -467,7 +466,7 @@ export function LabelFieldLine({
     line,
     named: alwaysNamed = false,
 }: Readonly<{ label: LabelLineContext; line: LabelLineSpec; named?: boolean }>): React.JSX.Element | null {
-    // R6 sides: split by the toggle, or because the sides already differ.
+    // R6 sides: split by its Separate sides line, or because the sides already differ.
     const [splitAsked, setSplit] = React.useState(false);
     const flat = flatHeld(label, line);
     if (flat !== undefined) {
@@ -490,13 +489,31 @@ export function LabelFieldLine({
     const split = splitAsked || new Set(sideValues).size > 1;
     const args: LineControlArgs = { label, line, field, descriptor, name, set, split };
     const control = line.unit === undefined ? controlOf(args, rule) : unitControl(args);
-    const Toggle = GLYPHS[line.toggleGlyph ?? "lock"];
-    const { toggle } = line;
-    const toggleWord = toggle === undefined ? "" : (labelFieldDescriptor(toggle)?.plainName ?? toggle);
     const { sides } = line;
-    const sidesToggle =
-        sides === undefined ? null : (
-            <SidesToggle
+    const address = `${label.kind.style}.${line.unit === undefined ? field : "unit"}`;
+    const named = rule !== "R7" && (alwaysNamed || (rule !== "R8f" && rule !== "R2" && line.name !== null));
+    const frame = (
+        <LineFrame
+            line={address}
+            name={named ? shownName : null}
+            set={set}
+            rule={rule}
+            control={control}
+            modifier={null}
+            removeName={set ? `Remove ${shownName.toLowerCase()}` : undefined}
+            onRemove={() => {
+                write(Object.fromEntries(fields.map((each) => [each, undefined])));
+            }}
+            dimmed={labelDimOf(label.ctx, label.kind.style, style, field)}
+        />
+    );
+    return sides === undefined ? (
+        frame
+    ) : (
+        <>
+            {frame}
+            <SeparateSidesLine
+                line={address}
                 split={split}
                 onChange={(on) => {
                     setSplit(on);
@@ -506,35 +523,6 @@ export function LabelFieldLine({
                     }
                 }}
             />
-        );
-    const modifier =
-        toggle === undefined ? (
-            sidesToggle
-        ) : (
-            <ToggleIconButton
-                size="sm"
-                label={toggleWord}
-                icon={<Toggle size={14} aria-hidden />}
-                checked={valueOf(style, toggle) === true}
-                onChange={(on) => {
-                    write({ [toggle]: on });
-                }}
-            />
-        );
-    const named = rule !== "R7" && (alwaysNamed || (rule !== "R8f" && rule !== "R2" && line.name !== null));
-    return (
-        <LineFrame
-            line={`${label.kind.style}.${line.unit === undefined ? field : "unit"}`}
-            name={named ? shownName : null}
-            set={set}
-            rule={rule}
-            control={control}
-            modifier={modifier}
-            removeName={set ? `Remove ${shownName.toLowerCase()}` : undefined}
-            onRemove={() => {
-                write(Object.fromEntries(fields.map((each) => [each, undefined])));
-            }}
-            dimmed={labelDimOf(label.ctx, label.kind.style, style, field)}
-        />
+        </>
     );
 }

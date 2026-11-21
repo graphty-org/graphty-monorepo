@@ -428,8 +428,6 @@ export const GLYPHS = {
     arrowRightToLine: ArrowRightToLine,
     arrowDownToLine: ArrowDownToLine,
     arrowLeftToLine: ArrowLeftToLine,
-    // A padding or margin split into its sides (Figma's independent sides toggle).
-    sides: Scan,
     // Where a border's stroke sits on the shape's edge: inside it, centered on it, outside it.
     borderInside: SquareSquare,
     borderCenter: Square,

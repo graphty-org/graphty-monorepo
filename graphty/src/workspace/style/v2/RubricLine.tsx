@@ -5,7 +5,7 @@
  * value bound to data, a list, an asset or a text source keeps today's field.
  */
 
-import { ComboInput, PanelField, SegmentedControl, ToggleIconButton } from "@graphty/compact-mantine";
+import { ComboInput, PanelField, SegmentedControl } from "@graphty/compact-mantine";
 import {
     type Channel,
     type ChannelDescriptor,
@@ -611,55 +611,38 @@ const CONTROLS: Readonly<Record<Exclude<Rule, "field" | "R15" | "R17">, (args: C
 };
 
 /**
- * The R6 sides toggle: splits a padding into its sides.
+ * The R6 sides' own checkbox line (design 2.6, E674: a modifier is a line of its own, never a toggle beside a
+ * line): splits a padding into its sides, or joins them again.
  * @param props - Component props
+ * @param props.line - what the padding line edits, for `data-line` (this line's is it with ":sides")
  * @param props.split - whether the sides are split
  * @param props.onChange - splits or joins them
- * @returns The toggle
+ * @returns The line
  */
-export function SidesToggle({
+export function SeparateSidesLine({
+    line,
     split,
     onChange,
-}: Readonly<{ split: boolean; onChange: (on: boolean) => void }>): React.JSX.Element {
+}: Readonly<{ line: string; split: boolean; onChange: (on: boolean) => void }>): React.JSX.Element {
     return (
-        <ToggleIconButton
-            size="sm"
-            label="Sides"
-            icon={<GLYPHS.sides size={14} aria-hidden />}
-            checked={split}
-            onChange={onChange}
-        />
-    );
-}
-
-/**
- * A line's modifier slot: a thing row's settings, else its toggle or its sides toggle (R6).
- * @param ctx - the row.
- * @param line - the line.
- * @param write - writes the toggle.
- * @param sides - whether its sides are split, and what splits or joins them.
- * @returns The slot's contents
- */
-function modifierOf(
-    ctx: RowContext,
-    line: LineSpec,
-    write: (to: Channel, value: ChannelValue | undefined) => void,
-    sides: Readonly<{ split: boolean; onSplit: (on: boolean) => void }>,
-): React.ReactNode {
-    if (line.sides === true && line.pair !== undefined) {
-        return <SidesToggle split={sides.split} onChange={sides.onSplit} />;
-    }
-    const toggle = line.toggle === undefined ? undefined : shownChannel(ctx.session, ctx.side, line.toggle, false);
-    const Glyph = GLYPHS[line.toggleGlyph ?? "lock"];
-    return toggle === undefined ? null : (
-        <ToggleIconButton
-            size="sm"
-            label={channelWord(toggle.channel)}
-            icon={<Glyph size={14} aria-hidden />}
-            checked={lineIn(ctx, toggle.channel)?.value === true}
-            onChange={(on) => {
-                write(toggle.channel, on);
-            }}
+        <LineFrame
+            line={`${line}:sides`}
+            name={null}
+            set={split}
+            rule="R7"
+            control={
+                <Checkbox
+                    size="xs"
+                    label="Separate sides"
+                    checked={split}
+                    onChange={(event) => {
+                        onChange(event.currentTarget.checked);
+                    }}
+                />
+            }
+            modifier={null}
+            removeName={undefined}
+            onRemove={() => undefined}
         />
     );
 }
@@ -741,7 +724,7 @@ export function RubricLine(props: RubricLineProps): React.JSX.Element | null {
  */
 function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps): React.JSX.Element | null {
     const { store } = useWorkspace();
-    // R6 sides: split by the toggle, or because the two sides already differ.
+    // R6 sides: split by its Separate sides line, or because the two sides already differ.
     const [splitAsked, setSplit] = React.useState(false);
     const { session, side } = ctx;
     // A line standing for several units edits whichever the row sets.
@@ -812,30 +795,51 @@ function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps
         ((): void => {
             unsetIn(ctx, channels).catch(fail);
         });
-    return (
+    const frame = (
         <LineFrame
             line={channel}
             name={lineName(line, descriptor, rule, alwaysNamed)}
             set={set}
             rule={frameRule(line, rule)}
             control={control}
-            modifier={
-                row?.slot ??
-                modifierOf(ctx, line, write, {
-                    split,
-                    onSplit: (on) => {
-                        setSplit(on);
-                        // Joined again, both sides take the first one's value.
-                        if (!on && line.pair !== undefined && pairValue !== own?.value) {
-                            write(line.pair, own?.value);
-                        }
-                    },
-                })
-            }
+            modifier={row?.slot ?? null}
             removeName={set || row !== undefined ? removeName : undefined}
             onRemove={onRemove}
             dimmed={dimmed}
         />
+    );
+    return withSides(frame, line, channel, split, (on) => {
+        setSplit(on);
+        // Joined again, both sides take the first one's value.
+        if (!on && line.pair !== undefined && pairValue !== own?.value) {
+            write(line.pair, own?.value);
+        }
+    });
+}
+
+/**
+ * A line, and after it its Separate sides line when it is an R6 sides pair.
+ * @param frame - the line.
+ * @param line - its spec.
+ * @param address - what it edits, for `data-line`.
+ * @param split - whether its sides are split.
+ * @param onSplit - splits or joins them.
+ * @returns The line or lines
+ */
+function withSides(
+    frame: React.JSX.Element,
+    line: LineSpec,
+    address: string,
+    split: boolean,
+    onSplit: (on: boolean) => void,
+): React.JSX.Element {
+    return line.sides === true && line.pair !== undefined ? (
+        <>
+            {frame}
+            <SeparateSidesLine line={address} split={split} onChange={onSplit} />
+        </>
+    ) : (
+        frame
     );
 }
 

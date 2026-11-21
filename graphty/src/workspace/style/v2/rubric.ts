@@ -33,16 +33,12 @@ export interface LineSpec {
     readonly pair?: Channel;
     /** The letters in a pair's two fields' glyph slots. */
     readonly letters?: readonly [string, string];
-    /** R6 sides on a pair: one number writes both until the sides toggle splits them. */
+    /** R6 sides on a pair: one number writes both until its Separate sides line (R7) splits them. */
     readonly sides?: boolean;
     /** Channels standing for the same quantity in another unit: the line edits whichever is set. */
     readonly units?: readonly Channel[];
     /** A Unit line (R8): each unit's name and the channel holding the value in that unit. */
     readonly unit?: readonly (readonly [string, Channel])[];
-    /** A boolean modifying the line, drawn as a toggle in its modifier slot (R6). */
-    readonly toggle?: Channel;
-    /** The toggle's glyph, when not a lock (italic beside a font weight). */
-    readonly toggleGlyph?: keyof typeof GLYPHS;
     /** A number's named presets (R5b), where the element names none for its channel. */
     readonly presets?: readonly { readonly id: string; readonly plainName: string }[];
     /**
@@ -364,8 +360,9 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                         name: "Size",
                         pair: "node.imageHeight",
                         letters: ["W", "H"],
-                        toggle: "node.imageAspect",
                     },
+                    // A modifier is a checkbox line of its own (design 2.6, E674), never a toggle beside a line.
+                    { channel: "node.imageAspect", name: "Keep ratio" },
                     { channel: "node.imagePixelSize", name: "Pixel size" },
                     { channel: "node.imageAutoSize", name: null, rule: "R8f" },
                 ],
@@ -744,7 +741,7 @@ export function rubricOf(side: "node" | "edge", thing: string, main: Channel): T
 }
 
 /**
- * Every channel a line edits: its own, its pair's, its other units' and its toggle's.
+ * Every channel a line edits: its own, its pair's, its other units' and its choices'.
  * @param line - the line.
  * @returns the channels.
  */
@@ -754,7 +751,6 @@ export function lineChannels(line: LineSpec): readonly Channel[] {
         ...(line.pair === undefined ? [] : [line.pair]),
         ...(line.units ?? []),
         ...(line.unit?.map(([, channel]) => channel) ?? []),
-        ...(line.toggle === undefined ? [] : [line.toggle]),
         ...(line.choices ?? []).flatMap((choice) => Object.keys(choice.writes) as Channel[]),
     ].filter((channel, at, all) => all.indexOf(channel) === at);
 }

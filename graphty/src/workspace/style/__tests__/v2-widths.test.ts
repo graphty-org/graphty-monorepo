@@ -54,7 +54,7 @@ function widthAt(line: LineSpec, place: "panel" | "popover"): number {
 describe("Style panel v2's control rubric", () => {
     it("every line's channel is one graphty-element offers", () => {
         for (const { thing, line } of LINES) {
-            for (const channel of [line.channel, line.pair, line.toggle, ...(line.units ?? [])]) {
+            for (const channel of [line.channel, line.pair, ...(line.units ?? [])]) {
                 if (channel !== undefined) {
                     assert.isDefined(channelDescriptor(channel), `${thing}: ${channel}`);
                 }

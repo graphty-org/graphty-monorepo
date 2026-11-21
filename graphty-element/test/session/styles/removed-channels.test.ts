@@ -145,7 +145,8 @@ describe("removed channels in a saved layer", () => {
     });
     it("keeps a layer's own outline width beside a bound band color", () => {
         const encode: Record<string, unknown> = { "edge.bandColor": { field: "kind", scale: "category" } };
-        const read = readRemovedChannels({ set: { "edge.outlineWidth": 3 }, encode }).spec;
+        const set: Record<string, unknown> = { "edge.outlineWidth": 3 };
+        const read = readRemovedChannels({ set, encode }).spec;
         assert.deepEqual(read.set, {
             "edge.outlineScale": 2 * DEFAULT_SELECTION_STYLE.edgeScale,
             "edge.outlineWidth": 3,
@@ -171,9 +172,14 @@ describe("edgeBandWidthAs", () => {
         assert.isUndefined(edgeBandWidthAs("overlay", {}, 16));
     });
 
-    it("has no reading for an outline that follows the line, or an overlay with no padding", () => {
-        assert.isUndefined(edgeBandWidthAs("overlay", { "edge.outlineScale": 1, "edge.outlineWidth": 8 }));
-        assert.isUndefined(edgeBandWidthAs("overlay", { "edge.outlineWidth": 8 }));
+    it("reads an outline that follows the line along the default line when no line width is given", () => {
+        // the default line is 8 wide: scale 5 is 40 across, 20 either side of its middle
+        assert.deepEqual(edgeBandWidthAs("overlay", { "edge.outlineScale": 5 }), { "edge.overlayPadding": 20 });
+        assert.deepEqual(edgeBandWidthAs("overlay", { "edge.outlineWidth": 2 }), { "edge.overlayPadding": 5 });
+    });
+
+    it("has no reading for a band with no width set", () => {
+        assert.isUndefined(edgeBandWidthAs("overlay", {}));
         assert.isUndefined(edgeBandWidthAs("outline", {}));
     });
 });

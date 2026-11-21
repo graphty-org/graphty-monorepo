@@ -28,7 +28,7 @@ import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { viewDim } from "./drawn";
 import { replaceUse } from "./families";
-import { kindGroupOf, type KindMember, kindsShown, kindStarts, ownsOf } from "./kindGroups";
+import { kindGroupOf, type KindMember, kindsShown, kindStarts, lineWidthOf, ownsOf } from "./kindGroups";
 import { drawnItems, firstColors, ITEM_LISTS, LISTS } from "./lists";
 import { PlusList, PlusListKind } from "./PlusList";
 import { lineFor, V2_LABELS } from "./rubric";
@@ -396,6 +396,7 @@ function ThingSection({
                 ...sizeStarts(ctx, thing, main.channel),
                 ...first,
                 ...needsFor(ctx, main.channel, value),
+                ...free?.plusStarts?.(lineWidthOf(ctx)),
             }).filter(([c]) => c !== main.channel),
         );
         // Its own undo step, never merged with the first edit after it (design 12.13).

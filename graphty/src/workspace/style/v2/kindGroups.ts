@@ -11,6 +11,7 @@ import type { Encoding, Layer, StaticStyle } from "@graphty/graphty-element/sess
 
 import { itemChannels, partsFor } from "../parts/parts";
 import type { RowContext } from "../PropertyRow";
+import { lineIn } from "../row";
 import { heldFor, holdsAny } from "./families";
 import { setOn } from "./things";
 
@@ -38,18 +39,20 @@ export interface KindMember {
      * what to write given what moved.
      */
     readonly onSwitch?: SwitchWrites;
+    /** Values "+" writes beside its main value, over graphty-element's starts, given the row's line width. */
+    readonly plusStarts?: (lineWidth: number | undefined) => Readonly<Record<string, unknown>>;
 }
 
 /**
  * What a switch to a kind writes over what moved: values, or values worked out from what moved, what left and the
- * layer's other set values.
+ * width of the row's line.
  */
 type SwitchWrites =
     | Readonly<Record<string, unknown>>
     | ((
           moved: Readonly<Record<string, unknown>>,
           left: Readonly<Record<string, unknown>>,
-          layer: Readonly<Record<string, unknown>>,
+          lineWidth: number | undefined,
       ) => Readonly<Record<string, unknown>>);
 
 /** One group: the thing it is drawn as, and its kinds, the first the one "+" adds. */
@@ -84,6 +87,7 @@ export interface KindGroup {
  * @param slots.size - the channel its size moves to and from.
  * @param prefix - what its channels start with, when not its head's name (a plate's `node.underlay`).
  * @param onSwitch - what a switch to it writes over what moved.
+ * @param plusStarts - what "+" writes beside its main value.
  * @returns the kind.
  */
 function prefixKind(
@@ -93,6 +97,7 @@ function prefixKind(
     slots: { readonly color?: Channel; readonly size?: Channel },
     prefix: string = head,
     onSwitch?: SwitchWrites,
+    plusStarts?: KindMember["plusStarts"],
 ): KindMember {
     const others = KIND_HEADS.filter((other) => other !== prefix && other.startsWith(prefix));
     return {
@@ -107,6 +112,7 @@ function prefixKind(
         start: () => ({ [head]: channelDescriptor(head)?.start ?? channelDescriptor(head)?.default }),
         prefix,
         onSwitch,
+        plusStarts,
     };
 }
 
@@ -118,6 +124,30 @@ function prefixKind(
  */
 function startsOf(channel: Channel): Readonly<Record<string, unknown>> {
     return Object.fromEntries((channelDescriptor(channel)?.needs ?? []).map((need) => [need.channel, need.value]));
+}
+
+/**
+ * An Over line's start (ia-design 2): translucent at 30%, as wide as graphty-element starts an Under line beside the
+ * row's line, so it reaches past the line's sides on any width.
+ * @param lineWidth - the row's line width, or undefined for graphty-element's default line.
+ * @returns the writes.
+ */
+function overLineStart(lineWidth: number | undefined): Readonly<Record<string, unknown>> {
+    return { "edge.overlayOpacity": 0.3, ...edgeBandWidthAs("overlay", startsOf("edge.outlineColor"), lineWidth) };
+}
+
+/**
+ * The width of the line a row's edges draw: the row's own, else what the layers beneath paint.
+ * @param ctx - the row.
+ * @returns the width, or undefined when neither sets one (graphty-element's default line).
+ */
+export function lineWidthOf(ctx: Pick<RowContext, "many" | "layers" | "beneath">): number | undefined {
+    const own = lineIn(ctx, "edge.width")?.value;
+    if (typeof own === "number") {
+        return own;
+    }
+    const beneath = ctx.beneath("edge.width").value;
+    return typeof beneath === "number" ? beneath : undefined;
 }
 
 /** Heads one of which starts with another's name: a kind owns none of the longer one's channels. */
@@ -217,16 +247,12 @@ export const KIND_GROUPS: readonly KindGroup[] = [
                 "edge.overlayColor",
                 { color: "edge.overlayColor" },
                 "edge.overlay",
-                (_moved, left, layer) => ({
-                    "edge.overlayOpacity": 0.3,
-                    ...(edgeBandWidthAs(
-                        "overlay",
-                        left,
-                        typeof layer["edge.width"] === "number" ? layer["edge.width"] : undefined,
-                    ) ?? {
-                        "edge.overlayPadding": startsOf("edge.overlayColor")["edge.overlayPadding"],
-                    }),
+                (_moved, left, lineWidth) => ({
+                    ...overLineStart(lineWidth),
+                    ...edgeBandWidthAs("overlay", left, lineWidth),
                 }),
+                // "+" again starts it the same way as a switch with no band to carry.
+                overLineStart,
             ),
         ],
     },
@@ -352,17 +378,28 @@ function carried(
  * @param to - the kind switched to.
  * @param moved - what moved, or the kind's start when nothing did.
  * @param left - the leaving kind's own values.
- * @param layer - the layer's set values.
+ * @param lineWidth - the width of the row's line, when known.
  * @returns the writes.
  */
 function switchWrites(
     to: KindMember,
     moved: Readonly<Record<string, unknown>>,
     left: Readonly<Record<string, unknown>>,
-    layer: Readonly<Record<string, unknown>>,
+    lineWidth: number | undefined,
 ): Record<string, unknown> {
-    const extra = typeof to.onSwitch === "function" ? to.onSwitch(moved, left, layer) : to.onSwitch;
+    const extra = typeof to.onSwitch === "function" ? to.onSwitch(moved, left, lineWidth) : to.onSwitch;
     return { ...moved, ...extra };
+}
+
+/**
+ * The line width a switch sizes a band by: the switched layer's own, else the row's.
+ * @param ctx - the row.
+ * @param set - the switched layer's set values.
+ * @returns the width, or undefined for graphty-element's default line.
+ */
+function switchLineWidth(ctx: RowContext, set: Readonly<Record<string, unknown>> | undefined): number | undefined {
+    const own = set?.["edge.width"];
+    return typeof own === "number" ? own : lineWidthOf(ctx);
 }
 
 /**
@@ -474,7 +511,12 @@ export async function switchKind(ctx: RowContext, group: KindGroup, from: KindMe
         writeSlot(set, to.slots.color, readSlot(left.set, from.slots.color));
         writeSlot(set, to.slots.size, readSlot(left.set, from.slots.size));
         next = {
-            set: switchWrites(to, Object.keys(set).length > 0 ? set : to.start(), left.set, own?.set ?? {}),
+            set: switchWrites(
+                to,
+                Object.keys(set).length > 0 ? set : to.start(),
+                left.set,
+                switchLineWidth(ctx, own?.set),
+            ),
             encode: carried(left.encode, from, to, toOwns),
         };
     }

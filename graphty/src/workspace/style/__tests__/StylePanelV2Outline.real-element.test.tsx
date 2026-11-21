@@ -245,6 +245,65 @@ describe("Style panel v2's edge Outline", () => {
         // Recoloring the line changes the line's own pixels; the wash changes more, so it reaches past its sides.
         assert.isAbove(pixelsApart(plain, over), pixelsApart(plain, recolored), "Over line is wider than the line");
     });
+    it("the starting Selected row's Outline switches to an Over line as wide as its Under line, on a line set beneath", async () => {
+        const { session, edges } = await openGraph();
+        await session.config.set({ startingRows: true });
+        await switchView("2D");
+        // The line's width comes from the layer beneath the Selected row, which sets none of its own.
+        await session.styles.update(edges, { set: { "edge.width": 16 } });
+        await session.selection.apply({ edges: session.data.edges().map((edge) => edge.id) });
+        await session.styles.settled();
+        const selected = session.styles
+            .list()
+            .find(
+                (layer) =>
+                    layer.name === "Selected" &&
+                    (layer.set as Record<string, unknown> | undefined)?.["edge.outlineScale"] !== undefined,
+            );
+        assert.isDefined(selected);
+        const { id } = selected;
+        assert.isUndefined(written(session, id, "edge.width"), "the Selected row sets no line width");
+
+        const tab = await openStyle("Selected");
+        await showKind("edge");
+        const line = sectionOf(tab, "edge-line");
+        const [row] = await waitFor(() => {
+            const rows = outlineRows(line);
+            assert.lengthOf(rows, 1);
+            return rows;
+        });
+        await switchTo(row, "Over line");
+        await waitFor(() => {
+            assert.isDefined(written(session, id, "edge.overlayColor"));
+        });
+        // the Under line was 5 line widths across, 80 on the 16 line: the Over line is the same 80
+        assert.equal(written(session, id, "edge.overlayPadding"), 40);
+        assert.equal(written(session, id, "edge.overlayOpacity"), 0.3);
+    });
+
+    it("'+' again adds an Over line at the switch's start: 30% and reaching past the line's sides", async () => {
+        const { session, edges } = await openGraph();
+        await switchView("2D");
+        await session.styles.update(edges, { set: { "edge.width": 16 } });
+        await session.styles.settled();
+        const tab = await openStyle("Links");
+        await showKind("edge");
+        const line = sectionOf(tab, "edge-line");
+
+        await plusOutline(line);
+        await waitFor(() => {
+            assert.isDefined(written(session, edges, "edge.outlineColor"), "the first '+' is Under line");
+        });
+        await plusOutline(line);
+        await waitFor(() => {
+            assert.isDefined(written(session, edges, "edge.overlayColor"), "the second '+' is the free Over line");
+            assert.lengthOf(outlineRows(line), 2);
+        });
+        assert.equal(written(session, edges, "edge.overlayOpacity"), 0.3, "at 30%, as a switch starts it");
+        // as wide as an Under line's start beside the 16 line: 2 past it is 9 either side of the middle
+        assert.equal(written(session, edges, "edge.overlayPadding"), 9);
+    });
+
     it("on a line wider than the Over line's own start, Switch to Over line still reaches past the line's sides", async () => {
         const { session, element, edges } = await openGraph();
         await switchView("2D");

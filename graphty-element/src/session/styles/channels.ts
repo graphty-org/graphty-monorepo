@@ -6221,17 +6221,18 @@ function readRemovedCasing(set: Readonly<Record<string, unknown>>): Record<strin
  * An edge band's width written as the other band kind, so a style editor that turns an outline into an overlay
  * (or back) keeps the band it draws. An overlay of `edge.overlayPadding` p is 2p across whatever the line's width,
  * as an outline of `edge.outlineScale` 0 and `edge.outlineWidth` 2p is. An outline of any other scale is
- * `edge.outlineScale` line widths plus `edge.outlineWidth` across, so it reads as an overlay only given the line's width.
+ * `edge.outlineScale` line widths plus `edge.outlineWidth` across, so it reads as an overlay along a line of
+ * `lineWidth`, the default line's width (`EDGE_CONSTANTS.DEFAULT_LINE_WIDTH`) when not given.
  * @param to - The kind to write: `"outline"` (`edge.outline*`) or `"overlay"` (`edge.overlay*`).
  * @param values - The band's current values, of the other kind.
- * @param lineWidth - The width of the line the band is drawn along (`edge.width`), when known.
- * @returns The width channels of `to` that draw the same band, or undefined when there is no exact reading (no
- * overlay padding set, no outline width or scale set, or an outline whose scale is not 0 and no line width).
+ * @param lineWidth - The width of the line the band is drawn along (`edge.width`); the default line's when omitted.
+ * @returns The width channels of `to` that draw the same band, or undefined when the band sets no width (no
+ * overlay padding, or no outline width or scale).
  */
 export function edgeBandWidthAs(
     to: "outline" | "overlay",
     values: Readonly<Record<string, unknown>>,
-    lineWidth?: number,
+    lineWidth: number = EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
 ): Readonly<Record<string, number>> | undefined {
     if (to === "outline") {
         const padding = values["edge.overlayPadding"];
@@ -6246,9 +6247,7 @@ export function edgeBandWidthAs(
     if (scale === 0) {
         return { "edge.overlayPadding": extra / 2 };
     }
-    return lineWidth === undefined
-        ? undefined
-        : { "edge.overlayPadding": (lineWidth * (typeof scale === "number" ? scale : 1) + extra) / 2 };
+    return { "edge.overlayPadding": (lineWidth * (typeof scale === "number" ? scale : 1) + extra) / 2 };
 }
 
 /**

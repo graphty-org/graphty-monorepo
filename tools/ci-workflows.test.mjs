@@ -937,7 +937,7 @@ describe("ci.yml", () => {
     });
 
     it("keeps the benchmarks advisory, outside the verdict and beside the tests", () => {
-        for (const name of ["algorithms-benchmarks", "performance"]) {
+        for (const name of ["algorithms-benchmarks", "performance", "timing-benchmarks"]) {
             assert.match(job(ci, name), /continue-on-error: true/, name);
             assert.doesNotMatch(job(ci, name), /needs: .*test/, name);
             assert.doesNotMatch(job(ci, "all-checks"), new RegExp(`needs: .*${name}`));
@@ -947,10 +947,12 @@ describe("ci.yml", () => {
     // A job that reaches its timeout-minutes is canceled, and continue-on-error does not absorb a canceled job:
     // the whole run concludes canceled (issue #7986). The benchmarks fail their own step first, at DEADLINE.
     it("ends the benchmarks inside the job's time limit, so a slow one fails a step and never cancels the run", () => {
-        // each job runs its own benchmarks under its own deadline (issue #8148: one job for all four outgrew it)
+        // each job runs its own benchmarks under its own deadline (issue #8148: one job for all four outgrew it;
+        // issue #9456: browser-bench spent the time bench needed)
         for (const [name, count] of [
             ["algorithms-benchmarks", 1],
-            ["performance", 3],
+            ["performance", 1],
+            ["timing-benchmarks", 2],
         ]) {
             const perf = parseYaml(ci).jobs[name];
             const deadline = Number(/\+ (\d+) \* 60 \)\)" >> "\$GITHUB_ENV"/.exec(perf.steps[0].run)?.[1]);
@@ -1284,11 +1286,11 @@ describe("ci.yml", () => {
     });
 
     it("runs every benchmark, and the browser set-up the last one needs, after an earlier benchmark fails", () => {
-        const steps = job(ci, "performance")
+        const steps = job(ci, "timing-benchmarks")
             .split(/\n {12}- /)
             .slice(1);
         const first = steps.findIndex((step) => /vitest run --project=bench/.test(step));
-        assert.ok(first > 0, "the performance job runs the graphty-element benchmarks");
+        assert.ok(first > 0, "the timing benchmarks job runs the graphty-element benchmarks");
         for (const step of steps.slice(first)) {
             assert.match(step, /\n\s+if: \$\{\{ !cancelled\(\) \}\}\n/, `this step runs after a failure:\n${step}`);
         }
@@ -1318,7 +1320,7 @@ describe("ci.yml", () => {
             );
         }
         // the benchmarks need only the build, and a light run (master) skips them
-        for (const name of ["algorithms-benchmarks", "performance"]) {
+        for (const name of ["algorithms-benchmarks", "performance", "timing-benchmarks"]) {
             assert.match(job(ci, name), /needs: packages\n/, name);
             assert.match(job(ci, name), /&& needs.packages.outputs.light != 'true'\n/, name);
         }
@@ -1366,6 +1368,7 @@ describe("ci.yml", () => {
             "cost-accuracy",
             "algorithms-benchmarks",
             "performance",
+            "timing-benchmarks",
             "lint",
             "checks",
             "docs",
@@ -1373,7 +1376,7 @@ describe("ci.yml", () => {
             const body = job(ci, name).replace(/\n {8}environment: .*|\n {18}WRITES: .*/g, "");
             assert.doesNotMatch(body, /event_name == 'push'|refs\/heads\/master/, name);
         }
-        for (const name of ["algorithms-benchmarks", "performance"]) {
+        for (const name of ["algorithms-benchmarks", "performance", "timing-benchmarks"]) {
             assert.match(job(ci, name), /if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
         }
     });
@@ -1560,7 +1563,7 @@ describe("verification runs of ci.yml", () => {
     });
 
     it("skips the benchmarks on a verification run", () => {
-        for (const name of ["algorithms-benchmarks", "performance"]) {
+        for (const name of ["algorithms-benchmarks", "performance", "timing-benchmarks"]) {
             assert.match(job(ci, name), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify &&/, name);
         }
     });

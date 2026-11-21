@@ -89,7 +89,7 @@
         "benchmarks": {
             "label": "Benchmark results (CI's benchmark jobs)",
             "yellowAfterMs": 172800000,
-            "idle": "writes when a full run's Performance Benchmarks job or the T4 lane posts its numbers"
+            "idle": "writes when a full run's Algorithms Benchmarks or Timing Benchmarks job or the T4 lane posts its numbers"
         },
         "flaky-feed": {
             "label": "Feed of CI's flaky detections",

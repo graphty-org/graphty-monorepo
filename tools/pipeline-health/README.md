@@ -179,7 +179,7 @@ targets, never judged into a page's state or alerted.
 CI posts test results through [`tools/results/client.mjs`](../results/client.mjs): when the repository
 variable `HEALTH_API_URL` is set, every write it sends to the results service (POST, PUT and DELETE) is also
 sent to the health API, fire and forget (2 seconds at most; a failed post never fails a job), with the results
-service's own paths and bodies. The benchmark jobs (ci.yml's Performance Benchmarks, gpu.yml's T4 lane) post their numbers to
+service's own paths and bodies. The benchmark jobs (ci.yml's Algorithms Benchmarks and Timing Benchmarks, gpu.yml's T4 lane) post their numbers to
 `POST /v1/benchmarks` through [`tools/results/post-benchmarks.mjs`](../results/post-benchmarks.mjs), which the
 API takes only from master's workflows.
 

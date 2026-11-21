@@ -247,11 +247,16 @@ export class EdgeIdTarget {
             }
 
             const id = edges.push(edge);
-            const { srcNode, dstNode } = edge;
-            if (srcNode === dstNode || srcNode.isDrawnAsGroup || dstNode.isDrawnAsGroup || edge.drawnCurve !== null) {
+            // Read by row, so a hover's rebuild builds no Node for an end drawn without one (issue #9166).
+            if (
+                edge.srcId === edge.dstId ||
+                edge.endDrawnAsGroup("source") ||
+                edge.endDrawnAsGroup("target") ||
+                edge.drawnCurve !== null
+            ) {
                 loose.push(id - 1);
             } else {
-                lines.push(srcNode.index, id, 0, dstNode.index, id, 0);
+                lines.push(edge.endRow("source"), id, 0, edge.endRow("target"), id, 0);
             }
         }
 

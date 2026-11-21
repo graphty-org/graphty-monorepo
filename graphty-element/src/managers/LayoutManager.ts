@@ -3624,7 +3624,6 @@ export class LayoutManager implements Manager {
 
             this.eventManager.emit("layout-updated", {
                 nodeCount: nodes.length,
-                type: "incremental",
             });
 
             return Promise.resolve();
@@ -3656,7 +3655,6 @@ export class LayoutManager implements Manager {
         // Emit event that layout was updated
         this.eventManager.emit("layout-updated", {
             nodeCount: nodes.length,
-            type: "incremental",
         });
 
         return Promise.resolve();

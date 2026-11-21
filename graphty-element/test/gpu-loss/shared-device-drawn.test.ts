@@ -201,6 +201,35 @@ describe("the layout filling the row table on a shared device", () => {
         });
     }
 
+    // A batch lands between frames, so a frame's work before its publish (a style paint, a label refit) reads
+    // rows while the owed publish is a landing behind (issue #9490): each such read wrote every row.
+    it("answers a row read after a batch lands and before it is published, writing no row", async () => {
+        const graph = await running("batched", undefined, "webgpu", SPREAD);
+        await copied(graph);
+        await landed(graph);
+        const lane = graph.getDataManager()[WRITABLE_LANE];
+        const engine = layoutOf(graph);
+        // no frame publishes from here: a batch is sent, and it lands with nothing published after it
+        graph.engine.stopRenderLoop();
+        engine.step();
+        const written = lane.changes;
+        while (engine.landedBatches <= engine.landedBatchesPublished) {
+            await nextFrame();
+        }
+
+        const node = graph.getNode(`n${String(SPREAD - 1)}`);
+        assert.isDefined(node);
+        const at = node.getPosition();
+        assert.isTrue(Number.isFinite(at.x));
+        assert.strictEqual(lane.changes - written, 0, "a row read before the publish writes no row");
+
+        // and it is where the publish writes it
+        lane.settle();
+        const out = { x: 0, y: 0, z: 0 };
+        lane.read(node.index, out);
+        assert.deepEqual([at.x, at.y, at.z], [out.x, out.y, out.z]);
+    });
+
     it("hands a snapshot read while a landing is owed the coordinates the card shows", async () => {
         const graph = await running("batched");
         await copied(graph);

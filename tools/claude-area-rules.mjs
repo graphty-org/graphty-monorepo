@@ -6,6 +6,7 @@
 // Any failure exits 0 silently, so a broken hook never blocks an edit.
 //
 //   echo '{"session_id":"s","tool_input":{"file_path":"/repo/a/b.test.ts"}}' | node tools/claude-area-rules.mjs
+import { runHook } from "./claude-hook.mjs";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, matchesGlob, relative, sep } from "node:path";
@@ -80,11 +81,4 @@ export function respond(input, root = ROOT, markerDir = tmpdir()) {
     return JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext } });
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    try {
-        process.stdout.write(respond(JSON.parse(readFileSync(0, "utf8"))));
-    } catch {
-        // A broken hook must never block an edit.
-    }
-    process.exit(0);
-}
+runHook(import.meta.url, respond);

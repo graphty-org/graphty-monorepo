@@ -7,8 +7,7 @@
 // is allowed: the session is notified when it ends. Any failure exits 0 silently (allow).
 //
 //   echo '{"tool_name":"Bash","tool_input":{"command":"sleep 300"}}' | node tools/claude-no-foreground-wait.mjs
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { deny, runHook } from "./claude-hook.mjs";
 
 const UNIT = { s: 1, m: 60, h: 3600, d: 86400 };
 const LIMIT = 30;
@@ -306,23 +305,11 @@ export function respond(input) {
     if (!wait) {
         return "";
     }
-    return JSON.stringify({
-        hookSpecificOutput: {
-            hookEventName: "PreToolUse",
-            permissionDecision: "deny",
-            permissionDecisionReason:
-                `Refused: this command waits in the foreground (${wait}). Waiting inside a turn drops the ` +
-                "prompt cache. Run it with run_in_background: true (you are notified when it ends), or start " +
-                "the push or run in the background and end the turn.",
-        },
-    });
+    return deny(
+        `Refused: this command waits in the foreground (${wait}). Waiting inside a turn drops the ` +
+            "prompt cache. Run it with run_in_background: true (you are notified when it ends), or start " +
+            "the push or run in the background and end the turn.",
+    );
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    try {
-        process.stdout.write(respond(JSON.parse(readFileSync(0, "utf8"))));
-    } catch {
-        // Never block a command because the hook itself failed.
-    }
-    process.exit(0);
-}
+runHook(import.meta.url, respond);

@@ -26,9 +26,8 @@
 // (design/ci/channels-pipeline-plan.md, section 1, change 2). Any failure of the hook itself allows the call.
 //
 //   echo '{"tool_name":"Read","tool_input":{"file_path":"~/.npmrc"}}' | node tools/claude-owner-credential-guard.mjs
-import { readFileSync } from "node:fs";
+import { deny, runHook } from "./claude-hook.mjs";
 import { homedir } from "node:os";
-import { fileURLToPath } from "node:url";
 
 const escape = (s) => s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
@@ -145,23 +144,11 @@ export function refusal(input, home = process.env.HOME || homedir()) {
 export function respond(input, home) {
     const why = refusal(input, home);
     if (!why) return "";
-    return JSON.stringify({
-        hookSpecificOutput: {
-            hookEventName: "PreToolUse",
-            permissionDecision: "deny",
-            permissionDecisionReason:
-                `Refused: this touches ${why}. Agent sessions act as graphty-agent only (GIT_CONFIG_GLOBAL and ` +
-                "GH_CONFIG_DIR in .claude/settings.json); never read or use the owner's credentials. If the agent " +
-                "identity cannot do what you need, stop and tell the owner.",
-        },
-    });
+    return deny(
+        `Refused: this touches ${why}. Agent sessions act as graphty-agent only (GIT_CONFIG_GLOBAL and ` +
+            "GH_CONFIG_DIR in .claude/settings.json); never read or use the owner's credentials. If the agent " +
+            "identity cannot do what you need, stop and tell the owner.",
+    );
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    try {
-        process.stdout.write(respond(JSON.parse(readFileSync(0, "utf8"))));
-    } catch {
-        // Never block a call because the hook itself failed.
-    }
-    process.exit(0);
-}
+runHook(import.meta.url, respond);

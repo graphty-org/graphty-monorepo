@@ -220,11 +220,8 @@ export interface NodeIdHost {
 
 /** The ID target of one scene; see the file comment. */
 export class NodeIdTarget {
-    /**
-     * How many times the target was drawn, how many pixels were read from it, and how many meshes
-     * its drawings drew in all.
-     */
-    readonly counts = { draws: 0, reads: 0, meshes: 0 };
+    /** How many times the target was drawn, and how many pixels were read from it. */
+    readonly counts = { draws: 0, reads: 0 };
 
     private readonly target: IdTexture;
     private readonly rowMaterial: ShaderMaterial;
@@ -324,7 +321,6 @@ export class NodeIdTarget {
                 this.drawnIn = scene.getFrameId();
                 this.inUse = false;
                 this.counts.draws++;
-                this.counts.meshes += this.list.length;
             }
         };
         scene.customRenderTargets.push(this.target);

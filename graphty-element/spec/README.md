@@ -743,13 +743,13 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
 
 A recipe section holds `commands` (REQUIRED) and `namespace`. The commands, in order:
 
-| `op`           | Members                                                                                                                                       |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `graph.filter` | `where` (an expression, 4.8.2), `on` (`nodes` default, or `edges`), `dropIsolated`, `description`                                             |
-| `algo.run`     | `algorithm`, `as`, `style` (REQUIRED), `params`, `scope`, `seed`, `sample`, `exact`, `recordedCapSeconds`, `recordedPrecision`, `description` |
-| `layout.set`   | `id`, `dimension` (`2` or `3`, REQUIRED), `algorithm`, `options` (the seed among them), `description`; no `engine`                            |
-| `set.define`   | `id` (`set_` plus a ULID, bare), `name`, `where` (an expression or a rule tree (4.8.3) naming no element), `reading`, `description`           |
-| `join.<shape>` | a join step (4.1.8), naming sources by role                                                                                                   |
+| `op`           | Members                                                                                                                                                                                                           |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graph.filter` | `where` (an expression, 4.8.2), `on` (`nodes` default, or `edges`), `dropIsolated`, `description`                                                                                                                 |
+| `algo.run`     | `algorithm`, `as`, `style` (REQUIRED), `params`, `scope`, `seed`, `sample`, `exact`, `recordedCapSeconds`, `recordedPrecision`, `description`                                                                     |
+| `layout.set`   | `id` (an arrangement, REQUIRED), `dimension` (`2` or `3`, REQUIRED), `options` (the arrangement's options, by the names the layout registry gives them, the seed among them), `drawnBy` (5 rule 9), `description` |
+| `set.define`   | `id` (`set_` plus a ULID, bare), `name`, `where` (an expression or a rule tree (4.8.3) naming no element), `reading`, `description`                                                                               |
+| `join.<shape>` | a join step (4.1.8), naming sources by role                                                                                                                                                                       |
 
 Every command MAY also carry `narrows` (only `false` is ever written), `extensions` and
 `ignorable` (10). A reader that knows the command's `op` ignores `narrows`.
@@ -760,8 +760,9 @@ Every command MAY also carry `narrows` (only `false` is ever written), `extensio
 3. Every `algo.run` writes `style`: the run's suggested-style setting, or `false` when any saved
    layer reads the run, in a style or view section, in the same file or not.
 4. Steps carry no algorithm or layout version; the version that ran is recorded in results and
-   view. A recipe says what to run, not what ran: `layout.set` names the layout in `algorithm`
-   and has no `engine`. `params` on `algo.run` and `options` on `layout.set` hold the value used
+   view. A recipe says what to run, not what ran: `layout.set` names the arrangement in `id`,
+   never the engine that draws it, and records no versions. The engine its author's session drew
+   it with is provenance in `drawnBy` (5 rule 9). `params` on `algo.run` and `options` on `layout.set` hold the value used
    for every option the implementation declares with a default (9 rule 10). A hand-written command
    may leave options out, and the reader applies its own current defaults.
 5. A recipe never names an element. A rule naming an element cannot be a recipe step: the writer
@@ -839,9 +840,8 @@ A results section holds `bindsTo` (REQUIRED, `{ data }` only), `runs` (REQUIRED)
    reader-facing text: an application names it.
 4. Outputs are columns: `{ "refs": [<element references>], "columns": { <field>: [values] } }`,
    every column as long as `refs`.
-5. `layout` is the layout's record: `id`, the catalogue id; `algorithm`, the layout that drew it,
-   as `layout.set` spells it in `algorithm`; `dimension`; `options` (every declared option's value
-   as it drew); `seed`; `durationMs` (absent
+5. `layout` is the layout's record: `id`, the arrangement; `dimension`; `options`; `drawnBy`
+   (5 rule 9), the options of both holding every declared option's value as it drew; `seed`; `durationMs` (absent
    when the layout was not timed, never 0, as for a run); `engine`
    (`EngineVersions`, as every run's); `bindsTo`; and `nodes: { refs, columns: { x, y, z } }`. It
    has no run id; one layout is in force at a time. In results, `engine` always means
@@ -878,7 +878,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
 | `order`         | one list of layer ids for the whole stack, bottom first, style and view layers alike                                                |
 | `layers`        | the layers that name elements or a dataset (section 5 rule 5)                                                                       |
 | `runs`          | the single ordered list of every run record, in the order made (rule 5)                                                             |
-| `layout`        | the layout record in force: `{ id, algorithm, options, dimension, engine }` (rule 7)                                                |
+| `layout`        | the layout record in force: `{ id, options, dimension, drawnBy, engine }` (rule 7)                                                  |
 
 1. Positions and cameras are in the frame of section 7. Every other position is layout output.
 2. **Camera.** `dimension` (`2` or `3`, closed; it follows the layout's dimension) and
@@ -923,9 +923,10 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    elements, and whose run source `params` hold element references. A layer reading a run no
    recipe step makes, or a run or set whose name several open ones share, names it by run id or
    full set id.
-7. **Layout.** The layout record names the layout in `algorithm`, as `layout.set` spells it, and
-   `engine` is graphty-element's `EngineVersions`, exactly as in results' `layout` and every run.
-   Its `options` hold every declared option's value (9 rule 10).
+7. **Layout.** The layout record names the arrangement in `id` and its engine only in `drawnBy`,
+   as `layout.set` and results' `layout` do (5 rule 9); `engine` is graphty-element's
+   `EngineVersions`, exactly as in results' `layout` and every run. Its `options` and
+   `drawnBy.options` hold every declared option's value (9 rule 10).
    A layout scope (`layoutScope`) is not saved, and the save reports it.
 8. **Collapsed groups.** A collapse replaces a group's members with one node standing in for them;
    it is the reader's decision, not data. The data section holds the graph expanded: every member,
@@ -1117,6 +1118,25 @@ View restores the session; recipe, style and settings are what applies to new da
    setting not in it is saved in another named section or not at all.
 8. **Column settings.** Renames belong to each source's `mapping`; type conversions to the data
    section's `conversions`; hidden columns to view.
+9. **Layouts.** A layout record (recipe `layout.set`, results' `layout`, view's `layout`) names an
+   arrangement, never the software that draws it.
+    - `id` is an arrangement in the layout registry (10.1).
+    - `options` holds only that arrangement's options, by the registry's names. `dimension` is the
+      record's own member, never an option.
+    - `drawnBy` is provenance: `{ "engine": <registered engine name>, "options": { ... } }`. Its
+      `options` hold every option the engine was given that the arrangement does not list, by the
+      engine's own name. `drawnBy` is optional and open.
+    - A writer writes `drawnBy` whenever it knows the engine.
+    - A reader MAY draw with `drawnBy.engine` when it can draw the arrangement with it, applying
+      `options` then `drawnBy.options`. graphty-element does, so a seeded layout reopens as the
+      same drawing.
+    - Otherwise the reader draws with its default engine, applies `options` only, and reports
+      `W_LAYOUT_ENGINE_UNAVAILABLE` (never an error).
+    - An option the arrangement does not list, or that the drawing engine does not take, is left
+      out and reported `W_LAYOUT_OPTION_NOT_APPLIED`.
+    - An unknown arrangement fails the layout as before (`E_BAD_DOCUMENT` in a recipe).
+    - Resolved values (9 rule 10) are split the same way: the options the arrangement lists go in
+      `options`, the rest in `drawnBy.options`.
 
 ## 6. Naming nodes and edges
 
@@ -1485,6 +1505,11 @@ kind) is opened through a migration into the sections above:
   (`padj < 0.05` becomes ``data.padj < `0.05` ``); every rootless path member (4.8.1 rule 2) gets
   `data.`, version 1's bare column, except a layer source's `by`; an expression that still does not
   parse is carried as written and refused on load (4.8.2 rule 6);
+- version 1 layouts (the session's layout, a recipe's `layout.set`) are written as 5 rule 9: an
+  `id` that is an engine name or a deprecated name (`ngraph`, `force-2d`) is read as the
+  arrangement that engine draws; the engine (version 1's `engine`, or the one the name stood for)
+  goes in `drawnBy.engine`; options the arrangement does not list move to `drawnBy.options`; a
+  version 1 layout naming no engine writes no `drawnBy`;
 - `styleVersion` and `recipeVersion` are dropped, reported; notes version 1 targets become element
   references; base64 positions and results become plain numbers.
 
@@ -1496,20 +1521,22 @@ document migrated without its project file keeps its edge targets unbound, since
 An **open vocabulary** may gain values within a major version. A **closed object** MUST NOT be read
 by ignoring a member it does not know.
 
-| Section             | Open vocabulary                                                               | A reader meeting an unknown value                                                                                                                                      |
-| ------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| wrapper             | `sections` keys                                                               | skips it with `W_UNKNOWN_KIND`, keeps it on re-save                                                                                                                    |
-| every section       | `dependencies.extensions` names                                               | skips and holds the section (3.6 rule 4)                                                                                                                               |
-| data                | source `kind`                                                                 | an embedded source is built from its copy and is not refreshable; a referenced one is held (`W_SOURCE_UNAVAILABLE`, reason `kind`); its record is written back as read |
-| data                | `copy` form                                                                   | that source alone is held (reason `copy-form`)                                                                                                                         |
-| data                | join step `op`, reader operation `op`                                         | skips and holds the whole data section (4.1.10); an `off` join step is kept and not built                                                                              |
-| data                | `measurement` values                                                          | draws as with no measurement                                                                                                                                           |
-| style               | channel names, selector kinds, scales, enumerated channel values, palette ids | fails that channel entry or layer alone, keeps it                                                                                                                      |
-| recipe              | command `op`, algorithm keys, layout ids, the parts of a run's `style`        | an unknown `op` stops the replay unless the command says `narrows: false` (4.3 rule 7)                                                                                 |
-| notes               | target kinds, item key forms                                                  | the target reads unsupported and is kept                                                                                                                               |
-| view                | camera controllers                                                            | 4.7 rule 2                                                                                                                                                             |
-| view                | run `scope` forms                                                             | that run's replay stops; the record is kept on re-save                                                                                                                 |
-| style, recipe, view | rule tree leaf kinds                                                          | fails the holder alone (4.8.2 rule 6)                                                                                                                                  |
+| Section             | Open vocabulary                                                                                                                    | A reader meeting an unknown value                                                                                                                                      |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| wrapper             | `sections` keys                                                                                                                    | skips it with `W_UNKNOWN_KIND`, keeps it on re-save                                                                                                                    |
+| every section       | `dependencies.extensions` names                                                                                                    | skips and holds the section (3.6 rule 4)                                                                                                                               |
+| data                | source `kind`                                                                                                                      | an embedded source is built from its copy and is not refreshable; a referenced one is held (`W_SOURCE_UNAVAILABLE`, reason `kind`); its record is written back as read |
+| data                | `copy` form                                                                                                                        | that source alone is held (reason `copy-form`)                                                                                                                         |
+| data                | join step `op`, reader operation `op`                                                                                              | skips and holds the whole data section (4.1.10); an `off` join step is kept and not built                                                                              |
+| data                | `measurement` values                                                                                                               | draws as with no measurement                                                                                                                                           |
+| style               | channel names, selector kinds, scales, enumerated channel values, palette ids                                                      | fails that channel entry or layer alone, keeps it                                                                                                                      |
+| recipe              | command `op`, algorithm keys, layout ids (arrangements), layout option names, `drawnBy` engine names, the parts of a run's `style` | an unknown `op` stops the replay unless the command says `narrows: false` (4.3 rule 7); layouts as 5 rule 9                                                            |
+| results             | layout ids, layout option names, `drawnBy` engine names                                                                            | 5 rule 9                                                                                                                                                               |
+| notes               | target kinds, item key forms                                                                                                       | the target reads unsupported and is kept                                                                                                                               |
+| view                | camera controllers                                                                                                                 | 4.7 rule 2                                                                                                                                                             |
+| view                | run `scope` forms                                                                                                                  | that run's replay stops; the record is kept on re-save                                                                                                                 |
+| view                | layout ids, layout option names, `drawnBy` engine names                                                                            | 5 rule 9                                                                                                                                                               |
+| style, recipe, view | rule tree leaf kinds                                                                                                               | fails the holder alone (4.8.2 rule 6)                                                                                                                                  |
 
 Closed objects:
 
@@ -1520,7 +1547,8 @@ Closed objects:
   under the same build stamp. Also closed, but failing only their source (4.1.10): a source's
   `options` (closed per format, builtins.md "Parse options") and a network `origin.ledger` with
   its `limits`, `validators`, `expand` and each expansion.
-- A recipe command and its `scope`: an unknown member that `ignorable` does not name skips the
+- A recipe command and its `scope` (a `layout.set`'s `options` and `drawnBy` are not closed: their
+  keys are open vocabularies, 5 rule 9): an unknown member that `ignorable` does not name skips the
   command and every later one (`E_UNKNOWN_OPTION`).
 - A style's selectors, bindings and carried palettes: an unknown member fails that channel entry
   or layer alone, reported (`W_UNKNOWN_MEMBER`) and written back.
@@ -1642,6 +1670,8 @@ application words them.
 | `W_COLUMN_WIDENED`            | two types declare one column with different dtypes                                                                        | `column`                                  |
 | `W_ROLES_DIFFER`              | built sources name a weight, time or location role differently                                                            | `table`, `role`, `sources`                |
 | `W_CLASH_RULE_TYPE`           | a number clash rule met a cell it cannot read; the held value stays                                                       | `step`, `column`, `rule`, `cells`         |
+| `W_LAYOUT_ENGINE_UNAVAILABLE` | a layout's `drawnBy` names an engine the reader cannot draw that arrangement with; its default engine drew it             | `section`, `layout`, `engine`             |
+| `W_LAYOUT_OPTION_NOT_APPLIED` | a layout option the arrangement or the drawing engine does not take was left out                                          | `section`, `layout`, `engine`, `option`   |
 
 ## 14. Files in this directory
 

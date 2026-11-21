@@ -4,6 +4,21 @@
     "title": "graphty documents version 2: shared definitions",
     "description": "Definitions the version 2 schemas share: the header, ids, element references, rule trees, style layers and join steps.",
     "$defs": {
+        "layoutDrawnBy": {
+            "type": "object",
+            "description": "Provenance: the engine that drew a layout, and every option it was given that the arrangement does not list, by the engine's own names (spec 5 rule 9). Deliberately open.",
+            "required": ["engine"],
+            "properties": {
+                "engine": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "A registered engine name."
+                },
+                "options": {
+                    "type": "object"
+                }
+            }
+        },
         "timestamp": {
             "type": "string",
             "description": "A UTC instant as JavaScript's toISOString() writes it, ending Z.",

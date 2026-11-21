@@ -38,6 +38,7 @@
  *   keeps only its style. A session member gives no recipe: opening restores the view.
  */
 
+import { layoutAlias, layoutDescriptor, layoutIdForEngine, savedLayoutOptions } from "../../catalog/layouts";
 import { withParentIds } from "../parentIds";
 import { ENGINE_VERSIONS } from "../runs/engine";
 import { rewriteOldPaths } from "../styles/fileStyles/oldLooks";
@@ -1071,8 +1072,42 @@ function migrateSettings(session: JsonObject, context: Context): JsonObject {
 }
 
 /**
- * The layout in force, as view's layout record: version 1's `{ id, engine, options, dimension }`,
- * the layout's name in `algorithm` and `engine` graphty-element's EngineVersions.
+ * A version 1 layout as a version 2 layout record (spec 5 rule 9): an engine name or a deprecated
+ * name in `id` is read as the arrangement it draws, the engine goes in `drawnBy`, and the options
+ * the arrangement does not list go with it. Nothing is resolved: the record carries what version 1
+ * held. A layout naming no engine writes no `drawnBy` and keeps every option.
+ * @param id - Version 1's `id`.
+ * @param engine - Version 1's `engine`, if any.
+ * @param options - Version 1's `options`, if any.
+ * @returns `{ id, options?, drawnBy? }`.
+ */
+function layoutFromVersion1(id: string, engine: unknown, options: unknown): JsonObject {
+    const alias = layoutAlias(id);
+    const arrangement = alias?.id ?? (layoutDescriptor(id) === undefined ? (layoutIdForEngine(id) ?? id) : id);
+    const drawnEngine =
+        typeof engine === "string" && engine !== "" ? engine : (alias?.engine ?? (arrangement === id ? undefined : id));
+    const given = isObject(options) ? options : {};
+    if (drawnEngine === undefined) {
+        return { id: arrangement, ...(Object.keys(given).length === 0 ? {} : { options: given }) };
+    }
+
+    const saved = new Set(savedLayoutOptions(arrangement));
+    const own: JsonObject = {};
+    const engines: JsonObject = {};
+    for (const [key, value] of Object.entries(given)) {
+        (saved.has(key) ? own : engines)[key] = value;
+    }
+
+    return {
+        id: arrangement,
+        ...(Object.keys(own).length === 0 ? {} : { options: own }),
+        drawnBy: { engine: drawnEngine, ...(Object.keys(engines).length === 0 ? {} : { options: engines }) },
+    };
+}
+
+/**
+ * The layout in force, as view's layout record: version 1's `{ id, engine, options, dimension }`
+ * as 5 rule 9 writes it, and `engine` graphty-element's EngineVersions.
  * @param session - The session member, if any.
  * @param context - The file.
  * @returns The layout record, or undefined for none.
@@ -1084,11 +1119,8 @@ function layoutOf(session: JsonObject | undefined, context: Context): JsonObject
     }
 
     return {
-        id: layout.id,
-        // Version 1 may name only the catalog id, which a registered engine name is read as.
-        algorithm: typeof layout.engine === "string" && layout.engine !== "" ? layout.engine : layout.id,
+        ...layoutFromVersion1(layout.id, layout.engine, layout.options),
         dimension: layout.dimension === "2d" || layout.dimension === 2 ? 2 : 3,
-        ...(isObject(layout.options) && Object.keys(layout.options).length > 0 ? { options: layout.options } : {}),
         engine: engineOf(context),
     };
 }
@@ -1349,11 +1381,16 @@ function migrateRecipe1(recipe: JsonObject, context: Context): JsonObject | unde
         }
 
         if (command.op === "layout.set") {
-            // Version 2 names the layout `algorithm`: a recipe says what to run, not what ran.
-            const { dimension, engine, ...rest } = command;
+            // Version 2 names the arrangement in `id` and the engine only as provenance (spec 5 rule 9).
+            const { dimension, description } = command;
             return {
-                ...rest,
-                ...(typeof engine === "string" ? { algorithm: engine } : {}),
+                op: command.op,
+                ...(description === undefined ? {} : { description }),
+                ...layoutFromVersion1(
+                    typeof command.id === "string" ? command.id : "",
+                    command.engine,
+                    command.options,
+                ),
                 dimension: dimension === 2 || dimension === "2d" ? 2 : 3,
             };
         }

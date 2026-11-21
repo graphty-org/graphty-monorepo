@@ -14,7 +14,7 @@ import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import { engineOptionsOf } from "../../../src/catalog/layouts";
+import { engineOptionsOf, FORCE_SAVED_OPTIONS } from "../../../src/catalog/layouts";
 import type { RuleTree, RunId } from "../../../src/catalog/types";
 import { dispatcherOf } from "../../../src/session/dispatchers";
 import { markRecipeRun } from "../../../src/session/document2/codecs/results";
@@ -405,15 +405,21 @@ describe("view codec: writing", () => {
             params: { source: { space: SPACE, key: "a" }, targetNode: null, maxDepth: null },
             scope: "graph",
         });
-        // The layout's name is `algorithm`; `engine` is EngineVersions, as in results.
+        // The arrangement is `id`, its engine provenance in `drawnBy`; `engine` is EngineVersions.
         const layout = section.layout as JsonObject;
-        const { options, ...rest } = layout;
+        const { options, drawnBy, ...rest } = layout as { options: JsonObject; drawnBy: JsonObject };
         assert.deepEqual(
             { ...rest, engine: Object.keys(layout.engine as JsonObject) },
-            { id: "force", algorithm: "ngraph", dimension: 3, engine: ["element", "algorithms", "layout"] },
+            { id: "force", dimension: 3, engine: ["element", "algorithms", "layout"] },
         );
-        // Resolved: every option the engine declares with a default, less the dimension's own.
-        assert.sameMembers(Object.keys(options as JsonObject), defaultedForce(session));
+        assert.strictEqual(drawnBy.engine, "ngraph");
+        // Resolved: every option the engine declares with a default, less the dimension's own,
+        // the arrangement's own in `options` and the engine's in `drawnBy.options`.
+        assert.includeMembers([...FORCE_SAVED_OPTIONS], Object.keys(options));
+        assert.sameMembers(
+            [...Object.keys(options), ...Object.keys(drawnBy.options as JsonObject)],
+            defaultedForce(session),
+        );
         assert.deepEqual(section.hiddenColumns, [{ kind: "node", name: "group" }]);
     });
 
@@ -421,13 +427,33 @@ describe("view codec: writing", () => {
         const session = await sessionWithData();
         await session.layout.set("force", { options: { seed: 7 } });
         const layout = (await save(session)).layout as JsonObject;
-        assert.include(Object.keys(layout.options as JsonObject), "springLength", "the record is resolved");
+        const drawnBy = layout.drawnBy as JsonObject;
+        assert.include(Object.keys(drawnBy.options as JsonObject), "springLength", "the record is resolved");
         assert.strictEqual(await layoutStepsOpening(session, layout), 0);
         // A terse record naming only the seed in force is the same layout too.
-        assert.strictEqual(await layoutStepsOpening(session, { ...layout, options: { seed: 7 } }), 0);
+        const terse = { ...layout, drawnBy: { engine: "ngraph" } };
+        assert.strictEqual(await layoutStepsOpening(session, { ...terse, options: { seed: 7 } }), 0);
         // A record that differs sets it, with the options as the file holds them.
-        assert.strictEqual(await layoutStepsOpening(session, { ...layout, options: { seed: 8 } }), 1);
+        assert.strictEqual(await layoutStepsOpening(session, { ...terse, options: { seed: 8 } }), 1);
         assert.deepEqual(session.layout.options, { seed: 8 });
+    });
+
+    it("opens a layout with the engine drawnBy names, or the default engine when this release lacks it", async () => {
+        const session = await sessionWithData();
+        const layout = (await save(session)).layout as JsonObject;
+        const atlas = { id: "force", dimension: 3, engine: layout.engine, drawnBy: { engine: "forceatlas2" } };
+        assert.strictEqual(await layoutStepsOpening(session, atlas), 1);
+        assert.strictEqual(session.layout.engine, "forceatlas2");
+
+        const gone = { ...atlas, options: { seed: 4 }, drawnBy: { engine: "com.example.gone" } };
+        const section = { kind: "graphty-view", version: 1, bindsTo: { data: DATA_ID }, layout: gone };
+        assert.deepEqual(await open(session, section), [
+            {
+                code: "W_LAYOUT_ENGINE_UNAVAILABLE",
+                params: { section: "view", layout: "force", engine: "com.example.gone" },
+            },
+        ]);
+        assert.deepEqual([session.layout.engine, session.layout.options.seed], ["ngraph", 4]);
     });
 
     it("writes a run the visible graph narrowed as not replayable, and reports it", async () => {

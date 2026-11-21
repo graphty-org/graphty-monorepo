@@ -96,18 +96,22 @@
         {
             "op": "layout.set",
             "id": "force",
-            "algorithm": "ngraph",
             "dimension": 3,
             "options": {
                 "clusterStrength": 1,
-                "dragCoefficient": 0.9,
-                "gravity": -12,
                 "nodeGapFront": false,
-                "seed": 52211,
-                "springCoefficient": 0.8,
-                "springLength": 10,
-                "theta": 0.8,
-                "timeStep": 0.5
+                "seed": 52211
+            },
+            "drawnBy": {
+                "engine": "ngraph",
+                "options": {
+                    "dragCoefficient": 0.9,
+                    "gravity": -12,
+                    "springCoefficient": 0.8,
+                    "springLength": 10,
+                    "theta": 0.8,
+                    "timeStep": 0.5
+                }
             }
         }
     ]

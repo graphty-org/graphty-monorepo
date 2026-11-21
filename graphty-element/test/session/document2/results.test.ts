@@ -294,7 +294,8 @@ describe("writing results", () => {
         assert.strictEqual((((links.nodes as JsonObject).columns as JsonObject).score as unknown[])[2], "Infinity");
         assert.deepEqual(((links.edges as JsonObject).refs as JsonObject[])[0], { load: LOAD, key: "a>b" });
         const layout = section.layout as JsonObject;
-        assert.deepEqual([layout.id, layout.algorithm, layout.dimension], ["force", "ngraph", 3]);
+        assert.deepEqual([layout.id, layout.dimension, (layout.drawnBy as JsonObject).engine], ["force", 3, "ngraph"]);
+        assert.notProperty(layout, "algorithm");
         assert.notProperty(layout, "versions");
         assert.deepEqual(layout.bindsTo, STAMP);
         assert.notProperty(layout, "durationMs", "an untimed layout leaves its duration out, never 0");
@@ -324,14 +325,17 @@ describe("writing results", () => {
         assert.strictEqual(params.dampingFactor, 0.5);
 
         const layout = section.layout as JsonObject;
-        const options = layout.options as JsonObject;
+        const options = {
+            ...(layout.options as JsonObject),
+            ...((layout.drawnBy as JsonObject).options as JsonObject),
+        };
         const force = session.catalog.layouts().find((each) => each.id === "force");
         assert.isDefined(force);
         const engine = engineOptionsOf(force, "ngraph").filter(
             (option) => option.default !== undefined && option.default !== null && option.name !== "dim",
         );
         assert.sameMembers(Object.keys(options), [...engine.map((option) => option.name), "seed"]);
-        assert.strictEqual(layout.seed, options.seed);
+        assert.strictEqual(layout.seed, (layout.options as JsonObject).seed);
         assert.strictEqual(layout.seed, 9);
     });
 

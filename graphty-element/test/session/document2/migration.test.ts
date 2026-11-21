@@ -164,6 +164,25 @@ function isEdgeRef(value: unknown): boolean {
 const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 describe("a version 1 project file, migrated", () => {
+    it("reads a session layout named by its engine as the arrangement, the engine's own options in drawnBy", async () => {
+        const session = await baseSession();
+        const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
+        const member = (v1.members as JsonObject[]).find((each) => each.kind === "graphty-session");
+        assert.isDefined(member);
+        member.layout = { id: "ngraph", options: { seed: 3, springLength: 20 }, dimension: "3d" };
+        const v2 = migrateDocument1(v1, []);
+        const { view } = v2?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(view), []);
+        const { engine: _versions, ...layout } = view.layout as JsonObject;
+        assert.deepStrictEqual(layout, {
+            id: "force",
+            options: { seed: 3 },
+            drawnBy: { engine: "ngraph", options: { springLength: 20 } },
+            dimension: 3,
+        });
+        session.dispose();
+    });
+
     it("is a version 2 full file every section of which validates, each reported as upgraded", async () => {
         const session = await busySession();
         const { v2, sections, problems } = await migrated(session);
@@ -293,6 +312,7 @@ describe("a version 1 project file, migrated", () => {
             [["reader__links", "degree", "graph"]],
         );
         assert.include(view.layout as JsonObject, { dimension: 3 });
+        assert.notProperty(view.layout as JsonObject, "algorithm");
         assert.isUndefined(sections.recipe);
         assert.strictEqual((settings.settings as JsonObject).layoutStepsBeforeDraw, 0);
         assert.notProperty(settings.settings as JsonObject, "layoutBehavior.preSteps");
@@ -561,6 +581,7 @@ describe("a version 1 document of one kind, migrated", () => {
         );
         const { recipe } = v2?.sections as Record<string, JsonObject>;
         assert.deepStrictEqual(invalid(recipe), []);
+        assert.deepStrictEqual((recipe.commands as JsonObject[])[1], { op: "layout.set", id: "force", dimension: 3 });
         assert.deepInclude(recipe, { id: "org.example.hubs" });
         assert.notProperty(recipe, "revision");
         assert.deepStrictEqual((recipe.commands as JsonObject[])[0].style, true);
@@ -622,11 +643,28 @@ describe("a version 1 document of one kind, migrated", () => {
             tolerance: 0.000001,
             useDelta: true,
         });
-        const options = written.find((command) => command.op === "layout.set")?.options as JsonObject;
+        const layout = written.find((command) => command.op === "layout.set") as JsonObject;
+        const options = layout.options as JsonObject;
+        const engines = (layout.drawnBy as JsonObject).options as JsonObject;
         assert.strictEqual(options.seed, 3);
-        assert.include(Object.keys(options), "springLength", "the engine's defaults are written");
+        assert.include(Object.keys(engines), "springLength", "the engine's defaults are written");
         assert.notProperty(options, "dim", "the dimension says it");
         session.dispose();
+    });
+
+    it("reads a version 1 layout named by a deprecated name as its arrangement, the engine in drawnBy", () => {
+        const v2 = migrateDocument1(
+            { kind: "graphty-recipe", version: 1, commands: [{ op: "layout.set", id: "force-2d" }] },
+            [],
+        );
+        const { recipe } = v2?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(recipe), []);
+        assert.deepStrictEqual((recipe.commands as JsonObject[])[0], {
+            op: "layout.set",
+            id: "force",
+            drawnBy: { engine: "arf" },
+            dimension: 3,
+        });
     });
 
     it("leaves alone what it does not migrate: a data file, an unknown kind, a version 2 file, notes with no data", () => {

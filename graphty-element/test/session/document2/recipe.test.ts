@@ -11,7 +11,7 @@ import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import { engineOptionsOf } from "../../../src/catalog/layouts";
+import { engineOptionsOf, FORCE_SAVED_OPTIONS } from "../../../src/catalog/layouts";
 import type { RunId } from "../../../src/catalog/types";
 import { recipeCodec } from "../../../src/session/document2/codecs/recipe";
 import { fileSetId, resolvedLayoutOptions } from "../../../src/session/document2/codecs/viewParts";
@@ -278,7 +278,24 @@ async function analysis(): Promise<Lab> {
         { name: "Hubs" },
     );
     await session.layout.setDimension("2d");
+    await session.layout.set("force", { engine: "d3", options: { clusterStrength: 2, alphaDecay: 0.05 } });
     return source;
+}
+
+/**
+ * Open one hand-written layout.set over a fresh graph.
+ * @param command - The command.
+ * @returns The lab and what the open reported.
+ */
+async function readLayout(command: JsonObject): Promise<{ target: Lab; problems: DocumentProblem[] }> {
+    const target = lab();
+    await addGraph(target.session);
+    const problems = await read(target, {
+        kind: "graphty-recipe",
+        version: 2,
+        commands: [{ op: "layout.set", dimension: 3, ...command }],
+    });
+    return { target, problems };
 }
 
 describe("the version 2 recipe codec", () => {
@@ -671,7 +688,15 @@ describe("the version 2 recipe codec", () => {
         await session.layout.set("force", { options: { seed: 7 } });
         const command = await layoutCommand(session);
         const options = command.options as JsonObject;
-        assert.sameMembers(Object.keys(options), [...defaultedLayoutOptions(session, "force", "ngraph"), "seed"]);
+        const drawnBy = command.drawnBy as JsonObject;
+        assert.strictEqual(drawnBy.engine, "ngraph");
+        assert.isUndefined(command.algorithm);
+        const engines = drawnBy.options as JsonObject;
+        assert.sameMembers(
+            [...Object.keys(options), ...Object.keys(engines)],
+            [...defaultedLayoutOptions(session, "force", "ngraph"), "seed"],
+        );
+        assert.includeMembers([...FORCE_SAVED_OPTIONS], Object.keys(options), "the arrangement's own options");
         assert.strictEqual(options.seed, 7);
         assert.deepEqual(
             Object.keys(options),
@@ -679,6 +704,59 @@ describe("the version 2 recipe codec", () => {
             "keys sorted",
         );
         assert.deepEqual(invalid(asSection((await write(session)).written)), []);
+    });
+
+    it("names the arrangement in id and the engine, with the options only it takes, in drawnBy", async () => {
+        const { session } = await analysis();
+        const command = await layoutCommand(session);
+        assert.isUndefined(command.algorithm);
+        assert.strictEqual(command.id, "force");
+        assert.strictEqual(command.dimension, 2);
+        const options = command.options as JsonObject;
+        assert.strictEqual(options.clusterStrength, 2);
+        assert.includeMembers([...FORCE_SAVED_OPTIONS], Object.keys(options));
+        const drawnBy = command.drawnBy as JsonObject;
+        assert.strictEqual(drawnBy.engine, "d3");
+        const engines = drawnBy.options as JsonObject;
+        assert.strictEqual(engines.alphaDecay, 0.05);
+        assert.sameMembers(
+            [...Object.keys(options), ...Object.keys(engines)],
+            [...new Set([...defaultedLayoutOptions(session, "force", "d3"), "clusterStrength", "alphaDecay"])],
+        );
+    });
+
+    it("draws with the default engine, reporting it, when drawnBy names one this release lacks", async () => {
+        const { target, problems } = await readLayout({
+            id: "force",
+            options: { seed: 7 },
+            drawnBy: { engine: "com.example.gone", options: { warp: 1 } },
+        });
+        assert.deepEqual(problems, [
+            {
+                code: "W_LAYOUT_ENGINE_UNAVAILABLE",
+                params: { section: "recipe", pointer: "/commands/0", layout: "force", engine: "com.example.gone" },
+            },
+        ]);
+        const { layout } = target.session;
+        assert.deepEqual([layout.id, layout.engine, layout.options.seed], ["force", "ngraph", 7]);
+    });
+
+    it("leaves out, reporting it, an option the arrangement does not list, and still sets the layout", async () => {
+        const { target, problems } = await readLayout({ id: "force", options: { seed: 7, warp: 1 } });
+        assert.deepEqual(problems, [
+            {
+                code: "W_LAYOUT_OPTION_NOT_APPLIED",
+                params: {
+                    section: "recipe",
+                    pointer: "/commands/0",
+                    layout: "force",
+                    engine: "ngraph",
+                    option: "warp",
+                },
+            },
+        ]);
+        const { layout } = target.session;
+        assert.deepEqual([layout.id, layout.options.seed, layout.options.warp], ["force", 7, undefined]);
     });
 
     it("writes a dimension option that was asked for", async () => {
@@ -734,7 +812,12 @@ describe("the version 2 recipe codec", () => {
         const commands = example.commands as JsonObject[];
         const pagerank = commands.find((each) => each.as === "pagerank");
         assert.deepEqual(target.session.runs.get("card_testing__pagerank")?.record.params, pagerank?.params);
-        const layout = commands.find((each) => each.op === "layout.set");
-        assert.deepEqual(resolvedLayoutOptions(target.session, target.session.layout), layout?.options);
+        const layout = commands.find((each) => each.op === "layout.set") as JsonObject;
+        const drawnBy = layout.drawnBy as JsonObject;
+        assert.strictEqual(target.session.layout.engine, drawnBy.engine);
+        assert.deepEqual(resolvedLayoutOptions(target.session, target.session.layout), {
+            ...(layout.options as JsonObject),
+            ...(drawnBy.options as JsonObject),
+        });
     });
 });

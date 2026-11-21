@@ -240,19 +240,18 @@
                                 },
                                 "id": {
                                     "type": "string",
-                                    "minLength": 1
-                                },
-                                "algorithm": {
-                                    "type": "string",
                                     "minLength": 1,
-                                    "description": "The layout to draw it with. A recipe says what to run, not what ran: it records no engine versions."
+                                    "description": "An arrangement in the layout registry, never the engine that draws it (spec 5 rule 9). A recipe says what to run, not what ran: it records no versions."
                                 },
                                 "dimension": {
                                     "enum": [2, 3]
                                 },
                                 "options": {
                                     "type": "object",
-                                    "description": "Every option the implementation declares with a default, at the value used (spec 9 rule 10). A reader applies its own default for an absent one."
+                                    "description": "The arrangement's options, by the layout registry's names: every one declared with a default, at the value used (spec 5 rule 9, 9 rule 10). A reader applies its own default for an absent one."
+                                },
+                                "drawnBy": {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/layoutDrawnBy"
                                 },
                                 "description": {
                                     "type": "string"

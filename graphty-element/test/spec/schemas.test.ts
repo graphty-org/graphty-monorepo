@@ -449,6 +449,20 @@ const MUTATIONS: Mutation[] = [
         change: (view) => Object.assign(view.layout as JsonObject, { engine: "ngraph" }),
     },
     {
+        name: "a view layout naming its engine in algorithm",
+        section: "view",
+        change: (view) => Object.assign(view.layout as JsonObject, { algorithm: "ngraph" }),
+    },
+    {
+        name: "a recipe layout.set naming its engine in algorithm",
+        section: "recipe",
+        change: (recipe) => {
+            const commands = recipe.commands as JsonObject[];
+            const layout = commands.find((command) => command.op === "layout.set");
+            Object.assign(layout as JsonObject, { algorithm: "ngraph" });
+        },
+    },
+    {
         name: "a recipe layout.set with an engine",
         section: "recipe",
         change: (recipe) => {
@@ -753,10 +767,23 @@ function algorithmDefaults(algorithm: Json | undefined): string[] {
  * @returns Their names.
  */
 function layoutDefaults(layout: JsonObject): string[] {
-    const engine = layoutEntry(text(layout.id))?.implementations.find((each) => each.engine === layout.algorithm);
-    assert.isDefined(engine, text(layout.algorithm));
+    const entry = layoutEntry(text(layout.id));
+    const drawnBy = (layout.drawnBy ?? {}) as JsonObject;
+    const wanted = drawnBy.engine ?? entry?.descriptor.engine;
+    const engine = entry?.implementations.find((each) => each.engine === wanted);
+    assert.isDefined(engine, text(wanted));
     return defaulted(engine.options.filter((option) => option.default !== null && option.name !== "dim"));
 }
+
+/**
+ * A layout record's option values, its own and its engine's together (README 5 rule 9).
+ * @param layout - The layout record or command.
+ * @returns The values.
+ */
+const layoutValues = (layout: JsonObject): JsonObject => ({
+    ...((layout.options ?? {}) as JsonObject),
+    ...(((layout.drawnBy ?? {}) as JsonObject).options as JsonObject | undefined),
+});
 
 describe("the examples write resolved values", () => {
     const files = [
@@ -784,7 +811,7 @@ describe("the examples write resolved values", () => {
                 if (command.op === "algo.run") {
                     check(`recipe ${text(command.as)}`, command.params, algorithmDefaults(command.algorithm));
                 } else if (command.op === "layout.set") {
-                    check("recipe layout.set", command.options, layoutDefaults(command));
+                    check("recipe layout.set", layoutValues(command), layoutDefaults(command));
                 }
             }
         }
@@ -795,7 +822,7 @@ describe("the examples write resolved values", () => {
             if (results.layout !== undefined) {
                 check(
                     "results layout",
-                    (results.layout as JsonObject).options,
+                    layoutValues(results.layout as JsonObject),
                     layoutDefaults(results.layout as JsonObject),
                 );
             }
@@ -805,7 +832,11 @@ describe("the examples write resolved values", () => {
                 check(`view ${text(run.id)}`, run.params, algorithmDefaults(run.algorithm));
             }
             if (view.layout !== undefined) {
-                check("view layout", (view.layout as JsonObject).options, layoutDefaults(view.layout as JsonObject));
+                check(
+                    "view layout",
+                    layoutValues(view.layout as JsonObject),
+                    layoutDefaults(view.layout as JsonObject),
+                );
             }
         }
         assert.isAbove(checked, 0);

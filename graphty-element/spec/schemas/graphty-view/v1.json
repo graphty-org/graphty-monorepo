@@ -1013,20 +1013,19 @@
         },
         "layout": {
             "type": "object",
-            "description": "The layout record in force: the layout's name in algorithm, and engine graphty-element's EngineVersions, as in results.",
+            "description": "The layout record in force: the arrangement in id, the engine that drew it only in drawnBy (spec 5 rule 9), and engine graphty-element's EngineVersions, as in results.",
             "properties": {
                 "id": {
                     "type": "string",
-                    "minLength": 1
-                },
-                "algorithm": {
-                    "type": "string",
                     "minLength": 1,
-                    "description": "The layout that draws it, as layout.set spells it."
+                    "description": "An arrangement in the layout registry, never the engine that draws it (spec 5 rule 9)."
                 },
                 "options": {
                     "type": "object",
-                    "description": "Every option the implementation declares with a default, at the value used (spec 9 rule 10). A reader applies its own default for an absent one."
+                    "description": "The arrangement's options, by the layout registry's names: every one declared with a default, at the value used (spec 5 rule 9, 9 rule 10). A reader applies its own default for an absent one."
+                },
+                "drawnBy": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/layoutDrawnBy"
                 },
                 "dimension": {
                     "enum": [2, 3]
@@ -1058,7 +1057,7 @@
                     }
                 }
             },
-            "required": ["id", "algorithm", "dimension", "engine"],
+            "required": ["id", "dimension", "engine"],
             "unevaluatedProperties": false
         },
         "xr": false,

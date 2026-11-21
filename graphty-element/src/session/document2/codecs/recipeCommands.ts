@@ -36,7 +36,7 @@ const OWN_COMMAND_MEMBERS: Readonly<Record<string, readonly string[]>> = {
         "style",
         "description",
     ],
-    "layout.set": ["op", "id", "algorithm", "dimension", "options", "description"],
+    "layout.set": ["op", "id", "dimension", "options", "drawnBy", "description"],
     "set.define": ["op", "id", "name", "where", "reading", "description"],
 };
 

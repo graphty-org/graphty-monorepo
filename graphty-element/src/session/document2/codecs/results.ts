@@ -16,6 +16,7 @@ import type { RunResult } from "../../results/types";
 import { type Caveats, ENGINE_VERSIONS, type Run, type RunOutcome } from "../../runs";
 import type { GraphSession } from "../../types";
 import { canonicalText as canonical, isJsonObject } from "../framing";
+import { layoutRecordJson } from "../layoutRecord";
 import { projectMemory } from "../memory";
 import type {
     BuildStamp,
@@ -27,7 +28,7 @@ import type {
     WriteContext,
 } from "../types";
 import { jsonSafe, numericCell } from "./dataRefs";
-import { mintUlid, rerunsOnOpen, resolvedLayoutOptions, viewRunRecord } from "./viewParts";
+import { mintUlid, rerunsOnOpen, viewRunRecord } from "./viewParts";
 
 /**
  * A value as a document holds it (spec 11), undefined as null so a column keeps its length.
@@ -420,13 +421,11 @@ function layoutOut(context: WriteContext, stamp: BuildStamp | undefined): JsonOb
     }
 
     const { layout } = session;
-    const options = resolvedLayoutOptions(session, layout);
-    const { seed } = options;
+    const record = layoutRecordJson(session, layout);
+    const { seed } = (record.options ?? {}) as JsonObject;
     return {
-        id: layout.id,
-        algorithm: layout.engine,
+        ...(encode(record) as JsonObject),
         dimension: layout.dimension === "2d" ? 2 : 3,
-        options: encode(options),
         seed: Number.isInteger(seed) ? seed : null,
         // The session does not time a layout, so the record leaves `durationMs` out, never 0.
         engine: encode(ENGINE_VERSIONS),

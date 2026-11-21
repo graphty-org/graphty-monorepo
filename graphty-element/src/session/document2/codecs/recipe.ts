@@ -17,6 +17,7 @@ import { isGraphtyError } from "../../../errors";
 import type { Run, RunStyle } from "../../runs/types";
 import type { ElementSet } from "../../sets/types";
 import type { GraphSession } from "../../types";
+import { layoutRecordJson, layoutRequest } from "../layoutRecord";
 import { projectMemory } from "../memory";
 import type {
     DocumentProblem,
@@ -51,7 +52,7 @@ import {
     STYLE_PARTS,
 } from "./recipeCommands";
 import { markRecipeRun, restoredPositions } from "./results";
-import { fileIdsOf, fileSetId, resolvedLayoutOptions } from "./viewParts";
+import { fileIdsOf, fileSetId } from "./viewParts";
 
 /** The header members of an opened recipe that the session has no home for, kept for its re-save. */
 const IDENTITY = ["id", "name", "description", "authors", "license", "keywords", "language", "origin"];
@@ -353,13 +354,10 @@ function writeRecipe(context: WriteContext): SectionWrite {
     });
 
     const { layout } = session;
-    const layoutOptions = resolvedLayoutOptions(session, layout);
     const layoutCommand: JsonObject = {
         op: "layout.set",
-        id: layout.id,
-        algorithm: layout.engine,
+        ...layoutRecordJson(session, layout),
         dimension: layout.dimension === "2d" ? 2 : 3,
-        ...(Object.keys(layoutOptions).length === 0 ? {} : { options: layoutOptions }),
     };
 
     // Run ids become the recipe's names; a run the recipe does not hold keeps its id.
@@ -783,23 +781,26 @@ class Replay {
     }
 
     private async layout(at: number, command: JsonObject): Promise<void> {
-        const { id, algorithm, dimension, options } = command;
+        const { id, drawnBy, dimension, options } = command;
         if (
             typeof id !== "string" ||
             (dimension !== 2 && dimension !== 3) ||
-            (algorithm !== undefined && typeof algorithm !== "string") ||
+            (drawnBy !== undefined && !isObject(drawnBy)) ||
             (options !== undefined && !isObject(options))
         ) {
             this.report("E_BAD_DOCUMENT", `${at}`);
             return;
         }
 
+        const request = layoutRequest(command, (code, params) => {
+            this.report(code, `${at}`, params);
+        });
         const { tx } = this.context;
         try {
             await tx.layout.setDimension(dimension === 2 ? "2d" : "3d");
             await tx.layout.set(id, {
-                ...(algorithm === undefined ? {} : { engine: algorithm }),
-                ...(options === undefined ? {} : { options: this.bind(options) }),
+                ...(request?.engine === undefined ? {} : { engine: request.engine }),
+                options: this.bind(request?.options ?? {}),
             });
             this.context.restored.add("layout");
             // With rerun off, the results section's positions are restored as they are (spec

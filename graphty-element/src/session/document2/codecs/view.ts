@@ -24,6 +24,7 @@ import type { GraphSession, SavedView, SavedViewInput, TransactionScope } from "
 import type { TimeWindow } from "../../visibility/filter";
 import type { SessionVisibilityApi } from "../../visibility/VisibilityApi";
 import { canonicalText as canonical } from "../framing";
+import { layoutRecordJson, layoutRequest } from "../layoutRecord";
 import type {
     DocumentProblem,
     ElementRefs,
@@ -493,12 +494,9 @@ function groupsJson(w: Writer): JsonObject[] {
  * @returns The record.
  */
 function layoutJson(session: GraphSession): JsonObject {
-    const { id, engine, dimension } = session.layout;
     return {
-        id,
-        algorithm: engine,
-        options: resolvedLayoutOptions(session, session.layout),
-        dimension: dimension === "2d" ? 2 : 3,
+        ...layoutRecordJson(session, session.layout),
+        dimension: session.layout.dimension === "2d" ? 2 : 3,
         engine: { ...ENGINE_VERSIONS },
     };
 }
@@ -1138,18 +1136,27 @@ async function readLayout(r: Reader, layout: JsonObject): Promise<void> {
     const { tx } = r.context;
     const now = tx.layout;
     const dimension = layout.dimension === 2 ? "2d" : "3d";
-    const options = isObject(layout.options) ? layout.options : {};
-    // The layout's own name is `algorithm`; `engine` is the EngineVersions record, not read back.
-    const engine = typeof layout.algorithm === "string" ? layout.algorithm : undefined;
+    const request = layoutRequest(layout, (code, params) => {
+        r.context.problems.push({ code, params: { section: SECTION, ...params } });
+    });
     // Compared resolved, so a file that spells out the defaults in force adds no layout step.
     const same =
-        now.id === layout.id &&
-        (engine === undefined || now.engine === engine) &&
+        now.id === request?.id &&
+        (request.engine === undefined || now.engine === request.engine) &&
         canonical(resolvedLayoutOptions(r.context.session, now)) ===
-            canonical(resolvedLayoutOptions(r.context.session, { id: now.id, engine: now.engine, options }));
+            canonical(
+                resolvedLayoutOptions(r.context.session, {
+                    id: request.id,
+                    engine: request.engine ?? now.engine,
+                    options: request.options,
+                }),
+            );
     try {
-        if (!same && typeof layout.id === "string") {
-            await tx.layout.set(layout.id, { ...(engine === undefined ? {} : { engine }), options });
+        if (!same && request !== undefined) {
+            await tx.layout.set(request.id, {
+                ...(request.engine === undefined ? {} : { engine: request.engine }),
+                options: request.options,
+            });
         }
 
         if (now.dimension !== dimension) {

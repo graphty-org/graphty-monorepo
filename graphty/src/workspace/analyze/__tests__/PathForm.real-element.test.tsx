@@ -148,10 +148,13 @@ describe("the Path popover, on the real element", () => {
 
         await userEvent.keyboard("p");
         form = await pathForm();
-        const to = within(form).getByRole("combobox", { name: "To node" });
-        await userEvent.clear(to);
-        await userEvent.type(to, "Ava");
-        await userEvent.click(await within(form).findByRole("option", { name: "Ava" }));
+        // The form opens empty again: both ends are picked for the re-run.
+        for (const end of ["From node", "To node"]) {
+            const field = within(form).getByRole("combobox", { name: end });
+            await userEvent.clear(field);
+            await userEvent.type(field, "Ava");
+            await userEvent.click(await within(form).findByRole("option", { name: "Ava" }));
+        }
         await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
         await screen.findByText("Shortest path updated, layer style kept: Ava to Ava, 0 hops");
         const run = session.runs.list().find((r) => r.algorithm === "shortest-path");

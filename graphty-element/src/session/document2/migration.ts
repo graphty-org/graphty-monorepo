@@ -44,6 +44,7 @@ import { rewriteOldPaths } from "../styles/fileStyles/oldLooks";
 import { addedColumns, canonicalJson, READER } from "./codecs/dataRefs";
 import { asName } from "./codecs/recipeCommands";
 import { ROLE_FIELDS } from "./codecs/roles";
+import { NOT_SETTINGS, SETTINGS } from "./codecs/settings";
 import { cameraJson } from "./codecs/viewParts";
 import {
     decodeColumn,
@@ -888,8 +889,8 @@ function migrateNotes(notes: JsonObject, context: Context, data: MigratedData): 
 // settings (4.4) and view (4.7) from the session member
 // ---------------------------------------------------------------------------------------------
 
-/** Config keys a settings section never holds (spec 4.4), or that the view holds. */
-const NOT_SETTINGS = new Set(["author", "name", "startingRows", "editableBase", "viewRotation", "framing"]);
+/** Each settings name (spec 4.4 rule 1), by the version 1 config path it is read from. */
+const NAME_OF: ReadonlyMap<string, string> = new Map(SETTINGS.map(([name, path]) => [path, name]));
 
 /** The `data` config keys the data section's mapping carries (migrationParts.ts `mappingOf`). */
 const MAPPED_FIELDS = new Set(
@@ -906,9 +907,6 @@ const MAPPED_FIELDS = new Set(
 function leftOut(kind: string, pointer: string): DocumentProblem {
     return { code: "W_MEMBER_LEFT_OUT", params: { kind, pointer } };
 }
-
-/** Config keys whose value is one object, written whole. */
-const OBJECT_SETTINGS = new Set(["background", "selectionStyle", "pinnedStyle", "layoutTransition"]);
 
 /** The timeline playback members (spec 4.4). */
 const PLAYBACK_MEMBERS = ["mode", "step", "missing", "timeZone", "ageFade", "results"];
@@ -1004,9 +1002,9 @@ function outsideWindowMembers(members: ReadonlyMap<string, JsonObject>): Readonl
 }
 
 /**
- * The settings section: the session's config written flat, and the timeline playback. No `data.`
- * key is a setting: the known fields the data's mapping carries are left out quietly, the rest
- * reported.
+ * The settings section: the session's config under the settings names (spec 4.4 rule 1), and the
+ * timeline playback. No `data.` key is a setting: the known fields the data's mapping carries are
+ * left out quietly, the rest reported, as is any other config value the table has no name for.
  * @param session - The session member.
  * @param context - The file.
  * @returns The section.
@@ -1014,12 +1012,15 @@ function outsideWindowMembers(members: ReadonlyMap<string, JsonObject>): Readonl
 function migrateSettings(session: JsonObject, context: Context): JsonObject {
     const settings: JsonObject = {};
     const flatten = (prefix: string, value: unknown): void => {
-        if (isObject(value) && !OBJECT_SETTINGS.has(prefix)) {
+        const name = NAME_OF.get(prefix);
+        if (value === undefined) {
+            return;
+        } else if (name !== undefined) {
+            settings[name] = value;
+        } else if (isObject(value)) {
             for (const [key, entry] of Object.entries(value)) {
                 flatten(`${prefix}.${key}`, entry);
             }
-        } else if (value === undefined) {
-            return;
         } else if (prefix.startsWith("data.")) {
             if (!(
                 context.data?.carried.has(prefix.slice("data.knownFields.".length)) === true &&
@@ -1028,7 +1029,7 @@ function migrateSettings(session: JsonObject, context: Context): JsonObject {
                 context.problems.push(leftOut("graphty-session", `/config/${prefix.replaceAll(".", "/")}`));
             }
         } else {
-            settings[prefix] = value;
+            context.problems.push(leftOut("graphty-session", `/config/${prefix.replaceAll(".", "/")}`));
         }
     };
     for (const [key, value] of Object.entries(isObject(session.config) ? session.config : {})) {

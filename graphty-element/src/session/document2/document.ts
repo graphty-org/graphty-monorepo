@@ -683,7 +683,16 @@ async function applyDocument(
                 // Nothing of the project it replaces stays: its layers, notes, sets, runs, views
                 // and data go before the file's are read.
                 await (hooks.clear ?? ((scope) => (data === undefined ? scope.data.clear() : Promise.resolve())))(tx);
-                await tx.config.set({ name: hooks.name });
+                // What a project gets once is never saved: it counts as written when the file
+                // carries the section that holds it, loaded or held (spec 8.2 rule 2). Set before
+                // the data brings a time field, so the Timeline Hidden row is written at most once.
+                const carries = (name: DocumentSection): boolean =>
+                    chosen.has(name) || parsed.held.has(name) || heldBound.has(name);
+                await tx.config.set({
+                    name: hooks.name,
+                    timelineHiddenAdded: carries("style"),
+                    startingCamerasWritten: carries("view"),
+                });
             }
 
             for (const name of APPLY_ORDER) {

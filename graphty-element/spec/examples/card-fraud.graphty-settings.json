@@ -22,6 +22,14 @@
     },
     "settings": {
         "runAlgorithmsOnLoad": false,
+        "runPlacement": "beneath",
+        "layoutTransition": {
+            "transition": "glide",
+            "seconds": 0.8
+        },
+        "layoutStepsBeforeDraw": 0,
+        "layoutStepsPerFrame": 1,
+        "layoutSettleDelta": 0,
         "background": {
             "backgroundType": "color",
             "color": "#FAFAFA"
@@ -34,17 +42,7 @@
             "edgeScale": 2.5,
             "edgeOpacity": 1
         },
-        "timelineHiddenLook": "hidden",
-        "timelineHiddenAdded": false,
-        "startingCamerasWritten": false,
-        "runPlacement": "beneath",
-        "layoutBehavior.preSteps": 0,
-        "layoutBehavior.stepMultiplier": 1,
-        "layoutBehavior.minDelta": 0,
-        "layoutTransition": {
-            "transition": "glide",
-            "seconds": 0.8
-        }
+        "timelineHiddenLook": "hidden"
     },
     "playback": {
         "mode": "sliding",

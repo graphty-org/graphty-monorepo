@@ -761,13 +761,35 @@ Every command MAY also carry `narrows` (only `false` is ever written), `extensio
 
 A settings section holds `settings` and `playback`.
 
-1. `settings` is keyed by the paths graphty-element's `config.set` accepts (its `CONFIG_KEYS`),
-   written flat and dotted (`"layoutBehavior.preSteps"`). Every `CONFIG_KEYS` entry is saved in
-   one named section or listed as not saved with its reason: `viewRotation` and `framing` are in
-   view; `layoutTransition` and `runPlacement` are here; `author`, `startingRows`, `editableBase`
-   and `name` are never saved. No `data.*` key is written here: each has its home in the data
-   section, and a key with none is refused on save and reported (8.1 rule 2). A key a reader does
-   not know is kept.
+1. `settings` holds the settings in the table below, by the table's names. The names belong to
+   this spec, not to graphty-element's config paths, and a reader maps them to its own settings. A
+   graphty name never contains a dot. A third party's setting is `<reverse-domain>.<name>`. A
+   reader keeps a key it does not know and writes it back.
+
+    | Name                    | Value                                                                                                                                                                                                                                       | Meaning                                                                                                                               |
+    | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+    | `runAlgorithmsOnLoad`   | boolean                                                                                                                                                                                                                                     | Whether the on-load algorithms run when new data is loaded (never when a file opens, 8.2 rule 4).                                     |
+    | `runPlacement`          | `"beneath"` or `"top"`                                                                                                                                                                                                                      | Where a finished run's layer lands: beneath the lowest written layer that drives the same property, or on top of the unpinned layers. |
+    | `layoutTransition`      | `{ transition, seconds?, hold?, params? }`, `seconds` 0 to 30, `hold` 0 to 1                                                                                                                                                                | How nodes move to a new layout. Absent: a new layout is drawn in one step.                                                            |
+    | `layoutStepsBeforeDraw` | number >= 0                                                                                                                                                                                                                                 | Layout iterations before the first drawing.                                                                                           |
+    | `layoutStepsPerFrame`   | number > 0                                                                                                                                                                                                                                  | Layout iterations per drawn frame.                                                                                                    |
+    | `layoutSettleDelta`     | number >= 0                                                                                                                                                                                                                                 | The largest move in a round of iterations below which the layout counts as settled and stops; 0 means it never settles early.         |
+    | `background`            | `{ backgroundType: "color", color?, darkColor?, shader? }` or `{ backgroundType: "skybox", data, projection?, color?, darkColor?, shader? }`, where `shader` is `{ id, params? }` resolved against the style section's shaders (4.2 rule 6) | What the graph is drawn against.                                                                                                      |
+    | `selectionStyle`        | look: `{ color, scale, opacity, edgeColor, edgeScale, edgeOpacity }`                                                                                                                                                                        | The look of the Selected starting row.                                                                                                |
+    | `pinnedStyle`           | look                                                                                                                                                                                                                                        | The look of the Pinned starting row. Absent: no Pinned row.                                                                           |
+    | `timelineHiddenLook`    | `"hidden"` or `"ghost"`                                                                                                                                                                                                                     | How the Timeline Hidden starting row starts.                                                                                          |
+    | `minMarkSize`           | `{ node?, edge? }`, numbers >= 0                                                                                                                                                                                                            | The smallest a node is drawn (`node.size` units) and an edge (`edge.width` units).                                                    |
+
+    The following are never settings; a reader reports one found here (`W_UNKNOWN_MEMBER`) and
+    drops it:
+    - `viewRotation` and `framing` (view holds them);
+    - `author` and `name`;
+    - `startingRows` and `editableBase`;
+    - `timelineHiddenAdded` and `startingCamerasWritten` (per-project bookkeeping, worked out on
+      open, 8.2 rule 2);
+    - any `data.*` name. Each has its home in the data section, and one with no home is refused on
+      save and reported (8.1 rule 2).
+
 2. `playback` holds timeline playback: `mode`, `step`, `missing`, `timeZone`, `ageFade` and
    `results`. How what lies outside the time window draws is held by the style layers that select
    it, never here.
@@ -924,8 +946,8 @@ View restores the session; recipe, style and settings are what applies to new da
    section alone leaves them out and reports them; saving a full file with style and view moves
    each into view.
 6. **Run records.** View's `runs` holds every algorithm run, recipe-made and hand-started alike.
-7. **Settings**: every `config.set` key is saved in one named section or listed as never saved
-   (4.4).
+7. **Settings**: the settings table (4.4) is the whole list of what settings saves. A project
+   setting not in it is saved in another named section or not at all.
 8. **Column settings.** Renames belong to each source's `mapping`; type conversions to the data
    section's `conversions`; hidden columns to view.
 
@@ -1086,7 +1108,14 @@ of the view section.
 2. **Opening a file restores the session.** Data rebuilds from its own join history. Style, sets,
    visibility and run records are restored under their saved ids, the layer stack exactly as
    saved. When the file holds no style section, the starting rows are written as for a new
-   project, beneath view's own layers. Opening never paints a suggested layer.
+   project, beneath view's own layers. Opening never paints a suggested layer. Two things a
+   project gets only once are not saved, and are worked out when a file opens as a new project:
+    - the Timeline Hidden row counts as already written when the file carries a style section, held
+      or loaded;
+    - the starting views count as already written when the file carries a view section.
+
+    A section loaded onto an open project changes neither.
+
 3. **Runs.** Each run is rerun (the default) or its saved results are restored, the caller's
    choice per run. A run recorded `"replayable": false` is not rerun: its saved results are
    restored if present, otherwise it is listed as not run (`W_RUN_NOT_RUN`). When both a rerun and

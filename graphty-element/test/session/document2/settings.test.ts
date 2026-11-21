@@ -12,7 +12,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { CONFIG_KEYS } from "../../../src/session/configKeys";
-import { SAVED_HERE, settingsCodec } from "../../../src/session/document2/codecs/settings";
+import { NOT_SETTINGS, SETTINGS, settingsCodec } from "../../../src/session/document2/codecs/settings";
 import { openDocument2, saveDocument2 } from "../../../src/session/document2/document";
 import { parseDocument, schemaUrl } from "../../../src/session/document2/framing";
 import type { CodecRegistry, DocumentProblem, JsonObject, SectionCodec } from "../../../src/session/document2/types";
@@ -127,14 +127,25 @@ describe("settings section", () => {
         const { document: section, problems } = await saveReport(await changed());
         assertValid(section);
         const settings = section.settings as JsonObject;
-        assert.strictEqual(settings["layoutBehavior.preSteps"], 40);
+        assert.strictEqual(settings.layoutStepsBeforeDraw, 40);
+        // The names are the spec's, never graphty-element's dotted config paths.
+        assert.isFalse(Object.keys(settings).some((key) => key.includes(".")));
         assert.strictEqual(settings.runPlacement, "top");
         // No data key is written here; one with no home in any section is refused and reported.
         assert.isFalse(Object.keys(settings).some((key) => key.startsWith("data.")));
         assert.deepEqual(problems, [
             { code: "W_MEMBER_LEFT_OUT", params: { section: "settings", field: "data.knownFields.positionScale" } },
         ]);
-        for (const key of ["viewRotation", "framing", "author", "name", "startingRows", "editableBase"]) {
+        for (const key of [
+            "viewRotation",
+            "framing",
+            "author",
+            "name",
+            "startingRows",
+            "editableBase",
+            "timelineHiddenAdded",
+            "startingCamerasWritten",
+        ]) {
             assert.notProperty(settings, key);
         }
         assert.deepEqual(section.playback, {
@@ -148,11 +159,47 @@ describe("settings section", () => {
     it("writes every key it holds that has a value in force, for a session that set nothing", async () => {
         const settings = (await save(createGraphSession(ON))).settings as JsonObject;
         // A key has a value in force when its schema gives one for an unset key.
-        const inForce = SAVED_HERE.filter(
-            (key) => CONFIG_KEYS.get(key)?.schema.safeParse(undefined).data !== undefined,
-        );
+        const inForce = SETTINGS.filter(
+            ([, path]) => CONFIG_KEYS.get(path)?.schema.safeParse(undefined).data !== undefined,
+        ).map(([name]) => name);
         assert.isNotEmpty(inForce);
         assert.deepEqual(Object.keys(settings), inForce);
+    });
+
+    it("classifies every config key: a setting, never a setting, or the data section's", () => {
+        const paths = new Set(SETTINGS.map(([, path]) => path));
+        for (const key of CONFIG_KEYS.keys()) {
+            assert.isTrue(paths.has(key) || NOT_SETTINGS.has(key) || key.startsWith("data."), key);
+        }
+        for (const path of paths) {
+            assert.isTrue(CONFIG_KEYS.has(path), path);
+        }
+    });
+
+    it("never saves the bookkeeping flags", async () => {
+        const session = createGraphSession(ON);
+        await session.config.set({ timelineHiddenAdded: true, startingCamerasWritten: true });
+        const settings = (await save(session)).settings as JsonObject;
+        assert.notProperty(settings, "timelineHiddenAdded");
+        assert.notProperty(settings, "startingCamerasWritten");
+    });
+
+    it("drops a bookkeeping flag found in a file and keeps a third party's setting", async () => {
+        const session = createGraphSession(ON);
+        const problems = await open(session, {
+            kind: "graphty-settings",
+            version: 1,
+            generator: { name: "test", version: "0" },
+            settings: { timelineHiddenAdded: true, "com.example.glow": 1 },
+        });
+        assert.deepEqual(problems, [
+            { code: "W_UNKNOWN_MEMBER", params: { section: "settings", pointer: "/settings/timelineHiddenAdded" } },
+            { code: "W_UNKNOWN_MEMBER", params: { section: "settings", pointer: "/settings/com.example.glow" } },
+        ]);
+        assert.isFalse(session.config.timelineHiddenAdded);
+        const saved = (await save(session)).settings as JsonObject;
+        assert.strictEqual(saved["com.example.glow"], 1);
+        assert.notProperty(saved, "timelineHiddenAdded");
     });
 
     it("onto an open project sets only the keys the section holds", async () => {

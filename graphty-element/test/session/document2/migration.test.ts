@@ -292,7 +292,8 @@ describe("a version 1 project file, migrated", () => {
         );
         assert.include(view.layout as JsonObject, { dimension: 3 });
         assert.isUndefined(sections.recipe);
-        assert.strictEqual(settings.settings && (settings.settings as JsonObject)["layoutBehavior.preSteps"], 0);
+        assert.strictEqual((settings.settings as JsonObject).layoutStepsBeforeDraw, 0);
+        assert.notProperty(settings.settings as JsonObject, "layoutBehavior.preSteps");
 
         // Base64 columns are plain numbers; the pinned node is pinned, the rest is the layout's output.
         assert.deepStrictEqual(view.pinned, [{ node: { space, key: "a" }, position: { x: 1, y: 2, z: 3 } }]);

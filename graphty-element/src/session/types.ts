@@ -6135,8 +6135,10 @@ export interface ProjectConfig {
     /**
      * Whether the project has had its Timeline Hidden starting row written: false until the first
      * time a project with {@link ProjectConfig.startingRows} on has a time field, when the row is
-     * written and this turns true in the same step. Saved with the project, so the row is written
-     * once: turning the timeline off and on, or deleting the row, never adds it again. Setting it
+     * written and this turns true in the same step. Kept with the project: a version 1 file saves it;
+     * a version 2 file does not, and opening one sets it from whether the file carries a style
+     * section. So the row is written once: turning the timeline off and on, or deleting the row,
+     * never adds it again. Setting it
      * true before the timeline turns on means the row is never written. Setting it false asks for
      * the row again: it is written the next time a project with the starting rows has a time field
      * (at once when it already has one), beside any copy already there, since a row is the reader's
@@ -6146,9 +6148,11 @@ export interface ProjectConfig {
     readonly timelineHiddenAdded: boolean;
     /**
      * Whether this project has had the session's starting cameras
-     * (`session.views.setStartingCameras`) written into it. False by default and saved with the
-     * project; the element sets it when it writes them. Setting it true stops them being written
-     * into this project; setting it false lets the next writing point write them again.
+     * (`session.views.setStartingCameras`) written into it. False by default. Kept with the project:
+     * a version 1 file saves it; a version 2 file does not, and opening one sets it from whether the
+     * file carries a view section. The element sets it when it writes them. Setting it true stops
+     * them being written into this project; setting it false lets the next writing point write them
+     * again.
      * @since 3.58.0
      */
     readonly startingCamerasWritten: boolean;

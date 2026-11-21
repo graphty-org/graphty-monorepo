@@ -1158,3 +1158,105 @@ describe("readable paths in saved styles, filters and runs", () => {
         session.dispose();
     });
 });
+
+describe("what a project gets once, worked out on open", () => {
+    /**
+     * A version 2 project with the starting rows and a time field, so it has its Timeline Hidden row.
+     * @returns The saved file's sections.
+     */
+    async function timedProject(): Promise<Record<string, JsonObject>> {
+        const source = createGraphSession(ON);
+        await source.config.set({ startingRows: true });
+        const nodes = Array.from({ length: 4 }, (_, i) => ({ id: `n${String(i)}`, t: i }));
+        await source.data.import({ type: "json", config: { data: JSON.stringify({ nodes, edges: [] }) } });
+        await source.time.setField({ nodes: { start: "t" } });
+        const file = JSON.parse((await source.project.save({ format: 2 })).text) as JsonObject;
+        source.dispose();
+        return file.sections as Record<string, JsonObject>;
+    }
+
+    /**
+     * Open a version 2 file of these sections in a session, the starting rows on unless asked off.
+     * @param sections - The file's sections.
+     * @param session - The session to open it in; a new one when absent.
+     * @param startingRows - Whether the session draws the starting rows.
+     * @returns The session.
+     */
+    async function openIn(
+        sections: Record<string, JsonObject>,
+        session?: GraphSession,
+        startingRows = true,
+    ): Promise<GraphSession> {
+        const target = session ?? createGraphSession(ON);
+        await target.config.set({ startingRows });
+        const file = { kind: "graphty-document", version: 2, generator: { name: "test", version: "0" }, sections };
+        await target.project.open(JSON.stringify(file), { discard: true, rerun: false });
+        return target;
+    }
+
+    const outside = (session: GraphSession): { target: string }[] =>
+        session.styles
+            .list()
+            .filter(
+                (layer) =>
+                    JSON.stringify(layer.selector) === JSON.stringify({ match: "state", state: "outsideWindow" }),
+            );
+
+    it("never saves the flags", async () => {
+        const sections = await timedProject();
+        assert.notProperty(sections.settings.settings as JsonObject, "timelineHiddenAdded");
+        assert.notProperty(sections.settings.settings as JsonObject, "startingCamerasWritten");
+    });
+
+    it("counts the Timeline Hidden row as written when the file carries a style section", async () => {
+        const sections = await timedProject();
+        const session = await openIn(sections);
+        // The row the style section holds, one layer per target, and no second copy.
+        assert.sameMembers(
+            outside(session).map((layer) => layer.target),
+            ["node", "edge"],
+        );
+        assert.isTrue(session.config.timelineHiddenAdded);
+        session.dispose();
+    });
+
+    it("writes the Timeline Hidden row once when the file carries no style section", async () => {
+        const sections = await timedProject();
+        Reflect.deleteProperty(sections, "style");
+        const session = await openIn(sections);
+        assert.sameMembers(
+            outside(session).map((layer) => layer.target),
+            ["node", "edge"],
+        );
+        assert.isTrue(session.config.timelineHiddenAdded);
+        session.dispose();
+    });
+
+    it("counts the starting views as written only when the file carries a view section", async () => {
+        const sections = await timedProject();
+        const withView = await openIn(sections);
+        assert.isTrue(withView.config.startingCamerasWritten);
+        withView.dispose();
+
+        Reflect.deleteProperty(sections, "view");
+        const without = await openIn(sections);
+        assert.isFalse(without.config.startingCamerasWritten);
+        await without.views.setStartingCameras([{ name: "Top", follows: "topView", key: "1" }]);
+        assert.include([...without.views.keys()], "Top");
+        assert.isTrue(without.config.startingCamerasWritten);
+        without.dispose();
+    });
+
+    it("resets the previous project's flags", async () => {
+        const sections = await timedProject();
+        const session = await openIn(sections);
+        assert.isTrue(session.config.timelineHiddenAdded);
+        assert.isTrue(session.config.startingCamerasWritten);
+        const bare = { data: sections.data, settings: sections.settings };
+        // No starting rows, so nothing writes the row: the flag is the open's own, not the last project's.
+        await openIn(bare, session, false);
+        assert.isFalse(session.config.timelineHiddenAdded);
+        assert.isFalse(session.config.startingCamerasWritten);
+        session.dispose();
+    });
+});

@@ -18,7 +18,7 @@ import { drawAt, drawOrderOf } from "./drawOrder";
 import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
 import type { MeshCache } from "./MeshCache";
-import { drawLast } from "./moveInstance";
+import { drawAfter, drawLast } from "./moveInstance";
 import { NodeMesh, styleOpacity } from "./NodeMesh";
 import { attachRowPull } from "./RowPullPlugin";
 import type { Point2 } from "./shapeOutlines";
@@ -1549,6 +1549,16 @@ export class NodeBatches {
             }
         }
 
+        // Translucent meshes blend in the order the scene lists them, the batches and the held rows'
+        // own source tied by distance (`MeshCache.sourceFor`): the held rows after the rows before
+        // them, then the rows after them, all before the next look's batch.
+        if (family.span !== null && family.batch !== null && family.batch.mesh.visibility < 1) {
+            drawAfter(family.batch.mesh, [
+                ...this.heldMeshes(family),
+                ...(family.after === null ? [] : [family.after.mesh]),
+            ]);
+        }
+
         const before = family.batch?.flush() ?? false;
         return (family.after?.flush() ?? false) || before;
     }
@@ -1599,11 +1609,19 @@ export class NodeBatches {
             return null;
         }
 
-        // A translucent look is sorted back to front, and the held rows' own source, hidden far below,
-        // draws before its batches whatever this order says: the span runs from the look's first row.
-        // ponytail: a read of a translucent look's last row holds every row of it.
-        const translucent = [...family.groups].some((group) => group.restVisibility < 1);
-        return { lo: translucent ? Number.NEGATIVE_INFINITY : lo, hi };
+        return { lo, hi };
+    }
+
+    /**
+     * The meshes of a family's held rows, in row order: their own source draws them in the order the
+     * scene lists them.
+     * @param family - The family.
+     * @returns The meshes.
+     */
+    private heldMeshes(family: RowFamily): AbstractMesh[] {
+        return this.heldRows(family)
+            .sort((a, b) => a.key - b.key)
+            .flatMap(({ row }) => (row instanceof ColumnRow ? [] : (row.drawnPickMesh ?? [])));
     }
 
     /**
@@ -1681,8 +1699,7 @@ export class NodeBatches {
             }
         }
 
-        const held = this.heldRows(family).sort((a, b) => a.key - b.key);
-        drawLast(held.flatMap(({ row }) => (row instanceof ColumnRow ? [] : (row.drawnPickMesh ?? []))));
+        drawLast(this.heldMeshes(family));
     }
 
     /**

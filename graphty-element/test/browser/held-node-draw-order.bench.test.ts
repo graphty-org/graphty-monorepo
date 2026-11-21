@@ -7,7 +7,8 @@
  * every node's mesh is read, and `scene.render` is timed over a run of frames, on `"objects"` and on
  * `"batched"`. Plain circles, which a batch draws, are timed with some of their meshes read: none,
  * one in the middle, or the first and the last, which takes every row between them off the batch so
- * each keeps its place. Numbers go to the console as `[held-node-draw-order]` lines; nothing about
+ * each keeps its place; opaque and translucent (blended in scene order, which the held rows are moved
+ * into). Numbers go to the console as `[held-node-draw-order]` lines; nothing about
  * speed is asserted, only how many nodes draw by their own mesh.
  *
  * npx vitest run --project=browser-bench test/browser/held-node-draw-order.bench.test.ts
@@ -126,37 +127,39 @@ describe("drawing nodes whose mesh a consumer read", () => {
 
 describe("drawing plain nodes a batch draws when some of their meshes are read", () => {
     for (const size of [2_000, 10_000, 50_000]) {
-        for (const [label, reads, held] of [
-            ["none", [], 0],
-            ["the middle one", [Math.floor(size / 2)], 1],
-            ["the first and the last", [0, size - 1], size],
-        ] as const) {
-            it(`${String(size)} nodes, ${label} read`, async () => {
-                const created = await mounted(size, "batched");
-                await created.session.styles.add({
-                    name: "plain",
-                    target: "node",
-                    selector: { match: "everything" },
-                    set: { "node.shape": "ellipse", "node.size": 1.2 },
-                } as never);
-                await operationQueueOf(created.graph).waitForCompletion();
-                await created.waitForStableFrame();
-                const { graph } = created;
-                const start = performance.now();
-                for (const id of reads) {
-                    assert.isFalse(graph.getNode(id)?.mesh.isDisposed());
-                }
+        for (const opacity of [1, 0.6]) {
+            for (const [label, reads, held] of [
+                ["none", [], 0],
+                ["the middle one", [Math.floor(size / 2)], 1],
+                ["the first and the last", [0, size - 1], size],
+            ] as const) {
+                it(`${String(size)} nodes, opacity ${String(opacity)}, ${label} read`, async () => {
+                    const created = await mounted(size, "batched");
+                    await created.session.styles.add({
+                        name: "plain",
+                        target: "node",
+                        selector: { match: "everything" },
+                        set: { "node.shape": "ellipse", "node.size": 1.2, "node.opacity": opacity },
+                    } as never);
+                    await operationQueueOf(created.graph).waitForCompletion();
+                    await created.waitForStableFrame();
+                    const { graph } = created;
+                    const start = performance.now();
+                    for (const id of reads) {
+                        assert.isFalse(graph.getNode(id)?.mesh.isDisposed());
+                    }
 
-                // the frame that takes the rows off the batch
-                graph.getScene().render();
-                const holdMs = performance.now() - start;
-                await created.waitForStableFrame();
-                console.log(
-                    `[held-node-draw-order] plain nodes=${String(size)} read=${label} hold=${holdMs.toFixed(0)}ms ` +
-                        `objectNodes=${String(graph.rowCounts.objectNodes)} render median/p95=${frameTimes(graph)}`,
-                );
-                assert.equal(graph.rowCounts.objectNodes, held);
-            });
+                    // the frame that takes the rows off the batch
+                    graph.getScene().render();
+                    const holdMs = performance.now() - start;
+                    await created.waitForStableFrame();
+                    console.log(
+                        `[held-node-draw-order] plain nodes=${String(size)} opacity=${String(opacity)} read=${label} hold=${holdMs.toFixed(0)}ms ` +
+                            `objectNodes=${String(graph.rowCounts.objectNodes)} render median/p95=${frameTimes(graph)}`,
+                    );
+                    assert.equal(graph.rowCounts.objectNodes, held);
+                });
+            }
         }
     }
 });

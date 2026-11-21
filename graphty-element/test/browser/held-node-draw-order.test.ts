@@ -36,7 +36,7 @@ const NODES = Array.from({ length: 12 }, (_, id) => ({
 }));
 
 /** The looks {@link ringedLooks} paints: ringed, two shapes, or one plain shape a batch draws. */
-type Looks = "ringed" | "two shapes" | "one shape" | "translucent";
+type Looks = "ringed" | "two shapes" | "one shape" | "translucent" | "translucent shapes";
 
 /**
  * Mount an element and load the circles in 2D.
@@ -77,9 +77,12 @@ async function ringedLooks(
                 ? { "node.shape": "ellipse", "node.size": size, "node.borderColor": ring, "node.borderWidth": 0.15 }
                 : // a batch draws rows of one shape at any size
                   {
-                      "node.shape": parity === 0 || looks !== "two shapes" ? "ellipse" : "rectangle",
+                      "node.shape":
+                          parity === 1 && (looks === "two shapes" || looks === "translucent shapes")
+                              ? "rectangle"
+                              : "ellipse",
                       "node.size": 1.6,
-                      ...(looks === "translucent" ? { "node.opacity": 0.6 } : {}),
+                      ...(looks === "translucent" || looks === "translucent shapes" ? { "node.opacity": 0.6 } : {}),
                   },
         } as never);
     }
@@ -256,9 +259,56 @@ describe("a node whose mesh was read under batched", () => {
 
         await holdMeshes(graph, [3, 5]);
         const picture = await readCanvas(graph);
-        // drawn back to front, its own source first: the rows from the look's first to the last read one
-        assert.equal(graph.rowCounts.objectNodes, 6);
+        // the read rows and the row between them, blended between the look's batches
+        assert.equal(graph.rowCounts.objectNodes, 3);
         assert.equal(pixelsOverBar(objects, picture), 0);
+    });
+
+    for (const ids of [[0], [1], [2, 5]]) {
+        it(`keeps its place among translucent looks of two shapes when ${ids.join(" and ")} is read`, async () => {
+            const pictures: CanvasFrame[] = [];
+            for (const path of ["objects", "batched"] as const) {
+                const { graph } = await ringedLooks("translucent shapes", { path });
+                for (const id of ids) {
+                    assert.isFalse(graph.getNode(id)?.mesh.isDisposed());
+                }
+
+                await readCanvas(graph);
+                pictures.push(await readCanvas(graph));
+                if (path === "batched") {
+                    assert.equal(graph.rowCounts.objectNodes, ids.length, "only the read rows leave the batches");
+                }
+            }
+
+            const [objects, batched] = pictures;
+            assert.isDefined(objects);
+            assert.isDefined(batched);
+            assert.equal(pixelsOverBar(objects, batched), 0);
+        });
+    }
+
+    it("keeps its look drawn in its place when the rest of its look leaves it and comes back", async () => {
+        const pictures: CanvasFrame[] = [];
+        for (const path of ["objects", "batched"] as const) {
+            const { graph, session } = await ringedLooks("one shape", { path });
+            assert.isFalse(graph.getNode(0)?.mesh.isDisposed());
+            // Every row but the read one takes another look, then the odd ones come back to the first.
+            for (const [name, nodes, set] of [
+                ["away", EVERY.slice(1), { "node.shape": "rectangle", "node.color": "#16a34a" }],
+                ["back", EVERY.filter((id) => id % 2 === 1), { "node.shape": "ellipse", "node.color": "#e11d48" }],
+            ] as const) {
+                await session.styles.add({ name, target: "node", selector: { match: "ids", nodes }, set } as never);
+                await operationQueueOf(graph).waitForCompletion();
+                await readCanvas(graph);
+            }
+
+            pictures.push(await readCanvas(graph));
+        }
+
+        const [objects, batched] = pictures;
+        assert.isDefined(objects);
+        assert.isDefined(batched);
+        assert.equal(pixelsOverBar(objects, batched), 0);
     });
 
     it("keeps its place among the rows of its look a batch draws, with a look of another shape over it", async () => {

@@ -106,7 +106,9 @@ export class MeshCache {
 
         // Hide the original mesh - instances will still be visible
         mesh.isVisible = false;
-        mesh.position.set(0, -10000, 0);
+        // A held node's own source stays where the node batches are: translucent meshes blend back to
+        // front, and a source far below drew its held rows before every batch, out of their turn.
+        mesh.position.set(0, inPlaceOf === undefined ? -10000 : 0, 0);
 
         // CRITICAL: InstancedMesh inherits isPickable from source mesh
         // Must set pickable on source for instances to be pickable
@@ -260,9 +262,20 @@ export class MeshCache {
      * until the next dataset boundary. A name that is asked for again is simply built again.
      */
     prune(): void {
+        // A shared source a held node's own source stands in for lives as long as that one does, as
+        // the held node's instance keeps it on the objects path: rebuilt, its look would draw later.
+        const stoodFor = new Set<string>();
+        for (const mesh of this.meshCacheMap.values()) {
+            const key = standsFor.get(mesh);
+            if (key !== undefined && mesh.instances.length > 0) {
+                stoodFor.add(key);
+            }
+        }
+
         for (const [name, mesh] of this.meshCacheMap) {
             if (
                 mesh.instances.length === 0 &&
+                !stoodFor.has(name) &&
                 !this.nodeBatchMap.get(mesh)?.liveSlots &&
                 !this.afterBatchMap.get(mesh)?.liveSlots &&
                 !this.batchedSources.has(mesh)

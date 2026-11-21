@@ -41,6 +41,17 @@ const multipartiteLayoutOptionsSchema = defineOptions({
             step: 0.1,
         },
     },
+    aspectRatio: {
+        schema: z
+            .number()
+            .positive()
+            .default(4 / 3),
+        meta: {
+            label: "Aspect Ratio",
+            description: "Width to height ratio the columns are spread to",
+            step: 0.1,
+        },
+    },
 });
 
 const MultipartiteLayoutConfig = z.strictObject({
@@ -51,6 +62,10 @@ const MultipartiteLayoutConfig = z.strictObject({
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
+    aspectRatio: z
+        .number()
+        .positive()
+        .default(4 / 3),
 });
 type MultipartiteLayoutConfigType = z.infer<typeof MultipartiteLayoutConfig>;
 type MultipartiteLayoutOpts = Partial<MultipartiteLayoutConfigType>;
@@ -122,6 +137,7 @@ export class MultipartiteLayout extends SnapshotLayoutEngine {
                 align: this.config.align,
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,
+                aspectRatio: this.config.aspectRatio,
             }),
             this.config.scalingFactor,
         );

@@ -2141,6 +2141,16 @@
                     "default": 1,
                     "min": 0,
                     "step": 0.1
+                },
+                {
+                    "name": "aspectRatio",
+                    "plainName": "Aspect Ratio",
+                    "technicalName": "aspectRatio",
+                    "type": "number",
+                    "description": "Width to height ratio the columns are spread to",
+                    "default": 1.3333333333333333,
+                    "min": 0,
+                    "step": 0.1
                 }
             ],
             "honoursWeights": false,

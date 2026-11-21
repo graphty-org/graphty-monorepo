@@ -607,8 +607,7 @@ export class Node implements ModelUser {
      * the private field, and every other file a `drawn*` accessor (`local/node-mesh-funnel`).
      * Under `render-path="batched"`, reading it keeps this node drawn by its own mesh from then on,
      * never by a node batch, so what a consumer does to the mesh shows. The rest of its look stays
-     * on the batch, but for the rows between it and another read row of its look: those are drawn by
-     * their own meshes too, so every row keeps its place in the look's draw order, as on `"objects"`.
+     * on the batch, and every row keeps its place in the look's draw order, as on `"objects"`.
      * @returns The mesh.
      */
     get mesh(): AbstractMesh {
@@ -3001,12 +3000,8 @@ export class Node implements ModelUser {
         );
     }
 
-    /**
-     * Keep this node drawn by its own mesh from now on, as a read of {@link Node.mesh} does: for that
-     * read, and for the rows of its look a batch would otherwise draw out of turn with it (`NodeBatches`).
-     * @internal
-     */
-    holdInPlace(): void {
+    /** Keep this node drawn by its own mesh from now on, as a read of {@link Node.mesh} does. */
+    private holdInPlace(): void {
         if (!this.#meshHeld) {
             this.#meshHeld = true;
             this.holdOffBatch();
@@ -3098,7 +3093,8 @@ export class Node implements ModelUser {
         const held = this.drawsOwnSource(o);
         return [
             {
-                styleId: held ? `${shared}|held` : shared,
+                // one source per run of its look's held rows (`NodeBatches.runOf`)
+                styleId: held ? `${shared}|held${this.context.getNodeBatches?.()?.runOf(this) ?? ""}` : shared,
                 is2D: this.context.is2D(),
                 size: this.size,
                 // drawn where the shared source is, under its look's border, as on the objects path

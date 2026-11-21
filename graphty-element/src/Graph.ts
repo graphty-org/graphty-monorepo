@@ -5584,10 +5584,6 @@ export class Graph implements GraphContext {
                             this.layoutManager.running = true;
                         }
                     },
-                    build: (row) => {
-                        const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
-                        return id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
-                    },
                 },
                 this.scene,
             );
@@ -6427,7 +6423,7 @@ export class Graph implements GraphContext {
 
         if (mapped) {
             const { nodeBatchMap, afterBatchMap } = this.dataManager.meshCache;
-            for (const batch of [...nodeBatchMap.values(), ...afterBatchMap.values()]) {
+            for (const batch of [...nodeBatchMap.values(), ...[...afterBatchMap.values()].flat()]) {
                 this.#nodeMeshes.add(batch.mesh);
             }
         }

@@ -44,10 +44,10 @@ export class MeshCache {
     nodeBatchMap = new Map<Mesh, NodeBatch>();
 
     /**
-     * The second batch of a look, which draws its rows after the rows of it a consumer holds
-     * (`NodeBatches`, a held span), by the same source as {@link MeshCache.nodeBatchMap}.
+     * The further batches of a look, one for its rows after each run of the rows of it a consumer
+     * holds (`NodeBatches.refill`), by the same source as {@link MeshCache.nodeBatchMap}.
      */
-    afterBatchMap = new Map<Mesh, NodeBatch>();
+    afterBatchMap = new Map<Mesh, NodeBatch[]>();
 
     /**
      * Sources whose rows a batch draws. A batch is built from one source of its shape and draws the
@@ -189,24 +189,45 @@ export class MeshCache {
     }
 
     /**
-     * Get or create the batch that draws a look's rows after its held span (see {@link MeshCache.afterBatchMap}).
+     * Get, create or drop the batches that draw a look's rows after each run of its held rows, to
+     * a given count (see {@link MeshCache.afterBatchMap}).
      * @param source - The source mesh.
+     * @param count - How many.
      * @param places - The table that places the rows.
      * @param root - What the rows are drawn inside.
-     * @returns The batch.
+     * @returns The batches, in draw order.
      */
-    afterBatchFor(
+    afterBatchesFor(
         source: Mesh,
+        count: number,
         places: ConstructorParameters<typeof NodeBatch>[1],
         root: TransformNode | null,
-    ): NodeBatch {
-        let batch = this.afterBatchMap.get(source);
-        if (batch === undefined) {
-            batch = new NodeBatch(source, places, root);
-            this.afterBatchMap.set(source, batch);
+    ): NodeBatch[] {
+        const batches = this.afterBatchMap.get(source) ?? [];
+        for (const extra of batches.splice(count)) {
+            extra.dispose();
         }
 
-        return batch;
+        while (batches.length < count) {
+            batches.push(new NodeBatch(source, places, root));
+        }
+
+        if (batches.length === 0) {
+            this.afterBatchMap.delete(source);
+        } else {
+            this.afterBatchMap.set(source, batches);
+        }
+
+        return batches;
+    }
+
+    /**
+     * Whether a source is a held node's own, standing in for a shared one.
+     * @param source - A source.
+     * @returns True when it is.
+     */
+    standsInFor(source: Mesh): boolean {
+        return standsFor.has(source);
     }
 
     /**
@@ -275,7 +296,7 @@ export class MeshCache {
                 mesh.instances.length === 0 &&
                 !stoodFor.has(name) &&
                 !this.nodeBatchMap.get(mesh)?.liveSlots &&
-                !this.afterBatchMap.get(mesh)?.liveSlots &&
+                !this.afterBatchMap.get(mesh)?.some((batch) => batch.liveSlots > 0) &&
                 !this.batchedSources.has(mesh)
             ) {
                 this.disposeSource(mesh);
@@ -317,7 +338,10 @@ export class MeshCache {
     private disposeSource(mesh: Mesh): void {
         this.nodeBatchMap.get(mesh)?.dispose();
         this.nodeBatchMap.delete(mesh);
-        this.afterBatchMap.get(mesh)?.dispose();
+        for (const batch of this.afterBatchMap.get(mesh) ?? []) {
+            batch.dispose();
+        }
+
         this.afterBatchMap.delete(mesh);
         this.batchedSources.delete(mesh);
         const { material } = mesh;

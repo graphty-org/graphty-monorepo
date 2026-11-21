@@ -237,11 +237,12 @@ describe("a node whose mesh was read under batched", () => {
         assert.equal(graph.rowCounts.batchedNodes, NODES.length - 1, "a batch draws every plain node but the read one");
     });
 
-    for (const [label, ids, held] of [
-        ["two of them", [0, 2], 3],
-        ["one in the middle", [5], 1],
-        ["the last", [11], 1],
-        ["the first and the last", [0, 11], 12],
+    for (const [label, ids] of [
+        ["two of them", [0, 2]],
+        ["one in the middle", [5]],
+        ["the last", [11]],
+        ["the first and the last", [0, 11]],
+        ["every other one", [1, 3, 5, 7, 9, 11]],
     ] as const) {
         it(`keeps its place among the rows of its look a batch draws when ${label} is read`, async () => {
             const { graph } = await ringedLooks("one shape");
@@ -250,9 +251,9 @@ describe("a node whose mesh was read under batched", () => {
 
             await holdMeshes(graph, ids);
             const picture = await readCanvas(graph);
-            // The rows between the first and the last read one draw with them; the rest stay on the batch.
-            assert.equal(graph.rowCounts.objectNodes, held, "the read rows and the rows between them");
-            assert.equal(graph.rowCounts.batchedNodes, NODES.length - held);
+            // Only the read rows leave the batch: the rows between them stay on it, cut at each read row.
+            assert.equal(graph.rowCounts.objectNodes, ids.length, "only the read rows");
+            assert.equal(graph.rowCounts.batchedNodes, NODES.length - ids.length);
             assert.equal(pixelsOverBar(objects, picture), 0);
         });
     }
@@ -264,8 +265,8 @@ describe("a node whose mesh was read under batched", () => {
 
         await holdMeshes(graph, [3, 5]);
         const picture = await readCanvas(graph);
-        // the read rows and the row between them, blended between the look's batches
-        assert.equal(graph.rowCounts.objectNodes, 3);
+        // only the read rows, each blended between the look's batches
+        assert.equal(graph.rowCounts.objectNodes, 2);
         assert.equal(pixelsOverBar(objects, picture), 0);
     });
 
@@ -408,4 +409,95 @@ describe("a node whose mesh was read under batched", () => {
         assert.isDefined(batched);
         assert.equal(pixelsOverBar(objects, batched), 0);
     });
+
+    for (const [ids, restyled] of [
+        [[0], 0],
+        [[5], 5],
+        [[2, 9], 2],
+    ] as const) {
+        it(`keeps its place among translucent looks when ${ids.join(" and ")} is read, then ${restyled} takes another shape`, async () => {
+            // The read node's new look has no batch of its own: its source blends where that batch would.
+            const pictures: CanvasFrame[] = [];
+            for (const path of ["objects", "batched"] as const) {
+                const { graph, session } = await ringedLooks("translucent", { path });
+                for (const id of ids) {
+                    assert.isFalse(graph.getNode(id)?.mesh.isDisposed());
+                }
+
+                await readCanvas(graph);
+                await session.styles.add({
+                    name: "restyled",
+                    target: "node",
+                    selector: { match: "ids", nodes: [restyled] },
+                    set: { "node.shape": "rectangle" },
+                } as never);
+                await operationQueueOf(graph).waitForCompletion();
+                await readCanvas(graph);
+                pictures.push(await readCanvas(graph));
+            }
+
+            const [objects, batched] = pictures;
+            assert.isDefined(objects);
+            assert.isDefined(batched);
+            assert.equal(pixelsOverBar(objects, batched), 0);
+        });
+    }
+
+    for (const opacity of [1, 0.6]) {
+        it(`builds only the read rows of a long look, within limits.objectRows, at opacity ${opacity}`, async () => {
+            const pictures: CanvasFrame[] = [];
+            for (const path of ["objects", "batched"] as const) {
+                const element = document.createElement("graphty-element");
+                element.style.display = "block";
+                element.style.width = "400px";
+                element.style.height = "300px";
+                element.renderPath = path;
+                document.body.appendChild(element);
+                cleanups.push(() => {
+                    element.remove();
+                });
+                await element.updateComplete;
+                const warnings: unknown[] = [];
+                element.addEventListener("limits-warning", (event) => warnings.push(event));
+                element.limits = { objectRows: 10 };
+                // fifty overlapping circles of one look, in a row
+                await element.session.data.addNodes(
+                    Array.from({ length: 50 }, (_, id) => ({ id, position: { x: id * 0.1 - 2.5, y: 0, z: 0 } })),
+                );
+                await element.graph.setLayout("fixed", { dim: 3 });
+                await element.setViewMode("2d");
+                // one look, in three colors, so the stacking shows
+                for (const [at, color] of ["#e11d48", "#16a34a", "#2563eb"].entries()) {
+                    await element.session.styles.add({
+                        name: `look ${color}`,
+                        target: "node",
+                        selector: {
+                            match: "ids",
+                            nodes: Array.from({ length: 50 }, (_, id) => id).filter((id) => id % 3 === at),
+                        },
+                        set: { "node.shape": "ellipse", "node.color": color, "node.opacity": opacity },
+                    } as never);
+                }
+                await operationQueueOf(element.graph).waitForCompletion();
+                await element.waitForStableFrame();
+                for (const id of [0, 25, 49]) {
+                    assert.isFalse(element.graph.getNode(id)?.mesh.isDisposed());
+                }
+
+                await readCanvas(element.graph);
+                pictures.push(await readCanvas(element.graph));
+                if (path === "batched") {
+                    // The rows between the read ones stay on the look's batches: no `Node` each, none past the budget.
+                    assert.equal(element.graph.rowCounts.objectNodes, 3, "only the read rows are built");
+                    assert.equal(element.graph.rowCounts.batchedNodes, 47);
+                    assert.lengthOf(warnings, 0, "no row goes past limits.objectRows");
+                }
+            }
+
+            const [objects, batched] = pictures;
+            assert.isDefined(objects);
+            assert.isDefined(batched);
+            assert.equal(pixelsOverBar(objects, batched), 0);
+        });
+    }
 });

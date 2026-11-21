@@ -1,5 +1,6 @@
-import { type GraphSession, isGraphtyError, type NodeId } from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError, isGraphtyErrorCode, type NodeId } from "@graphty/graphty-element/session";
 
+import { count } from "../../lib/analytics";
 import { type CommandContext, defineRegistration, type PaletteRow } from "../commands/registry";
 import { openFilterDraft, PLUS } from "../data-place/filterCards";
 import { neighborhoodKey } from "../inspector/inspected";
@@ -91,9 +92,11 @@ function enterImmersive(mode: "vr" | "ar"): {
             try {
                 await session?.execute({ op: "view.immersive", mode });
             } catch (error) {
+                const code = isGraphtyError(error) ? error.code : undefined;
+                count("xr_entered", { mode, outcome: "failed", code: isGraphtyErrorCode(code) ? code : "other" });
                 workspace.set({
                     notice: {
-                        message: xrEntryFailureWords(mode, isGraphtyError(error) ? error.code : undefined),
+                        message: xrEntryFailureWords(mode, code),
                         error: true,
                     },
                 });

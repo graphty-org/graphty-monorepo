@@ -56363,12 +56363,6 @@
                 "to": 0.988,
                 "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
                 "date": "2026-11-19"
-            },
-            "label.alongLine": {
-                "floor": 0.875,
-                "to": 0.75,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
             }
         },
         "gml-synthetic-coverage@matched": {
@@ -56393,12 +56387,6 @@
             "label.anchor": {
                 "floor": 1,
                 "to": 0.988,
-                "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
-                "date": "2026-11-19"
-            },
-            "label.alongLine": {
-                "floor": 0.875,
-                "to": 0.75,
                 "reason": "2026-11-19 (#8189): yEd's stars now drawn as yEd draws them and edgeAnchor ports read, which moved these: star6 corner labels 14, 62 and the right label 78 are placed against the star's own width (0.866 of its box) where yEd places them by the box; e38's side_slider label (40->49) sits 0.42 along its port-to-port line, not at its start; 47->48's bends lie on star8's tip and fatarrow's side, inside their border reach, so graphty-element passes over them and draws no route",
                 "date": "2026-11-19"
             }

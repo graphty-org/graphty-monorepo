@@ -40,7 +40,7 @@ export const renderPathDefault: { value: RenderPath } = { value: "objects" };
 export interface RowCounts {
     /** Nodes drawn by a batch. */
     readonly batchedNodes: number;
-    /** Nodes drawn as a mesh of their own. */
+    /** Nodes drawn as a mesh of their own. A row drawn by neither is in neither count. */
     readonly objectNodes: number;
     /** Edges drawn from the row tables. */
     readonly pulledEdges: number;
@@ -868,12 +868,13 @@ export class NodeBatches {
     }
 
     /**
-     * Whether a batch draws this node now, rather than its own mesh.
-     * @param node - The node.
+     * Whether a batch draws this row now: a node rather than its own mesh, or a row with no `Node`
+     * at all, which nothing else draws.
+     * @param row - The node or the row.
      * @returns True when it does.
      */
-    draws(node: Node): boolean {
-        return this.nodeGroups.get(node)?.batched === true;
+    draws(row: BatchRow): boolean {
+        return this.groupOf(row)?.batched === true;
     }
 
     /**

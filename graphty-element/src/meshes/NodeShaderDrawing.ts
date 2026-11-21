@@ -641,12 +641,52 @@ export class NodeShaderDrawing {
 
     /**
      * A node arrived in a graph already drawing shaders: a shader it starts carrying enters, and
-     * its `sinceChanged` counts from now.
+     * its `sinceChanged` counts from when it arrived.
      * @param node - The node.
+     * @param at - When it arrived, by `performance.now()`; now when absent. -Infinity records
+     *   nothing: a node built for a row stored before this drawing existed, or too long ago to
+     *   play an entrance, is not arriving (issue #9447). A node that already drew a shader
+     *   records nothing: its entrances were decided as it drew.
      */
-    arrived(node: ShadedNode): void {
-        this.arrivals.set(node, performance.now());
+    arrived(node: ShadedNode, at = performance.now()): void {
+        if (at !== Number.NEGATIVE_INFINITY && !this.entries.has(node)) {
+            this.arrivals.set(node, at);
+        }
     }
+
+    /**
+     * A node row was stored with no `Node` (on "batched"): remember when, so the `Node` built for
+     * it later plays the entrances a node arriving now plays. Only the last
+     * {@link CAUSE_WINDOW_MS} of arrivals are kept, since an older one plays nothing. Keyed by id,
+     * since a freeze can renumber a node's row.
+     * @param id - The node's id.
+     */
+    rowArrived(id: string | number): void {
+        const now = performance.now();
+        for (const [old, at] of this.rowArrivals) {
+            if (now - at <= CAUSE_WINDOW_MS) {
+                break;
+            }
+
+            this.rowArrivals.delete(old);
+        }
+
+        this.rowArrivals.delete(id);
+        this.rowArrivals.set(id, now);
+    }
+
+    /**
+     * When a node row stored with no `Node` arrived, for the `Node` built for it now.
+     * @param id - The node's id.
+     * @returns The time by `performance.now()`; -Infinity when it arrived before this drawing
+     *   existed, or too long ago to play an entrance.
+     */
+    rowArrivalOf(id: string | number): number {
+        return this.rowArrivals.get(id) ?? Number.NEGATIVE_INFINITY;
+    }
+
+    /** When each node row stored with no `Node` arrived, oldest first; see {@link rowArrived}. */
+    private readonly rowArrivals = new Map<string | number, number>();
 
     /**
      * The graph's outline width (`layoutBehavior.node.outlineWidth`) changed: draw again every

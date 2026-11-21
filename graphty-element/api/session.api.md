@@ -5457,6 +5457,9 @@ export interface RemoveSourceResult {
 export function renamePaths(where: Query, rename: (path: Path) => Query | undefined): Query;
 
 // @public
+export function renameRunPaths(where: Query, rename: (run: string) => string | undefined): Query;
+
+// @public
 export interface RenderQuality {
     readonly code?: RenderQualityCode;
     readonly heavy: "on" | "off";

@@ -488,6 +488,40 @@ describe("a version 1 document of one kind, migrated", () => {
         });
     });
 
+    it("writes version 1 expressions and rootless paths the way version 2 reads them", () => {
+        const set = { "node.color": "#123456" };
+        const layers = [
+            { name: "P", selector: { match: "expression", where: "padj < 0.05" }, set },
+            { name: "Q", selector: { match: "expression", where: "confidence >= 0.4 && data.x == true" }, set },
+            {
+                name: "S",
+                selector: { match: "everything" },
+                encode: { "node.size": { by: "score", scale: "linear" } },
+                source: { by: "run", runId: "reader__links", algorithm: "degree" },
+            },
+            { name: "U", selector: { match: "expression", where: "data.a[0] == 1" }, set },
+        ];
+        const v2 = migrateDocument1({ kind: "graphty-style", version: 1, layers }, []);
+        const { style } = v2?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(style), []);
+        const [p, q, scored, unparsed] = style.layers as JsonObject[];
+        assert.deepEqual(p.selector, { match: "expression", where: "data.padj < `0.05`" });
+        assert.deepEqual(q.selector, { match: "expression", where: "data.confidence >= `0.4` && data.x == true" });
+        assert.deepEqual(scored.encode, { "node.size": { by: "data.score", scale: "linear" } });
+        assert.strictEqual((scored.source as JsonObject).by, "run");
+        assert.deepEqual(unparsed.selector, { match: "expression", where: "data.a[0] == 1" }, "carried as written");
+
+        const recipe = migrateDocument1(
+            { kind: "graphty-recipe", version: 1, commands: [{ op: "graph.filter", where: "padj < 0.05" }] },
+            [],
+        )?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(recipe.recipe), []);
+        assert.deepEqual((recipe.recipe.commands as JsonObject[])[0], {
+            op: "graph.filter",
+            where: "data.padj < `0.05`",
+        });
+    });
+
     it("keeps a version 1 recipe's id, drops its recipeVersion, and writes every run's style", () => {
         const v2 = migrateDocument1(
             {

@@ -41,8 +41,9 @@
 import { withParentIds } from "../parentIds";
 import { ENGINE_VERSIONS } from "../runs/engine";
 import { rewriteOldPaths } from "../styles/fileStyles/oldLooks";
+import { renameRunInPath, v1Expression } from "../styles/predicate";
 import { addedColumns, canonicalJson, READER } from "./codecs/dataRefs";
-import { asName } from "./codecs/recipeCommands";
+import { asName, PATH_MEMBERS, renameRuns, runsRead } from "./codecs/recipeCommands";
 import { ROLE_FIELDS } from "./codecs/roles";
 import { NOT_SETTINGS, SETTINGS } from "./codecs/settings";
 import { cameraJson } from "./codecs/viewParts";
@@ -173,26 +174,53 @@ function runKey(id: string, derived: boolean): { namespace: string; as: string }
     return { namespace: nsFits ? namespace : "reader", as: asFits ? as : asName(as) };
 }
 
+/** The roots a version 2 path starts with (spec 4.8.1 rule 1). */
+const PATH_ROOT = /^(data|results|graphty|_source)\./;
+
+/** The members holding an algorithm's or a layout's own options, whose names are not path members. */
+const OPTION_MEMBERS = new Set(["params", "options", "userData"]);
+
 /**
- * Every string in a value with each `results.<run>` path renamed.
+ * A version 1 value with its paths written as version 2 writes them (spec 9.1): every expression
+ * rewritten (`v1Expression`), and every rootless path member given `data.`, which version 1 read
+ * as a column. A layer source's `by` (its parent holds `runId`, `template` or `plugin`) says what
+ * made the layer and is no path; a text leaf's `reads: "id"` reads the node's id.
  * @param value - The value.
- * @param rename - From a version 1 run id to the name the section names it by.
+ * @param member - The member it is held under.
  * @returns A copy.
  */
-function renameRuns<T>(value: T, rename: (id: string) => string): T {
-    if (typeof value === "string") {
-        return value.replaceAll(/results\.([A-Za-z0-9_-]+)/g, (_, id: string) => `results.${rename(id)}`) as T;
-    }
-
+function v1Paths<T>(value: T, member = ""): T {
     if (Array.isArray(value)) {
-        return value.map((entry: unknown) => renameRuns(entry, rename)) as T;
+        return value.map((entry: unknown) => v1Paths(entry)) as T;
     }
 
-    if (isObject(value)) {
-        return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, renameRuns(entry, rename)])) as T;
+    if (!isObject(value)) {
+        return value;
     }
 
-    return value;
+    const isSource = member === "source" || "runId" in value || "template" in value || "plugin" in value;
+    return Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => {
+            if (OPTION_MEMBERS.has(key)) {
+                return [key, entry];
+            }
+
+            if (typeof entry !== "string") {
+                return [key, v1Paths(entry, key)];
+            }
+
+            if (key === "where") {
+                return [key, v1Expression(entry)];
+            }
+
+            const path =
+                PATH_MEMBERS.has(key) &&
+                !PATH_ROOT.test(entry) &&
+                !(key === "by" && isSource) &&
+                !(key === "reads" && entry === "id");
+            return [key, path ? `data.${entry}` : entry];
+        }),
+    ) as T;
 }
 
 /**
@@ -445,7 +473,7 @@ function migrateStyle(
     // A layer that read an older load's looks reads the columns they are carried into.
     const paths = data?.lookPaths ?? new Map<string, string>();
     objectsOf(style.layers).forEach((read, at) => {
-        const layer = rewriteOldPaths(read, paths);
+        const layer = v1Paths(rewriteOldPaths(read, paths));
         let id = typeof layer.id === "string" && layer.id !== "" ? layer.id : `layer-${String(at + 1)}`;
         while (used.has(id)) {
             id = `${id}-${String(at + 1)}`;
@@ -467,9 +495,7 @@ function migrateStyle(
             context,
         );
         if (!named) {
-            for (const match of JSON.stringify([v2.selector, v2.encode]).matchAll(/results\.([a-z][a-z0-9_]*)/g)) {
-                results.add(match[1]);
-            }
+            runsRead([v2.selector, v2.encode]).forEach((run) => results.add(run));
 
             layers.push(v2);
             order.push(id);
@@ -502,7 +528,7 @@ function migrateStyle(
         }
 
         if (path.startsWith("results.")) {
-            return [{ path: renameRuns(path, asName), value, label: label.label }];
+            return [{ path: renameRunInPath(path, asName), value, label: label.label }];
         }
 
         problems.push(leftOut("graphty-session", `/valueLabels/${String(at)}`));
@@ -572,7 +598,7 @@ function migrateSets(context: Context, data: MigratedData): JsonObject[] {
         return {
             id: context.setId(id),
             name: typeof set.name === "string" ? set.name : "",
-            definition: renameSets(definitionOf(definition, data, reading), context),
+            definition: renameSets(definitionOf(v1Paths(definition), data, reading), context),
         };
     });
 }
@@ -637,7 +663,8 @@ function migrateRuns(runs: readonly JsonObject[], context: Context, data: Migrat
         }
 
         const seed = Number.isInteger(run.seed) ? run.seed : caveats.seed;
-        const scope = run.scope === undefined || bare ? "graph" : renameSets(boundScope(run.scope, data), context);
+        const scope =
+            run.scope === undefined || bare ? "graph" : renameSets(boundScope(v1Paths(run.scope), data), context);
         return {
             id: `${namespace}__${as}`,
             namespace,
@@ -1115,7 +1142,7 @@ function placedOf(arrangement: JsonObject | undefined, data: MigratedData): Plac
  */
 function visibilityOf(visibility: JsonObject, context: Context, data: MigratedData): JsonObject {
     const conditions = (isObject(visibility.conditions) ? objectsOf(visibility.conditions.list) : []).map((condition) =>
-        renameSets({ ...condition, rule: boundRule(condition.rule, data) }, context),
+        renameSets({ ...condition, rule: boundRule(v1Paths(condition.rule), data) }, context),
     );
     if (Array.isArray(visibility.steps) && visibility.steps.length > 0) {
         context.problems.push(leftOut("graphty-session", "/visibility/steps"));
@@ -1123,11 +1150,11 @@ function visibilityOf(visibility: JsonObject, context: Context, data: MigratedDa
 
     const window =
         isObject(visibility.window) && typeof visibility.window.attribute === "string"
-            ? (({ raw: _raw, ...rest }) => rest)(visibility.window)
+            ? v1Paths((({ raw: _raw, ...rest }) => rest)(visibility.window))
             : undefined;
     const hidden = nodeRefs(visibility.hidden, data);
     return {
-        filter: filterOf(visibility.filter, context, data),
+        filter: filterOf(v1Paths(visibility.filter), context, data),
         ...(window === undefined ? {} : { window }),
         ...(typeof visibility.showContext === "boolean" ? { showContext: visibility.showContext } : {}),
         ...(conditions.length === 0 ? {} : { conditions }),
@@ -1315,7 +1342,8 @@ function migrateRecipe1(recipe: JsonObject, context: Context): JsonObject | unde
         return undefined;
     }
 
-    const commands = objectsOf(recipe.commands).map((command) => {
+    const commands = objectsOf(recipe.commands).map((read) => {
+        const command = v1Paths(read);
         if (command.op === "algo.run") {
             return { ...command, style: command.style ?? true };
         }

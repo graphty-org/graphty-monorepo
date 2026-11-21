@@ -36,7 +36,7 @@ import type {
 import { addedValues } from "./data";
 import { addedColumns, edgeRefOf, elementRefsOf, READER, rememberReaderEdge, savedEdgeId, typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
-import { filterRule, unansweredPath } from "./recipeCommands";
+import { filterRule, refusedIn, unansweredPath } from "./recipeCommands";
 import { markRecipeRun, recipeRunName, restoredPositions } from "./results";
 import { heldTypeSelector } from "./style";
 import {
@@ -913,6 +913,48 @@ function filterIn(filter: unknown): RuleTree | null {
 }
 
 /**
+ * Whether a holder (a filter, a condition, a window, a set, a layer, a run) can be applied: one
+ * reading a readable path this release does not compute, or the reserved `graphty.types` (spec 4.2
+ * rule 4), or holding an expression or a rule tree leaf this release refuses (spec 4.8.2 rule 6), is
+ * not applied, and is reported `W_UNKNOWN_MEMBER`; the open writes it back as read.
+ * @param r - The reader.
+ * @param value - The holder.
+ * @param pointer - Its pointer.
+ * @returns True when it can be applied.
+ */
+function keepsHolder(r: Reader, value: unknown, pointer: string): boolean {
+    if (unansweredPath(value) !== undefined) {
+        r.context.problems.push({
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: SECTION, pointer, reason: "E_UNKNOWN_ATTRIBUTE" },
+        });
+        return false;
+    }
+
+    return !refusedHolder(r, value, pointer);
+}
+
+/**
+ * Whether a holder holds an expression or a rule tree leaf this release refuses (spec 4.8.2 rule
+ * 6), reported `W_UNKNOWN_MEMBER` with the pointer of what is refused.
+ * @param r - The reader.
+ * @param value - The holder.
+ * @param pointer - Its pointer.
+ * @returns True when it is refused.
+ */
+function refusedHolder(r: Reader, value: unknown, pointer: string): boolean {
+    const refused = refusedIn(value, pointer);
+    if (refused !== undefined) {
+        r.context.problems.push({
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: SECTION, pointer: refused, reason: "E_BAD_SELECTOR" },
+        });
+    }
+
+    return refused !== undefined;
+}
+
+/**
  * Apply the visibility member.
  * @param r - The reader.
  * @param visibility - The member.
@@ -924,17 +966,7 @@ async function readVisibility(r: Reader, visibility: JsonObject): Promise<void> 
     // reserved `graphty.types`, is not applied (spec 4.7 rule 4); the rest of the member is. The
     // member is written back as read while the session holds what was applied (rememberRead).
     const at = `${r.section.pointer}/visibility`;
-    const answered = (value: unknown, pointer: string): boolean => {
-        if (unansweredPath(value) === undefined) {
-            return true;
-        }
-
-        r.context.problems.push({
-            code: "W_UNKNOWN_MEMBER",
-            params: { section: SECTION, pointer, reason: "E_UNKNOWN_ATTRIBUTE" },
-        });
-        return false;
-    };
+    const answered = (value: unknown, pointer: string): boolean => keepsHolder(r, value, pointer);
     const read = mapRefs(visibility, r.mapper, at) as JsonObject;
     const conditions = Array.isArray(read.conditions)
         ? read.conditions.filter((condition, n) => isObject(condition) && answered(condition, `${at}/conditions/${n}`))
@@ -1166,6 +1198,21 @@ function scopeIn(r: Reader, scope: unknown, pointer: string): ScopeInput | undef
 }
 
 /**
+ * Whether a run record reads only paths this release answers (spec 4.7 rule 5) and holds no scope
+ * it refuses (spec 4.8.2 rule 6), reporting the refused one.
+ * @param r - The reader.
+ * @param record - The run record.
+ * @param pointer - Its pointer.
+ * @returns True when it can run.
+ */
+function runAnswered(r: Reader, record: JsonObject, pointer: string): boolean {
+    return (
+        unansweredPath({ params: record.params, scope: record.scope }) === undefined &&
+        !refusedHolder(r, { scope: record.scope }, pointer)
+    );
+}
+
+/**
  * Rerun or restore one view run, or report it not run and keep it.
  * @param r - The reader.
  * @param record - The run record.
@@ -1203,7 +1250,7 @@ async function readRun(r: Reader, record: unknown, at: number): Promise<void> {
     const scope = scopeIn(r, record.scope, `${pointer}/scope`);
     const reruns = rerunsOnOpen(context, id, record);
     // A run reading a path this release cannot answer is kept, not run (spec 4.7 rule 5).
-    const answered = unansweredPath({ params: record.params, scope: record.scope }) === undefined;
+    const answered = runAnswered(r, record, pointer);
     if (!bound || !answered || scope === undefined || (!reruns && !context.canned.has(id))) {
         notRun();
         return;
@@ -1387,8 +1434,8 @@ async function readGroups(r: Reader, groups: readonly unknown[]): Promise<void> 
 
 /**
  * Keep a view layer that reads a readable path this release does not compute, or the reserved
- * `graphty.types`: it would paint nothing, so it is kept as read and written back in its place
- * (spec 4.2 rule 4), reported `W_UNKNOWN_MEMBER`.
+ * `graphty.types` (it would paint nothing, spec 4.2 rule 4), or whose selector this release refuses
+ * (spec 4.8.2 rule 6): it is kept as read and written back in its place, reported `W_UNKNOWN_MEMBER`.
  * @param r - The reader.
  * @param layers - The layers, bottom first.
  * @param n - The layer's place.
@@ -1397,14 +1444,19 @@ async function readGroups(r: Reader, groups: readonly unknown[]): Promise<void> 
  */
 function keptLayer(r: Reader, layers: readonly unknown[], n: number, pointer: string): boolean {
     const entry = layers[n];
-    if (!isObject(entry) || unansweredPath({ selector: entry.selector, encode: entry.encode }) === undefined) {
+    if (!isObject(entry)) {
         return false;
     }
 
-    r.context.problems.push({
-        code: "W_UNKNOWN_MEMBER",
-        params: { section: SECTION, pointer, reason: "E_UNKNOWN_ATTRIBUTE" },
-    });
+    if (unansweredPath({ selector: entry.selector, encode: entry.encode }) !== undefined) {
+        r.context.problems.push({
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: SECTION, pointer, reason: "E_UNKNOWN_ATTRIBUTE" },
+        });
+    } else if (!refusedHolder(r, entry.selector, `${pointer}/selector`)) {
+        return false;
+    }
+
     const previous = n === 0 ? undefined : layers[n - 1];
     r.memory.keptLayers.push({
         layer: entry,
@@ -1631,7 +1683,9 @@ async function readView(section: ReadSection, context: ReadContext): Promise<voi
     };
     const { body } = section;
     const savedSets = (Array.isArray(body.sets) ? body.sets : []).flatMap((set: unknown, at) =>
-        isObject(set) ? [[set, at] as const] : [],
+        isObject(set) && !refusedHolder(r, set.definition, `${section.pointer}/sets/${at}/definition`)
+            ? [[set, at] as const]
+            : [],
     );
     const waiting = createSets(r, savedSets);
     await readPinned(r, body);

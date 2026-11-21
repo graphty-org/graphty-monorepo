@@ -844,3 +844,41 @@ describe("view codec: saved views keep every part", () => {
         assert.deepEqual(opened.views.get("Old"), { camera: { zoom: 2 } });
     });
 });
+
+describe("view codec: a refused expression or rule tree leaf fails only its holder", () => {
+    it("keeps and reports a filter whose expression is refused, and writes it back", async () => {
+        const opened = await sessionWithData();
+        const visibility = { filter: { on: "nodes", where: "data.a > 5" } };
+        const problems = await open(opened, { kind: "graphty-view", version: 1, visibility });
+        assert.deepInclude(problems, {
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: "view", pointer: "/sections/view/visibility/filter/where", reason: "E_BAD_SELECTOR" },
+        });
+        assert.isNull(opened.visibility.filter);
+        assert.deepInclude((await save(opened)).visibility as JsonObject, visibility);
+    });
+
+    it("keeps and reports a set holding an unknown leaf kind, and loads the others", async () => {
+        const opened = await sessionWithData();
+        const odd = {
+            id: "set_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
+            name: "Odd",
+            definition: { kind: "rule", where: { kind: "future-leaf", x: 1 }, reading: "induced" },
+        };
+        const busy = {
+            id: "set_01JCBP1C9E2G4J6M8N0Q3S5V7Z",
+            name: "Busy",
+            definition: { kind: "rule", where: { kind: "degree", min: 2 }, reading: "induced" },
+        };
+        const problems = await open(opened, { kind: "graphty-view", version: 1, sets: [odd, busy] });
+        assert.deepInclude(problems, {
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: "view", pointer: "/sections/view/sets/0/definition/where", reason: "E_BAD_SELECTOR" },
+        });
+        assert.deepEqual(
+            opened.sets.list().map((set) => set.name),
+            ["Busy"],
+        );
+        assert.deepEqual((await save(opened)).sets, [odd, busy]);
+    });
+});

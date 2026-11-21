@@ -513,6 +513,32 @@ describe("the version 2 recipe codec", () => {
         }
     });
 
+    it("stops at a command holding a refused expression or an unknown rule tree leaf", async () => {
+        for (const [command, pointer] of [
+            [{ op: "graph.filter", where: "data.a > 5" }, "/commands/0/where"],
+            [
+                { op: "set.define", id: "set_01JCBP1C9E2G4J6M8N0Q3S5V7Y", where: { kind: "future-leaf", x: 1 } },
+                "/commands/0/where",
+            ],
+            [
+                { op: "algo.run", algorithm: "degree", as: "one", style: false, scope: { where: "length(data.a)" } },
+                "/commands/0/scope/where",
+            ],
+        ] as const) {
+            const target = lab();
+            await addGraph(target.session);
+            const problems = await read(target, {
+                kind: "graphty-recipe",
+                version: 2,
+                namespace: "x",
+                commands: [command, { op: "algo.run", algorithm: "degree", as: "later", style: false }],
+            });
+            assert.deepEqual(problems[0], { code: "E_UNKNOWN_OPTION", params: { section: "recipe", pointer } });
+            assert.deepInclude(problems, { code: "W_RUN_NOT_RUN", params: { run: "x__later" } });
+            assert.deepEqual(target.computed, []);
+        }
+    });
+
     it("runs a command whose unknown member ignorable names, and stops at one it does not", async () => {
         const run = { op: "algo.run", algorithm: "degree", as: "one", style: false, accelerator: "any" };
         const ignored = lab();

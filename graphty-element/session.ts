@@ -984,6 +984,7 @@ export {
     OVERFLOW_SHAPES,
     quotePath,
     renamePaths,
+    renameRunPaths,
     rulePath,
     ruleValuePath,
     selectorRule,

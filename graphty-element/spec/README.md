@@ -680,32 +680,17 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
    `"unmapped": "skip"`: an element whose value the map holds no entry for is left as the layers
    beneath paint it (absent, the value goes on through the scale); `unmapped` needs a `map`. A value naming a built-in (a node shape, an
    arrowhead, a line pattern, a label look) MUST be a name from `builtins.md`.
-3. Selectors: `everything`, `has` (`path`), `expression` (`where`), `top` (`path`, `n`), `member`
-   (`of`: `graph`, `largest-component`, `{ "set": <set id> }`, `{ "where" }` or `{ "types" }`),
-   `rule` (`where`: a rule tree), `state`, `hover`, and `type` (`types`: matches an element
+3. Selectors: `everything`, `has` (`path`), `expression` (`where`: an expression, 4.8.2), `top`
+   (`path`, `n`), `member` (`of`: `graph`, `largest-component`, `{ "set": <set id> }`, `{ "where" }`
+   or `{ "types" }`), `rule` (`where`: a rule tree, 4.8.3), `state`, `hover`, and `type` (`types`: matches an element
    holding any listed type). The `ids` selector never appears in a style section.
-4. A path reads `data.<column>`, `results.<as>.<field>` or a readable path: a style section
-   names a run by its name (`as`), and so does a layer's `source.runId`. A bare set id names a
-   recipe's set. The **readable paths** are values graphty-element computes for every node or
-   edge, read by their bare names, in styles, filters, time windows and runs alike:
-
-    | Path                           | Reads                                                                                         |
-    | ------------------------------ | --------------------------------------------------------------------------------------------- |
-    | `graphty.type`                 | the element's one type (4.1.5)                                                                |
-    | `graphty.load`                 | the first source in `_source.loads`                                                           |
-    | `_source.loads`                | every source that supplied it, in step order (4.1.9)                                          |
-    | `graphty.space`, `graphty.key` | its record key (6.1)                                                                          |
-    | `graphty.time`                 | its resolved time, from its sources' time roles (4.1.3)                                       |
-    | `graphty.weight`               | an edge's own weight, never rescaled, from the step that made it                              |
-    | `graphty.draft`                | while a draft is displayed: `new`, `changed`, `merged`, `removed` or `unchanged`; never saved |
-
-    `graphty.types`, the saved graph's plural, is reserved and is never a path. graphty-element
-    today computes none of the readable paths per element: a style or view layer reading one (or
-    `graphty.types`) is kept as read and written back in its place, reported `W_UNKNOWN_MEMBER`
-    with `reason` `E_UNKNOWN_ATTRIBUTE` and the layer's pointer, and so is the one view
-    `visibility` member (the filter, the window, or one condition) reading it, while the rest of
-    `visibility` is applied; a run reading one is not run (`W_RUN_NOT_RUN`) and kept.
-
+4. A path is a raw path (4.8.1). A style section names a run by its name (`as`), and so does a
+   layer's `source.runId`. A bare set id names a recipe's set. graphty-element today computes none
+   of the readable paths per element (4.8.1 rule 3): a style or view layer reading one (or
+   `graphty.types`) is kept as read and written back in its place, reported `W_UNKNOWN_MEMBER`
+   with `reason` `E_UNKNOWN_ATTRIBUTE` and the layer's pointer, and so is the one view
+   `visibility` member (the filter, the window, or one condition) reading it, while the rest of
+   `visibility` is applied; a run reading one is not run (`W_RUN_NOT_RUN`) and kept.
 5. A style section MUST NOT name an element or a dataset. A writer MUST leave out, and report
    (`W_ELEMENT_NAMING_LEFT_OUT`, params `{ section, pointer }`, the writer's own `layer` id when it has one, and `movedTo: "view"` when the same save writes the view section that carries the layer), every layer section 5 rule 5
    places in view.
@@ -726,10 +711,10 @@ A recipe section holds `commands` (REQUIRED) and `namespace`. The commands, in o
 
 | `op`           | Members                                                                                                                                       |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `graph.filter` | `where` (an expression), `on` (`nodes` default, or `edges`), `dropIsolated`, `description`                                                    |
+| `graph.filter` | `where` (an expression, 4.8.2), `on` (`nodes` default, or `edges`), `dropIsolated`, `description`                                             |
 | `algo.run`     | `algorithm`, `as`, `style` (REQUIRED), `params`, `scope`, `seed`, `sample`, `exact`, `recordedCapSeconds`, `recordedPrecision`, `description` |
 | `layout.set`   | `id`, `dimension` (`2` or `3`, REQUIRED), `algorithm`, `options` (the seed among them), `description`; no `engine`                            |
-| `set.define`   | `id` (`set_` plus a ULID, bare), `name`, `where` (an expression or a rule tree naming no element), `reading`, `description`                   |
+| `set.define`   | `id` (`set_` plus a ULID, bare), `name`, `where` (an expression or a rule tree (4.8.3) naming no element), `reading`, `description`           |
 | `join.<shape>` | a join step (4.1.8), naming sources by role                                                                                                   |
 
 Every command MAY also carry `narrows` (only `false` is ever written), `extensions` and
@@ -749,7 +734,10 @@ Every command MAY also carry `narrows` (only `false` is ever written), `extensio
    leaves it out and reports it.
 6. **Applying under a namespace** writes each `set.define` id as `set_<namespace>.<ULID>` and
    rewrites every reference to it in the applied sections, as run ids are rewritten;
-   `onRepeat: "replace"` replaces the earlier application's sets.
+   `onRepeat: "replace"` replaces the earlier application's sets. A rename edits paths, never other
+   text: it rewrites the raw path of each path member (4.8.1 rule 2) and the paths inside
+   expressions by token, never inside a string literal, and quotes a renamed name that is not a
+   plain name.
 7. An unknown `op` (`E_UNKNOWN_COMMAND`) stops the replay at that command, unless the command
    carries `narrows: false`. A reader then skips that command and every command that reads its
    `as` (each `algo.run` among them reported `W_RUN_NOT_RUN`) and goes on. A writer writes
@@ -877,7 +865,8 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    rule, one naming members, a group of leaves) is written as a rule tree in exactly the shape a
    rule set's `definition` holds its `where` (common schema `boundRuleTree`), element-naming
    leaves as element references. A reader tells the two apart by structure, not a tag: a rule
-   tree has a `kind`, a `graphFilter` has none. No filter is left out. `window` is graphty-element's `TimeWindow`: a bound is an instant,
+   tree has a `kind`, a `graphFilter` has none (expressions 4.8.2, rule trees 4.8.3). No filter is
+   left out. `window` is graphty-element's `TimeWindow`: a bound is an instant,
    written as a `toISOString` string (a JSON number read there is milliseconds since 1970); `attribute`, `end`
    and `spells` are value paths (`data.<working column>`); the window's own `missing`, `mode` and
    `timeZone` win over playback's; no `windowRaw` flag is written. `conditions`
@@ -923,6 +912,150 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    in the graph, and an edge whose `key` another reader edge has (in `data` or in any collapse), are
    reported `E_BAD_DOCUMENT`; an end bound to nothing is `W_REFERENCE_UNBOUND` (6.3). Each such edge
    is skipped and the rest go on.
+
+### 4.8 Paths, expressions and rule trees
+
+Selectors, filters, sets, run scopes, time windows and recipe commands read values through three
+small languages, defined here once.
+
+#### 4.8.1 Paths
+
+1. A path is `<root>.<rest>`. There are four roots:
+    - `data.<column>`: the whole rest is the working column name, which may contain dots
+      (`data.el.load` reads the column `el.load`);
+    - `results.<run>.<field>`: `<run>` runs to the first `.` after `results.`; a run's `as` and its
+      id never contain `.`;
+    - `graphty.<value>`: a value graphty-element computes (rule 3);
+    - `_source.loads`, exactly.
+
+    Any other first segment names nothing: a writer MUST NOT write one, and a reader reads null.
+    The `text` leaf's `reads` also accepts `"id"`, the node's id.
+
+2. A path member holds the raw path, never quoted: `"path": "data.amount (usd)"`. The path members
+   are a selector's `path`, a binding's `by`, `valueLabels[].path`, the leaf members `attribute`,
+   `path` and `reads`, the window's `attribute`, `end` and `spells`, and a collapse's `groupBy`.
+3. **Computed values.** graphty-element computes these for every node or edge:
+
+    | Path                                                       | Reads                                                                                  |
+    | ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+    | `graphty.degree`                                           | a node's number of edges                                                               |
+    | `graphty.inDegree`, `graphty.outDegree`                    | a node's edges in and out, on a directed or mixed graph; no value on an undirected one |
+    | `graphty.notes.count`                                      | how many notes the element has                                                         |
+    | `graphty.notes.latest`, `graphty.notes.latestTime`         | the text and time of its newest note                                                   |
+    | `graphty.source.<node path>`, `graphty.target.<node path>` | on an edge, a node path read at its source or target end                               |
+
+    The **readable paths** are values graphty-element will compute for every node or edge, read by
+    their bare names, in styles, filters, time windows and runs alike:
+
+    | Path                           | Reads                                                                                         |
+    | ------------------------------ | --------------------------------------------------------------------------------------------- |
+    | `graphty.type`                 | the element's one type (4.1.5)                                                                |
+    | `graphty.load`                 | the first source in `_source.loads`                                                           |
+    | `_source.loads`                | every source that supplied it, in step order (4.1.9)                                          |
+    | `graphty.space`, `graphty.key` | its record key (6.1)                                                                          |
+    | `graphty.time`                 | its resolved time, from its sources' time roles (4.1.3)                                       |
+    | `graphty.weight`               | an edge's own weight, never rescaled, from the step that made it                              |
+    | `graphty.draft`                | while a draft is displayed: `new`, `changed`, `merged`, `removed` or `unchanged`; never saved |
+
+    A readable path, and any other `graphty.` path a reader does not know, is kept and reported as
+    4.2 rule 4 says (`W_UNKNOWN_MEMBER`, `reason` `E_UNKNOWN_ATTRIBUTE`). `graphty.types`, the
+    saved graph's plural, is reserved and is never a path.
+
+#### 4.8.2 Expressions
+
+1. A `where` is a **graphty expression**: a subset of JMESPath's syntax plus three extensions --
+   arithmetic, the bare words `true`, `false` and `null` as values, and an ordering of two
+   strings. An expression that is also valid JMESPath means what JMESPath means by it, except that
+   ordering two strings is defined. An expression is at most 1024 characters.
+2. The grammar:
+
+    ```
+    expression := or
+    or         := and ( "||" and )*
+    and        := comparison ( "&&" comparison )*
+    comparison := sum ( ( "==" | "!=" | "<" | "<=" | ">" | ">=" ) sum )?
+    sum        := product ( ( "+" | "-" ) product )*
+    product    := unary ( ( "*" | "/" ) unary )*
+    unary      := "!" unary | "-" unary | operand
+    operand    := literal | path | "(" expression ")"
+    path       := name ( "." name )*
+    ```
+
+    Comparisons do not chain.
+
+3. Tokens:
+    - Whitespace separates tokens.
+    - A `name` is `[A-Za-z_][A-Za-z0-9_]*`, or a JSON double-quoted string, which MUST NOT
+      contain `.`.
+    - A literal is a single-quoted raw string (only `\'` and `\\` are escapes), JSON between
+      backticks (`` \` `` escapes a backtick), or a bare `true`, `false` or `null` that does not
+      follow `.` and is not followed by `.` or `(`.
+    - A path's names joined by `.` give its raw path (4.8.1): `data."amount (usd)"` reads
+      `data.amount (usd)`, and `results."min-cut".value` reads `results.min-cut.value`.
+4. Refused:
+    - a bare number (write it between backticks: `` data.age > `30` ``);
+    - `[`, `]`, `{`, `}`, `,`, `@`, `:`, a single `|` or `&`, the wildcard `*`, and function calls;
+    - `-` between two names with no spaces (`a-b`: quote a hyphenated name, or put spaces round
+      the minus);
+    - `!` before a path of more than one name (write `!(data.a)`);
+    - an expression that reads no path.
+5. Values:
+    - A missing value reads null.
+    - `false`, null, `""`, `[]` and `{}` are false; everything else is true, `0` included.
+    - `==` and `!=` are deep equality with no coercion: `` `1` `` is not `'1'`.
+    - An ordering compares two numbers numerically and two strings by Unicode code point; any
+      other pair is null. A string is never read as a time: compare times with a `range` leaf with
+      `"as": "time"`.
+    - Arithmetic takes numbers only; any other operand, and a result that is not finite (dividing
+      by zero), is null.
+    - `a && b` is `a` when `a` is false, else `b`; `a || b` is `a` when `a` is true, else `b`;
+      `!a` negates truthiness.
+    - An element matches when the expression's value is true.
+6. **A refused expression fails only its holder**: a layer, a set, one `visibility` member (the
+   filter, the window or one condition) or a run's scope. The holder is kept as written, written
+   back, and reported `W_UNKNOWN_MEMBER` with `reason` `E_BAD_SELECTOR` and the pointer of the
+   `where`. A recipe command holding one is a command with an unknown member: `E_UNKNOWN_OPTION`,
+   and the replay stops.
+7. Making a refused expression valid is additive. Changing what an accepted expression matches is a
+   change of meaning (9 rule 4) and bumps style, recipe and view together.
+
+#### 4.8.3 Rule trees
+
+1. `all` (`of`: a list), `any` (`of`: a list) and `not` (`of`: one rule) combine; every other kind
+   is a leaf.
+2. A leaf speaks about nodes, edges or both. `all` and `any` fold only the halves that speak, and
+   `not` negates only those. An empty group constrains nothing.
+3. The leaves, required members first:
+
+    | Kind            | Members                                                                                                                              | Matches                                                                                                                                                          | Speaks                                                      |
+    | --------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+    | `expression`    | `where`                                                                                                                              | the nodes whose expression (4.8.2) is true                                                                                                                       | nodes                                                       |
+    | `edges`         | `where`                                                                                                                              | the edges whose expression is true                                                                                                                               | edges                                                       |
+    | `range`         | `attribute`; `min`, `max`, `as` (`"time"`), `nodes` (`all`, `ends`, `none`), `missing` (`include`, `exclude`)                        | the values in `[min, max]`; with `"as": "time"` the bounds are epoch milliseconds and an ISO time with no zone is UTC                                            | the halves carrying the attribute                           |
+    | `categories`    | `attribute`, `values`; `nodes`, `missing`, `match` (`any`, `all`)                                                                    | the values among `values`; with `match`, a list value holding any or all of them                                                                                 | the halves carrying the attribute                           |
+    | `degree`        | `min`, `max`, `direction` (`in`, `out`, `all`)                                                                                       | the nodes whose number of edges is in `[min, max]`                                                                                                               | nodes                                                       |
+    | `component`     | `id`                                                                                                                                 | one connected component. Components are found ignoring edge direction and numbered from 0 in the order of each one's first node in the merged graph's node order | nodes                                                       |
+    | `neighborhood`  | `seeds`, `depth`                                                                                                                     | the nodes at most `depth` hops from the seeds; in a bound section only                                                                                           | nodes                                                       |
+    | `isolated`      |                                                                                                                                      | the nodes with no edge to another node                                                                                                                           | nodes                                                       |
+    | `self-loop`     |                                                                                                                                      | the edges whose two ends are one node                                                                                                                            | edges                                                       |
+    | `repeated-edge` |                                                                                                                                      | the edges after the first between one pair of nodes, in edge order                                                                                               | edges                                                       |
+    | `state`         | `state` (`selected`, `hovered`, `ghosted`, `outsideWindow`, `pinned`)                                                                | the elements in a reader's state now; live, so a set or a visibility filter refuses it                                                                           | nodes and edges                                             |
+    | `member`        | `of` (a scope form)                                                                                                                  | the members of a scope, usually a set                                                                                                                            | nodes and edges                                             |
+    | `item`          | `item`                                                                                                                               | the elements one item of a result holds; in a bound section only                                                                                                 | the halves the result publishes                             |
+    | `threshold`     | `path`; exactly one of `top`, `above` or `percentile`, plus `ties`, `from` (`high`, `low`), `missing`, `within` (`graph`, `visible`) | the elements whose value passes one cut: the top `n`, those above a value, or a share                                                                            | each half carrying the path                                 |
+    | `text`          | `reads`, `mode` (`substring`, `exact`, `starts-with`, `ends-with`, `regex`), `text`; `caseSensitive`, `nodes`                        | the elements whose text passes a text test; case, accents and runs of spaces are folded unless `caseSensitive`                                                   | the halves carrying the value; `"reads": "id"` speaks nodes |
+    | `source`        | `sources`; `side` (`nodes`, `edges`)                                                                                                 | the nodes and edges those sources supplied                                                                                                                       | `side`, or both                                             |
+    | `union`         | `side`, `within`, `branches`; `sources`                                                                                              | everything in any branch that is on, each branch folded from `start` (`all` or `none`) by its ordered `add`, `keep` and `except` steps                           | `side`                                                      |
+    | `hops`          | `of`, `max`, `direction`                                                                                                             | the nodes at most `max` hops from a reference; inside a union step only                                                                                          | nodes                                                       |
+    | `touching`      | `ends` (`either`, `both`, `one`); `of`                                                                                               | the edges with that many ends in a reference; inside a union step only                                                                                           | edges                                                       |
+    | `nonempty`      | `of`                                                                                                                                 | everything while a reference holds a node, else nothing; inside a union step only                                                                                | nodes and edges                                             |
+    | `same-value`    | `path`; `as`                                                                                                                         | the elements sharing a value for `path` with a reference node; inside a union step only                                                                          | the halves carrying the path                                |
+    | `by-size`       | `path`; `min`, `max`, `top`, `from`, `ties`                                                                                          | the elements whose category for `path` has a member count in `[min, max]`, or is among the `top` categories by size                                              | the halves carrying the path                                |
+    | `measure`       | `algorithm`, `field`; `params`, `bind`, `test`, `scope`                                                                              | the elements whose value of an algorithm's field passes `test`; inside a union step only                                                                         | the halves the field measures                               |
+
+4. Leaf kinds are an open vocabulary, and each known leaf is closed. An unknown kind, or an unknown
+   member of a known leaf, fails its holder as 4.8.2 rule 6 says. A leaf has no `extensions` or
+   `ignorable` slot.
 
 ## 5. Placement
 
@@ -1134,7 +1267,8 @@ of the view section.
    columns and source roles; anything that cannot bind waits and switches on if matching data
    arrives. A style section's `results.<as>`, `source.runId` and bare set id bind to the one open
    run with that `as`, or the one open set with that id or that id under a namespace; when none or
-   several match, the layer is unbound and reported.
+   several match, the layer is unbound and reported. Binding a run edits paths, never other text,
+   as 4.3 rule 6 says.
 8. A dataset-bound section binds as in 6.3; one whose `bindsTo` does not match the open data is
    reported, and loads only if the caller agrees.
 9. **Layer order.** View's `order` applies in full only when a file is opened: a stack layer it does
@@ -1291,6 +1425,11 @@ kind) is opened through a migration into the sections above:
   graph expanded; its `added` edges go into the `edges` of the latest collapse their ends stand in
   for, each keyed by a ULID derived from it under load `reader`; one whose ends stand in for no
   collapse is dropped, reported;
+- every version 1 expression is rewritten as a version 2 expression (4.8.2): each bare number goes
+  between backticks, and `data.` goes before each path whose first segment is not a root
+  (`padj < 0.05` becomes ``data.padj < `0.05` ``); every rootless path member (4.8.1 rule 2) gets
+  `data.`, version 1's bare column, except a layer source's `by`; an expression that still does not
+  parse is carried as written and refused on load (4.8.2 rule 6);
 - `styleVersion` and `recipeVersion` are dropped, reported; notes version 1 targets become element
   references; base64 positions and results become plain numbers.
 
@@ -1303,19 +1442,20 @@ minted at migration.
 An **open vocabulary** may gain values within a major version. A **closed object** MUST NOT be read
 by ignoring a member it does not know.
 
-| Section       | Open vocabulary                                                               | A reader meeting an unknown value                                                                                                                                      |
-| ------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| wrapper       | `sections` keys                                                               | skips it with `W_UNKNOWN_KIND`, keeps it on re-save                                                                                                                    |
-| every section | `dependencies.extensions` names                                               | skips and holds the section (3.6 rule 4)                                                                                                                               |
-| data          | source `kind`                                                                 | an embedded source is built from its copy and is not refreshable; a referenced one is held (`W_SOURCE_UNAVAILABLE`, reason `kind`); its record is written back as read |
-| data          | `copy` form                                                                   | that source alone is held (reason `copy-form`)                                                                                                                         |
-| data          | join step `op`, reader operation `op`                                         | skips and holds the whole data section (4.1.10); an `off` join step is kept and not built                                                                              |
-| data          | `measurement` values                                                          | draws as with no measurement                                                                                                                                           |
-| style         | channel names, selector kinds, scales, enumerated channel values, palette ids | fails that channel entry or layer alone, keeps it                                                                                                                      |
-| recipe        | command `op`, algorithm keys, layout ids, the parts of a run's `style`        | an unknown `op` stops the replay unless the command says `narrows: false` (4.3 rule 7)                                                                                 |
-| notes         | target kinds, item key forms                                                  | the target reads unsupported and is kept                                                                                                                               |
-| view          | camera controllers                                                            | 4.7 rule 2                                                                                                                                                             |
-| view          | run `scope` forms                                                             | that run's replay stops; the record is kept on re-save                                                                                                                 |
+| Section             | Open vocabulary                                                               | A reader meeting an unknown value                                                                                                                                      |
+| ------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| wrapper             | `sections` keys                                                               | skips it with `W_UNKNOWN_KIND`, keeps it on re-save                                                                                                                    |
+| every section       | `dependencies.extensions` names                                               | skips and holds the section (3.6 rule 4)                                                                                                                               |
+| data                | source `kind`                                                                 | an embedded source is built from its copy and is not refreshable; a referenced one is held (`W_SOURCE_UNAVAILABLE`, reason `kind`); its record is written back as read |
+| data                | `copy` form                                                                   | that source alone is held (reason `copy-form`)                                                                                                                         |
+| data                | join step `op`, reader operation `op`                                         | skips and holds the whole data section (4.1.10); an `off` join step is kept and not built                                                                              |
+| data                | `measurement` values                                                          | draws as with no measurement                                                                                                                                           |
+| style               | channel names, selector kinds, scales, enumerated channel values, palette ids | fails that channel entry or layer alone, keeps it                                                                                                                      |
+| recipe              | command `op`, algorithm keys, layout ids, the parts of a run's `style`        | an unknown `op` stops the replay unless the command says `narrows: false` (4.3 rule 7)                                                                                 |
+| notes               | target kinds, item key forms                                                  | the target reads unsupported and is kept                                                                                                                               |
+| view                | camera controllers                                                            | 4.7 rule 2                                                                                                                                                             |
+| view                | run `scope` forms                                                             | that run's replay stops; the record is kept on re-save                                                                                                                 |
+| style, recipe, view | rule tree leaf kinds                                                          | fails the holder alone (4.8.2 rule 6)                                                                                                                                  |
 
 Closed objects:
 
@@ -1329,6 +1469,7 @@ Closed objects:
 - A style's selectors, bindings and carried palettes: an unknown member fails that channel entry
   or layer alone, reported (`W_UNKNOWN_MEMBER`) and written back.
 - The parts of a run's `style`.
+- A known rule tree leaf (4.8.3): an unknown member fails its holder alone (4.8.2 rule 6).
 - Element references, note targets and cites, a view run's `scope` and a set record: one with an
   unknown member is kept, unbound, unsupported or not replayed.
 
@@ -1446,16 +1587,17 @@ application words them.
 
 ## 14. Files in this directory
 
-| Path                                                                                                                                                                             | What                                                                                           |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `README.md`                                                                                                                                                                      | this specification                                                                             |
-| `builtins.md`                                                                                                                                                                    | the built-ins registry                                                                         |
-| `schemas/graphty-document/v2.json`                                                                                                                                               | the full file                                                                                  |
-| `schemas/<kind>/v<version>.json`                                                                                                                                                 | each section kind at its version                                                               |
-| `schemas/common/v2.json`                                                                                                                                                         | definitions the others share (header, ids, element references, rule trees, layers, join steps) |
-| `schemas/graphty-document/v1.json` and the version 1 kinds (`graphty-data`, `graphty-style`, `graphty-recipe`, `graphty-notes`, `graphty-assets` at v1, `graphty-sources` at v2) | the version 1 files the migration in 9.1 reads                                                 |
-| `examples/card-fraud.graphty.json`                                                                                                                                               | a worked example holding all seven sections                                                    |
-| `examples/card-fraud.graphty-*.json`                                                                                                                                             | each of its sections as a section file                                                         |
-| `examples/minimal/`                                                                                                                                                              | the smallest valid file of each form                                                           |
-| `examples/minimal/minimal-graphs.graphty.json`                                                                                                                                   | a full file holding two graphs, the second referencing a file by its path                      |
-| `examples/minimal/minimal-referenced.graphty-data.json`                                                                                                                          | a data section holding one referenced source                                                   |
+| Path                                                                                                                                                                             | What                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `README.md`                                                                                                                                                                      | this specification                                                                                                                               |
+| `builtins.md`                                                                                                                                                                    | the built-ins registry                                                                                                                           |
+| `schemas/graphty-document/v2.json`                                                                                                                                               | the full file                                                                                                                                    |
+| `schemas/<kind>/v<version>.json`                                                                                                                                                 | each section kind at its version                                                                                                                 |
+| `schemas/common/v2.json`                                                                                                                                                         | definitions the others share (header, ids, element references, rule trees, layers, join steps)                                                   |
+| `schemas/graphty-document/v1.json` and the version 1 kinds (`graphty-data`, `graphty-style`, `graphty-recipe`, `graphty-notes`, `graphty-assets` at v1, `graphty-sources` at v2) | the version 1 files the migration in 9.1 reads                                                                                                   |
+| `conformance/expressions.json`                                                                                                                                                   | cases for the expression language (4.8.2): an expression, the values one element holds and whether it matches, or that the expression is refused |
+| `examples/card-fraud.graphty.json`                                                                                                                                               | a worked example holding all seven sections                                                                                                      |
+| `examples/card-fraud.graphty-*.json`                                                                                                                                             | each of its sections as a section file                                                                                                           |
+| `examples/minimal/`                                                                                                                                                              | the smallest valid file of each form                                                                                                             |
+| `examples/minimal/minimal-graphs.graphty.json`                                                                                                                                   | a full file holding two graphs, the second referencing a file by its path                                                                        |
+| `examples/minimal/minimal-referenced.graphty-data.json`                                                                                                                          | a data section holding one referenced source                                                                                                     |

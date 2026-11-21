@@ -792,3 +792,22 @@ describe("the examples write resolved values", () => {
         assert.isAbove(checked, 0);
     });
 });
+
+describe("rule tree leaves (README 4.8.3)", () => {
+    const validate = ajv.getSchema(`${SCHEMA_URL}common/v2.json#/$defs/reusableRuleTree`);
+    const valid = (tree: JsonObject): boolean => validate?.(tree) === true;
+
+    it("closes each known leaf with its members", () => {
+        assert.isTrue(valid({ kind: "range", attribute: "data.age", min: 18 }));
+        assert.isFalse(valid({ kind: "range" }), "a range names its attribute");
+        assert.isFalse(valid({ kind: "range", attribute: "data.age", bogus: 1 }), "a range is closed");
+        assert.isFalse(valid({ kind: "range", attribute: "age" }), "a path has a root");
+        assert.isTrue(valid({ kind: "text", reads: "id", mode: "exact", text: "a" }));
+        assert.isFalse(valid({ kind: "threshold", path: "data.x", top: 3, above: 1 }), "exactly one cut");
+        assert.isTrue(valid({ kind: "all", of: [{ kind: "degree", min: 2 }, { kind: "isolated" }] }));
+    });
+
+    it("leaves an unknown leaf kind open", () => {
+        assert.isTrue(valid({ kind: "future-leaf", x: 1 }));
+    });
+});

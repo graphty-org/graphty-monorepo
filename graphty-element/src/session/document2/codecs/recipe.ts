@@ -40,6 +40,7 @@ import {
     isRunName,
     membersOf,
     namespaceFromId,
+    refusedIn,
     renameRuns,
     ruleNamesElements,
     runsRead,
@@ -577,6 +578,13 @@ class Replay {
         const unknownAt = own.unknown ?? (scope.unknown === undefined ? undefined : `scope/${scope.unknown}`);
         if (unknownAt !== undefined) {
             this.report("E_UNKNOWN_OPTION", `${at}/${unknownAt}`);
+            return false;
+        }
+
+        // A refused expression or rule tree leaf is a member this reader does not know (spec 4.8.2 rule 6).
+        const refused = refusedIn(command);
+        if (refused !== undefined) {
+            this.report("E_UNKNOWN_OPTION", `${at}${refused}`);
             return false;
         }
 

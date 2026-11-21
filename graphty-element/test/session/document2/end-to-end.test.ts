@@ -85,6 +85,18 @@ afterEach(() => {
 });
 
 describe("save files version 2, end to end", () => {
+    it("keeps the card-fraud example's edges dated on or after 2026-11-09 through its view filter", async () => {
+        const { session } = await exampleSession();
+        // The filter `data.time >= '2026-11-09'` orders two strings, by code point: the three payments
+        // (dated 2026-11-10) stay, and the device logins, which carry no time, go.
+        assert.deepEqual(session.visibility.filter, { kind: "edges", where: "data.time >= '2026-11-09'" });
+        const dated = session.data
+            .edges()
+            .filter((edge) => typeof edge.time === "string" && edge.time >= "2026-11-09").length;
+        assert.strictEqual(dated, 3);
+        assert.strictEqual(session.visibility.summary.visibleEdges, dated);
+    });
+
     it("opens the card-fraud example and saves it back unchanged", async () => {
         const example = readJson("examples/card-fraud.graphty.json");
         const { session, problems } = await exampleSession();

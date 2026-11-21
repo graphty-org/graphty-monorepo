@@ -2421,7 +2421,71 @@ function readEdgeLabelPlace(refs: References, label: unknown, words: string, pat
 }
 
 /**
- * Reads an element's labels: the first one with text; further ones are noted for the element.
+ * How far in from its node's side yEd Live 8.5.16 draws an interior model's label box, and the height of each of its
+ * lines over its font size (yed-live-graphml-specimen-labels two-labels: 10px "Top" and "Bottom" in boxes 12 tall, 2 in
+ * from the node's top and bottom).
+ */
+const YFILES_INTERIOR_INSET = 2;
+const YFILES_LABEL_BOX_LINE = 1.2;
+
+/**
+ * Reads a node's second label as its external label (`xlabel`) when it is drawn as the first one is (the same style,
+ * not markup) and an interior model puts it against a side: centered in the box yEd Live draws there.
+ * @param refs - the references
+ * @param first - the node's first label
+ * @param second - its second label and words
+ * @param second.l - the `y:Label` element
+ * @param second.raw - its words
+ * @param size - the node's size
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns whether it is drawn as the external label
+ */
+function readSecondLabel(
+    refs: References,
+    first: unknown,
+    second: { l: unknown; raw: string },
+    size: Size,
+    put: PutValue,
+    at: SiteOf,
+): boolean {
+    const styleOf = (l: unknown): Resolved => refs.deref(treeAttr(l, "Style") ?? treeChild(l, "Label.Style"));
+    const ls = styleOf(second.l);
+    const position = labelPositionOf(refs, second.l);
+    const parameter = layoutParameter(refs, second.l);
+    if (
+        ls === null ||
+        ls === NULL ||
+        typeof ls !== "object" ||
+        ls.tag !== "LabelStyle" ||
+        JSON.stringify(ls) !== JSON.stringify(styleOf(first)) ||
+        parameter === null ||
+        parameter.tag.includes("Stretch") ||
+        !position.startsWith("inside-")
+    ) {
+        return false;
+    }
+    const fontSize = labelFontSize(refs, second.l);
+    const lines = second.raw.split("\n");
+    const half = [
+        (Math.max(...lines.map((l) => l.length)) * YED_LABEL_CHARACTER * fontSize) / 2,
+        (lines.length * YFILES_LABEL_BOX_LINE * fontSize) / 2,
+    ];
+    const toward = (low: string, high: string): number =>
+        Number(position.includes(high)) - Number(position.includes(low));
+    const gap = YFILES_INTERIOR_INSET + modelGap(refs, parameter);
+    // both are written: with neither set, an external label sits outside the node's top left corner
+    const middle = (side: number, extent: number, i: number): number =>
+        side === 0 ? 0 : Math.round(1000 * side * (extent / 2 - gap - half[i])) / 1000;
+    put("xlabel", canonText(second.raw, at("xlabel")));
+    put("xlabelOffsetX", middle(toward("left", "right"), size.width, 0));
+    put("xlabelOffsetY", middle(toward("top", "bottom"), size.height, 1));
+    return true;
+}
+
+/**
+ * Reads an element's labels: the first one with text, a node's second as its external label where it is drawn as
+ * one; further ones are noted for the element.
  * @param refs - the references
  * @param data - the `<data>` content of the NodeLabels or EdgeLabels key
  * @param put - receives the values
@@ -2444,7 +2508,8 @@ function readLabels(
     if (worded.length === 0) {
         return;
     }
-    if (worded.length > 1) {
+    const second = size !== null && worded.length > 1 && readSecondLabel(refs, worded[0].l, worded[1], size, put, at);
+    if (worded.length > (second ? 2 : 1)) {
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(worded.length)} labels`);
     }
     const label = worded[0].l;

@@ -146,7 +146,7 @@ describe("undoing window moves", () => {
         harness.session.dispose();
     });
 
-    it("keeps moves apart in time as their own steps", async () => {
+    it("merges consecutive moves however far apart in time", async () => {
         let now = 0;
         const harness = fourDays(() => now);
         const { time } = harness.session;
@@ -157,7 +157,7 @@ describe("undoing window moves", () => {
         await time.stepBy(1);
 
         await harness.session.undo();
-        assert.strictEqual(time.current?.from, T0);
+        assert.isNull(time.current, "both moves were one step");
         harness.session.dispose();
     });
 });

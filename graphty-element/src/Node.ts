@@ -2518,11 +2518,13 @@ export class Node implements ModelUser {
      * at the same moment: a session's paint exists from the instant it is bound, and the field is
      * filled by the first frame that drains the dirty set. A rebuild in between -- a 2D/3D switch
      * immediately after a load -- would otherwise find nothing and draw nothing.
+     * A node never painted, rebuilt while a pass is painting, is drawn with the defaults and queued
+     * for the frame after the pass (`StylePainter.settledNodePaint`).
      * @returns The session's paint when one is bound, and the element's own defaults otherwise.
      */
     private currentPaint(): NodePaint {
         const painter = this.context.getStylePainter?.();
-        const painted = painter?.owns === true ? (this.sessionPaint ?? painter.nodePaint(this.index)) : null;
+        const painted = painter?.owns === true ? (this.sessionPaint ?? painter.settledNodePaint(this.index)) : null;
 
         return painted ?? bootstrapNodePaint();
     }

@@ -4,6 +4,7 @@ import { geographic } from "@graphty/layout";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { degrees } from "./degrees";
 import { SimpleLayoutConfig } from "./LayoutEngine";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
@@ -62,19 +63,6 @@ const GeographicLayoutConfig = z.strictObject({
 });
 type GeographicLayoutConfigType = z.infer<typeof GeographicLayoutConfig>;
 type GeographicLayoutOpts = Partial<GeographicLayoutConfigType>;
-
-/**
- * A number from a node attribute: a number, or a string that reads as one.
- * @param value - the attribute's value
- * @returns the number, NaN for anything else
- */
-function degrees(value: unknown): number {
-    if (typeof value === "number") {
-        return value;
-    }
-
-    return typeof value === "string" && value.trim() !== "" ? Number(value) : Number.NaN;
-}
 
 /**
  * The geographic layout: every node at its latitude and longitude, projected onto a flat map

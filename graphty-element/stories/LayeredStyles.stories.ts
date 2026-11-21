@@ -829,12 +829,8 @@ export const ColorAlpha: Story = {
                     name: "line: #0000ff at opacity 0.5, caps too",
                     target: "edge",
                     selector: { match: "expression", where: "data.row == 'line' && data.side == 'opacity'" },
-                    set: {
-                        "edge.color": "#0000ff",
-                        "edge.opacity": 128 / 255,
-                        "edge.arrowHeadOpacity": 128 / 255,
-                        "edge.arrowTailOpacity": 128 / 255,
-                    },
+                    // the caps take the line's opacity (#9294)
+                    set: { "edge.color": "#0000ff", "edge.opacity": 128 / 255 },
                 },
                 {
                     name: "caps: #00a00080 head, #a000a080 tail",

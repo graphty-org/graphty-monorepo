@@ -101,10 +101,12 @@ changed from its Switch to (5).
 
 Row: `[<> name] [main] [-] [...]`.
 
-- **Name**: every row has a name column, with no exception (E674; ia-design section 2, rule 4). It holds the
-  thing's name (Border, Route, Visible, Size), or, for a thing with kinds (Fill, Line, Shape, Label and the
-  other kind groups), its current kind (Solid, Gradient, Basic shape, Text ...). A row with members or kinds
-  starts its name column with the Switch to glyph (`MemberMenu`), which opens the menu of members (5).
+- **Name**: every row has a name column (E674; ia-design section 2, rule 4). It holds the thing's name
+  (Border, Route, Visible, Size), or, for a thing with kinds (Fill, Line, Shape and the other kind groups), its
+  current kind (Solid, Gradient, Basic shape ...). One exception: a Label row (node or edge Label) shows its
+  text, since one node can hold several labels; an empty one reads "Label" and a Glyph one "Glyph" (7.4).
+  A row with members or kinds starts its name column with the Switch to glyph (`MemberMenu`), which opens the
+  menu of members (5).
 - **Main control** (section 7): a paint-like thing (border, ring, plate, outline, effects) leads with its color;
   a geometric thing with its defining value (size, shape, arrow, route). A family row shows the current
   member's value.
@@ -137,10 +139,13 @@ opened from it are plain `Popout`s (SettingsPopout refuses nesting).
   (at most 12), sits on the Main legend: compact-mantine's `Popout` header actions are icon buttons with an
   `onClick` and cannot hold a menu, and compact-mantine is locked to Figma. Main draws no legend when it holds
   no lines and there is nothing to add.
-- **Switch to is not in the popover**: it is on the row (2.4). There is no separate By data line: every line
-  carries its own by-data link in its trailing slot.
-- **First lines**: for a switchable thing a **Show** line (R8 On / Off) writing its dedicated off field (10.2);
-  then **Combine** (R8f Replace / Multiply / Add, today's `COMBINE_WORDS` in `words.ts`) on number lines only.
+- **Switch to is not in the popover**: it is on the row (2.4).
+- **First lines**: **By data** (R12) for the row's main value while it is not bound, the one clickable way to
+  vary the main value by data (a bound main value is the row's own field, which opens its binding, 2.4); every
+  other line carries its own by-data link in its trailing slot. Then, for a switchable thing, a **Show** line
+  (R7 checkbox, the one control for every Show line, label Show included, 7.3) writing its dedicated off field
+  (10.2); then **Combine** (R8f Replace / Multiply / Add, today's `COMBINE_WORDS` in `words.ts`) on number
+  lines only.
 - **Main** sub-group: always shown, with its lines empty until written.
 - **Other sub-groups**: a `PlusList` at group level (an always-open `ControlGroup` legend with "-", which unsets
   every line in it) over at most 8 lines. A sub-group shows when it holds a set line or the reader adds it from
@@ -149,6 +154,9 @@ opened from it are plain `Popout`s (SettingsPopout refuses nesting).
 - **Lines**: unset, the control drawn empty (an empty field, an unchecked checkbox, a segment line with nothing
   selected, `value=""`), with no "-"; writing a value sets it and shows "-". A set boolean unchecked writes
   `false`; "-" unsets it. A location line draws only its segments until written (R2).
+- **Never empty**: since every bindable main value has its By data line, a row's "..." always opens lines. A
+  row whose main value cannot be bound and whose thing has no other settings leaves its "..." slot empty (as
+  Figma does) and is drawn `[<> name] [main] [-]`.
 - **Depth**: panel, one popover (settings, or `BindingPopover` in its place, with Back), one picker beside it.
   No tabs. The popover opens scrolled to its first set line; height follows content, capped at the viewport.
 
@@ -219,6 +227,10 @@ Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers
 | Text       | Label \| End caption, Record, External label | Label many; End caption one per kind |
 | Visibility | Visible                                      | one                                  |
 | Effects    | Shader, Animation                            | Shader many; Animation one           |
+
+Until graphty-element fix 1 lands (10.2), the panel also keeps two interim items so no channel is without a row:
+**Band** (`edge.band*`) in Line's "+" after Outline, and **Underlay** (`edge.underlay*`) in Effects' "+" after
+Animation. Fix 1 folds both into Outline's Under line and removes them.
 
 - **Line** (kinds Solid and Gradient). Width is its line; the color box's "%" writes `edge.opacity`.
   **Pattern** (dashed, dotted, wavy and the rest) is its own item, so "dashed" is in "+".
@@ -315,7 +327,8 @@ Collapses considered (owner, E495: "review all other controls that can be collap
 the popover. A member gated by a flag or the view (Model in 2D) is disabled, never hidden, and the current
 member is always enabled. A thing with an off field adds an **Off** member (Shape: none).
 
-1. **Same row, same settings.** The row keeps its place, height and name; thing-wide lines stay in every member.
+1. **Same row, same settings.** The row keeps its place and height, and its name column shows the new kind
+   (2.4); thing-wide lines stay in every member.
    Clicking a member that needs a pick (Model, a replace shader, Sky) opens its picker beside the row; the row
    keeps the old member until the pick; Escape changes nothing; the pick removes the leaving member's own
    channels and writes the new member in one `session.transaction`. Others switch at once.
@@ -436,7 +449,7 @@ a sub-group added with "+"; "|" a pair.
 
 | Thing                         | Row                               | Lines       | Popover                                                                                                                                                                                                                                                                                                  |
 | ----------------------------- | --------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Fill: Solid                   | color R1                          | -           | none: the color binds by "=" in the row's field (2.4)                                                                                                                                                                                                                                                    |
+| Fill: Solid                   | color R1                          | -           | Main: By data (2.6)                                                                                                                                                                                                                                                                                      |
 | Fill: Gradient                | stops (`GradientRow`)             | -           | Main: kind R8 icons, direction R5 or center X \| Y and radius R5 (by kind), endColor R1, opacity R5                                                                                                                                                                                                      |
 | Image                         | image R16                         | Opacity     | Main: Wrap around shape R7, imageFit R9, fallback R16. Size: width \| height or pixelSize R5 (by fit), autoSize R8f, keep aspect R7. Place: position X \| Y, offset X \| Y. Tiling: repeat R8 icons, clip R8, smoothing R7                                                                               |
 | Stripes                       | colors R15r                       | -           | Main: Stripes R15 (color, size, opacity), direction R8 icons, size R5. Frame: R17                                                                                                                                                                                                                        |
@@ -452,7 +465,7 @@ a sub-group added with "+"; "|" a pair.
 | Shape: Model                  | model R16                         | -           | Main: Fallback shape R10, modelTint R9, modelFit R8f, modelCenter R8. Orient: modelSourceUp R9, modelTurn R5, modelDoubleSided R8f. Animation: modelAnimation R9, speed \| offset                                                                                                                        |
 | Shape: replace shader         | preset R10                        | -           | Main: ShaderParamRows R16; reach, minSize R5                                                                                                                                                                                                                                                             |
 | Border                        | color R1                          | Width       | Main: Unit R8, opacity R5, style R10, position R8 icons. Wave (wavy styles): amplitude \| period                                                                                                                                                                                                         |
-| Visibility                    | shown R8 Shown / Hidden           | -           | none: the value binds by "=" in the row's field (2.4)                                                                                                                                                                                                                                                    |
+| Visibility                    | shown R8 Shown / Hidden           | -           | Main: By data (2.6)                                                                                                                                                                                                                                                                                      |
 | Ring                          | color R1                          | Width       | Main: opacity R5, style R10, offset R5, count R5                                                                                                                                                                                                                                                         |
 | Shader use                    | preset R10 (`ShaderGallery`)      | -           | Main: params R16, reach, minSize R5                                                                                                                                                                                                                                                                      |
 | Glow                          | color R1                          | Strength    | -                                                                                                                                                                                                                                                                                                        |
@@ -473,7 +486,7 @@ a sub-group added with "+"; "|" a pair.
 | Label, External label                                     | text source R12    | Size, Color | 7.3                                                                                                                                                                                                              |
 | End caption: Target, Source                               | text source R12    | Size, Color | 7.3, Position adds distance R5                                                                                                                                                                                   |
 | Record                                                    | fields R15r        | -           | as node Record (`edge.labelTable`)                                                                                                                                                                               |
-| Visibility                                                | shown R8           | -           | none: the value binds by "=" in the row's field (2.4)                                                                                                                                                            |
+| Visibility                                                | shown R8           | -           | Main: By data (2.6)                                                                                                                                                                                              |
 | Shader use                                                | preset R10         | -           | Main: params R16, reach R5                                                                                                                                                                                       |
 | Animation                                                 | animationSpeed R5  | -           | -                                                                                                                                                                                                                |
 
@@ -504,6 +517,10 @@ homes.
 | Callout             | pointerDirection R8f, width \| height, pointerOffset R5, pointerCurve R7                                                                                                                             |
 | Badge               | badge R9, then its kind's lines: Icon beside text R14 (`icon`), Icon side R8 icons (`iconPosition`); or progress R5; or maxNumber R5, overflowSuffix R14, smartOverflow R7                           |
 | Behavior            | minScreenSize R5, declutter R8, minNodeScreenSize R5, depthFade R7, near \| far, animation R9, animationSpeed R5, pickable R7, closeButton R7                                                        |
+
+The **Callout** look and the **Callout** group are one home: the look is a preset that writes the box fields
+and the Callout group's fields (`pointer`, `pointerDirection`), and those fields show in the Callout group like
+any other set line. Choosing the look adds no setting the Callout group does not hold.
 
 The "+" menu holds the sub-groups after Main. Every one of the label fields is reachable from the label row's
 popover by clicks (E673).

@@ -40,12 +40,16 @@ export interface KindMember {
     readonly onSwitch?: SwitchWrites;
 }
 
-/** What a switch to a kind writes over what moved: values, or values worked out from what moved and what left. */
+/**
+ * What a switch to a kind writes over what moved: values, or values worked out from what moved, what left and the
+ * layer's other set values.
+ */
 type SwitchWrites =
     | Readonly<Record<string, unknown>>
     | ((
           moved: Readonly<Record<string, unknown>>,
           left: Readonly<Record<string, unknown>>,
+          layer: Readonly<Record<string, unknown>>,
       ) => Readonly<Record<string, unknown>>);
 
 /** One group: the thing it is drawn as, and its kinds, the first the one "+" adds. */
@@ -206,16 +210,20 @@ export const KIND_GROUPS: readonly KindGroup[] = [
                     }),
                 }),
             ),
-            // Translucent at 30% (ia-design 2), as wide as the Under line was.
+            // Translucent at 30% (ia-design 2), as wide as the Under line was beside the layer's line.
             prefixKind(
                 "over",
                 "Over line",
                 "edge.overlayColor",
                 { color: "edge.overlayColor" },
                 "edge.overlay",
-                (_moved, left) => ({
+                (_moved, left, layer) => ({
                     "edge.overlayOpacity": 0.3,
-                    ...(edgeBandWidthAs("overlay", left) ?? {
+                    ...(edgeBandWidthAs(
+                        "overlay",
+                        left,
+                        typeof layer["edge.width"] === "number" ? layer["edge.width"] : undefined,
+                    ) ?? {
                         "edge.overlayPadding": startsOf("edge.overlayColor")["edge.overlayPadding"],
                     }),
                 }),
@@ -344,14 +352,16 @@ function carried(
  * @param to - the kind switched to.
  * @param moved - what moved, or the kind's start when nothing did.
  * @param left - the leaving kind's own values.
+ * @param layer - the layer's set values.
  * @returns the writes.
  */
 function switchWrites(
     to: KindMember,
     moved: Readonly<Record<string, unknown>>,
     left: Readonly<Record<string, unknown>>,
+    layer: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> {
-    const extra = typeof to.onSwitch === "function" ? to.onSwitch(moved, left) : to.onSwitch;
+    const extra = typeof to.onSwitch === "function" ? to.onSwitch(moved, left, layer) : to.onSwitch;
     return { ...moved, ...extra };
 }
 
@@ -464,7 +474,7 @@ export async function switchKind(ctx: RowContext, group: KindGroup, from: KindMe
         writeSlot(set, to.slots.color, readSlot(left.set, from.slots.color));
         writeSlot(set, to.slots.size, readSlot(left.set, from.slots.size));
         next = {
-            set: switchWrites(to, Object.keys(set).length > 0 ? set : to.start(), left.set),
+            set: switchWrites(to, Object.keys(set).length > 0 ? set : to.start(), left.set, own?.set ?? {}),
             encode: carried(left.encode, from, to, toOwns),
         };
     }

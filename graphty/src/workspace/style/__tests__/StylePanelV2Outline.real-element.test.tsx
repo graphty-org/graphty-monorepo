@@ -245,4 +245,39 @@ describe("Style panel v2's edge Outline", () => {
         // Recoloring the line changes the line's own pixels; the wash changes more, so it reaches past its sides.
         assert.isAbove(pixelsApart(plain, over), pixelsApart(plain, recolored), "Over line is wider than the line");
     });
+    it("on a line wider than the Over line's own start, Switch to Over line still reaches past the line's sides", async () => {
+        const { session, element, edges } = await openGraph();
+        await switchView("2D");
+        // A layer whose line is 16 wide: the Over line's own start (padding 5) would be 10 across, inside the line.
+        await session.styles.update(edges, { set: { "edge.width": 16 } });
+        await session.styles.settled();
+        const tab = await openStyle("Links");
+        await showKind("edge");
+        const line = sectionOf(tab, "edge-line");
+        const plain = await picture(element);
+
+        await plusOutline(line);
+        await waitFor(() => {
+            assert.isDefined(written(session, edges, "edge.outlineColor"));
+        });
+        const color = String(written(session, edges, "edge.outlineColor"));
+        const [row] = outlineRows(line);
+        await switchTo(row, "Over line");
+        await waitFor(() => {
+            assert.isDefined(written(session, edges, "edge.overlayColor"));
+        });
+        assert.isAbove(Number(written(session, edges, "edge.overlayPadding")) * 2, 16, "wider than the line");
+        const over = await picture(element);
+
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await waitFor(() => {
+            assert.lengthOf(outlineRows(line), 0);
+        });
+        await session.styles.update(edges, { set: { "edge.width": 16, "edge.color": color } });
+        await session.styles.settled();
+        const recolored = await picture(element);
+
+        assert.isAbove(pixelsApart(plain, over), pixelsApart(plain, recolored), "the wash reaches past the line");
+    });
 });

@@ -19,7 +19,7 @@
 # progress; a merge that conflicts is aborted at once, leaving the worktree as it was, and logged. The
 # merge runs without hooks (its message is git's own; the Commitizen hook would want a terminal).
 #
-# Once the branch has an open pull request it is not pushed: every push to it starts a CI run, and a run a
+# Once the branch has an open pull request this hook does not push it (an explicit push still does): every push to it starts a CI run, and a run a
 # newer push cancels a few minutes later is wasted runner time (design/ci/channels-pipeline-plan.md, step 5a,
 # fewer-pushes-per-pr). tools/pr-open.sh, or a plain git push, publishes the finished fix. Whether one is
 # open comes from the status broker's file (tmp/pr-status/status.json in the main checkout) when it is under
@@ -73,7 +73,7 @@ open_pr() {
 push=1
 if [ "$(open_pr)" = open ]; then
     push=0
-    msg="branch-push: did not push $branch: it has an open pull request, and every push starts a CI run; publish the finished fix with tools/pr-open.sh (or git push)"
+    msg="branch-push: left commit $(git rev-parse --short HEAD) of $branch unpushed after the commit: it has an open pull request, and every push starts a CI run; a later push (tools/pr-open.sh, tools/push-queue.sh or git push) publishes it"
     echo "$msg"
     echo "$(date -Iseconds) $msg" >>"$log"
 fi

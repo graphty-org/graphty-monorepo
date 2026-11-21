@@ -55,11 +55,19 @@ uniform vec2 idPixels;
 uniform float shapeRadius;
 #endif
 varying float vId;
+#ifdef ROW_PULL
+// For a row drawn larger than it is: the vertex's offset from the row's center and the row's own
+// radius, in device pixels. A radius of 0 means the row is drawn as it is.
+varying vec3 vGrown;
+#endif
 #ifdef ID_FLOAT
 // The row's center in clip space over w, and the radius it is picked within, in device pixels.
 varying vec3 vPick;
 #endif
 void main(void) {
+#ifdef ROW_PULL
+    vGrown = vec3(0.0);
+#endif
 #ifdef ID_FLOAT
     vPick = vec3(0.0);
 #endif
@@ -86,6 +94,7 @@ void main(void) {
         float grRadius = 0.5 * shapeRadius * max(length((grX.xy / grX.w - grNdc) * idPixels), length((grY.xy / grY.w - grNdc) * idPixels));
         if (grRadius > 0.0 && grRadius < MIN_RADIUS_PX) {
             grV.xy = (grNdc + (grV.xy / grV.w - grNdc) * (MIN_RADIUS_PX / grRadius)) * grV.w;
+            vGrown = vec3(0.5 * (grV.xy / grV.w - grNdc) * idPixels, grRadius);
         }
 #ifdef ID_FLOAT
         vPick = vec3(grNdc, grRadius > 0.0 ? max(grRadius, MIN_RADIUS_PX) : 0.0);
@@ -99,12 +108,24 @@ void main(void) {
 }
 `;
 
-const FRAGMENT = `precision highp float;
+const FRAGMENT = `#ifdef ROW_PULL
+#extension GL_EXT_frag_depth : enable
+#endif
+precision highp float;
 varying float vId;
+#ifdef ROW_PULL
+varying vec3 vGrown;
+#endif
 #ifdef ID_FLOAT
 varying vec3 vPick;
 #endif
 void main(void) {
+#ifdef ROW_PULL
+    // Where a row is drawn only because it was grown to MIN_RADIUS_PX, it goes behind everything drawn
+    // at its own size: a pointer on a small node finds that node, not a nearer neighbor's grown disc
+    // (#9377). Grown discs still meet each other at their own depths, kept in order.
+    gl_FragDepthEXT = vGrown.z > 0.0 && length(vGrown.xy) > vGrown.z ? 1.0 - (1.0 - gl_FragCoord.z) * 0.001 : gl_FragCoord.z;
+#endif
 #if defined(ROW_PULL) && defined(ID_FLOAT)
     gl_FragColor = vec4(floor(vId + 0.5), vPick);
 #elif defined(ROW_PULL)

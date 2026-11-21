@@ -126,11 +126,6 @@ export interface EdgeRowLinesHost {
     readonly rows: RowTable;
     /** Whether lines take the lean program (`GraphContext.leansLines`). */
     readonly lean: () => LeanLines;
-    /**
-     * Whether a node row is drawn in a node batch, read from the row table as a pulled head reads it; an object row is
-     * drawn from its `Node`, whose head is placed as `Edge.transformArrowCap` places it.
-     */
-    readonly batchedRow: (row: number) => boolean;
     /** Ask for a frame, so a row painted or unpainted shows. */
     readonly requestFrame: () => void;
     /** Whether no layout is moving the rows, so heads are placed on the CPU (`PulledCapBatch.flush`). */
@@ -553,12 +548,12 @@ export class EdgeRowLines {
     }
 
     /**
-     * Whether a pulled head can stand on a node row: one drawn in a node batch, with a round outline.
+     * Whether a pulled head can stand on a node row: one with a round outline, drawn by a node batch or its `Node`.
      * @param row - The node row.
      * @returns True when it can.
      */
     private headRow(row: number): boolean {
-        return this.host.batchedRow(row) && roundRow(this.host.rows, row);
+        return roundRow(this.host.rows, row);
     }
 
     /**

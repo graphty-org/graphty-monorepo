@@ -3169,16 +3169,15 @@ export class Edge {
     }
 
     /**
-     * Whether a pulled head can stand on one end: a row drawn in a node batch, read from the row table, with a round
-     * outline. An object row's end is its `Node`'s, which a placed head reads.
+     * Whether a pulled head can stand on one end: a row with a round outline, read from the row table, whether a node
+     * batch or its `Node` draws it, so the edges of a graph with a few object rows keep drawing their heads in one
+     * order (`ArrowCapBatch.setPulled`).
      * @param end - Which end.
      * @param rows - The row table.
      * @returns True when it can.
      */
     private headEnd(end: "source" | "target", rows: RowTable): boolean {
-        const batched =
-            this.columnEnd(end) !== undefined || (end === "source" ? this.srcNode : this.dstNode).drawnInBatch;
-        return batched && roundRow(rows, this.endRow(end));
+        return roundRow(rows, this.endRow(end));
     }
 
     /**

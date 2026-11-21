@@ -5606,11 +5606,6 @@ export class Graph implements GraphContext {
                 cache: this.dataManager.meshCache,
                 rows: places,
                 lean: () => this.leansLines(),
-                batchedRow: (row) => {
-                    const batches = this.#nodeBatches;
-                    const node = this.dataManager.nodesByIndex[row];
-                    return node === undefined ? batches?.columnRowOf(row) !== undefined : node.drawnInBatch;
-                },
                 requestFrame: () => {
                     this.renderManager.requestFrame();
                 },

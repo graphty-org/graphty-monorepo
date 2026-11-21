@@ -193,6 +193,8 @@ export interface GraphtyErrorDetailsMap {
         readonly column: string;
         /** The rule named for it. */
         readonly rule: string;
+        /** The step whose merge refused, under the source-steps experiment. */
+        readonly step?: number;
     };
 }
 

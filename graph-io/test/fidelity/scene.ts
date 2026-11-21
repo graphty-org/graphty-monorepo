@@ -162,6 +162,8 @@ export interface Scene {
         text?: string;
         heads?: Box[];
         fill?: string;
+        /** A picture drawn in a node's label (yEd's label icon), not over its face. */
+        label?: true;
     }[];
     background?: Color;
     /** Things this side could not read; a property listed here is not judged against this side. */

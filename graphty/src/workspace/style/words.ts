@@ -675,6 +675,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.gradientColors": "Gradient colors",
     "edge.gradientStops": "Gradient stops",
     "edge.gradientKind": "Gradient kind",
+    "edge.strandColors": "Strand colors",
+    "edge.strandSpacing": "Strand spacing",
     "edge.waveAmplitude": "Wave amplitude",
     "edge.wavePeriod": "Wave period",
     "edge.dashLength": "Dash length",

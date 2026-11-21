@@ -63,7 +63,13 @@ describe("Notes, on the real element", () => {
         await userEvent.keyboard("{Control>}s{/Control}");
         const dialog = await screen.findByRole("dialog", { name: /^Save .* as$/ });
         await userEvent.clear(within(dialog).getByRole("textbox", { name: "Name" }));
-        await userEvent.keyboard("With a note{Enter}");
+        await userEvent.keyboard("With a note");
+        // Enter submits only once Save is enabled: with save files version 2 on, it waits for
+        // graphty-element's verdict on the save, and an Enter before that is no submission.
+        await waitFor(() => {
+            assert.isFalse(within(dialog).getByRole<HTMLButtonElement>("button", { name: "Save" }).disabled);
+        });
+        await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
             assert.isFalse(session.project.dirty);

@@ -79,12 +79,50 @@ function remoteLogScript(server: string): Plugin {
     };
 }
 
+/**
+ * Finds the Babylon.js modules that only a model or a map needs, so the `babylon` code-splitting
+ * group below can put them in a chunk of their own that the first frame does not wait for (#9217).
+ *
+ * graphty-element loads babylonjs-models, babylonjs-map and its own model chunk with a dynamic
+ * `import()`, but one group holding every Babylon.js module put what they reach into the chunk the
+ * first frame waits for: the model loaders (glTF, OBJ, FBX, USD, the PBR material) and, through
+ * babylonjs-map's `@babylonjs/core` barrel import, the rest of Babylon.js. This walks the module
+ * graph from the entry points, following every static import and every dynamic import except one
+ * into babylonjs-models, babylonjs-map or graphty-element's model chunk; a Babylon.js module the walk
+ * never reaches is needed only by those.
+ * @returns The build plugin, and the test the group's `name` uses.
+ */
+function lazyBabylon(): { plugin: Plugin; isLazy: (id: string) => boolean } {
+    const reached = new Set<string>();
+    const intoLazy = (id: string): boolean =>
+        /\/babylonjs-(models|map)\/|\/graphty-element\/src\/models\/chunk\.ts$/.test(id);
+    return {
+        plugin: {
+            name: "graphty:lazy-babylon",
+            apply: "build",
+            buildEnd() {
+                reached.clear();
+                const stack = [...this.getModuleIds()].filter((id) => this.getModuleInfo(id)?.isEntry);
+                for (let id = stack.pop(); id !== undefined; id = stack.pop()) {
+                    const info = reached.has(id) ? null : this.getModuleInfo(id);
+                    reached.add(id);
+                    if (info) {
+                        stack.push(...info.importedIds, ...info.dynamicallyImportedIds.filter((d) => !intoLazy(d)));
+                    }
+                }
+            },
+        },
+        isLazy: (id) => !reached.has(id),
+    };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
     // Load env file from monorepo root (one level up from this package).
     // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
     const monorepoRoot = resolve(__dirname, "..");
     const env = loadEnv(mode, monorepoRoot, "");
+    const babylonSplit = lazyBabylon();
     const plugins = [
         react(),
         ...elementSourcePlugins,
@@ -96,6 +134,8 @@ export default defineConfig(({ mode }) => {
         buildStampPlugin(),
         // The files each loading step waits for, so the loading screen's log can measure them.
         bootFilesPlugin(),
+        // Which Babylon.js modules only a model or a map needs (build only; see the `babylon` group).
+        babylonSplit.plugin,
         // graph-samples' datasets at graphty.app's path, from this machine (dev server only).
         sampleDataPlugin(),
         // The remote logger's script, first in the page so it hears a load that fails before the
@@ -169,7 +209,13 @@ export default defineConfig(({ mode }) => {
                     codeSplitting: {
                         groups: [
                             { name: "preload-helper", test: /vite\/preload-helper/, priority: 2 },
-                            { name: "babylon", test: /\/node_modules\/@babylonjs\//, priority: 1 },
+                            // The Babylon.js code only a model or a map needs is a chunk of its own,
+                            // fetched with the first model or map, not before the first frame (#9217).
+                            {
+                                name: (id) => (babylonSplit.isLazy(id) ? "babylon-lazy" : "babylon"),
+                                test: /\/node_modules\/@babylonjs\//,
+                                priority: 1,
+                            },
                         ],
                     },
                 },

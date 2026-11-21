@@ -58,7 +58,7 @@ fileInput.addEventListener("change", async (e) => {
 });
 ```
 
-## A File's Own Styles
+## A File's Own Styles {#a-files-own-styles}
 
 Many formats carry what the graph looks like as well as what it holds: Gephi's colors and sizes
 in GEXF, yEd's shapes in GraphML, a Cytoscape visual style, a Cytoscape.js stylesheet, Graphviz
@@ -1117,6 +1117,17 @@ words for it:
 - `columns` names every column the loss is about: one, several (every graph attribute a format has
   no place for), or none (self-loops).
 - `count` is how many nodes, edges, values or columns are affected, or `null` when not counted.
+
+Each loss also says whether it is the format's normal behavior, as `expected`. It is `true` for a
+kind of information the format (or the table chosen) has no place for at all, such as positions in
+CSV or styles in a format that writes none: the rest of the file is written as it is. It is `false`
+when the export changes or drops part of the data itself (ids renumbered, nested values written as
+text, parallel edges dropped), for a refusal, and for a registered writer's own codes. An
+application can show the expected ones quietly and warn about the rest:
+
+```typescript
+const surprising = result.losses.filter((loss) => !loss.expected);
+```
 
 ### Exporting part of the graph
 

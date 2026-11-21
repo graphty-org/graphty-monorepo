@@ -371,7 +371,7 @@ describe("data section version 2", () => {
         session.dispose();
     });
 
-    it("writes a section the published schema accepts, embeds a file it has no path for, and keeps a source it cannot fetch", async () => {
+    it("writes a section the published schema accepts, embeds inline rows it has no path for, and keeps a source it cannot fetch", async () => {
         const session = await sampleSession();
         const full = await saveDocument2(
             session,
@@ -382,7 +382,7 @@ describe("data section version 2", () => {
         assert.deepStrictEqual(invalid(full.document), []);
         assert.isString(full.document.id, "the framing writes the data section's id");
 
-        // A file whose path the session does not know cannot be referenced: it is embedded, and said.
+        // Rows handed over inline have no path: they cannot be referenced, are embedded, and said.
         const friends = String((full.document.sources as JsonObject[])[1].id);
         const asked = await saveDocument2(
             session,
@@ -392,7 +392,7 @@ describe("data section version 2", () => {
         );
         assert.deepStrictEqual(asked.document.sources, full.document.sources);
         assert.deepStrictEqual(asked.problems, [
-            { code: "W_SOURCE_NO_PATH", params: { source: friends, reason: "file" } },
+            { code: "W_SOURCE_NO_PATH", params: { source: friends, reason: "inline" } },
             EDIT_FOLDED,
         ]);
 

@@ -14,10 +14,12 @@ import { sha256HexSync } from "@graphty/graph-io";
 
 import { fetchBytes } from "../../../data/source-bytes";
 import { isGraphtyError } from "../../../errors/GraphtyError";
+import { readAsLoaded } from "../../sources/references";
 import type { GraphSession, LoadChoices, TableMapping } from "../../types";
 import type { JsonObject, SourceUnavailableReason } from "../types";
 import { copyTables, isPlainObject, isReserved, repeatedEdgeRows } from "./dataRefs";
 import { fileOf, handleOf } from "./fileHandles";
+import { mintUlid } from "./viewParts";
 
 /**
  * Why a referenced source supplied nothing: not found, no location to read it from, unreadable,
@@ -328,8 +330,50 @@ async function reimport(
 }
 
 /**
+ * Read a network source again by the request history its `origin.ledger` records (spec 4.1.2 rule
+ * 7), as the session reads a load it keeps as a reference: its source, params, endpoint and
+ * recorded options, in a scratch session. Every read is a new copy, with a new copy id.
+ * @param record - The network source's record.
+ * @param how - The refresh's options.
+ * @returns The rows, or why there are none: `needs-file` when the record holds no ledger.
+ */
+async function networkRead(record: JsonObject, how: RefetchOptions): Promise<Refetched> {
+    const { ledger } = record.origin as JsonObject;
+    if (!isPlainObject(ledger) || typeof ledger.source !== "string") {
+        return { unavailable: "needs-file" };
+    }
+
+    const { mode: _mode, ...options } = isPlainObject(ledger.options) ? ledger.options : {};
+    const read = await readAsLoaded(
+        {
+            kind: "server",
+            config: isPlainObject(ledger.config) ? ledger.config : {},
+            network: {
+                source: ledger.source,
+                endpoint: typeof ledger.endpoint === "string" ? ledger.endpoint : null,
+                options,
+            },
+        },
+        how.scratch,
+        undefined,
+    );
+    if (typeof read === "string") {
+        return { unavailable: read === "not-found" ? read : "read" };
+    }
+
+    return {
+        copyId: mintUlid(),
+        ...copyTables(
+            read.nodes.map((node) => ownColumns(node)),
+            read.edges.map((edge) => ownColumns(edge)),
+        ),
+    };
+}
+
+/**
  * Read one referenced record again, remembering what it gave: bytes that changed since the save
- * hold it (`copy-changed`) unless the caller accepts them.
+ * hold it (`copy-changed`) unless the caller accepts them. A network source is read by its ledger,
+ * and only when the caller accepts a new copy (a refresh).
  * @param record - The record.
  * @param how - The open's options.
  * @param duplicateIds - The `duplicateIds` of the `join.add` that builds it, if it carries one.
@@ -339,11 +383,16 @@ export async function refetch(
     record: JsonObject,
     how: RefetchOptions,
     duplicateIds?: unknown,
-    read: ReturnType<typeof bytesOf> = bytesOf(record, how),
+    read?: ReturnType<typeof bytesOf>,
 ): Promise<void> {
+    if (record.kind === "network") {
+        REFETCHED.set(record, how.accept === true ? await networkRead(record, how) : { unavailable: "copy-changed" });
+        return;
+    }
+
     let bytes: Awaited<ReturnType<typeof bytesOf>>;
     try {
-        bytes = await read;
+        bytes = await (read ?? bytesOf(record, how));
     } catch (error) {
         how.signal?.throwIfAborted();
         const large = isGraphtyError(error) && error.code === "E_TOO_LARGE";

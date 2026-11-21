@@ -328,6 +328,9 @@ export function loadChoices(
         unmatched: choices.unmatched,
         directed: choices.directed,
         ...(fileStyles ? { styles: choices.styles, styleOptions: FILE_STYLE_OPTIONS } : {}),
+        // A new graph drawn with its file's styles is laid out as the element recommends for it, so a file that
+        // stores its drawing (a Cytoscape session) opens where its program put its nodes (issue #9297).
+        ...(fileStyles && choices.styles === "file" && mode === "replace" ? { layout: "recommended" as const } : {}),
         ...(Object.keys(tables).length > 0 ? { mapping: { tables } } : {}),
     };
 }

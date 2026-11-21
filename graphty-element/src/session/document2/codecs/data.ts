@@ -55,6 +55,7 @@ import type { ColumnSettings } from "../../commands/data";
 import type { SessionData } from "../../data";
 import type { TransactionOptions } from "../../project/Dispatcher";
 import { SOURCE_ATTR } from "../../sources/ids";
+import { causeParams, type ReadCause } from "../../sources/references";
 import type { SourceLoadRecord, SourceRefreshReport } from "../../sources/types";
 import type { GraphSession, LoadedSource, TransactionScope } from "../../types";
 import { token } from "../framing";
@@ -420,6 +421,8 @@ interface ReadSource {
     /** For a referenced source not read again: why, and its new byte count when its copy changed. */
     readonly reason?: SourceUnavailableReason;
     readonly size?: number;
+    /** For a referenced source whose read failed: what it threw. */
+    readonly cause?: ReadCause;
 }
 
 /**
@@ -551,6 +554,7 @@ function referencedSource(record: JsonObject, pointer: string): ReadSource {
         const unread: SourceUnavailableReason = record.kind === "network" ? "copy-changed" : "kind";
         const reason = fetched?.unavailable ?? (fetches ? "needs-file" : unread);
         const size = fetched?.size;
+        const cause = fetched?.cause;
         return {
             record,
             id,
@@ -559,6 +563,7 @@ function referencedSource(record: JsonObject, pointer: string): ReadSource {
             embedded: false,
             reason,
             ...(size === undefined ? {} : { size }),
+            ...(cause === undefined ? {} : { cause }),
         };
     }
 
@@ -1867,6 +1872,7 @@ function unavailableProblem(source: ReadSource): DocumentProblem {
             source: source.id,
             ...(source.reason === undefined ? {} : { reason: source.reason }),
             ...(source.size === undefined ? {} : { size: source.size }),
+            ...causeParams(source.cause),
         },
     };
 }
@@ -2600,7 +2606,7 @@ export async function refreshHeldSource(
             code: REFRESH_REFUSED[fetched.unavailable] ?? "E_FETCH_FAILED",
             message: `The source ${source} could not be read again (${fetched.unavailable}).`,
             source: "data",
-            details: { source, reason: fetched.unavailable },
+            details: { source, reason: fetched.unavailable, ...causeParams(fetched.cause) },
         });
     }
 

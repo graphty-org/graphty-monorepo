@@ -323,7 +323,16 @@ describe("a project saved with a reference", () => {
         assert.deepEqual(problems, [
             {
                 code: "W_SOURCE_UNAVAILABLE",
-                params: { source: key, reason: "not-found", name: "graph.json", url: URL_A },
+                params: {
+                    source: key,
+                    reason: "not-found",
+                    name: "graph.json",
+                    url: URL_A,
+                    cause: "E_FETCH_FAILED",
+                    "cause.attempts": 1,
+                    "cause.status": 404,
+                    "cause.url": URL_A,
+                },
             },
         ]);
         // a and b are held bare in their places, supplied by the unread load.
@@ -549,11 +558,35 @@ describe("a project saved with a reference", () => {
         stubSite({});
         const saved = await session.project.save();
         assert.deepEqual(saved.report.leftOut, [
-            { code: "W_SOURCE_UNAVAILABLE", params: { source: key, reason: "not-found" } },
+            {
+                code: "W_SOURCE_UNAVAILABLE",
+                params: {
+                    source: key,
+                    reason: "not-found",
+                    cause: "E_FETCH_FAILED",
+                    "cause.attempts": 1,
+                    "cause.status": 404,
+                    "cause.url": URL_A,
+                },
+            },
         ]);
         assert.strictEqual(dataOf(saved.text).nodes[0]?.label, "Ann");
         assert.isUndefined(sourcesOf(saved.text).data);
         assert.strictEqual(sourcesOf(saved.text).loads[0]?.copy, "reference");
+    });
+
+    it("says why a save's read of a reference failed, with the error's code and facts", async () => {
+        stubSite({ [URL_A]: GRAPH });
+        const session = await twoLoads();
+        const key = session.data.sources()[0]?.key ?? "";
+        session.data.setCopy(key, "reference");
+        // The address now answers with something that is not the format the load reads.
+        stubSite({ [URL_A]: "not json {" });
+        const saved = await session.project.save();
+        const [problem] = saved.report.leftOut;
+        assert.strictEqual(problem?.code, "W_SOURCE_UNAVAILABLE");
+        assert.strictEqual(problem?.params.reason, "unreadable");
+        assert.strictEqual(problem?.params.cause, "E_PARSE_FAILED");
     });
 });
 

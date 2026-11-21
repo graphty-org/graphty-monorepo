@@ -389,15 +389,19 @@ function inward(side: Side, half: number, gap: number, keepSide: boolean): numbe
  * @param label.height - Its height.
  * @param label.offset - Its gap from the side.
  * @param label.keepSide - Whether it stays against the side when it is larger than the bounds.
+ * @param label.onFace - Whether it lies on a flat target's face: then it is in front of the target's
+ *     center by the target's own depth, just off the face, rather than by its bounding radius.
  */
 function placeInFront(
     at: Vector3,
     bounds: { min: Vector3; max: Vector3 },
     drawn: Vector3,
     inside: { x: Side; y: Side } | null,
-    label: { width: number; height: number; offset: number; keepSide: boolean },
+    label: { width: number; height: number; offset: number; keepSide: boolean; onFace: boolean },
 ): void {
-    at.z = -Vector3.Distance(bounds.min.multiply(drawn), bounds.max.multiply(drawn)) / 2;
+    at.z = label.onFace
+        ? -(bounds.max.z - bounds.min.z) * drawn.z
+        : -Vector3.Distance(bounds.min.multiply(drawn), bounds.max.multiply(drawn)) / 2;
     if (inside !== null) {
         const { keepSide } = label;
         at.x = inward(
@@ -414,6 +418,13 @@ function placeInFront(
         );
     }
 }
+
+/**
+ * How many times its own depth a target's width and height must each be, at least, for a label
+ * inside it to lie on its face in 3D: flat shapes and groups are drawn a fiftieth of their smaller
+ * side deep, solids about as deep as they are wide.
+ */
+const FLAT_FACE_RATIO = 10;
 
 /** How far to the side (x) and up (y) of its target's bounds a label sits, per position. */
 const SIDES: Record<Exclude<AttachPosition, InsidePosition>, { x: Side; y: Side }> = {
@@ -591,6 +602,8 @@ export class RichTextLabel {
     private stopEyeLine: (() => void) | null = null;
     /** Whether the label last undid a stretch of its target, so a target back at its own size resets it. */
     private undoesStretch = false;
+    /** Whether the label lies on its flat target's face rather than facing the camera; see {@link onFlatFace}. */
+    private onFace = false;
     private animationStarted = false;
     /** Takes the plane off its scene's count of labels with a close button. */
     private unmarkClose: (() => void) | null = null;
@@ -735,7 +748,7 @@ export class RichTextLabel {
             position: { x: 0, y: 0, z: 0 },
             resolution: 512,
             autoSize: true,
-            font: "Verdana",
+            font: "Verdana, sans-serif",
             fontSize: 48,
             fontWeight: "normal",
             fontStyle: "normal",
@@ -2493,6 +2506,7 @@ export class RichTextLabel {
         const inside = Object.hasOwn(INSIDE, position) ? INSIDE[position as InsidePosition] : null;
         const inFront = (position === "center" || inside !== null) && !(target instanceof Vector3);
         const frontBounds = inFront ? bounds : null;
+        this.onFace = this.onFlatFace(target, bounds, inside);
         let newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, frontBounds);
         // A target drawn stretched (a group over its members' box) leaves its label the size the
         // label's style gives: the label undoes the stretch and its gaps are measured in it.
@@ -2504,14 +2518,15 @@ export class RichTextLabel {
                 height: labelHeight,
                 offset: this.options.attachOffset,
                 keepSide: this.options.box === "words-at-side" || this.options.box === "target-width",
+                onFace: this.onFace,
             });
             // What a screen fit places it beside: the bounds in the pivot's frame, whose origin is
-            // the node's center.
+            // the node's center; a label on its target's face is at the face, not a radius off it.
             const centre = bounds.min.add(bounds.max).scaleInPlace(0.5);
             this.placementBounds = {
                 min: bounds.min.subtract(centre),
                 max: bounds.max.subtract(centre),
-                z: -Vector3.Distance(bounds.min, bounds.max) / 2,
+                z: this.frontDepth(bounds, newPos),
             };
         } else {
             placeBeside(
@@ -2660,6 +2675,48 @@ export class RichTextLabel {
     }
 
     /**
+     * Whether a label inside its target lies on the target's face: in a 3D view, on a target drawn
+     * flat (a group's box behind its members, a flat shape), whose depth is a small part of its
+     * width and height as drawn. Turned toward the camera and hung one bounding radius in front, as
+     * a solid's label is, it floated far off the box in perspective (issue #2320); on the face it is
+     * drawn where the box is, as the 2D view draws it.
+     * @param target - What the label is attached to.
+     * @param bounds - Its bounds, in its own frame.
+     * @param bounds.min - Their lower corner.
+     * @param bounds.max - Their upper corner.
+     * @param inside - The side and end the label sits inside against, or null when it is not inside.
+     * @returns True when it lies on the face.
+     */
+    private onFlatFace(
+        target: RichTextLabelOptions["attachTo"],
+        bounds: { min: Vector3; max: Vector3 },
+        inside: { x: Side; y: Side } | null,
+    ): boolean {
+        if (
+            inside === null ||
+            !(target instanceof AbstractMesh) ||
+            (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true
+        ) {
+            return false;
+        }
+
+        const { x, y, z } = bounds.max.subtract(bounds.min).multiplyInPlace(target.scaling);
+        return z * FLAT_FACE_RATIO <= Math.min(x, y);
+    }
+
+    /**
+     * How far in front of its target's center a label placed in front of it is, for a screen fit.
+     * @param bounds - The target's bounds, in its own frame.
+     * @param bounds.min - Their lower corner.
+     * @param bounds.max - Their upper corner.
+     * @param at - Where the label was placed.
+     * @returns The depth: the label's own on its target's face, otherwise the bounds' radius.
+     */
+    private frontDepth(bounds: { min: Vector3; max: Vector3 }, at: Vector3): number {
+        return this.onFace ? at.z : -Vector3.Distance(bounds.min, bounds.max) / 2;
+    }
+
+    /**
      * Parent the label to the mesh it is attached to.
      *
      * A "center" label sits in the middle of its node, which is inside the node's mesh, so the
@@ -2685,11 +2742,14 @@ export class RichTextLabel {
         this.centerPivot.parent = target;
         this.centerPivot.position =
             this.options.centerAtOrigin === true ? Vector3.Zero() : center.min.add(center.max).scaleInPlace(0.5);
-        this.centerPivot.billboardMode = this.billboard();
+        this.centerPivot.billboardMode = this.onFace ? Mesh.BILLBOARDMODE_NONE : this.billboard();
         if (this.eyeLineShift === null) {
             this.eyeLineShift = new TransformNode(`richTextEyeLine_${this.id}`, this.scene);
             this.eyeLineShift.parent = this.centerPivot;
-            this.stopEyeLine = keepOnEyeLine(this.scene, this.centerPivot, this.eyeLineShift, () => mesh.position.z);
+            // a label lying on its target's face is not turned like the camera, so it needs no slide
+            this.stopEyeLine = keepOnEyeLine(this.scene, this.centerPivot, this.eyeLineShift, () =>
+                this.onFace ? 0 : mesh.position.z,
+            );
         }
         mesh.parent = this.eyeLineShift;
         mesh.billboardMode = Mesh.BILLBOARDMODE_NONE;
@@ -3003,6 +3063,35 @@ export class RichTextLabel {
             right: (x + this.textSize.width) / width,
             top: y / height,
             bottom: (y + this.textSize.height) / height,
+        };
+    }
+
+    /**
+     * What the label draws on its plane, as {@link textBounds} measures: its words, grown by their
+     * outline, and the panel behind them when it has one. Two labels whose words are apart but
+     * whose panels meet still draw over each other, so the declutter keeps these apart (#9275).
+     * @returns The drawn rectangle as fractions of the plane.
+     */
+    public get drawnBounds(): { left: number; right: number; top: number; bottom: number } {
+        const words = this.textBounds;
+        const { width, height } = this.actualDimensions;
+        const reach = this.options.textOutline ? this.options.textOutlineWidth : 0;
+        const box = {
+            left: words.left - reach / Math.max(width, 1),
+            right: words.right + reach / Math.max(width, 1),
+            top: words.top - reach / Math.max(height, 1),
+            bottom: words.bottom + reach / Math.max(height, 1),
+        };
+        const { panel } = this;
+        if (panel === undefined) {
+            return box;
+        }
+
+        return {
+            left: Math.min(box.left, panel.left),
+            right: Math.max(box.right, panel.right),
+            top: Math.min(box.top, panel.top),
+            bottom: Math.max(box.bottom, panel.bottom),
         };
     }
 

@@ -376,6 +376,7 @@ If that pair's load failed, assigning it again retries it.
 | CX                | `.cx`                                         | Version 1 of CX, read only                               |
 | Cytoscape Session | `.cys`                                        | A saved Cytoscape session, read only                     |
 | OBO               | `.obo`                                        | The Gene Ontology's ontology format, read only           |
+| Excel Workbook    | `.xlsx`, `.xlsm`                              | One sheet of a workbook read as a table, read only       |
 
 An OBO Graphs document (the JSON form of an ontology, such as `go-basic.json`) is JSON: it is
 recognized by its content and read with the `json` format.
@@ -539,6 +540,27 @@ await element.session.data.import({ type: "json", config: { data: JSON.stringify
 ```
 
 `team` is drawn as a box around `ana`, `bo` and `cy`; `dee` is outside it.
+
+Node records you add yourself nest the same way: a `parent` key names the group a node is in.
+A node read from a file that nests (a Graphviz cluster, a GraphML or XGMML nested graph, a
+Cytoscape.js compound) carries the same key, holding its group's id, so `session.data.nodes()`
+shows which group each node is in.
+
+```typescript
+await element.session.data.addNodes([{ id: "team" }, { id: "ana", parent: "team" }, { id: "bo", parent: "team" }]);
+```
+
+To style the groups, select the nodes that hold others: `graphty.members` is how many nodes a
+group holds directly, and every other node has no value there.
+
+```typescript
+await element.session.styles.add({
+    name: "Groups",
+    target: "node",
+    selector: { match: "has", path: "graphty.members" },
+    set: { "node.color": "#dddddd" },
+});
+```
 
 A group the file stores a position for (a yEd group's geometry, a Graphviz cluster's `bb`) keeps
 it when the file is drawn where it was saved (`layout: "recommended"`, see
@@ -780,6 +802,81 @@ c,a,1.5
 
 The column separator is worked out from the first line -- comma, tab, semicolon or pipe -- so a
 tab-separated or semicolon-separated file loads with no options. Pass `delimiter` to override it.
+
+## One Part of a JSON File
+
+A JSON file can hold several collections. Pass `pointer`, a
+[JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901) such as `/graph/people`, to read one of
+them. Load each collection as its own source from the same file:
+
+```typescript
+const config = { url: "org.json" };
+await session.data.import({ type: "json", config: { ...config, pointer: "/graph/people" } });
+await session.data.import({ type: "json", config: { ...config, pointer: "/graph/knows" } }, { mode: "merge" });
+```
+
+```json
+{
+    "graph": {
+        "people": [{ "id": "ava" }, { "id": "ben" }],
+        "knows": [{ "source": "ava", "target": "ben" }]
+    }
+}
+```
+
+What the pointer names decides how it is read:
+
+- An array is one table of rows. Its records are edges when they name their ends (`edgeSource` and
+  `edgeTarget`, else `data.knownFields.edgeSrcIdPath` and `edgeDstIdPath` when the records carry
+  them, else `source`/`target`, `src`/`dst` or `from`/`to`), and nodes otherwise, keyed by
+  `nodeIdPath`, else `id`, `name`, `key` or `label`. In `session.data.prepare` it is a `rows`
+  table you map like a CSV file's.
+- An object is read whole, as if it were the file.
+- Without `pointer`, an array at the top of the file is still read as a whole document: a Cytoscape
+  elements array, or records that `node.path` and `edge.path` select.
+- A pointer that names nothing, or names a number, string or other value, fails the load with
+  `E_OPTION_RANGE` (`details.option` is `"pointer"`).
+
+Two sources from one file share its bytes, so a project saved with them by reference reads the
+file once when it is opened again.
+
+## Placeholder Values
+
+Pass `missing`, a list of cell texts, to read placeholders such as `N/A` as unset values instead of
+text:
+
+```typescript
+await session.data.import({ type: "csv", config: { url: "people.csv", missing: ["N/A", "null"] } });
+```
+
+A cell matches only when its whole text equals an entry, after Unicode NFC normalization. Cells are
+never trimmed, so `" N/A"` stays text. In a CSV file (any delimiter) the match happens before
+columns are typed, so a number column holding `N/A` stays a number column, a placeholder id leaves
+its row out, and a placeholder end is a missing end. A Neo4j file refuses the option with
+`E_OPTION_RANGE`. In a JSON file only string values at the top level of each record are compared;
+numbers, `true`, `false`, `null` and nested values never are.
+
+## One Sheet of a Workbook
+
+An Excel workbook (`.xlsx` or `.xlsm`) is read one sheet at a time, as a table: the header row names
+the columns, and `source` and `target` columns make edges, an `id` column nodes, as a CSV file is
+read. Pass `sheet`, the name of the sheet, to read one other than the first:
+
+```typescript
+await session.data.import({ config: { url: "org.xlsx", sheet: "Links" } });
+```
+
+The name is matched exactly, after Unicode NFC normalization. Left out, the first sheet in tab order
+is read, and the load records its name (`session.data.sources()[n].config.sheet`), so a project
+saved with the file by reference reads the same sheet again even when the tabs are reordered. A
+name the workbook does not have fails the load with `E_SHEET_NOT_FOUND`, whose `details` are
+`{ format, sheet, available }`: the name asked for and every sheet's name in tab order. The
+catalog's `listGraphs` lists the sheets.
+
+Text cells stay text (`007` stays `007`), dates become ISO 8601 text, formulas are read as the
+value Excel saved, and error cells (`#N/A`) are unset. `missing` applies to workbook cells too. A
+legacy `.xls` file or a password-protected workbook fails with `E_PARSE_FAILED`; save it as `.xlsx`
+first. The workbook reader loads the first time a workbook is opened.
 
 ## Custom ID Paths
 

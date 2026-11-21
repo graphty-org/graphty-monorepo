@@ -17,6 +17,7 @@ import {
     type GraphAnnotation,
     readAnnotations,
     readImageAnnotations,
+    statesStyles,
 } from "@graphty/graph-io/styles";
 
 import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, Path, RuleTree } from "../../../catalog/types";
@@ -411,7 +412,9 @@ async function applyRead(
         positionsStored: read.positionsStored === true,
     });
     const notes = [...translation.notes];
-    const accepted = acceptedLayers(translation.layers, ctx.services.styles, notes);
+    // A file that states no style of its own adds no layers: its program's defaults alone are not the file's styles
+    // (issue #9298). Its stored positions' scale, framing, background and annotations still apply.
+    const accepted = statesStyles(read.extracted) ? acceptedLayers(translation.layers, ctx.services.styles, notes) : [];
 
     // The values, written onto the elements the element holds as ordinary data columns: only those a layer or the
     // visibility filter reads, so a value a layer the file rebuilt no longer reads leaves no column behind.

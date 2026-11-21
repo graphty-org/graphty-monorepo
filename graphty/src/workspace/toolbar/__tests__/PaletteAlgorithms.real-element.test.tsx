@@ -98,6 +98,18 @@ describe("algorithms in Quick actions", () => {
         });
     });
 
+    it("runs a grouping algorithm on a second Enter, from the Analyze it opened", async () => {
+        const session = await openScene();
+        await search("louv");
+        await screen.findByRole("option", { name: /^Louvain\b/ });
+        await userEvent.keyboard("{Enter}");
+        await screen.findByRole("button", { name: "Run Louvain" });
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(session.runs.list().find((r) => r.algorithm === "louvain")?.status, "succeeded");
+        });
+    });
+
     it("runs an algorithm with nothing to set at once", async () => {
         const session = await openScene();
         // The first row with nothing to set that is enabled now: a disabled row ignores Enter.

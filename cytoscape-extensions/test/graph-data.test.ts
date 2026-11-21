@@ -375,7 +375,7 @@ describe("graphtyDataset with an unknown name", () => {
         // a custom baseUrl may serve any name, so it is fetched
         await expect(
             cy.graphtyDataset("my-graph", { baseUrl: "https://example.test/", fetch: fetchCounting }),
-        ).rejects.toThrow(/HTTP 404/);
+        ).rejects.toMatchObject({ code: "E_DATASET_HTTP", details: { status: 404 } });
         expect(fetched).toBe(1);
         expect(cy.elements().length).toBe(0);
     });

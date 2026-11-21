@@ -301,34 +301,25 @@ export function algorithmByLegacyKey(legacyKey: string): LegacyAlgorithmMapping 
 
 // @public
 export interface AlgorithmDescriptor {
-    // (undocumented)
     approximable?: {
         method: string;
         plainName: string;
         defaultSample: number;
         seeded: boolean;
     };
-    // (undocumented)
     category: "centrality" | "community" | "path" | "flow" | "structure" | "prediction" | (string & {});
-    // (undocumented)
     complexity: string;
     cost?: (n: number, m: number) => number;
-    // (undocumented)
     costClass: CostClass;
     // @deprecated
     description: string;
     descriptionId?: string;
-    // (undocumented)
     fields: readonly FieldDescriptor[];
-    // (undocumented)
     key: AlgorithmKey;
     // @beta
     keywords?: readonly string[];
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
-    // (undocumented)
     requires?: {
         directed?: boolean;
         weighted?: boolean;
@@ -336,9 +327,7 @@ export interface AlgorithmDescriptor {
         connected?: boolean;
     };
     scopeInput?: "none" | "subgraph";
-    // (undocumented)
     shape: ResultShape;
-    // (undocumented)
     technicalName: string;
     weightMeaning?: "strength" | "distance" | "capacity" | null;
 }
@@ -373,32 +362,22 @@ export interface AttributeDescriptor {
     completeness: number;
     hidden?: boolean;
     holdsNodeIds?: true;
-    // (undocumented)
     kind: "node" | "edge";
-    // (undocumented)
     max?: number;
     measurement?: Measurement;
     measurementSource?: MeasurementSource;
-    // (undocumented)
     min?: number;
-    // (undocumented)
     name: string;
-    // (undocumented)
     origin: "imported" | "joined" | "computed" | "result";
     path: Path;
-    // (undocumented)
     plainName: string;
     roles?: readonly AttributeRole[];
     runId?: RunId;
-    // (undocumented)
     sampleValues: readonly unknown[];
     sources?: readonly SourceKey[];
-    // (undocumented)
     technicalName: string;
     token: string;
-    // (undocumented)
     type: AttributeType;
-    // (undocumented)
     uniqueCount?: number;
     usedBy?: readonly AttributeUse[];
     valuesAreColors?: true;
@@ -492,17 +471,11 @@ export interface ByDesignWaiver {
 // @beta
 export interface BySizeLeaf {
     readonly from?: "high" | "low";
-    // (undocumented)
     readonly kind: "by-size";
-    // (undocumented)
     readonly max?: number;
-    // (undocumented)
     readonly min?: number;
-    // (undocumented)
     readonly path: Path;
-    // (undocumented)
     readonly ties?: TopTies;
-    // (undocumented)
     readonly top?: number;
 }
 
@@ -517,12 +490,9 @@ export interface CameraDescriptor {
     // @deprecated
     description: string;
     descriptionId?: string;
-    // (undocumented)
     id: CameraId;
     modes: readonly DrawingMode[];
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
 }
 
@@ -557,31 +527,23 @@ export const CATALOG_KINDS: readonly ["algorithm", "layout", "format", "palette"
 
 // @public
 export interface CatalogApi {
-    // (undocumented)
     algorithms(): readonly AlgorithmDescriptor[];
     // @deprecated
     applicable(): readonly MetricAvailability[];
-    // (undocumented)
     cameras(): readonly CameraDescriptor[];
     channels(target: "node" | "edge"): readonly ChannelDescriptor[];
     channelValues(channel: Channel): readonly ChannelValueDescriptor[];
     datasets(): readonly DatasetMeta[];
-    // (undocumented)
     formats(): readonly FormatDescriptor[];
     // @deprecated (undocumented)
     functions(): readonly FunctionDescriptor[];
     generators(): readonly GeneratorDescriptor[];
-    // (undocumented)
     layouts(): readonly LayoutDescriptor[];
-    // (undocumented)
     logSinks(): readonly LogSinkDescriptor[];
-    // (undocumented)
     metrics(): readonly MetricAvailability[];
     models(): readonly ModelDescriptor[];
     optionsFor(key: AlgorithmKey | LayoutId, scope?: Scope): Promise<readonly OptionDescriptor[]>;
-    // (undocumented)
     palettes(): readonly PaletteDescriptor[];
-    // (undocumented)
     scales(): readonly ScaleDescriptor[];
     screenshotPresets(): readonly ScreenshotPreset[];
     shaders(): readonly ShaderDescriptor[];
@@ -816,28 +778,20 @@ export interface FieldDescriptor {
         readonly max: number;
     };
     interpretation?: FieldInterpretation;
-    // (undocumented)
     kind: "node" | "edge" | "graph";
     measurement?: Measurement;
     // @beta
     missing?: "unreached" | "unmeasured" | (string & {});
-    // (undocumented)
     name: string;
-    // (undocumented)
     normalization?: string;
     // @beta
     order?: readonly (string | number)[];
-    // (undocumented)
     path: Path;
-    // (undocumented)
     plainName: string;
     // @beta
     polarity?: "higher" | "lower";
-    // (undocumented)
     technicalName: string;
-    // (undocumented)
     type: "number" | "integer" | "boolean" | "string" | "table";
-    // (undocumented)
     unit?: string;
     // @beta
     unstable?: true;
@@ -863,22 +817,16 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[];
 // @public
 export interface FormatDescriptor {
     binary?: boolean;
-    // (undocumented)
     canExport: boolean;
-    // (undocumented)
     canImport: boolean;
     // @deprecated
     description?: string;
     descriptionId?: string;
     exportVariants?: readonly FormatExportVariant[];
-    // (undocumented)
     extensions: readonly string[];
-    // (undocumented)
     id: FormatId;
-    // (undocumented)
     mimeTypes: readonly string[];
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
     styles?: FormatStyles;
     writerOptions?: readonly OptionDescriptor[];
@@ -889,13 +837,10 @@ export function formatDescriptor(id: string): FormatDescriptor | undefined;
 
 // @public
 export interface FormatExportVariant {
-    // (undocumented)
     extensions: readonly string[];
     id: string;
-    // (undocumented)
     mimeTypes: readonly string[];
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
     preset: Readonly<Record<string, unknown>>;
 }
@@ -924,9 +869,7 @@ export interface FunctionDescriptor {
     // @deprecated
     description: string;
     descriptionId?: string;
-    // (undocumented)
     name: string;
-    // (undocumented)
     returns: "number" | "boolean" | "string";
 }
 
@@ -1243,6 +1186,13 @@ export type GraphtyErrorCode =
 * the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
+/**
+* A workbook source's `sheet` option names no sheet of the workbook. `details` are
+* `{ sheet, available }`: the name asked for, and every sheet's name in tab order. The file
+* itself was read fine. The caller loads again naming one of the available sheets, or leaves
+* `sheet` out to read the first.
+*/
+| "E_SHEET_NOT_FOUND"
 /**
 * A graphty project or document file (one `session.project.save` writes) was handed to a data
 * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
@@ -1810,11 +1760,8 @@ export type GroupMatchCode = "group.new" | "group.gone";
 
 // @beta
 export interface HopsLeaf {
-    // (undocumented)
     readonly direction?: SelectionDirection;
-    // (undocumented)
     readonly kind: "hops";
-    // (undocumented)
     readonly max?: number;
     readonly of?: StepReference;
 }
@@ -1860,7 +1807,7 @@ export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "
 export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric", "bottomView"];
 
 // @public
-export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "graphty"];
+export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "xlsx", "graphty"];
 
 // @public
 export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random", "location-map"];
@@ -2075,25 +2022,16 @@ export type LayerSource = {
 
 // @public
 export interface LayerSpec {
-    // (undocumented)
     enabled?: boolean;
-    // (undocumented)
     encode?: Encoding;
-    // (undocumented)
     kind?: LayerKind;
-    // (undocumented)
     name: string;
     row?: LayerId;
-    // (undocumented)
     selector: Selector;
-    // (undocumented)
     set?: StaticStyle;
-    // (undocumented)
     source?: LayerSource;
-    // (undocumented)
     target?: "node" | "edge";
     unmatched?: readonly LayerUnmatchedGroup[];
-    // (undocumented)
     userData?: Record<string, unknown>;
 }
 
@@ -2125,28 +2063,19 @@ export interface LayoutDescriptor {
     description: string;
     descriptionId?: string;
     engine: string;
-    // (undocumented)
     family: string;
     honorsWeights: boolean;
     // @deprecated
     honoursWeights: boolean;
-    // (undocumented)
     id: LayoutId;
-    // (undocumented)
     kind: "live" | "batch";
-    // (undocumented)
     maxDimensions: 2 | 3;
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
     requires?: LayoutRequirements;
     scoped: boolean;
-    // (undocumented)
     sizeRating: "any" | 10000 | 2000 | 500;
-    // (undocumented)
     structuralInputs: readonly ("node" | "partition" | "ordering")[];
-    // (undocumented)
     technicalName: string;
 }
 
@@ -2217,11 +2146,8 @@ export interface LogSinkDescriptor {
     // @deprecated
     description: string;
     descriptionId?: string;
-    // (undocumented)
     id: LogSinkId;
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
 }
 
@@ -2234,12 +2160,9 @@ export type LogSinkId = (typeof KNOWN_LOG_SINK_IDS)[number] | (string & {});
 // @beta
 export interface MeasureLeaf {
     readonly algorithm: string;
-    // (undocumented)
     readonly bind?: Readonly<Record<string, StepReference>>;
     readonly field: string;
-    // (undocumented)
     readonly kind: "measure";
-    // (undocumented)
     readonly params?: Readonly<Record<string, unknown>>;
     readonly scope?: Scope;
     readonly test?: MeasureTest;
@@ -2272,22 +2195,14 @@ export type MeasureTest = Omit<Extract<RuleTree, {
 
 // @public
 export interface MetricAvailability {
-    // (undocumented)
     available: boolean;
-    // (undocumented)
     costClass: CostClass;
-    // (undocumented)
     estimateSeconds: number;
-    // (undocumented)
     hasRun: boolean;
-    // (undocumented)
     key: AlgorithmKey;
-    // (undocumented)
     plainName: string;
     refusal?: CodedFact<EstimateRefusalCode>;
-    // (undocumented)
     runIds: readonly RunId[];
-    // (undocumented)
     technicalName: string;
 }
 
@@ -2336,7 +2251,6 @@ export type NodeShape = NonNullable<NonNullable<NodeStyleConfig["shape"]>["type"
 
 // @beta
 export interface NonemptyLeaf {
-    // (undocumented)
     readonly kind: "nonempty";
     readonly of?: StepReference;
 }
@@ -2349,7 +2263,6 @@ export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "
 
 // @public
 export interface OptionBound {
-    // (undocumented)
     from: (typeof OPTION_BOUND_SOURCES)[number] | (string & {});
 }
 
@@ -2361,15 +2274,12 @@ export interface OptionChoice {
         readonly runId: RunId;
         readonly field: string;
     };
-    // (undocumented)
     value: string;
 }
 
 // @public
 export interface OptionChoiceRefusal {
-    // (undocumented)
     readonly code: "location.column-unfit";
-    // (undocumented)
     readonly params: {
         readonly role: "latitude" | "longitude" | "location";
         readonly share: number;
@@ -2378,35 +2288,22 @@ export interface OptionChoiceRefusal {
 
 // @public
 export interface OptionDescriptor extends OptionDescriptorDomain {
-    // (undocumented)
     advanced?: boolean;
-    // (undocumented)
     attributeType?: AttributeType;
-    // (undocumented)
     default?: unknown;
     // @deprecated
     description?: string;
     descriptionId?: string;
-    // (undocumented)
     group?: string;
-    // (undocumented)
     internal?: boolean;
-    // (undocumented)
     max?: number | string | OptionBound;
-    // (undocumented)
     min?: number | string | OptionBound;
-    // (undocumented)
     name: string;
-    // (undocumented)
     plainName: string;
-    // (undocumented)
     step?: number;
-    // (undocumented)
     technicalName?: string;
-    // (undocumented)
     type: OptionType;
     unsupported?: OptionUnsupported;
-    // (undocumented)
     values?: readonly OptionChoice[];
 }
 
@@ -2430,9 +2327,7 @@ export type OptionUiMeta = OptionsSchema[string]["meta"];
 
 // @public
 export interface OptionUnsupported {
-    // (undocumented)
     readonly code: OptionUnsupportedCode;
-    // (undocumented)
     readonly params: {
         readonly types?: readonly string[];
     };
@@ -2447,15 +2342,10 @@ export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[];
 // @public
 export interface PaletteDescriptor {
     capacity: number | null;
-    // (undocumented)
     colorblindSafe: readonly ("deuteranopia" | "protanopia" | "tritanopia")[];
-    // (undocumented)
     colors: readonly string[];
-    // (undocumented)
     id: PaletteId;
-    // (undocumented)
     kind: "sequential" | "diverging" | "categorical";
-    // (undocumented)
     plainName: string;
 }
 
@@ -2505,7 +2395,6 @@ export interface QueryValidation {
         position: number;
         params: Readonly<Record<string, unknown>>;
     };
-    // (undocumented)
     ok: boolean;
     unresolvedPaths: readonly {
         path: Path;
@@ -2580,13 +2469,9 @@ export function retypeShaderParam(draft: ShaderTextDraft, index: number, type: S
 
 // @public
 export interface Rgba {
-    // (undocumented)
     a: number;
-    // (undocumented)
     b: number;
-    // (undocumented)
     g: number;
-    // (undocumented)
     r: number;
 }
 
@@ -2720,7 +2605,6 @@ export type RunId = string;
 // @beta
 export interface SameValueLeaf {
     readonly as?: StepReference;
-    // (undocumented)
     readonly kind: "same-value";
     readonly path: Path;
 }
@@ -2730,13 +2614,9 @@ export const SCALE_DESCRIPTORS: readonly ScaleDescriptor[];
 
 // @public
 export interface ScaleDescriptor {
-    // (undocumented)
     domainKind: "numeric" | "categorical" | "boolean";
-    // (undocumented)
     name: string;
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
 }
 
@@ -3237,7 +3117,6 @@ export function splitShaderText(text: ShaderText): ShaderTextParts;
 
 // @public
 export interface StateLeaf {
-    // (undocumented)
     readonly kind: "state";
     readonly state: ElementState;
 }
@@ -3263,7 +3142,6 @@ export const STYLE_PATCH_ACTIONS: readonly ["add", "update", "remove", "move", "
 // @public
 export interface StyleDocument {
     labelLooks?: readonly LabelLookDescriptor[];
-    // (undocumented)
     layers: readonly LayerSpec[];
     palettes?: readonly PaletteDescriptor[];
     problems?: readonly ShaderProblem[];
@@ -3272,7 +3150,6 @@ export interface StyleDocument {
         readonly text: ShaderText;
     }[];
     tree?: readonly StyleDocumentRow[];
-    // (undocumented)
     version: 1;
 }
 
@@ -3290,9 +3167,7 @@ export type StyleDocumentRow = ({
 
 // @public
 export interface SuggestedName {
-    // (undocumented)
     readonly id: string;
-    // (undocumented)
     readonly label: string;
 }
 
@@ -3301,11 +3176,8 @@ export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" 
 
 // @public
 export interface ThemeDescriptor {
-    // (undocumented)
     document: StyleDocument;
-    // (undocumented)
     name: string;
-    // (undocumented)
     plainName: string;
 }
 
@@ -3317,9 +3189,7 @@ export type TopTies = "fewer" | "all";
 
 // @beta
 export interface TouchingLeaf {
-    // (undocumented)
     readonly ends: "either" | "both" | "one";
-    // (undocumented)
     readonly kind: "touching";
     readonly of?: StepReference;
 }
@@ -3355,7 +3225,6 @@ export interface UnionBranch {
 // @beta
 export interface UnionLeaf {
     readonly branches: readonly UnionBranch[];
-    // (undocumented)
     readonly kind: "union";
     readonly side: "nodes" | "edges";
     readonly sources?: readonly SourceKey[];

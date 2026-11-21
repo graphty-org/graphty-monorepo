@@ -726,6 +726,52 @@ export interface StableFrameOptions {
     timeoutMs?: number;
 }
 
+/** How `loadFromFile` and `loadFromUrl` load, on {@link Graph} and on the element. */
+export interface FileLoadOptions {
+    /** The format (e.g. "json", "csv", "graphml"); detected from the name and the content when unset. */
+    format?: string;
+    /** JMESPath for the node id field. */
+    nodeIdPath?: string;
+    /**
+     * Where the node an edge starts at is named in the record. Left unset, the element reads
+     * `source`, then `src`, then `from`.
+     */
+    edgeSource?: string;
+    /** Where the node an edge ends at is named in the record. */
+    edgeTarget?: string;
+    /**
+     * Replace the graph with this data, but only once it has all parsed: a malformed or empty
+     * file rejects and leaves the current graph untouched.
+     */
+    replace?: boolean;
+    /**
+     * Which graph to read, by position, from a file that holds several (`listGraphs` from
+     * `@graphty/graphty-element/catalog` lists them); the first when neither this nor `graphName` is given.
+     */
+    graphIndex?: number;
+    /** Which graph to read, by name, from a file that holds several. */
+    graphName?: string;
+    /**
+     * `"file"` also draws the file's own styles (colors, sizes, shapes, labels) as style layers, so
+     * the graph looks as it does in the program that wrote it; `"none"` (the default) loads the data alone.
+     */
+    styles?: "file" | "none";
+    /** How the file's styles are turned into layers. */
+    styleOptions?: FileStyleOptions;
+    /**
+     * `"recommended"` chooses a layout for what was loaded once it is loaded: `fixed`, which draws
+     * each node where the file put it, when every node arrived with a position, and a computed one
+     * otherwise. `"placed"` chooses `fixed` in the same case and otherwise leaves the layout as it
+     * is. `"keep"` (the default) leaves the layout as it is.
+     */
+    layout?: "recommended" | "placed" | "keep";
+    /**
+     * Cancels the load, its read or fetch included: it rejects with the signal's reason (an
+     * `AbortError` by default) and adds nothing, leaving the graph as it was.
+     */
+    signal?: AbortSignal;
+}
+
 /**
  * Where one node is drawn on screen. Pixels count from the element's top-left corner, the same
  * pixels `worldToScreen` returns and a pointer event's `offsetX` / `offsetY` on the canvas use.
@@ -3822,41 +3868,9 @@ export class Graph implements GraphContext {
      * Load graph data from a File object with auto-format detection
      * @param file - File object from file input
      * @param options - Loading options
-     * @param options.format - Explicit format override (e.g., "graphml", "json")
-     * @param options.nodeIdPath - JMESPath for node ID extraction
-     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
-     *     unset, the element reads `source`, then `src`, then `from`
-     * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @param options.replace - Replace the graph, once the file has parsed; see `addDataFromSource`
-     * @param options.signal - Cancels the load, its read included; see `addDataFromSource`
-     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
-     *     (`listGraphs` from `./catalog` lists them); the first when neither choice is given
-     * @param options.graphName - Which graph to read, by name, from a file that holds several
-     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
-     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
-     *     `"none"` (the default) loads the data alone
-     * @param options.styleOptions - How the file's styles are turned into layers
-     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
-     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
-     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to the load's id when data is loaded
      */
-    async loadFromFile(
-        file: File,
-        options?: {
-            format?: string;
-            nodeIdPath?: string;
-            edgeSource?: string;
-            edgeTarget?: string;
-            replace?: boolean;
-            graphIndex?: number;
-            graphName?: string;
-            styles?: "file" | "none";
-            styleOptions?: FileStyleOptions;
-            layout?: "recommended" | "keep";
-            signal?: AbortSignal;
-        },
-    ): Promise<{ loadId: number }> {
+    async loadFromFile(file: File, options?: FileLoadOptions): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace, options?.signal);
         try {
             const { detectFormat } = await import("./data/format-detection.js");
@@ -3910,22 +3924,6 @@ export class Graph implements GraphContext {
      * the data source to avoid a double-fetch.
      * @param url - URL to fetch graph data from
      * @param options - Loading options
-     * @param options.format - Explicit format override (e.g., "graphml", "json")
-     * @param options.nodeIdPath - JMESPath for node ID extraction
-     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
-     *     unset, the element reads `source`, then `src`, then `from`
-     * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
-     * @param options.signal - Cancels the load, its fetch included; see `addDataFromSource`
-     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
-     * @param options.graphName - Which graph to read, by name, from a file that holds several
-     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
-     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
-     *     `"none"` (the default) loads the data alone
-     * @param options.styleOptions - How the file's styles are turned into layers
-     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
-     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
-     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to the load's id when data is loaded
      * @example
      * ```typescript
@@ -3939,22 +3937,7 @@ export class Graph implements GraphContext {
      * await graph.loadFromUrl("https://example.com/data.txt", { format: "graphml" });
      * ```
      */
-    async loadFromUrl(
-        url: string,
-        options?: {
-            format?: string;
-            nodeIdPath?: string;
-            edgeSource?: string;
-            edgeTarget?: string;
-            replace?: boolean;
-            graphIndex?: number;
-            graphName?: string;
-            styles?: "file" | "none";
-            styleOptions?: FileStyleOptions;
-            layout?: "recommended" | "keep";
-            signal?: AbortSignal;
-        },
-    ): Promise<{ loadId: number }> {
+    async loadFromUrl(url: string, options?: FileLoadOptions): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace, options?.signal);
         const pair = pairImports.get(this);
         try {

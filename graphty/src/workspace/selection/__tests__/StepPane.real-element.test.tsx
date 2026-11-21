@@ -1,7 +1,8 @@
 /**
  * A step's controls on a selection workspace card, on the REAL graphty-element, driven by real
  * clicks and keys: a Relative to step's Hops box, a touching step's Edge ends, Include not measured
- * on a value some nodes lack, and an algorithm step's output select and setting chips. Each edit
+ * on a value some nodes lack or on an algorithm's test, an algorithm step's output select and setting
+ * chips, a touching step's One end, and By position's tie words. Each edit
  * lands in the layer's selection as graphty-element holds it.
  */
 
@@ -456,5 +457,70 @@ describe("a card's count chip", () => {
         await waitFor(() => {
             assert.lengthOf(session.selection.nodes, 2, "Ana and Bo");
         });
+    });
+});
+
+/** Four people scored 5, 5, 3 and 1, in a line. */
+const SCORES_GML = `graph [
+  node [ id 1 label "Ana" score 5 ]
+  node [ id 2 label "Bo" score 5 ]
+  node [ id 3 label "Cy" score 3 ]
+  node [ id 4 label "Dee" score 1 ]
+  edge [ source 1 target 2 ]
+  edge [ source 2 target 3 ]
+  edge [ source 3 target 4 ]
+]`;
+
+describe("a selection step's ties, touching ends and an algorithm's not measured", () => {
+    it("a By position step says when a tie keeps more than it asked for", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("nodes", { kind: "range", attribute: "data.score", min: 0 }),
+            SCORES_GML,
+        );
+        const settings = await openSettings(modal);
+        await userEvent.click(
+            within(within(settings).getByRole("radiogroup", { name: "Test" })).getByText("By position"),
+        );
+        const count = await within(pane(modal)).findByRole("textbox", { name: "score: how many" });
+        await userEvent.click(count);
+        await userEvent.keyboard("{Control>}a{/Control}1{Enter}");
+        // Ana and Bo tie for the top score: both are kept, and the pane says so.
+        await within(pane(modal)).findByText("1 asked, 2 kept: tied");
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(layer.id).matched, 2);
+    });
+
+    it("a touching step's Edge ends picks One", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("edges", { kind: "touching", ends: "either", of: { nodes: ["Valjean"] } }),
+        );
+        const settings = await openSettings(modal);
+        const ends = within(settings).getByRole("radiogroup", { name: "Edge ends" });
+        await userEvent.click(within(ends).getByText("One"));
+        await waitFor(() => {
+            assert.strictEqual((stepOf(session, layer)?.rule as { ends?: string }).ends, "one");
+        });
+    });
+
+    it("Include not measured on an algorithm's test is said on Settings, and off leaves the test without it", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("nodes", {
+                kind: "measure",
+                algorithm: "pagerank",
+                field: "value",
+                test: { kind: "range", min: 0, missing: "include" },
+            }),
+        );
+        const measure = (): Extract<RuleTree, { kind: "measure" }> =>
+            stepOf(session, layer)?.rule as Extract<RuleTree, { kind: "measure" }>;
+        await within(pane(modal)).findByRole("button", { name: /^Settings for / });
+        const settings = await openSettings(modal);
+        const include = within(settings).getByRole<HTMLInputElement>("checkbox", { name: "Include not measured" });
+        assert.isTrue(include.checked);
+        await userEvent.click(include);
+        await waitFor(() => {
+            assert.deepEqual(measure().test, { kind: "range", min: 0 }, "the test keeps its bound, not measured gone");
+        });
+        assert.strictEqual(measure().algorithm, "pagerank", "still the same algorithm");
     });
 });

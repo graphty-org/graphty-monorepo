@@ -12,6 +12,7 @@ import { act } from "react";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import cysUrl from "../../../../graph-io/test/corpus/styles/cys/BasicDataVizDemo.cys?url";
 import { withFeatures } from "../../test/features";
 import { render, screen, waitFor } from "../../test/test-utils";
 import { openDataPage } from "../../workspace/data-page/request";
@@ -217,11 +218,32 @@ describe("import styles from files, on the real element", () => {
                     assert.equal(colorOf(session, "n1"), "#ff0000");
                 });
                 assert.isNotEmpty(fileLayers(session));
-                await screen.findByText(/The file's styles are drawn, with these differences/, {});
+                await screen.findByText(/^File styles drawn with/, {});
             } else {
                 assert.deepEqual(fileLayers(session), []);
-                assert.isNull(screen.queryByText(/The file's styles are drawn/));
+                assert.isNull(screen.queryByText(/^File styles drawn/));
             }
         });
     }
+
+    it("a Cytoscape session dropped on the start screen opens as Cytoscape drew it, with a short notice and the dock closed", async () => {
+        const store = createWorkspaceStore();
+        render(<Workspace store={store} />);
+        const bytes = await (await fetch(cysUrl)).arrayBuffer();
+        dropOn(globalThis, new File([bytes], "yeast-galactose.cys"));
+        const session = await elementSession();
+        await waitFor(() => {
+            assert.equal(session.data.lastImport()?.counts.nodes, 249);
+        });
+        await session.styles.settled();
+        // Laid out where the session stores its nodes, so they are as large beside the drawing as Cytoscape draws them.
+        await waitFor(() => {
+            assert.equal(session.layout.id, "fixed");
+        });
+        // One short line; Data sources lists the differences.
+        const notice = await screen.findByText(/^File styles drawn with \d+ differences$/, {});
+        assert.isAtMost(notice.textContent.length, 60);
+        // The session's one pair of parallel edges is no reason to open the table.
+        assert.isFalse(store.get().dockOpen);
+    });
 });

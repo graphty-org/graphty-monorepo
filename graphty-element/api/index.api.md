@@ -504,7 +504,7 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
-    layout?: "recommended" | "keep";
+    layout?: "recommended" | "placed" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -2060,6 +2060,7 @@ export const EdgeStyle: z.ZodObject<{
         dashArray: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         colorFrom: z.ZodOptional<z.ZodEnum<{
+            none: "none";
             source: "source";
             target: "target";
         }>>;
@@ -2822,6 +2823,21 @@ export interface FigureResult {
 export type FileKind = "project" | "recipe" | "style" | "document" | "graph";
 
 // @public
+export interface FileLoadOptions {
+    edgeSource?: string;
+    edgeTarget?: string;
+    format?: string;
+    graphIndex?: number;
+    graphName?: string;
+    layout?: "recommended" | "placed" | "keep";
+    nodeIdPath?: string;
+    replace?: boolean;
+    signal?: AbortSignal;
+    styleOptions?: FileStyleOptions;
+    styles?: "file" | "none";
+}
+
+// @public
 export interface FilesApi {
     // @beta
     kindOf(source: ProjectSource): Promise<FileKind>;
@@ -3168,34 +3184,10 @@ export class Graph implements GraphContext {
     listenerCount(): number;
     // @deprecated
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
-    loadFromFile(file: File, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromFile(file: File, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
-    loadFromUrl(url: string, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromUrl(url: string, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
@@ -3776,37 +3768,13 @@ export class Graphty extends LitElement {
     listenerCount(): number;
     // @deprecated
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
-    loadFromFile(file: File, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromFile(file: File, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
     loadFromSource(source: string, params: Readonly<Record<string, unknown>>, options?: SourceLoadOptions): Promise<{
         key: string;
     }>;
-    loadFromUrl(url: string, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromUrl(url: string, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
@@ -4326,6 +4294,13 @@ export type GraphtyErrorCode =
 * the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
+/**
+* A workbook source's `sheet` option names no sheet of the workbook. `details` are
+* `{ sheet, available }`: the name asked for, and every sheet's name in tab order. The file
+* itself was read fine. The caller loads again naming one of the available sheets, or leaves
+* `sheet` out to read the first.
+*/
+| "E_SHEET_NOT_FOUND"
 /**
 * A graphty project or document file (one `session.project.save` writes) was handed to a data
 * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
@@ -4916,6 +4891,11 @@ export interface GraphtyErrorDetailsMap {
         readonly issue?: string;
         readonly element?: string;
     };
+    E_SHEET_NOT_FOUND: {
+        readonly format?: string;
+        readonly sheet?: string;
+        readonly available?: readonly string[];
+    };
     E_TOO_LARGE: {
         readonly limit?: number;
         readonly count?: number;
@@ -5343,6 +5323,10 @@ export type GraphtyWarningCode =
 * reference back as they were), or a save kept it as a copy. `params.source` is the load's key
 * and `params.reason` is `not-found`, `denied` or `unreadable`. On an open, `params.name` (its
 * name, when it has one) and `params.url` (its address, for a URL load) say which it was.
+* When the read threw, `params.cause` is what it threw: the error's code (a `GraphtyErrorCode`,
+* or `unknown` for an error that is not a `GraphtyError`), and `params["cause.<name>"]` each
+* plain value of its `details` (`cause.status`, `cause.url`, ...; `cause.name`, the error's
+* name, for `unknown`). Absent when nothing was thrown (`denied`, or a copy that changed).
 */
 | "W_SOURCE_UNAVAILABLE"
 /**
@@ -5423,13 +5407,9 @@ export const GREENS_COLORS: readonly ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b"
 
 // @public
 export interface GroupOutlineAtResult {
-    // (undocumented)
     readonly group: string | number | boolean | null;
-    // (undocumented)
     readonly kind: "group-outline";
-    // (undocumented)
     readonly layer: LayerId;
-    // (undocumented)
     readonly shader: string;
 }
 
@@ -5645,7 +5625,7 @@ export abstract class LayoutEngine {
         x: number;
         y: number;
         z: number;
-    }): boolean;
+    }, lane?: ElementPositions): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
     // @internal
     protected releasePublishScratch(): void;
@@ -5746,6 +5726,8 @@ export class LayoutManager implements Manager {
     stepBatch(): void;
     // @internal
     steppedPublishes: number;
+    // @internal
+    takeFrameHold(): boolean;
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
     // @internal
@@ -9305,7 +9287,7 @@ export class UpdateManager implements Manager {
     get awaitsLanding(): boolean;
     bindViewMasks(masks: ViewMasks | null): void;
     // @internal
-    buildPlainRow(id: NodeIdType_2): void;
+    buildPlainRows(ids: readonly NodeIdType_2[]): void;
     cameraHeld: boolean;
     // @internal
     columnFraming(): ColumnFraming | undefined;

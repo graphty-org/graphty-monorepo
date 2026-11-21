@@ -260,34 +260,25 @@ export type AlgorithmDefinition<O extends OptionsShorthand> = NodeScoreDefinitio
 
 // @public
 export interface AlgorithmDescriptor {
-    // (undocumented)
     approximable?: {
         method: string;
         plainName: string;
         defaultSample: number;
         seeded: boolean;
     };
-    // (undocumented)
     category: "centrality" | "community" | "path" | "flow" | "structure" | "prediction" | (string & {});
-    // (undocumented)
     complexity: string;
     cost?: (n: number, m: number) => number;
-    // (undocumented)
     costClass: CostClass;
     // @deprecated
     description: string;
     descriptionId?: string;
-    // (undocumented)
     fields: readonly FieldDescriptor[];
-    // (undocumented)
     key: AlgorithmKey;
     // @beta
     keywords?: readonly string[];
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
-    // (undocumented)
     requires?: {
         directed?: boolean;
         weighted?: boolean;
@@ -295,9 +286,7 @@ export interface AlgorithmDescriptor {
         connected?: boolean;
     };
     scopeInput?: "none" | "subgraph";
-    // (undocumented)
     shape: ResultShape;
-    // (undocumented)
     technicalName: string;
     weightMeaning?: "strength" | "distance" | "capacity" | null;
 }
@@ -419,7 +408,7 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
-    layout?: "recommended" | "keep";
+    layout?: "recommended" | "placed" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -429,12 +418,9 @@ export interface CameraDescriptor {
     // @deprecated
     description: string;
     descriptionId?: string;
-    // (undocumented)
     id: CameraId;
     modes: readonly DrawingMode[];
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
 }
 
@@ -1011,28 +997,20 @@ export interface FieldDescriptor {
         readonly max: number;
     };
     interpretation?: FieldInterpretation;
-    // (undocumented)
     kind: "node" | "edge" | "graph";
     measurement?: Measurement;
     // @beta
     missing?: "unreached" | "unmeasured" | (string & {});
-    // (undocumented)
     name: string;
-    // (undocumented)
     normalization?: string;
     // @beta
     order?: readonly (string | number)[];
-    // (undocumented)
     path: Path;
-    // (undocumented)
     plainName: string;
     // @beta
     polarity?: "higher" | "lower";
-    // (undocumented)
     technicalName: string;
-    // (undocumented)
     type: "number" | "integer" | "boolean" | "string" | "table";
-    // (undocumented)
     unit?: string;
     // @beta
     unstable?: true;
@@ -1044,22 +1022,16 @@ export function forEachChunked<T>(context: RunControls, phase: string, items: re
 // @public
 export interface FormatDescriptor {
     binary?: boolean;
-    // (undocumented)
     canExport: boolean;
-    // (undocumented)
     canImport: boolean;
     // @deprecated
     description?: string;
     descriptionId?: string;
     exportVariants?: readonly FormatExportVariant[];
-    // (undocumented)
     extensions: readonly string[];
-    // (undocumented)
     id: FormatId;
-    // (undocumented)
     mimeTypes: readonly string[];
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
     styles?: FormatStyles;
     writerOptions?: readonly OptionDescriptor[];
@@ -1067,13 +1039,10 @@ export interface FormatDescriptor {
 
 // @public
 export interface FormatExportVariant {
-    // (undocumented)
     extensions: readonly string[];
     id: string;
-    // (undocumented)
     mimeTypes: readonly string[];
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
     preset: Readonly<Record<string, unknown>>;
 }
@@ -1438,6 +1407,13 @@ export type GraphtyErrorCode =
 * the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
+/**
+* A workbook source's `sheet` option names no sheet of the workbook. `details` are
+* `{ sheet, available }`: the name asked for, and every sheet's name in tab order. The file
+* itself was read fine. The caller loads again naming one of the available sheets, or leaves
+* `sheet` out to read the first.
+*/
+| "E_SHEET_NOT_FOUND"
 /**
 * A graphty project or document file (one `session.project.save` writes) was handed to a data
 * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
@@ -2028,6 +2004,11 @@ export interface GraphtyErrorDetailsMap {
         readonly issue?: string;
         readonly element?: string;
     };
+    E_SHEET_NOT_FOUND: {
+        readonly format?: string;
+        readonly sheet?: string;
+        readonly available?: readonly string[];
+    };
     E_TOO_LARGE: {
         readonly limit?: number;
         readonly count?: number;
@@ -2148,7 +2129,7 @@ export { IssueCategory }
 export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric", "bottomView"];
 
 // @public
-export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "graphty"];
+export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "xlsx", "graphty"];
 
 // @public
 export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random", "location-map"];
@@ -2185,28 +2166,19 @@ export interface LayoutDescriptor {
     description: string;
     descriptionId?: string;
     engine: string;
-    // (undocumented)
     family: string;
     honorsWeights: boolean;
     // @deprecated
     honoursWeights: boolean;
-    // (undocumented)
     id: LayoutId;
-    // (undocumented)
     kind: "live" | "batch";
-    // (undocumented)
     maxDimensions: 2 | 3;
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
     requires?: LayoutRequirements;
     scoped: boolean;
-    // (undocumented)
     sizeRating: "any" | 10000 | 2000 | 500;
-    // (undocumented)
     structuralInputs: readonly ("node" | "partition" | "ordering")[];
-    // (undocumented)
     technicalName: string;
 }
 
@@ -2289,7 +2261,7 @@ export abstract class LayoutEngine {
         x: number;
         y: number;
         z: number;
-    }): boolean;
+    }, lane?: ElementPositions): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
     // @internal
     protected releasePublishScratch(): void;
@@ -2369,11 +2341,8 @@ export interface LogSinkDescriptor {
     // @deprecated
     description: string;
     descriptionId?: string;
-    // (undocumented)
     id: LogSinkId;
-    // (undocumented)
     options: readonly OptionDescriptor[];
-    // (undocumented)
     plainName: string;
 }
 
@@ -2644,7 +2613,6 @@ export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "
 
 // @public
 export interface OptionBound {
-    // (undocumented)
     from: (typeof OPTION_BOUND_SOURCES)[number] | (string & {});
 }
 
@@ -2656,7 +2624,6 @@ export interface OptionChoice {
         readonly runId: RunId;
         readonly field: string;
     };
-    // (undocumented)
     value: string;
 }
 
@@ -2683,35 +2650,22 @@ export interface OptionDefinition<T = unknown> {
 
 // @public
 export interface OptionDescriptor extends OptionDescriptorDomain {
-    // (undocumented)
     advanced?: boolean;
-    // (undocumented)
     attributeType?: AttributeType;
-    // (undocumented)
     default?: unknown;
     // @deprecated
     description?: string;
     descriptionId?: string;
-    // (undocumented)
     group?: string;
-    // (undocumented)
     internal?: boolean;
-    // (undocumented)
     max?: number | string | OptionBound;
-    // (undocumented)
     min?: number | string | OptionBound;
-    // (undocumented)
     name: string;
-    // (undocumented)
     plainName: string;
-    // (undocumented)
     step?: number;
-    // (undocumented)
     technicalName?: string;
-    // (undocumented)
     type: OptionType;
     unsupported?: OptionUnsupported;
-    // (undocumented)
     values?: readonly OptionChoice[];
 }
 
@@ -2757,9 +2711,7 @@ export type OptionUiMeta = OptionsSchema_2[string]["meta"];
 
 // @public
 export interface OptionUnsupported {
-    // (undocumented)
     readonly code: OptionUnsupportedCode;
-    // (undocumented)
     readonly params: {
         readonly types?: readonly string[];
     };
@@ -2795,15 +2747,10 @@ export interface PaletteDefinition {
 // @public
 export interface PaletteDescriptor {
     capacity: number | null;
-    // (undocumented)
     colorblindSafe: readonly ("deuteranopia" | "protanopia" | "tritanopia")[];
-    // (undocumented)
     colors: readonly string[];
-    // (undocumented)
     id: PaletteId;
-    // (undocumented)
     kind: "sequential" | "diverging" | "categorical";
-    // (undocumented)
     plainName: string;
 }
 
@@ -3485,9 +3432,7 @@ export { SourceValidators }
 
 // @public
 export interface SuggestedName {
-    // (undocumented)
     readonly id: string;
-    // (undocumented)
     readonly label: string;
 }
 

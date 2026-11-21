@@ -1613,8 +1613,8 @@
                     "plainName": "Max Iterations",
                     "technicalName": "maxIter",
                     "type": "integer",
-                    "description": "Maximum number of simulation iterations",
-                    "default": 100,
+                    "description": "Maximum number of simulation iterations (scaled to the graph's size if null)",
+                    "default": null,
                     "min": 0
                 },
                 {

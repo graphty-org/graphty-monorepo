@@ -99,7 +99,6 @@ describe("pulled arrow caps", () => {
             return {
                 from: Math.floor(random() * CAPS),
                 head: CAPS + e,
-                capGap: e % 3 === 0 ? 0.05 : 0,
                 centreBack: e % 2 === 0 ? 0 : 0.1,
                 size: 0.5 * (1 + (e % 4) * 0.25),
                 colour: ["#204080", "#802040", "#000000"][e % 3],
@@ -237,7 +236,7 @@ describe("pulled arrow caps", () => {
                 const dst = new Vector3(ends.dst.x, ends.dst.y, ends.dst.z);
                 const direction = dst.subtract(src).normalize();
                 placed[e].setScale(scale);
-                placed[e].place(dst.subtract(direction.scale(cap.capGap + cap.centreBack * scale)), direction);
+                placed[e].place(dst.subtract(direction.scale(cap.centreBack * scale)), direction);
             });
         };
         const both = async (): Promise<[Uint8ClampedArray, Uint8ClampedArray]> => {

@@ -12,7 +12,6 @@ import { Scene } from "@babylonjs/core/scene.js";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ArrowCap, type ArrowCapBatch, arrowCapBatch, pulledCapHosts } from "./ArrowCapBatch";
-import { EDGE_TRIM_GLSL } from "./edgeTrim";
 import { MaterialHelper } from "./MaterialHelper";
 import { PerSceneMaterials } from "./PerSceneMaterials";
 
@@ -304,40 +303,20 @@ varying vec4 vColor;
 varying float vClip;
 #ifdef CAP_PULLED
 // A batch on renderPath "batched" (ArrowCapBatch.setPulled) also draws caps pulled from the row table: such a
-// slot's two rows plus one, head end last; 0 for a placed cap, which draws as above. Its place is read from the
-// row table each frame, so a move uploads no cap byte.
-attribute vec2 capRows;
-// The cap's own gap, how far its center sits behind its tip, and its length, at node scale 1; and 1 once the CPU
-// placed it at rest (restPlacement.ts) in its matrix and arrowSize, as Edge.placeArrowHead places an object
-// edge's, which it draws while capPlaced is 1.
-attribute vec4 capPlace;
+// slot's two rows plus one, head end last (0 for a placed cap, which draws as above), how far its center sits behind
+// its tip and its length at node scale 1, the length negative once the CPU placed it at rest (restPlacement.ts) in
+// its matrix and arrowSize, as Edge.placeArrowHead places an object edge's, which it draws while capPlaced is 1. Its
+// place is read from the row table each frame, so a move uploads no cap byte.
+attribute vec4 capPull;
 uniform float capPlaced;
 uniform highp sampler2D rowPosition;
 uniform highp sampler2D rowExtent;
-${EDGE_TRIM_GLSL}
 // One texel of each table; no sampler is passed to a function, which WebGPU's translation refuses.
 vec4 capPosition(int i) {
     return texelFetch(rowPosition, ivec2(i & 1023, i >> 10), 0);
 }
 vec4 capExtent(int i) {
     return texelFetch(rowExtent, ivec2(i & 1023, i >> 10), 0);
-}
-// A row's end as Edge.trimInput gives it for a closed end: rowExtent's scale, round radius, border
-// and flags, then half extents, each at the part w of it drawn.
-EdgeTrimEnd capEnd(int row, float w, float gap, out float scale) {
-    vec4 a = capExtent(row * 3);
-    vec4 b = capExtent(row * 3 + 1);
-    EdgeTrimEnd end;
-    end.radius = mod(a.w, 2.0) >= 1.0 ? a.y * w : -1.0;
-    end.halfSize = b.xyz * w;
-    end.ellipse = 0.0;
-    end.border = a.z;
-    end.gap = gap;
-    end.measured = -1.0;
-    end.leaves = 0.0;
-    end.group = 0.0;
-    scale = a.x * w;
-    return end;
 }
 #endif
 #else
@@ -377,27 +356,39 @@ void main() {
     // Edge.placeArrowHead over the include's ends: the tip stands where the line meets the head's node, the center
     // its offset behind the tip, both along the line. Two round ends that overlap give the line no ends, and
     // Edge.placeArrowFromCentres hides such a head, since their boxes overlap too (Edge.endsOverlap).
-    if (scale > 0.0 && capRows.x > 0.5 && capRows.y > 0.5 && !(capPlaced > 0.5 && capPlace.w > 0.5)) {
+    if (scale > 0.0 && capPull.x > 0.5 && capPull.y > 0.5 && !(capPlaced > 0.5 && capPull.w < 0.0)) {
         scale = 0.0;
-        int fromRow = int(capRows.x + 0.5) - 1;
-        int to = int(capRows.y + 0.5) - 1;
+        int fromRow = int(capPull.x + 0.5) - 1;
+        int to = int(capPull.y + 0.5) - 1;
         vec4 a = capPosition(fromRow);
         vec4 b = capPosition(to);
-        if (a.w * b.w != 0.0) {
-            float fromScale;
-            float toScale;
-            EdgeTrimEnd source = capEnd(fromRow, a.w, 0.0, fromScale);
-            EdgeTrimEnd target = capEnd(to, b.w, 0.0, toScale);
-            EdgeTrimmed ends = edgeTrimEnds(a.xyz, b.xyz, source, target, 0.0);
+        // both ends are round rows (EdgeRowLines, Edge.headPullable): trimEnds for two round ends, step for step
+        vec4 fa = capExtent(fromRow * 3);
+        vec4 ta = capExtent(to * 3);
+        float r1 = fa.y * a.w;
+        float r2 = ta.y * b.w;
+        vec3 d = b.xyz - a.xyz;
+        float span = length(d);
+        if (a.w * b.w != 0.0 && span > r1 + r2) {
+            vec3 dir = d / span;
+            vec3 s = a.xyz + dir * r1;
+            vec3 tip = b.xyz - dir * r2;
+            // pastBorders
+            vec3 l = tip - s;
+            float reached = length(l);
+            if (!((fa.z == 0.0 && ta.z == 0.0) || reached <= fa.z + ta.z)) {
+                tip -= (l / reached) * ta.z;
+            }
+            float toScale = ta.x * b.w;
             toScale = toScale > 0.0 ? toScale : 1.0;
-            if (ends.hasSrc && ends.hasDst && ends.dst != ends.src) {
+            {
                 // A closed end lies on the line between the centers, so that line's direction is the trimmed
                 // line's, with fewer roundings.
-                lineDir = normalize(b.xyz - a.xyz);
-                vec3 centre = ends.dst - lineDir * (capPlace.x + capPlace.y * toScale);
+                lineDir = dir;
+                vec3 centre = tip - lineDir * (capPull.z * toScale);
                 // the batch mesh's own transform, not the slot's matrix, which holds the last rest's place
                 worldCenter = (world * vec4(centre, 1.0)).xyz;
-                scale = capPlace.z * toScale;
+                scale = abs(capPull.w) * toScale;
             }
         }
     }
@@ -1668,7 +1659,7 @@ void main() {
                         "arrowColor",
                         "arrowClip",
                         "arrowHidden",
-                        ...(pulled ? ["capRows", "capPlace"] : []),
+                        ...(pulled ? ["capPull"] : []),
                     ],
                     // `world` is the batch mesh's own transform, which Babylon's instancing include
                     // multiplies a thin instance's slot matrix by. Without it in this list the

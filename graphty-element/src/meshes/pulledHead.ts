@@ -106,7 +106,7 @@ function judge(style: EdgeStyleConfig): PulledHead | null {
         shape,
         opacity,
         colour: Color3.FromHexString(arrow.color ?? style.line?.color ?? "#FFFFFF"),
-        place: { capGap: 0, centreBack, size: length },
+        place: { centreBack, size: length },
         lineStop: EdgeMesh.lineStopOf(length, geometry),
         look: {
             size: length,

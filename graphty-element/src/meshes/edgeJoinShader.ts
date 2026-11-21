@@ -288,36 +288,37 @@ float pulledReach(int row, float w, vec3 dir) {
     return edgeTrimReach(dir, end) + a.z;
 }
 
-// A row's end as Edge.trimInput gives it for a closed end, as the pulled cap's shader reads it (CAP_PULLED's capEnd).
-EdgeTrimEnd pulledCapEnd(int row, float w, out float scale) {
-    vec4 a = pulledExtent(row * 3);
-    vec4 b = pulledExtent(row * 3 + 1);
-    EdgeTrimEnd end;
-    end.radius = (int(a.w + 0.5) & ${String(ROW_EXTENT_ROUND)}) != 0 ? a.y * w : -1.0;
-    end.halfSize = b.xyz * w;
-    end.ellipse = 0.0;
-    end.border = a.z;
-    end.gap = 0.0;
-    end.measured = -1.0;
-    end.leaves = 0.0;
-    end.group = 0.0;
-    scale = a.x * w;
-    return end;
-}
-
-// Edge.transformArrowCap's line under a head drawn from the row table (ArrowCapBatch.setPulled): from the source's outline to
-// capBack, at the head's node scale, before the target's. Ends that meet nothing (overlapping nodes) keep the centers,
-// as Edge.placeArrowFromCentres leaves the line there.
+// Edge.transformArrowCap's line under a head pulled from the row table (ArrowCapBatch.setPulled), whose two ends are
+// round rows: trimEnds for two round ends, step for step (a struct-returning trim here left WebGPU's frame empty). The
+// line runs from the source's outline to capBack, at the head's node scale, before the target's; two ends that overlap
+// give the line no ends, and it keeps the centers, as Edge.placeArrowFromCentres leaves it.
 void pulledCapTrim(int fromRow, int toRow, float fromW, float toW, float capBack, inout vec3 head, inout vec3 tail) {
-    float fromScale;
-    float toScale;
-    EdgeTrimEnd source = pulledCapEnd(fromRow, fromW, fromScale);
-    EdgeTrimEnd target = pulledCapEnd(toRow, toW, toScale);
-    EdgeTrimmed ends = edgeTrimEnds(head, tail, source, target, capBack * (toScale > 0.0 ? toScale : 1.0));
-    if (ends.hasSrc && ends.hasDst) {
-        head = ends.src;
-        tail = ends.lineEnd;
+    vec4 fa = pulledExtent(fromRow * 3);
+    vec4 ta = pulledExtent(toRow * 3);
+    float r1 = fa.y * fromW;
+    float r2 = ta.y * toW;
+    vec3 d = tail - head;
+    float span = length(d);
+    if (span <= r1 + r2) {
+        return;
     }
+    vec3 dir = d / span;
+    vec3 s = head + dir * r1;
+    vec3 e = tail - dir * r2;
+    // pastBorders
+    vec3 l = e - s;
+    float reached = length(l);
+    if (!((fa.z == 0.0 && ta.z == 0.0) || reached <= fa.z + ta.z)) {
+        vec3 p = l / reached;
+        s += p * fa.z;
+        e -= p * ta.z;
+    }
+    vec3 m = e - s;
+    float len = length(m);
+    vec3 unit = len > 0.0 ? m / len : vec3(0.0);
+    float toScale = ta.x * toW;
+    head = s;
+    tail = e - unit * (capBack * (toScale > 0.0 ? toScale : 1.0));
 }
 
 // Edge.leaveNode at both ends: each moves toward the other by its reach, never past the other center. No name here

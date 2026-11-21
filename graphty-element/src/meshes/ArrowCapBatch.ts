@@ -44,11 +44,12 @@ const TRANSPARENT_PASS = 0.5;
 type BillboardBuffer = keyof typeof BILLBOARD_BUFFERS;
 
 /**
- * The per-instance values a batch on renderPath "batched" adds for its caps pulled from the row table
- * ({@link ArrowCapBatch.setPulled}): a slot's two rows plus one (0 for a placed cap), and its own gap, how far its
- * center sits behind its tip and its length at node scale 1, and 1 once placed at rest.
+ * The per-instance value a batch on renderPath "batched" adds for its caps pulled from the row table
+ * ({@link ArrowCapBatch.setPulled}): a slot's two rows plus one (0 for a placed cap), how far its center sits behind its
+ * tip and its length at node scale 1, the length negative once the CPU placed it at rest. One buffer, as WebGPU draws
+ * from at most eight vertex buffers and a billboarded cap already reads seven.
  */
-const PULLED_BUFFERS = { capRows: 2, capPlace: 4 } as const;
+const PULLED_BUFFERS = { capPull: 4 } as const;
 
 /** One of the {@link PULLED_BUFFERS}. */
 type PulledBuffer = keyof typeof PULLED_BUFFERS;
@@ -60,14 +61,11 @@ type SlotBuffer = "matrix" | BillboardBuffer | PulledBuffer;
 const PULLED_EVERY_BUFFER: readonly SlotBuffer[] = [
     "matrix",
     ...(Object.keys(BILLBOARD_BUFFERS) as BillboardBuffer[]),
-    "capRows",
-    "capPlace",
+    "capPull",
 ];
 
-/** What a pulled cap stands back by, at node scale 1. */
+/** What a pulled cap stands back by, at node scale 1; a pulled head has no gap of its own (`pulledHeadOf`). */
 export interface PulledCapPlace {
-    /** The cap's own gap back from the head end (`Edge.capGap`). */
-    readonly capGap: number;
     /** How far its center sits behind its tip (`EdgeMesh.calculateArrowPosition`). */
     readonly centreBack: number;
     /** Its length. */
@@ -266,8 +264,7 @@ export class ArrowCapBatch {
         arrowColor: new DirtyRuns(),
         arrowClip: new DirtyRuns(),
         arrowHidden: new DirtyRuns(),
-        capRows: new DirtyRuns(),
-        capPlace: new DirtyRuns(),
+        capPull: new DirtyRuns(),
     };
 
     /** A batch's caps pulled from the row table, on renderPath "batched": their buffers, and what places them. */
@@ -369,10 +366,7 @@ export class ArrowCapBatch {
             }
 
             if (host !== null) {
-                const floats = {
-                    capRows: new Float32Array(INITIAL_SLOTS * PULLED_BUFFERS.capRows),
-                    capPlace: new Float32Array(INITIAL_SLOTS * PULLED_BUFFERS.capPlace),
-                };
+                const floats = { capPull: new Float32Array(INITIAL_SLOTS * PULLED_BUFFERS.capPull) };
                 for (const [kind, stride] of Object.entries(PULLED_BUFFERS)) {
                     mesh.thinInstanceSetBuffer(kind, floats[kind as PulledBuffer], stride, false);
                 }
@@ -980,7 +974,7 @@ export class ArrowCapBatch {
      * @param runs - The runs to send, or null for every slot up to the high-water mark.
      */
     private sendBillboard(kind: BillboardBuffer | PulledBuffer, runs: readonly number[] | null): void {
-        const data = kind === "capRows" || kind === "capPlace" ? this.pulled?.floats[kind] : this.billboard?.[kind];
+        const data = kind === "capPull" ? this.pulled?.floats[kind] : this.billboard?.[kind];
         const buffer = this.mesh.getVertexBuffer(kind)?.getWrapperBuffer();
         if (data === undefined || buffer === undefined) {
             return;
@@ -991,7 +985,7 @@ export class ArrowCapBatch {
             return;
         }
 
-        const width = kind === "capRows" || kind === "capPlace" ? PULLED_BUFFERS[kind] : BILLBOARD_BUFFERS[kind];
+        const width = kind === "capPull" ? PULLED_BUFFERS[kind] : BILLBOARD_BUFFERS[kind];
         for (let i = 0; i < runs.length; i += 2) {
             const [at, end] = [runs[i], runs[i + 1]];
             buffer.updateDirectly(data.subarray(at * width, end * width), at * width, end - at);
@@ -1083,13 +1077,9 @@ export class ArrowCapBatch {
         }
 
         pulled.looks[index] = look;
-        const at = index * PULLED_BUFFERS.capPlace;
-        const { capPlace } = pulled.floats;
-        capPlace[at] = place.capGap;
-        capPlace[at + 1] = place.centreBack;
-        capPlace[at + 2] = place.size;
-        capPlace[at + 3] = 0;
-        this.written("capPlace", index);
+        const at = index * PULLED_BUFFERS.capPull;
+        pulled.floats.capPull[at + 2] = place.centreBack;
+        pulled.floats.capPull[at + 3] = place.size;
         this.writeAppearance(index, place.size, colour, opacity);
         this.setPulledRows(index, rows.from, rows.head);
     }
@@ -1115,12 +1105,13 @@ export class ArrowCapBatch {
             this.written("matrix", index);
         }
 
-        pulled.floats.capRows[index * PULLED_BUFFERS.capRows] = drawn ? from + 1 : 0;
-        pulled.floats.capRows[index * PULLED_BUFFERS.capRows + 1] = drawn ? head + 1 : 0;
-        this.written("capRows", index);
+        const at = index * PULLED_BUFFERS.capPull;
+        const { capPull } = pulled.floats;
+        capPull[at] = drawn ? from + 1 : 0;
+        capPull[at + 1] = drawn ? head + 1 : 0;
         // the shader stands it from its rows until the next rest places it
-        pulled.floats.capPlace[index * PULLED_BUFFERS.capPlace + 3] = 0;
-        this.written("capPlace", index);
+        capPull[at + 3] = Math.abs(capPull[at + 3]);
+        this.written("capPull", index);
         pulled.watch.touch();
     }
 
@@ -1135,10 +1126,8 @@ export class ArrowCapBatch {
         }
 
         pulled.looks[index] = undefined;
-        pulled.floats.capRows.fill(0, index * PULLED_BUFFERS.capRows, (index + 1) * PULLED_BUFFERS.capRows);
-        pulled.floats.capPlace.fill(0, index * PULLED_BUFFERS.capPlace, (index + 1) * PULLED_BUFFERS.capPlace);
-        this.written("capRows", index);
-        this.written("capPlace", index);
+        pulled.floats.capPull.fill(0, index * PULLED_BUFFERS.capPull, (index + 1) * PULLED_BUFFERS.capPull);
+        this.written("capPull", index);
     }
 
     /**
@@ -1167,18 +1156,18 @@ export class ArrowCapBatch {
     private placePulled(pulled: NonNullable<ArrowCapBatch["pulled"]>): void {
         const { rows } = pulled.host;
         const positions = rows.restingPositions;
-        const { capRows, capPlace } = pulled.floats;
+        const { capPull } = pulled.floats;
         const at = scratchPlace;
         const placedBefore = this.placedCaps;
         for (let index = 0; index < this.highWater; index++) {
             const look = pulled.looks[index];
-            const [from, head] = [capRows[index * 2] - 1, capRows[index * 2 + 1] - 1];
+            const [from, head] = [capPull[index * 4] - 1, capPull[index * 4 + 1] - 1];
             if (look === undefined || from < 0 || head < 0 || this.matrices[index * FLOATS_PER_MATRIX + 15] === 0) {
                 continue;
             }
 
             // a cap this rest does not place is the shader's to stand, not where the last rest put it
-            capPlace[index * 4 + 3] = 0;
+            capPull[index * 4 + 3] = Math.abs(capPull[index * 4 + 3]);
             // a hidden row draws no cap: the shader stands it, and draws nothing
             const scale =
                 positions[from * 4 + 3] * positions[head * 4 + 3] === 0 ? 0 : roundRowsEnds(rows, from, head, null, at);
@@ -1194,12 +1183,8 @@ export class ArrowCapBatch {
                 pulledDirection.scaleInPlace(1 / span);
             }
 
-            const capGap = capPlace[index * 4];
-            const [tx, ty, tz] = [
-                at[3] - pulledDirection.x * capGap,
-                at[4] - pulledDirection.y * capGap,
-                at[5] - pulledDirection.z * capGap,
-            ];
+            // a pulled head has no gap of its own: its tip is where the line meets its node
+            const [tx, ty, tz] = [at[3], at[4], at[5]];
             const length = look.size * scale;
             const centreBack = look.centreBackAt(length);
             pulledCentre.set(
@@ -1218,13 +1203,13 @@ export class ArrowCapBatch {
                 this.billboard.arrowSize[index] = length;
             }
 
-            capPlace[index * 4 + 3] = 1;
+            capPull[index * 4 + 3] = -Math.abs(capPull[index * 4 + 3]);
             this.placedCaps++;
         }
 
-        // a rest places every cap: the buffers go up whole, not by a run a cap (`capPlace` too, which a cap the rest
+        // a rest places every cap: the buffers go up whole, not by a run a cap (`capPull` too, which a cap the rest
         // passed over had its flag cleared in)
-        this.runs.capPlace.whole();
+        this.runs.capPull.whole();
         if (this.placedCaps !== placedBefore) {
             for (const kind of ["matrix", "arrowDirection", "arrowSize"] as const) {
                 this.runs[kind].whole();

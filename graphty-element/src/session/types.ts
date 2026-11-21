@@ -2893,7 +2893,9 @@ export interface SessionDataApi {
      *     `"baseUrl"`) when no `baseUrl` is given, `E_UNKNOWN_DATASET` for a name that is not one,
      *     `E_FETCH_FAILED` when the download fails (`recoverable: false` for a client error other
      *     than 408 and 429, `details.status` when the server answered), `E_PARSE_FAILED` when the
-     *     file came back but could not be read, and with the signal's own reason when it is
+     *     file came back but could not be read (`details.issue` `"E_DATASET_CHECKSUM"` when it is
+     *     not the published file), `E_TOO_LARGE` (`details.limit`, `details.of` `"bytes"`) when it
+     *     is larger than graph-samples' download limit, and with the signal's own reason when it is
      *     aborted; nothing is recorded then.
      */
     loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;

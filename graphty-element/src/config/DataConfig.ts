@@ -77,6 +77,13 @@ const GraphKnownFields = z.strictObject({
     nodeCountryPath: z.string().or(z.null()).optional(),
     nodeRegionPath: z.string().or(z.null()).optional(),
     nodeCityPath: z.string().or(z.null()).optional(),
+    // The columns each node's drawn position is read from, as `data.setRole` designates them (the
+    // x, y and z roles). With an x and a y column, a node whose two values are finite numbers is
+    // placed there, in file units scaled by positionScale, as a record's `position` places it; a
+    // missing z column reads 0. They win over a record's `position`.
+    nodeXPath: z.string().or(z.null()).optional(),
+    nodeYPath: z.string().or(z.null()).optional(),
+    nodeZPath: z.string().or(z.null()).optional(),
     // Null means "probe": the element reads source/target, then src/dst, then from/to, once per
     // batch of edge records, and throws E_EDGE_ENDPOINTS_UNRESOLVED when none of them answers.
     // Naming an expression here settles the question and turns the probe off -- a record that does

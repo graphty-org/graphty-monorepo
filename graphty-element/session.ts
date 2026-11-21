@@ -169,6 +169,7 @@ export type {
     PageColumn,
     PendingId,
     PendingStep,
+    PositionAxis,
     PositionEntry,
     PreparePageControl,
     ProjectConfig,

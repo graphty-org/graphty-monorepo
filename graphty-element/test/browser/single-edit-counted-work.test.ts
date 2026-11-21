@@ -20,6 +20,7 @@ import type { Graphty } from "../../index.js";
 import { RowEdges } from "../../src/data/RowMap";
 import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
+import { dataManagerInternals } from "../../src/managers/DataManager";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { Node } from "../../src/Node";
 import { dispatcherOf } from "../../src/session/GraphSession";
@@ -299,6 +300,66 @@ describe("one data edit on a large graph", () => {
             assert.strictEqual(counted.walked, 0, `${edit} walks no built edge`);
             assert.isAtMost(counted.restored, 3 * SPAN, `${edit} sets only its own stored edges again`);
         }
+    });
+
+    it("moves the edges stored with no Edge through a removal, its undo and redo without setting each again", async () => {
+        // Under "batched" an edge a row line draws is stored with no `Edge`, column by column. A renumbering read every
+        // one of them out and set it again: two thousand here, a million at the render ceiling (issue #9164).
+        const size = 400;
+        const element = document.createElement("graphty-element");
+        element.renderer = "webgl";
+        element.renderPath = "batched";
+        element.layout = "fixed";
+        element.style.width = "400px";
+        element.style.height = "300px";
+        element.style.display = "block";
+        document.body.appendChild(element);
+        await element.waitForStableFrame();
+        const manager = element.graph.getDataManager();
+        dataManagerInternals.storeEdgesUnbuilt(manager, true);
+        const ids = Array.from({ length: size }, (_, at) => `n${String(at)}`);
+        const turn = (2 * Math.PI) / size;
+        await element.session.data.addNodes(
+            ids.map((id, at) => ({ id, position: { x: 50 * Math.cos(at * turn), y: 50 * Math.sin(at * turn), z: 0 } })),
+        );
+        // No arrow caps, so a row line draws each edge.
+        await element.session.styles.add({
+            name: "uncapped",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        } as never);
+        await element.session.data.addEdges(
+            ids.flatMap((id, at) =>
+                Array.from({ length: SPAN }, (_, step) => ({ source: id, target: ids[(at + step + 1) % size] })),
+            ),
+        );
+        await settle(element);
+        const stored = (): number =>
+            (manager as unknown as { unbuiltEdges: RowEdges<unknown, unknown> }).unbuiltEdges.size;
+        assert.isAbove(stored(), size * SPAN - 100, "the edges are stored with no Edge");
+
+        const { data } = element.session;
+        const edge = data.edgePage({ offset: 3, limit: 1 }).records[0].id;
+        const edits: [string, () => Promise<unknown>][] = [
+            ["removeEdge", () => data.removeEdges([edge])],
+            ["undoRemoveEdge", () => element.session.undo()],
+            ["removeNode", () => data.removeNodes(["n11"])],
+            ["undoRemoveNode", () => element.session.undo()],
+            ["redoRemoveNode", () => element.session.redo()],
+        ];
+        for (const [name, edit] of edits) {
+            const set = vi.spyOn(RowEdges.prototype, "set");
+            try {
+                await edit();
+                await settle(element);
+                assert.isAtMost(set.mock.calls.length, 3 * SPAN, `${name} sets only its own stored edges`);
+            } finally {
+                set.mockRestore();
+            }
+        }
+
+        assert.isAbove(stored(), size * SPAN - 200, "the edges are still stored with no Edge");
     });
 
     it("places only the pair's fan when many edges are added between the same two nodes", async () => {

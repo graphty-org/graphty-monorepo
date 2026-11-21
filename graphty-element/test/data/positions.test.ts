@@ -552,15 +552,15 @@ describe("ElementPositions", () => {
         }
 
         assert.strictEqual(publishes, 0);
-        // up to a sixteenth of the lane's distinct rows are answered by the reader...
-        for (let row = 0; row < rows / 16; row++) {
+        // up to a quarter of the lane's distinct rows are answered by the reader...
+        for (let row = 0; row < rows / 4; row++) {
             p.read(row, out);
         }
 
         assert.strictEqual(publishes, 0);
         // ...and the next new row writes the publish, and every read after it is the lane's own
         const answered = rowsAnswered;
-        p.read(rows / 16, out);
+        p.read(rows / 4, out);
         p.read(0, out);
         assert.strictEqual(publishes, 1);
         assert.strictEqual(rowsAnswered, answered);
@@ -574,9 +574,9 @@ describe("ElementPositions", () => {
         assert.strictEqual(rowsAnswered, answered + 1);
     });
 
-    it("answers at most a sixteenth of the rows one at a time on every landing whose readers read every row", () => {
-        // every edge arrowed: each landing's readers read every row, so each landing answers a sixteenth
-        // of them one at a time and then writes the publish, about 1.06 times the publish alone
+    it("says when reading rows one at a time would end in writing the publish, so a reader writes it first", () => {
+        // every edge arrowed: each frame reads both ends of every edge, so it asks first and writes the publish
+        // before its first read, answering no row one at a time
         const rows = 32000;
         const p = new ElementPositions(rows);
         p.grow(rows);
@@ -591,25 +591,33 @@ describe("ElementPositions", () => {
             return true;
         };
         const out = { x: 0, y: 0, z: 0 };
-        const land = (read: number): number => {
-            const before = rowsAnswered;
+        for (let landing = 0; landing < 4; landing++) {
             p.owe(publish, answer);
-            for (let row = 0; row < read; row++) {
-                p.read(row, out);
+            if (p.owedReadsSpill(2 * rows)) {
+                p.settle();
             }
 
-            p.settle();
-            return rowsAnswered - before;
-        };
-        const answered = Array.from({ length: 8 }, () => land(rows));
-        assert.deepStrictEqual(
-            answered,
-            Array.from({ length: 8 }, () => rows / 16),
-        );
-        assert.strictEqual(publishes, 8);
-        // a landing after them whose readers read few rows answers them all, with no state carried over
-        assert.strictEqual(land(200), 200);
-        assert.strictEqual(publishes, 9);
+            for (let row = 0; row < rows; row++) {
+                p.read(row, out);
+            }
+        }
+
+        assert.strictEqual(rowsAnswered, 0);
+        assert.strictEqual(publishes, 4);
+
+        // a few reads fit, counted with the rows already answered; nothing owed, or nothing readable by row, never spills
+        p.owe(publish, answer);
+        assert.isFalse(p.owedReadsSpill(rows / 4));
+        for (let row = 0; row < rows / 8; row++) {
+            p.read(row, out);
+        }
+
+        assert.isTrue(p.owedReadsSpill(rows / 8 + 1));
+        assert.isFalse(p.owedReadsSpill(rows / 8));
+        p.settle();
+        assert.isFalse(p.owedReadsSpill(2 * rows));
+        p.owe(publish);
+        assert.isFalse(p.owedReadsSpill(2 * rows));
     });
 
     it("forgets the one-row reader with the publish it came with", () => {

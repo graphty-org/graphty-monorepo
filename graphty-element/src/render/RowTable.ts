@@ -926,6 +926,18 @@ export class RowTable {
         return true;
     }
 
+    /**
+     * Say this many rows are about to be read one at a time (each built node's, both ends of every placed edge): when a landing
+     * the lane owes would be written partway through them anyway, it is written now, before the first, so no
+     * row is answered one at a time only to be written with the rest.
+     * @param rows - Rows about to be read.
+     */
+    willRead(rows: number): void {
+        if (this.lane().owedReadsSpill(rows)) {
+            this.catchUp();
+        }
+    }
+
     /** Bring the CPU copy up to a publish the lane owes (`ElementPositions.owe`) before it is read. */
     private catchUp(): void {
         if (this.lane().settle()) {

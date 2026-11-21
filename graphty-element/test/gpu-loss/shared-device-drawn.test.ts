@@ -152,6 +152,35 @@ describe("the layout filling the row table on a shared device", () => {
         }
     }
 
+    // Every edge arrowed: every node is built and both ends of every edge are read each frame, so the frame
+    // writes the owed landing before its first read rather than answering a quarter of the rows one at a time first.
+    for (const renderer of ["webgpu", "webgl"] as const) {
+        it(`writes a landing once, before any row is read one at a time, with every edge arrowed (${renderer})`, async () => {
+            const graph = await running("batched", undefined, renderer, SPREAD);
+            await graph.getSession().styles.add({
+                name: "arrows",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.arrowHead": "normal" },
+            });
+            await landed(graph);
+            await landed(graph);
+            const lane = graph.getDataManager()[WRITABLE_LANE];
+            const engine = layoutOf(graph);
+            const read = lane.owedRowsRead;
+            const written = lane.changes;
+            const landings = engine.landedBatchesPublished;
+            for (let i = 0; i < 4; i++) {
+                await landed(graph);
+            }
+
+            const published = engine.landedBatchesPublished - landings;
+            assert.isAtLeast(published, 4);
+            assert.strictEqual(lane.owedRowsRead - read, 0, "no row answered one at a time");
+            assert.isAtMost(lane.changes - written, published * SPREAD, "each landing written at most once");
+        });
+    }
+
     it("hands a snapshot read while a landing is owed the coordinates the card shows", async () => {
         const graph = await running("batched");
         await copied(graph);

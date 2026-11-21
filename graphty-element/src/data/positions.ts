@@ -13,10 +13,11 @@ export const DEFAULT_CAPACITY = 1024;
  */
 const OWED_ROWS_FLOOR = 1024;
 /**
- * An owed publish answers up to one row in 2^this of the lane one at a time (one in sixteen), and then is
- * written: readers that read every row (every edge arrowed) cost the publish and a sixteenth more, at most.
+ * An owed publish answers up to one row in 2^this of the lane one at a time (a quarter), and then is written. A
+ * reader that knows it will read more (every placed edge's ends) has it written first:
+ * {@link ElementPositions.owedReadsSpill}.
  */
-const OWED_ROWS_SHIFT = 4;
+const OWED_ROWS_SHIFT = 2;
 
 /**
  * Reject a row count that is not a non-negative integer.
@@ -152,13 +153,18 @@ export class ElementPositions {
     /** Answers one row as the owed publish would write it: see {@link ElementPositions.owe}. */
     private owedRow: OwedRow | null = null;
     /**
-     * The distinct rows `owedRow` answered since the publish was owed. Past a sixteenth of the lane (and at least
+     * The distinct rows `owedRow` answered since the publish was owed. Past a quarter of the lane (and at least
      * {@link OWED_ROWS_FLOOR}), writing
      * the publish is cheaper. Distinct rows, not reads: a labeled node read every frame of a long landing
      * is one row however many frames the landing spans.
      */
     private readonly owedAnswered = new Set<number>();
     private readonly owedScratch = { x: 0, y: 0, z: 0 };
+    /**
+     * Rows an owed publish answered one at a time, ever: what readers of a few rows cost while landings are owed.
+     * @internal
+     */
+    owedRowsRead = 0;
 
     /**
      * Allocate the backing array, every row unplaced and unpinned.
@@ -226,8 +232,9 @@ export class ElementPositions {
      *
      * A reader of one row need not write them all: `row` answers one row as the publish would write
      * it, so a frame that draws a few rows from the CPU (a label, an arrowhead) costs those rows, not
-     * every row of the graph. Once a sixteenth of the lane's rows were read that way, a read of another row
-     * writes the publish instead, so a landing never costs more than about 1.06 times the publish.
+     * every row of the graph. Once a quarter of the lane's rows were read that way, a read of another row
+     * writes the publish instead, so a landing never costs more than about 1.25 times the publish, and a
+     * reader that asks {@link ElementPositions.owedReadsSpill} first pays the publish alone.
      * @param publish - Writes the rows; null to owe nothing.
      * @param row - Answers one row as `publish` would write it, or null when every read settles.
      * @internal
@@ -282,6 +289,25 @@ export class ElementPositions {
      */
     get owesRows(): boolean {
         return this.owed !== null && this.owedRow !== null;
+    }
+
+    /**
+     * Whether reading this many more rows one at a time from the owed publish would end in writing it: a
+     * reader about to read that many (both ends of every placed edge) writes it first instead.
+     * @param reads - Rows about to be read.
+     * @returns True when a publish readable by row is owed and the reads would pass what it answers.
+     * @internal
+     */
+    owedReadsSpill(reads: number): boolean {
+        return this.owesRows && this.owedAnswered.size + reads > this.owedLimit();
+    }
+
+    /**
+     * Distinct rows an owed publish answers one at a time before it is written instead.
+     * @returns The count.
+     */
+    private owedLimit(): number {
+        return Math.max(OWED_ROWS_FLOOR, this.rows >> OWED_ROWS_SHIFT);
     }
 
     /**
@@ -340,13 +366,14 @@ export class ElementPositions {
         // Reading many rows one at a time costs more than writing them all: past that, write the publish.
         const answered = this.owedAnswered;
         if (!answered.has(index)) {
-            if (answered.size >= Math.max(OWED_ROWS_FLOOR, this.rows >> OWED_ROWS_SHIFT)) {
+            if (answered.size >= this.owedLimit()) {
                 return null;
             }
 
             answered.add(index);
         }
 
+        this.owedRowsRead++;
         return row(index, out);
     }
 

@@ -2944,7 +2944,14 @@ export class DataManager implements Manager {
         // paint keeps that source; under a paint that does not (a restyle that borders it) it is
         // built from that paint, which keeps the mesh: built from the old source, the paint would
         // rebuild it at once, and each such rebuild is a pass over every scene list.
-        const rowPaint = this.graphContext?.getStylePainter?.()?.nodePaint(index) ?? null;
+        //
+        // NOT WHILE A PASS IS PAINTING, for the reason `UpdateManager.syncStyles` gives (#440): the
+        // row's paint is then the key from before the pass with a style from the middle of it, and
+        // the mesh built from that pair is kept when the pass announces the same key (#9414). The
+        // row is queued as it is built, so the frame after the pass draws it; until then the `Node`
+        // keeps the look the batch drew it with.
+        const painter = this.graphContext?.getStylePainter?.();
+        const rowPaint = painter?.isPainting === true ? null : (painter?.nodePaint(index) ?? null);
         const drawn = batches?.lookOf(index) ?? null;
         const look = rowPaint !== null && batches?.keepsLook(index, rowPaint) === false ? null : drawn;
         batches?.unpaintRow(index);

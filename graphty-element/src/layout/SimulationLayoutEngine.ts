@@ -110,6 +110,43 @@ export function iterationsPerStepFor(explicit: number | null, stepMultiplier: nu
 }
 
 /**
+ * The most iterations one accelerated batch computes when the host set no `iterationsPerStep`.
+ *
+ * A frame submits ONE batch, so a batch of one iteration ties the layout to the frame rate: the default force layout
+ * of a 20,000-node LFR graph runs about 6,600 iterations before it reports rest, which the device computes in about
+ * 12 seconds, but at the one to three frames a second such a graph draws at that took 44 minutes (issue #9373).
+ * Measured on that graph on an NVIDIA card (test/browser/force-settle-gpu.bench.test.ts): a cap of 64 settled it in
+ * 82 s, 128 in 45 s and 256 in 31 s. 128 keeps one batch of that graph to about a quarter of a second on the device,
+ * so a drag still answers within a frame or two.
+ */
+const ACCELERATED_MAX_ITERATIONS = 128;
+
+/**
+ * Nodes times iterations one accelerated batch may compute when the host set no `iterationsPerStep`, so a batch on a
+ * huge graph stays about as long as one on a 30,000-node graph: 128 iterations to 31,250 nodes, 16 at 250,000, and
+ * never fewer than the size rule above gives.
+ */
+const ACCELERATED_BATCH_NODE_ITERATIONS = 4_000_000;
+
+/**
+ * How many iterations the next accelerated batch computes when the host set no `iterationsPerStep`.
+ *
+ * It RAMPS: each batch computes as many iterations as the simulation has already submitted since it was built
+ * (1, 1, 2, 4, 8, ...), up to the cap, so the first frames still show the layout moving and the rest of the run is
+ * not paced by the frame rate. The count depends only on the iterations submitted, never on a clock, so the same
+ * seed computes the same batches on a fast device and a slow one.
+ * @param base - The count the size rule gives ({@link iterationsPerStepFor}); never fewer.
+ * @param nodeCount - The graph this load is over.
+ * @param submitted - Iterations submitted since the simulation was built.
+ * @returns The iteration count of the next batch.
+ */
+export function acceleratedIterationsFor(base: number, nodeCount: number, submitted: number): number {
+    const byNodes = Math.floor(ACCELERATED_BATCH_NODE_ITERATIONS / Math.max(nodeCount, 1));
+    const cap = Math.max(base, Math.min(ACCELERATED_MAX_ITERATIONS, byNodes));
+    return Math.min(cap, Math.max(base, submitted));
+}
+
+/**
  * Turns a reader's `nodeMass` record into one value per dense row, and leaves every other form to
  * the simulation.
  *
@@ -1123,9 +1160,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
-        this.#iterationsDone += this.#iterations;
+        const iterations = this.#batchIterations();
         const arrangement = this.#arrangement;
-        const batch = simulation.step(this.#iterations);
+        const batch = simulation.step(iterations);
+        // A saturated simulation hands back a batch already in flight and computes nothing more.
+        if (batch === undefined || !this.#caught.has(batch)) {
+            this.#iterationsDone += iterations;
+        }
         this.#syncWork();
         if (batch !== undefined && !this.#caught.has(batch)) {
             this.#caught.add(batch);
@@ -1151,6 +1192,19 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 },
             );
         }
+    }
+
+    /**
+     * How many iterations the next frame's batch computes: the load's count, ramped up on an accelerator when the
+     * host did not pin one (see {@link acceleratedIterationsFor}).
+     * @returns The iteration count.
+     */
+    #batchIterations(): number {
+        if (!this.#accelerated || this.#options.iterationsPerStep !== null || this.#snapshot === null) {
+            return this.#iterations;
+        }
+
+        return acceleratedIterationsFor(this.#iterations, this.#snapshot.nodeCount, this.#iterationsDone);
     }
 
     /**

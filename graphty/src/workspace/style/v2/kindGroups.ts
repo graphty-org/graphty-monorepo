@@ -40,10 +40,13 @@ export interface KindMember {
     readonly onSwitch?: SwitchWrites;
 }
 
-/** What a switch to a kind writes over what moved: values, or values worked out from what moved. */
+/** What a switch to a kind writes over what moved: values, or values worked out from what moved and what left. */
 type SwitchWrites =
     | Readonly<Record<string, unknown>>
-    | ((moved: Readonly<Record<string, unknown>>) => Readonly<Record<string, unknown>>);
+    | ((
+          moved: Readonly<Record<string, unknown>>,
+          left: Readonly<Record<string, unknown>>,
+      ) => Readonly<Record<string, unknown>>);
 
 /** One group: the thing it is drawn as, and its kinds, the first the one "+" adds. */
 export interface KindGroup {
@@ -186,8 +189,9 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         side: "edge",
         thing: "outline",
         items: ["outline", "overlay"],
-        // Both kinds' Width is how much wider than the line (each's scale, the line's widths across, unset its own
-        // default), so a switch carries Width across by name and the band keeps its width (ia-design 2).
+        // A band twice an overlay's padding across is an outline of scale 0 that wide (each channel's caveat), so a
+        // switch carries that band exactly; any other band starts at the kind's own start, which at the default line
+        // is the same width (ia-design 2).
         members: [
             // Opaque, as graphty-element draws an outline unset.
             prefixKind(
@@ -196,12 +200,15 @@ export const KIND_GROUPS: readonly KindGroup[] = [
                 "edge.outlineColor",
                 { color: "edge.outlineColor" },
                 "edge.outline",
-                (moved) => ({
-                    "edge.outlineOpacity": channelDescriptor("edge.outlineOpacity")?.default,
-                    "edge.outlineScale": moved["edge.outlineScale"] ?? channelDescriptor("edge.overlayScale")?.default,
-                    "edge.outlineWidth":
-                        moved["edge.outlineWidth"] ?? startsOf("edge.outlineColor")["edge.outlineWidth"],
-                }),
+                (_moved, left) => {
+                    const padding = left["edge.overlayPadding"];
+                    return {
+                        "edge.outlineOpacity": channelDescriptor("edge.outlineOpacity")?.default,
+                        ...(typeof padding === "number"
+                            ? { "edge.outlineScale": 0, "edge.outlineWidth": 2 * padding }
+                            : { "edge.outlineWidth": startsOf("edge.outlineColor")["edge.outlineWidth"] }),
+                    };
+                },
             ),
             // Translucent at 30% (ia-design 2), as wide as the Under line was.
             prefixKind(
@@ -210,12 +217,16 @@ export const KIND_GROUPS: readonly KindGroup[] = [
                 "edge.overlayColor",
                 { color: "edge.overlayColor" },
                 "edge.overlay",
-                (moved) => ({
-                    "edge.overlayOpacity": 0.3,
-                    "edge.overlayScale": moved["edge.overlayScale"] ?? channelDescriptor("edge.outlineScale")?.default,
-                    "edge.overlayWidth":
-                        moved["edge.overlayWidth"] ?? startsOf("edge.overlayColor")["edge.overlayWidth"],
-                }),
+                (_moved, left) => {
+                    const width = left["edge.outlineWidth"];
+                    return {
+                        "edge.overlayOpacity": 0.3,
+                        "edge.overlayPadding":
+                            left["edge.outlineScale"] === 0 && typeof width === "number"
+                                ? width / 2
+                                : startsOf("edge.overlayColor")["edge.overlayPadding"],
+                    };
+                },
             ),
         ],
     },
@@ -340,10 +351,15 @@ function carried(
  * What a switch to a kind writes: what moved, with the kind's own switch values over it.
  * @param to - the kind switched to.
  * @param moved - what moved, or the kind's start when nothing did.
+ * @param left - the leaving kind's own values.
  * @returns the writes.
  */
-function switchWrites(to: KindMember, moved: Readonly<Record<string, unknown>>): Record<string, unknown> {
-    const extra = typeof to.onSwitch === "function" ? to.onSwitch(moved) : to.onSwitch;
+function switchWrites(
+    to: KindMember,
+    moved: Readonly<Record<string, unknown>>,
+    left: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+    const extra = typeof to.onSwitch === "function" ? to.onSwitch(moved, left) : to.onSwitch;
     return { ...moved, ...extra };
 }
 
@@ -456,7 +472,7 @@ export async function switchKind(ctx: RowContext, group: KindGroup, from: KindMe
         writeSlot(set, to.slots.color, readSlot(left.set, from.slots.color));
         writeSlot(set, to.slots.size, readSlot(left.set, from.slots.size));
         next = {
-            set: switchWrites(to, Object.keys(set).length > 0 ? set : to.start()),
+            set: switchWrites(to, Object.keys(set).length > 0 ? set : to.start(), left.set),
             encode: carried(left.encode, from, to, toOwns),
         };
     }

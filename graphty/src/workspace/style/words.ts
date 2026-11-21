@@ -668,8 +668,6 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.overlayColor": "Overlay color",
     "edge.overlayOpacity": "Overlay opacity",
     "edge.overlayPadding": "Overlay padding",
-    "edge.overlayWidth": "Overlay width",
-    "edge.overlayScale": "Overlay scale",
     "edge.gradientColors": "Gradient colors",
     "edge.gradientStops": "Gradient stops",
     "edge.gradientKind": "Gradient kind",

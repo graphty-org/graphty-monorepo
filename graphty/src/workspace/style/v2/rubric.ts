@@ -603,15 +603,19 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     },
     // The Outline item's rows (kindGroups.ts, C7), by the kind's color: color and Width, then Opacity (ia-design 2).
     "outline:edge.outlineColor": {
-        common: [{ channel: "edge.outlineWidth", name: "Width" }],
+        // Scale is the line's widths across (the starting Selected row draws its casing with it), Width past that
+        common: [
+            { channel: "edge.outlineWidth", name: "Width" },
+            { channel: "edge.outlineScale", name: "Scale" },
+        ],
         main: [
             { channel: "edge.outlineOpacity", name: "Opacity" },
             { channel: "edge.outlineStyle", name: "Style", rule: "R10" },
         ],
     },
     "outline:edge.overlayColor": {
-        // the same width as Under line's: how much wider than the line (`edge.overlayScale` 1)
-        common: [{ channel: "edge.overlayWidth", name: "Width" }],
+        // half the band's width either side of the line's middle, whatever the line's width
+        common: [{ channel: "edge.overlayPadding", name: "Width" }],
         main: [{ channel: "edge.overlayOpacity", name: "Opacity" }],
     },
     // The Arrow item's rows (kindGroups.ts, C6), by the kind's arrowhead.

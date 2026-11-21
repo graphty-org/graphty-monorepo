@@ -5517,7 +5517,14 @@ export class Graph implements GraphContext {
      * @returns The counts as of the last frame.
      */
     get rowCounts(): RowCounts {
-        const batchedNodes = this.#nodeBatches?.batchedNodes ?? 0;
+        const batches = this.#nodeBatches;
+        const batchedNodes = batches?.batchedNodes ?? 0;
+        // Only a `Node` has a mesh of its own: a row stored with no `Node` that no batch draws is drawn by nothing.
+        let objectNodes = 0;
+        for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+            objectNodes += batches?.draws(node) === true ? 0 : 1;
+        }
+
         // An edge stored with no `Edge` is drawn from the row tables (`EdgeRowLines`), never as an object.
         let objectEdges = 0;
         for (const edge of this.builtEdges()) {
@@ -5526,7 +5533,7 @@ export class Graph implements GraphContext {
 
         return {
             batchedNodes,
-            objectNodes: this.dataManager.nodes.size - batchedNodes,
+            objectNodes,
             pulledEdges: this.dataManager.edges.size - objectEdges,
             objectEdges,
         };
@@ -7495,7 +7502,8 @@ export class Graph implements GraphContext {
             const corners = boxCorners(local, half, world);
             const centre = world === undefined ? local : Vector3.TransformCoordinates(local, world);
             const worldRadius = Math.max(half.x, half.y, half.z) * rootScale;
-            const at = this.#screenSpot(centre, worldRadius, corners, !table.isHidden(row));
+            // A row whose source is off its batch (an object row of that look) is drawn by nothing.
+            const at = this.#screenSpot(centre, worldRadius, corners, batches.draws(column) && !table.isHidden(row));
             yield { id, row, at, centre, corners, node: null, column };
         }
     }

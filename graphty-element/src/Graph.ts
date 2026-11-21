@@ -11831,7 +11831,7 @@ export class Graph implements GraphContext {
      */
     private async drawXRMenu(): Promise<void> {
         const items = this.xrConfig().menu ?? [];
-        const inSession = (): boolean => Boolean(this.scene.metadata?.xrHelper);
+        const inSession = (): boolean => Boolean((this.scene.metadata as GraphSceneMetadata | null)?.xrHelper);
         if (items.length === 0 || !inSession()) {
             this.xrMenu?.dispose();
             this.xrMenu = null;

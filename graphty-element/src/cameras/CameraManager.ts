@@ -5,8 +5,8 @@ import { Scene } from "@babylonjs/core/scene.js";
 
 import type { ViewInsets } from "../camera/types";
 import type { FitBounds, FitInsets } from "../config/GraphBehavior";
-import type { CameraGestureKind, GestureEndHooks } from "./gestureEnd";
 import type { GraphSceneMetadata } from "../types/sceneMetadata";
+import type { CameraGestureKind, GestureEndHooks } from "./gestureEnd";
 import type { FramingSpot } from "./OrbitCameraController";
 import type { XRPivotCameraController } from "./XRPivotCameraController";
 

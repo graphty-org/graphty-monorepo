@@ -200,6 +200,15 @@ export interface CsvImportOptions extends CommonImportOptions {
      * @defaultValue undefined (blank-id rows are skipped)
      */
     blankIdPrefix?: string | undefined;
+    /**
+     * Cell texts read as unset, such as `["N/A", "null"]`. A data cell whose text equals an entry
+     * (both compared after Unicode NFC normalization, never trimmed: `" N/A"` stays text) is read
+     * as an empty cell before anything else reads it, so a key cell becomes blank, an endpoint
+     * missing, and a numeric column stays numeric. A quoted cell matches too; the header row is
+     * never compared.
+     * @defaultValue undefined (no placeholder texts)
+     */
+    missing?: readonly string[] | undefined;
 }
 
 /**
@@ -377,6 +386,8 @@ interface ResolvedCsvOptions {
     readonly nodes: ImportInput | null;
     readonly rowNumberIds: boolean;
     readonly blankIdPrefix: string | null;
+    /** The NFC forms of the missing option's cell texts; null when none were given. */
+    readonly missing: ReadonlySet<string> | null;
     /** The caller's explicit defaultDirected; null when it was left to its default. */
     readonly explicitDirected: boolean | null;
 }
@@ -566,8 +577,54 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
         nodes: nodesInput(o.nodes),
         rowNumberIds: o.rowNumberIds ?? false,
         blankIdPrefix: o.blankIdPrefix ?? null,
+        missing: missingSet(o.missing),
         explicitDirected: typeof options?.defaultDirected === "boolean" ? options.defaultDirected : null,
     };
+}
+
+/**
+ * Check the missing option and turn it into the set of NFC cell texts it names.
+ * @param missing - the caller's value
+ * @returns the set, or null when the option is absent
+ */
+function missingSet(missing: unknown): ReadonlySet<string> | null {
+    if (missing === undefined) {
+        return null;
+    }
+    if (!Array.isArray(missing) || !missing.every((text) => typeof text === "string")) {
+        throw new GraphFormatError("E_UNSUPPORTED", "option missing: expected an array of strings", {
+            option: "missing",
+            found: missing,
+        });
+    }
+    return new Set(missing.map((text: string) => text.normalize("NFC")));
+}
+
+/**
+ * Empty, in place, every cell of a row whose NFC text is one of the missing option's texts, and
+ * mark it unquoted, so it reads as an unset cell.
+ * @param row - the cells, changed in place
+ * @param quoted - whether each cell was quoted
+ * @param missing - the NFC missing texts, or null
+ * @returns the quoted flags, a copy when a cell changed
+ */
+function unsetMissing(
+    row: string[],
+    quoted: readonly boolean[],
+    missing: ReadonlySet<string> | null,
+): readonly boolean[] {
+    if (missing === null) {
+        return quoted;
+    }
+    let copy: boolean[] | null = null;
+    for (let i = 0; i < row.length; i++) {
+        if (missing.has(row[i].normalize("NFC"))) {
+            row[i] = "";
+            copy ??= quoted.slice();
+            copy[i] = false;
+        }
+    }
+    return copy ?? quoted;
 }
 
 /**
@@ -994,6 +1051,10 @@ class TableReader {
         if (this.guessesNodeId(names, header)) {
             await this.drain(iterator, pending);
         }
+        // the id guess reads the queued rows, so their placeholders are unset first
+        pending.forEach((p, i) => {
+            pending[i] = { ...p, quoted: unsetMissing(p.row, p.quoted, this.state.csv.missing) };
+        });
         this.applyCommentDirection();
         this.plan = this.resolvePlan(
             names,
@@ -1856,11 +1917,12 @@ class TableReader {
     /**
      * Push one data row.
      * @param row - the cells
-     * @param quoted - whether each cell was quoted (a quoted empty cell is the empty string)
+     * @param cellQuoted - whether each cell was quoted (a quoted empty cell is the empty string)
      * @param line - the row's line
      */
-    private processRow(row: string[], quoted: readonly boolean[], line: number): void {
+    private processRow(row: string[], cellQuoted: readonly boolean[], line: number): void {
         const plan = this.requirePlan();
+        const quoted = unsetMissing(row, cellQuoted, this.state.csv.missing);
         this.dataRows++;
         const possible = this.possibleHeader;
         if (possible !== null && line !== possible.line && row.some((cell) => possible.cells.has(cell.trim()))) {
@@ -2580,6 +2642,7 @@ export const csvImporter: GraphImporter<CsvImportOptions> = Object.freeze({
         "header",
         "idColumn",
         "labelColumn",
+        "missing",
         "nodes",
         "rowNumberIds",
         "sourceColumn",

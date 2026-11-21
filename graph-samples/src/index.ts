@@ -7,7 +7,14 @@
 export { type DatasetMeta } from "./datasets/build.js";
 export { DATASETS } from "./datasets/catalog.js";
 export { DATASET_NAMES } from "./datasets/names.js";
-export { DEFAULT_DATASET_BASE_URL, fetchDataset, type FetchDatasetOptions } from "./datasets/remote.js";
+export {
+    DatasetError,
+    type DatasetErrorCode,
+    DEFAULT_DATASET_BASE_URL,
+    DEFAULT_DATASET_MAX_BYTES,
+    fetchDataset,
+    type FetchDatasetOptions,
+} from "./datasets/remote.js";
 export { type ElementData, toElementData } from "./element.js";
 export { GENERATOR_CATALOG, type GeneratorDescriptor, type GeneratorParamDescriptor } from "./generators/catalog.js";
 export { type SampleGraph } from "./types.js";

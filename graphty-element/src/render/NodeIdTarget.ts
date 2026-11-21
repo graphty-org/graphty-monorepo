@@ -39,6 +39,14 @@ export const ID_OBJECT = -2;
  */
 export const MIN_RADIUS_PX = 1.5;
 
+/**
+ * The radius, in device pixels, within which a row smaller than it keeps its own depth: half a pixel's
+ * diagonal, the farthest a point can be from a pixel center, so its center pixel is always at its own
+ * depth. A pointer this close to a row's center finds it unless something nearer is drawn there; out to
+ * {@link MIN_RADIUS_PX}, only where nothing else is drawn at its own size. Hover reports this radius.
+ */
+export const HOVER_RADIUS_PX = 0.71;
+
 /** The texel a non-batch mesh writes; rows go up to one less. */
 const OBJECT_TEXEL = 0xffffff;
 
@@ -96,10 +104,10 @@ void main(void) {
             grV.xy = (grNdc + (grV.xy / grV.w - grNdc) * (MIN_RADIUS_PX / grRadius)) * grV.w;
             // Never under the farthest a point can be from a pixel center: a row smaller than that could
             // cover no pixel at its own depth, and a larger node behind it would take all of them.
-            vGrown = vec3(0.5 * (grV.xy / grV.w - grNdc) * idPixels, max(grRadius, 0.71));
+            vGrown = vec3(0.5 * (grV.xy / grV.w - grNdc) * idPixels, max(grRadius, HOVER_RADIUS_PX));
         }
 #ifdef ID_FLOAT
-        vPick = vec3(grNdc, grRadius > 0.0 ? max(grRadius, MIN_RADIUS_PX) : 0.0);
+        vPick = vec3(grNdc, grRadius > 0.0 ? max(grRadius, HOVER_RADIUS_PX) : 0.0);
 #endif
     }
     gl_Position = grV;
@@ -110,9 +118,7 @@ void main(void) {
 }
 `;
 
-const FRAGMENT = `#ifdef ROW_PULL
-#extension GL_EXT_frag_depth : enable
-#endif
+const FRAGMENT = `#extension GL_EXT_frag_depth : enable
 precision highp float;
 varying float vId;
 #ifdef ROW_PULL
@@ -122,12 +128,15 @@ varying vec3 vGrown;
 varying vec3 vPick;
 #endif
 void main(void) {
+    // Two depth bands, each holding the whole depth range at half its precision: everything drawn at its
+    // own size in the near half, and where a row is drawn only because it was grown to MIN_RADIUS_PX in
+    // the far half. A pointer on a small node finds that node, not a nearer neighbor's grown disc
+    // (#9377), and grown discs meet each other at their own depths, as finely ordered as the rest.
+    float depthBand = 0.0;
 #ifdef ROW_PULL
-    // Where a row is drawn only because it was grown to MIN_RADIUS_PX, it goes behind everything drawn
-    // at its own size: a pointer on a small node finds that node, not a nearer neighbor's grown disc
-    // (#9377). Grown discs still meet each other at their own depths, kept in order.
-    gl_FragDepthEXT = vGrown.z > 0.0 && length(vGrown.xy) > vGrown.z ? 1.0 - (1.0 - gl_FragCoord.z) * 0.001 : gl_FragCoord.z;
+    depthBand = vGrown.z > 0.0 && length(vGrown.xy) > vGrown.z ? 0.5 : 0.0;
 #endif
+    gl_FragDepthEXT = 0.5 * gl_FragCoord.z + depthBand;
 #if defined(ROW_PULL) && defined(ID_FLOAT)
     gl_FragColor = vec4(floor(vId + 0.5), vPick);
 #elif defined(ROW_PULL)
@@ -177,7 +186,7 @@ class IdTexture extends RenderTargetTexture {
 /**
  * Where a row was drawn in the frame a read was answered from, in CSS pixels from the canvas's
  * top-left corner: its center, and the radius the target picks it within (at least
- * {@link MIN_RADIUS_PX} device pixels).
+ * {@link HOVER_RADIUS_PX} device pixels).
  */
 export interface IdDrawn {
     readonly x: number;
@@ -250,7 +259,12 @@ export class NodeIdTarget {
         this.target.clearColor = new Color4(0, 0, 0, 0);
         this.target.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
         const floatDefines = this.float ? ["#define ID_FLOAT"] : [];
-        const rowDefines = ["#define ROW_PULL", `#define MIN_RADIUS_PX ${MIN_RADIUS_PX.toFixed(1)}`, ...floatDefines];
+        const rowDefines = [
+            "#define ROW_PULL",
+            `#define MIN_RADIUS_PX ${MIN_RADIUS_PX.toFixed(2)}`,
+            `#define HOVER_RADIUS_PX ${HOVER_RADIUS_PX.toFixed(2)}`,
+            ...floatDefines,
+        ];
         this.rowMaterial = this.material("graphty-node-id-rows", rowDefines);
         this.unscaledRowMaterial = this.material("graphty-node-id-unscaled-rows", [
             ...rowDefines,

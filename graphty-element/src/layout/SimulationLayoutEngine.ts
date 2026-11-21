@@ -677,6 +677,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     #builtWith: GraphAccelerator | null = null;
     #accelerated = false;
+    /** Whether the accelerator is a software adapter, on which a batch is not ramped: see `#batchIterations`. */
+    #software = false;
     /**
      * The graph the simulation runs on: the element's snapshot, or while the element hands this
      * engine a working graph, that view's compact snapshot, whose rows are the simulation's.
@@ -859,6 +861,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #paused = false;
     #iterations = 1;
     #iterationsDone = 0;
+    /** Set by {@link SimulationLayoutEngine.dispose}: a batch rejected after it is not reported. */
+    #disposed = false;
 
     /**
      * Moves at every {@link SimulationLayoutEngine.loadArrangement}. A batch submitted before the
@@ -1245,12 +1249,23 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * How many iterations the next frame's batch computes: the load's count, ramped up on an accelerator when the
-     * host did not pin one (see {@link acceleratedIterationsFor}).
+     * How many iterations the next frame's batch computes: the load's count, ramped up on a hardware accelerator when
+     * the host did not pin one (see {@link acceleratedIterationsFor}).
+     *
+     * NOT ON A SOFTWARE ADAPTER. The ramp pays off where a batch's round trip costs more than its arithmetic, which is
+     * a real card's case. A software adapter computes on the CPU: a 128-iteration batch of a few thousand nodes takes
+     * it many frames, so the layout lands only every few seconds and every readback queued behind it -- the node under
+     * the pointer, a buffer map -- waits as long. The count still depends on nothing but the adapter's kind and the
+     * iterations submitted, so a seed draws the same on two cards however fast each one is.
      * @returns The iteration count.
      */
     #batchIterations(): number {
-        if (!this.#accelerated || this.#options.iterationsPerStep !== null || this.#snapshot === null) {
+        if (
+            !this.#accelerated ||
+            this.#software ||
+            this.#options.iterationsPerStep !== null ||
+            this.#snapshot === null
+        ) {
             return this.#iterations;
         }
 
@@ -2263,6 +2278,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * freeze and at shutdown.
      */
     override dispose(): void {
+        this.#disposed = true;
         this.#dataManager[WRITABLE_LANE].forgive(this.#owedPublish);
         this.#detachDrawn();
         this.#simulation?.dispose();
@@ -2553,6 +2569,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // The ATTACHED accelerator, not the one this simulation was handed: see the field.
         this.#builtWith = this.#controller.accelerator;
         this.#accelerated = decision.accelerated;
+        this.#software = decision.accelerated && decision.software;
         this.#precision = decision.accelerated ? decision.precision : CPU_PRECISION;
         this.#failed = false;
         this.#iterationsDone = 0;
@@ -2843,7 +2860,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @param from - The simulation the batch was submitted on.
      */
     #onError(error: unknown, from: LayoutSimulation): void {
-        if (this.#reported === from) {
+        // A batch still in flight when the layout was disposed rejects once the graph's teardown destroys the device
+        // under it ("GpuContext is disposed"): nothing asked for that batch any more, so it is no failure to report.
+        if (this.#disposed || this.#reported === from) {
             return;
         }
 

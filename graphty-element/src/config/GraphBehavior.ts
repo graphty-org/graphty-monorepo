@@ -285,7 +285,7 @@ const GraphLayoutOpts = z.strictObject({
      * LEFT UNSET ON PURPOSE by default, because the right answer depends on the graph in front of
      * the reader rather than on the host: a simulation resolves it at every load from
      * `stepMultiplier`, raising it fourfold once the graph is large enough that one round trip per
-     * iteration costs more than the arithmetic. On an accelerator each frame's batch then ramps up
+     * iteration costs more than the arithmetic. On a hardware accelerator each frame's batch then ramps up
      * from that count (1, 1, 2, 4, ... up to 128, fewer on a graph of more than 31,250 nodes), so a
      * large graph settles in seconds rather than at one iteration per frame. Setting it here pins
      * the count whatever the size and whatever the hardware.

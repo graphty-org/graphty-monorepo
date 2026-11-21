@@ -153,6 +153,8 @@ export interface ColumnFraming {
     readonly rows: Iterable<number>;
     readonly table: RowTable;
     readonly root: TransformNode | null;
+    /** Where a row's box is centered about its place, unscaled; the place itself when not given. */
+    readonly boxCenterOf?: (row: number) => Readonly<{ x: number; y: number; z: number }> | undefined;
 }
 
 /**
@@ -196,7 +198,7 @@ function* columnBoxes(
     columns: ColumnFraming,
     extent: GraphFraming["extent"],
 ): Iterable<{ min: Vector3; max: Vector3 }> {
-    const { rows, table, root } = columns;
+    const { rows, table, root, boxCenterOf } = columns;
     const world = root?.computeWorldMatrix(true);
     const scale = root?.absoluteScaling;
     for (const row of rows) {
@@ -205,14 +207,21 @@ function* columnBoxes(
         }
 
         const local = columnCenter(table, row);
-        const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
         if (extent === "centers") {
+            const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
             yield { min: center, max: center.clone() };
             continue;
         }
 
-        // A batched row is never turned and carries no border, so its box is its half extents.
-        const { half } = table.extentOf(row);
+        // A batched row is never turned and carries no border, so its box is its half extents about its source's box
+        // center, which a shape not centered on its origin holds off its place.
+        const { half, scale: drawn } = table.extentOf(row);
+        const off = boxCenterOf?.(row);
+        if (off !== undefined) {
+            local.addInPlaceFromFloats(off.x * drawn, off.y * drawn, off.z * drawn);
+        }
+
+        const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
         const size = new Vector3(half.x, half.y, half.z);
         if (scale !== undefined) {
             size.multiplyInPlace(scale);
@@ -3747,6 +3756,7 @@ export class UpdateManager implements Manager {
             rows: batches.columnRowIndices(),
             table,
             root: this.graphContext.getScene().getTransformNodeByName("graph-root"),
+            boxCenterOf: (row) => batches.columnRowOf(row)?.drawnBoxCenter,
         };
     }
 

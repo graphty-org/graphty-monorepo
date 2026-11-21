@@ -867,6 +867,8 @@ class Session implements ElementSession {
                 this.dispatcher.arrangement.rest();
             },
             headless: () => this.dispatcher.services.layout === undefined && !this.disposed,
+            nodeValues: (path) => this.planning.nodeValues?.(path) ?? null,
+            knownFields: () => this.planning.locationDesignation?.() ?? {},
         });
         // A renderer replaces it with its own layout engine.
         this.dispatcher.arrangement.engine = this.runner;

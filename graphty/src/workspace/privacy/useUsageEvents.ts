@@ -6,11 +6,12 @@
  * payloads are never read.
  */
 
-import { sourceDescriptors } from "@graphty/graphty-element/catalog";
+import { sourceDescriptors, STYLE_PATCH_ACTIONS } from "@graphty/graphty-element/catalog";
 import {
     CAMERA_GESTURE_KINDS,
     type GraphSession,
     isGraphtyErrorCode,
+    type JournalEntry,
     type RunStatus,
     type SessionCommand,
     type SourceLoaded,
@@ -23,6 +24,7 @@ import {
     allowlisted,
     count,
     detail,
+    graphSizeBucket,
     isGraphActionOp,
     type LoadAllowlists,
     SELECT_VIA,
@@ -39,10 +41,14 @@ import { TOOLBAR_POPOVERS } from "../toolbar/popover";
 const RUN_OUTCOMES: ReadonlySet<RunStatus> = new Set(TERMINAL_RUN_STATUSES);
 /** The camera gestures `camera_used` sends: the element's own list. */
 const CAMERA_KINDS: ReadonlySet<string> = new Set(CAMERA_GESTURE_KINDS);
-/** The `style.patch` actions `graph_action` names. */
-const PATCH_ACTIONS: ReadonlySet<string> = new Set<Extract<SessionCommand, { op: "style.patch" }>["action"]>([
-    "mark",
-    "highlight",
+/** The `style.patch` actions `style_changed` names: the element's own list. */
+const PATCH_ACTIONS: ReadonlySet<string> = new Set(STYLE_PATCH_ACTIONS);
+/** The style ops sent as `style_changed` (section 4.1), never as `graph_action`. */
+const STYLE_OPS: ReadonlySet<string> = new Set<SessionCommand["op"]>([
+    "style.encode",
+    "style.patch",
+    "style.template",
+    "shader.set",
 ]);
 
 /**
@@ -68,9 +74,14 @@ const PANEL_IDS: ReadonlySet<string> = new Set([
     SAVE_AS_DIALOG,
     DISCARD_DIALOG,
     KEEP_ASSETS_DIALOG,
+    // The version 2 Open and Save report dialogs (project/saveV2.ts, a lazy chunk this one does
+    // not import; panelIds.test.ts holds these to its constants).
+    "open-v2",
+    "report-v2",
     // places
     "graph",
     "data",
+    "views",
     "assistant",
     "notes",
     // pages
@@ -135,7 +146,10 @@ export function layoutChanged(session: GraphSession, layout: string, outcome: "a
 function countLoaded(session: GraphSession, loaded: SourceLoaded): void {
     const mapped = sourceLoadedEvent(loaded, loadAllowlists(session));
     if (mapped !== null) {
-        count(mapped.name, mapped.props);
+        count(mapped.name, {
+            ...mapped.props,
+            size: graphSizeBucket(session.data.statistics({ scope: "all" }).nodeCount),
+        });
     }
 }
 
@@ -168,15 +182,49 @@ function selectionTarget(nodes: number, edges: number): string {
 }
 
 /**
+ * The count of section 4.1 a journal entry is sent as: a style edit, 2D or 3D, VR or AR, or a
+ * saved view, each never a `graph_action`.
+ * @param entry - the entry.
+ * @param by - "assistant" when the assistant made its step.
+ * @returns the name and properties; null for one of these ops that sends nothing (the 2D or 3D
+ * setup at construction, leaving VR or AR); undefined for any other op.
+ */
+function journalCount(entry: JournalEntry, by: "assistant" | undefined): [string, UsageProps] | null | undefined {
+    const { command } = entry;
+    if (command.op === "style.patch" || STYLE_OPS.has(command.op)) {
+        return [
+            "style_changed",
+            {
+                op: command.op,
+                action: command.op === "style.patch" ? allowlisted(command.action, PATCH_ACTIONS) : undefined,
+                suggested: entry.trigger === "suggestion" ? true : undefined,
+                by,
+            },
+        ];
+    }
+    switch (command.op) {
+        case "view.dimension":
+            return command.setup === true ? null : ["view_mode", { mode: command.dimension, by }];
+        case "view.immersive":
+            // A refused entry is counted where it fails (toolbar/commands.ts).
+            return command.mode === null ? null : ["xr_entered", { mode: command.mode, outcome: "entered" }];
+        case "view.save":
+            return ["camera_saved", {}];
+        default:
+            return undefined;
+    }
+}
+
+/**
  * Subscribes the project's session's events to usage counts.
  * @param session - the project's session.
  * @returns a function that unsubscribes every one.
  */
 function watchSession(session: GraphSession): () => void {
-    // The last graph_action sent, by its coalesceKey and the undo step it went into: one slider
-    // drag sends one event, at its start. The key alone names a target (a layer's color, a
-    // filter), not a gesture, so a later edit of the same target is a new gesture once the
-    // element has put it in a step of its own.
+    // The last journal count sent (graph_action, style_changed or a view count), by its
+    // coalesceKey and the undo step it went into: one slider drag sends one event, at its start.
+    // The key alone names a target (a layer's color, a filter), not a gesture, so a later edit of
+    // the same target is a new gesture once the element has put it in a step of its own.
     let lastKey: string | undefined;
     let lastStep: string | undefined;
     const offs = [
@@ -209,25 +257,27 @@ function watchSession(session: GraphSession): () => void {
                 }
                 return;
             }
-            if (!isGraphActionOp(op)) {
+            // The entry's own step says who made it; an entry that recorded none is no one's.
+            const step =
+                entry.step === undefined ? undefined : session.history.steps.find(({ id }) => id === entry.step);
+            if (entry.coalesceKey !== undefined && entry.coalesceKey === lastKey && entry.step === lastStep) {
                 return;
             }
-            const step = session.history.steps.at(-1)?.id;
-            if (entry.coalesceKey !== undefined && entry.coalesceKey === lastKey && step === lastStep) {
+            const own = journalCount(entry, step?.provenance.via === "assistant" ? "assistant" : undefined);
+            if (own === null || (own === undefined && !isGraphActionOp(op))) {
                 return;
             }
             lastKey = entry.coalesceKey;
-            lastStep = step;
-            const action = "action" in entry.command ? entry.command.action : undefined;
-            detail("graph_action", {
-                kind: entry.kind,
-                op,
-                action:
-                    op === "style.patch" && typeof action === "string" && PATCH_ACTIONS.has(action)
-                        ? action
-                        : undefined,
-                suggested: entry.trigger === "suggestion" ? true : undefined,
-            });
+            lastStep = entry.step;
+            if (own === undefined) {
+                detail("graph_action", {
+                    kind: entry.kind,
+                    op,
+                    suggested: entry.trigger === "suggestion" ? true : undefined,
+                });
+            } else {
+                count(...own);
+            }
         }),
         session.on("selection:changed", ({ cause, nodes, edges, via }) => {
             if (cause !== "user") {
@@ -241,12 +291,12 @@ function watchSession(session: GraphSession): () => void {
         }),
         session.on("camera:gesture-end", ({ kind }) => {
             if (CAMERA_KINDS.has(kind)) {
-                detail("camera_used", { kind });
+                count("camera_used", { kind });
             }
         }),
         session.on("progress:changed", ({ task, phase, outcome, error }) => {
             if ((task === "load" || task === "prepare") && phase === "end" && outcome === "failed") {
-                detail("load_failed", { code: knownCode(error?.code), task });
+                count("load_failed", { code: knownCode(error?.code), task });
             }
         }),
         session.on("source:expanded", () => {

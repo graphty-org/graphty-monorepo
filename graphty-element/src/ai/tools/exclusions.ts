@@ -100,10 +100,12 @@ const CAMERA_VERBS: Readonly<Record<string, readonly string[]>> = {
         "setCameraPan",
         "zoomStep",
         "setCameraMode",
+        // The camera action applies a saved view's camera by name; view.restore brings back the
+        // rest it keeps too, a write.
+        "loadCameraPreset",
     ],
     "view.fit": ["resetCamera", "zoomToFit"],
     "view.zoom_to": ["zoomToSelection", "zoomToNodes"],
-    "view.restore": ["loadCameraPreset"],
 };
 
 /** The assistant's own connection on the graph and the element. */

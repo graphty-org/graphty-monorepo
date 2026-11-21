@@ -81,10 +81,13 @@ export interface EdgeBundle {
     readonly rank: number;
     /** How many edges the bundle holds. */
     readonly count: number;
-    /** The bundle's first edge, whose direction the fan is measured from. */
-    readonly first: Edge;
-    /** Every edge of the bundle, in bundle order. */
-    readonly members: readonly Edge[];
+    /** The source node of the bundle's first edge, whose direction the fan is measured from. */
+    readonly firstSource: NodeIdType;
+    /**
+     * Every edge of the bundle, in bundle order: its `Edge`, or, under "batched", the row of an edge stored with none,
+     * which a row line draws straight and so never fans.
+     */
+    readonly members: readonly (Edge | number)[];
 }
 
 /**
@@ -263,6 +266,29 @@ function dropAll(list: unknown[], doomed: ReadonlySet<unknown>): void {
     list.length = kept;
 }
 
+/**
+ * Paint `Node`s just built for rows a batch drew with no `Node`, releasing every mesh the paint
+ * rebuilds in one teardown: `disposeReleased` passes over every scene list whatever it is handed,
+ * so one call per node made building N rows cost N times the scene (issue #9184).
+ * @param painted - Each new `Node` and its paint.
+ */
+function paintBuilt(painted: readonly [Node, NodePaint][]): void {
+    const rebuilt = painted.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
+    if (rebuilt.length > 0) {
+        disposeReleased(rebuilt, [], () => {
+            for (const node of rebuilt) {
+                releaseNodeMesh(node);
+            }
+        });
+    }
+
+    for (const [node, paint] of painted) {
+        node.applySessionPaint(paint);
+        // and at its place, which a frame's update would otherwise write only at the next frame
+        node.update();
+    }
+}
+
 /** One pending edge: in the store already, waiting for both endpoints to have a render object. */
 interface PendingEdge {
     /** The raw edge record. */
@@ -340,9 +366,9 @@ export function laneStoreOf(manager: DataManager): LaneStore {
 interface ExistingEdge {
     /** The edge's index in the builder. */
     readonly edgeIndex: number;
-    /** The render object, or null while it is still pending. */
+    /** The render object, or null while it is still pending or stored with none (`storeUnbuiltEdge`). */
     readonly edge: Edge | null;
-    /** The pending entry, or null once the render object exists. */
+    /** The pending entry, or null once the render object exists or the edge is stored with none. */
     readonly pending: PendingEdge | null;
 }
 
@@ -423,6 +449,12 @@ export const dataManagerInternals = {} as {
     unbuiltRecord(manager: DataManager, index: number): Record<string | number, unknown> | undefined;
     /** Build the `Node` of a row stored with no `Node` yet, and hand it back. */
     buildRow(manager: DataManager, id: NodeIdType): Node | undefined;
+    /**
+     * Run work that builds many rows' `Node`s (`buildRow`), and release the meshes their paint
+     * rebuilds in one teardown when it ends, not one per row (issue #9184). Each `Node` is painted
+     * when the work returns.
+     */
+    buildRowsTogether<T>(manager: DataManager, work: () => T): T;
     /** Build the `Node` of every row stored with no `Node` yet, then the `Edge` of every edge stored with none. */
     buildAll(manager: DataManager): void;
     /**
@@ -512,6 +544,8 @@ interface UnbuiltRows<K, V> {
     /** Their ids, as a fresh array. */
     ids(): K[];
     build(id: K): V | undefined;
+    /** Run a walk that builds many rows, when building them together is cheaper than one by one. */
+    together?<T>(work: () => T): T;
 }
 
 /**
@@ -631,8 +665,15 @@ class LazyView<K, V> extends Map<K, V> {
     #buildAll(): void {
         const rows = this.#rows;
         if (rows !== null) {
-            for (const id of rows.ids()) {
-                rows.build(id);
+            const buildEach = (): void => {
+                for (const id of rows.ids()) {
+                    rows.build(id);
+                }
+            };
+            if (rows.together) {
+                rows.together(buildEach);
+            } else {
+                buildEach();
             }
         }
     }
@@ -723,6 +764,7 @@ export class DataManager implements Manager {
         count: () => this.unbuilt.size,
         ids: () => [...this.unbuilt.values()].map((row) => row.id),
         build: (id) => this.buildRow(id),
+        together: (work) => this.buildRowsTogether(work),
     };
     private readonly nodeMap = new LazyView<NodeIdType, Node>().lazy(this.unbuiltRows);
     /**
@@ -781,11 +823,14 @@ export class DataManager implements Manager {
             return row === undefined ? undefined : manager.recordOf(row.id, row.record);
         };
         dataManagerInternals.buildRow = (manager, id) => manager.buildRow(id);
+        dataManagerInternals.buildRowsTogether = (manager, work) => manager.buildRowsTogether(work);
         dataManagerInternals.nodeList = (manager) => manager.nodeMap.lazyValues();
         dataManagerInternals.buildAll = (manager) => {
-            for (const id of manager.unbuiltRows.ids()) {
-                manager.buildRow(id);
-            }
+            manager.buildRowsTogether(() => {
+                for (const id of manager.unbuiltRows.ids()) {
+                    manager.buildRow(id);
+                }
+            });
 
             // Only a row line draws an edge stored with no `Edge`, and the objects path has none.
             for (const row of [...manager.unbuiltEdges.keys()]) {
@@ -2032,6 +2077,8 @@ export class DataManager implements Manager {
                     adoptEdgeRecord(known.edge, record as AdHocData);
                 } else if (known.pending) {
                     known.pending.record = record;
+                } else {
+                    this.replaceUnbuiltRecord(known.edgeIndex, record);
                 }
             },
             rowsRemoved: (nodes, edges) => {
@@ -2316,12 +2363,40 @@ export class DataManager implements Manager {
      * @returns the existing edges, oldest first; empty when the pair is new
      */
     private existingBetween(sourceId: NodeIdType, targetId: NodeIdType): ExistingEdge[] {
-        const built = this.getEdgesBetween(sourceId, targetId);
+        // Builds no `Edge`: an edge stored with none is built when its row is painted, in row order, as the objects
+        // path builds every one. Building the first of a pair when its repeat arrives drew it under the rows before it.
+        const found: ExistingEdge[] = [];
+        if (isStorableId(sourceId) && isStorableId(targetId)) {
+            const { builder } = this.store;
+            const u = builder.indexOf(sourceId);
+            const v = builder.indexOf(targetId);
+            if (u !== INVALID_INDEX && v !== INVALID_INDEX) {
+                for (const e of builder.findEdges(u, v)) {
+                    // A row with neither is pending, and is found below by its pair.
+                    const edge = this.edgeRows[e] ?? null;
+                    const source = edge?.srcId ?? this.unbuiltEdges.sourceAt(e);
+                    if (source !== undefined && builder.indexOf(source) === u) {
+                        found.push({ edgeIndex: e, edge, pending: null });
+                    }
+                }
+            }
+        }
+
         const pending = this.pendingByPair.get(sourceId)?.get(targetId) ?? [];
-        return [
-            ...built.map((edge) => ({ edgeIndex: edge.index, edge, pending: null })),
-            ...pending.map((entry) => ({ edgeIndex: entry.edgeIndex, edge: null, pending: entry })),
-        ];
+        return [...found, ...pending.map((entry) => ({ edgeIndex: entry.edgeIndex, edge: null, pending: entry }))];
+    }
+
+    /**
+     * Hand an edge stored with no `Edge` the record a repeat policy replaced its own with, which its `Edge` is built
+     * from.
+     * @param row - Its row.
+     * @param record - The record.
+     */
+    private replaceUnbuiltRecord(row: number, record: Record<string | number, unknown>): void {
+        const stored = this.unbuiltEdges.get(row);
+        if (stored !== undefined && stored.record !== IN_SLICE) {
+            this.unbuiltEdges.set(row, { ...stored, record });
+        }
     }
 
     /**
@@ -2737,15 +2812,34 @@ export class DataManager implements Manager {
             return;
         }
 
-        if (nodeRebuildsFor(node, paint)) {
-            disposeReleased([node], [], () => {
-                releaseNodeMesh(node);
-            });
+        if (this.builtTogether === null) {
+            paintBuilt([[node, paint]]);
+        } else {
+            this.builtTogether.push([node, paint]);
+        }
+    }
+
+    /** The rows built while {@link buildRowsTogether} runs, with their paint; null outside it. */
+    private builtTogether: [Node, NodePaint][] | null = null;
+
+    /**
+     * See `dataManagerInternals.buildRowsTogether`. Nested calls join the outermost one.
+     * @param work - Builds the rows.
+     * @returns What `work` returns.
+     */
+    private buildRowsTogether<T>(work: () => T): T {
+        if (this.builtTogether !== null) {
+            return work();
         }
 
-        node.applySessionPaint(paint);
-        // and at its place, which a frame's update would otherwise write only at the next frame
-        node.update();
+        const built: [Node, NodePaint][] = [];
+        this.builtTogether = built;
+        try {
+            return work();
+        } finally {
+            this.builtTogether = null;
+            paintBuilt(built);
+        }
     }
 
     /**
@@ -3361,9 +3455,13 @@ export class DataManager implements Manager {
      * @returns the existing edge, or null when the row is not one this manager holds
      */
     private existingAt(edgeIndex: number): ExistingEdge | null {
-        const edge = this.edgesByIndex[edgeIndex] ?? this.buildEdgeRow(edgeIndex);
+        const edge = this.edgesByIndex[edgeIndex];
         if (edge) {
             return { edgeIndex, edge, pending: null };
+        }
+
+        if (this.unbuiltEdges.edgeIdAt(edgeIndex) !== undefined) {
+            return { edgeIndex, edge: null, pending: null };
         }
 
         // A linear scan, and deliberately so: it is reached only when `edgeIdPath` is configured
@@ -3395,8 +3493,8 @@ export class DataManager implements Manager {
         if (this.bundles?.version !== this.edgeVersion) {
             const byEdge = new Map<Edge, EdgeBundle>();
             // By id, not by `Node`: reading an end's `Node` would build one for a row drawn with none.
-            // An edge stored with no `Edge` joins by its row, and is built only when it shares its
-            // pair with another edge: a fan is drawn by `Edge`s, a lone edge needs none.
+            // An edge stored with no `Edge` joins by its row and stays unbuilt: a row line is straight, so it holds its
+            // place in the fan without fanning, and building it here took its draw slot after every row painted before.
             const pairs = new Map<NodeIdType, Map<NodeIdType, (Edge | number)[]>>();
             const join = (a: NodeIdType, b: NodeIdType, each: Edge | number): void => {
                 let group = pairs.get(a)?.get(b) ?? pairs.get(b)?.get(a);
@@ -3429,15 +3527,15 @@ export class DataManager implements Manager {
             this.bundles = { version: this.edgeVersion, byEdge };
         }
 
-        return this.bundles.byEdge.get(edge) ?? { rank: 0, count: 1, first: edge, members: [edge] };
+        return this.bundles.byEdge.get(edge) ?? { rank: 0, count: 1, firstSource: edge.srcId, members: [edge] };
     }
 
     /**
-     * Record one fan of {@link drawnBundle}'s, building the `Edge` of each member stored with none.
+     * Record one fan of {@link drawnBundle}'s.
      * @param joined - Its members: `Edge`s, and the rows of edges stored with no `Edge`.
      * @param byRow - Under "batched": order it by row, oldest first, so an `Edge` built late (from a row
      *   stored with none) is not last in its fan for that. The objects path keeps its build order.
-     * @param byEdge - Where each member's place is recorded.
+     * @param byEdge - Where each `Edge` member's place is recorded.
      */
     private joinBundle(joined: (Edge | number)[], byRow: boolean, byEdge: Map<Edge, EdgeBundle>): void {
         if (byRow) {
@@ -3445,9 +3543,12 @@ export class DataManager implements Manager {
             joined.sort((x, y) => rowOf(x) - rowOf(y));
         }
 
-        const group = joined.flatMap((each) => (typeof each === "number" ? (this.buildEdgeRow(each) ?? []) : each));
-        group.forEach((each, rank) => {
-            byEdge.set(each, { rank, count: group.length, first: group[0], members: group });
+        const [first] = joined;
+        const firstSource = typeof first === "number" ? (this.unbuiltEdges.sourceAt(first) as NodeIdType) : first.srcId;
+        joined.forEach((each, rank) => {
+            if (typeof each !== "number") {
+                byEdge.set(each, { rank, count: joined.length, firstSource, members: joined });
+            }
         });
     }
 

@@ -1632,6 +1632,13 @@ export interface StylesSources {
      */
     readonly encoding?: (entry: CompiledLayer) => readonly PreparedBinding[];
     /**
+     * A number that moves whenever what {@link StylesSources.encoding} answers for some layer changes,
+     * so a kept reading of the stack is read again once a pass has prepared a layer it read as
+     * painting nothing (issue #9218). Absent, the readings are kept as if `encoding` never moved
+     * between the events that move the rest of the reading token.
+     */
+    readonly encodingRevision?: () => number;
+    /**
      * The dense index of one node, for {@link StylesApi.explain}.
      *
      * Absent, no node id resolves and every explanation refuses with `E_BAD_COMMAND`, which is
@@ -2757,7 +2764,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     /**
      * Everything a reading of the whole stack (`agreement`) depends on besides its own
      * arguments: the stack, a branches view, the repaints that landed, the data and runs, the
-     * element states, and the settings the walk reads. Equal tokens give equal answers.
+     * element states, the settings the walk reads, and the bindings the passes prepared. Equal tokens give equal answers.
      * @returns The token, or null when the session cannot say when element states move.
      */
     const readingToken = (): readonly unknown[] | null =>
@@ -2772,6 +2779,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                   sources.stateRevision(),
                   dispatcher.state.config.get("editableBase"),
                   sources.liftDrawn?.() ?? false,
+                  sources.encodingRevision?.() ?? 0,
               ];
     /** The readings answered under one token, by question; dropped when the token moves. */
     let readings: { token: readonly unknown[]; answers: Map<string, unknown> } | null = null;

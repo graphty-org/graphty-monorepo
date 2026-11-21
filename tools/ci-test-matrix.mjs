@@ -22,7 +22,8 @@
  *   (graphty-element-lifecycle, the fidelity slices), unless --only names them. A shard marked
  *   "pull-request": "selected" (the features-on twins, FEATURES_ON_SHARDS) runs on a
  *   pull request only as the bins of the files the change selected, never whole and never as a whole family packed
- *   into bins.
+ *   into bins. A full-run-only shard marked "pull-request": "stories" (render-parity) runs on a pull request only as
+ *   the bins of the stories the change added or changed; bins that share a `job` run as one job, a group of them.
  * Prints three GITHUB_OUTPUT lines:
  *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
@@ -489,6 +490,10 @@ const OFF_SHARDS = [
     // "render-parity-<engine>" draws every captured story under "objects" twice and "batched" once and fails on a
     // pixel that differs (test/render-parity/stories.test.ts, design/rendering/row-renderer.md 7): on WebGL and on
     // WebGPU in Chromium (SwiftShader), and in WebKit's WebGL2, the engine an iPad draws with.
+    // "pull-request": "stories": a pull request that adds or changes a graphty-element story draws only those stories,
+    // all three engines in one job (tools/test-select.mjs parityBins(), #9274; a story added by a fix turned the full
+    // run red, #9259). "story-ms": a story's three loads on that engine, with the run's start shared out: the full
+    // run's Run tests step over its 391 stories (run 44799180458, 2026-11-20: 847, 1,443 and 409 s).
     {
         shard: "graphty-element-batched-webgpu",
         package: "graphty-element",
@@ -498,16 +503,18 @@ const OFF_SHARDS = [
         local: "never",
     },
     ...[
-        { engine: "webgl", env: "GRAPHTY_BROWSER_GPU=swiftshader VITE_PARITY_RENDERER=webgl" },
-        { engine: "webgpu", env: "GRAPHTY_BROWSER_GPU=swiftshader VITE_PARITY_RENDERER=webgpu" },
-        { engine: "webkit", env: "GRAPHTY_PARITY_BROWSER=webkit", browsers: "chromium webkit" },
-    ].map(({ engine, env, browsers }) => ({
+        { engine: "webgl", env: "GRAPHTY_BROWSER_GPU=swiftshader VITE_PARITY_RENDERER=webgl", storyMs: 2_200 },
+        { engine: "webgpu", env: "GRAPHTY_BROWSER_GPU=swiftshader VITE_PARITY_RENDERER=webgpu", storyMs: 3_700 },
+        { engine: "webkit", env: "GRAPHTY_PARITY_BROWSER=webkit", browsers: "chromium webkit", storyMs: 1_100 },
+    ].map(({ engine, env, browsers, storyMs }) => ({
         shard: `graphty-element-render-parity-${engine}`,
         package: "graphty-element",
         "test-command": `cd graphty-element && ${env} pnpm exec vitest run --project=render-parity ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
         ...(browsers ? { browsers } : {}),
         "full-run-only": true,
+        "pull-request": "stories",
+        "story-ms": storyMs,
         local: "never",
     })),
     // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows
@@ -729,6 +736,7 @@ const coverageFile = (shard) => shard["coverage-file"] ?? shard.package + "/cove
  */
 export function groupEntry(name, members) {
     const steps = members.map((m) => `echo "==> ${m.shard}"; (${ciCommand(m)}) || failed="$failed ${m.shard}"`);
+    const browsers = [...new Set(members.flatMap((m) => m.browsers?.split(" ") ?? []))].join(" ");
     return {
         shard: name,
         package: members.map((m) => m.package).join(" "),
@@ -737,6 +745,8 @@ export function groupEntry(name, members) {
         members: members.map((m) => m.shard),
         "test-command": `failed=""; ${steps.join("; ")}; if [ -n "$failed" ]; then echo "::error::failed:$failed"; exit 1; fi`,
         "needs-browser": members.some((m) => m["needs-browser"]),
+        // every browser a member asks for (ci.yml installs them), as one shard's "browsers"
+        ...(browsers ? { browsers } : {}),
         // the Git LFS paths its members read, comma separated as `git lfs pull --include` takes them
         lfs: members
             .map((m) => m.lfs)
@@ -802,12 +812,28 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
         }
     }
     // The On shards go last, so with ci.yml's max-parallel the Off shards always start first.
-    // a packed whole family (`whole`: its package) is left out with its package, as its shards would be
+    // a packed whole family (`whole`: its package) is left out with its package, as its shards would be; a bin of a
+    // full-run-only shard with a "pull-request" mode runs on a pull request (render-parity's changed stories)
     const bins = (light?.bins ?? []).filter((b) => {
         const shard = shards.find((s) => s.shard === b.shard);
-        return runs(shard) && (!b.whole || (touched(shard ?? { package: b.whole }) && whole(shard)));
+        const binRuns = runs(shard) || shard?.["pull-request"] !== undefined;
+        return binRuns && (!b.whole || (touched(shard ?? { package: b.whole }) && whole(shard)));
     });
-    const all = [...include, ...bins.map((b) => binEntry(b, shards))];
+    // bins that share a `job` run in one job, one after another, each filed under its own name
+    const jobs = Map.groupBy(
+        bins.filter((b) => b.job),
+        (b) => b.job,
+    );
+    const all = [
+        ...include,
+        ...bins.filter((b) => !b.job).map((b) => binEntry(b, shards)),
+        ...[...jobs].map(([job, js]) =>
+            groupEntry(
+                job,
+                js.map((b) => binMember(b, shards)),
+            ),
+        ),
+    ];
     return [...all.filter((e) => e.flags !== "on"), ...all.filter((e) => e.flags === "on")];
 }
 
@@ -820,6 +846,18 @@ export function plan(affected, only, light, pullRequest = false, shards = SHARDS
  * @returns a matrix entry with a `members` field
  */
 export function binEntry(bin, shards = SHARDS) {
+    const e = binMember(bin, shards);
+    return { ...e, "test-command": ciCommand(e) };
+}
+
+/**
+ * A bin as a shard of its own: binEntry() before its command goes through tools/results/run-group.mjs, as a
+ * group's member (groupEntry()) is.
+ * @param bin a lightPlan() bin
+ * @param shards the shards to look its shard up in
+ * @returns a SHARDS-like entry named after the bin
+ */
+function binMember(bin, shards) {
     const shard = shards.find((s) => s.shard === bin.shard);
     if (!shard || !bin.command) {
         throw new Error(`light plan bin ${bin.name} names no shard or has no command`);
@@ -832,7 +870,7 @@ export function binEntry(bin, shards = SHARDS) {
         "test-command": bin.command,
     };
     delete e["coverage-file"];
-    return { ...e, "test-command": ciCommand(e) };
+    return e;
 }
 
 /**

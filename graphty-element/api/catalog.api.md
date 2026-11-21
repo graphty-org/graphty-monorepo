@@ -3258,6 +3258,9 @@ export interface StructureValue {
 }
 
 // @public
+export const STYLE_PATCH_ACTIONS: readonly ["add", "update", "remove", "move", "removeBySource", "highlight", "mark", "resolveToStatic", "addRow", "writeRow", "addFolder", "renameRow", "moveRow", "pinRow", "lockRow", "hideRow", "deleteRow", "duplicateRow", "addDefaultRows"];
+
+// @public
 export interface StyleDocument {
     labelLooks?: readonly LabelLookDescriptor[];
     // (undocumented)

@@ -31,6 +31,9 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `groups.merged` -- on a re-run, old groups' members now mostly sit in one group, which kept
  *   another number: `{ field, group, from }`, the field, the number it kept, and the numbers of
  *   the groups that merged into it.
+ * - `layers.kept` -- a re-run painted nothing new: the style layers already reading the run draw
+ *   its new result as they stand, with any change made to them since its first completion:
+ *   `{ layers }`, their ids.
  * - `paths.counted-exactly` -- every shortest path was counted exactly, over the graph read as
  *   undirected.
  * - `paths.hop-lengths` -- path lengths count edges, and edge weights were not read.
@@ -157,6 +160,7 @@ export type CaveatCode =
     | "community.resolution"
     | "groups.split"
     | "groups.merged"
+    | "layers.kept"
     | "paths.counted-exactly"
     | "paths.hop-lengths"
     | "tree.edge-count"

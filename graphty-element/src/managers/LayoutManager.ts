@@ -56,6 +56,7 @@ import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
+import type { RowExtent as TableExtent } from "../render/RowTable";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
 import type { LayoutMotion } from "../session/types";
@@ -483,7 +484,10 @@ interface BuildOptions {
     readonly explicitScope?: boolean;
     /** Whether this build changes the layout, so the graph's `layoutTransition` moves the nodes. */
     readonly transition?: boolean;
-    /** A simulation starts from the seed, not from the element's arrangement: see `restart`. */
+    /**
+     * A seeded simulation starts from the seed, not from the element's arrangement: see `restart`,
+     * and every build a consumer asks for (issue #9292).
+     */
     readonly fromSeed?: boolean;
 }
 
@@ -1527,6 +1531,7 @@ export class LayoutManager implements Manager {
             // `onSnapshotReplaced` -- where an unrecorded driver would look like a decision that
             // had changed and start this rebuild over again.
             this.runningDriver = driver;
+            this.holdBeforeInit(engine, members);
             await engine.init();
             if (!how.live()) {
                 throw cancelledBuild();
@@ -1743,10 +1748,8 @@ export class LayoutManager implements Manager {
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
             weightMeaning: this.weightMeaningFor(type),
             rowData: (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row),
-            rowHalfExtents: (row) => {
-                const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
-                return extent !== undefined && extent.scale > 0 ? extent.half : null;
-            },
+            rowHalfExtents: (row) => this.measuredRow(row)?.half ?? null,
+            rowBorderReach: (row) => this.measuredRow(row)?.border ?? 0,
             positionScale: () => this.graphContext?.getStyles().config.data.knownFields.positionScale,
             knownFields: () => this.graphContext?.getStyles().config.data.knownFields,
             rankSets: () => this.dataManager.rankSets,
@@ -1798,25 +1801,36 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * A row as the row table measured it, under renderPath "batched" only: the "objects" path reads its `Node`s.
+     * @param row - The row; INVALID_INDEX for none.
+     * @returns Its extent; null off "batched", for no row, or before the row is measured.
+     */
+    private measuredRow(row: number): TableExtent | null {
+        if (row === INVALID_INDEX || this.dataManager.renderLimits?.batched() !== true) {
+            return null;
+        }
+
+        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
+        return extent === undefined || extent.scale <= 0 ? null : extent;
+    }
+
+    /**
      * How far a row drawn with no `Node` reaches, as the row table measured it, for `nodeGap`: what its `Node` would
      * answer for `layoutRadius` and `drawnHalfExtents`.
      * @param row - The row; INVALID_INDEX for none.
      * @returns The reach; null off renderPath "batched", for no row, or before the row is measured.
      */
     private rowExtent(row: number): RowExtent | null {
-        if (row === INVALID_INDEX || this.dataManager.renderLimits?.batched() !== true) {
+        const extent = this.measuredRow(row);
+        if (extent === null) {
             return null;
         }
 
-        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
-        if (extent === undefined || extent.scale <= 0) {
-            return null;
-        }
-
-        const { half } = extent;
+        // `layoutRadius` counts the border, so a row reaches as far whether or not it has its `Node`.
+        const { half, border } = extent;
         return extent.round === null
-            ? { radius: Math.max(half.x, half.y, half.z), half }
-            : { radius: extent.round, half: null };
+            ? { radius: Math.max(half.x, half.y, half.z) + border, half }
+            : { radius: extent.round + border, half: null };
     }
 
     /**
@@ -2224,6 +2238,7 @@ export class LayoutManager implements Manager {
                 live: () => true,
                 explicitScope: scope !== undefined && this.carriedScope !== undefined,
                 transition: this.engine !== undefined,
+                fromSeed: true,
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -2376,6 +2391,7 @@ export class LayoutManager implements Manager {
                 // A first layout, a restore and a 2D/3D switch place the nodes in one frame.
                 transition:
                     !restoring && built !== null && this.layoutEngine !== undefined && !sameArrangement(built, choice),
+                fromSeed: !restoring,
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -2619,6 +2635,20 @@ export class LayoutManager implements Manager {
         }
 
         return [mask, rows];
+    }
+
+    /**
+     * Hand a new engine its hold before `init()` as well as after it, so a simulation starting from its seed
+     * keeps the held rows where they are (see `SimulationLayoutEngine.load`). `members` is recorded first: the
+     * freeze inside `init()` rebuilds the mask from it.
+     * @param engine - The engine about to be initialized.
+     * @param members - The members it lays out, or null when unscoped.
+     */
+    private holdBeforeInit(engine: LayoutEngine, members: ReadonlySet<NodeIdType> | null): void {
+        this.members = members;
+        if (members !== null) {
+            engine.setHoldMask(...this.holdMaskOf(members));
+        }
     }
 
     /**

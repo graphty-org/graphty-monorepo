@@ -15,7 +15,6 @@ import {
     formatRows,
     framesWords,
     presetChoices,
-    presetOf,
     previewOf,
     refusalWords,
     slug,
@@ -77,13 +76,14 @@ describe("the Export dialog's choices", () => {
         assert.equal(pulled, 6, "stops at the chunk that ends the sixth line");
     });
 
-    it("names the preset the choices match, and none after an edit", () => {
-        assert.equal(presetOf(DEFAULT_CAMERA_IMAGE)?.id, "web-share");
-        assert.equal(presetOf({ ...DEFAULT_CAMERA_IMAGE, size: "4x" })?.id, "print");
-        assert.isUndefined(presetOf({ ...DEFAULT_CAMERA_IMAGE, format: "webp" }));
+    it("keeps the picked preset when the background changes", () => {
+        assert.equal(DEFAULT_CAMERA_IMAGE.preset, "web-share");
         for (const preset of SCREENSHOT_PRESET_DESCRIPTORS) {
-            assert.equal(presetOf({ ...DEFAULT_CAMERA_IMAGE, ...presetChoices(preset) }), preset);
+            assert.equal(presetChoices(preset).format, preset.format);
         }
+        const transparent = cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, background: "transparent" }, {});
+        assert.isTrue(transparent.transparentBackground);
+        assert.isUndefined(transparent.enhanceQuality, "still To share, not another preset");
     });
 
     it("turns choices into screenshot options", () => {
@@ -96,7 +96,14 @@ describe("the Export dialog's choices", () => {
             downloadFilename: "a_b.png",
         });
         const thumbnail = cameraScreenshotOptions(
-            { ...DEFAULT_CAMERA_IMAGE, format: "jpeg", size: "400x300", background: "canvas", view: "topView" },
+            {
+                ...DEFAULT_CAMERA_IMAGE,
+                preset: "thumbnail",
+                format: "jpeg",
+                size: "400x300",
+                background: "canvas",
+                view: "topView",
+            },
             {},
         );
         assert.equal(thumbnail.width, 400);
@@ -112,7 +119,10 @@ describe("the Export dialog's choices", () => {
             view: "fitToGraph",
             params: { keepAngle: true },
         });
-        assert.isTrue(cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, size: "4x" }, {}).enhanceQuality);
+        assert.isTrue(
+            cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, preset: "print", size: "4x" }, {}).enhanceQuality,
+        );
+        assert.isUndefined(cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, preset: null }, {}).enhanceQuality);
     });
 
     it("refuses a transparent background in a format that cannot keep it", () => {

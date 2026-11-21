@@ -51,8 +51,10 @@ import type { EdgeId, NodeId } from "../../../catalog/types";
 import { EDGE_ID_CEILING, edgeCounterOf } from "../../../data/edgeIdentity";
 import { GraphtyError } from "../../../errors/GraphtyError";
 import type { ColumnSettings } from "../../commands/data";
+import type { SessionData } from "../../data";
 import type { TransactionOptions } from "../../project/Dispatcher";
-import type { SourceRefreshReport } from "../../sources/types";
+import { SOURCE_ATTR } from "../../sources/ids";
+import type { SourceLoadRecord, SourceRefreshReport } from "../../sources/types";
 import type { GraphSession, LoadedSource, TransactionScope } from "../../types";
 import { token } from "../framing";
 import type {
@@ -2148,6 +2150,45 @@ async function restoreSettings(built: Built, tx: TransactionScope): Promise<void
 }
 
 /**
+ * Each network source's request history, from its record's `origin.ledger` (spec 4.1.2 rule 7),
+ * keyed by its source id as the file writes it.
+ * @param built - The build.
+ * @returns The records, by source id.
+ */
+function ledgersOf(built: Built): Map<string, SourceLoadRecord> {
+    const kinds = new Map(built.kinds);
+    return new Map(
+        built.origins.flatMap(([id, origin]) => {
+            const { ledger } = origin;
+            return kinds.get(id) === "network" &&
+                isPlainObject(ledger) &&
+                typeof ledger.source === "string" &&
+                Array.isArray(ledger.expansions)
+                ? [[id, { ...(ledger as unknown as SourceLoadRecord), key: id }] as const]
+                : [];
+        }),
+    );
+}
+
+/**
+ * Give the session the loads as the file keeps them: each network source's request history, so a
+ * refresh replays it, and each source saved by reference (read again or held) kept as a reference,
+ * as `session.data.setCopy` keeps one.
+ * @param session - The session.
+ * @param built - The build.
+ * @param ledgers - The network sources' request histories.
+ */
+function keepSourceChoices(session: GraphSession, built: Built, ledgers: ReadonlyMap<string, SourceLoadRecord>): void {
+    const data = session.data as Partial<Pick<SessionData, "ledger" | "keepReferences">>;
+    if (ledgers.size > 0) {
+        data.ledger?.fromMember({ version: 1, loads: [...ledgers.values()] });
+    }
+
+    const referenced = [...built.referenced.map(([id]) => id), ...built.unavailable.map((record) => String(record.id))];
+    data.keepReferences?.(referenced);
+}
+
+/**
  * Put a build into the session through the open's transaction, replacing the open data.
  * @param built - The build.
  * @param context - The open's context.
@@ -2159,11 +2200,18 @@ async function apply(
     const { tx } = context;
     await tx.data.clear();
     assignIds(built.nodes);
+    // A network source's nodes name its load, as a load the session made does, so `data.refresh`
+    // replays the request history its record keeps (spec 4.1.2 rule 7).
+    const ledgers = ledgersOf(built);
+    const named = (element: { readonly loads: readonly string[] }): JsonObject => {
+        const keys = element.loads.filter((load) => ledgers.has(load));
+        return keys.length === 0 ? {} : { [SOURCE_ATTR.loads]: keys };
+    };
     await tx.execute({
         op: "data.apply",
         mutation: {
             kind: "add-nodes",
-            records: built.nodes.map((node) => ({ ...node.columns, id: node.id })),
+            records: built.nodes.map((node) => ({ ...node.columns, ...named(node), id: node.id })),
             idPath: "id",
         },
     });
@@ -2177,7 +2225,12 @@ async function apply(
         op: "data.apply",
         mutation: {
             kind: "add-edges",
-            records: built.edges.map((edge) => ({ ...edge.columns, source: edge.from.id, target: edge.to.id })),
+            records: built.edges.map((edge) => ({
+                ...edge.columns,
+                ...named(edge),
+                source: edge.from.id,
+                target: edge.to.id,
+            })),
             source: "source",
             target: "target",
             directed: built.directed,
@@ -2283,6 +2336,7 @@ async function apply(
     }
 
     await restoreSettings(built, tx);
+    keepSourceChoices(context.session, built, ledgers);
     rememberRead(context.session, {
         build: built.build,
         copies: built.copies,

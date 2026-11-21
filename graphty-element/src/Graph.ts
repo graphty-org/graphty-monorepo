@@ -919,6 +919,8 @@ export class Graph implements GraphContext {
     #thumbnailQueue: Promise<unknown> = Promise.resolve();
     /** Whether each model's template could be built, by digest and stand-ins (`checkModel`). */
     readonly #modelChecks = new Map<string, Promise<ModelCheck>>();
+    /** Where `checkModel` builds its templates; see {@link Graph.#checkScene}. */
+    #checkSceneHeld: Scene | null = null;
     /** Margins of the canvas something else covers, in CSS pixels; see {@link setViewInsets}. */
     #viewInsets: Required<ViewInsets> = fullInsets(undefined);
     skybox?: string;
@@ -1419,6 +1421,7 @@ export class Graph implements GraphContext {
                 batched: () => this.#renderPath === "batched",
                 nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
                 darkScheme: () => this.#darkScheme,
+                layoutHidden: () => this.#layoutHidden,
             },
         );
 
@@ -3242,6 +3245,7 @@ export class Graph implements GraphContext {
                 this.#followedFrame = frame;
                 viewLog.info("map frame", frameFacts(frame));
                 this.#followFrame(frame);
+                this.#hideOffMap(frame);
             }
 
             this.#drawOverMap(frame);
@@ -5517,7 +5521,14 @@ export class Graph implements GraphContext {
      * @returns The counts as of the last frame.
      */
     get rowCounts(): RowCounts {
-        const batchedNodes = this.#nodeBatches?.batchedNodes ?? 0;
+        const batches = this.#nodeBatches;
+        const batchedNodes = batches?.batchedNodes ?? 0;
+        // Only a `Node` has a mesh of its own: a row stored with no `Node` that no batch draws is drawn by nothing.
+        let objectNodes = 0;
+        for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+            objectNodes += batches?.draws(node) === true ? 0 : 1;
+        }
+
         // An edge stored with no `Edge` is drawn from the row tables (`EdgeRowLines`), never as an object.
         let objectEdges = 0;
         for (const edge of this.builtEdges()) {
@@ -5526,7 +5537,7 @@ export class Graph implements GraphContext {
 
         return {
             batchedNodes,
-            objectNodes: this.dataManager.nodes.size - batchedNodes,
+            objectNodes,
             pulledEdges: this.dataManager.edges.size - objectEdges,
             objectEdges,
         };
@@ -6487,6 +6498,35 @@ export class Graph implements GraphContext {
     /** The frame the camera last followed; see {@link #followFrame}. */
     #followedFrame: LocationMapFrame | null = null;
 
+    /** The nodes the map layout keeps off the canvas (`unplaced: "hide"`), or null; see {@link #hideOffMap}. */
+    #layoutHidden: readonly NodeId[] | null = null;
+
+    /**
+     * Keep the nodes a map frame leaves unplaced off the canvas when it hides them (`unplaced:
+     * "hide"`), their edges with them, and paint again whenever that list changes.
+     * @param frame - The frame now active, or null.
+     */
+    #hideOffMap(frame: LocationMapFrame | null): void {
+        const next = frame?.hidesUnplaced === true && frame.unplacedIds.size > 0 ? [...frame.unplacedIds] : null;
+        const was = this.#layoutHidden;
+        if (next === null ? was === null : was?.length === next.length && next.every((id, at) => was[at] === id)) {
+            return;
+        }
+
+        this.#layoutHidden = next as readonly NodeId[] | null;
+        void this.operationQueue
+            .queueOperationAsync(
+                "style-apply",
+                async () => {
+                    await this.repaintFromSession();
+                },
+                { description: "Repainting for the map's unplaced nodes" },
+            )
+            .catch((error: unknown) => {
+                graphLogger.error("The repaint for the map's unplaced nodes failed.", asError(error));
+            });
+    }
+
     /**
      * The camera's rules on a map: the wheel zooms toward the pointer, and on a globe the camera
      * never zooms inside it, and its near clip plane comes in as it nears the surface, so the
@@ -6747,6 +6787,9 @@ export class Graph implements GraphContext {
 
         this.#lighting = lighting;
         this.renderManager.applyLighting(lighting);
+        // A frozen list of what is drawn skips each mesh's material check, so a mesh would keep
+        // drawing the old lighting's shader, or nothing once its material is marked not ready (#9246).
+        this.updateManager.thawActiveMeshes();
     }
 
     /**
@@ -7492,7 +7535,8 @@ export class Graph implements GraphContext {
             const corners = boxCorners(local, half, world);
             const centre = world === undefined ? local : Vector3.TransformCoordinates(local, world);
             const worldRadius = Math.max(half.x, half.y, half.z) * rootScale;
-            const at = this.#screenSpot(centre, worldRadius, corners, !table.isHidden(row));
+            // A row whose source is off its batch (an object row of that look) is drawn by nothing.
+            const at = this.#screenSpot(centre, worldRadius, corners, batches.draws(column) && !table.isHidden(row));
             yield { id, row, at, centre, corners, node: null, column };
         }
     }
@@ -8214,6 +8258,27 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The scene `checkModel` builds its templates in: a virtual scene of the graph's engine, which
+     * nothing draws. Built in the graph's own scene, a check's loading, meshes and shaders each
+     * made the graph draw a frame that showed nothing new, about ten per model -- under software
+     * WebGL on a busy machine, seconds of drawing for a dialog's check (#9219). Kept for the next
+     * check, so its environment loads once; the engine frees it with itself.
+     * @returns The scene.
+     */
+    #checkScene(): Scene {
+        const held = this.#checkSceneHeld;
+        if (held !== null && !held.isDisposed && held.getEngine() === this.engine) {
+            return held;
+        }
+
+        const scene = new Scene(this.engine, { virtual: true });
+        // Nothing is drawn or picked in it: the graph's canvas input stays the graph scene's alone.
+        scene.detachControl();
+        this.#checkSceneHeld = scene;
+        return scene;
+    }
+
+    /**
      * Whether a model can be drawn, without drawing it: its template is built once and freed. See
      * {@link ModelCheck}. Kept by the model's files, so asking again, or for every member of a set,
      * costs one build each.
@@ -8255,7 +8320,7 @@ export class Graph implements GraphContext {
         if (check === undefined) {
             check = this.#thumbnailQueue.then(async () => {
                 try {
-                    (await this.#modelTemplate(this.scene, ref, record, standIn, {})).dispose();
+                    (await this.#modelTemplate(this.#checkScene(), ref, record, standIn, {})).dispose();
                     return { drawable: true };
                 } catch (error) {
                     return failed(error);
@@ -10203,16 +10268,18 @@ export class Graph implements GraphContext {
             return nodes;
         }
 
-        for (const row of unbuilt) {
-            const id =
-                batches?.columnRowOf(row) === undefined
-                    ? dataManagerInternals.unbuiltAt(this.dataManager, row)
-                    : undefined;
-            const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
-            if (node !== undefined) {
-                nodes.push(node);
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const row of unbuilt) {
+                const id =
+                    batches?.columnRowOf(row) === undefined
+                        ? dataManagerInternals.unbuiltAt(this.dataManager, row)
+                        : undefined;
+                const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
+                if (node !== undefined) {
+                    nodes.push(node);
+                }
             }
-        }
+        });
 
         return nodes;
     }

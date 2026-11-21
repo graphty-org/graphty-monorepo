@@ -92,4 +92,44 @@ describe("removed channels in a saved layer", () => {
         assert.deepEqual(read.dropped, ["node.haloScale"]);
         assert.deepEqual(read.spec.set, { "node.outerBorderWidth": (DEFAULT_SELECTION_STYLE.scale - 1) / 2 });
     });
+
+    it("reads a saved Selected row's edge band and an edge underlay as the edge's outline", async () => {
+        const harness = makeSession();
+        harness.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b" }]);
+        const { session } = harness;
+        await session.styles.applyTemplate({
+            version: 1,
+            layers: [
+                {
+                    name: "Old selected edges",
+                    target: "edge",
+                    selector: { match: "everything" },
+                    set: { "edge.bandColor": "#0077bb", "edge.bandWidth": 2.5, "edge.bandOpacity": 1 },
+                } as never,
+            ],
+        });
+        await session.styles.settled();
+        const layer = session.styles.list().find((entry) => entry.name === "Old selected edges");
+        assert.isDefined(layer);
+        assert.strictEqual(layer.enabled, true);
+        const [edge] = session.data.edges();
+        const { merged } = session.styles.explain({ edge: edge.id });
+        assert.strictEqual((merged["edge.outlineColor"] as { hex?: string }).hex?.toLowerCase(), "#0077bb");
+        // the band was 2.5 times twice the line's width across, whatever that width
+        assert.strictEqual(merged["edge.outlineScale"], 5);
+        assert.strictEqual(merged["edge.outlineWidth"], 0);
+        assert.strictEqual(merged["edge.outlineOpacity"], 1);
+        session.dispose();
+
+        const underlay = readRemovedChannels({
+            set: { "edge.underlayColor": "#00ff00", "edge.underlayOpacity": 0.5, "edge.underlayPadding": 6 },
+        }).spec.set as Record<string, unknown>;
+        // twice its padding across, whatever the line's width
+        assert.deepEqual(underlay, {
+            "edge.outlineScale": 0,
+            "edge.outlineWidth": 12,
+            "edge.outlineColor": "#00ff00",
+            "edge.outlineOpacity": 0.5,
+        });
+    });
 });

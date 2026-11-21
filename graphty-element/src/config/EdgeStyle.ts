@@ -270,31 +270,37 @@ const LineStyle = z.strictObject({
     blending: z.boolean().optional(),
     /**
      * A band drawn under the line along its whole length, in both views (Cytoscape.js `line-outline-*` and
-     * `underlay-*`, vis-network `edges.background`, a selected edge's casing): `width` is how much wider than the
-     * line it is, in the
-     * line's own width units (half of it each side), `color` and `opacity` its paint, `type` its
+     * `underlay-*`, vis-network `edges.background`, a selected edge's casing): `scale` of the line's own widths
+     * across (unset, 1) plus `width`, in the line's own width units (half of it each side), so unset `scale` makes
+     * `width` how much wider than the line it is, `scale` 5 and no `width` is five times the line's width whatever
+     * it is, and `scale` 0 is `width` across whatever the line's width; `color` and `opacity` its paint, `type` its
      * own pattern: "solid" (the default), "dash", "dot" or "dash-dot" (vis-network's
-     * `background.dashes`). No width draws none. Drawn under solid lines; a dotted or dashed line
+     * `background.dashes`). A band no wider than the line draws none. Drawn under solid lines; a dotted or dashed line
      * drawn as separate pieces has none.
      */
     outline: z
         .strictObject({
             color: ColorStyle.optional(),
             width: z.number().nonnegative().optional(),
+            scale: z.number().nonnegative().optional(),
             opacity: z.number().min(0).max(1).optional(),
             type: EdgeOutlineTypes.optional(),
         })
         .optional(),
     /**
-     * A band drawn over the line along its whole length, `padding` either side of the line's middle (in the line's
-     * width units) whatever the line's own width, in `color` at `opacity` (Cytoscape.js `overlay-*`), in the 2D view
-     * only. No opacity, or 0, draws none.
+     * A band drawn over the line along its whole length, in `color` at `opacity` (Cytoscape.js `overlay-*`), in the
+     * 2D view only: `scale` of the line's own widths across (unset, 0) plus `width` plus `padding` either side, in the
+     * line's width units. `scale` 1 makes `width` how much wider than the line it is, as an outline's; unset `scale`
+     * and `width` leave it twice `padding` wide whatever the line's width, as Cytoscape.js draws it. No opacity, or 0,
+     * draws none.
      */
     overlay: z
         .strictObject({
             color: ColorStyle.optional(),
             opacity: z.number().min(0).max(1).optional(),
             padding: z.number().nonnegative().optional(),
+            width: z.number().nonnegative().optional(),
+            scale: z.number().nonnegative().optional(),
         })
         .optional(),
     /**

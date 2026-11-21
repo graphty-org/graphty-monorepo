@@ -23,7 +23,6 @@ import type {
     Selector,
     StaticStyle,
 } from "../../catalog/types";
-import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { GraphtyError } from "../../errors";
 import { channelDescriptor } from "./channels";
 import type { CompiledLayer, PathDirectory } from "./Layer";
@@ -299,14 +298,13 @@ function ringWidthOfScale(scale: number): number {
 }
 
 /**
- * The outline width for a selection band's scale: the band was `scale` times twice the line's width across, and an
- * outline (`edge.outlineWidth`) is how much wider than the line it is, so at the default line width the two cover the
- * same.
+ * The outline scale (`edge.outlineScale`, the line's widths across) for a selection band's scale: the band was
+ * `scale` times twice the line's width across, whatever that width.
  * @param scale - The band's width, as a multiple of twice the line's width.
- * @returns The outline width, never below 0.
+ * @returns The outline scale, never below 0.
  */
-export function outlineWidthOfScale(scale: number): number {
-    return Math.max(0, (2 * scale - 1) * EDGE_CONSTANTS.DEFAULT_LINE_WIDTH);
+export function outlineScaleOfBand(scale: number): number {
+    return Math.max(0, 2 * scale);
 }
 
 /**
@@ -322,7 +320,7 @@ export function outlineWidthOfScale(scale: number): number {
  * @param look.selection.scale - The halo's size, as a multiple of the node's drawn radius.
  * @param look.selection.edgeColor - The selected edge's outline color.
  * @param look.selection.edgeScale - The selected edge's casing width, as a multiple of twice the line's width
- *   (see {@link outlineWidthOfScale}).
+ *   (see {@link outlineScaleOfBand}).
  * @param look.everything - The values Everything holds (the base look while `editableBase` is on).
  * @param look.pinned - The pinned settings' halo, which Pinned draws as a ring outside the node's
  *   border the same way; no Pinned row when absent.
@@ -416,7 +414,7 @@ export function startingRows(
                     "node.outerBorderWidth": ringWidthOfScale(selection.scale),
                     "node.outerBorderOpacity": 1,
                     "edge.outlineColor": selection.edgeColor,
-                    "edge.outlineWidth": outlineWidthOfScale(selection.edgeScale),
+                    "edge.outlineScale": outlineScaleOfBand(selection.edgeScale),
                     "edge.outlineOpacity": 1,
                 },
                 source: source("graphty:starting-selected"),

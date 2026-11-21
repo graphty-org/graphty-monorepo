@@ -204,7 +204,7 @@ import {
     type ElementRemaps,
     type RepaintEngine,
 } from "./styles/repaint";
-import { outlineWidthOfScale } from "./styles/rows";
+import { outlineScaleOfBand } from "./styles/rows";
 import { createScaleRegistry } from "./styles/scales";
 import { selectorScope } from "./styles/selector";
 import {
@@ -2585,7 +2585,7 @@ function peekLayersOf(peeked: {
             selector: { match: "ids", edges: peeked.edges },
             set: {
                 "edge.outlineColor": "#334155",
-                "edge.outlineWidth": outlineWidthOfScale(2.5),
+                "edge.outlineScale": outlineScaleOfBand(2.5),
                 "edge.outlineOpacity": 1,
             },
         });

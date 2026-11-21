@@ -769,11 +769,36 @@ describe("the cascade", () => {
         // edge "ab" first, "cd" second
         expect(r.edge.values.outlineOpacity?.[0]).toBe(0.5);
         expect(r.edge.values.outlineColor?.[0]).toBe("#4daf4a");
-        // 2 x 8 across, 4 of it the line's own
-        expect(r.edge.values.outlineWidth?.[0]).toBe(12);
+        // 2 x 8 across, whatever the line's width
+        expect(r.edge.values.outlineScale?.[0]).toBe(0);
+        expect(r.edge.values.outlineWidth?.[0]).toBe(16);
         expect(r.edge.values).not.toHaveProperty("underlayOpacity");
         // an edge with no underlay opacity has no outline
         expect(r.edge.values.outlineWidth?.[1] ?? null).toBeNull();
+    });
+
+    it("reads an underlay on a line whose width a mapper gives as the same band whatever that width", () => {
+        const doc = {
+            elements: [
+                { data: { id: "a" } },
+                { data: { id: "b" } },
+                { data: { id: "c" } },
+                { data: { id: "ab", source: "a", target: "b", w: 1 } },
+                { data: { id: "bc", source: "b", target: "c", w: 9 } },
+            ],
+            style: [
+                {
+                    selector: "edge",
+                    style: { width: "mapData(w, 0, 10, 0, 10)", "underlay-opacity": 1, "underlay-padding": 8 },
+                },
+            ],
+        };
+        const r = evaluateCytoscapeJs(doc);
+        for (const i of [0, 1]) {
+            // Cytoscape.js draws it 2 x 8 across on both lines: no line width is subtracted
+            expect(r.edge.values.outlineScale?.[i]).toBe(0);
+            expect(r.edge.values.outlineWidth?.[i]).toBe(16);
+        }
     });
 
     it("reads a stylesheet given as text as it reads the same sheet given as an array", () => {

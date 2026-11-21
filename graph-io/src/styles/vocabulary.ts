@@ -238,6 +238,7 @@ export const STYLE_PROPERTIES: {
         ["width", "number"],
         ["minScreenWidth", "number"],
         ["outlineWidth", "number"],
+        ["outlineScale", "number"],
         ["outlineColor", "color"],
         ["outlineOpacity", "opacity"],
         ["outlineStyle", "lineStyle"],

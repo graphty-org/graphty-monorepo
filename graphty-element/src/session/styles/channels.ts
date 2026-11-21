@@ -89,7 +89,6 @@ import {
     type NodeStyleConfig,
 } from "../../config/NodeStyle";
 import { OKABE_ITO_COLORS } from "../../config/palettes/categorical";
-import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import {
     FILE_STYLE_ARROWS,
     FILE_STYLE_CHANNELS,
@@ -582,11 +581,14 @@ export interface ChannelValues {
     "edge.opacity": number;
     "edge.outlineColor": ColorValue;
     "edge.outlineWidth": number;
+    "edge.outlineScale": number;
     "edge.outlineOpacity": number;
     "edge.outlineStyle": EdgeOutlineValue;
     "edge.overlayColor": ColorValue;
     "edge.overlayOpacity": number;
     "edge.overlayPadding": number;
+    "edge.overlayWidth": number;
+    "edge.overlayScale": number;
     "edge.gradientColors": string;
     "edge.gradientStops": string;
     "edge.gradientKind": EdgeGradientKindValue;
@@ -1171,11 +1173,13 @@ const EDGE_ROUTE_VALUES: readonly EdgeRouteValue[] = ["straight", "arc", "great-
 const BUNDLED: ChannelCondition = { channel: "edge.route", values: ["bundled"] };
 
 const EDGE_OUTLINE_CAVEAT =
-    "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
-    "line (half of it each side, in the line's width units), as Cytoscape.js draws a line outline or an " +
+    "A band drawn under the edge's line along its whole length, `edge.outlineScale` of the line's widths " +
+    "across (1 unset) plus `edge.outlineWidth` (half of it each side, in the line's width units): unset scale, " +
+    "the band is `edge.outlineWidth` wider than the line; scale 5 and no width, five times the line's width " +
+    "whatever it is; scale 0, `edge.outlineWidth` across whatever the line's width. As Cytoscape.js draws a line outline or an " +
     "underlay and vis-network an edge background, in `edge.outlineStyle`'s pattern (solid, dash, dot or " +
     "dash-dot), in both views; the starting Selected layer draws a selected edge's casing with it. Drawn only " +
-    "with a width above 0, and under solid lines: a dotted " +
+    "when the band is wider than the line, and under solid lines: a dotted " +
     "or dashed line drawn as separate pieces has none.";
 
 const NODE_IMAGE_CAVEAT =
@@ -2561,7 +2565,7 @@ type HaloKind = "underlay" | "overlay";
 type NodeHaloChannel<K extends HaloKind> = `node.${K}${"Color" | "Opacity" | "Padding" | "Shape" | "CornerRadius"}`;
 
 /** The channels of an edge's overlay: `edge.overlayColor` and so on (the band beneath the line is `edge.outline*`). */
-type EdgeHaloChannel<K extends HaloKind> = `edge.${K}${"Color" | "Opacity" | "Padding"}`;
+type EdgeHaloChannel<K extends HaloKind> = `edge.${K}${"Color" | "Opacity" | "Padding" | "Width" | "Scale"}`;
 
 /**
  * The channels of an underlay (a filled band or shape drawn beneath a node or an edge, Cytoscape.js
@@ -2575,15 +2579,18 @@ function haloChannels(target: "node" | "edge", kind: HaloKind): ChannelDescripto
     const Kind = kind === "underlay" ? "Underlay" : "Overlay";
     const where = kind === "underlay" ? "beneath" : "over";
     const at = target === "node" ? kind : `line.${kind}`;
+    const views = kind === "overlay" ? ", in the 2D view only." : ".";
     const caveat =
         target === "node"
             ? `A filled shape drawn ${where} the node, \`node.${kind}Padding\` beyond its box on every side ` +
               `(in the units of \`node.size\`), as Cytoscape.js draws its ${kind}. Drawn only with an ` +
               "opacity above 0, in the 2D view only; unset, its shape is the node's own, and a solid shape is " +
               "drawn as its flat silhouette."
-            : `A band drawn ${where} the edge's line along its whole length, twice \`edge.${kind}Padding\` ` +
-              `wide (in the line's width units) whatever the line's own width, as Cytoscape.js draws its ` +
-              `${kind}. Drawn only with an opacity above 0${kind === "overlay" ? ", in the 2D view only." : "."}`;
+            : `A band drawn ${where} the edge's line along its whole length, \`edge.${kind}Scale\` of the line's ` +
+              `widths (0 unset) plus \`edge.${kind}Width\` plus twice \`edge.${kind}Padding\` across (in the ` +
+              `line's width units): scale 1 makes \`edge.${kind}Width\` how much wider than the line it is, as ` +
+              `\`edge.outlineWidth\` is; unset scale and width, twice its padding whatever the line's own width, as ` +
+              `Cytoscape.js draws its ${kind}. Drawn only with an opacity above 0${views}`;
     const row = (suffix: string, rest: Partial<ChannelDescriptor>): ChannelDescriptor =>
         ({
             channel: `${target}.${kind}${suffix}` as Channel,
@@ -2601,6 +2608,12 @@ function haloChannels(target: "node" | "edge", kind: HaloKind): ChannelDescripto
         row("Opacity", { default: 0, accepts: "number", min: 0, max: 1 }),
         row("Padding", { default: 0, accepts: "number", min: 0 }),
     ];
+    if (target === "edge") {
+        rows.push(
+            row("Width", { default: 0, accepts: "number", min: 0 }),
+            row("Scale", { default: 0, accepts: "number", min: 0, suggestedMax: 10, step: 0.1 }),
+        );
+    }
     if (target === "node") {
         rows.push(
             row("Shape", { accepts: "enum", values: NODE_SHAPE_VALUES }),
@@ -4668,6 +4681,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: EDGE_OUTLINE_CAVEAT,
     },
+    "edge.outlineScale": {
+        channel: "edge.outlineScale",
+        target: "edge",
+        plainName: "Edge Outline Scale",
+        shortName: "Outline scale",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        suggestedMax: 10,
+        step: 0.1,
+        stylePath: "line.outline.scale",
+        renderable: true,
+        caveat: EDGE_OUTLINE_CAVEAT,
+    },
     "edge.outlineOpacity": {
         channel: "edge.outlineOpacity",
         target: "edge",
@@ -5661,9 +5689,9 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
             [`node.overlay${suffix}`, [ONLY_2D]],
         ],
     ),
-    ...(["Color", "Opacity", "Padding"] as const).flatMap((suffix): [Channel, readonly ChannelCondition[]][] => [
-        [`edge.overlay${suffix}`, [ONLY_2D]],
-    ]),
+    ...(["Color", "Opacity", "Padding", "Width", "Scale"] as const).flatMap(
+        (suffix): [Channel, readonly ChannelCondition[]][] => [[`edge.overlay${suffix}`, [ONLY_2D]]],
+    ),
     ["node.underlayCornerRadius", [ONLY_2D, { channel: "node.underlayShape", values: ROUND_CORNER_SHAPES }]],
     ["node.overlayCornerRadius", [ONLY_2D, { channel: "node.overlayShape", values: ROUND_CORNER_SHAPES }]],
     // A picture drawn at a size of its own (`node.imageFit` "none"). `node.imageClip` has no entry: under
@@ -5770,11 +5798,11 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
     [
         "edge.overlayColor",
         [
-            // Translucent enough to read as a wash over the line, never as its color, and as wide as an outline's
-            // start (`edge.outlineWidth` 2 past the default line's 8, so 5 either side of its middle): it reaches
-            // past the line's sides.
-            { channel: "edge.overlayOpacity", value: 0.3 },
-            { channel: "edge.overlayPadding", value: (EDGE_CONSTANTS.DEFAULT_LINE_WIDTH + 2) / 2 },
+            // Translucent, half way, and as wide as an outline's start (2 past the line, whatever its width), so it
+            // reaches past the line's sides.
+            { channel: "edge.overlayOpacity", value: 0.5 },
+            { channel: "edge.overlayScale", value: 1 },
+            { channel: "edge.overlayWidth", value: 2 },
         ],
     ],
     ["edge.dashLength", [{ channel: "edge.style", value: "dash" }]],
@@ -6147,14 +6175,57 @@ export interface RemovedChannelRead<T> {
 }
 
 const HALO_KEYS = ["node.halo", "node.haloColor", "node.haloScale", "node.haloSize", "node.haloOpacity"] as const;
-const REMOVED_KEYS: ReadonlySet<string> = new Set([...HALO_KEYS, "node.outline", "node.outlineWidth"]);
+const BAND_KEYS = ["edge.bandColor", "edge.bandWidth", "edge.bandOpacity"] as const;
+const UNDERLAY_KEYS = ["edge.underlayColor", "edge.underlayOpacity", "edge.underlayPadding"] as const;
+const REMOVED_KEYS: ReadonlySet<string> = new Set([
+    ...HALO_KEYS,
+    ...BAND_KEYS,
+    ...UNDERLAY_KEYS,
+    "node.outline",
+    "node.outlineWidth",
+]);
 
 /** Bound values that read straight across to a current channel; every other removed binding is dropped. */
 const REMOVED_BINDINGS: ReadonlyMap<string, string> = new Map([
     ["node.haloColor", "node.outerBorderColor"],
     ["node.haloOpacity", "node.outerBorderOpacity"],
     ["node.outline", "node.borderColor"],
+    ["edge.bandColor", "edge.outlineColor"],
+    ["edge.bandOpacity", "edge.outlineOpacity"],
+    ["edge.underlayColor", "edge.outlineColor"],
+    ["edge.underlayOpacity", "edge.outlineOpacity"],
 ]);
+
+/**
+ * An edge's removed band (`edge.band*`, `bandWidth` s a casing s times twice the line's width) and underlay
+ * (`edge.underlay*`, twice its padding across whatever the line's width) as its outline, which draws both.
+ * @param set - The layer's set values.
+ * @returns The outline values they read as.
+ */
+function readRemovedCasing(set: Readonly<Record<string, unknown>>): Record<string, unknown> {
+    const added: Record<string, unknown> = {};
+    const paint = (color: string, opacity: string): void => {
+        if (color in set) {
+            added["edge.outlineColor"] = set[color];
+        }
+        if (opacity in set) {
+            added["edge.outlineOpacity"] = set[opacity];
+        }
+    };
+    if (UNDERLAY_KEYS.some((key) => key in set)) {
+        const padding = set["edge.underlayPadding"];
+        added["edge.outlineScale"] = 0;
+        added["edge.outlineWidth"] = typeof padding === "number" ? Math.max(0, 2 * padding) : 0;
+        paint("edge.underlayColor", "edge.underlayOpacity");
+    }
+    if (BAND_KEYS.some((key) => key in set)) {
+        const scale = set["edge.bandWidth"] ?? DEFAULT_SELECTION_STYLE.edgeScale;
+        added["edge.outlineScale"] = typeof scale === "number" ? Math.max(0, 2 * scale) : 0;
+        added["edge.outlineWidth"] = 0;
+        paint("edge.bandColor", "edge.bandOpacity");
+    }
+    return added;
+}
 
 /**
  * The set values of a layer that names removed channels, in current channels.
@@ -6183,7 +6254,7 @@ function readRemovedSet(set: Readonly<Record<string, unknown>>): {
     const kept = Object.entries(set).filter(([key]) => !REMOVED_KEYS.has(key));
     // a current channel the layer names itself wins over a translated one
     return {
-        values: { ...added, ...Object.fromEntries(kept) },
+        values: { ...added, ...readRemovedCasing(set), ...Object.fromEntries(kept) },
         dropped: "node.outlineWidth" in set ? ["node.outlineWidth"] : [],
     };
 }
@@ -6216,8 +6287,10 @@ function readRemovedEncode(encode: Readonly<Record<string, unknown>>): {
  * switching the ring on as it switched the halo on (a bound one too), with the old selection look
  * filling in what it did not set (`node.haloScale` s is a ring `(s - 1) / 2` wide), and `node.halo: false` a ring
  * of width 0. The node outline reads as a border (`node.outline` to `node.borderColor`, with the
- * width a border needs). A bound halo scale and `node.outlineWidth` have no reading and are
- * dropped. Where a layer names the current channel too, the current one wins.
+ * width a border needs). An edge's band (`edge.band*`) and underlay (`edge.underlay*`) read as its outline
+ * (`edge.outline*`): a band of width s is `edge.outlineScale` 2s, an underlay of padding p `edge.outlineScale` 0
+ * and `edge.outlineWidth` 2p. A bound halo scale, band width, underlay padding and `node.outlineWidth` have no
+ * reading and are dropped. Where a layer names the current channel too, the current one wins.
  * @param spec - A layer as a document or a caller gives it.
  * @returns The layer in current channels and what was dropped.
  */

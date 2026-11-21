@@ -2001,6 +2001,7 @@ export const EdgeStyle: z.ZodObject<{
         outline: z.ZodOptional<z.ZodObject<{
             color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             width: z.ZodOptional<z.ZodNumber>;
+            scale: z.ZodOptional<z.ZodNumber>;
             opacity: z.ZodOptional<z.ZodNumber>;
             type: z.ZodOptional<z.ZodEnum<{
                 solid: "solid";
@@ -2013,6 +2014,8 @@ export const EdgeStyle: z.ZodObject<{
             color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             opacity: z.ZodOptional<z.ZodNumber>;
             padding: z.ZodOptional<z.ZodNumber>;
+            width: z.ZodOptional<z.ZodNumber>;
+            scale: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>>;
         gradient: z.ZodOptional<z.ZodObject<{
             colors: z.ZodOptional<z.ZodString>;

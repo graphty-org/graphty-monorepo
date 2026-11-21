@@ -14,7 +14,9 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { click, hover, nextFrame, type Point } from "../helpers/real-input";
+import { edgeBetween } from "../helpers/testSetup";
 
 // Inside the test frame's 414-pixel-wide viewport, so every point the pointer goes to is on it.
 const WIDTH = 400;
@@ -195,5 +197,43 @@ describe("the Selected and Hovered rows", () => {
         await settle(element);
         assert.isNull(session.selection.hovered);
         assert.strictEqual(session.styles.counts(hovered).matched, 0);
+    });
+
+    it("draws a selected edge's casing in proportion to its own line, on a thin line and a thick one", async () => {
+        const element = await mounted();
+        const { session } = element;
+        await session.data.addNodes([
+            { id: "c", position: { x: -4, y: -3, z: 0 } },
+            { id: "d", position: { x: 4, y: -3, z: 0 } },
+        ]);
+        await session.data.addEdges([{ src: "c", dst: "d" }]);
+        await settle(element);
+        const thin = edgeBetween(element.graph, "a", "b");
+        const thick = edgeBetween(element.graph, "c", "d");
+        assert(thin && thick, "both edges are drawn");
+        for (const [edge, width] of [
+            [thin, 2],
+            [thick, 24],
+        ] as const) {
+            await session.styles.add({
+                name: `Width ${String(width)}`,
+                target: "edge",
+                selector: { match: "ids", edges: [edge.id] },
+                set: { "edge.width": width },
+            });
+        }
+        await session.selection.apply({ edges: [thin.id, thick.id] });
+        await settle(element);
+
+        /** The drawn width of a batch, in the line's units. */
+        const widthOf = (batch: EdgeLineBatch | null): number =>
+            (batch?.mesh.metadata as { lineWidth?: number } | undefined)?.lineWidth ?? 0;
+        for (const edge of [thin, thick]) {
+            const drawn = edge as unknown as { lineBatch: EdgeLineBatch | null; outlineBatch: EdgeLineBatch | null };
+            const line = widthOf(drawn.lineBatch);
+            assert.isAbove(line, 0, "the line is drawn");
+            // the selection band was 2.5 times twice the line's width: five lines across, whatever the width
+            assert.closeTo(widthOf(drawn.outlineBatch), 5 * line, 1e-6, `the casing of a line ${String(line)} wide`);
+        }
     });
 });

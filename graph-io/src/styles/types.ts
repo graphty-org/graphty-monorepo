@@ -859,9 +859,15 @@ export interface EdgeStyleValues {
     readonly opacity: number;
     /**
      * How much wider than the line a band drawn under it is (a length, half of it each side; Cytoscape.js
-     * `line-outline-width`, vis-network `background.size` less the line's width); 0 or absent draws none.
+     * `line-outline-width`, vis-network `background.size` less the line's width); 0 or absent draws none. With an
+     * `outlineScale`, the band is that many of the line's widths across plus this.
      */
     readonly outlineWidth: number;
+    /**
+     * How many of the line's own widths the band under it spans before `outlineWidth` is added; unset, 1. 0 makes
+     * the band `outlineWidth` across whatever the line's width (Cytoscape.js `underlay-*`, twice its padding).
+     */
+    readonly outlineScale: number;
     /** The color of that band. */
     readonly outlineColor: StyleColor;
     /** The opacity of that band, 0..1. */

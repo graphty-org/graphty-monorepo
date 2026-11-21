@@ -45,6 +45,10 @@ An outer ring a layer beneath writes (`node.outerBorder*`, where a Cytoscape `ou
 lands) is replaced by the Selected ring while the node is selected, as any value a higher row
 writes replaces a lower one, and comes back when it is deselected.
 
+A selected edge's outline is `edge.outlineScale` times the line's own width across (twice the
+`selectionStyle` edge scale, so 5 by default) with no `edge.outlineWidth` added, so a thin line and a
+thick one each get a casing in proportion to it, the same band `selectionStyle` draws by itself.
+
 To stop drawing the selection, delete the Selected row (or hide it); the selection itself is
 unchanged:
 

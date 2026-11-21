@@ -239,11 +239,14 @@ const DECLARED = [
     "edge.blending",
     "edge.outlineColor",
     "edge.outlineWidth",
+    "edge.outlineScale",
     "edge.outlineOpacity",
     "edge.outlineStyle",
     "edge.overlayColor",
     "edge.overlayOpacity",
     "edge.overlayPadding",
+    "edge.overlayWidth",
+    "edge.overlayScale",
     "edge.gradientColors",
     "edge.gradientStops",
     "edge.gradientKind",
@@ -437,9 +440,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and eleven node channels and one hundred and seventy-one edge channels", () => {
+    it("splits into two hundred and eleven node channels and one hundred and seventy-four edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 211);
-        assert.strictEqual(channelsFor("edge").length, 171);
+        assert.strictEqual(channelsFor("edge").length, 174);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),

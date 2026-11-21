@@ -334,11 +334,14 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // The outline is a batch of its own, keyed by its color, width and opacity.
     "edge.outlineColor": "mesh",
     "edge.outlineWidth": "mesh",
+    "edge.outlineScale": "mesh",
     "edge.outlineOpacity": "mesh",
     "edge.outlineStyle": "mesh",
     "edge.overlayColor": "mesh",
     "edge.overlayOpacity": "mesh",
     "edge.overlayPadding": "mesh",
+    "edge.overlayWidth": "mesh",
+    "edge.overlayScale": "mesh",
     // A gradient's pieces are batches of their own colors, built with the line.
     "edge.gradientColors": "mesh",
     "edge.gradientStops": "mesh",

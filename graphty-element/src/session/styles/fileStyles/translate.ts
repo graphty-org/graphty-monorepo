@@ -940,6 +940,8 @@ function channelPlans(
         ["minScreenWidth", [id("edge.minScreenWidth")]],
         // in the line's own width units, as its width is
         ["outlineWidth", [length("edge.outlineWidth")]],
+        // a multiple of the line's own width: no unit to convert
+        ["outlineScale", [id("edge.outlineScale")]],
         ["outlineColor", [id("edge.outlineColor")]],
         ["outlineOpacity", [id("edge.outlineOpacity")]],
         ["outlineStyle", [table("edge.outlineStyle", OUTLINE_STYLES, LINE_STYLES_NEAREST)]],

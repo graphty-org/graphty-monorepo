@@ -1177,6 +1177,8 @@ export class ArrowCapBatch {
                 continue;
             }
 
+            // a cap this rest does not place is the shader's to stand, not where the last rest put it
+            capPlace[index * 4 + 3] = 0;
             // a hidden row draws no cap: the shader stands it, and draws nothing
             const scale =
                 positions[from * 4 + 3] * positions[head * 4 + 3] === 0 ? 0 : roundRowsEnds(rows, from, head, null, at);
@@ -1220,9 +1222,11 @@ export class ArrowCapBatch {
             this.placedCaps++;
         }
 
-        // a rest places every cap: the buffers go up whole, not by a run a cap
+        // a rest places every cap: the buffers go up whole, not by a run a cap (`capPlace` too, which a cap the rest
+        // passed over had its flag cleared in)
+        this.runs.capPlace.whole();
         if (this.placedCaps !== placedBefore) {
-            for (const kind of ["matrix", "arrowDirection", "arrowSize", "capPlace"] as const) {
+            for (const kind of ["matrix", "arrowDirection", "arrowSize"] as const) {
                 this.runs[kind].whole();
             }
         }

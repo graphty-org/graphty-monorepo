@@ -70,9 +70,10 @@ export interface BaseDataSourceConfig {
     /**
      * `"recommended"` chooses a layout for what was loaded, once it is loaded: the `fixed` layout,
      * which draws each node where the file put it, when every node arrived with a position, and a
-     * computed one otherwise. `"keep"` (the default) leaves the layout as it is.
+     * computed one otherwise. `"placed"` chooses the `fixed` layout in the same case and otherwise
+     * leaves the layout as it is. `"keep"` (the default) leaves the layout as it is.
      */
-    layout?: "recommended" | "keep";
+    layout?: "recommended" | "placed" | "keep";
 }
 
 /**

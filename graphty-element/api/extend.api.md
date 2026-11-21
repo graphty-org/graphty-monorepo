@@ -419,7 +419,7 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
-    layout?: "recommended" | "keep";
+    layout?: "recommended" | "placed" | "keep";
     styles?: "file" | "none";
     url?: string;
 }

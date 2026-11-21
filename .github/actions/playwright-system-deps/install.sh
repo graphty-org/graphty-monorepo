@@ -34,18 +34,12 @@ else
 fi
 
 # Every package Playwright asks for must now be installed, so a cache that holds too little fails here
-# and not later as a missing shared library when Chromium starts.
+# and not later as a missing shared library when Chromium starts. Since Playwright 1.65 the dry run
+# simulates the install with `apt-get install -s`, lists what is missing and exits non-zero if anything is.
 # shellcheck disable=SC2086 # the list is space-separated browser names
-pkgs=$(pnpm exec playwright install-deps --dry-run $browsers | sed -n 's/.*--no-install-recommends \([^"]*\).*/\1/p')
-if [ -z "$pkgs" ]; then
-    echo "::error::could not read the package list from playwright install-deps --dry-run"
-    exit 1
-fi
-# shellcheck disable=SC2086 # the list is space-separated package names
-missing=$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' $pkgs 2>&1 | grep -v '^ii ' || true)
-if [ -n "$missing" ]; then
+if ! report=$(pnpm exec playwright install-deps --dry-run $browsers 2>&1); then
     echo "::error::$name's system packages are not all installed:"
-    echo "$missing"
+    echo "$report"
     exit 1
 fi
-echo "All $(wc -w <<<"$pkgs") packages $name needs are installed"
+echo "All system packages $name needs are installed"

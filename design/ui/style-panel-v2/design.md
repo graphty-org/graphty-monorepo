@@ -91,8 +91,9 @@ Plate (Behind or Over), edge Arrow (Target, Source, Middle to target, Middle to 
 (Target or Source) and edge Outline (Under line or Over line). Tooltip and External label are kind groups too,
 whose kinds are the label looks. A kind group that holds one row per kind (Plate, Arrow, End caption, Outline)
 is one "+" item that adds the first free kind in that order, so a second "+" Arrow gives a Source arrow beside
-the Target one. Label is "many", so its kinds may repeat: its "+" lists each kind as its own item (below), and
-each adds a new Label row of that kind. A row's kind is changed from its Switch to (5).
+the Target one. Label is "many", so its kinds may repeat: its "+" lists each look as its own item (below), and
+each adds a new Label row of that kind. Glyph is never a "+" item: it is reached only from a Label row's Switch
+to (E275, E276). A row's kind is changed from its Switch to (5).
 
 **A label's look is its kind** (E196: "the toggle between "Plain" and "Card" label must be removed and replaced
 with `+` having label or card"). There is no look select. The Label kinds Text, Card, Dark, Pill and Callout are
@@ -194,23 +195,23 @@ Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers
 
 ### 4.1 Node tab
 
-| Section    | "+" menu (dividers between tiers)                                            | Cardinality                      |
-| ---------- | ---------------------------------------------------------------------------- | -------------------------------- |
-| Fill       | Fill \| Image \| Stripes, Pie, Chart, Finish                                 | one each                         |
-| Text       | Label, Card, Dark, Pill, Callout, Glyph \| Tooltip \| Record, External label | each Label kind many; others one |
-| Shape      | Size, Shape                                                                  | one each                         |
-| Border     | Border                                                                       | one                              |
-| Visibility | Visible                                                                      | one                              |
-| Effects    | Ring, Shader, Glow \| Drop shadow, Raised edge, Plate                        | Shader many; others one          |
+| Section    | "+" menu (dividers between tiers)                                     | Cardinality                      |
+| ---------- | --------------------------------------------------------------------- | -------------------------------- |
+| Fill       | Fill \| Image \| Stripes, Pie, Chart, Finish                          | one each                         |
+| Text       | Label, Card, Dark, Pill, Callout \| Tooltip \| Record, External label | each Label kind many; others one |
+| Shape      | Size, Shape                                                           | one each                         |
+| Border     | Border                                                                | one                              |
+| Visibility | Visible                                                               | one                              |
+| Effects    | Ring, Shader, Glow \| Drop shadow, Raised edge, Plate                 | Shader many; others one          |
 
 - **Fill** (kinds Solid and Gradient). The color box's "%" writes `node.opacity`.
 - **Image** absorbs the old Fill kind Picture as its **Wrap around shape** setting: off (the default) places the
   picture on the node (`node.image`), on wraps it over the 3D surface (`node.texture`). A Solid color it hides
   dims (`x-picture-hides-fill`).
 - **Stripes, Pie, Chart** as today. **Finish** (3D only): a Shading row, Smooth (the default), Flat or Unlit.
-- **Label** (many; kinds Text, Card, Dark, Pill, Callout and Glyph, 2.3). Each kind is a "+" item that adds a
-  Label row of that kind ("Label" adds Text). Glyph is a kind of Label, never a separate style (E275); the looks
-  are kinds, never a select (E196).
+- **Label** (many; kinds Text, Card, Dark, Pill, Callout and Glyph, 2.3). Each look is a "+" item that adds a
+  Label row of that kind ("Label" adds Text). Glyph is a kind of Label, never a separate style and never a "+"
+  item: a Label row's Switch to reaches it (E275, E276); the looks are kinds, never a select (E196).
   **Tooltip**, **Record** (a table of fields inside the node) and **External label** as today.
 - **Size**: the shape's size, its own row, so "size by degree" needs no Shape row (E189).
 - **Shape** (kinds Basic shape, Model, and every shader that declares place "replace", built-in or custom, with
@@ -342,7 +343,8 @@ Collapses considered (owner, E495: "review all other controls that can be collap
 the popover. A member gated by a flag or the view (Model in 2D) is disabled, never hidden, and the current
 member is always enabled. Only a family whose element member list holds an off value adds an **Off** member
 (today Shape: none), its one control for being off, and it has no Show line. Kind groups never have an Off
-member; a switchable kind group or thing is switched off by its Show line (2.6).
+member; a switchable kind group or thing is switched off by its Show line (2.6). A Label row's Switch to lists
+Text, Card, Dark, Pill, Callout and Glyph; it is the only way to Glyph, which no "+" menu offers (E275, E276).
 
 1. **Same row, same settings.** The row keeps its place and height, and its name column shows the new kind
    (2.4); thing-wide lines stay in every member.

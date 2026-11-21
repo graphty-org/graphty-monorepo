@@ -53,7 +53,7 @@ import { backgroundColorOf } from "../config/GraphStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, EDGE_ID_COLUMN, edgeIdOf, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore, type Renumbering } from "../data/GraphStore";
-import { GROUPS_VALUE, groupsOf } from "../data/groups";
+import { containersOf, GROUPS_VALUE, groupsOf } from "../data/groups";
 import { readonlyPositions } from "../data/lane";
 import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
@@ -224,6 +224,7 @@ import {
     createSelectorSource,
     edgeEndPathOf,
     edgeEndpointOf,
+    MEMBERS_PATH,
     type SessionSelectorSource,
     STRUCTURE_PATHS,
     STRUCTURE_VALUES,
@@ -2835,7 +2836,7 @@ function fieldKindsOf(
         return ["node", "edge"];
     }
 
-    if ((STRUCTURE_PATHS as readonly string[]).includes(path)) {
+    if ((STRUCTURE_PATHS as readonly string[]).includes(path) || path === MEMBERS_PATH) {
         return ["node"];
     }
 
@@ -3179,6 +3180,10 @@ function pathDirectoryOf(data: SessionData, runs: RunsApi, sourceSteps: () => bo
 
             if (path === DRAFT_PATH && sourceSteps()) {
                 return true;
+            }
+
+            if (path === MEMBERS_PATH) {
+                return target === "node";
             }
 
             return noteFieldOf(path) !== undefined || answersReadable(data, runs, path, target);
@@ -4528,6 +4533,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const shown = data.shownDraft();
             return shown === null ? undefined : (target === "node" ? shown.nodes : shown.edges).get(id);
         },
+        members: membersOf(() => dispatcher.state.graph.values.get(GROUPS_VALUE)),
         notes: createNoteFacts(
             () => dispatcher.state.notes,
             () => dispatcher.lane.writes("notes"),
@@ -5805,11 +5811,30 @@ function paintsFromRowAndColumn(entry: CompiledLayer): boolean {
             match === "ids" ||
             match === "expression" ||
             (selector.match === "state" && selector.state === "outsideWindow")) &&
-        !entry.reads.some((path) => edgeEndPathOf(path) !== undefined) &&
+        !entry.reads.some((path) => edgeEndPathOf(path) !== undefined || path === MEMBERS_PATH) &&
         !Object.values(entry.layer.encode ?? {}).some(
             (binding) => binding !== undefined && "template" in binding && readsWholeColumn(binding.template),
         )
     );
+}
+
+/**
+ * How many nodes each group holds, read from the graph's groups and rebuilt only when they change.
+ * @param read - The graph's groups value, as it stands now.
+ * @returns The reader, undefined for a node that holds none.
+ */
+function membersOf(read: () => unknown): (id: NodeId) => number | undefined {
+    let from: unknown = undefined;
+    let counts = new Map<NodeId, number>();
+    return (id: NodeId): number | undefined => {
+        const value = read();
+        if (value !== from) {
+            from = value;
+            counts = new Map(containersOf(value).map((group) => [group.group, group.members.length]));
+        }
+
+        return counts.get(id);
+    };
 }
 
 /**

@@ -3183,6 +3183,7 @@ export class Edge {
      * end that stopped being round, or an end its style hid (drawn at w = 0, which a pulled line reads as no end). An
      * `Edge` with a placed line and cap draws it now, as the object path does (`UpdateManager.repaintPulledOffEnds`).
      * @returns True when it was drawn again.
+     * @internal
      */
     redrawPulledOffEnds(): boolean {
         if (this.pulled === null || this.pullsLine(this.currentStyle)) {

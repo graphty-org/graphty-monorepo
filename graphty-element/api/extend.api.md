@@ -846,6 +846,8 @@ export class Edge {
     // (undocumented)
     ray: Ray;
     // @internal
+    redrawPulledOffEnds(): boolean;
+    // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
     refreshShaderPaint(): void;
@@ -2501,6 +2503,8 @@ class Node_2 implements ModelUser {
     get groupDrawnForAnotherCamera(): boolean;
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
+    // @internal
+    get hiddenByStyle(): boolean;
     hideTooltip(): void;
     // @internal
     holdOffBatch(): void;

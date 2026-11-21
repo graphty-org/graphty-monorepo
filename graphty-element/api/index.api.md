@@ -1211,6 +1211,8 @@ export class Edge {
     // (undocumented)
     ray: Ray;
     // @internal
+    redrawPulledOffEnds(): boolean;
+    // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
     refreshShaderPaint(): void;
@@ -6006,6 +6008,8 @@ class Node_2 implements ModelUser {
     get groupDrawnForAnotherCamera(): boolean;
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
+    // @internal
+    get hiddenByStyle(): boolean;
     hideTooltip(): void;
     // @internal
     holdOffBatch(): void;
@@ -9327,6 +9331,8 @@ export class UpdateManager implements Manager {
     markViewSized(node: Node_2, on: boolean): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    // @internal
+    noteEndsChanged(): void;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
@@ -9344,6 +9350,8 @@ export class UpdateManager implements Manager {
     // @internal
     repaintNodes(nodes: readonly Node_2[]): void;
     static readonly RETRIM_COUNTER = "edges.retrimmedForNodeScale";
+    // @internal
+    rowHiddenByStyle(row: number): boolean;
     // @internal
     rowsRenumbered(): void;
     saveFraming(): () => void;

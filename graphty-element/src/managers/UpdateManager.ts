@@ -1557,6 +1557,7 @@ export class UpdateManager implements Manager {
     /**
      * Note that a node's style hid or showed it: the edges pulled onto it are checked at the next frame
      * ({@link UpdateManager.repaintPulledOffEnds}).
+     * @internal
      */
     noteEndsChanged(): void {
         this.endsChanged = true;

@@ -226,8 +226,9 @@ function lookBeneath(ctx: Pick<RowContext, "many" | "beneath">, style: Channel):
 }
 
 /**
- * A text's looks as kinds (E196): Text (graphty-element's plain look), then Card, Dark, Pill and Callout, in
- * graphty-element's order. Each owns the same channels and writes only its look into the style.
+ * A text's looks as kinds (E196): the plain look, named as its thing is ("Label", "Tooltip", as "+" names it), then
+ * Card, Dark, Pill and Callout, in graphty-element's order. Each owns the same channels and writes only its look.
+ * @param name - the thing's name, the plain look's name.
  * @param head - the text's words.
  * @param style - its label style.
  * @param owns - the channels the text owns.
@@ -235,6 +236,7 @@ function lookBeneath(ctx: Pick<RowContext, "many" | "beneath">, style: Channel):
  * @returns the kinds.
  */
 function lookKinds(
+    name: string,
     head: Channel,
     style: Channel,
     owns: (channel: Channel) => boolean,
@@ -250,7 +252,7 @@ function lookKinds(
         });
         return {
             id: plain ? "text" : look.id,
-            plainName: plain ? "Text" : look.plainName,
+            plainName: plain ? name : look.plainName,
             head,
             owns,
             slots: { color, size: [{ style, field: "size" }] },
@@ -270,13 +272,14 @@ function lookKinds(
  * @returns the group.
  */
 function textLooks(side: "node" | "edge", thing: string, head: Channel, style: Channel): KindGroup {
+    const plainName = thing === "tooltip" ? "Tooltip" : "External label";
     return {
         id: `${side}.${thing}`,
-        plainName: thing === "tooltip" ? "Tooltip" : "External label",
+        plainName,
         side,
         thing,
         rowsByHead: true,
-        members: lookKinds(head, style, () => true),
+        members: lookKinds(plainName, head, style, () => true),
     };
 }
 
@@ -409,6 +412,7 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         members: [
             // The further labels are rows of their own (labelEntries.ts), never the main label's.
             ...lookKinds(
+                "Label",
                 "node.label",
                 "node.labelStyle",
                 (channel) => !channel.startsWith("node.glyph") && channel !== "node.labels",
@@ -431,7 +435,7 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         side: "edge",
         thing: "label",
         rowsByHead: true,
-        members: lookKinds("edge.label", "edge.labelStyle", (channel) => channel !== "edge.labels", [
+        members: lookKinds("Label", "edge.label", "edge.labelStyle", (channel) => channel !== "edge.labels", [
             "edge.labelColor",
             { style: "edge.labelStyle", field: "color" },
         ]),

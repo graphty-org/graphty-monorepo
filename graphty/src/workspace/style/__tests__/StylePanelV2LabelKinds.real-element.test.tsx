@@ -91,7 +91,7 @@ describe("a node's Label is Text or Glyph", () => {
         await session.styles.update(nodes, { set: { "node.label": "Hi" } });
         await session.styles.settled();
         const tab = await openStyle("Key people");
-        for (const kind of ["Text", "Glyph"]) {
+        for (const kind of ["Label", "Glyph"]) {
             if ((await kindOf(await labelRow(tab))) !== kind) {
                 await switchTo(await labelRow(tab), kind);
             }
@@ -124,7 +124,7 @@ describe("a node's Label is Text or Glyph", () => {
         await session.styles.settled();
         const tab = await openStyle("Key people");
         const row = await labelRow(tab);
-        assert.equal(await kindOf(row), "Text");
+        assert.equal(await kindOf(row), "Label");
         const before = await picture(element);
 
         await switchTo(row, "Glyph");
@@ -170,7 +170,7 @@ describe("a node's Label is Text or Glyph", () => {
             assert.isUndefined(written(session, nodes, "node.glyph"));
             assert.isUndefined(written(session, nodes, "node.glyphColor"));
         });
-        assert.equal(await kindOf(await labelRow(tab)), "Text");
+        assert.equal(await kindOf(await labelRow(tab)), "Label");
     });
 
     it("a file writing a glyph opens as one Label row of kind Glyph, its character shown and drawn", async () => {

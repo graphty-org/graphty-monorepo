@@ -282,7 +282,7 @@ export function LabelRow({
     const commonFlats = new Set([...common].map((field) => flatOf(ctx.side, label.kind.style, field)));
     const changed =
         others.length > 0 ||
-        Object.keys(style).some((field) => !common.has(field as keyof LabelStyle)) ||
+        Object.keys(style).some((field) => field !== "look" && !common.has(field as keyof LabelStyle)) ||
         [...flats].some((flat) => !commonFlats.has(flat) && setOn(ctx, flat));
     // A field set in the style or through its own channel; each field once, the unit lines left to the pop-over.
     const fieldSet = (field: LabelField): boolean => {

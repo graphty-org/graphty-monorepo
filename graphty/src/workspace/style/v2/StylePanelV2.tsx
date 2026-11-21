@@ -188,7 +188,7 @@ function homeHeading(side: "node" | "edge", title: string, thing: ThingSpec, cha
     const named = thing.unnamed === true || thing.name === title ? title : `${title} - ${thing.name}`;
     const kind = kindGroupOf(side, thing.id)?.members.find((member) => member.owns(channel));
     const sub = lineFor(side, channel)?.group;
-    const own = kind === undefined ? named : `${named} (${kind.plainName})`;
+    const own = kind === undefined || kind.plainName === thing.name ? named : `${named} (${kind.plainName})`;
     return sub === undefined ? own : `${own} - ${sub}`;
 }
 

@@ -795,6 +795,13 @@
     white-space: nowrap;
 }
 
+/* Style panel v2: a text's source (R12) keeps room for its source's name ("Node id") beside its link and
+   chevron glyphs; the row's name gives way first, ending in an ellipsis with its whole name as its tooltip,
+   so the source is never cut to one letter (E206). */
+[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] {
+    grid-template-columns: minmax(0, var(--ws-label, 80px)) minmax(104px, 1fr) 24px 24px;
+}
+
 /* Style panel v2's shader rows (Shaders, group outlines): the empty place column gives its width to
    the name, which the panel's 240 px would otherwise squeeze to nothing. */
 [data-style-panel-v2] .ws-shader-row .ws-field[data-shader-use] {

@@ -141,20 +141,20 @@ describe("a label's look is a kind of its row", () => {
         await session.styles.settled();
         // Had the Text label been drawn in the main label's Card, switching it to Card would change nothing.
         assert.isAbove(pixelsApart(plain, await picture(element)), 0, "the Text label was drawn plain, not as a card");
-        await switchTo(entry, "node card 2", "Text");
+        await switchTo(entry, "node card 2", "Label");
         await waitFor(() => {
             const value = written(session, nodes, "node.labels") as readonly LabelEntry[] | undefined;
             assert.deepEqual(
                 value,
                 [{ id, style: { look: "default", location: "bottom" } }],
-                "Text names the plain look",
+                "Label names the plain look",
             );
         });
         await session.styles.settled();
         assert.equal(pixelsApart(plain, await picture(element)), 0, "and draws plain again");
     });
 
-    it("a row over a Card beneath shows the Card, and its Switch to Text draws it plain", async () => {
+    it("a row over a Card beneath shows the Card, and its Switch to Label draws it plain", async () => {
         const { session, element, nodes } = await openGraph();
         await session.styles.update(nodes, {
             set: { ...session.styles.get(nodes)?.set, "node.label": "x", "node.labelStyle": { look: "card" } },
@@ -172,7 +172,7 @@ describe("a label's look is a kind of its row", () => {
         await waitFor(() => {
             assert.isNotNull(within(text).queryByRole("button", { name: "Switch node card to" }), "the Card it draws");
         });
-        await switchTo(text, "node card", "Text");
+        await switchTo(text, "node card", "Label");
         const hubs = session.styles.list().find((layer) => layer.name === "Hubs")?.id ?? "";
         await waitFor(() => {
             assert.deepEqual(styleOf(session, hubs, "node.labelStyle"), { size: 2, look: "default" });
@@ -285,8 +285,8 @@ describe("a label's look is a kind of its row", () => {
                 "the row is the Card now",
             );
         });
-        // Back to Text takes the look off and keeps the rest.
-        await switchTo(sectionOf(tab, "node-text"), "node card", "Text");
+        // Back to Label takes the look off and keeps the rest.
+        await switchTo(sectionOf(tab, "node-text"), "node card", "Label");
         await waitFor(() => {
             assert.deepEqual(styleOf(session, nodes, "node.labelStyle"), { color: "#1971C2", size: 2 });
         });
@@ -331,7 +331,7 @@ describe("a label's look is a kind of its row", () => {
         const items = [...menu.querySelectorAll('[role="menuitem"], .mantine-Menu-divider')].map((element) =>
             element.getAttribute("role") === "menuitem" ? element.textContent : "|",
         );
-        assert.deepEqual(items, ["Target", "Source", "|", "Text", "Card", "Dark", "Pill", "Callout"]);
+        assert.deepEqual(items, ["Target", "Source", "|", "End caption", "Card", "Dark", "Pill", "Callout"]);
         const before = restOf(session, edges, "edge.arrowHeadTextStyle");
         await userEvent.click(within(menu).getByRole("menuitem", { name: "Dark" }));
         await waitFor(() => {

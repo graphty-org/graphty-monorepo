@@ -197,7 +197,7 @@ export function KindMenu({
             ? []
             : LABEL_LOOKS.map((each, at) => ({
                   key: `${LOOK_KEY}${each.id}`,
-                  name: each.id === PLAIN_LOOK ? "Text" : each.plainName,
+                  name: each.id === PLAIN_LOOK ? group.plainName : each.plainName,
                   disabled: false,
                   divided: at === 0,
                   checked: each.id === look,
@@ -258,7 +258,7 @@ export function EntryLookMenu({
     const now = entryLook(ctx, entry);
     const members = LABEL_LOOKS.map((each) => ({
         key: each.id,
-        name: each.id === PLAIN_LOOK ? "Text" : each.plainName,
+        name: each.id === PLAIN_LOOK ? "Label" : each.plainName,
         disabled: false,
     }));
     return (
@@ -271,7 +271,7 @@ export function EntryLookMenu({
                 if (choice.key === now) {
                     return;
                 }
-                // Text names the plain look: a further label naming none draws in the main label's look.
+                // Label names the plain look: a further label naming none draws in the main label's look.
                 const next: Record<string, unknown> = { ...style, look: choice.key };
                 writeEntry(ctx, entry, { style: next })
                     .then(() => {

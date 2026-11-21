@@ -346,10 +346,11 @@ function rowNames(
     const entryLooks = entry === undefined ? undefined : entryLook(ctx, entry.id);
     const lookName = LABEL_LOOKS.find((each) => each.id === entryLooks && each.id !== PLAIN_LOOK)?.plainName;
     const named = kind !== undefined && kind.id !== "text" && (kind.look === undefined || thing.id === "label");
-    const name = lookName ?? (named ? kind.plainName : thing.name);
+    const base = lookName ?? (named ? kind.plainName : thing.name);
     const kindWord = ctx.side === "node" ? "Node" : "Edge";
     const number = entry === undefined ? "" : ` ${String(entry.n)}`;
-    return { name, title: `${kindWord} ${name.toLowerCase()}${number}` };
+    // A further label's number is in its visible name, so two labels never read the same (E263).
+    return { name: `${base}${number}`, title: `${kindWord} ${base.toLowerCase()}${number}` };
 }
 
 /**

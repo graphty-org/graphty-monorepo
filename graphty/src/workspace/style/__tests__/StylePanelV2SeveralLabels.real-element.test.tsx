@@ -118,6 +118,31 @@ describe("several labels per node", () => {
                 }),
             );
         });
+        // On screen too, not only to a screen reader: the two rows never read the same (E263).
+        const mainRow = sectionOf(tab, "node-text").querySelector<HTMLElement>(
+            '[data-thing="label"]:not([data-label-entry])',
+        );
+        assert.isNotNull(mainRow);
+        assert.match(row.innerText.trim(), /^Label 2\b/, "the further label's row shows its number");
+        assert.notEqual(mainRow.innerText.trim(), row.innerText.trim(), "the two label rows read differently");
+        // Each source shows at least its source's whole name, never "N..." (E206).
+        for (const button of [
+            within(row).getByRole("button", { name: "Node label 2 source, Node id, above" }),
+            within(mainRow).getByRole("button", { name: "Node label source, Node id, above" }),
+        ]) {
+            const shown = button.querySelector<HTMLElement>(".mantine-Button-label");
+            assert.isNotNull(shown);
+            const probe = document.createElement("span");
+            probe.style.font = getComputedStyle(shown).font;
+            probe.style.position = "absolute";
+            probe.textContent = "Node id";
+            document.body.append(probe);
+            const needed = probe.getBoundingClientRect().width;
+            probe.remove();
+            assert.isAtLeast(shown.clientWidth, needed, "the source's name fits beside its glyphs");
+        }
+        // Its look is its row's kind, not a setting: a fresh Label shows nothing set in its pop-over.
+        assert.isNotNull(within(row).queryByRole("button", { name: "Node label 2 settings" }), "nothing set yet");
 
         // Below the node, from its own settings.
         await userEvent.click(within(row).getByRole("button", { name: /^Node label 2 settings/ }));

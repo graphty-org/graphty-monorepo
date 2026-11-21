@@ -2287,7 +2287,7 @@ export abstract class LayoutEngine {
         x: number;
         y: number;
         z: number;
-    }): boolean;
+    }, lane?: ElementPositions): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
     // @internal
     protected releasePublishScratch(): void;

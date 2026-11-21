@@ -15,7 +15,7 @@ import { commands, page, userEvent } from "vitest/browser";
 import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { forgetUsageAnswer } from "../../privacy/usageData";
+import { assumeUsageDeclinedForTests, forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -195,6 +195,9 @@ afterEach(async () => {
 
 describe("the start page's graph", () => {
     it("fades what a pointed-at node is not linked to, and nothing once the pointer leaves", async () => {
+        // The usage data question sits over the graph's lower right corner, where the seeded layout
+        // draws Napoleon; a reader who has answered it has the whole graph to point at.
+        assumeUsageDeclinedForTests();
         const { element, session } = await startPage();
         const at = pointOn(element, "Napoleon");
 

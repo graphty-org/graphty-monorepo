@@ -157,7 +157,7 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
         // and the raised edge are Effects, the inner lines the Shape's custom shape.
         {
             part: "border",
-            groups: [[{ id: "border", name: "Border", items: ["border"], main: ["node.borderColor"], unnamed: true }]],
+            groups: [[{ id: "border", name: "Border", items: ["border"], main: ["node.borderColor"] }]],
         },
         {
             part: "visibility",

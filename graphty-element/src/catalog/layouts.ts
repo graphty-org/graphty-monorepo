@@ -530,6 +530,24 @@ const locationMap: LayoutImplementationSpec = {
     ...layoutFacts("location-map", LOCATION_OVERRIDE),
 };
 
+/** The map projection's latitude and longitude options name node attributes. */
+const COORDINATES_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
+    latitude: { type: "attribute", on: "node" },
+    longitude: { type: "attribute", on: "node" },
+};
+
+const geographic: LayoutImplementationSpec = {
+    engine: "geographic",
+    plainName: "Map Projection",
+    technicalName: "Map projection layout",
+    kind: "batch",
+    maxDimensions: 2,
+    description: "Places every node at its latitude and longitude, projected onto a flat map, with no map drawn.",
+    reason: "The only engine that draws this arrangement.",
+    code: "implementation.only",
+    ...layoutFacts("geographic", COORDINATES_OVERRIDE),
+};
+
 /** What each Graphviz engine is, as the catalog describes it. */
 const GRAPHVIZ_ENTRIES: Readonly<
     Record<
@@ -849,6 +867,22 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             structuralInputs: [],
         },
         locationMap,
+    ),
+    entry(
+        {
+            id: "geographic",
+            plainName: "Map Projection",
+            technicalName: "Map projection layout",
+            description:
+                "Places every node at its latitude and longitude, projected onto a flat map (equirectangular, " +
+                "Web Mercator or Equal Earth), north up, with no map drawn under it.",
+            family: "special",
+            kind: "batch",
+            maxDimensions: 2,
+            sizeRating: "any",
+            structuralInputs: [],
+        },
+        geographic,
     ),
     ...(["dot", "neato", "fdp", "sfdp", "circo", "twopi", "osage", "patchwork"] as const).map(graphvizEntry),
 ];

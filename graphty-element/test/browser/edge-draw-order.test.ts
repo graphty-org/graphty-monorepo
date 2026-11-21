@@ -55,12 +55,14 @@ const PLAIN_COLORS: Readonly<Record<string, string>> = { l: "#ff0000", t: "#0000
  * @param data - The document.
  * @param layers - Draw orders to set per edge, by its source node's id, each as a layer of its own.
  * @param load - With the file's styles, or as plain wide lines colored by layers on the "batched" path.
+ * @param late - Add the draw orders only once the lines are drawn, so they restyle lines already in place.
  * @returns The pixel there.
  */
 async function crossing(
     data: string,
     layers: Readonly<Record<string, number>> = {},
     load: Load = "file",
+    late = false,
 ): Promise<Uint8Array> {
     const element = document.createElement("graphty-element");
     element.style.cssText = "display:block;width:800px;height:600px";
@@ -90,6 +92,11 @@ async function crossing(
                 set: { "edge.color": color, "edge.width": 12, "edge.arrowHead": "none" },
             });
         }
+    }
+    if (late) {
+        await element.waitForSettled();
+        await element.session.styles.settled();
+        await element.waitForStableFrame();
     }
     for (const [source, order] of Object.entries(layers)) {
         await element.session.styles.add({
@@ -148,6 +155,11 @@ describe("edge draw order in 2D", () => {
         assert.isAbove(plain[2], plain[0], `blue over red with no order: ${String([...plain])}`);
         mounted?.remove();
         const pixel = await crossing(doc(), { l: 60, t: 20 }, "plain");
+        assert.isAbove(pixel[0], pixel[2], `red over blue: ${String([...pixel])}`);
+    });
+
+    test("moves a drawn plain pulled line on top when a layer later gives it the higher edge.drawOrder", async () => {
+        const pixel = await crossing(doc(), { l: 60, t: 20 }, "plain", true);
         assert.isAbove(pixel[0], pixel[2], `red over blue: ${String([...pixel])}`);
     });
 });

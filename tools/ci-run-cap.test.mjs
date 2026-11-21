@@ -10,6 +10,7 @@ import {
     FULL_RUN_MAX_PARALLEL,
     MASTER_SHARE,
     MAX_WAIT_MINUTES,
+    namedIssues,
     parseBudget,
     parseCap,
     POLL_SECONDS,
@@ -363,4 +364,73 @@ test("FULL_RUN_MAX_PARALLEL matches ci.yml's full-run max-parallel", () => {
     assert.equal(RELEASE_SHARE, 30);
     // the run cap's comment in ci.yml states the default budget it derives
     assert.match(yml, new RegExp(`CI_PR_JOB_BUDGET \\(a repository variable, default ${DEFAULT_BUDGET}\\b`));
+});
+
+// a red fix skips the wait (#9473): a pull request that names an open alarm issue, or a revert/<sha7> branch
+test("a pull request that fixes an open red-master or full-run alarm skips the wait", async () => {
+    const ci = [run(40268423000, "2026-10-26T04:00:00Z", "in_progress"), ME];
+    const issues = [
+        { number: 9456, state: "open", title: "Full run red: CI / Test (layout) fails curve.test.ts" },
+        { number: 9100, state: "open", title: "GPU lane red on master" },
+        { number: 9200, state: "open", title: "Red master: CI failed on abc1234" },
+        { number: 9300, state: "open", title: "Red masterpiece in the docs" },
+        { number: 9465, state: "open", title: "Full run red: x", pull_request: {} },
+    ];
+    const withSearch = (commits = []) => {
+        const f = fake({ ci });
+        const inner = f.api;
+        f.api = async (path, body) => {
+            if (path.startsWith("/search/issues?")) {
+                f.calls.push(path);
+                const q = decodeURIComponent(path);
+                assert.match(q, /repo:o\/r is:issue is:open "Full run red" OR "Failing on master" OR "Red master"/);
+                return { items: issues };
+            }
+            if (path.startsWith("pulls/7/commits")) {
+                f.calls.push(path);
+                return commits.map((message) => ({ commit: { message } }));
+            }
+            return inner(path, body);
+        };
+        return f;
+    };
+    const pr = (body, ref = "fix/9456-curve") => ({ number: 7, title: "fix: curve", body, head: { ref } });
+    const outcome = async (p, commits) =>
+        (await waitTurn({ cap: 1, runId: ME.id, repo: "o/r", pr: p, ...withSearch(commits) })).outcome;
+
+    assert.equal(await outcome(pr("Fixes #9456")), "red fix");
+    assert.equal(await outcome(pr("Refs #9100")), "red fix");
+    assert.equal(await outcome(pr("No issue"), ["fix: curve\n\nFixes #9200"]), "red fix");
+    assert.equal(await outcome(pr("", "revert/1a2b3c4")), "red fix");
+    // a closed alarm is not in the open search, and a non-alarm issue or a pull request still waits
+    for (const body of ["Fixes #9999", "Fixes #9300", "Refs #9465", "mentions #9456 only"])
+        assert.equal(await outcome(pr(body)), "wait limit", body);
+    assert.equal(await outcome(pr("", "revert/not-a-sha")), "wait limit");
+    // a search that fails waits as usual, never jumps the queue
+    const f = withSearch();
+    const api = f.api;
+    f.api = async (path, body) => {
+        if (path.startsWith("/search/")) throw new Error("GET search: HTTP 403");
+        return api(path, body);
+    };
+    assert.equal(
+        (await waitTurn({ cap: 1, runId: ME.id, repo: "o/r", pr: pr("Fixes #9456"), ...f })).outcome,
+        "wait limit",
+    );
+    // no event payload: no extra calls
+    const plain = withSearch();
+    await waitTurn({ cap: 1, runId: ME.id, ...plain, maxWaitSeconds: 0 });
+    assert.ok(!plain.calls.some((c) => c.startsWith("/search") || c.startsWith("pulls/")));
+});
+
+test("namedIssues reads Fixes, Closes, Resolves and Refs, and not a bare mention", () => {
+    assert.deepEqual([...namedIssues("Fixes #1, refs #2\ncloses: #3 resolved #4 see #5")], [1, 2, 3, 4]);
+    assert.equal(namedIssues(undefined).size, 0);
+});
+
+test("ci.yml gives the run cap the event payload's reads: pull requests and issues", () => {
+    const yml = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+    const job = /\n {4}run-cap:\n([\s\S]*?)\n {4}\S/.exec(yml)[1];
+    assert.match(job, /pull-requests: read/);
+    assert.match(job, /issues: read/);
 });

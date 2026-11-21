@@ -1475,18 +1475,36 @@ export class EdgeMesh {
         arrowLength: number,
         geometry: ArrowGeometry,
     ): Vector3 {
+        return EdgeMesh.arrowPositionToRef(surfacePoint, direction, arrowLength, geometry, new Vector3());
+    }
+
+    /**
+     * {@link calculateArrowPosition} into a vector the caller holds, for a placement made every frame.
+     * @param surfacePoint - Point on the node surface where the arrow should touch
+     * @param direction - Direction vector from surface outward
+     * @param arrowLength - Length of the arrow in world units
+     * @param geometry - Arrow geometry configuration
+     * @param out - Receives the position.
+     * @returns `out`.
+     */
+    static arrowPositionToRef(
+        surfacePoint: Vector3,
+        direction: Vector3,
+        arrowLength: number,
+        geometry: ArrowGeometry,
+        out: Vector3,
+    ): Vector3 {
         const scaleFactor = geometry.scaleFactor ?? 1;
-
-        if (geometry.positioningMode === "center") {
-            // Center-based: position center back by radius so front edge touches surface
-            const actualSize = arrowLength * scaleFactor;
-            const radius = actualSize / 2;
-            return surfacePoint.subtract(direction.scale(radius));
-        }
-
-        // Tip-based: apply custom offset
-        const offset = arrowLength * geometry.positionOffset;
-        return surfacePoint.subtract(direction.scale(offset));
+        // Center-based: position center back by radius so front edge touches surface; tip-based: a custom offset
+        const back =
+            geometry.positioningMode === "center"
+                ? (arrowLength * scaleFactor) / 2
+                : arrowLength * geometry.positionOffset;
+        return out.set(
+            surfacePoint.x - direction.x * back,
+            surfacePoint.y - direction.y * back,
+            surfacePoint.z - direction.z * back,
+        );
     }
 
     /**

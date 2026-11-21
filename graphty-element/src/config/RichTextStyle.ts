@@ -108,8 +108,8 @@ export const RichTextStyle = z.strictObject({
     /** The words drawn; set, it is used in place of `textPath`. */
     text: z.string().optional(),
 
-    /** The font family. Default "Verdana". */
-    font: z.string().default("Verdana").optional(),
+    /** The font family. Default "Verdana, sans-serif": Verdana, or the sans-serif face where it is missing. */
+    font: z.string().default("Verdana, sans-serif").optional(),
     /** The font size, in pixels of the label's texture. Default 48. */
     fontSize: z.number().min(1).default(48).optional(),
     /** How tall one line is drawn in the scene, in the units of a node's size; unset, fontSize / 48. */

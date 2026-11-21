@@ -74,6 +74,7 @@ import type { Node } from "../Node";
 import type { DrawnTarget } from "../render/RowTable";
 import { wholeGraph } from "../session/working/graphs";
 import { readCommunities, readRowCommunities, sameCommunities } from "./clusterForce";
+import { forceAtlas2MaxIterFor } from "./forceAtlas2Iterations";
 import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
 
 /**
@@ -740,6 +741,56 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#publish(false);
     };
 
+    /** The transform the owed publish writes the rows with: the one its landing drew with. */
+    #owedTransform: DrawnTransform | null = null;
+    /** `#landed` when the publish was owed: a later landing has rewritten the simulation's rows. */
+    #owedLanded = -1;
+
+    /**
+     * One row as the owed publish writes it (`#writeRows` for that row alone), so a frame that draws
+     * a few rows from the CPU -- a label, an arrowhead -- reads them without writing every row.
+     * @param row - The element's row.
+     * @param out - Written with the row's place.
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     * @returns False when the publish leaves the row as it is, null when it cannot say for one row.
+     */
+    readonly #owedRow = (row: number, out: { x: number; y: number; z: number }): boolean | null => {
+        const via = this.#owedTransform;
+        const simPositions = this.#simPositions;
+        // A batch that landed after the owe has rewritten the simulation's rows, and the publish that
+        // would carry it has not run: only the whole publish knows what to write now.
+        if (via === null || simPositions === null || this.#owedLanded !== this.#landed) {
+            return null;
+        }
+
+        const sim = this.#simRow(row);
+        if (!this.#hasRow(sim)) {
+            return false;
+        }
+
+        // `#writeRows` leaves out a fixed row the lane has placed, and `publishColumn` a kept one
+        const store = this.#dataManager[WRITABLE_LANE];
+        if (this.#fixedRows.has(sim) && isStorableCoordinate(store.unsettledView()[POSITION_COMPONENTS * row])) {
+            return false;
+        }
+
+        const { scale, center, target } = via;
+        const x = (simPositions[3 * sim] - center[0]) * scale + target[0];
+        const y = (simPositions[3 * sim + 1] - center[1]) * scale + target[1];
+        const z = (simPositions[3 * sim + 2] - center[2]) * scale + target[2];
+        if (this.publishLeavesRow(store, row, x, y, z)) {
+            return false;
+        }
+
+        // the lane is f32: answer what it will hold
+        out.x = Math.fround(x);
+        out.y = Math.fround(y);
+        out.z = Math.fround(z);
+        return true;
+    };
+
     /** The box {@link SimulationLayoutEngine.publishedBounds} answers while a publish is owed. */
     #owedBox: Float64Array | null = null;
     /** The box of the rows the last envelope measured, in the simulation's units, or empty for none. */
@@ -772,6 +823,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #paused = false;
     #iterations = 1;
     #iterationsDone = 0;
+    /** ForceAtlas2's iteration cap this simulation was built with; undefined for the other types. */
+    #maxIter: number | undefined = undefined;
 
     /**
      * Moves at every {@link SimulationLayoutEngine.loadArrangement}. A batch submitted before the
@@ -1043,7 +1096,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
             simulation === null ||
             decision.accelerated !== this.#accelerated ||
             massStale ||
-            loadable.weight !== this.#weightSpec
+            loadable.weight !== this.#weightSpec ||
+            // A cap scaled to the graph is handed over at creation, so a graph that grew past it rebuilds.
+            this.#resolveMaxIter(simGraph.nodeCount) !== this.#maxIter
         ) {
             this.replaceSimulation();
             return;
@@ -1502,6 +1557,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const store = this.#dataManager[WRITABLE_LANE];
         store.forgive(this.#owedPublish);
         this.#owedBox = null;
+        this.#owedTransform = null;
         const snapshot = this.#snapshot;
         const simPositions = this.#simPositions;
         if (snapshot === null || simPositions === null) {
@@ -1525,7 +1581,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
             const box = this.holdsAny ? null : this.#keepFixedIn(this.#rowsBox(viaCard));
             this.#owedBox = box !== null && box[0] <= box[3] ? box : null;
-            store.owe(this.#owedPublish);
+            this.#owedTransform = viaCard;
+            this.#owedLanded = this.#landed;
+            store.owe(this.#owedPublish, this.#owedRow);
             return;
         }
 
@@ -2438,6 +2496,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#seed(snapshot, simPositions);
         this.#nodeMass = this.#resolveNodeMass(undirected);
         this.#iterations = this.#resolveIterations(snapshot.nodeCount);
+        this.#maxIter = this.#resolveMaxIter(snapshot.nodeCount);
         this.#simulation = createSimulation(
             this.simulationType,
             this.#simulationOptions(),
@@ -2589,7 +2648,22 @@ export class SimulationLayoutEngine extends LayoutEngine {
         } = this.#options;
         const resolved = this.#nodeMass === null ? {} : { nodeMass: this.#nodeMass };
         const weight = this.#weightSpec === undefined ? {} : { weight: this.#weightSpec };
-        return { ...common, ...model, ...resolved, ...weight, iterationsPerStep: this.#iterations };
+        const cap = this.#maxIter === undefined ? {} : { maxIter: this.#maxIter };
+        return { ...common, ...model, ...resolved, ...weight, ...cap, iterationsPerStep: this.#iterations };
+    }
+
+    /**
+     * ForceAtlas2's iteration cap over a graph this size: the consumer's `maxIter`, else one scaled
+     * to the graph ({@link forceAtlas2MaxIterFor}).
+     * @param nodeCount - The graph this load is over.
+     * @returns The cap, or undefined for a simulation that is not ForceAtlas2.
+     */
+    #resolveMaxIter(nodeCount: number): number | undefined {
+        if (this.simulationType !== "forceatlas2") {
+            return undefined;
+        }
+
+        return (this.#options.model as { maxIter?: number }).maxIter ?? forceAtlas2MaxIterFor(nodeCount);
     }
 
     /**

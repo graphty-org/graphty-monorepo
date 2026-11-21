@@ -25,7 +25,7 @@ import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesFreeing, texturesLoading } from "../models/TextureCache";
-import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
+import { collectResizedNodes, type Node, type NodeRenderState } from "../Node";
 import { DEFAULT_NODE_SCREEN_REFERENCE, type SizeView, viewSizeScale } from "../render/nodeSizeSpace";
 import type { RowTable } from "../render/RowTable";
 import type { ElementMask } from "../session/scope/index";
@@ -35,7 +35,7 @@ import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { inXR } from "../xr/inXR";
 import { mapCorners } from "./BasemapManager";
-import { type DataManager, dataManagerInternals, disposeReleased } from "./DataManager";
+import { type DataManager, dataManagerInternals, releaseRebuiltMeshes } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
@@ -523,7 +523,7 @@ const EDGE_PAINT_BATCH = 1024;
  * edges painted in fixed batches took about 390 frames and 12 s to show one view switch. With this
  * floor a frame there paints for about 60 ms, still a short task, and the switch takes 32 frames.
  */
-const REPAINT_FRAMES = 32;
+export const REPAINT_FRAMES = 32;
 
 /** What an unbound renderer reads: no selection, no filter, nothing hidden. */
 const EMPTY_MASKS: ViewMasks = Object.freeze({});
@@ -2026,7 +2026,7 @@ export class UpdateManager implements Manager {
         if (plain !== null && batches?.paintRow(index, plain) === true) {
             table?.hide(index, filtered());
             if (plain.labelled === true) {
-                // label sampling may pick it, and then builds it a `Node` for the label (`buildPlainRow`)
+                // label sampling may pick it, and then builds it a `Node` for the label (`buildPlainRows`)
                 LabelDeclutter.notePlainLabel(this.graphContext.getScene(), this.graphContext);
             }
 
@@ -2088,15 +2088,19 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Build the `Node` of a row held plain that label sampling picked, so its label is drawn: its own
-     * paint is queued for the next frame.
-     * ponytail: the `Node` stays when a later pass drops its label, so the objects grow by the rows that
+     * Build the `Node`s of the rows held plain that label sampling picked, so their labels are drawn:
+     * their own paint is queued for the next frame, and painted together.
+     * ponytail: a `Node` stays when a later pass drops its label, so the objects grow by the rows that
      * ever won a cell; turn it back into a plain row if zooming about builds too many.
-     * @param id - The row's node id.
+     * @param ids - The rows' node ids.
      * @internal
      */
-    buildPlainRow(id: NodeIdType): void {
-        dataManagerInternals.buildRow(this.dataManager, id);
+    buildPlainRows(ids: readonly NodeIdType[]): void {
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const id of ids) {
+                dataManagerInternals.buildRow(this.dataManager, id);
+            }
+        });
     }
 
     /**
@@ -2356,12 +2360,7 @@ export class UpdateManager implements Manager {
      *     rebuilt mesh has to be stretched over its members again).
      */
     private paintNodes(painted: readonly [Node, NodePaint][]): { resized: ReadonlySet<Node>; rebuilt: boolean } {
-        const rebuilt = painted.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
-        disposeReleased(rebuilt, [], () => {
-            for (const node of rebuilt) {
-                releaseNodeMesh(node);
-            }
-        });
+        const rebuilt = releaseRebuiltMeshes(painted);
         const resized = collectResizedNodes(() => {
             for (const [node, paint] of painted) {
                 const own = node.togglesOwnMeshes();
@@ -3290,6 +3289,7 @@ export class UpdateManager implements Manager {
         const framing = this.willZoomToFit();
 
         // Update nodes and edges
+        this.readsAhead();
         this.updateNodes(published);
         this.updateEdges();
         this.frameTransition();
@@ -3347,6 +3347,11 @@ export class UpdateManager implements Manager {
             this.layoutManager.layoutEngine?.spacesBySize === true &&
             (painter?.isPainting === true || painter?.hasPendingNodes === true)
         ) {
+            return;
+        }
+
+        // The frame after a 2D/3D switch flattened the arrangement draws it as it is.
+        if (this.layoutManager.takeFrameHold()) {
             return;
         }
 
@@ -3513,7 +3518,7 @@ export class UpdateManager implements Manager {
             const dx = at.x - was.x;
             const dy = at.y - was.y;
             const dz = at.z - was.z;
-            largest = Math.max(largest, Math.sqrt(dx * dx + dy * dy + dz * dz));
+            largest = Math.max(largest, Math.hypot(dx, dy, dz));
         }
 
         return largest;
@@ -3953,6 +3958,18 @@ export class UpdateManager implements Manager {
 
         for (const edge of this.placedEdges()) {
             edge.update();
+        }
+    }
+
+    /**
+     * Under "batched", tell the row table how many rows this frame reads one at a time: each built `Node` its own,
+     * each placed edge both its ends'. When that is more than a GPU landing the lane owes answers by row (every
+     * edge arrowed builds every node), the landing is written before the first read, not after a quarter of them.
+     */
+    private readsAhead(): void {
+        const table = this.graphContext.getRowTable?.() ?? null;
+        if (table !== null && this.dataManager.renderLimits?.batched() === true) {
+            table.willRead(dataManagerInternals.nodesLive(this.dataManager) + 2 * this.placedEdges().length);
         }
     }
 

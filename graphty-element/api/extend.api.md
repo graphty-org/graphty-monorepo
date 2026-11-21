@@ -977,7 +977,9 @@ export interface ExportGroupTable extends GroupTableOptions {
 }
 
 // @public
-export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
+export interface ExportLoss extends CodedFact<ExportLossCode | (string & {})> {
+    readonly expected: boolean;
+}
 
 // @public
 export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof CYS_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED" | ExportStyleLossCode;

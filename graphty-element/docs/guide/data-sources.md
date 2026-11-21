@@ -1042,6 +1042,17 @@ words for it:
   no place for), or none (self-loops).
 - `count` is how many nodes, edges, values or columns are affected, or `null` when not counted.
 
+Each loss also says whether it is the format's normal behavior, as `expected`. It is `true` for a
+kind of information the format (or the table chosen) has no place for at all, such as positions in
+CSV or styles in a format that writes none: the rest of the file is written as it is. It is `false`
+when the export changes or drops part of the data itself (ids renumbered, nested values written as
+text, parallel edges dropped), for a refusal, and for a registered writer's own codes. An
+application can show the expected ones quietly and warn about the rest:
+
+```typescript
+const surprising = result.losses.filter((loss) => !loss.expected);
+```
+
 ### Exporting part of the graph
 
 Without a `scope`, an export writes the whole graph. With one, it writes only the nodes the scope

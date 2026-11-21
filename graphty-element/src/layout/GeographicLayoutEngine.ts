@@ -1,4 +1,5 @@
 import type { F32, F64 } from "@graphty/graph-format";
+import { geographicColumnNames } from "@graphty/graph-io/positions";
 import { geographic } from "@graphty/layout";
 import { z } from "zod";
 
@@ -14,7 +15,7 @@ const geographicLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Latitude",
             description:
-                "The node attribute holding each node's latitude in degrees; empty reads the designated latitude field, else `latitude`",
+                "The node attribute holding each node's latitude in degrees; empty reads the designated latitude field, else the attribute named lat or latitude (any case), else `latitude`",
         },
     },
     longitude: {
@@ -22,7 +23,7 @@ const geographicLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Longitude",
             description:
-                "The node attribute holding each node's longitude in degrees; empty reads the designated longitude field, else `longitude`",
+                "The node attribute holding each node's longitude in degrees; empty reads the designated longitude field, else the attribute named lon, lng or longitude (any case), else `longitude`",
         },
     },
     projection: {
@@ -78,8 +79,9 @@ function degrees(value: unknown): number {
 /**
  * The geographic layout: every node at its latitude and longitude, projected onto a flat map
  * (equirectangular, Web Mercator or Equal Earth), north up, with no map drawn under it. The
- * attributes default to the designated latitude and longitude fields (`data.setRole`), else to
- * attributes named `latitude` and `longitude`. A node with no usable coordinates is placed at the
+ * attributes default to the designated latitude and longitude fields (`data.setRole`), else to the
+ * one attribute named `lat` or `latitude` and the one named `lon`, `lng` or `longitude` (any case;
+ * the rule graph-io reads a file's geographic position column by), else to `latitude` and `longitude`. A node with no usable coordinates is placed at the
  * origin and reported as a `layout-warning` with code `W_NO_POSITION`. For a map or a globe drawn
  * under the graph, use the `location-map` layout.
  */
@@ -116,8 +118,8 @@ export class GeographicLayout extends SnapshotLayoutEngine {
         const known = this.knownFields();
         return {
             ...this.config,
-            latitude: this.config.latitude ?? known?.nodeLatitudePath ?? "latitude",
-            longitude: this.config.longitude ?? known?.nodeLongitudePath ?? "longitude",
+            latitude: this.config.latitude ?? known?.nodeLatitudePath ?? null,
+            longitude: this.config.longitude ?? known?.nodeLongitudePath ?? null,
         };
     }
 
@@ -128,8 +130,11 @@ export class GeographicLayout extends SnapshotLayoutEngine {
      */
     protected compute(input: SnapshotLayoutInput): F32 {
         const n = input.graph.nodeCount;
-        const read = (option: string): F64 => {
-            const values = input.column(option) ?? new Array<unknown>(n);
+        const rows = this.rowRecords(n);
+        const named = this.#namedColumns(rows);
+        const read = (option: "latitude" | "longitude"): F64 => {
+            const name = named?.[option] ?? option;
+            const values = input.column(option) ?? rows.map((data) => data?.[name]);
             const out = new Float64Array(n);
             for (let i = 0; i < n; i++) {
                 out[i] = degrees(values[i]);
@@ -160,5 +165,28 @@ export class GeographicLayout extends SnapshotLayoutEngine {
         }
 
         return positions;
+    }
+
+    /**
+     * The latitude and longitude attributes by graph-io's name rule, when an option or a designated
+     * field leaves one of them unnamed.
+     * @param rows - each row's data
+     * @returns the names, or null when both are named or the rule finds no pair
+     */
+    #namedColumns(rows: readonly (Record<string | number, unknown> | undefined)[]): {
+        readonly latitude: string;
+        readonly longitude: string;
+    } | null {
+        const { latitude, longitude } = this.options;
+        if (latitude !== null && longitude !== null) {
+            return null;
+        }
+        const names = new Set<string>();
+        for (const data of rows) {
+            for (const key of Object.keys(data ?? {})) {
+                names.add(key);
+            }
+        }
+        return geographicColumnNames(names);
     }
 }

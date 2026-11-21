@@ -25,6 +25,7 @@ import {
 import { sha256Hex, type SourceListing, type SourceListQuery, type SourceProbe } from "@graphty/graph-io";
 import {
     DATASET_NAMES,
+    DatasetError,
     fetchDataset,
     GENERATOR_CATALOG,
     type SampleGraph,
@@ -10342,9 +10343,10 @@ function loadFacts(
 
 /**
  * What a failed dataset download rejects with: an abort as it was thrown, a bad name as
- * `E_UNKNOWN_DATASET`, a file that came back but would not decode as `E_PARSE_FAILED`, and an
- * answer that never came or was not ok as `E_FETCH_FAILED`, which is not recoverable for a client
- * error other than 408 and 429.
+ * `E_UNKNOWN_DATASET`, a file past graph-samples' size cap as `E_TOO_LARGE`, a file that came back
+ * but would not decode or is not the published one as `E_PARSE_FAILED` (graph-samples' code in
+ * `details.issue` for the checksum), and an answer that never came or was not ok as
+ * `E_FETCH_FAILED`, which is not recoverable for a client error other than 408 and 429.
  * @param name - The dataset's name.
  * @param baseUrl - The mirror, when one was given.
  * @param signal - The load's signal.
@@ -10363,12 +10365,24 @@ function datasetError(
         return error;
     }
     const mirror = baseUrl === undefined ? {} : { baseUrl };
-    if (status === undefined && error instanceof RangeError) {
+    const dataset = error instanceof DatasetError ? error : undefined;
+    const code = dataset?.code;
+    if (code === "E_DATASET_NAME") {
         return new GraphtyError({
             code: "E_UNKNOWN_DATASET",
             message: `"${name}" is not a dataset name.`,
             source: "data",
             details: { name, available: DATASET_NAMES },
+            cause: error,
+        });
+    }
+    if (code === "E_DATASET_TOO_LARGE") {
+        return new GraphtyError({
+            code: "E_TOO_LARGE",
+            message: `The dataset "${name}" is larger than the download limit.`,
+            source: "data",
+            recoverable: false,
+            details: { limit: Number(dataset?.details.maxBytes), of: "bytes" },
             cause: error,
         });
     }
@@ -10378,7 +10392,12 @@ function datasetError(
             message: `The dataset "${name}" was downloaded but could not be read.`,
             source: "data",
             recoverable: false,
-            details: { name, format: "graph-format", ...mirror },
+            details: {
+                name,
+                format: "graph-format",
+                ...mirror,
+                ...(code === "E_DATASET_CHECKSUM" ? { issue: code } : {}),
+            },
             cause: error,
         });
     }

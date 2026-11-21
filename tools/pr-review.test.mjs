@@ -331,6 +331,13 @@ describe("pr-review.sh", () => {
         r = answer("- Member #1234: addressed -- a\n- Member #2: addressed -- c");
         assert.equal(r.code, 3, `missing member: ${r.out}`);
         assert.match(readFileSync(reportPath(), "utf8"), /^<!-- member-not-addressed 1 -->$/m);
+        r = answer("  * Member #1234: addressed -- a\n  - Member #1: addressed -- b\nMember #2: addressed -- c");
+        assert.equal(r.code, 0, `indented bullets: ${r.out}`);
+        for (const lead of ["", "- ", "* ", "  * "]) {
+            r = answer(`Member #1234: addressed\nMember #1: addressed\n${lead}Member #2: not addressed -- untouched`);
+            assert.equal(r.code, 3, `${JSON.stringify(lead)} not addressed: ${r.out}`);
+            assert.match(readFileSync(reportPath(), "utf8"), /^<!-- member-not-addressed 2 -->$/m);
+        }
         r = answer("-Member #1234: addressed\nx Member #1: addressed\nMember #2:addressed");
         assert.equal(r.code, 3, `nothing looser: ${r.out}`);
     });

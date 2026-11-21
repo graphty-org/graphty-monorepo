@@ -123,6 +123,57 @@ const scratchPlace = new Float64Array(9);
 const pulledDirection = new Vector3();
 const pulledCentre = new Vector3();
 
+/**
+ * Take the lowest slot of a binary min-heap of free slots.
+ * @param heap - The heap.
+ * @returns The slot, or undefined for none.
+ */
+function takeLowest(heap: number[]): number | undefined {
+    const lowest = heap[0];
+    const last = heap.pop();
+    if (lowest === undefined || last === undefined || heap.length === 0) {
+        return lowest;
+    }
+
+    heap[0] = last;
+    for (let at = 0; ;) {
+        const [left, right] = [2 * at + 1, 2 * at + 2];
+        let least = at;
+        if (left < heap.length && heap[left] < heap[least]) {
+            least = left;
+        }
+
+        if (right < heap.length && heap[right] < heap[least]) {
+            least = right;
+        }
+
+        if (least === at) {
+            return lowest;
+        }
+
+        [heap[at], heap[least]] = [heap[least], heap[at]];
+        at = least;
+    }
+}
+
+/**
+ * Put a slot back into a binary min-heap of free slots.
+ * @param heap - The heap.
+ * @param slot - The slot.
+ */
+function giveBack(heap: number[], slot: number): void {
+    heap.push(slot);
+    for (let at = heap.length - 1; at > 0;) {
+        const parent = (at - 1) >> 1;
+        if (heap[parent] <= heap[at]) {
+            return;
+        }
+
+        [heap[parent], heap[at]] = [heap[at], heap[parent]];
+        at = parent;
+    }
+}
+
 /** The identity matrix, copied into a slot that only ever carries a translation. */
 const IDENTITY = Matrix.Identity();
 
@@ -379,7 +430,10 @@ export class ArrowCapBatch {
     acquire(): number {
         this.live++;
 
-        const recycled = this.free.pop();
+        // A batch that pulls caps hands out its lowest free slot: its row lines' heads come and go with their look
+        // (a restyle hands every one back), and caps drawn in the order of their edges draw the object path's picture
+        // where two of them meet. Any other batch takes the last slot handed back, as it always has.
+        const recycled = this.pulled === null ? this.free.pop() : takeLowest(this.free);
         const index = recycled ?? this.highWater;
 
         if (recycled === undefined) {
@@ -427,7 +481,11 @@ export class ArrowCapBatch {
 
         this.hide(index);
         this.unpull(index);
-        this.free.push(index);
+        if (this.pulled === null) {
+            this.free.push(index);
+        } else {
+            giveBack(this.free, index);
+        }
         this.live--;
         // A free slot draws nothing and counts for no pass. It keeps its opacity, as the GPU does,
         // until `acquire` takes it again.

@@ -577,6 +577,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "styles.mark()": "writes",
     "styles.move()": "writes",
     "styles.moveRow()": "writes",
+    "styles.labelsBeneath()": "not the graph",
     "styles.newLabelId()": "not the graph",
     "styles.parts()": "not the graph",
     "styles.pinRow()": "writes",

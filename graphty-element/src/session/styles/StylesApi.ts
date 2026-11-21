@@ -159,6 +159,7 @@ import {
     channelDescriptor,
     isChannel,
     labelStyleFieldChannels,
+    mergeLabelEntries,
     parseLabelFieldAddress,
     readRemovedChannels,
     toColorValue,
@@ -1014,6 +1015,23 @@ export interface StylesApi {
      * @since 3.63.0
      */
     newLabelId(id: LayerId, taken?: readonly string[]): string;
+    /**
+     * The further labels (beside `node.label`'s own) the layers beneath one layer add to a label list, merged by
+     * id the way the repaint merges them: each with the last words and the style the layers gave it, those a
+     * layer switched off left out, in the order they were first added. Selectors are not read: this is what the
+     * layers write, for an editor that offers a lower layer's label to restyle by its id.
+     * @param target - Whose list: `"node"` reads `node.labels`, `"edge"` reads `edge.labels`.
+     * @param below - The layer to read beneath; omitted, every layer of the stack is read.
+     * @returns The entries, never the main label's.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when `below` names no layer on the stack.
+     * @example
+     * ```ts
+     * const beneath = session.styles.labelsBeneath("node", "hubs");
+     * await session.styles.update("hubs", { set: { "node.labels": [{ id: beneath[0].id, style: { color: "red" } }] } });
+     * ```
+     * @since 3.63.0
+     */
+    labelsBeneath(target: "node" | "edge", below?: LayerId): readonly LabelEntry[];
     /**
      * Resolve once the element has finished painting everything it started for itself.
      *
@@ -6044,6 +6062,28 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             return `label-${String(n)}`;
+        },
+
+        labelsBeneath(target: "node" | "edge", below?: LayerId): readonly LabelEntry[] {
+            const layers = listLayers();
+            const at = below === undefined ? layers.length : layers.findIndex((each) => each.id === below);
+            if (at < 0) {
+                throw unknownLayer(
+                    below ?? "",
+                    layers.map((each) => each.id),
+                );
+            }
+
+            const list = `${target}.labels` as Channel;
+            let merged: readonly LabelEntry[] = [];
+            for (const each of layers.slice(0, at)) {
+                const set = each.set?.[list];
+                if (each.target === target && set !== undefined) {
+                    merged = mergeLabelEntries(merged, set);
+                }
+            }
+
+            return merged.filter((entry) => entry.off !== true && entry.id !== MAIN_LABEL_ID);
         },
 
         legendOf(id: LayerId): readonly LegendBlock[] {

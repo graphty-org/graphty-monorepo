@@ -513,6 +513,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         { root, members: ["toFile"], reason: "whole-document", kind: BY_DESIGN },
         // a fresh id for a label entry a write then names: id bookkeeping, which the style tools do themselves
         { root, members: ["newLabelId"], reason: "internal-handle", kind: BY_DESIGN },
+        // the label ids a lower layer adds, for an editor offering them by id: id bookkeeping, as newLabelId
+        { root, members: ["labelsBeneath"], reason: "internal-handle", kind: BY_DESIGN },
         { root, members: ["setHighlightColor"], reason: "app-default", kind: BY_DESIGN },
     ]),
     { root: "SessionStylesApi", members: ["modelUrlFromCode"], reason: "reader-trust", kind: BY_DESIGN },

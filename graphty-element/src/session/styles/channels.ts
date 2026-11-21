@@ -45,8 +45,9 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { withLabelLook } from "../../catalog/label-looks";
+import { leavingLook, withLabelLook } from "../../catalog/label-looks";
 import {
+    LABEL_CAP,
     type LabelDeclutterOrder,
     type LabelEntry,
     type LabelLocation,
@@ -2298,7 +2299,8 @@ export function labelPatchOf(field: LabelFieldName, painted: unknown): LabelStyl
  * A layer that names one field has said nothing about the others: `{color}` stacked over
  * `{sizePx: 24}` is a red label at 24 px, not a red label at the default size. A field set to
  * undefined says nothing either. The result is a new object whenever there is something beneath,
- * because a painted value is shared by every element its layer painted.
+ * because a painted value is shared by every element its layer painted. A style that names a look other than the
+ * one beneath drops the fields that look beneath set, so it draws its own look and nothing of the other.
  * @param held - What the layers beneath painted, or undefined.
  * @param over - What this layer paints.
  * @returns The merged label style.
@@ -2308,7 +2310,10 @@ export function mergeLabelStyle(held: unknown, over: object): object {
         return over;
     }
 
-    const merged: Record<string, unknown> = { ...held };
+    // A style naming another look starts from it, not from the look beneath (Text over a Card is plain).
+    const merged: Record<string, unknown> = {
+        ...leavingLook(held as Record<string, unknown>, (over as { look?: unknown }).look),
+    };
 
     for (const [field, value] of Object.entries(over)) {
         if (value !== undefined) {
@@ -2524,9 +2529,6 @@ function shaderChannel(target: "node" | "edge"): ChannelDescriptor {
         shaderTarget: target,
     };
 }
-
-/** The most further labels (beside `node.label`'s own) one element draws; see `label.cap`. */
-export const LABEL_CAP = 8;
 
 /** How label sampling and decluttering treat a label list's further labels, by target. */
 const LABEL_LIST_THINNING = {
@@ -6971,3 +6973,5 @@ export function labelFieldChannel(target: LabelFieldTarget): ChannelDescriptor |
     const [channel] = labelStyleFieldChannels(`${list.target}.labelStyle` as Channel, { [target.field]: true });
     return channel === undefined ? undefined : CHANNEL_DESCRIPTORS[channel];
 }
+
+export { LABEL_CAP } from "../../catalog/label-style";

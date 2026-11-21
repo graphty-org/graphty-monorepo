@@ -1864,6 +1864,9 @@ export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "infern
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
 
 // @public
+export const LABEL_CAP = 8;
+
+// @public
 export const LABEL_LOCATION_PLACES: readonly LabelLocationPlace[];
 
 // @public

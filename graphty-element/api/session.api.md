@@ -7430,6 +7430,7 @@ export interface StylesApi {
     hideRow(id: StyleRowId, hidden: boolean, options?: RunOptions): Run<StyleRow>;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
     highlightStyle(target: SelectorTarget): StaticStyle;
+    labelsBeneath(target: "node" | "edge", below?: LayerId): readonly LabelEntry[];
     layerGroups(ids: readonly LayerId[], binding: Omit<RuleBinding, "by">, options: {
         readonly channel: Channel;
     }): readonly LayerGroup[];

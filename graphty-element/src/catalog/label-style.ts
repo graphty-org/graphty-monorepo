@@ -147,6 +147,13 @@ export type LabelSizeMode = "world" | "screen";
 export const MAIN_LABEL_ID = "label";
 
 /**
+ * The most further labels (beside `node.label`'s own) one element draws: a label list's entries past this many
+ * are left undrawn, the first ones kept. An editor offering to add a label stops offering at this many.
+ * @since 3.63.0
+ */
+export const LABEL_CAP = 8;
+
+/**
  * One label of a node's or an edge's label list (`node.labels`, `edge.labels`), so an element can
  * carry several labels, each placed and styled on its own.
  *
@@ -169,7 +176,10 @@ export interface LabelEntry {
     readonly id: string;
     /** The words, as `node.label` takes them. Absent, the label draws the words `node.label` draws. */
     readonly text?: string;
-    /** How it is drawn, merged field by field over the base label style. */
+    /**
+     * How it is drawn, merged field by field over the base label style. With no `look` it draws in the base
+     * style's look; a `look` of its own (`"default"` for plain text) leaves the base style's look out.
+     */
     readonly style?: LabelStyle;
     /** True removes the label with this id the layers beneath give. */
     readonly off?: true;

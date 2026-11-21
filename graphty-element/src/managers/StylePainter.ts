@@ -2,6 +2,7 @@ import cloneDeep from "lodash/cloneDeep.js";
 import get from "lodash/get.js";
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
+import { labelLook } from "../catalog/label-looks";
 import { type LabelBadge, type LabelEntry, MAIN_LABEL_ID, RICH_TEXT_KEYS } from "../catalog/label-style";
 import type { Channel, LabelStyle, Rgba } from "../catalog/types";
 import {
@@ -544,12 +545,14 @@ export function drawnLabelsKey(
  * channel is in: the entry with id {@link MAIN_LABEL_ID} restyles (or with `off` hides) the label
  * `style.label` draws, and every other drawn entry becomes a block of `style.labels`, the label's
  * block as the layers wrote it (the base style of every entry) with the entry's own fields over
- * it, filled with the label defaults.
+ * it, filled with the label defaults. An entry that names a look other than the label's starts from its own
+ * look: the fields the label's look set are left out of its block, so a Text label beside a Card is plain.
  * @param bag - The style being built.
  * @param entries - The resolved list, or undefined.
  * @param base - The label defaults.
+ * @param mainStyle - The label style the layers painted the label, or undefined.
  */
-function writeLabelEntries(bag: Record<string, unknown>, entries: unknown, base: unknown): void {
+function writeLabelEntries(bag: Record<string, unknown>, entries: unknown, base: unknown, mainStyle: unknown): void {
     if (!Array.isArray(entries)) {
         return;
     }
@@ -577,7 +580,7 @@ function writeLabelEntries(bag: Record<string, unknown>, entries: unknown, base:
     bag.labels = drawn.map((entry): DrawnLabel => {
         const fields = richTextOf(entry.style ?? {});
         const block: Record<string, unknown> = {
-            ...own,
+            ...ownUnder(own, mainStyle, entry.style?.look),
             ...fields,
             ...(entry.text === undefined ? {} : { text: entry.text }),
             // Drawn unless a style beneath or its own switches labels off.
@@ -585,6 +588,35 @@ function writeLabelEntries(bag: Record<string, unknown>, entries: unknown, base:
         };
         return { id: entry.id, block: fillDefaults(block, base) as DrawnLabel["block"] };
     });
+}
+
+/**
+ * The label's block as a further label starts from it: without the fields the label's look set, when the
+ * further label names another look.
+ * @param own - The label's block.
+ * @param mainStyle - The label style the layers painted the label, or undefined.
+ * @param look - The look the further label names, or undefined.
+ * @returns The block the further label's fields go over.
+ */
+function ownUnder(
+    own: Readonly<Record<string, unknown>>,
+    mainStyle: unknown,
+    look: string | undefined,
+): Record<string, unknown> {
+    const mainLook = typeof mainStyle === "object" && mainStyle !== null ? (mainStyle as LabelStyle).look : undefined;
+    const from = mainLook === undefined ? undefined : labelLook(mainLook);
+    if (look === undefined || from === undefined || look === from.id) {
+        return { ...own };
+    }
+
+    const left: Record<string, unknown> = { ...own };
+    for (const [field, value] of Object.entries(richTextOf(from.style))) {
+        if (left[field] === value) {
+            Reflect.deleteProperty(left, field);
+        }
+    }
+
+    return left;
 }
 
 /**
@@ -755,7 +787,7 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
         }
     }
 
-    writeLabelEntries(bag, resolved["node.labels"], NODE_BASE.label);
+    writeLabelEntries(bag, resolved["node.labels"], NODE_BASE.label, resolved["node.labelStyle"]);
 
     const painted = fill.color ?? null;
     // NO LAYER PAINTS A COLOR: THE ELEMENT'S OWN DEFAULT, never "leave the instance as it was".
@@ -906,7 +938,7 @@ function edgePaintOf(
         writeChannel(bag, name as Channel, value, plainText(name as Channel));
     }
 
-    writeLabelEntries(bag, resolved["edge.labels"], EDGE_BASE.label);
+    writeLabelEntries(bag, resolved["edge.labels"], EDGE_BASE.label, resolved["edge.labelStyle"]);
 
     const headed = edgeHeaded(resolved, directed);
     const base = headed ? EDGE_BASE_DIRECTED : EDGE_BASE;

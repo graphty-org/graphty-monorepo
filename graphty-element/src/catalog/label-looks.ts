@@ -151,6 +151,32 @@ export function withLabelLook(style: LabelStyle): LabelStyle {
 }
 
 /**
+ * A label style beneath with the fields its look set taken out, when the style over it names another look.
+ *
+ * A layer that names a look starts from that look, not from the look beneath: Text over a Card is plain, with
+ * no card background left over. A field the style beneath wrote itself, at a value its look does not give,
+ * stays, as any field a layer names stays under a layer that says nothing about it.
+ * @param held - The style beneath, its look expanded.
+ * @param look - The look the style over it names, or undefined.
+ * @returns The style beneath, without its look's fields when the look changes.
+ */
+export function leavingLook(held: Readonly<Record<string, unknown>>, look: unknown): Readonly<Record<string, unknown>> {
+    const from = typeof held.look === "string" ? labelLook(held.look) : undefined;
+    if (typeof look !== "string" || from === undefined || look === from.id) {
+        return held;
+    }
+
+    const left: Record<string, unknown> = { ...held };
+    for (const [field, value] of Object.entries(from.style)) {
+        if (left[field] === value) {
+            Reflect.deleteProperty(left, field);
+        }
+    }
+
+    return left;
+}
+
+/**
  * The built-in label looks, for the saved-name scan: a save file that names one by id depends on this
  * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
  * Exported, and so tagged public, because test/saved-format/builtInIds.ts finds and loads it by reading the source.

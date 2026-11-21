@@ -7,6 +7,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { LABEL_CAP as CATALOG_LABEL_CAP } from "../../../src/catalog";
 import { MAIN_LABEL_ID } from "../../../src/catalog/label-style";
 import type { DrawnLabel } from "../../../src/managers/StylePainter";
 import { createGraphSession } from "../../../src/session";
@@ -277,6 +278,101 @@ describe("a label list", () => {
         assert.strictEqual(card?.backgroundColor, "#ffffff", "the look's background");
         assert.strictEqual(card?.font, "Verdana, sans-serif", "the look's font");
         assert.strictEqual(card?.textColor, "#ff0000", "the entry's own color wins over the look's");
+    });
+
+    it("lists the further labels the layers beneath one layer add, by id, and LABEL_CAP is the catalog's", async () => {
+        const session = createGraphSession();
+        const low = await session.styles.add({
+            name: "Low",
+            target: "node",
+            selector: { match: "everything" },
+            set: {
+                "node.labels": [
+                    { id: "a", text: "A" },
+                    { id: "b", text: "B" },
+                    { id: MAIN_LABEL_ID, text: "M" },
+                ],
+            },
+        });
+        const mid = await session.styles.add({
+            name: "Mid",
+            target: "node",
+            selector: { match: "expression", where: "data.rank == `1`" },
+            set: {
+                "node.labels": [
+                    { id: "a", style: { color: "#ff0000" } },
+                    { id: "b", off: true },
+                ],
+            },
+        });
+        const top = await session.styles.add({
+            name: "Top",
+            target: "node",
+            selector: { match: "everything" },
+            set: {},
+        });
+        assert.deepStrictEqual(session.styles.labelsBeneath("node", mid.id), [
+            { id: "a", text: "A" },
+            { id: "b", text: "B" },
+        ]);
+        assert.deepStrictEqual(
+            session.styles.labelsBeneath("node", top.id).map((entry) => [entry.id, entry.text, entry.style?.color]),
+            [["a", "A", "#ff0000"]],
+            "merged by id; switched off leaves; the main label is never listed",
+        );
+        assert.deepStrictEqual(session.styles.labelsBeneath("node", low.id), []);
+        assert.strictEqual(session.styles.labelsBeneath("node").length, 1, "omitted, the whole stack");
+        assert.deepStrictEqual(session.styles.labelsBeneath("edge"), []);
+        assert.throws(() => session.styles.labelsBeneath("node", "no such layer"));
+        assert.strictEqual(CATALOG_LABEL_CAP, LABEL_CAP);
+    });
+
+    it("draws a further label naming the plain look plain beside a Card label", async () => {
+        const held = painterHarness(NODES, EDGES);
+        await held.styles.add({
+            name: "Card",
+            target: "node",
+            selector: { match: "everything" },
+            set: {
+                "node.label": "x",
+                "node.labelStyle": { look: "card" },
+                "node.labels": [{ id: "same" }, { id: "plain", style: { look: "default" } }],
+            },
+        });
+        await held.paintAll();
+        const main = (held.painter.nodePaint(0)?.style as { label?: Record<string, unknown> }).label;
+        assert.strictEqual(main?.backgroundColor, "#ffffff", "the label is a Card");
+        const labels = labelsOf(held.painter.nodePaint(0));
+        assert.strictEqual(
+            labels.get("same")?.backgroundColor,
+            "#ffffff",
+            "a further label naming no look draws the label's",
+        );
+        const plain = labels.get("plain");
+        assert.notStrictEqual(plain?.backgroundColor, "#ffffff", "no card background");
+        assert.notStrictEqual(plain?.cornerRadius, 6, "no card corners");
+        assert.notStrictEqual(plain?.borderWidth, 1, "no card border");
+    });
+
+    it("draws a layer naming the plain look over a Card beneath plain", async () => {
+        const held = painterHarness(NODES, EDGES);
+        await held.styles.add({
+            name: "Card",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "x", "node.labelStyle": { look: "card", color: "#ff0000" } },
+        });
+        await held.styles.add({
+            name: "Text",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelStyle": { look: "default" } },
+        });
+        await held.paintAll();
+        const main = (held.painter.nodePaint(0)?.style as { label?: Record<string, unknown> }).label;
+        assert.notStrictEqual(main?.backgroundColor, "#ffffff", "no card background left from beneath");
+        assert.notStrictEqual(main?.cornerRadius, 6, "no card corners left from beneath");
+        assert.strictEqual(main?.textColor, "#ff0000", "a field the layer beneath wrote itself stays");
     });
 
     it("draws at most LABEL_CAP further labels, and says so for the layer that adds them", async () => {

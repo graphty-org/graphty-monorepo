@@ -37,6 +37,7 @@ export type {
     LabelTextAlign,
 } from "./label-style";
 export {
+    LABEL_CAP,
     LABEL_LOCATION_PLACES,
     LABEL_STYLE_DEFAULTS,
     LABEL_STYLE_DESCRIPTORS,

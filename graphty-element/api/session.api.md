@@ -3431,7 +3431,7 @@ export interface ImportOptions {
     };
     readonly history?: "step" | "start";
     readonly key?: string;
-    readonly layout?: "recommended" | "keep";
+    readonly layout?: "recommended" | "placed" | "keep";
     readonly mode?: "replace" | "merge";
     readonly overlap?: "separate" | "merge";
     readonly space?: SourceSpaceName;

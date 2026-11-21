@@ -3385,7 +3385,7 @@ function edgeColorsFromNodes(
         const style = engine.styleOf("edge", index);
         const from = style["edge.colorFrom"];
         const graph = indexedBy();
-        if (from === undefined || graph === null || index >= graph.edgeCount) {
+        if (from === undefined || from === "none" || graph === null || index >= graph.edgeCount) {
             return style;
         }
 
@@ -3412,7 +3412,7 @@ function edgeColorsFromNodes(
             eachAdjacentArc(graph, node, "all", (_other, edge) => {
                 const from = engine.styleOf("edge", edge)["edge.colorFrom"];
                 const end = from === "source" ? src[edge] : dst[edge];
-                if (from !== undefined && end === node) {
+                if (from !== undefined && from !== "none" && end === node) {
                     all.add(edge);
                 }
             });

@@ -43,6 +43,12 @@ interface ImageLook {
 
 /** The Image output's choices: a camera's Export image... */
 export interface CameraImageChoices {
+    /**
+     * The preset the reader picked, null for Custom. Picking one sets the format, size and
+     * background; changing those afterwards leaves the pick alone, and the pick's other settings
+     * (quality, enhancement) still apply.
+     */
+    readonly preset: PresetId | null;
     readonly format: ImageFormat;
     readonly size: ImageSize;
     readonly background: ImageBackground;
@@ -355,28 +361,15 @@ export function presetChoices(preset: ScreenshotPreset): ImageLook {
     };
 }
 
-/** The label of the preset list's entry after any edit. */
+/** The label of the preset list's entry for no preset. */
 export const CUSTOM = "Custom";
 
 export const DEFAULT_CAMERA_IMAGE: CameraImageChoices = {
+    preset: SCREENSHOT_PRESET_DESCRIPTORS[0].id,
     ...presetChoices(SCREENSHOT_PRESET_DESCRIPTORS[0]),
     view: null,
     corner: "bottom-right",
 };
-
-/**
- * The element's preset these choices match.
- * @param choices - the image choices.
- * @returns the preset, or undefined for Custom.
- */
-export function presetOf(choices: ImageLook): ScreenshotPreset | undefined {
-    return SCREENSHOT_PRESET_DESCRIPTORS.find((entry) => {
-        const preset = presetChoices(entry);
-        return (
-            preset.format === choices.format && preset.size === choices.size && preset.background === choices.background
-        );
-    });
-}
 
 /**
  * Why a background cannot be used with a format, or null when it can.
@@ -407,12 +400,12 @@ function cameraOf(view: string): NonNullable<ScreenshotOptions["camera"]> {
  * @returns the screenshot options.
  */
 function captureOptions(
-    choices: ImageLook,
+    choices: ImageLook & Pick<CameraImageChoices, "preset">,
     view: string | null,
     destination: NonNullable<ScreenshotOptions["destination"]>,
     downloadFilename?: string,
 ): ScreenshotOptions {
-    const preset = presetOf(choices);
+    const preset = SCREENSHOT_PRESET_DESCRIPTORS.find((entry) => entry.id === choices.preset);
     return {
         format: choices.format,
         ...(choices.size === "400x300" ? { width: 400, height: 300 } : { multiplier: Number.parseInt(choices.size) }),

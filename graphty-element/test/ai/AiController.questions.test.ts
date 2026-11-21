@@ -293,7 +293,7 @@ describe.each([
             const [part] = harness.driver.requests[1].messages.at(-1)?.parts ?? [];
             assert.strictEqual(part.type, "tool-result");
             if (part.type === "tool-result") {
-                assert.deepStrictEqual(JSON.parse(part.content).data, { answer: [answer] });
+                assert.deepStrictEqual((JSON.parse(part.content) as { data: unknown }).data, { answer: [answer] });
             }
 
             assert.deepStrictEqual(harness.controller.getPendingQuestions(), []);
@@ -315,7 +315,7 @@ describe.each([
         const [part] = harness.driver.requests[1].messages.at(-1)?.parts ?? [];
         assert.strictEqual(part.type, "tool-result");
         if (part.type === "tool-result") {
-            assert.deepStrictEqual(JSON.parse(part.content).data, { answer: ["red"] });
+            assert.deepStrictEqual((JSON.parse(part.content) as { data: unknown }).data, { answer: ["red"] });
         }
     });
 

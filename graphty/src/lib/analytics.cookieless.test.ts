@@ -79,7 +79,6 @@ beforeEach(async () => {
     sessionStorage.clear();
     const site = {
         site: "production",
-        features: ["usage-analytics"],
         analytics: { posthogKey: KEY, posthogHost: "https://us.i.posthog.com" },
     };
     config = await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);

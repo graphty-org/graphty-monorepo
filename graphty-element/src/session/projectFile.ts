@@ -2010,7 +2010,7 @@ const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", param
  * Delete every row of the style tree, folders with their layers; the element's own layers stay.
  * @param tx - The transaction.
  */
-async function clearStyleRows(tx: TransactionScope): Promise<void> {
+export async function clearStyleRows(tx: TransactionScope): Promise<void> {
     for (const row of tx.styles.tree()) {
         await tx.styles.deleteRow(row.id);
     }
@@ -2539,6 +2539,19 @@ function viewEntryOf(name: string, view: SavedView, camera: CameraService | unde
         ...(pose === undefined ? {} : { camera: pose }),
         ...(view.follows === undefined ? {} : { follows: view.follows }),
         ...(view.key === undefined ? {} : { key: view.key }),
+        ...(view.filters === undefined ? {} : { filters: view.filters }),
+        ...(view.layers === undefined ? {} : { layers: view.layers }),
+        ...(view.hidden === undefined ? {} : { hidden: view.hidden }),
+        // NaN, a node nothing had placed, is written as null, which JSON can hold.
+        ...(view.positions === undefined
+            ? {}
+            : {
+                  positions: {
+                      order: view.positions.order,
+                      xyz: view.positions.xyz.map((value) => (Number.isFinite(value) ? value : null)),
+                  },
+              }),
+        ...(view.legend === undefined ? {} : { legend: view.legend }),
     };
 }
 
@@ -2573,10 +2586,29 @@ async function readViews(opening: Opening, views: unknown): Promise<void> {
  */
 function savedViewOf(entry: Record<string, unknown>): SavedView | null {
     const key = typeof entry.key === "string" && entry.key !== "" ? { key: entry.key } : {};
+    // The parts kept beside the camera; a file from before they existed has none.
+    const positions = isObject(entry.positions) ? entry.positions : undefined;
+    const kept = {
+        ...key,
+        ...(Array.isArray(entry.filters) ? { filters: entry.filters as SavedView["filters"] } : {}),
+        ...(isObject(entry.layers) ? { layers: entry.layers as unknown as SavedView["layers"] } : {}),
+        ...(Array.isArray(entry.hidden) ? { hidden: entry.hidden as NodeId[] } : {}),
+        ...(positions !== undefined && Array.isArray(positions.order) && Array.isArray(positions.xyz)
+            ? {
+                  positions: {
+                      order: positions.order as NodeId[],
+                      xyz: (positions.xyz as unknown[]).map((value) =>
+                          typeof value === "number" ? value : Number.NaN,
+                      ),
+                  },
+              }
+            : {}),
+        ...(typeof entry.legend === "boolean" ? { legend: entry.legend } : {}),
+    };
     if (typeof entry.follows === "string" && isCameraViewName(entry.follows)) {
-        return { follows: entry.follows, ...key };
+        return { follows: entry.follows, ...kept };
     }
-    return isObject(entry.camera) ? { camera: withStateMode(entry.camera), ...key } : null;
+    return isObject(entry.camera) ? { camera: withStateMode(entry.camera), ...kept } : null;
 }
 
 /**
@@ -3877,6 +3909,17 @@ export function projectOf(
     };
 
     /**
+     * Run a save's read on the committed project: a source draft's After drawn on the graph is not
+     * part of it.
+     * @param read - The read.
+     * @returns What it returned.
+     */
+    const committedOnly = <T>(read: () => T): T => {
+        const data = session.data as Partial<Pick<SessionData, "withoutDrawnDraft">>;
+        return data.withoutDrawnDraft === undefined ? read() : data.withoutDrawnDraft(read);
+    };
+
+    /**
      * Save the session as a version 2 document (the `save-files-v2` experiment).
      * @param options - The save's options.
      * @returns The file and its report.
@@ -4005,7 +4048,9 @@ export function projectOf(
      * @returns The file.
      */
     const saveNow = (options: ProjectSaveOptions, references?: LeaveOut): SavedProject => {
-        const { document, leftOut } = write({ session, dispatcher, isDerived }, options, references);
+        const { document, leftOut } = committedOnly(() =>
+            write({ session, dispatcher, isDerived }, options, references),
+        );
         return finishSave(
             document,
             (document.members as { kind: string }[]).map((member) => member.kind),
@@ -4085,7 +4130,7 @@ export function projectOf(
                     return Promise.reject(featureOff("save-files-v2", "project.save"));
                 }
 
-                return saveVersion2(options);
+                return committedOnly(() => saveVersion2(options));
             }
 
             const referenced = (session.data as Partial<Pick<SessionData, "referenceLoads">>).referenceLoads?.() ?? [];
@@ -4119,6 +4164,8 @@ export function projectOf(
             }
         },
         async open(source, options = {}) {
+            // A draft of the sources and steps drafts over the project this replaces.
+            (session.data as Partial<Pick<SessionData, "discardDraft">>).discardDraft?.();
             // Its place in the session's load line is taken now, before the file is read, so a
             // load asked for before the open lands before it, and one asked for after lands after
             // it, whichever read finishes first (issue #3525). The autosave restore opens here too.

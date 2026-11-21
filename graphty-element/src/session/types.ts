@@ -39,6 +39,7 @@ import type {
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
+    FilterCondition,
     FormatId,
     LayerId,
     LayoutId,
@@ -54,6 +55,7 @@ import type {
     SetId,
     SourceKey,
     StructureValue,
+    StyleDocument,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
 import type {
@@ -1682,7 +1684,8 @@ export interface SessionDataApi {
     merge(options: SourceMergeOptions): Promise<void>;
     /**
      * Make an edge: each node row of a source becomes an edge between its node and the node its
-     * field names, as one undoable step. A staged source is added in its own space first.
+     * field names, as one undoable step. A staged source is added first: the source of the rows
+     * in its own space, the source named by `into` as `add` adds it.
      * @param options - The source and field, the nodes they name, the direction and edge type.
      * @returns The part the new edges are keyed by (`<part>/<key>`).
      * @throws A `GraphtyError` with `E_STEP_NEEDS_NODES`, `E_AMBIGUOUS_ID`, or `E_JOIN_SPACE_SAME`
@@ -1764,6 +1767,55 @@ export interface SessionDataApi {
      * @experimental source-steps
      */
     add(source: SourceKey, options?: { readonly overlap?: "separate" | "merge" }): Promise<void>;
+    /**
+     * Open a draft of the sources and steps: the same acts as these doors, applied to a copy until
+     * its `commit()`, which records them as one undoable step. See {@link SourceDraft}.
+     * @param options - Whether its adds ask the key-overlap question; see {@link SourceDraftOptions}.
+     * @returns The draft.
+     * @throws A `GraphtyError` with `E_DRAFT_OPEN` while another draft is open, or `E_FEATURE_OFF`
+     *   while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    draft(options?: SourceDraftOptions): SourceDraft;
+    /**
+     * The draft open now.
+     * @returns It, or null when none is open.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    currentDraft(): SourceDraft | null;
+    /**
+     * Live match counts of two fields, from hashing both columns, building nothing (design 5.2):
+     * what a join card shows before a Merge or Make an edge is chosen. Side 1 is `into` (with
+     * `{ space }`, or a source's key, the keys the graph's nodes in that space hold now), side 2
+     * the incoming field.
+     *
+     * ```ts
+     * const c = session.data.matchCounts({
+     *     from: { source: accounts, field: "account_id" },
+     *     into: { space: "account" },
+     * });
+     * // { matched: 2, only1: 1, only2: 1, repeated1: 0, repeated2: 0, ... }
+     * ```
+     * @param pair - The two fields.
+     * @param options - Whether case and spaces count.
+     * @returns The counts.
+     * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source, `E_AMBIGUOUS_ID` when
+     *   `into` names no one end of an edge source, or `E_FEATURE_OFF` while the source-steps
+     *   experiment is off.
+     * @experimental source-steps
+     */
+    matchCounts(pair: SourceMatchPair, options?: SourceMatchOptions): SourceMatchCounts;
+    /**
+     * The value-overlap list of two fields: each value either side holds, with how many rows of
+     * each hold it, building nothing (design 5.2).
+     * @param pair - The two fields, as `matchCounts` takes them.
+     * @param options - Which values, which page, and whether case and spaces count.
+     * @returns The page and the total.
+     * @throws As `matchCounts`.
+     * @experimental source-steps
+     */
+    matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
     /**
      * Where one node or edge came from.
      * @param ref - The element.
@@ -4268,6 +4320,523 @@ export interface SourceStepCounts {
     readonly repeatedKept: number;
     /** Key values many rows share (`W_VALUE_HUB`). */
     readonly hub: readonly SourceHubValue[];
+    /** Repeated keys within the source whose rows hold different values, by column. */
+    readonly rowsDifferIn: Readonly<Record<string, number>>;
+    /** End pairs the step joined with an edge when an earlier edge already joined them. */
+    readonly parallelPairs: number;
+    /** Edge ends that found a node already built, by the id space they look in. */
+    readonly endsMeet: Readonly<Record<SourceSpaceName, number>>;
+    /** Edge ends that found no node, so made one or left the row out, by id space. */
+    readonly endsMissing: Readonly<Record<SourceSpaceName, number>>;
+    /** For `join.add`: nodes of the source's own space its edges name but its node rows lack. */
+    readonly namedOnly: number;
+    /** Key values reaching more than one node: the keys behind {@link SourceStepCounts.fanOut}. */
+    readonly repeated1: number;
+    /** Key values the step's own rows hold more than once. */
+    readonly repeated2: number;
+    /** Nodes the step made that the graph holds, by type; untyped nodes are left out. */
+    readonly newNodeTypes: Readonly<Record<SourceTypeName, number>>;
+    /** Edges the step made that the graph holds, by type; untyped edges are left out. */
+    readonly newEdgeTypes: Readonly<Record<SourceTypeName, number>>;
+}
+
+/** The counts of {@link SourceStepCounts} that are numbers, besides the step's place and part. */
+export type SourceStepNumber = Exclude<
+    {
+        [K in keyof SourceStepCounts]-?: SourceStepCounts[K] extends number | undefined ? K : never;
+    }[keyof SourceStepCounts],
+    "step" | "part"
+>;
+
+/** The counts of {@link SourceStepCounts} kept by name (a column, a space or a type). */
+export type SourceStepByName =
+    "valuesDiffer" | "ruleType" | "rowsDifferIn" | "endsMeet" | "endsMissing" | "newNodeTypes" | "newEdgeTypes";
+
+/**
+ * How a step's counts in a draft differ from the same step's counts in the committed build: the
+ * draft's count minus the committed one. A count by name lists only the names whose count moved.
+ * @experimental source-steps
+ */
+export type SourceStepCountsChange = { readonly [K in SourceStepNumber]: number } & {
+    readonly [K in SourceStepByName]: Readonly<Record<string, number>>;
+};
+
+/**
+ * How many nodes and edges a build holds, in all and by type (untyped elements are in the totals only).
+ * @experimental source-steps
+ */
+export interface SourceDraftPreviewTotals {
+    /** Nodes in all. */
+    readonly nodes: number;
+    /** Edges in all. */
+    readonly edges: number;
+    /** Nodes by type. */
+    readonly nodeTypes: Readonly<Record<SourceTypeName, number>>;
+    /** Edges by type. */
+    readonly edgeTypes: Readonly<Record<SourceTypeName, number>>;
+}
+
+/**
+ * How many elements of one kind a draft adds, removes, and keeps with different values.
+ * @experimental source-steps
+ */
+export interface SourceDraftPreviewChanges {
+    /** Elements the draft adds. */
+    readonly added: number;
+    /** Elements the draft removes. */
+    readonly removed: number;
+    /** Elements the draft keeps with different values. */
+    readonly changed: number;
+}
+
+/**
+ * One step of a draft, as `draft.preview()` describes it: the step as {@link SourceDraft.steps}
+ * lists it, with how it stands against the committed steps.
+ * @experimental source-steps
+ */
+export interface SourceDraftPreviewStep extends SourceStepRow {
+    /** `"new"`: the committed steps hold no such step; `"edited"`: its choices changed; `"kept"`: as committed. */
+    readonly state: "new" | "edited" | "kept";
+    /** The same step's place in the committed list; null for a new step. */
+    readonly committed: number | null;
+    /** Its counts minus the committed ones; null for a new step. */
+    readonly change: SourceStepCountsChange | null;
+}
+
+/**
+ * One source, as `draft.preview()` describes it: what it supplies and names in the draft, and the
+ * change from the committed build.
+ * @experimental source-steps
+ */
+export interface SourceDraftPreviewSource {
+    /** The source. */
+    readonly source: SourceKey;
+    /** Where it stands in the draft; `"removed"` for a committed source the draft takes out. */
+    readonly state: "staged" | "built" | "off" | "held" | "removed";
+    /** Nodes it supplies. */
+    readonly nodes: number;
+    /** Edges it supplies. */
+    readonly edges: number;
+    /** Nodes it only names. */
+    readonly named: number;
+    /** Its rows no step reads (fate `no-step`). */
+    readonly noStep: number;
+    /** Each count minus the committed one. */
+    readonly change: {
+        /** Nodes it supplies, minus the committed count. */
+        readonly nodes: number;
+        /** Edges it supplies, minus the committed count. */
+        readonly edges: number;
+        /** Nodes it only names, minus the committed count. */
+        readonly named: number;
+        /** Rows no step reads, minus the committed count. */
+        readonly noStep: number;
+    };
+}
+
+/**
+ * One outcome a draft's preview reports, as a code and its parameters:
+ *
+ * - `W_STEP_REMOVED`: committed step `step` is gone from the draft, or not built there: `reason`
+ *   `"source-removed"` (its source is taken out), `"step-removed"` or `"source-held"`.
+ * - `W_REFERENCE_UNBOUND`: a note, a pin or a reader edit names `ref`, which the draft no longer holds.
+ * - `W_FILTER_HELD`: filter condition `filter` reads `column`, which no element of the draft carries,
+ *   so it would be held off.
+ * - `W_EDIT_SOURCE_CHANGED`: the value under reader edit `edit` would move from `was` to `now`.
+ * - `W_VALUES_DIFFER`: values from different sources differ in a column of a step.
+ * - `W_FAN_OUT`, `W_UNMATCHED`: `rows` of step `step` name several elements, or meet nothing.
+ * - `W_UNTOUCHED`: `nodes` of the space a merge folds into that no row reached.
+ * - `W_PARALLEL_EDGES`: step `step` joins `pairs` end pairs an earlier edge already joins.
+ * - `W_SELF_LOOPS`: step `step` makes `count` edges whose two ends are one node.
+ * - `W_ROWS_DIFFER`: `keys` repeated keys of step `step` hold different values in `column`.
+ * - `W_NODE_NAMED_ONLY`: `source`'s edges name `nodes` of its own space its node rows lack.
+ * - `W_EDGE_END_MISSING`: `ends` edge ends of step `step` found no node in `space`.
+ * - `W_KEY_EMPTY`, `W_VALUE_HUB`, `E_EDGE_KEY_COLLISION`: what the build reports.
+ *
+ * A step's count is reported when the draft makes it: for a new or edited step, or a count that
+ * moved. OPEN UNION: codes may be added.
+ * @experimental source-steps
+ */
+export type SourceDraftPreviewIssue =
+    | {
+          /** The code. */
+          readonly code: "W_STEP_REMOVED";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** Why it went. */
+              readonly reason: "source-removed" | "step-removed" | "source-held";
+              /** The source. */
+              readonly source: SourceKey;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_REFERENCE_UNBOUND";
+          /** Its parameters. */
+          readonly params: {
+              /** The element the reference names. */
+              readonly ref: SourceElementRef;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_FILTER_HELD";
+          /** Its parameters. */
+          readonly params: {
+              /** The filter condition's id. */
+              readonly filter: string;
+              /** The column. */
+              readonly column: Path;
+          };
+      }
+    | Extract<
+          SourceRefreshIssue,
+          {
+              /** The code. */
+              readonly code: "W_EDIT_SOURCE_CHANGED";
+          }
+      >
+    | SourceValuesDiffer
+    | {
+          /** The code. */
+          readonly code: "W_FAN_OUT";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many rows. */
+              readonly rows: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_UNMATCHED";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many rows. */
+              readonly rows: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_UNTOUCHED";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many nodes. */
+              readonly nodes: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_PARALLEL_EDGES";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many end pairs. */
+              readonly pairs: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_SELF_LOOPS";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many edges. */
+              readonly count: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_ROWS_DIFFER";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** The column. */
+              readonly column: string;
+              /** How many keys. */
+              readonly keys: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_NODE_NAMED_ONLY";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** The source. */
+              readonly source: SourceKey;
+              /** How many nodes. */
+              readonly nodes: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_EDGE_END_MISSING";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** The id space. */
+              readonly space: SourceSpaceName;
+              /** How many edge ends. */
+              readonly ends: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_KEY_EMPTY";
+          /** Its parameters. */
+          readonly params: {
+              /** The source. */
+              readonly source: SourceKey;
+              /** The column. */
+              readonly column: string;
+              /** How many rows. */
+              readonly rows: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_VALUE_HUB";
+          /** Its parameters. */
+          readonly params: {
+              /** The source. */
+              readonly source: SourceKey;
+              /** The column. */
+              readonly column: string;
+              /** The key value. */
+              readonly value: string;
+              /** How many rows. */
+              readonly rows: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "E_EDGE_KEY_COLLISION";
+          /** Its parameters. */
+          readonly params: {
+              /** The source that made the edges. */
+              readonly load: SourceKey;
+              /** The edge key. */
+              readonly key: string;
+              /** The places of the steps that make the key. */
+              readonly steps: readonly number[];
+          };
+      };
+
+/**
+ * What a draft would do, as `draft.preview()` returns it (design 5.3, 5.6): the difference between
+ * the committed build and the draft's, counted over every row. Its `after` is what the graph holds
+ * once the draft is committed.
+ *
+ * ```ts
+ * const p = draft.preview();
+ * p.after.nodes - p.before.nodes; // nodes the commit adds
+ * p.steps.find((s) => s.op === "join.merge")?.buckets?.merged; // nodes it merges
+ * if (!p.issues.some((i) => i.code.startsWith("E_"))) await draft.commit();
+ * ```
+ * @experimental source-steps
+ */
+export interface SourceDraftPreview {
+    /** The draft it describes. */
+    readonly draft: string;
+    /** The committed graph. */
+    readonly before: SourceDraftPreviewTotals;
+    /** The graph once committed. */
+    readonly after: SourceDraftPreviewTotals;
+    /** How the draft changes the nodes. */
+    readonly nodes: SourceDraftPreviewChanges;
+    /** How the draft changes the edges. */
+    readonly edges: SourceDraftPreviewChanges;
+    /** Every step of the draft, with its buckets and their change from the committed counts. */
+    readonly steps: readonly SourceDraftPreviewStep[];
+    /** Every source of the draft or the committed project. */
+    readonly sources: readonly SourceDraftPreviewSource[];
+    /** Each reader edit of the draft, with its state. */
+    readonly edits: readonly ReaderEditRow[];
+    /** The outcomes the draft reports. */
+    readonly issues: readonly SourceDraftPreviewIssue[];
+    /**
+     * The key-overlap questions still open, in a draft opened with `askOverlap`; `commit()` is
+     * refused while any is. Always empty otherwise.
+     */
+    readonly questions: readonly SourceOverlapQuestion[];
+    /**
+     * The rows behind one count of one step (design 5.4): one entry per thing the count counted, so
+     * `total` is the count. Each names the row read, the key it matched by, the element it reached
+     * and that element's values in the committed graph (`held`) and in the draft (`shown`).
+     * @param query - The step, the count, a name for a count kept by name, and the page.
+     * @returns How many in all, and the page.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for no such step (reason `no-step`) or count
+     *   (reason `bucket`).
+     */
+    rows(query: SourceDraftRowsQuery): SourceDraftRows;
+    /**
+     * The draft elements behind one count of one step, once each: what an app selects or frames.
+     * @param query - The step, the count, and a name for a count kept by name.
+     * @returns Their references; an element the commit would remove is left out.
+     */
+    elements(query: SourceDraftElementsQuery): readonly SourceElementRef[];
+    /**
+     * The cells of one column where the draft's sources disagree: each source's value, the value
+     * shown and whether a reader decision (a pick or an edit) shows it.
+     * @param query - The column, a step, which cells and the page.
+     * @returns How many cells the filter keeps, and the page.
+     */
+    cells(query: SourceDraftCellsQuery): SourceDraftCells;
+}
+
+/**
+ * A count of a step that `preview.rows` lists: a name of {@link SourceStepCounts} that is a number
+ * or kept by name.
+ * @experimental source-steps
+ */
+export type SourceDraftBucket = keyof SourceStepCountsChange;
+
+/**
+ * Which things `preview.elements` lists.
+ * @experimental source-steps
+ */
+export interface SourceDraftElementsQuery {
+    /** The step's place, as `draft.steps()` lists it. */
+    readonly step: number;
+    /** The count. */
+    readonly bucket: SourceDraftBucket;
+    /** For a count kept by name: only this column, space or type; absent, every name. */
+    readonly name?: string;
+}
+
+/**
+ * Which rows `preview.rows` lists.
+ * @experimental source-steps
+ */
+export interface SourceDraftRowsQuery extends SourceDraftElementsQuery {
+    /** How many to skip; default 0. */
+    readonly offset?: number;
+    /** How many to return at most; absent returns the rest. */
+    readonly limit?: number;
+}
+
+/**
+ * One thing a step's count counted, as `preview.rows` lists it.
+ * @experimental source-steps
+ */
+export interface SourceDraftRow {
+    /** The source whose row it is. */
+    readonly source: SourceKey;
+    /** The row's table; null for a count of elements or keys. */
+    readonly table: "nodes" | "edges" | null;
+    /** The row's place in its table; null for a count of elements or keys. */
+    readonly row: number | null;
+    /**
+     * The key it matched by: the row's value in the column `draft.exclude` reads for the step, else
+     * the counted key or the element's key.
+     */
+    readonly key: SourceCellValue | null;
+    /** For a count kept by name: its column, space or type. */
+    readonly name: string | null;
+    /** The element it reached in the draft; null when the draft holds none. */
+    readonly element: SourceElementRef | null;
+    /** That element's values in the committed graph; null when the committed graph holds none. */
+    readonly held: Readonly<Record<string, SourceValue>> | null;
+    /** The row as read; null for a count of elements or keys. */
+    readonly incoming: Readonly<Record<string, SourceCellValue | undefined>> | null;
+    /** The element's values in the draft; null when the draft holds none. */
+    readonly shown: Readonly<Record<string, SourceValue>> | null;
+    /**
+     * `"added"`: the committed graph holds no such element; `"changed"` or `"unchanged"`: its values
+     * moved or not; `"removed"`: the commit takes it out; `"left-out"`: the row built nothing.
+     */
+    readonly effect: "added" | "changed" | "removed" | "unchanged" | "left-out";
+    /** The outcomes the count is reported under (`W_FAN_OUT`, `W_UNMATCHED`, `W_VALUES_DIFFER`, ...). */
+    readonly codes: readonly SourceDraftPreviewIssue["code"][];
+}
+
+/**
+ * A page of `preview.rows`.
+ * @experimental source-steps
+ */
+export interface SourceDraftRows {
+    /** How many the count counted: the step's count, or its count for `name`. */
+    readonly total: number;
+    /** The page's rows. */
+    readonly rows: readonly SourceDraftRow[];
+}
+
+/**
+ * Which cells `preview.cells` lists.
+ * @experimental source-steps
+ */
+export interface SourceDraftCellsQuery {
+    /** The column. */
+    readonly column: string;
+    /** Only cells this step counts under its Values differ (see {@link SourceConflict.steps}). */
+    readonly step?: number;
+    /** `"all"` (default), `"open"`: no reader decision, or `"decided"`. */
+    readonly only?: "all" | "open" | "decided";
+    /** How many to skip; default 0. */
+    readonly offset?: number;
+    /** How many to return at most; absent returns the rest. */
+    readonly limit?: number;
+}
+
+/**
+ * One conflicting cell of a draft, as `preview.cells` lists it.
+ * @experimental source-steps
+ */
+export interface SourceDraftCell extends SourceConflict {
+    /** A reader decision (a pick or an edit) shows the value. */
+    readonly decided: boolean;
+}
+
+/**
+ * A page of `preview.cells`.
+ * @experimental source-steps
+ */
+export interface SourceDraftCells {
+    /** How many cells the filter keeps. */
+    readonly total: number;
+    /** The page's cells. */
+    readonly cells: readonly SourceDraftCell[];
+}
+
+/**
+ * Which cells `draft.pickAll` takes one source's value for.
+ * @experimental source-steps
+ */
+export interface SourcePickAllOptions {
+    /** The column. */
+    readonly column: string;
+    /** The source whose value to take. */
+    readonly source: SourceKey;
+    /** `"open"` (default): cells no reader decision settles; `"decided"`; `"all"`. */
+    readonly only?: "all" | "open" | "decided";
+    /** Only cells this step counts under its Values differ (see {@link SourceConflict.steps}). */
+    readonly step?: number;
+    /** Only these elements' cells, such as the rows selected in a cell list. */
+    readonly refs?: readonly SourceElementRef[];
+}
+
+/**
+ * Which picks `draft.clearPicks` takes back.
+ * @experimental source-steps
+ */
+export interface SourceClearPicksOptions {
+    /** The column. */
+    readonly column: string;
+    /** Only these elements' picks; absent, every pick in the column. */
+    readonly refs?: readonly SourceElementRef[];
 }
 
 /**
@@ -4509,6 +5078,93 @@ export type SourceJoinInto =
       };
 
 /**
+ * The two fields a Merge or Make an edge would compare, for `data.matchCounts` and
+ * `data.matchValues`: field 2 on the incoming source, and node 1 as a merge names it.
+ * @experimental source-steps
+ */
+export interface SourceMatchPair {
+    /** The incoming source and the field naming node 1 (side 2). */
+    readonly from: SourceField;
+    /** The nodes it would join onto (side 1): a space's keys, a source's key, or a field of it. */
+    readonly into: SourceJoinInto;
+}
+
+/**
+ * How the keys of `data.matchCounts` compare. Both default to false.
+ * @experimental source-steps
+ */
+export interface SourceMatchOptions {
+    /** Compare keys ignoring case. */
+    readonly ignoreCase?: boolean;
+    /** Compare keys ignoring spaces. */
+    readonly ignoreSpaces?: boolean;
+}
+
+/**
+ * Live match counts of two fields, counted by hashing both columns with no build (design 5.2).
+ * Side 1 is node 1 (`into`), side 2 the incoming field (`from`); a key counts once however many
+ * rows hold it.
+ * @experimental source-steps
+ */
+export interface SourceMatchCounts {
+    /** Keys both sides hold. */
+    readonly matched: number;
+    /** Keys only side 1 holds: node 1s no row would reach. */
+    readonly only1: number;
+    /** Keys only side 2 holds: values naming no node 1. */
+    readonly only2: number;
+    /** Keys reaching more than one node 1 (rows of one node holding a key count once). */
+    readonly repeated1: number;
+    /** Keys side 2 holds more than once. */
+    readonly repeated2: number;
+    /** Rows of side 2 whose key reaches more than one node 1: they name several nodes, so merge nothing. */
+    readonly fanOut: number;
+    /** Rows of side 2 that match nothing as text but would as numbers, such as `"007"` against `7`. */
+    readonly textVersusNumber: number;
+    /** How many more keys would match with `ignoreCase` on; null while it is on. */
+    readonly moreWithIgnoreCase: number | null;
+    /** How many more keys would match with `ignoreSpaces` on; null while it is on. */
+    readonly moreWithIgnoreSpaces: number | null;
+}
+
+/**
+ * Which values `data.matchValues` lists, and which page of them.
+ * @experimental source-steps
+ */
+export interface SourceMatchValuesOptions extends SourceMatchOptions {
+    /** Keep only values both sides hold, only side 1's, or only side 2's; absent keeps all. */
+    readonly only?: "matched" | "only1" | "only2";
+    /** How many values to skip; default 0. */
+    readonly offset?: number;
+    /** How many values to return at most; absent returns the rest. */
+    readonly limit?: number;
+}
+
+/**
+ * One value of the value-overlap list.
+ * @experimental source-steps
+ */
+export interface SourceMatchValue {
+    /** The value as first read, from side 1 when it holds it. */
+    readonly value: SourceCellValue;
+    /** How many nodes or rows of side 1 hold it. */
+    readonly count1: number;
+    /** How many rows of side 2 hold it. */
+    readonly count2: number;
+}
+
+/**
+ * A page of the value-overlap list: values most held first, ties in the order first read.
+ * @experimental source-steps
+ */
+export interface SourceMatchValues {
+    /** How many values the `only` filter keeps in all. */
+    readonly total: number;
+    /** The page. */
+    readonly values: readonly SourceMatchValue[];
+}
+
+/**
  * Rows named by one column's values.
  * @experimental source-steps
  */
@@ -4627,6 +5283,435 @@ export interface SourceMoveColumnsOptions {
 }
 
 /**
+ * `draft.editStep`: the choices of one step a draft may change. `null` or `false` takes a choice off.
+ * @experimental source-steps
+ */
+export interface SourceStepPatch {
+    /**
+     * One rule for every column, or rules for some columns (`"*"` for the rest) that keep the
+     * step's rules for the other columns.
+     */
+    readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
+    /** The rows the step leaves out, by one column's values. */
+    readonly except?: SourceRowFilter | null;
+    /** Match keys ignoring case. */
+    readonly ignoreCase?: boolean;
+    /** Match keys ignoring spaces. */
+    readonly ignoreSpaces?: boolean;
+    /** Two rows naming one key: `"first"`, `"last"`, or `"both"` (an edge step only); `null` for the default. */
+    readonly repeated?: "first" | "last" | "both" | null;
+    /** Keep the step but build nothing from it. */
+    readonly off?: boolean;
+}
+
+/**
+ * The columns a source's rows give each role, as `draft.setMapping` changes them.
+ * @experimental source-steps
+ */
+export interface SourceRolePatch {
+    /** The column holding each row's time, or its start time when the row spans a period. */
+    readonly time?: string;
+    /** The column holding each row's end time, for rows that span a period. */
+    readonly timeEnd?: string;
+    /** The zone a time with no zone of its own is read in, such as `"+02:00"`. */
+    readonly timeParseZone?: string;
+    /** The column holding each row's latitude, in degrees. */
+    readonly latitude?: string;
+    /** The column holding each row's longitude, in degrees. */
+    readonly longitude?: string;
+    /** The column holding each row's latitude and longitude together in one value. */
+    readonly coordinates?: string;
+    /** The column holding each row's country, to place it on a map. */
+    readonly country?: string;
+    /** The column holding each row's region (a state or province), to place it on a map. */
+    readonly region?: string;
+    /** The column holding each row's city, to place it on a map. */
+    readonly city?: string;
+}
+
+/**
+ * `draft.setMapping`: what a source the draft staged, added or acted on may still change while the
+ * draft is open.
+ * @experimental source-steps
+ */
+export interface SourceMappingPatch {
+    /** The id space its node keys live in; naming one means Add never asks the key-overlap question. */
+    readonly space?: SourceSpaceName;
+    /** Its node type, written as its whole-source rule; `null` for none. */
+    readonly type?: SourceTypeName | null;
+    /** The roles of its node rows. */
+    readonly nodes?: SourceRolePatch & {
+        /** The column holding each node row's key, its id in the space. */
+        readonly key?: string;
+    };
+    /** The roles of its edge rows. */
+    readonly edges?: SourceRolePatch & {
+        /** The column holding the key of each edge's source node. */
+        readonly source?: string;
+        /** The column holding the key of each edge's target node. */
+        readonly target?: string;
+        /** The id space the source keys are looked up in. */
+        readonly sourceSpace?: SourceSpaceName;
+        /** The id space the target keys are looked up in. */
+        readonly targetSpace?: SourceSpaceName;
+        /** The column holding each edge row's own id. */
+        readonly edgeId?: string;
+        /** The column holding each edge's weight. */
+        readonly weight?: string;
+        /** What a larger weight means, such as `"strength"` or `"distance"`. */
+        readonly weightMeaning?: string;
+    };
+}
+
+/**
+ * How `session.data.draft()` opens a draft.
+ * @experimental source-steps
+ */
+export interface SourceDraftOptions {
+    /**
+     * Whether adding a source whose keys meet nodes another source's node rows built asks the
+     * key-overlap question instead of settling it (design 5.5). Asked, the source is kept separate
+     * meanwhile, the question is listed in `preview().questions`, and `commit()` throws
+     * `E_OVERLAP_UNANSWERED` until `answerOverlap` answers it. Default false: such an add keeps the
+     * source separate and records `W_SPACE_OVERLAP` on it, as `data.add` does. An add given an
+     * `overlap` is answered and never asks.
+     *
+     * ```ts
+     * const draft = session.data.draft({ askOverlap: true });
+     * draft.add(bankB);
+     * for (const q of draft.preview().questions) {
+     *     draft.answerOverlap(q.params.source, "merge");
+     * }
+     * await draft.commit();
+     * ```
+     */
+    readonly askOverlap?: boolean;
+}
+
+/**
+ * An open key-overlap question in a draft's preview (design 5.5): `source`'s `count` of `of` keys
+ * meet nodes in `space` that the node rows of `sources` built (`"reader"` for nodes the reader
+ * added).
+ * @experimental source-steps
+ */
+export interface SourceOverlapQuestion {
+    /** The code. */
+    readonly code: "W_SPACE_OVERLAP";
+    /** Its parameters. */
+    readonly params: {
+        /** The space the keys meet in. */
+        readonly space: SourceSpaceName;
+        /** How many of the source's keys meet a node there. */
+        readonly count: number;
+        /** How many keys the source holds. */
+        readonly of: number;
+        /** The source the question is about. */
+        readonly source: SourceKey;
+        /** The sources whose node rows built the nodes met; `"reader"` for nodes the reader added. */
+        readonly sources: readonly SourceKey[];
+    };
+}
+
+/**
+ * A draft of the sources and steps, from `session.data.draft()`: the same acts as the data doors,
+ * applied to a copy of the committed sources and steps only. Nothing changes the graph, the undo
+ * history or a saved file until {@link SourceDraft.commit}, which applies everything the draft did
+ * as one undoable step. One draft is open at a time; while it is open every data write and
+ * `session.undo()` / `redo()` are refused with `E_DRAFT_OPEN { draft }`, and view, style, filter,
+ * selection, set and note writes go ahead, as do value labels and hiding or showing columns. A project saved while a draft is open saves the committed
+ * project and leaves the draft open; opening a project or `data.clear()` discards it.
+ *
+ * ```ts
+ * await session.data.import(entriesCsv, { key: "entry", type: "entry" });
+ * const [entries] = session.data.sources();
+ * const draft = session.data.draft();
+ * const people = await draft.stage(peopleCsv, { key: "badge", type: "person" });
+ * draft.connect({ from: { source: entries.key, field: "badge" }, into: { source: people } });
+ * await draft.commit(); // one undo step
+ * ```
+ *
+ * The acts throw what the data door of the same name throws, and leave the draft as it was.
+ * @experimental source-steps
+ */
+export interface SourceDraft {
+    /** The draft's id, as `E_DRAFT_OPEN` and `data:draft-changed` name it. */
+    readonly id: string;
+    /** Whether the draft is still open: false once committed or discarded. */
+    readonly open: boolean;
+    /**
+     * Read a source and hold it staged in the draft (as `data.stage` does).
+     * @param source - What `import` takes.
+     * @param options - Its key, type, space and edge ends.
+     * @returns The new source's id.
+     */
+    stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
+    /**
+     * Read a source and add it with its own `join.add`, as one act of the draft.
+     * @param source - What `import` takes.
+     * @param options - Its key, type, space and edge ends, and what a key overlap does.
+     * @returns The new source's id.
+     */
+    import(
+        source: DataSourceInput,
+        options?: ImportOptions & { readonly overlap?: "separate" | "merge" },
+    ): Promise<string>;
+    /**
+     * Add a staged source with its own `join.add` (as `data.add` does).
+     * @param source - The staged source.
+     * @param options - What a key overlap does: `"separate"` (default) or `"merge"`.
+     * @param options.overlap - The answer.
+     */
+    add(source: SourceKey, options?: { readonly overlap?: "separate" | "merge" }): void;
+    /**
+     * Answer the key-overlap question an add asked in a draft opened with `askOverlap`: `"merge"`
+     * puts the source's meeting keys, and its edge ends in that space, on the nodes they meet;
+     * `"separate"` keeps them in the source's own space. An answer can be changed until the commit.
+     * @param source - The source asked about, as `preview().questions` names it.
+     * @param answer - The answer.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"no-question"`) when the
+     *   draft asked that source nothing.
+     */
+    answerOverlap(source: SourceKey, answer: "merge" | "separate"): void;
+    /**
+     * Merge (as `data.merge` does).
+     * @param options - The source and field, the nodes they fold into, and the choices.
+     */
+    merge(options: SourceMergeOptions): void;
+    /**
+     * Make an edge (as `data.connect` does).
+     * @param options - The source and field, the nodes they name, the direction and edge type.
+     * @returns The part the new edges are keyed by.
+     */
+    connect(options: SourceConnectOptions): number;
+    /**
+     * Extract (as `data.extract` does).
+     * @param source - The edge source.
+     * @param options - The column, its space and types, and columns to move.
+     * @returns The part the new edges are keyed by.
+     */
+    extract(source: SourceKey, options: SourceExtractOptions): number;
+    /**
+     * Move columns (as `data.moveColumns` does).
+     * @param source - The edge source.
+     * @param options - The columns and where they go.
+     */
+    moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): void;
+    /**
+     * Rename a value column of one source (as `data.renameColumn` with a source does).
+     * @param column - The column.
+     * @param name - Its new name.
+     * @param options - The source.
+     * @param options.source - The source.
+     * @throws A `GraphtyError` with `E_EDIT_ROLE_COLUMN` for a column a role, rule or step reads, or
+     *   `E_BAD_COMMAND` (reason `name-taken`) for a name its table already carries.
+     */
+    renameColumn(column: ColumnRef, name: string, options: { readonly source: SourceKey }): void;
+    /**
+     * Declare a type, or add rules to one (as `data.declareType` does).
+     * @param entry - The type and its rules.
+     */
+    declareType(entry: SourceTypeEntry): void;
+    /**
+     * Take one source's value for a cell where sources disagree (as `data.pick` does).
+     * @param ref - The element.
+     * @param column - The column.
+     * @param source - The source whose value to take.
+     */
+    pick(ref: SourceElementRef, column: string, source: SourceKey): void;
+    /**
+     * Use one source's value for a cell: the same reader edit as {@link SourceDraft.pick}.
+     * @param ref - The element.
+     * @param column - The column.
+     * @param source - The source whose value to use.
+     */
+    use(ref: SourceElementRef, column: string, source: SourceKey): void;
+    /**
+     * Take one source's value for many conflicting cells of a column at once: one reader edit per
+     * cell, held in the draft and taken back by one `undo()`.
+     * @param options - The column, the source, which cells, a step and the elements.
+     * @returns How many cells it picked; 0 records nothing.
+     */
+    pickAll(options: SourcePickAllOptions): number;
+    /**
+     * Take back the picks of a column, committed or made in the draft, as one act. Typed edits stay.
+     * @param options - The column and the elements.
+     * @returns How many picks it took back; 0 records nothing.
+     */
+    clearPicks(options: SourceClearPicksOptions): number;
+    /**
+     * Leave rows out of a step by their keys (design 5.4): the keys `preview.rows` gives. They join
+     * the step's excluded list (its `except`); an excluded row of a merge stays its own node.
+     * @param step - The step's place.
+     * @param keys - The keys.
+     * @param options - The column the keys are in; absent, the column the step's excluded list
+     *   already reads, else the one it matches rows by.
+     * @param options.column - The column.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for no such step (reason `no-step`), a
+     *   `join.add` step (reason `no-except`) or a column other than the one its list reads (reason
+     *   `except-column`).
+     */
+    exclude(step: number, keys: readonly SourceCellValue[], options?: { readonly column?: string }): void;
+    /**
+     * Take keys off a step's excluded list; an empty list is taken off the step.
+     * @param step - The step's place.
+     * @param keys - The keys.
+     */
+    include(step: number, keys: readonly SourceCellValue[]): void;
+    /**
+     * Change one step's choices: clash rules per column, rows left out, matching, repeated rows, off.
+     * @param index - The step's place, as {@link SourceDraft.steps} lists it.
+     * @param patch - The choices.
+     * @throws A `GraphtyError` with `E_CLASH_RULE_TYPE` for a rule that orders values a column does
+     *   not hold as numbers, or `E_BAD_COMMAND` for no such step or a `repeated` it cannot take.
+     */
+    editStep(index: number, patch: SourceStepPatch): void;
+    /**
+     * Delete one step (as `data.removeStep` does).
+     * @param index - The step's place.
+     */
+    removeStep(index: number): void;
+    /**
+     * Take out one source and every step that reads it.
+     * @param source - The source.
+     */
+    removeSource(source: SourceKey): void;
+    /**
+     * Take back one of the reader's edits (as `data.removeEdit` does).
+     * @param id - The edit's id.
+     */
+    removeEdit(id: string): void;
+    /**
+     * Change the mapping, space or type of a source this draft staged, added or acted on.
+     * @param source - The source.
+     * @param patch - The change.
+     * @throws A `GraphtyError` with `E_DRAFT_OPEN` for any other source.
+     */
+    setMapping(source: SourceKey, patch: SourceMappingPatch): void;
+    /**
+     * Take back the draft's newest act.
+     * @returns False when there was none.
+     */
+    undo(): boolean;
+    /**
+     * Every step of the draft, with its counts in the draft's build.
+     * @returns The steps.
+     */
+    steps(): readonly SourceStepRow[];
+    /**
+     * The draft's type registry.
+     * @returns The declared types.
+     */
+    types(): readonly SourceTypeEntry[];
+    /**
+     * The draft's reader edits, picks included, in the order made.
+     * @returns The edits.
+     */
+    edits(): readonly ReaderEditRow[];
+    /**
+     * Live match counts of two fields in the draft, as `data.matchCounts` counts them: a source
+     * the draft staged can be side 2.
+     * @param pair - The two fields.
+     * @param options - Whether case and spaces count.
+     * @returns The counts.
+     */
+    matchCounts(pair: SourceMatchPair, options?: SourceMatchOptions): SourceMatchCounts;
+    /**
+     * The value-overlap list of two fields in the draft, as `data.matchValues` lists it.
+     * @param pair - The two fields.
+     * @param options - Which values, which page, and whether case and spaces count.
+     * @returns The page and the total.
+     */
+    matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
+    /**
+     * What committing the draft would do: totals before and after, each step's buckets counted
+     * over every row and their change from the committed counts, each source's counts, reader
+     * edits' states and the outcomes. Builds nothing it has not built for the draft's current
+     * acts, and returns the same object until the draft changes or a filter, note, pin or reader
+     * edit changes what the commit would hold or unbind. Those writes fire no
+     * `data:draft-changed`: read the preview again after making one.
+     * @returns The preview.
+     */
+    preview(): SourceDraftPreview;
+    /**
+     * Apply everything the draft did to the graph as one undoable step, and close the draft. A
+     * draft that changed nothing records nothing. Data writes waiting in line ahead of the commit
+     * are refused with `E_DRAFT_OPEN`, as they are while the draft is open.
+     * @returns Settles once the graph is rebuilt and drawn.
+     * @throws A `GraphtyError` with `E_DRAFT_STALE { draft }` when a data write already on its way
+     *   when the draft opened landed first; the draft stays open, to be discarded. Or
+     *   `E_OVERLAP_UNANSWERED { space, source }` while a key-overlap question is open; the draft
+     *   stays open.
+     */
+    commit(): Promise<void>;
+    /** Close the draft, leaving the graph, the history and the saved file as they were. */
+    dispose(): void;
+    /** Whether the draft is drawn on the graph: set by {@link SourceDraft.display}, off at first. */
+    readonly displayed: boolean;
+    /** Which side of the commit a displayed draft draws: set by {@link SourceDraft.show}, `"after"` at first. */
+    readonly side: "before" | "after";
+    /**
+     * Draw the draft on the graph, or stop. While it is drawn, every element reads the path
+     * `graphty.draft` as what the commit would do to it -- `"merged"` (a node the commit folds
+     * more keys into), `"new"`, `"changed"` (other values), `"removed"` or `"unchanged"` -- so a
+     * style layer or a rule can show it; while it is not, the path reads nothing. It draws the
+     * side {@link SourceDraft.show} picks, `"after"` at first. Nothing is recorded or saved.
+     * @example
+     * ```ts
+     * const draft = session.data.draft();
+     * draft.merge({ from: { source: "people", field: "badge" }, into: { space: "person" } });
+     * await session.styles.add({
+     *     name: "New",
+     *     target: "node",
+     *     selector: { match: "expression", where: "graphty.draft == 'new'" },
+     *     set: { "node.haloColor": "#7048e8", "node.haloScale": 1.4, "node.haloOpacity": 1 },
+     * });
+     * await draft.display(true); // the graph as the commit would leave it, its new nodes ringed
+     * await draft.show("before"); // the graph as it is now
+     * ```
+     * @param on - True to draw it.
+     * @returns Settles once the graph draws it.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `draft-closed`) once the draft is closed.
+     */
+    display(on: boolean): Promise<void>;
+    /**
+     * Choose which side of the commit a displayed draft draws. `"before"` draws the graph as it is,
+     * where `graphty.draft` reads `"removed"` on what the commit would remove. `"after"` draws the
+     * graph the commit would leave: what it removes is gone, what it adds is drawn and reads
+     * `"new"`, and changed elements show their new values. While After is drawn, `statistics()`,
+     * `legendOf` and style counts read the draft's graph; after an act on the draft it is drawn
+     * afresh (await `display(true)` again to wait for it). View only: nothing is recorded or
+     * listed in `session.history.pending`, the history does not move, and a save writes the
+     * committed project. The draft's graph is not the project's, so while After is drawn a command
+     * that would measure it or name its elements -- a run, a layout change, a pin, a note, a set,
+     * hiding elements, moving a node only the draft has -- is refused with
+     * `E_DRAFT_OPEN { draft, side: "after" }` until Before shows; styles, settings, views, filters
+     * and moving a node the project has go ahead, and a moved node stays where it was moved.
+     * Hiding or showing columns and adding a computed column go ahead too, over the committed
+     * graph: After comes off while they are written and is drawn again once they are.
+     * @param side - The side.
+     * @returns Settles once the graph draws it.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`, reason `side` for any other value, or reason
+     *   `draft-closed` once the draft is closed.
+     */
+    show(side: "before" | "after"): Promise<void>;
+}
+
+/**
+ * `data:draft-changed`: a draft opened, changed, was drawn otherwise, was committed or was discarded.
+ * @experimental source-steps
+ */
+export interface SourceDraftChange {
+    /** The draft's id. */
+    readonly draft: string;
+    /**
+     * What happened: `"opened"` by `session.data.draft()`, `"changed"` by an act on it, `"committed"`
+     * by its commit, `"discarded"` by `dispose()`, opening a project or clearing the graph, or
+     * `"displayed"` by `display` or `show` changing how it is drawn.
+     */
+    readonly reason: "opened" | "changed" | "committed" | "discarded" | "displayed";
+}
+
+/**
  * Where one element came from.
  * @experimental source-steps
  */
@@ -4712,6 +5797,11 @@ export interface SourceConflict {
     readonly ref: SourceElementRef;
     /** The place of the step whose rule settles the cell. */
     readonly step: number;
+    /**
+     * The places of the steps that count the cell under their Values differ: each step whose value
+     * differed from the one shown before it.
+     */
+    readonly steps: readonly number[];
     /** The column. */
     readonly column: string;
     /** Each source's value. */
@@ -4734,7 +5824,7 @@ export interface SourceConflict {
  * @experimental source-steps
  */
 export interface SourceConflictQuery {
-    /** Only cells this step settles. */
+    /** Only cells this step counts (see {@link SourceConflict.steps}). */
     readonly step?: number;
     /** Only this column. */
     readonly column?: string;
@@ -5644,6 +6734,11 @@ export interface SessionEventMap {
      * @since 3.40.0
      */
     "data:changed": DataChange;
+    /**
+     * A draft of the sources and steps opened, changed, was committed or was discarded
+     * (`session.data.draft()`), so a view of it can read it again. Experimental: source-steps.
+     */
+    "data:draft-changed": SourceDraftChange;
     /** A command finished and the journal appended its entry: one event per entry. */
     "journal:appended": {
         /** The entry appended. */
@@ -5997,6 +7092,7 @@ export type PendingId = string & {
  * | `view.save`, `view.remove` | `names`: the views |
  * | `view.rename` | `from`: the view's name before; `to`: its new name |
  * | `view.move` | `name`: the view moved; `index`: its new 0-based place |
+ * | `view.open` | `name`: the view opened; `parts`: what it brought back besides the camera |
  * | `annotations.set` | `count`: how many annotations are kept |
  * | `annotations.patch` | `action`: `"add"`, `"update"` or `"remove"`; `id`: the annotation's id, or null |
  * | `view.dimension` | `dimension`: `"2d"` or `"3d"` |
@@ -6122,6 +7218,7 @@ export type HistoryCode =
     | "view.move"
     | "view.key"
     | "view.starting"
+    | "view.open"
     | "tour.save"
     | "tour.remove"
     | "tour.rename"
@@ -6912,6 +8009,63 @@ export interface SavedView {
      * and never listens for it.
      */
     readonly key?: string;
+    /**
+     * The filter conditions (`session.visibility.conditions`) the view brings back. Absent when it
+     * does not keep `"filters"`.
+     * @since 3.59.0
+     */
+    readonly filters?: readonly FilterCondition[];
+    /**
+     * The style layers (`session.styles.toDocument()`) the view brings back. Absent when it does
+     * not keep `"layers"`.
+     * @since 3.59.0
+     */
+    readonly layers?: StyleDocument;
+    /**
+     * The nodes hidden from the drawing (`session.hidden`) the view brings back. Absent when it
+     * does not keep `"hidden"`.
+     * @since 3.59.0
+     */
+    readonly hidden?: readonly NodeId[];
+    /**
+     * Where the nodes were (`session.positions.snapshot()`): the ids and x, y, z per id, NaN for
+     * a node nothing had placed. Absent when it does not keep `"positions"`.
+     * @since 3.59.0
+     */
+    readonly positions?: {
+        /** The node ids. */
+        readonly order: readonly NodeId[];
+        /** x, y and z per id in `order`. */
+        readonly xyz: readonly number[];
+    };
+    /**
+     * Whether the element's legend was shown. Absent when the view does not keep `"legend"`, or
+     * when no element drew the session as it was saved.
+     * @since 3.59.0
+     */
+    readonly legend?: boolean;
+}
+
+/**
+ * A part of the project a saved view can keep beside its camera (`views.save`'s `include`).
+ * @since 3.59.0
+ */
+export type SavedViewPart = "filters" | "layers" | "hidden" | "positions" | "legend";
+
+/**
+ * One view `session.views.save` keeps: a name, its camera, and what else it keeps.
+ * @since 3.59.0
+ */
+export interface SavedViewInput extends Omit<SavedView, "key"> {
+    /** The view's name. */
+    readonly name: string;
+    /** Its key chord; null clears it, absent keeps the key a view already under the name has. */
+    readonly key?: string | null;
+    /**
+     * The parts the view keeps beside its camera, each read from the session now unless given
+     * above. Default none: the view keeps only the camera.
+     */
+    readonly include?: readonly SavedViewPart[];
 }
 
 /**
@@ -6941,23 +8095,32 @@ export interface SessionViews extends ReadonlyMap<string, SavedView> {
      * @param views - The names, each with a `camera`, a camera view it `follows`, or neither: then
      *     it keeps where the camera stands now, read once, so redo puts back the same state. `key`
      *     sets its key chord, taking it from any other view that holds it; null clears it.
+     *     `include` names what else it keeps (`"filters"`, `"layers"`, `"hidden"`, `"positions"`,
+     *     `"legend"`), each read now unless given; `open` brings them back.
      * @returns Settles once the step is recorded.
      * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` `{ name }` when a camera view
      *     answers to a name, `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name,
      *     `E_BAD_COMMAND` `{ reason: "conflict", options: ["camera", "follows"] }` for both,
      *     `E_UNKNOWN_CAMERA` `{ name }` when `follows` names no camera view, `E_BAD_COMMAND`
      *     `{ reason: "empty-key" }` for an empty key, and, for a view with neither, `E_UNSUPPORTED`
-     *     when the session draws nothing or `{ reason: "xr", mode }` while immersive; nothing is
+     *     when the session draws nothing or `{ reason: "xr", mode }` while immersive, and
+     *     `E_OPTION_RANGE` `{ option: "include", value }` for a part no view keeps; nothing is
      *     saved then.
      */
-    save(
-        views: readonly {
-            readonly name: string;
-            readonly camera?: CameraState;
-            readonly follows?: string;
-            readonly key?: string | null;
-        }[],
-    ): Promise<void>;
+    save(views: readonly SavedViewInput[]): Promise<void>;
+    /**
+     * Bring a saved view back: the parts it keeps (filters, layers, hidden nodes, positions) as one
+     * undoable step, then its legend switch, then the camera, which is not a step. A node the
+     * graph no longer holds is skipped. A session that draws nothing skips the camera.
+     * @param name - The view.
+     * @param options - How the camera gets there.
+     * @param options.animate - Fly instead of jumping. Default false.
+     * @returns Settles once the step is recorded and the camera has arrived.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `name`, or as the camera refuses the view (`viewProblem`).
+     * @since 3.59.0
+     */
+    open(name: string, options?: { readonly animate?: boolean }): Promise<void>;
     /**
      * Give a saved view a key chord, taking it from any other view that holds it, in one step; null
      * clears it. The element stores the key and never listens for it.

@@ -130,18 +130,16 @@ describe("the force layouts' option mapping", () => {
     it("gives the bridge the product too, so the refit cannot swallow a published multiplier", () => {
         // THE RADIUS IS THE WHOLE OF THE SIZE. The bridge fits every simulation arrangement to
         // the radius it is given, so a multiplier that reaches only the simulation is divided
-        // straight back out and its slider moves nothing on screen. Both layouts that publish a
-        // "Scale" control are checked, because the defect is one line and covers both.
+        // straight back out and its slider moves nothing on screen.
         assert.strictEqual(resolveSimulationOptions("spring", {}, BEHAVIOR).scalingFactor, 100, "the default");
         assert.strictEqual(resolveSimulationOptions("spring", { scale: 10 }, BEHAVIOR).scalingFactor, 1000);
         assert.strictEqual(
             resolveSimulationOptions("spring", { scalingFactor: 250, scale: 2 }, BEHAVIOR).scalingFactor,
             500,
         );
-        assert.strictEqual(
+        assert.isNull(
             resolveSimulationOptions("spring-electrical", { scale: 3 }, BEHAVIOR).scalingFactor,
-            300,
-            "spring-electrical publishes no scaling factor and takes the element's default",
+            "spring-electrical is published at its own size, as ngraph is, so its scale sizes it in the simulation",
         );
         assert.strictEqual(
             resolveSimulationOptions("forceatlas2", { scalingFactor: 250 }, BEHAVIOR).scalingFactor,

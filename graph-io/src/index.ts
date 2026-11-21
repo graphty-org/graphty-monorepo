@@ -258,6 +258,7 @@ export {
     type GraphvizFont,
     graphvizFont,
     graphvizPosBends,
+    graphvizPosCurve,
     RANK_COLUMN,
     RANK_SET_COLUMN,
     type RequestedLayout,
@@ -367,6 +368,7 @@ export {
     xgmmlImporter,
     type XgmmlImportOptions,
 } from "./formats/xgmml/index.js";
+export { XLSX_ISSUE, xlsxImporter, type XlsxImportOptions } from "./formats/xlsx/index.js";
 
 // ============================================================ shared helpers for plugin authors (8.4, 8.5, 8.6)
 export {

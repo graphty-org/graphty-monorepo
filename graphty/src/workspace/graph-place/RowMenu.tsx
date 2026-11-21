@@ -49,6 +49,7 @@ export function RowMenuItems({
                         shortcut={command.rowKeys[0]}
                         reason={reason}
                         reasonDrawn={false}
+                        control={command.id}
                         onRun={() => {
                             void command.run(workspace, row); // a deliberately unawaited promise, marked as no-floating-promises asks
                         }}

@@ -21,9 +21,11 @@ import type { StylePatchCommand } from "../commands/style";
 import type { Dispatcher } from "../project/Dispatcher";
 import { RevisionCache } from "../revision";
 import type { Run } from "../runs";
+import { ManagedRun } from "../runs/Run";
 import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
+import type { StepsEdit } from "../sources/steps/project";
 import type { CompiledLayer } from "../styles/Layer";
 import type { Selector } from "../styles/selector";
 import { drawsOutsideWindow, drawsOutsideWindowOf, paintedStack } from "../styles/tree";
@@ -335,7 +337,8 @@ export interface TimePlayOptions {
      * its step times the time elapsed over `interval`, so elements come and go as its edges pass
      * them; `"steps"` jumps one whole step every `interval`. Smooth falls back to steps under
      * `prefers-reduced-motion`, where there are no animation frames (Node), and with the
-     * `"rerun"` results setting, which re-runs algorithms on each step.
+     * `"rerun"` results setting, which re-runs algorithms as the window steps. A play does not wait
+     * for them: one re-run runs at a time, and the steps it missed are caught up by one more.
      */
     readonly motion?: "smooth" | "steps";
     /** The IANA zone calendar steps read in; default the window's, else the setting's. */
@@ -630,6 +633,12 @@ export interface TimeSources {
      * any other column. Its dispatch is made before its first await. Absent, `asDates` does nothing.
      */
     readonly asDates?: (kind: "node" | "edge", column: string) => Promise<void> | undefined;
+    /**
+     * Under source-steps, the role edit a `data.knownFields` write makes: the time settings are
+     * views of the sources' time roles (design 3.9). Throws `E_ROLE_TARGET_AMBIGUOUS` when several
+     * sources could take the role. Absent, or null, the write sets only the setting.
+     */
+    readonly settingRoles?: (knownFields: Readonly<Record<string, unknown>>) => StepsEdit | null;
     /**
      * Settles on the next drawn frame, or at once when no frame is coming. Absent with no renderer.
      * Asked only by a stepped play with `waitForRender`.
@@ -1137,6 +1146,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let staleBefore = new Set<RunId>();
     const accepted = new Map<RunId, { readonly from: string; readonly to: string; readonly window: string }>();
     let reruns: Promise<unknown> = Promise.resolve();
+    /** Whether a re-run is under way, and whether a move came while it ran. */
+    let rerunning = false;
+    let rerunAgain = false;
     /** The unit the reader last gave each column, so designating it again keeps it. */
     const units = new Map<string, TimeUnit>();
     /** The last `bins({ scope: "visible" })` counts, and what they were counted from. */
@@ -2081,7 +2093,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @param next - The window.
      * @param cause - What moved it.
      * @param ownStep - Record it as its own step, never merged into the window step before it.
-     * @returns The event, once the masks and any re-runs the results setting started have settled.
+     * @returns The event, once the masks have settled, and any re-runs the results setting started
+     * too unless a play moved it: a play keeps its pace and the re-runs catch up (see `rerunAll`).
      */
     const move = async (next: TimeWindow, cause: TimeStepEvent["cause"], ownStep = false): Promise<TimeStepEvent> => {
         const slide = slides;
@@ -2100,7 +2113,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         }
 
         const event = published(counts, next, cause);
-        await reruns;
+        if (cause !== "play") {
+            await reruns;
+        }
 
         return event;
     };
@@ -2362,27 +2377,47 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * Re-run the runs a window move left out of date, and say which could not.
+     * Re-run the runs a window move left out of date, and say which could not. One re-run at a
+     * time: moves that come while one runs are caught up by one more re-run over the newest window,
+     * so a play stepping faster than an algorithm (Betweenness is O(nm)) re-runs it at most once
+     * per finished re-run, never once per step.
      * @param runs - The runs.
      */
     const rerunAll = (runs: readonly Run[]): void => {
+        if (rerunning) {
+            rerunAgain = true;
+            return;
+        }
+
+        rerunning = true;
+        const rerunOne = async (run: Run): Promise<void> => {
+            try {
+                // Marked as the session's own re-run, so `run:changed` says the window did it.
+                await (run instanceof ManagedRun ? run.rerun("time-window") : run.rerun());
+            } catch (error) {
+                sources.emit("time:rerun-failed", {
+                    run: run.id,
+                    error: isGraphtyError(error)
+                        ? { code: error.code, params: (error.details ?? {}) as CodedFact["params"] }
+                        : { code: "E_INTERNAL", params: {} },
+                });
+            }
+        };
         // Started after the pass that announced the move, not inside it.
-        reruns = Promise.resolve().then(async () =>
-            Promise.all(
-                runs.map(async (run) => {
-                    try {
-                        await run.rerun();
-                    } catch (error) {
-                        sources.emit("time:rerun-failed", {
-                            run: run.id,
-                            error: isGraphtyError(error)
-                                ? { code: error.code, params: (error.details ?? {}) as CodedFact["params"] }
-                                : { code: "E_INTERNAL", params: {} },
-                        });
-                    }
-                }),
-            ),
-        );
+        reruns = Promise.resolve().then(async () => {
+            let batch = runs;
+            for (;;) {
+                await Promise.all(batch.map(async (run) => rerunOne(run)));
+                if (!rerunAgain || disposed) {
+                    rerunning = false;
+                    rerunAgain = false;
+                    return;
+                }
+
+                rerunAgain = false;
+                batch = movedRuns();
+            }
+        });
     };
 
     /**
@@ -2602,6 +2637,21 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
         }
 
+        const knownFields = {
+            nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
+            nodeTimeUnit: nodes?.unit ?? null,
+            nodeTimeParseZone: nodes?.parseZone ?? null,
+            nodeTimeEndPath: optionalColumn(nodes?.end) ?? null,
+            nodeTimeSpellsPath: optionalColumn(nodes?.spells) ?? null,
+            edgeTimePath: edges === undefined ? null : columnOf(edges.start),
+            edgeTimeUnit: edges?.unit ?? null,
+            edgeTimeParseZone: edges?.parseZone ?? null,
+            edgeTimeEndPath: optionalColumn(edges?.end) ?? null,
+            edgeTimeSpellsPath: optionalColumn(edges?.spells) ?? null,
+        };
+        // Refused here, before anything changes, when several sources could take the time role.
+        const roles = sources.settingRoles?.(knownFields) ?? null;
+
         const before = fieldNow();
         const column = (edges ?? nodes)?.start;
         const changed = !sameReading(before?.nodes, nodes) || !sameReading(before?.edges, edges);
@@ -2626,25 +2676,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     }
                 }
 
-                await tx.dispatch({
-                    op: "config.set",
-                    values: {
-                        data: {
-                            knownFields: {
-                                nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
-                                nodeTimeUnit: nodes?.unit ?? null,
-                                nodeTimeParseZone: nodes?.parseZone ?? null,
-                                nodeTimeEndPath: optionalColumn(nodes?.end) ?? null,
-                                nodeTimeSpellsPath: optionalColumn(nodes?.spells) ?? null,
-                                edgeTimePath: edges === undefined ? null : columnOf(edges.start),
-                                edgeTimeUnit: edges?.unit ?? null,
-                                edgeTimeParseZone: edges?.parseZone ?? null,
-                                edgeTimeEndPath: optionalColumn(edges?.end) ?? null,
-                                edgeTimeSpellsPath: optionalColumn(edges?.spells) ?? null,
-                            },
-                        },
-                    },
-                });
+                if (roles !== null) {
+                    await tx.dispatch({ op: "data.steps-set", edit: roles });
+                }
+                await tx.dispatch({ op: "config.set", values: { data: { knownFields } } });
                 // Another field, or another reading of it, is another timeline: the window goes.
                 if (changed && visibility.window !== null) {
                     await tx.dispatch({ op: "visibility.window", window: null });

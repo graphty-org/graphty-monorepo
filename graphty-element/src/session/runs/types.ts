@@ -35,6 +35,7 @@ import type {
 import type { GraphtyErrorCode } from "../../errors/codes";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { JournalId } from "../journal";
+import type { ResultComparison } from "../results/compare";
 import type { ResultSummary, RunResult } from "../results/types";
 import type { ResolvedScope } from "../scope/ScopeApi";
 import type { CodedFact, CodedFactParam } from "../shared";
@@ -141,6 +142,16 @@ export interface RunChange {
      * execution's `end` from a new one's.
      */
     readonly generation: number;
+    /**
+     * Present when the session ran this algorithm by itself rather than on a caller's request:
+     * `"time-window"` when the time window moved, or the time results policy changed to `"rerun"`;
+     * `"project"` when opening a project (a file, or restored autosaved work) brought back a run
+     * it saved. Absent for a run a caller started or re-ran.
+     *
+     * OPEN UNION: triggers may be added in a minor release; handle one you do not know.
+     * @since 3.40.0
+     */
+    readonly trigger?: "time-window" | "project";
 }
 
 /**
@@ -262,9 +273,11 @@ export interface WeightMeaning {
 /**
  * Why a run left a weight unread. `code` is `"weight.meaning-mismatch"`; `params.attribute` is the
  * column, `params.meaning` what the weight means (null when nobody said), and `params.reads` the
- * meaning the algorithm reads.
+ * meaning the algorithm reads. Under the `source-steps` experiment, `"weight.meaning-mixed"`:
+ * the edges' weights do not share one meaning, or some edges' sources read no weight, so the run
+ * reads none (design 8.6); `params.sources` lists the sources of the edges.
  */
-export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
+export type WeightSkip = CodedFact<"weight.meaning-mismatch" | "weight.meaning-mixed">;
 
 /**
  * What qualifies a run's numbers.
@@ -716,6 +729,41 @@ export interface SweepResult extends BatchResult {
     readonly rows: readonly SweepRow[];
 }
 
+/**
+ * What a stability run takes besides the seeds: the parameters, the field to compare, and the rest
+ * as `sweep()` takes them.
+ * @since 3.58.0
+ */
+export interface StabilityOptions extends Omit<SweepOptions, "seed"> {
+    /** The result field to compare between seeds; the result's primary field when absent. */
+    readonly field?: string;
+}
+
+/**
+ * What a stability run produced: one row per seed, every pair of seeds that both finished
+ * compared, and the means over those pairs.
+ * @since 3.58.0
+ */
+export interface StabilityResult extends BatchResult {
+    /** One row per seed, in the order given; a row's `value` is its seed. */
+    readonly rows: readonly SweepRow[];
+    /** Every pair of finished seeds compared, as `results.compare()` compares two runs, in seed order. */
+    readonly pairs: readonly ResultComparison[];
+    /**
+     * The mean adjusted Rand index over the pairs (`agreement` of each partition comparison): 1 when
+     * every seed found the same grouping. Undefined for a field that is not a grouping, or with no
+     * pair that has one.
+     */
+    readonly agreement: number | undefined;
+    /** The mean adjusted mutual information over the pairs; undefined as `agreement` is. */
+    readonly adjustedMutualInformation: number | undefined;
+    /**
+     * The mean Spearman correlation over the pairs, for a field that is a measurement (a ranking);
+     * undefined for a grouping, or with no pair that has one.
+     */
+    readonly correlation: number | undefined;
+}
+
 // ---------------------------------------------------------------------------------------------
 // The run
 // ---------------------------------------------------------------------------------------------
@@ -1120,6 +1168,26 @@ export interface RunsApi {
         values: readonly unknown[],
         options?: SweepOptions,
     ): Run<SweepResult>;
+    /**
+     * Run one algorithm once per seed, as one batch, and compare what the seeds found: how much a
+     * randomized algorithm's answer depends on its seed. Every pair of seeds that finished is
+     * compared as `results.compare()` compares two runs, and the result carries the means: the
+     * agreement of a grouping (adjusted Rand index and adjusted mutual information), or the
+     * correlation of a ranking. Each seed is its own listed run, with the id
+     * `<algorithm>_seed_<seed>`, and one undo takes them all away.
+     * @example
+     * ```ts
+     * const stability = await session.runs.stability("louvain", [1, 2, 3, 4, 5]);
+     * console.log(stability.agreement, stability.adjustedMutualInformation);
+     * ```
+     * @param algorithm - Which algorithm.
+     * @param seeds - The seeds to run it with, in order.
+     * @param options - Its parameters, the field to compare, the scope, the style, the label and the
+     *   ordinary run options.
+     * @returns A run over the batch, resolving to the rows, the pairs and their means.
+     * @since 3.58.0
+     */
+    stability(algorithm: AlgorithmKey, seeds: readonly number[], options?: StabilityOptions): Run<StabilityResult>;
     /**
      * One run, by id.
      * @param id - The run id.

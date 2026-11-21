@@ -719,6 +719,7 @@ export interface GraphtyElementJSXProps {
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
+    "ongraphty-source-loaded"?: (event: GraphtyElementEventMap["graphty-source-loaded"]) => void;
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
     "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
     /**
@@ -905,6 +906,10 @@ export interface GraphtyElementJSXProps {
      * Emitted when anything `planTour` or `viewProblem` reads may have changed: the saved views, their order or the tours, the 2D/3D dimension, an XR session starting or ending, or a camera view being registered. An editor showing tour lengths or broken stops plans again on it alone.
      */
     "onviews-changed"?: (event: CustomEvent<EventOfType<"views-changed">>) => void;
+    /**
+     * Emitted when the reader presses an item of the in-headset menu (`xr.menu`).
+     */
+    "onxr-menu-select"?: (event: CustomEvent<EventOfType<"xr-menu-select">>) => void;
     /**
      * Emitted when a VR or AR session has ended and the graph is back in its 3D view.
      */

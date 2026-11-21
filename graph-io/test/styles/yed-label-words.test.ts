@@ -88,8 +88,29 @@ describe("a yEd node label with an icon", () => {
         ).toEqual([2, 10]);
     });
 
+    it("draws its icon in the label, its middle from the words' middle", async () => {
+        const below = await valuesOf(file('iconTextGap="4"'), [
+            "labelImage",
+            "labelImageWidth",
+            "labelImageHeight",
+            "labelImageOffsetX",
+            "labelImageOffsetY",
+        ]);
+        expect(String(below[0]).startsWith("data:image/png;base64,")).toBe(true);
+        // the words 10 below the label's middle, the icon (16 + 4) / 2 + 11.64 / 2 above them
+        expect(below.slice(1)).toEqual([16, 16, null, -17.82]);
+        // the words 10 left and 2.18 down, the icon (16 + 4) / 2 right of the middle, level with it
+        expect(
+            await valuesOf(file('horizontalTextPosition="left"'), ["labelImageOffsetX", "labelImageOffsetY"]),
+        ).toEqual([20, -2.18]);
+        expect(await valuesOf(file('iconTextGap="4"', "2.0"), ["labelImageWidth", "labelImageHeight"])).toEqual([
+            32, 32,
+        ]);
+    });
+
     it("is left where its model puts it with no icon resource", async () => {
         expect(await offsetOf(file("").replace('iconData="3"', 'iconData="9"'))).toEqual([null, null]);
+        expect(await valuesOf(file("").replace('iconData="3"', 'iconData="9"'), ["labelImage"])).toEqual([null]);
     });
 });
 
@@ -112,5 +133,42 @@ describe("a yEd node label's words", () => {
             null,
             null,
         ]);
+    });
+});
+
+describe("a yEd node label drawn as its icon alone", () => {
+    // graphml-stm32-func n38: a white box under a turned, wordless label of a trapezoid icon
+    const iconOnly = `<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml"
+ xmlns:yed="http://www.yworks.com/xml/yed/3">
+<key for="node" id="d0" yfiles.type="nodegraphics"/><key for="graph" id="d1" yfiles.type="resources"/>
+<graph edgedefault="directed" id="G"><node id="n"><data key="d0"><y:ShapeNode>
+<y:Geometry height="116.738" width="29.092" x="0" y="0"/>
+<y:NodeLabel hasText="false" iconData="1" modelName="custom" rotationAngle="90.0" visible="true" width="116.0" height="30.0" x="0.0" y="0.0">
+<y:LabelModel><y:SmartNodeLabelModel distance="4.0"/></y:LabelModel>
+<y:ModelParameter><y:SmartNodeLabelModelParameter labelRatioX="-0.5" labelRatioY="-0.5" nodeRatioX="-0.5" nodeRatioY="-0.5"
+ offsetX="0.0" offsetY="0.0" upX="0.0" upY="-1.0"/></y:ModelParameter></y:NodeLabel>
+</y:ShapeNode></data></node></graph>
+<data key="d1"><y:Resources><y:Resource id="1"><yed:NodeRealizerIcon><y:ShapeNode>
+<y:Geometry height="30.0" width="116.41" x="0.0" y="0.0"/><y:Fill color="#FFFFFF" transparent="false"/>
+<y:BorderStyle color="#000000" type="line" width="1.0"/><y:Shape type="trapezoid"/>
+</y:ShapeNode></yed:NodeRealizerIcon></y:Resource></y:Resources></data></graphml>`;
+
+    it("draws the icon, its node's look as a picture, where the label is placed and turned", async () => {
+        const [image, width, height, x, y, turn] = await valuesOf(iconOnly, [
+            "labelImage",
+            "labelImageWidth",
+            "labelImageHeight",
+            "labelOffsetX",
+            "labelOffsetY",
+            "labelRotation",
+        ]);
+        expect([width, height, x, y, turn]).toEqual([116.41, 30, 0.454, -0.369, 90]);
+        expect(typeof image).toBe("string");
+        const svg = atob(String(image).replace("data:image/svg+xml;base64,", ""));
+        expect(svg).toContain('d="M0 1 L0.25 0 L0.75 0 L1 1 Z" fill="#FFFFFF" stroke="#000000"');
+    });
+
+    it("draws nothing for an icon the graph does not hold", async () => {
+        expect(await valuesOf(iconOnly.replace('iconData="1"', 'iconData="9"'), ["labelImage"])).toEqual([null]);
     });
 });

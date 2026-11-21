@@ -1,13 +1,11 @@
-import { lazy, Suspense } from "react";
-
+// The gallery is imported statically on purpose (issue #9138). It is about 4 KiB gzipped, but as a
+// dynamic import it was one more lazy entry sharing the start page's Mantine and compact-mantine
+// modules, and the bundler splits a shared module into a chunk of its own for every distinct set
+// of entries that reach it: the lazy gallery cost the landing page five extra files.
+import { CompactComponentsDemo } from "./components/demo/CompactComponentsDemo";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { bootQuery } from "./lib/analytics";
 import { Workspace } from "./workspace/Workspace";
-
-// The gallery loads only when asked for, so the start page's first paint
-// does not wait for it.
-const CompactComponentsDemo = lazy(async () => ({
-    default: (await import("./components/demo/CompactComponentsDemo")).CompactComponentsDemo,
-}));
 
 /**
  * Main application component.
@@ -19,14 +17,11 @@ const CompactComponentsDemo = lazy(async () => ({
  * @returns The application root component.
  */
 export function App(): React.JSX.Element {
-    const params = new URLSearchParams(globalThis.location.search);
-
-    if (params.has("demo")) {
+    // The query as it was at boot: Share usage data removes it from the address bar.
+    if (bootQuery().has("demo")) {
         return (
             <ErrorBoundary>
-                <Suspense>
-                    <CompactComponentsDemo />
-                </Suspense>
+                <CompactComponentsDemo />
             </ErrorBoundary>
         );
     }

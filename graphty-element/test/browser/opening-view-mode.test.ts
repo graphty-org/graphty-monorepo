@@ -28,6 +28,7 @@ import { afterEach, assert, describe, test, vi } from "vitest";
 
 import { isGraphtyError } from "../../src/errors";
 import { Graph } from "../../src/Graph";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 import { assertPlaced } from "../helpers/placed-position";
 
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
@@ -98,8 +99,16 @@ function assertDrawnIn2D(graph: Graph, what: string): void {
     );
     assert.strictEqual(graph.getViewMode(), "2d", `${what}: the graph should report 2d`);
     assert.isTrue(graph.is2D(), `${what}: the deprecated is2D() should agree`);
-    assert.strictEqual(graph.scene.metadata?.twoD, true, `${what}: scene.metadata.twoD should be true`);
-    assert.strictEqual(graph.scene.metadata?.viewMode, "2d", `${what}: scene.metadata.viewMode should be 2d`);
+    assert.strictEqual(
+        (graph.scene.metadata as GraphSceneMetadata | null)?.twoD,
+        true,
+        `${what}: (scene.metadata as GraphSceneMetadata).twoD should be true`,
+    );
+    assert.strictEqual(
+        (graph.scene.metadata as GraphSceneMetadata | null)?.viewMode,
+        "2d",
+        `${what}: (scene.metadata as GraphSceneMetadata).viewMode should be 2d`,
+    );
 }
 
 afterEach(() => {
@@ -227,7 +236,7 @@ describe("a graph that opens in 2D", () => {
 
         assert.strictEqual(graph.getViewMode(), "3d");
         assert.strictEqual(graph.scene.activeCamera?.mode, Camera.PERSPECTIVE_CAMERA, "should be perspective in 3D");
-        assert.strictEqual(graph.scene.metadata?.twoD, false);
+        assert.strictEqual((graph.scene.metadata as GraphSceneMetadata | null)?.twoD, false);
 
         await graph.setViewMode("2d");
         await settle(graph);
@@ -281,7 +290,7 @@ describe("a graph that opens in 2D", () => {
         // what the scene says it is showing, so a scene still labeled "vr" would make the next
         // ordinary switch to 3D try to exit a session that was never entered.
         assert.strictEqual(graph.getViewMode(), "3d");
-        assert.strictEqual(graph.scene.metadata?.viewMode, "3d");
+        assert.strictEqual((graph.scene.metadata as GraphSceneMetadata | null)?.viewMode, "3d");
         assert.strictEqual(graph.scene.activeCamera?.mode, Camera.PERSPECTIVE_CAMERA);
 
         await graph.setViewMode("2d");
@@ -302,6 +311,6 @@ describe("a graph that opens in 2D", () => {
 
         assert.strictEqual(graph.getViewMode(), "3d");
         assert.strictEqual(graph.scene.activeCamera?.mode, Camera.PERSPECTIVE_CAMERA);
-        assert.notStrictEqual(graph.scene.metadata?.twoD, true);
+        assert.notStrictEqual((graph.scene.metadata as GraphSceneMetadata | null)?.twoD, true);
     });
 });

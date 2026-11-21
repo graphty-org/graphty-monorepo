@@ -1303,7 +1303,7 @@ describe("StatsManager - Profiling", () => {
                 // Verify table was called with counter data
                 const counterTableCall = tableSpy.mock.calls.find((call) => {
                     const data: unknown = call[0];
-                    return Array.isArray(data) && data.some((row) => row.Label === "cache.hits");
+                    return Array.isArray(data) && data.some((row: { Label?: unknown }) => row.Label === "cache.hits");
                 });
                 assert.isDefined(counterTableCall);
 
@@ -1334,7 +1334,7 @@ describe("StatsManager - Profiling", () => {
 
                 const tableData: unknown = tableSpy.mock.calls.find((call) => {
                     const data: unknown = call[0];
-                    return Array.isArray(data) && data.some((row) => row.Label === "cache.hits");
+                    return Array.isArray(data) && data.some((row: { Label?: unknown }) => row.Label === "cache.hits");
                 })?.[0];
 
                 // Verify derived metrics are calculated

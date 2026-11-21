@@ -50,8 +50,11 @@ export const SOURCE_ATTR = Object.freeze({
 
 /** The session events of click-to-expand, and the DOM events `<graphty-element>` mirrors them as. */
 export const SOURCE_EVENT_DOM_NAMES = Object.freeze({
+    /** A click-to-expand started on its seed nodes. */
     "source:expand-start": "graphty-source-expand-start",
+    /** A click-to-expand added what it fetched. */
     "source:expanded": "graphty-source-expanded",
+    /** A click-to-expand failed. */
     "source:expand-failed": "graphty-source-expand-failed",
 } as const);
 

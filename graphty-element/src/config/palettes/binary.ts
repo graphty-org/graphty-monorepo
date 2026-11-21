@@ -9,8 +9,10 @@
  * Uses Okabe-Ito blue for highlighted state
  */
 export const BLUE_HIGHLIGHT = {
-    highlighted: "#0072B2", // Okabe-Ito blue
-    muted: "#CCCCCC", // light gray
+    /** The color of a highlighted element: Okabe-Ito blue. */
+    highlighted: "#0072B2",
+    /** The color of every other element: light gray. */
+    muted: "#CCCCCC",
 } as const;
 
 /**
@@ -18,8 +20,10 @@ export const BLUE_HIGHLIGHT = {
  * Uses Okabe-Ito green
  */
 export const GREEN_SUCCESS = {
-    highlighted: "#009E73", // Okabe-Ito bluish green
-    muted: "#999999", // medium gray
+    /** The color of a highlighted element: Okabe-Ito bluish green. */
+    highlighted: "#009E73",
+    /** The color of every other element: medium gray. */
+    muted: "#999999",
 } as const;
 
 /**
@@ -27,6 +31,8 @@ export const GREEN_SUCCESS = {
  * Uses Okabe-Ito orange
  */
 export const ORANGE_WARNING = {
-    highlighted: "#E69F00", // Okabe-Ito orange
-    muted: "#CCCCCC", // light gray
+    /** The color of a highlighted element: Okabe-Ito orange. */
+    highlighted: "#E69F00",
+    /** The color of every other element: light gray. */
+    muted: "#CCCCCC",
 } as const;

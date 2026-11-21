@@ -303,6 +303,11 @@ interface CSVDataSourceConfig extends BaseDataSourceConfig {
     edgeURL?: string;
     nodeData?: string | Uint8Array;
     edgeData?: string | Uint8Array;
+    /**
+     * Cell texts read as unset, such as `["N/A", "null"]`: compared as exact strings after Unicode
+     * NFC normalization and never trimmed, before any column is typed. Not read for a Neo4j file.
+     */
+    missing?: readonly string[];
 }
 
 /** The options that make a CSV source a pair of tables. */
@@ -333,6 +338,12 @@ export class CSVDataSource extends DataSource {
      * rows numbered). A version 2 save names them in a referenced source's mapping.
      */
     readBy: { readonly source: string; readonly target: string } | { readonly key: string } | undefined;
+
+    /**
+     * The separator the first table it read was split by (a pair's node file), and whether it was
+     * detected rather than given; unset until it reads one.
+     */
+    readDelimiter: CsvRows["delimiter"] | undefined;
 
     /**
      * Creates a new CSVDataSource instance.
@@ -517,6 +528,10 @@ export class CSVDataSource extends DataSource {
         nodes?: string,
     ): Promise<ImportedRecords> {
         const { delimiter, idColumn } = this.config;
+        this.readDelimiter ??= {
+            value: delimiter ?? guessDelimiter((nodes ?? content).split(/\r\n|\n|\r/, 1)[0] ?? ""),
+            detected: delimiter === undefined,
+        };
         // An adjacency table has no columns to name, and graph-io refuses a column option for one;
         // its `neighbour:weight` suffixes are its weight, which `weightFrom: null` would drop.
         const columns: CsvImportOptions & CommonImportOptions =
@@ -539,9 +554,10 @@ export class CSVDataSource extends DataSource {
                 ...table,
                 ...(delimiter === undefined ? {} : { delimiter }),
                 ...(nodes === undefined ? {} : { nodes }),
+                ...this.missingOption(),
             }),
         );
-        // A node row with a blank id comes back empty, so the element keeps it as a keyless node.
+        // A node row with a blank id comes back empty, so the element leaves it out and counts it.
         const keyed = imported.nodes.map((node) =>
             typeof node.id === "string" && node.id.startsWith(BLANK_ID_PREFIX) ? { ...node, id: "" } : node,
         );
@@ -561,16 +577,7 @@ export class CSVDataSource extends DataSource {
      * @yields the rows as edge records, and no nodes
      */
     private async *passThroughRows(content: string): AsyncGenerator<DataSourceChunk, void, unknown> {
-        const rows = typeCells(
-            await importRecords(csvImporter, content, {
-                table: "nodes",
-                header: true,
-                nodeIdFrom: "index",
-                weightFrom: null,
-                errorLimit: this.config.errorLimit,
-                ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
-            }),
-        );
+        const rows = typeCells(await importRecords(csvImporter, content, this.rowTableOptions()));
         aggregateErrors(rows.report, this.errorAggregator, CSVDataSource.type);
         yield* this.chunkData([], rows.nodes.map(({ data }) => data) as AdHocData[]);
     }
@@ -591,6 +598,15 @@ export class CSVDataSource extends DataSource {
      * @yields the nodes and relationships
      */
     private async *parseNeo4j(content: string): AsyncGenerator<DataSourceChunk, void, unknown> {
+        if (this.config.missing !== undefined) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: "the missing option is not read for a Neo4j admin-import file",
+                source: "config",
+                details: { kind: "format", id: CSVDataSource.type, option: "missing", value: this.config.missing },
+            });
+        }
+
         const imported = await importRecords(neo4jImporter, content, {
             ids: "string",
             errorLimit: this.config.errorLimit,
@@ -675,21 +691,9 @@ export class CSVDataSource extends DataSource {
 
         // Read as a node table numbered by row, so no column is taken as an id and every one is kept.
         const read = typeCells(
-            await importRecords(
-                csvImporter,
-                slices(),
-                {
-                    table: "nodes",
-                    header: true,
-                    nodeIdFrom: "index",
-                    weightFrom: null,
-                    errorLimit: this.config.errorLimit,
-                    ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
-                },
-                (rows) => {
-                    progress(rows, done);
-                },
-            ),
+            await importRecords(csvImporter, slices(), this.rowTableOptions(), (rows) => {
+                progress(rows, done);
+            }),
         );
         aggregateErrors(read.report, this.errorAggregator, CSVDataSource.type);
         const { header, lines, delimiter } = csvRecordLines(content, given);
@@ -802,6 +806,32 @@ export class CSVDataSource extends DataSource {
             nodes.map(({ id, data }) => ({ ...data, id })),
             edgeRecords as AdHocData[],
         );
+    }
+
+    /**
+     * The options that read a file as a node table numbered by row, so no column is taken as an id
+     * and every column of every row is kept.
+     * @returns the csv importer options
+     */
+    private rowTableOptions(): CsvImportOptions {
+        return {
+            table: "nodes",
+            header: true,
+            nodeIdFrom: "index",
+            weightFrom: null,
+            errorLimit: this.config.errorLimit,
+            ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
+            ...this.missingOption(),
+        };
+    }
+
+    /**
+     * The missing option as graph-io's CSV importer takes it.
+     * @returns `{ missing }`, or nothing when it was not given
+     */
+    private missingOption(): Pick<CsvImportOptions, "missing"> {
+        const { missing } = this.config;
+        return missing === undefined ? {} : { missing };
     }
 
     /**

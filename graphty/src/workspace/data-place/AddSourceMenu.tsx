@@ -65,6 +65,7 @@ export function AddSourceMenu(): React.JSX.Element | null {
                             }
                             reason={door.disabledReason}
                             onRun={door.run}
+                            control={id}
                         />
                     );
                 })}

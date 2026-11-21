@@ -34,6 +34,7 @@ import {
     emptyLoad,
     importWhole,
     readerImport,
+    rememberMetaExtra,
     sourceGraph,
     toRecords,
 } from "./graph-io-import.js";
@@ -69,9 +70,10 @@ export interface BaseDataSourceConfig {
     /**
      * `"recommended"` chooses a layout for what was loaded, once it is loaded: the `fixed` layout,
      * which draws each node where the file put it, when every node arrived with a position, and a
-     * computed one otherwise. `"keep"` (the default) leaves the layout as it is.
+     * computed one otherwise. `"placed"` chooses the `fixed` layout in the same case and otherwise
+     * leaves the layout as it is. `"keep"` (the default) leaves the layout as it is.
      */
-    layout?: "recommended" | "keep";
+    layout?: "recommended" | "placed" | "keep";
 }
 
 /**
@@ -298,6 +300,22 @@ export interface ImporterSourceOptions<Opts> {
  * in its config, which is the load's recorded options.
  */
 const READER_SIGNALS = new WeakMap<object, AbortSignal>();
+
+/**
+ * The options a reader settled that its load left out (the sheet a workbook load read when it named
+ * none), set once the reader has read. A load records them with its source, so a save reads the
+ * file the same way again. Kept beside the reader, as READER_SIGNALS is.
+ */
+const SETTLED_OPTIONS = new WeakMap<object, Readonly<Record<string, unknown>>>();
+
+/**
+ * The options a reader settled that its load left out (see SETTLED_OPTIONS).
+ * @param reader - the reader
+ * @returns the options, or undefined when it settled none
+ */
+export function settledOptionsOf(reader: unknown): Readonly<Record<string, unknown>> | undefined {
+    return typeof reader === "object" && reader !== null ? SETTLED_OPTIONS.get(reader) : undefined;
+}
 
 /**
  * Sets the cancel signal of the load a reader is read for (see READER_SIGNALS).
@@ -979,6 +997,7 @@ export abstract class DataSource {
         const positions = filePositionsOf(imported);
         const pxPerUnit = positions?.pxPerUnit;
         const padding = positions?.viewerFit?.padding;
+        const frame = positions?.viewerFrame;
         const annotations = imported.importer.annotations?.(imported.snapshot) ?? [];
         return {
             extracted,
@@ -988,6 +1007,7 @@ export abstract class DataSource {
             ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
             positionsStored: positions?.usable === true,
             ...(padding === undefined ? {} : { framingPadding: padding }),
+            ...(frame === undefined ? {} : { framingBox: frame }),
         };
     }
 
@@ -1221,6 +1241,23 @@ export abstract class DataSource {
                     { firstDeclarationWins: true },
                 );
                 const { snapshot, report } = imported;
+                // A declared option the load left out that the importer reports the value of. A
+                // workbook's sheet chosen by graphIndex or graphName is not left out: recording it
+                // beside them would choose the sheet twice, which the importer refuses.
+                const passed = this.#config as unknown as Record<string, unknown>;
+                const graphChosen = passed.graphIndex !== undefined || passed.graphName !== undefined;
+                const settled = Object.fromEntries(
+                    Object.entries(report.resolved ?? {}).filter(
+                        ([name]) =>
+                            passed[name] === undefined &&
+                            !(name === "sheet" && graphChosen) &&
+                            described.options.some((option) => option.name === name),
+                    ),
+                );
+                if (Object.keys(settled).length > 0) {
+                    SETTLED_OPTIONS.set(this, Object.freeze(settled));
+                }
+
                 const words = statedBy?.(snapshot, report) ?? null;
                 if (words !== null) {
                     this.declareDirection(snapshot.directed, words, report.counts.expandedMixed);
@@ -1287,6 +1324,7 @@ export abstract class DataSource {
                 const { snapshot } = loaded;
                 // ponytail: the whole load is held, then chunked; hand each page to the ingest as it
                 // arrives once a paged source is big enough for that to matter
+                rememberMetaExtra(this, snapshot);
                 const { nodes, edges } = toRecords(sourceGraph(loaded), columnsMapping(snapshot));
                 yield* this.chunkData(nodes, edges);
             }

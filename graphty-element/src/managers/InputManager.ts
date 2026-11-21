@@ -62,14 +62,23 @@ export interface InputManagerConfig {
 export class InputManager implements Manager {
     // Observable events. They outlive the input system behind them, which playback swaps for a
     // mock one, so a subscriber (and the `input:*` bridge) keeps hearing input (issue #3002).
+    /** Fires when a pointer moves over the canvas. */
     public readonly onPointerMove = new Observable<PointerInfo>();
+    /** Fires when a pointer button is pressed on the canvas. */
     public readonly onPointerDown = new Observable<PointerInfo>();
+    /** Fires when a pointer button is released. */
     public readonly onPointerUp = new Observable<PointerInfo>();
+    /** Fires when the wheel turns over the canvas. */
     public readonly onWheel = new Observable<WheelInfo>();
+    /** Fires when touches begin, with the new touch points. */
     public readonly onTouchStart = new Observable<TouchPoint[]>();
+    /** Fires when touches move, with the moved touch points. */
     public readonly onTouchMove = new Observable<TouchPoint[]>();
+    /** Fires when touches end, with the ids of the touches that ended. */
     public readonly onTouchEnd = new Observable<number[]>();
+    /** Fires when a key is pressed. */
     public readonly onKeyDown = new Observable<KeyboardInfo>();
+    /** Fires when a key is released. */
     public readonly onKeyUp = new Observable<KeyboardInfo>();
 
     private inputSystem: BabylonInputSystem | MockDeviceInputSystem;

@@ -65,6 +65,12 @@ const config: StorybookConfig = {
                 rollupOptions: {
                     external: ["@mlc-ai/web-llm"], // Dynamically loaded at runtime for in-browser LLM
                 },
+                // Rolldown (Vite 8) does not keep module execution order across chunks by
+                // default: a shared chunk the preview entry imports can hold preview code that
+                // reads the __STORYBOOK_MODULE_*__ globals, run before the entry's runtime module
+                // defines them ("__STORYBOOK_MODULE_CLIENT_LOGGER__ is not defined"). The graphty
+                // app's Storybook sets the same option for the same reason.
+                rolldownOptions: { output: { strictExecutionOrder: true } },
             },
         });
         // The library build leaves the Graphviz package out of the Worker it emits, for the

@@ -53,7 +53,7 @@ export type { AccessibleAnnouncement, AccessibleGraphFacts, AccessibleSelection 
 export { Edge, type EdgeCapEnd } from "./src/Edge";
 // what `Edge.mesh` is for a line drawn as pattern elements, so a consumer can narrow it (issue #7127)
 export type { GraphOverview, OverviewOptions, OverviewRect } from "./src/camera/overview";
-export type { NodeScreenPosition, StableFrameOptions } from "./src/Graph";
+export type { FileLoadOptions, NodeScreenPosition, StableFrameOptions } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
     GraphtyCapabilitiesChangeDetail,
@@ -117,6 +117,7 @@ export type {
     XRConfig,
     XRControllerButton,
     XRInputConfig,
+    XRMenuItem,
     XRModeConfig,
     XRUIConfig,
 } from "./src/config/index";
@@ -183,7 +184,7 @@ export type {
 export type { WeightMeaning } from "./src/session/runs";
 export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./src/session/types";
 // `session.views`: a saved view (a fixed camera or a camera view it follows) and a starting camera
-export type { SavedView, StartingCamera } from "./src/session/types";
+export type { SavedView, SavedViewInput, SavedViewPart, StartingCamera } from "./src/session/types";
 // The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
 export type { NodeId } from "./src/catalog/types";
 // What `element.elementAt({ x, y })` finds under a point
@@ -213,23 +214,45 @@ export type {
 } from "./src/session/notes/types";
 
 // The project file: the whole session as one graphty document, as `element.session.project`
+export type { FileKind, FilesApi } from "./src/session/files/kindOf";
 export type {
     AssetStorage,
+    DocumentBindFacts,
     DocumentCode,
+    DocumentHeldFacts,
+    DocumentHeldReason,
     DocumentSection,
+    DocumentSectionAbout,
+    DocumentSectionFacts,
+    DocumentSectionNeed,
     ProjectApi,
     ProjectAssetChoice,
+    ProjectFileFacts,
+    ProjectFileHandle,
+    ProjectFileRun,
+    ProjectFileSection,
+    ProjectFileSource,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,
+    ProjectSaveFacts,
     ProjectSaveOptions,
     ProjectSaveReport,
+    ProjectSaveSection,
     ProjectSource,
+    ProjectSourceChoice,
+    ProjectSourceKind,
     ProjectStatus,
     SavedProject,
+    SectionBinding,
+    SourceEmbeddedReason,
     SourceStorage,
+    SourceUnavailableReason,
 } from "./src/session/projectFile";
-export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+export { DOCUMENT_SECTIONS, PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+export type { RecipesApi } from "./src/session/recipes/RecipesApi";
+// What the element's `graphty-source-loaded` DOM event carries.
+export type { SourceLoaded } from "./src/session/types";
 // What autosave reports: its status, its codes, its entries and what a restore found.
 export type { AutosaveAtRisk } from "./src/autosave/elementAutosave";
 export type {
@@ -271,6 +294,7 @@ export type {
     ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
+export type { OperationCategory, PendingWorkProgress } from "./src/managers/OperationQueueManager";
 export type { GroupSummary, GroupTableOptions } from "./src/session/types";
 
 // Error aggregation for data loading
@@ -372,6 +396,7 @@ export type {
     TourEndedEvent,
     TourProgressEvent,
     ViewsChangedEvent,
+    XRMenuSelectEvent,
     XRSessionEndedEvent,
     XRSessionStartedEvent,
 } from "./src/events";
@@ -446,7 +471,14 @@ export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/ca
 // Video capture exports
 // =============================================================================
 export { AnimationCanceledError, AnimationCancelledError } from "./src/video/MediaRecorderCapture";
-export type { AnimationOptions, AnimationResult, CameraWaypoint, ViewWaypoint } from "./src/video/VideoCapture";
+export type {
+    AnimationOptions,
+    AnimationResult,
+    CameraWaypoint,
+    VideoFormat,
+    ViewWaypoint,
+} from "./src/video/VideoCapture";
+export { VIDEO_FORMATS } from "./src/video/VideoCapture";
 
 // Video capture estimation
 export type { CaptureEstimate } from "./src/video/estimation";

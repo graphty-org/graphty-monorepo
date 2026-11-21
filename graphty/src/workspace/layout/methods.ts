@@ -40,6 +40,7 @@ const LAYOUT_NAMES: Readonly<Partial<Record<string, string>>> = {
     layers: "Columns by group",
     fixed: "Keep positions",
     "location-map": "Map",
+    geographic: "Coordinates",
 };
 
 /**
@@ -348,10 +349,22 @@ function choiceOf(session: GraphSession, descriptor: LayoutDescriptor, recommend
  */
 export function layoutChoices(session: GraphSession, layouts: readonly LayoutDescriptor[]): LayoutChoice[] {
     const recommended = session.recommendLayout()?.layout.id;
+    return layoutRows(layouts).map((descriptor) =>
+        choiceOf(session, descriptor, engineOf(descriptor) === undefined && descriptor.id === recommended),
+    );
+}
+
+/**
+ * The Layout list's rows before any per-graph facts: every layout, in catalog order, each followed
+ * by one descriptor for every engine but its default. The start page counts these.
+ * @param layouts - the layouts, from {@link useLayouts} or the element's catalog.
+ * @returns one descriptor per row, with the engine the row applies.
+ */
+export function layoutRows(layouts: readonly LayoutDescriptor[]): LayoutDescriptor[] {
     return layouts.flatMap((descriptor) => [
-        choiceOf(session, descriptor, descriptor.id === recommended),
+        descriptor,
         ...(layoutEntry(descriptor.id)?.implementations ?? [])
             .filter((implementation) => !implementation.isDefault)
-            .map((implementation) => choiceOf(session, withEngine(descriptor, implementation), false)),
+            .map((implementation) => withEngine(descriptor, implementation)),
     ]);
 }

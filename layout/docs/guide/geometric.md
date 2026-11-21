@@ -122,6 +122,38 @@ const result = random(graph, { seed: 42 });
 console.log(result.positions.every((v) => v >= 0 && v < 1)); // true
 ```
 
+## Geographic
+
+Each node at its longitude and latitude in degrees, projected onto a flat map, x east and y north. `projection` is
+`"equirectangular"` (the default: x and y are the longitude and latitude in radians), `"web-mercator"` (the projection
+of web map tiles; latitudes past 85.05 degrees are clamped) or `"equal-earth"` (areas kept in proportion). `scale` is
+the radius of the globe the map is drawn from. The coordinates come from `longitude` and `latitude` node columns, a
+`position` column holding longitude then latitude, or by default the snapshot's role-`position` column when its
+coordinates are geographic. A node without coordinates gets a NaN row. `centralMeridian` is the longitude drawn at the
+center (default 0); `"auto"` puts the map's edges in the widest gap between nodes, so nodes on both sides of the 180th
+meridian are drawn side by side and the edges between them run the short way.
+
+<!-- doc-check -->
+
+```typescript
+import { fromEdgeArrays } from "@graphty/graph-format";
+import { geographic } from "@graphty/layout";
+
+// three airports and two routes, with their longitudes and latitudes in degrees
+const s = fromEdgeArrays({
+    directed: false,
+    nodeCount: 3,
+    src: Uint32Array.of(0, 1),
+    dst: Uint32Array.of(1, 2),
+    nodeColumns: {
+        lon: Float64Array.of(-0.45, 2.55, 174.79), // London, Paris, Auckland
+        lat: Float64Array.of(51.47, 49.01, -37.01),
+    },
+});
+const map = geographic(s, { longitude: "lon", latitude: "lat", projection: "equal-earth" });
+console.log(map.positions[1] > 0); // true
+```
+
 ## When to Use Which
 
 | Layout     | Reads edges | Good for                                                        |

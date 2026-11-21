@@ -546,6 +546,7 @@ export class EventManager implements Manager {
             case "overview-changed":
             case "xr-session-started":
             case "xr-session-ended":
+            case "xr-menu-select":
             case "input:pointer-down":
             case "input:pointer-move":
             case "input:pointer-up":

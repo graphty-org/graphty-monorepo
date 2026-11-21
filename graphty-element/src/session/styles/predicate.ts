@@ -64,6 +64,10 @@ export type SelectorTarget = "node" | "edge";
  */
 export interface SelectorSource {
     /**
+     * Whether the source-steps experiment is on. Off or absent, a `type` selector is refused.
+     */
+    readonly sourceSteps?: () => boolean;
+    /**
      * The value one node carries for a path.
      * @param index - The dense node index.
      * @param path - The column path, such as `results.louvain.group`.
@@ -294,7 +298,8 @@ export type ElementPredicate = (index: number) => boolean;
 /** A selector, reduced to the test a repaint runs and the columns that test reads. */
 export interface CompiledSelector {
     /** Which selector kind this was compiled from. */
-    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member" | "rule" | "state" | "hover";
+    readonly match:
+        "everything" | "expression" | "has" | "ids" | "top" | "member" | "rule" | "state" | "hover" | "type";
     /** Which kind of element it speaks about. */
     readonly target: SelectorTarget;
     /**
@@ -1877,6 +1882,63 @@ export function quotePath(path: Path): Query {
 export function rulePath(path: Path): Query {
     const bare = path.startsWith("data.") ? path.slice("data.".length) : "";
     return isUnquotedName(bare) && !VALUE_WORDS.has(bare) ? bare : quotePath(path);
+}
+
+/**
+ * The value path a rule leaf tests: `attribute` for `range` and `categories`, `path` for
+ * `threshold`, `same-value` and `by-size`, and `reads` for `text`. Every other leaf reads no
+ * column -- a `text` leaf reading the node's `"id"`, an `expression`, a `state`, a `measure` (it tests an
+ * algorithm's field, not a path), a structural or membership leaf -- and neither does an `all`,
+ * `any` or `not`, which hold leaves rather than test a value; for those it returns undefined.
+ * A leaf kind added later is placed here before the package compiles.
+ *
+ * ```ts
+ * import { ruleValuePath } from "@graphty/graphty-element/session";
+ *
+ * ruleValuePath({ kind: "range", attribute: "data.age", min: 18 }); // "data.age"
+ * ruleValuePath({ kind: "degree", min: 2 }); // undefined
+ * ```
+ * @param rule - The rule leaf.
+ * @returns The path it reads, or undefined.
+ * @since 3.40.0
+ */
+export function ruleValuePath(rule: RuleTree): Path | undefined {
+    switch (rule.kind) {
+        case "range":
+        case "categories":
+            return rule.attribute;
+        case "threshold":
+        case "same-value":
+        case "by-size":
+            return rule.path;
+        case "text":
+            return rule.reads === "id" ? undefined : rule.reads;
+        case "expression":
+        case "degree":
+        case "component":
+        case "neighborhood":
+        case "isolated":
+        case "self-loop":
+        case "repeated-edge":
+        case "edges":
+        case "member":
+        case "item":
+        case "source":
+        case "union":
+        case "hops":
+        case "touching":
+        case "nonempty":
+        case "measure":
+        case "state":
+        case "all":
+        case "any":
+        case "not":
+            return undefined;
+        default: {
+            const unhandled: never = rule;
+            return unhandled;
+        }
+    }
 }
 
 /**

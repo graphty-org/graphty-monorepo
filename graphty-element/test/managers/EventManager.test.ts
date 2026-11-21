@@ -238,7 +238,7 @@ describe("EventManager", () => {
         });
 
         it("should emit node update events", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("node-update-after", callback);
 
             const mockNode = { id: "test-node" } as Node;
@@ -270,7 +270,7 @@ describe("EventManager", () => {
         });
 
         it("should emit edge update events", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("edge-update-after", callback);
 
             const mockEdge = { id: "test-edge" } as Edge;

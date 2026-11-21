@@ -29,6 +29,8 @@ interface Seen {
     readonly plusItems: Set<string>;
     /** Every section "+" menu item and Switch to kind on the Node tab. */
     readonly nodePlusItems?: Set<string>;
+    /** Every section "+" menu item and Switch to kind, as "<data-section>:<item>". */
+    readonly sectionItems?: Set<string>;
     /** Every line's channel (data-line) in the panel and its pop-overs. */
     readonly lines: Set<string>;
     /** Every forbidden selector found, with where. */
@@ -186,8 +188,10 @@ async function walkMenus(seen: Seen, adding: boolean, kind: "node" | "edge"): Pr
                 break;
             }
             look(seen, menu);
+            const section = plus.closest("[data-section]")?.getAttribute("data-section") ?? "";
             for (const item of within(menu).queryAllByRole("menuitem")) {
                 seen.plusItems.add(item.textContent.trim());
+                seen.sectionItems?.add(`${section}:${item.textContent.trim()}`);
                 if (kind === "node") {
                     seen.nodePlusItems?.add(item.textContent.trim());
                 }
@@ -226,8 +230,14 @@ async function walkPopovers(seen: Seen): Promise<void> {
             continue;
         }
         await userEvent.click(button);
+        const section = button.closest("[data-section]")?.getAttribute("data-section") ?? "";
         for (const each of floating()) {
             look(seen, each);
+            if (name.startsWith("Switch ")) {
+                for (const item of within(each).queryAllByRole("menuitem")) {
+                    seen.sectionItems?.add(`${section}:${item.textContent.trim()}`);
+                }
+            }
         }
         await closeAll();
     }
@@ -296,6 +306,7 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
             words: new Set(),
             plusItems: new Set(),
             nodePlusItems: new Set(),
+            sectionItems: new Set(),
             lines: new Set(),
             selectors: new Set(),
             unscrubbed: new Set(),
@@ -321,6 +332,11 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
         );
         const information = forbiddenBy("approved-controls");
         assert.deepEqual([...(seen.unapproved ?? [])], [], `${information.what} (${information.ledger})`);
+        assert.include(
+            [...(seen.sectionItems ?? [])],
+            "node-effects:Ring",
+            "items are recorded by section: Effects offers its Ring",
+        );
         const written = writtenChannels(session);
         for (const forbidden of OWNER_FORBIDDEN) {
             const why = `${forbidden.what} (${forbidden.ledger})`;
@@ -341,6 +357,17 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
             if (forbidden.nodePlusItem !== undefined) {
                 assert.deepEqual(
                     [...(seen.nodePlusItems ?? [])].filter((item) => forbidden.nodePlusItem?.test(item)),
+                    [],
+                    why,
+                );
+            }
+            const scoped = forbidden.sectionItem;
+            if (scoped !== undefined) {
+                assert.deepEqual(
+                    [...(seen.sectionItems ?? [])].filter((entry) => {
+                        const [section, ...item] = entry.split(":");
+                        return section === scoped.section && scoped.item.test(item.join(":"));
+                    }),
                     [],
                     why,
                 );

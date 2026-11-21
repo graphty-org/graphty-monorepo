@@ -17,6 +17,8 @@ export interface Forbidden {
     readonly plusItem?: RegExp;
     /** A "+" menu item or Switch to kind it shows as on the Node tab only (the edge tab keeps a look of that name). */
     readonly nodePlusItem?: RegExp;
+    /** A "+" menu item or Switch to kind it shows as in one section only (data-section, e.g. "node-border"). */
+    readonly sectionItem?: { readonly section: string; readonly item: RegExp };
     /** The channels a line writing it names (a line's data-line, a layer's written channel). */
     readonly channel?: RegExp;
     /** The words of a Settings control it shows as. */
@@ -143,7 +145,8 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
     {
         what: "a Rings kind under Border: the ring is Effects' Ring item, and Border is the stroke on the node's own edge",
         ledger: "E675, E676",
-        nodePlusItem: /^Rings$/,
+        // Scoped to the Border section: Effects rightly offers "Ring", so a tab-wide /^Rings?$/ would flag it.
+        sectionItem: { section: "node-border", item: /^Rings?$/ },
         selector: '[data-section="node-border"] [data-thing="rings"]',
     },
 ];

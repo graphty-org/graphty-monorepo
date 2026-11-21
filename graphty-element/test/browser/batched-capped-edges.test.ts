@@ -3,7 +3,7 @@
  * (`EdgeRowLines`): its line is pulled from its nodes' rows, draws its pattern in its shader and stops at the head's
  * back, and its head is drawn from the row table too (`ArrowCapBatch.setPulled`), so neither a directed graph's default look nor
  * an arrowhead or dash restyle builds an `Edge` or leaves an object edge. The picture is the `"objects"` path's, pixel
- * for pixel. Words on a cap that draw nothing do not need an `Edge` either.
+ * for pixel, in 3D and in 2D. Words on a cap that draw nothing do not need an `Edge` either.
  */
 
 import "../../src/graphty-element";
@@ -18,6 +18,8 @@ import { type CanvasFrame, pixelsOverBar, readCanvas } from "../helpers/whole-ca
 
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
 const RENDERERS = ADAPTER === "" ? (["webgl"] as const) : (["webgl", "webgpu"] as const);
+const VIEWS = ["3d", "2d"] as const;
+type View = (typeof VIEWS)[number];
 
 afterEach(() => {
     document.body.replaceChildren();
@@ -37,20 +39,23 @@ const EDGES = [
 const everything = { match: "everything" } as const;
 
 /**
- * Mount an element with the graph loaded in 3D, on fixed positions.
+ * Mount an element with the graph loaded on fixed positions, in 3D or in 2D.
  * @param path - The render path.
  * @param renderer - The engine.
  * @param set - What a layer on every edge sets before the edges arrive; none leaves the directed default look.
+ * @param view - The view.
  * @returns The element, its picture final.
  */
 async function loaded(
     path: RenderPath,
     renderer: "webgl" | "webgpu" = "webgl",
     set?: Record<string, unknown>,
+    view: View = "3d",
 ): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderer = renderer;
     element.renderPath = path;
+    element.viewMode = view;
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";
@@ -58,7 +63,7 @@ async function loaded(
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
     await element.session.data.addNodes(NODES);
-    await element.graph.setLayout("fixed", { dim: 3 });
+    await element.graph.setLayout("fixed", { dim: view === "2d" ? 2 : 3 });
     if (set !== undefined) {
         await element.session.styles.add({ name: "case", target: "edge", selector: everything, set } as never);
     }
@@ -92,14 +97,14 @@ function drawn(element: Graphty): { rowLines: number; built: number; objectEdges
 
 const ALL_ROW_LINES = { rowLines: EDGES.length, built: 0, objectEdges: 0 };
 
-describe("an arrowed edge on the batched path", () => {
+describe.each(VIEWS)("an arrowed edge on the batched path in %s", (view) => {
     it("is a row line in a directed graph's default look, building no Edge", async () => {
-        const element = await loaded("batched");
+        const element = await loaded("batched", "webgl", undefined, view);
         assert.deepEqual(drawn(element), ALL_ROW_LINES);
     });
 
     it("stays a row line when a restyle gives every edge an arrowhead", async () => {
-        const element = await loaded("batched", "webgl", { "edge.arrowHead": "none" });
+        const element = await loaded("batched", "webgl", { "edge.arrowHead": "none" }, view);
         assert.deepEqual(drawn(element), ALL_ROW_LINES, "plain");
         await element.session.styles.add({
             name: "arrowed",
@@ -112,7 +117,7 @@ describe("an arrowed edge on the batched path", () => {
     });
 
     it("stays a row line when a restyle dashes every line", async () => {
-        const element = await loaded("batched");
+        const element = await loaded("batched", "webgl", undefined, view);
         await element.session.styles.add({
             name: "dashed",
             target: "edge",
@@ -124,15 +129,15 @@ describe("an arrowed edge on the batched path", () => {
     });
 
     it("stays a row line with words on its head that draw nothing", async () => {
-        const element = await loaded("batched", "webgl", { "edge.arrowHeadTextSize": 14 });
+        const element = await loaded("batched", "webgl", { "edge.arrowHeadTextSize": 14 }, view);
         assert.deepEqual(drawn(element), ALL_ROW_LINES);
     });
 
     it("draws the objects path's picture once its arrowhead comes off, and once it comes back", async () => {
-        const objects = await loaded("objects", "webgl", { "edge.arrowHead": "none" });
+        const objects = await loaded("objects", "webgl", { "edge.arrowHead": "none" }, view);
         const plain = await readCanvas(objects.graph);
         objects.remove();
-        const element = await loaded("batched");
+        const element = await loaded("batched", "webgl", undefined, view);
         const arrowed = await readCanvas(element.graph);
         const { id } = (await element.session.styles.add({
             name: "plain",
@@ -158,16 +163,16 @@ describe("an arrowed edge on the batched path", () => {
             await settled(element);
             return readCanvas(element.graph);
         };
-        const objects = await loaded("objects");
+        const objects = await loaded("objects", "webgl", undefined, view);
         const want = await select(objects);
         objects.remove();
-        const batched = await loaded("batched");
+        const batched = await loaded("batched", "webgl", undefined, view);
         const have = await select(batched);
         assert.equal(pixelsOverBar(want, have), 0);
     });
 
     it("draws the same picture once reading the edges builds their Edges, before the next frame", async () => {
-        const element = await loaded("batched");
+        const element = await loaded("batched", "webgl", undefined, view);
         const want = await readCanvas(element.graph);
         const dm = element.graph.getDataManager();
         assert.equal([...dm.edges.values()].length, EDGES.length);
@@ -195,25 +200,35 @@ describe("an edge with no drawn head on the batched path", () => {
     }
 });
 
-describe.each(RENDERERS)("an arrowed row line's picture on %s", (renderer) => {
-    for (const [name, set] of [
-        ["the default look", undefined],
-        [
-            "wide lines and large open heads",
-            { "edge.width": 40, "edge.arrowHead": "open-normal", "edge.arrowHeadSize": 2 },
-        ],
-        ["vee heads, translucent", { "edge.arrowHead": "vee", "edge.arrowHeadOpacity": 0.5 }],
-        ["dashed lines", { "edge.style": "dash" }],
-        ["dotted lines with no heads", { "edge.style": "dot", "edge.arrowHead": "none" }],
-        ["star lines, wide", { "edge.style": "star", "edge.width": 3 }],
-    ] as const) {
-        it(`is the objects path's, ${name}`, async () => {
-            const objects = await loaded("objects", renderer, set);
-            const want = await readCanvas(objects.graph);
-            objects.remove();
-            const batched = await loaded("batched", renderer, set);
-            assert.deepEqual(drawn(batched), ALL_ROW_LINES);
-            assert.equal(pixelsOverBar(want, await readCanvas(batched.graph)), 0);
-        });
-    }
-});
+describe.each(RENDERERS.flatMap((renderer) => VIEWS.map((view) => [renderer, view] as const)))(
+    "an arrowed row line's picture on %s in %s",
+    (renderer, view) => {
+        for (const [name, set] of [
+            ["the default look", undefined],
+            [
+                "wide lines and large open heads",
+                { "edge.width": 40, "edge.arrowHead": "open-normal", "edge.arrowHeadSize": 2 },
+            ],
+            ["vee heads, translucent", { "edge.arrowHead": "vee", "edge.arrowHeadOpacity": 0.5 }],
+            ["dot heads", { "edge.arrowHead": "dot" }],
+            ["dashed lines", { "edge.style": "dash" }],
+            ["dotted lines with no heads", { "edge.style": "dot", "edge.arrowHead": "none" }],
+            ["star lines, wide", { "edge.style": "star", "edge.width": 3 }],
+        ] as const) {
+            it(`is the objects path's, ${name}`, async () => {
+                const objects = await loaded("objects", renderer, set, view);
+                const want = await readCanvas(objects.graph);
+                objects.remove();
+                const batched = await loaded("batched", renderer, set, view);
+                // the objects path's 2D cap takes its opacity twice (`pulledHeadOf`), so a translucent 2D head is still
+                // an object edge's
+                const translucent2d = view === "2d" && set !== undefined && "edge.arrowHeadOpacity" in set;
+                assert.deepEqual(
+                    drawn(batched),
+                    translucent2d ? { rowLines: 0, built: EDGES.length, objectEdges: EDGES.length } : ALL_ROW_LINES,
+                );
+                assert.equal(pixelsOverBar(want, await readCanvas(batched.graph)), 0);
+            });
+        }
+    },
+);

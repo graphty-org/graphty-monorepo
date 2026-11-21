@@ -396,8 +396,16 @@ void main() {
 
     // Build camera-facing coordinate system
     // This system is aligned with the line but rotates to face the camera
+#ifdef CAP_FLAT
+    // A 2D graph's cap lies flat in its plane, turned only about Z to the line's angle in XY, as ArrowCap.place2D
+    // turns the 2D cap's own mesh: a quarter turn about X, then about Z. Facing the camera's point instead would tilt
+    // it under the orthographic camera, off its center.
+    vec3 forward = normalize(vec3(lineDir.xy, 0.0));
+    vec3 toCamera = vec3(0.0, 0.0, 1.0);
+#else
     vec3 forward = normalize(lineDir);                    // Arrow points along line
     vec3 toCamera = normalize(cameraPosition - worldCenter);
+#endif
     vec3 right = cross(forward, toCamera);                // Perpendicular to line AND camera
     // Camera exactly on the line: the cross is zero and normalize() of it is NaN. Any axis across
     // the line will do there, since the flat cap is edge-on to the camera whichever one it is.
@@ -1612,6 +1620,8 @@ void main() {
      * @param opacity - The cap's opacity, which picks the pass.
      * @param scene - The scene.
      * @param fill - An open cap's inside color; a cap with one is never pulled.
+     * @param flat - Whether its caps lie flat in a 2D graph's plane (`CAP_FLAT`): only a 2D graph's pulled heads
+     *     (`pulledHeadBatch`), as an object edge's 2D cap is a flat mesh of its own (`EdgeMesh.createArrowHead`).
      * @returns The batch.
      */
     static capBatchOf(
@@ -1620,13 +1630,14 @@ void main() {
         opacity: number,
         scene: Scene,
         fill?: string,
+        flat = false,
     ): ArrowCapBatch {
         const host = fill === undefined ? (pulledCapHosts.get(scene) ?? null) : null;
         const pass = opacity < 1 ? "translucent" : "opaque";
         return arrowCapBatch(
             scene,
-            `3d|${shape}|${pass}${host === null ? "" : "|pulled"}`,
-            () => this.applyInstancedShader(createShape(), 1, scene, fill, host !== null),
+            `3d|${shape}|${pass}${host === null ? "" : "|pulled"}${flat ? "|flat" : ""}`,
+            () => this.applyInstancedShader(createShape(), 1, scene, fill, host !== null, flat),
             true,
             host,
         );
@@ -1641,9 +1652,17 @@ void main() {
      * @param fill - An open cap's inside color (`ArrowStyle.fillColor`), for a mesh its inside's triangles first
      *     ({@link createOpenOutline}); unset, one material for the whole cap
      * @param pulled - Whether the batch also draws caps pulled from the row table (`CAP_PULLED`, renderPath "batched")
+     * @param flat - Whether its caps lie flat in a 2D graph's plane (`CAP_FLAT`)
      * @returns The same mesh
      */
-    static applyInstancedShader(mesh: Mesh, opacity: number, scene: Scene, fill?: string, pulled = false): Mesh {
+    static applyInstancedShader(
+        mesh: Mesh,
+        opacity: number,
+        scene: Scene,
+        fill?: string,
+        pulled = false,
+        flat = false,
+    ): Mesh {
         this.registerShaders();
 
         const make = (inside: boolean): ShaderMaterial => {
@@ -1675,7 +1694,11 @@ void main() {
                     ],
                     // a batch on renderPath "batched" also draws caps pulled from the row table (`CAP_PULLED`)
                     samplers: pulled ? ["rowPosition", "rowExtent"] : [],
-                    defines: [...(inside ? ["#define CAP_FILL"] : []), ...(pulled ? ["#define CAP_PULLED"] : [])],
+                    defines: [
+                        ...(inside ? ["#define CAP_FILL"] : []),
+                        ...(pulled ? ["#define CAP_PULLED"] : []),
+                        ...(flat ? ["#define CAP_FLAT"] : []),
+                    ],
                 },
             );
             material.setFloat("opacity", opacity);

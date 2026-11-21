@@ -1161,7 +1161,8 @@ export class ArrowCapBatch {
         const placedBefore = this.placedCaps;
         for (let index = 0; index < this.highWater; index++) {
             const look = pulled.looks[index];
-            const [from, head] = [capPull[index * 4] - 1, capPull[index * 4 + 1] - 1];
+            const from = capPull[index * 4] - 1;
+            const head = capPull[index * 4 + 1] - 1;
             if (look === undefined || from < 0 || head < 0 || this.matrices[index * FLOATS_PER_MATRIX + 15] === 0) {
                 continue;
             }
@@ -1184,7 +1185,9 @@ export class ArrowCapBatch {
             }
 
             // a pulled head has no gap of its own: its tip is where the line meets its node
-            const [tx, ty, tz] = [at[3], at[4], at[5]];
+            const tx = at[3];
+            const ty = at[4];
+            const tz = at[5];
             const length = look.size * scale;
             const centreBack = look.centreBackAt(length);
             pulledCentre.set(

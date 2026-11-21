@@ -967,7 +967,8 @@ export class PulledLineBatch {
         for (let piece = 0; piece < this.highWater; piece++) {
             const look = this.endLooks[piece];
             const base = piece * this.pieceFloats;
-            const [from, head] = [this.rows[base] ?? NO_ROW, this.rows[base + 1] ?? NO_ROW];
+            const from = this.rows[base] ?? NO_ROW;
+            const head = this.rows[base + 1] ?? NO_ROW;
             if (
                 (look === undefined && this.pattern === undefined) ||
                 from < 0 ||
@@ -975,15 +976,15 @@ export class PulledLineBatch {
                 this.hidden[piece] !== 0 ||
                 // a hidden row draws no line: the shader trims it, and draws nothing
                 positions[from * 4 + 3] * positions[head * 4 + 3] === 0 ||
-                !(look === undefined
-                    ? bareEnds(rows, from, head, at)
-                    : roundRowsEnds(rows, from, head, (scale) => look.lineStopAt(look.size * scale), at) > 0)
+                !(look === undefined ? bareEnds(rows, from, head, at) : roundRowsEnds(rows, from, head, look, at) > 0)
             ) {
                 continue;
             }
 
             // EdgeLineBatch.place: a straight line's spacing for its length (Vector3.Distance)
-            const [dx, dy, dz] = [at[6] - at[0], at[7] - at[1], at[8] - at[2]];
+            const dx = at[6] - at[0];
+            const dy = at[7] - at[1];
+            const dz = at[8] - at[2];
             const spacing = patternSpacing(this.pattern, Math.sqrt(dx * dx + dy * dy + dz * dz)); // eslint-disable-line unicorn/prefer-modern-math-apis -- Vector3.Distance's own arithmetic, which the object path's spacing reads
             const to = piece * 2 * TEXEL_FLOATS;
             ends[to] = at[0];

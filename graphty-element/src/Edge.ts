@@ -3149,10 +3149,10 @@ export class Edge {
             !(EdgeMesh.drawsFlat(this.context.getScene()) && this.pullsCurve(style)) &&
             (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
             (!line.animationSpeed || this.pullsAnimated(style)) &&
-            // a pattern is drawn by a straight 3D line's shader only, never an animated one's
+            // a pattern is drawn by a straight line's shader only, never an animated one's
             (EdgeMesh.pulledPattern(style, line.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) === undefined ||
-                (!this.pullsCurve(style) && !line.animationSpeed && !EdgeMesh.drawsFlat(this.context.getScene()))) &&
-            // a head drawn from the row table: straight, in 3D, on round ends (`meshes/pulledHead.ts`)
+                (!this.pullsCurve(style) && !line.animationSpeed)) &&
+            // a head drawn from the row table: straight, on round ends (`meshes/pulledHead.ts`)
             (EdgeMesh.drawsNoCap(style.arrowHead) || this.headPullable(style)) &&
             // a line through bends is pulled straight, not rounded or round a self-loop's ring
             (parseBends(line.bends) === null || (line.bezier !== true && !this.isLoop)) &&
@@ -3161,7 +3161,7 @@ export class Edge {
     }
 
     /**
-     * Whether a pulled line's head can be drawn from the row table: on a straight 3D line, not animated, between two
+     * Whether a pulled line's head can be drawn from the row table: on a straight line, not animated, between two
      * round ends, which its shader reaches with no ray.
      * @param style - The resolved style, with a head `pulledHeadOf` draws.
      * @returns True when it can.
@@ -3172,7 +3172,8 @@ export class Edge {
             rows !== null &&
             // a scene drawn on renderPath "batched", whose cap batches draw pulled caps
             pulledCapHosts.has(this.context.getScene()) &&
-            !EdgeMesh.drawsFlat(this.context.getScene()) &&
+            // a look a 2D scene does not pull
+            pulledHeadOf(style, EdgeMesh.drawsFlat(this.context.getScene())) !== null &&
             !this.pullsCurve(style) &&
             !style.line?.animationSpeed &&
             this.headEnd("source", rows) &&
@@ -3343,7 +3344,9 @@ export class Edge {
             return null;
         }
 
-        const head = EdgeMesh.drawsNoCap(style.arrowHead) ? null : pulledHeadOf(style);
+        const head = EdgeMesh.drawsNoCap(style.arrowHead)
+            ? null
+            : pulledHeadOf(style, EdgeMesh.drawsFlat(this.context.getScene()));
         if (head !== null) {
             // made before the line's batch, as an object edge makes its cap before its line: a head and the line
             // under it are coplanar, and two opaque meshes draw in the order they were made
@@ -3431,7 +3434,9 @@ export class Edge {
         style: EdgeStyleConfig,
         rows: RowTable,
     ): NonNullable<Edge["pulled"]>["head"] {
-        const head = EdgeMesh.drawsNoCap(style.arrowHead) ? null : pulledHeadOf(style);
+        const head = EdgeMesh.drawsNoCap(style.arrowHead)
+            ? null
+            : pulledHeadOf(style, EdgeMesh.drawsFlat(this.context.getScene()));
         if (head === null) {
             return null;
         }

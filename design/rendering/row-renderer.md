@@ -513,8 +513,11 @@ CPU's ray, by that path's own error (5e-3 world units here, far below a pixel at
 As built (issue #9467, on by default on `"batched"`): a straight line's head is drawn from the row table
 (`meshes/pulledHead.ts`) for a row line (`EdgeRowLines`) and for an `Edge`'s pulled line, so a directed graph's default
 look and an arrowhead restyle leave no object edge; the line stops at the head's back in the join shader
-(`pulledCapTrim`). Only a 3D billboarded head of one material, with no words, gap, stack or position, between two round
-rows drawn in a node batch. A pulled head is a slot of the same `ArrowCapBatch` an object edge's cap of its shape takes
+(`pulledCapTrim`). Only a billboarded head of one material, with no words, gap, stack or position, between two round
+rows drawn in a node batch. In 2D the same batch shader lies the head flat in the graph's plane, turned only about Z
+(`CAP_FLAT`, a batch keyed `|flat`), as `ArrowCap.place2D` turns a 2D cap's mesh, at the 2D cap's full size (a scale
+factor of 1). A translucent 2D head stays an object edge's: the objects path's 2D cap takes its opacity twice, on its
+material and on its mesh's visibility, which a pulled head does not copy. A pulled head is a slot of the same `ArrowCapBatch` an object edge's cap of its shape takes
 (`ArrowCapBatch.setPulled`, `CAP_PULLED`, keyed `|pulled` on a scene drawn `"batched"`, `pulledCapHosts`), so placed and
 pulled caps draw in the order their slots were taken, as `"objects"` draws them. The "one sample at the tip" recorded
 for stage 17 was not float32: the old separate batch had no `arrowClip` buffer, and an unbound attribute reads 0, which
@@ -529,7 +532,7 @@ arithmetic (`meshes/restPlacement.ts`; heads into the slot's matrix, line ends a
 `PulledLineBatch`'s `edgeEnds` table), so a still graph draws the objects picture to the pixel; a frame that moves a row
 hands both back to the shader. Dash, dot, box, diamond and star lines and dash arrays are pulled too: a patterned pulled
 batch draws the joined line's pattern with world width, and the shader runs `patternSpacing` for its own length
-(`pulledSpacing`).
+(`pulledSpacing`), in 3D and in 2D.
 
 Correction from stage 20: the section 7 pixel bar cannot be run on the pass yet, so it is not adopted. No shader reads a
 trimmed end on master: a pulled line has no cap and no gap (`Edge.pullsLine`), so it runs center to center and needs no

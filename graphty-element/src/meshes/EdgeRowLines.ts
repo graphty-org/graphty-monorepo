@@ -113,6 +113,8 @@ interface RowLook {
     readonly color: string;
     readonly rgb: Color3;
     readonly opacity: number;
+    /** Whether it was judged for a 2D scene, whose head is placed at full size (`pulledHeadOf`). */
+    readonly flat: boolean;
     /** Its head drawn from the row table, null for none; only judged when the style draws one. */
     readonly head: PulledHead | null;
     /** Whether its line has a pattern (`EdgeMesh.pulledPattern`). */
@@ -331,16 +333,20 @@ export class EdgeRowLines {
      * @returns Its look.
      */
     private lookOf(style: EdgeStyleConfig): RowLook {
-        if (this.lastLook?.style !== style) {
+        const flat = EdgeMesh.drawsFlat(this.host.scene);
+        if (this.lastLook?.style !== style || this.lastLook.flat !== flat) {
             const color = style.line?.color ?? "#FFFFFF";
+            const head = EdgeMesh.drawsNoCap(style.arrowHead) ? null : pulledHeadOf(style, flat);
             this.lastLook = {
                 style,
-                draws: this.drawsStyle(style),
+                // a head a 2D scene does not pull (`pulledHeadOf`) is drawn by an `Edge`
+                draws: this.drawsStyle(style) && (head !== null || EdgeMesh.drawsNoCap(style.arrowHead)),
                 width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
                 color,
                 rgb: Color3.FromHexString(color),
                 opacity: EdgeMesh.opacityOf(style),
-                head: EdgeMesh.drawsNoCap(style.arrowHead) ? null : pulledHeadOf(style),
+                flat,
+                head,
                 patterned:
                     EdgeMesh.pulledPattern(style, style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) !== undefined,
             };
@@ -363,14 +369,12 @@ export class EdgeRowLines {
         const look = this.lookOf(style);
         const { scene, cache, rows } = this.host;
         const { head } = look;
-        // a head is drawn billboarded in 3D only, and stood at closed ends: a round one at each end, which the shader
-        // reaches with no ray (`Edge.interceptPointsFromColumns`)
+        // a head is stood at closed ends: a round one at each end, which the shader reaches with no ray
+        // (`Edge.interceptPointsFromColumns`)
         if (
             !look.draws ||
             batchUploadFrames.edgeAges(scene).on ||
-            // a pattern is drawn by the 3D line's shader only
-            (look.patterned && EdgeMesh.drawsFlat(scene)) ||
-            (head !== null && (EdgeMesh.drawsFlat(scene) || !this.headRow(source) || !this.headRow(target)))
+            (head !== null && (!this.headRow(source) || !this.headRow(target)))
         ) {
             return false;
         }

@@ -78,12 +78,15 @@ export const placedEnds = new Float64Array(9);
 
 /**
  * `trimEnds` for two round rows, as `Edge.interceptPointsFromColumns` asks it, step for step in the same float64
- * arithmetic, with nothing allocated: a rest places a hundred thousand ends at once.
+ * arithmetic, with nothing allocated: a rest places a hundred thousand ends at once, so every value is a plain local
+ * (no array destructuring, which V8 does not always unpack).
  * @param positions - The rows' places, x, y, z and w a row (`RowTable.restingPositions`).
  * @param from - The source row.
  * @param to - The target row.
- * @param radii - Each end's round radius and how far past it the line starts (its border), source first.
- * @param back - The head's own gap, then how far before it the line stops (`Edge.capBack`); 0, 0 for no head.
+ * @param ends - Each end's round radius and how far past it the line starts (its border), source first, in
+ *     `ends[0..3]` (`RowTable.roundExtentOf`'s radius and border).
+ * @param capBack - How far before the target's outline the line stops (`Edge.capBack`); 0 for no head. A pulled head
+ *     has no gap of its own.
  * @param out - Written with the three points.
  * @returns False when the line has no ends (the nodes overlap).
  */
@@ -91,14 +94,23 @@ export function roundEnds(
     positions: Float32Array,
     from: number,
     to: number,
-    radii: readonly [number, number, number, number],
-    back: readonly [number, number],
+    ends: Float64Array,
+    capBack: number,
     out: Float64Array,
 ): boolean {
-    const [r1, reach1, r2, reach2] = radii;
-    const [sx, sy, sz] = [positions[from * 4], positions[from * 4 + 1], positions[from * 4 + 2]];
-    const [tx, ty, tz] = [positions[to * 4], positions[to * 4 + 1], positions[to * 4 + 2]];
-    const [dx, dy, dz] = [tx - sx, ty - sy, tz - sz];
+    const r1 = ends[0];
+    const reach1 = ends[1];
+    const r2 = ends[2];
+    const reach2 = ends[3];
+    const sx = positions[from * 4];
+    const sy = positions[from * 4 + 1];
+    const sz = positions[from * 4 + 2];
+    const tx = positions[to * 4];
+    const ty = positions[to * 4 + 1];
+    const tz = positions[to * 4 + 2];
+    const dx = tx - sx;
+    const dy = ty - sy;
+    const dz = tz - sz;
     const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // eslint-disable-line unicorn/prefer-modern-math-apis -- trimEnds's own arithmetic, which this must match to the bit
     // as trimEnds asks it, so a NaN span has no ends either
     const apart = span > r1 + r2;
@@ -106,47 +118,65 @@ export function roundEnds(
         return false;
     }
 
-    const [ux, uy, uz] = [dx / span, dy / span, dz / span];
-    let [ax, ay, az] = [sx + ux * r1, sy + uy * r1, sz + uz * r1];
-    let [bx, by, bz] = [tx + -ux * r2, ty + -uy * r2, tz + -uz * r2];
+    const ux = dx / span;
+    const uy = dy / span;
+    const uz = dz / span;
+    let ax = sx + ux * r1;
+    let ay = sy + uy * r1;
+    let az = sz + uz * r1;
+    let bx = tx + -ux * r2;
+    let by = ty + -uy * r2;
+    let bz = tz + -uz * r2;
     // pastBorders
-    const [ex, ey, ez] = [bx - ax, by - ay, bz - az];
+    const ex = bx - ax;
+    const ey = by - ay;
+    const ez = bz - az;
     const reached = Math.sqrt(ex * ex + ey * ey + ez * ez); // eslint-disable-line unicorn/prefer-modern-math-apis -- as above
     if (!((reach1 === 0 && reach2 === 0) || reached <= reach1 + reach2)) {
         const inverse = 1 / reached;
-        const [px, py, pz] = [ex * inverse, ey * inverse, ez * inverse];
-        [ax, ay, az] = [ax + px * reach1, ay + py * reach1, az + pz * reach1];
-        [bx, by, bz] = [bx + px * -reach2, by + py * -reach2, bz + pz * -reach2];
+        const px = ex * inverse;
+        const py = ey * inverse;
+        const pz = ez * inverse;
+        ax = ax + px * reach1;
+        ay = ay + py * reach1;
+        az = az + pz * reach1;
+        bx = bx + px * -reach2;
+        by = by + py * -reach2;
+        bz = bz + pz * -reach2;
     }
 
-    const [lx, ly, lz] = [bx - ax, by - ay, bz - az];
+    const lx = bx - ax;
+    const ly = by - ay;
+    const lz = bz - az;
     const length = Math.sqrt(lx * lx + ly * ly + lz * lz); // eslint-disable-line unicorn/prefer-modern-math-apis -- as above
     const inverse = length > 0 ? 1 / length : 0;
-    const [vx, vy, vz] = length > 0 ? [lx * inverse, ly * inverse, lz * inverse] : [0, 0, 0];
-    const [capGap, capBack] = back;
-    const [gx, gy, gz] = [bx + vx * -capGap, by + vy * -capGap, bz + vz * -capGap];
+    const vx = length > 0 ? lx * inverse : 0;
+    const vy = length > 0 ? ly * inverse : 0;
+    const vz = length > 0 ? lz * inverse : 0;
     out[0] = ax;
     out[1] = ay;
     out[2] = az;
     out[3] = bx;
     out[4] = by;
     out[5] = bz;
-    out[6] = gx + vx * -capBack;
-    out[7] = gy + vy * -capBack;
-    out[8] = gz + vz * -capBack;
+    // a pulled head has no gap of its own, so the line stops its own length back from the tip
+    out[6] = bx + vx * -capBack;
+    out[7] = by + vy * -capBack;
+    out[8] = bz + vz * -capBack;
     return true;
 }
 
-/** Scratch for {@link roundRowsEnds}: each end's scale, radius and border. */
+/** Scratch for {@link roundRowsEnds}: each end's scale, radius and border, and the two ends' radii and borders. */
 const fromExtent = new Float64Array(3);
 const toExtent = new Float64Array(3);
+const bothEnds = new Float64Array(4);
 
 /**
  * {@link roundEnds} between two rows, when both are round, reading their extents from the row table.
  * @param rows - The row table.
  * @param from - The source row.
  * @param to - The target row.
- * @param lineStop - How far before the target's outline the line stops for a target scale; null for no head.
+ * @param look - The head the line stops for, its stop scaled by the target (`PulledCapLook.lineStopAt`); null for none.
  * @param out - Written with the three points.
  * @returns The target's scale (1 when it has none), or 0 for no ends: an end not round, or the nodes overlapping.
  */
@@ -154,7 +184,7 @@ export function roundRowsEnds(
     rows: RowTable,
     from: number,
     to: number,
-    lineStop: ((scale: number) => number) | null,
+    look: PulledCapLook | null,
     out: Float64Array,
 ): number {
     if (!rows.roundExtentOf(from, fromExtent) || !rows.roundExtentOf(to, toExtent)) {
@@ -163,7 +193,10 @@ export function roundRowsEnds(
 
     // Edge.capScaleAt
     const scale = Number.isFinite(toExtent[0]) && toExtent[0] > 0 ? toExtent[0] : 1;
-    const back = [0, lineStop === null ? 0 : lineStop(scale)] as const;
-    const radii = [fromExtent[1], fromExtent[2], toExtent[1], toExtent[2]] as const;
-    return roundEnds(rows.restingPositions, from, to, radii, back, out) ? scale : 0;
+    bothEnds[0] = fromExtent[1];
+    bothEnds[1] = fromExtent[2];
+    bothEnds[2] = toExtent[1];
+    bothEnds[3] = toExtent[2];
+    const capBack = look === null ? 0 : look.lineStopAt(look.size * scale);
+    return roundEnds(rows.restingPositions, from, to, bothEnds, capBack, out) ? scale : 0;
 }

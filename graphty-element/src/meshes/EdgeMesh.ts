@@ -725,7 +725,7 @@ export class EdgeMesh {
         edge: { loop?: boolean; route?: NonNullable<EdgeStyleConfig["line"]>["route"]; lean?: LeanLines } = {},
     ): PulledLineBatch {
         const { loop = false, route = style.line?.route, lean = false } = edge;
-        // a patterned line is a straight 3D line (`Edge.pullsLine`, `EdgeRowLines.drawsStyle`), never lean: the lean
+        // a patterned line is a straight line (`Edge.pullsLine`, `EdgeRowLines.drawsStyle`), never lean: the lean
         // program draws no pattern
         const pattern = this.pulledPattern(style, options.width) ?? undefined;
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
@@ -758,7 +758,7 @@ export class EdgeMesh {
         const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${suffix}${flat ? "|2d" : ""}${patterned}`;
         return cache.getPulledBatch(key, () => {
             const mesh = flat
-                ? this.createFlatPulledLine(options, style, scene, leanLine)
+                ? this.createFlatPulledLine(options, style, scene, leanLine, pattern)
                 : this.createStaticLine(options, style, scene, false, kind, pattern);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
@@ -781,6 +781,7 @@ export class EdgeMesh {
      * @param style - The resolved style.
      * @param scene - The scene.
      * @param lean - Whether it draws the lean program (`EDGE_PULLED_LEAN`), as a straight 3D batch does.
+     * @param pattern - A dashed or dotted line's pattern, as the 2D joined line draws it (`lineBatch`).
      * @returns The mesh.
      */
     private static createFlatPulledLine(
@@ -788,6 +789,7 @@ export class EdgeMesh {
         style: EdgeStyleConfig,
         scene: Scene,
         lean: LeanLines,
+        pattern?: JoinedLineOptions["pattern"],
     ): Mesh {
         return CustomLineRenderer.createJoinedLineMesh(
             {
@@ -799,6 +801,7 @@ export class EdgeMesh {
                 opaque: this.drawsOpaque(style),
                 pulled: true,
                 pulledLean: lean,
+                pattern,
             },
             scene,
         );

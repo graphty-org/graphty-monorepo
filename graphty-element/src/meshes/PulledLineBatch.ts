@@ -597,6 +597,8 @@ export class PulledLineBatch {
         this.setRows(piece, NO_ROW, NO_ROW);
         this.setHidden(piece, false);
         if (this.slots === null) {
+            // a straight piece's spare float is its cap's stand-back (`setCapBack`): the next taker starts with none
+            this.rows[piece * this.pieceFloats + 7] = 0;
             this.freeSlot(piece);
             return;
         }
@@ -683,6 +685,19 @@ export class PulledLineBatch {
      */
     setSpeed(piece: number, speed: number): void {
         this.rows[piece * this.pieceFloats + 7] = speed;
+        this.touch(piece);
+    }
+
+    /**
+     * Stop a straight piece short of its target's outline for an arrowhead drawn from the row table
+     * (`PulledCapBatch`), in the slot a plain piece leaves unused: the piece then runs from its source's outline to
+     * the head's back, as `Edge.transformArrowCap` ends an object edge's line (`PULLED_TRIM_GLSL`'s `pulledCapTrim`).
+     * @param piece - The piece.
+     * @param back - How far before the target's outline the line stops, at node scale 1 (`EdgeMesh.lineStopOf`);
+     *     0 for no head, the line running between the rows as a plain piece does.
+     */
+    setCapBack(piece: number, back: number): void {
+        this.rows[piece * this.pieceFloats + 7] = back;
         this.touch(piece);
     }
 

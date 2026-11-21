@@ -10,6 +10,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 
 import { EdgeLineBatch } from "./EdgeLineBatch";
 import { NodeBatch } from "./NodeBatch";
+import type { PulledCapBatch } from "./PulledCapBatch";
 import type { PulledLineBatch } from "./PulledLineBatch";
 
 type MeshCreatorFn = () => Mesh;
@@ -35,6 +36,8 @@ export class MeshCache {
 
     /** Pulled line batches by look, cleared with the rest so a 2D switch rebuilds their edges. */
     pulledBatchMap = new Map<string, PulledLineBatch>();
+    /** The pulled cap batches (`PulledCapBatch`), by shape and opacity. */
+    pulledCapMap = new Map<string, PulledCapBatch>();
 
     /** The node batches, by the source mesh they share a material with, which they die with. */
     nodeBatchMap = new Map<Mesh, NodeBatch>();
@@ -125,6 +128,23 @@ export class MeshCache {
     }
 
     /**
+     * Get or create the pulled cap batch of one shape and opacity.
+     * @param name - Its key, which also names the batch's mesh.
+     * @param creator - Builds the batch the first time.
+     * @returns The batch.
+     */
+    getPulledCapBatch(name: string, creator: () => PulledCapBatch): PulledCapBatch {
+        let batch = this.pulledCapMap.get(name);
+        if (batch === undefined) {
+            batch = creator();
+            batch.mesh.name = name;
+            this.pulledCapMap.set(name, batch);
+        }
+
+        return batch;
+    }
+
+    /**
      * Get or create the pulled line batch of one look.
      * @param name - The look's key, which also names the batch's mesh.
      * @param creator - Builds the batch the first time.
@@ -186,6 +206,11 @@ export class MeshCache {
         }
 
         this.pulledBatchMap.clear();
+        for (const batch of this.pulledCapMap.values()) {
+            batch.dispose();
+        }
+
+        this.pulledCapMap.clear();
         this.reset();
     }
 

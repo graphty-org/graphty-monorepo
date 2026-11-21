@@ -17,14 +17,16 @@ import { batchUploadFrames } from "./FrameRoster";
  * Design: `design/rendering/row-renderer.md`, section 4.3, stage 17.
  *
  * Only a 3D billboarded cap at the end of a straight line between two closed ends is pulled: no 2D
- * cap, no image, no stack, no cap part-way along.
+ * cap, no image, no stack, no cap part-way along. Only renderPath "batched" builds one, for the heads of
+ * its straight pulled lines (`meshes/pulledHead.ts`), and only while {@link pulledCapsOn} is on.
  */
 
 /**
- * The internal switch that lets a pulled cap batch be built. Off: pulled caps place in float32 on the
- * GPU and differ from the placed (objects) cap by one anti-aliasing sample, a picture change the owner
- * has not reviewed (design section 10), so every edge, on every render path, keeps drawing its caps
- * as objects. Only the proving test turns it on.
+ * The internal switch that lets renderPath "batched" draw arrowheads from the row table (`meshes/pulledHead.ts`), so
+ * an arrowed edge stays a row line (`EdgeRowLines`) or an `Edge` with a pulled line instead of an object edge. Off:
+ * a pulled cap places in float32 on the GPU and differs from the placed (objects) cap by one anti-aliasing sample
+ * where its tip meets its node, which `test/render-parity` holds at 0 pixels: 55 stories differ by 1 to 35 pixels
+ * with it on (design/rendering/row-renderer.md section 10, the owner's question). Tests and measurements turn it on.
  */
 export const pulledCapsOn: { value: boolean } = { value: false };
 
@@ -64,6 +66,12 @@ export class PulledCapBatch {
     /** The one mesh that draws every cap. */
     readonly mesh: Mesh;
 
+    /** The shape its caps are drawn in: the name its mesh was made with, as `ArrowCapBatch.shape` reads it. */
+    readonly shape: string;
+
+    /** How wide one of its caps reads at size 1, as `ArrowCapBatch.spanOf` reads a billboarded cap. */
+    readonly unitSpan: number;
+
     /** Bytes of cap buffers sent to the card so far: buffers built and caps written, never a move. */
     uploadedBytes = 0;
 
@@ -86,18 +94,16 @@ export class PulledCapBatch {
      * @param scene - The scene whose frames upload the buffers.
      * @param rowTextures - The row table's `rowPosition` and `rowExtent` textures, asked each frame:
      *     the row table replaces them when it grows.
-     * @throws {Error} While {@link pulledCapsOn} is off.
      */
     constructor(
         mesh: Mesh,
         scene: Scene,
         private readonly rowTextures: () => { position: BaseTexture; extent: BaseTexture },
     ) {
-        if (!pulledCapsOn.value) {
-            throw new Error("pulled caps are switched off (pulledCapsOn)");
-        }
-
         this.mesh = mesh;
+        this.shape = mesh.name;
+        const { minimum, maximum } = mesh.getBoundingInfo().boundingBox;
+        this.unitSpan = Math.sqrt(3) * Math.max(minimum.length(), maximum.length());
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;
         mesh.alwaysSelectAsActiveMesh = true;

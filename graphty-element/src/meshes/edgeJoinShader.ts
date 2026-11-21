@@ -288,6 +288,38 @@ float pulledReach(int row, float w, vec3 dir) {
     return edgeTrimReach(dir, end) + a.z;
 }
 
+// A row's end as Edge.trimInput gives it for a closed end, as the pulled cap's shader reads it (CAP_PULLED's capEnd).
+EdgeTrimEnd pulledCapEnd(int row, float w, out float scale) {
+    vec4 a = pulledExtent(row * 3);
+    vec4 b = pulledExtent(row * 3 + 1);
+    EdgeTrimEnd end;
+    end.radius = (int(a.w + 0.5) & ${String(ROW_EXTENT_ROUND)}) != 0 ? a.y * w : -1.0;
+    end.halfSize = b.xyz * w;
+    end.ellipse = 0.0;
+    end.border = a.z;
+    end.gap = 0.0;
+    end.measured = -1.0;
+    end.leaves = 0.0;
+    end.group = 0.0;
+    scale = a.x * w;
+    return end;
+}
+
+// Edge.transformArrowCap's line under a head drawn from the row table (PulledCapBatch): from the source's outline to
+// capBack, at the head's node scale, before the target's. Ends that meet nothing (overlapping nodes) keep the centers,
+// as Edge.placeArrowFromCentres leaves the line there.
+void pulledCapTrim(int fromRow, int toRow, float fromW, float toW, float capBack, inout vec3 head, inout vec3 tail) {
+    float fromScale;
+    float toScale;
+    EdgeTrimEnd source = pulledCapEnd(fromRow, fromW, fromScale);
+    EdgeTrimEnd target = pulledCapEnd(toRow, toW, toScale);
+    EdgeTrimmed ends = edgeTrimEnds(head, tail, source, target, capBack * (toScale > 0.0 ? toScale : 1.0));
+    if (ends.hasSrc && ends.hasDst) {
+        head = ends.src;
+        tail = ends.lineEnd;
+    }
+}
+
 // Edge.leaveNode at both ends: each moves toward the other by its reach, never past the other center. No name here
 // may be one WGSL reserves ("from"): WebGPU's translation keeps the names, and its pipeline would be invalid.
 void pulledTrim(int fromRow, int toRow, float fromW, float toW, inout vec3 head, inout vec3 tail) {
@@ -419,7 +451,12 @@ void pullEdge() {
         if (a.w * b.w != 0.0) {
             pA = a.xyz;
             pB = b.xyz;
-            pulledTrim(int(rows.x + 0.5), int(rows.y + 0.5), a.w, b.w, pA, pB);
+            // a straight piece's spare float: how far it stops before a head drawn from the row table
+            if (tint.a > 0.0) {
+                pulledCapTrim(int(rows.x + 0.5), int(rows.y + 0.5), a.w, b.w, tint.a, pA, pB);
+            } else {
+                pulledTrim(int(rows.x + 0.5), int(rows.y + 0.5), a.w, b.w, pA, pB);
+            }
         }
     }
     pPrev = pA;

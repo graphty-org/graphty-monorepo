@@ -11,9 +11,11 @@ import type { RowTable } from "../render/RowTable";
 import { EdgeMesh } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
+import type { PulledCapBatch } from "./PulledCapBatch";
+import { type PulledHead, pulledHeadBatch, pulledHeadOf, roundRow } from "./pulledHead";
 import type { LeanLines, PulledLineBatch } from "./PulledLineBatch";
 
-/** Style keys a row line may set: any other needs an `Edge` (a cap, a label or a band is drawn by one). */
+/** Style keys a row line may set: any other needs an `Edge` (a label or a band is drawn by one). */
 const ROW_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
 
 /**
@@ -30,15 +32,6 @@ const ROW_LINE_KEYS = new Set(["type", "animationSpeed", "width", "color", "opac
  */
 function setsOnly(block: object, keys: ReadonlySet<string>): boolean {
     return Object.entries(block).every(([key, value]) => value === undefined || value === false || keys.has(key));
-}
-
-/**
- * Whether an end draws no cap and no words.
- * @param cap - The end's style.
- * @returns True for none.
- */
-function noCap(cap: EdgeStyleConfig["arrowHead"]): boolean {
-    return cap === undefined || ((cap.type ?? "none") === "none" && cap.text === undefined);
 }
 
 /** What a row line is drawn with: a straight pulled piece, the batch it came from, and its nodes' rows. */
@@ -59,6 +52,9 @@ class LineColumns {
     target = new Int32Array(FIRST_ROWS);
     /** 1 for a row the edge masks hide: its piece draws nothing, and keeps its rows here to be shown again. */
     hidden = new Uint8Array(FIRST_ROWS);
+    /** Each row's head's batch, as its place in `EdgeRowLines.capBatches`, or {@link NO_LINE} for no head. */
+    capBatchOf = new Int32Array(FIRST_ROWS).fill(NO_LINE);
+    capSlot = new Int32Array(FIRST_ROWS);
 
     has(row: number): boolean {
         return (this.batchOf[row] ?? NO_LINE) !== NO_LINE;
@@ -75,6 +71,10 @@ class LineColumns {
             const batchOf = grown(this.batchOf);
             batchOf.fill(NO_LINE, this.batchOf.length);
             this.batchOf = batchOf;
+            const capBatchOf = grown(this.capBatchOf);
+            capBatchOf.fill(NO_LINE, this.capBatchOf.length);
+            this.capBatchOf = capBatchOf;
+            this.capSlot = grown(this.capSlot);
             this.piece = grown(this.piece);
             this.source = grown(this.source);
             this.target = grown(this.target);
@@ -88,6 +88,7 @@ class LineColumns {
         this.source[row] = source;
         this.target[row] = target;
         this.hidden[row] = 0;
+        this.capBatchOf[row] = NO_LINE;
     }
 }
 
@@ -99,6 +100,8 @@ interface RowLook {
     readonly color: string;
     readonly rgb: Color3;
     readonly opacity: number;
+    /** Its head drawn from the row table, null for none; only judged when the style draws one. */
+    readonly head: PulledHead | null;
 }
 
 /** What {@link EdgeRowLines} reads from the graph. */
@@ -108,6 +111,11 @@ export interface EdgeRowLinesHost {
     readonly rows: RowTable;
     /** Whether lines take the lean program (`GraphContext.leansLines`). */
     readonly lean: () => LeanLines;
+    /**
+     * Whether a node row is drawn in a node batch, read from the row table as a pulled head reads it; an object row is
+     * drawn from its `Node`, whose head is placed as `Edge.transformArrowCap` places it.
+     */
+    readonly batchedRow: (row: number) => boolean;
     /** Ask for a frame, so a row painted or unpainted shows. */
     readonly requestFrame: () => void;
 }
@@ -126,6 +134,8 @@ export class EdgeRowLines {
     private lines = new LineColumns();
     /** The batches the row lines are drawn in, one per look: a row names its batch by its place here. */
     private readonly batches: PulledLineBatch[] = [];
+    /** The batches the row lines' heads are drawn in, one per shape and opacity: a row names its batch by its place. */
+    private readonly capBatches: PulledCapBatch[] = [];
     private drawn = 0;
     /** The batches, by their place in {@link batches}, that draw plain paints (`plainEdgePaint`). */
     private readonly plainBatches = new Set<number>();
@@ -235,6 +245,7 @@ export class EdgeRowLines {
 
         lines.hidden[row] = hidden ? 1 : 0;
         this.batches[lines.batchOf[row]].setHidden(lines.piece[row], hidden);
+        this.showHead(row);
         this.host.requestFrame();
     }
 
@@ -258,6 +269,7 @@ export class EdgeRowLines {
 
             hidden[row] = flag;
             this.batches[batch].setHidden(piece[row], flag === 1);
+            this.showHead(row);
             changed = true;
         }
 
@@ -292,8 +304,8 @@ export class EdgeRowLines {
             !line.animationSpeed &&
             !EdgeMesh.pullsCurve(style) &&
             drawnText(style.label) === undefined &&
-            noCap(style.arrowHead) &&
-            noCap(style.arrowTail) &&
+            (EdgeMesh.drawsNoCap(style.arrowHead) || pulledHeadOf(style) !== null) &&
+            EdgeMesh.drawsNoCap(style.arrowTail) &&
             style.band?.color === undefined
         );
     }
@@ -314,6 +326,7 @@ export class EdgeRowLines {
                 color,
                 rgb: Color3.FromHexString(color),
                 opacity: EdgeMesh.opacityOf(style),
+                head: EdgeMesh.drawsNoCap(style.arrowHead) ? null : pulledHeadOf(style),
             };
         }
 
@@ -333,7 +346,14 @@ export class EdgeRowLines {
         const { style, meshKey } = paint;
         const look = this.lookOf(style);
         const { scene, cache, rows } = this.host;
-        if (!look.draws || batchUploadFrames.edgeAges(scene).on) {
+        const { head } = look;
+        // a head is drawn billboarded in 3D only, and stood at closed ends: a round one at each end, which the shader
+        // reaches with no ray (`Edge.interceptPointsFromColumns`)
+        if (
+            !look.draws ||
+            batchUploadFrames.edgeAges(scene).on ||
+            (head !== null && (EdgeMesh.drawsFlat(scene) || !this.headRow(source) || !this.headRow(target)))
+        ) {
             return false;
         }
 
@@ -364,6 +384,11 @@ export class EdgeRowLines {
         }
 
         this.lines.set(row, at, piece, source, target);
+        if (head !== null) {
+            batch.setCapBack(piece, head.lineStop);
+            this.paintHead(row, head, source, target);
+        }
+
         this.drawn++;
         if (isPlainPaint(paint)) {
             this.plainBatches.add(at);
@@ -382,6 +407,7 @@ export class EdgeRowLines {
         const { lines } = this;
         if (lines.has(row)) {
             this.batches[lines.batchOf[row]].release(lines.piece[row]);
+            this.releaseHead(row);
             this.plainDrawn -= this.plainBatches.has(lines.batchOf[row]) ? 1 : 0;
             lines.batchOf[row] = NO_LINE;
             this.drawn--;
@@ -412,8 +438,13 @@ export class EdgeRowLines {
             const edge = moved(edgeRemap, row);
             const source = moved(nodeRemap, lines.source[row]);
             const target = moved(nodeRemap, lines.target[row]);
+            const capBatch = lines.capBatchOf[row];
             if (edge === INVALID_INDEX || source === INVALID_INDEX || target === INVALID_INDEX) {
                 batch.release(piece);
+                if (capBatch !== NO_LINE) {
+                    this.capBatches[capBatch].release(lines.capSlot[row]);
+                }
+
                 continue;
             }
 
@@ -421,6 +452,9 @@ export class EdgeRowLines {
             batch.setRows(piece, source, target);
             this.lines.set(edge, lines.batchOf[row], piece, source, target);
             this.lines.hidden[edge] = hidden ? 1 : 0;
+            this.lines.capBatchOf[edge] = capBatch;
+            this.lines.capSlot[edge] = lines.capSlot[row];
+            this.showHead(edge);
             this.drawn++;
             this.plainDrawn += this.plainBatches.has(lines.batchOf[row]) ? 1 : 0;
         }
@@ -436,8 +470,67 @@ export class EdgeRowLines {
 
         this.lines = new LineColumns();
         this.batches.length = 0;
+        this.capBatches.length = 0;
         this.plainBatches.clear();
         this.plainDrawn = 0;
+    }
+
+    /**
+     * Draw a row line's head from the row table, in the cap batch of its shape and opacity.
+     * @param row - The edge row.
+     * @param head - Its head.
+     * @param source - Its source node's row.
+     * @param target - Its target node's row.
+     */
+    private paintHead(row: number, head: PulledHead, source: number, target: number): void {
+        const { scene, cache, rows } = this.host;
+        const batch = pulledHeadBatch(head, cache, scene, rows);
+        let at = this.capBatches.indexOf(batch);
+        if (at === -1) {
+            at = this.capBatches.push(batch) - 1;
+        }
+
+        const slot = batch.acquire();
+        batch.setCap(slot, { ...head.place, from: source, head: target });
+        this.lines.capBatchOf[row] = at;
+        this.lines.capSlot[row] = slot;
+    }
+
+    /**
+     * Draw a row's head between its line's rows, or nothing while the row is hidden; nothing for a row with no head.
+     * @param row - The edge row.
+     */
+    private showHead(row: number): void {
+        const { lines } = this;
+        const at = lines.capBatchOf[row] ?? NO_LINE;
+        if (at === NO_LINE) {
+            return;
+        }
+
+        const shown = lines.hidden[row] === 0;
+        this.capBatches[at].setRows(lines.capSlot[row], shown ? lines.source[row] : -1, shown ? lines.target[row] : -1);
+    }
+
+    /**
+     * Hand a row's head back to its batch; nothing for a row with no head.
+     * @param row - The edge row.
+     */
+    private releaseHead(row: number): void {
+        const { lines } = this;
+        const at = lines.capBatchOf[row] ?? NO_LINE;
+        if (at !== NO_LINE) {
+            this.capBatches[at].release(lines.capSlot[row]);
+            lines.capBatchOf[row] = NO_LINE;
+        }
+    }
+
+    /**
+     * Whether a pulled head can stand on a node row: one drawn in a node batch, with a round outline.
+     * @param row - The node row.
+     * @returns True when it can.
+     */
+    private headRow(row: number): boolean {
+        return this.host.batchedRow(row) && roundRow(this.host.rows, row);
     }
 
     /**

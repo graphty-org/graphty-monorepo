@@ -510,6 +510,15 @@ away, where the pass starts at the center. So the pass beats the CPU path at a m
 nearer the exact ray, which also means that on large coordinates it can differ from the `"objects"` path, which casts the
 CPU's ray, by that path's own error (5e-3 world units here, far below a pixel at the harness's zoom).
 
+As built (issue #9467, behind `pulledCapsOn`, still off): with the switch on, `"batched"` draws a straight line's
+head from the row table (`meshes/pulledHead.ts`) for a row line (`EdgeRowLines`) and for an `Edge`'s pulled line, so
+a directed graph's default look and an arrowhead restyle leave no object edge; the line stops at the head's back in
+the join shader (`pulledCapTrim`, the stand-back in the piece's spare float). Only a 3D billboarded head of one
+material, with no words, gap, stack or position, between two round rows drawn in a node batch. With it on, 55
+`test/render-parity` stories differ from `"objects"` by 1 to 35 pixels on WebGL, each by about one sample where a
+head's tip meets its node's facets (the float32 place of stage 17), so turning it on stays the owner's question in
+section 10.
+
 Correction from stage 20: the section 7 pixel bar cannot be run on the pass yet, so it is not adopted. No shader reads a
 trimmed end on master: a pulled line has no cap and no gap (`Edge.pullsLine`), so it runs center to center and needs no
 reach, and the trim include is still read only by its CPU mirror. The two floats per pulled edge first have a reader in a

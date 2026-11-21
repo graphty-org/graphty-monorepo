@@ -69,6 +69,7 @@ import { batchUploadFrames } from "./meshes/FrameRoster";
 import type { ColumnRow } from "./meshes/NodeBatch";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { movingTexel } from "./meshes/pulledAnimatedLine";
+import { type PulledCapBatch, pulledCapsOn } from "./meshes/PulledCapBatch";
 import {
     CURVE_STRIDE,
     curvePathPoint,
@@ -78,6 +79,7 @@ import {
     routed,
     viaShare,
 } from "./meshes/pulledCurve";
+import { pulledHeadBatch, pulledHeadOf, roundRow } from "./meshes/pulledHead";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -186,15 +188,6 @@ function setsOnly(block: object, keys: ReadonlySet<string>): boolean {
 }
 
 /**
- * Whether an end draws no cap and no words.
- * @param cap - The end's style.
- * @returns True for none.
- */
-function noCap(cap: EdgeStyleConfig["arrowHead"]): boolean {
-    return cap === undefined || ((cap.type ?? "none") === "none" && cap.text === undefined);
-}
-
-/**
  * Counts every time a look is judged for whether it can be pulled ({@link pulledLook}), so a test can count it.
  * @internal
  */
@@ -206,14 +199,18 @@ export const pulledLooks = { judged: 0 };
  */
 const pulledLookOf = new WeakMap<EdgeStyleConfig, boolean>();
 
+/** {@link pulledLookOf} while `pulledCapsOn` is on, when a head drawn from the row table can be pulled too. */
+const pulledLookWithHeadsOf = new WeakMap<EdgeStyleConfig, boolean>();
+
 /**
  * The part of `Edge.pullsLine` that reads the style alone: it sets only keys a pulled line draws, a solid line,
- * no words, no cap and no band.
+ * no words, no band, no tail and no head but one drawn from the row table (`pulledHeadOf`).
  * @param style - The resolved style.
  * @returns True when the look can be pulled.
  */
 function pulledLook(style: EdgeStyleConfig): boolean {
-    let pulls = pulledLookOf.get(style);
+    const answers = pulledCapsOn.value ? pulledLookWithHeadsOf : pulledLookOf;
+    let pulls = answers.get(style);
     if (pulls === undefined) {
         pulledLooks.judged++;
         const line = style.line ?? {};
@@ -222,10 +219,10 @@ function pulledLook(style: EdgeStyleConfig): boolean {
             setsOnly(line, PULLED_LINE_KEYS) &&
             (line.type ?? "solid") === "solid" &&
             drawnText(style.label) === undefined &&
-            noCap(style.arrowHead) &&
-            noCap(style.arrowTail) &&
+            (EdgeMesh.drawsNoCap(style.arrowHead) || pulledHeadOf(style) !== null) &&
+            EdgeMesh.drawsNoCap(style.arrowTail) &&
             style.band?.color === undefined;
-        pulledLookOf.set(style, pulls);
+        answers.set(style, pulls);
     }
 
     return pulls;
@@ -1048,6 +1045,8 @@ export class Edge {
         path?: { src: Vector3; dst: Vector3; span: CurveSpan } | null;
         /** A line through bends' block in the batch's route table and the cut path it holds ({@link Edge.pullSpan}). */
         route?: { at: number; points: readonly number[] } | null;
+        /** Its head drawn from the row table (`meshes/pulledHead.ts`), in place of {@link Edge.arrowCap}; null for none. */
+        head: { batch: PulledCapBatch; slot: number; size: number } | null;
     } | null = null;
 
     /**
@@ -1529,11 +1528,26 @@ export class Edge {
             { end: "arrowMiddleTail", cap: this.arrowMiddleTailCap },
         ];
 
-        return caps.flatMap(({ end, cap }) =>
-            cap === null || cap.isDisposed()
+        const head = this.pulled?.head ?? null;
+        const pulled =
+            head === null
                 ? []
-                : [{ end, name: cap.name, span: cap.span, visibility: cap.visibility }],
-        );
+                : [
+                      {
+                          end: "arrowHead" as const,
+                          name: head.batch.shape,
+                          span: head.batch.unitSpan * head.size * this.capScaleAt("target"),
+                          visibility: head.batch.mesh.visibility,
+                      },
+                  ];
+        return [
+            ...pulled,
+            ...caps.flatMap(({ end, cap }) =>
+                cap === null || cap.isDisposed()
+                    ? []
+                    : [{ end, name: cap.name, span: cap.span, visibility: cap.visibility }],
+            ),
+        ];
     }
 
     /**
@@ -2278,6 +2292,8 @@ export class Edge {
             this.haloBatch.mesh.material.zOffsetUnits = HALO_DEPTH_OFFSET;
         }
         this.haloSlots = this.haloBatch ? [this.haloBatch.acquire(this)] : [];
+        // whether a pulled line follows its rows alone changed ({@link Edge.followsRows})
+        pulledLines.version += this.pulled === null ? 0 : 1;
         this.haloIsCurve = curve;
         // The band has no place until the next update puts it on the line.
         this.invalidatePositionCache();
@@ -2289,6 +2305,7 @@ export class Edge {
             this.haloBatch?.release(slot);
         }
 
+        pulledLines.version += this.pulled !== null && this.haloBatch !== null ? 1 : 0;
         this.haloBatch = null;
         this.haloSlots = [];
         this.haloKey = null;
@@ -2411,6 +2428,11 @@ export class Edge {
         end: "arrowHead" | "arrowTail",
         reuse: ArrowCap | null = null,
     ): ArrowCap | null {
+        // a head drawn from the row table with the pulled line ({@link Edge.pullLine}) is no placed cap
+        if (end === "arrowHead" && this.pullsHead(style)) {
+            return null;
+        }
+
         const arrow = style[end];
         return EdgeMesh.createArrowHead(
             {
@@ -2584,7 +2606,8 @@ export class Edge {
 
         const options = { styleId: meshKey, width, color: style.line?.color ?? "#FFFFFF" };
         const batch = this.pulledBatchOf(options, style, rows);
-        if (batch !== pulled.batch) {
+        // a head drawn from the row table is built again with its line
+        if (batch !== pulled.batch || pulled.head !== null || this.pullsHead(style)) {
             return false;
         }
 
@@ -3113,10 +3136,52 @@ export class Edge {
             !(EdgeMesh.drawsFlat(this.context.getScene()) && this.pullsCurve(style)) &&
             (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
             (!line.animationSpeed || this.pullsAnimated(style)) &&
+            // a head drawn from the row table: straight, in 3D, on round ends (`meshes/pulledHead.ts`)
+            (EdgeMesh.drawsNoCap(style.arrowHead) || this.headPullable(style)) &&
             // a line through bends is pulled straight, not rounded or round a self-loop's ring
             (parseBends(line.bends) === null || (line.bezier !== true && !this.isLoop)) &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
+    }
+
+    /**
+     * Whether a pulled line's head can be drawn from the row table: on a straight 3D line, not animated, between two
+     * round ends, which its shader reaches with no ray.
+     * @param style - The resolved style, with a head `pulledHeadOf` draws.
+     * @returns True when it can.
+     */
+    private headPullable(style: EdgeStyleConfig): boolean {
+        const rows = this.context.getRowTable?.() ?? null;
+        return (
+            rows !== null &&
+            !EdgeMesh.drawsFlat(this.context.getScene()) &&
+            !this.pullsCurve(style) &&
+            !style.line?.animationSpeed &&
+            this.headEnd("source", rows) &&
+            this.headEnd("target", rows)
+        );
+    }
+
+    /**
+     * Whether a pulled head can stand on one end: a row drawn in a node batch, read from the row table, with a round
+     * outline. An object row's end is its `Node`'s, which a placed head reads.
+     * @param end - Which end.
+     * @param rows - The row table.
+     * @returns True when it can.
+     */
+    private headEnd(end: "source" | "target", rows: RowTable): boolean {
+        const batched =
+            this.columnEnd(end) !== undefined || (end === "source" ? this.srcNode : this.dstNode).drawnInBatch;
+        return batched && roundRow(rows, this.endRow(end));
+    }
+
+    /**
+     * Whether this edge's head is drawn from the row table with its pulled line rather than as a placed cap.
+     * @param style - The resolved style.
+     * @returns True when it is.
+     */
+    private pullsHead(style: EdgeStyleConfig): boolean {
+        return !EdgeMesh.drawsNoCap(style.arrowHead) && this.wantsPull(style);
     }
 
     /**
@@ -3259,11 +3324,38 @@ export class Edge {
             curve,
             run: [],
             look,
+            head: this.pullHead(batch, piece, style, rows),
         };
         this.pullRows();
         // the walk leaves a straight pulled line alone ({@link Edge.followsRows}), so what it last placed is stale
         this.invalidatePositionCache();
         return batch.mesh;
+    }
+
+    /**
+     * Draw a pulled line's head from the row table, and stop the line at its back.
+     * @param batch - The line's batch.
+     * @param piece - The line's piece.
+     * @param style - The resolved style.
+     * @param rows - The row table.
+     * @returns The head's batch and slot, drawing nothing until {@link Edge.pullRows}; null with no head.
+     */
+    private pullHead(
+        batch: PulledLineBatch,
+        piece: number,
+        style: EdgeStyleConfig,
+        rows: RowTable,
+    ): NonNullable<Edge["pulled"]>["head"] {
+        const head = EdgeMesh.drawsNoCap(style.arrowHead) ? null : pulledHeadOf(style);
+        if (head === null) {
+            return null;
+        }
+
+        batch.setCapBack(piece, head.lineStop);
+        const caps = pulledHeadBatch(head, this.context.getMeshCache(), this.context.getScene(), rows);
+        const slot = caps.acquire();
+        caps.setCap(slot, { ...head.place, from: -1, head: -1 });
+        return { batch: caps, slot, size: head.place.size };
     }
 
     /**
@@ -3456,6 +3548,7 @@ export class Edge {
                 pulled.batch.setRows(piece, source, target);
             }
 
+            pulled.head?.batch.setRows(pulled.head.slot, source, target);
             pulled.source = source;
             pulled.target = target;
         }
@@ -3479,7 +3572,8 @@ export class Edge {
      * @internal
      */
     get followsRows(): boolean {
-        return this.pulled !== null && !this.pulled.curve && this.route === "straight";
+        // a halo (a selected edge's band) is a placed slot, so the walk places it
+        return this.pulled !== null && !this.pulled.curve && this.route === "straight" && this.haloBatch === null;
     }
 
     /**
@@ -3558,6 +3652,9 @@ export class Edge {
             }
 
             this.pulled.batch.releaseRoute(this.pulled.route?.at ?? -1);
+            if (this.pulled.head !== null) {
+                this.pulled.head.batch.release(this.pulled.head.slot);
+            }
 
             this.pulled = null;
             pulledLines.version++;
@@ -5454,7 +5551,14 @@ export class Edge {
 
         // A TAIL IS PLACED WITHOUT A HEAD TOO. This used to return here unless the edge had a
         // head, so a tail drawn with no head (type "none", or size 0, #2067) was never placed.
-        if (!arrowCap && !this.arrowTailCap && !this.arrowMiddleHeadCap && !this.arrowMiddleTailCap) {
+        // a head drawn from the row table ends the line as a placed one does, for what follows the line (a halo)
+        if (
+            !arrowCap &&
+            !this.arrowTailCap &&
+            !this.arrowMiddleHeadCap &&
+            !this.arrowMiddleTailCap &&
+            (this.pulled?.head ?? null) === null
+        ) {
             return {
                 srcPoint: null,
                 dstPoint: null,

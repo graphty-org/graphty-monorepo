@@ -1,0 +1,145 @@
+import type { Scene } from "@babylonjs/core/scene.js";
+
+import type { EdgeStyleConfig } from "../config";
+import { drawnText } from "../config/RichTextStyle";
+import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import type { RowTable } from "../render/RowTable";
+import { EdgeMesh } from "./EdgeMesh";
+import { FilledArrowRenderer } from "./FilledArrowRenderer";
+import type { MeshCache } from "./MeshCache";
+import { PulledCapBatch, type PulledCapPlace, pulledCapsOn } from "./PulledCapBatch";
+
+/**
+ * @file An arrowhead drawn from the row table (`PulledCapBatch`) at the target end of a straight pulled line, on
+ * renderPath "batched", while `pulledCapsOn` is on: the head a row line (`EdgeRowLines`) or an `Edge`'s pulled line (`Edge.pullLine`) draws, so
+ * neither a directed graph's default look nor an arrowhead restyle needs an object edge. The line stops at the head's
+ * back (`PulledLineBatch.setCapBack`, `PULLED_TRIM_GLSL`'s `pulledCapTrim`), as `Edge.transformArrowCap` ends it.
+ */
+
+/** What a pulled head is drawn with, decided once for every edge painted with one style. */
+export interface PulledHead {
+    /** The cap batch's key: its shape and opacity. */
+    readonly key: string;
+    /** The options its shape is made from (`EdgeMesh.billboardShape`). */
+    readonly shape: Parameters<typeof EdgeMesh.billboardShape>[0];
+    readonly opacity: number;
+    /** What the cap stands back by, but for its rows. */
+    readonly place: Omit<PulledCapPlace, "head" | "from">;
+    /** How far before the target's outline the line stops, at node scale 1 (`Edge.capBack`). */
+    readonly lineStop: number;
+}
+
+/** The answer of {@link pulledHeadOf} for each style: a painted style is shared and never changed. */
+const heads = new WeakMap<EdgeStyleConfig, PulledHead | null>();
+
+/**
+ * The head a style's straight pulled line draws from the row table, as `Edge.placeArrowHead` stands an object edge's
+ * head: a 3D billboarded cap at the target end, of a shape the billboard shader draws in one material
+ * (`EdgeMesh.billboardShape`), with no words, no gap, no row behind it (`stack`) and not part-way along. The caller
+ * rules out 2D, a curve and an end that is not round.
+ * @param style - The resolved style, with a head that draws (`EdgeMesh.drawsNoCap` false).
+ * @returns The head, or null for a head only an object edge draws.
+ */
+export function pulledHeadOf(style: EdgeStyleConfig): PulledHead | null {
+    if (!pulledCapsOn.value) {
+        return null;
+    }
+
+    let head = heads.get(style);
+    if (head === undefined) {
+        head = judge(style);
+        heads.set(style, head);
+    }
+
+    return head;
+}
+
+/**
+ * {@link pulledHeadOf}, uncached.
+ * @param style - The resolved style.
+ * @returns The head, or null.
+ */
+function judge(style: EdgeStyleConfig): PulledHead | null {
+    const arrow = style.arrowHead ?? {};
+    const type = arrow.type ?? "none";
+    const size = arrow.size ?? 1;
+    if (
+        drawnText(arrow.text) !== undefined ||
+        (arrow.position ?? 0) !== 0 ||
+        (arrow.gap ?? 0) !== 0 ||
+        arrow.stack !== undefined
+    ) {
+        return null;
+    }
+
+    const shape = {
+        type,
+        width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+        color: "",
+        size,
+        breadth: arrow.width,
+        side: arrow.side,
+        outline: arrow.outlineWidth,
+        fill: arrow.fillColor,
+    };
+    // the key alone: a shape's mesh is made once per batch, in the scene that draws it
+    const key = EdgeMesh.billboardShapeKey(shape);
+    if (key === null) {
+        return null;
+    }
+
+    const opacity = arrow.opacity ?? 1;
+    const length = EdgeMesh.calculateArrowLength() * size;
+    const geometry = EdgeMesh.getArrowGeometry(type, { lineWidth: style.line?.width, size, breadth: arrow.width });
+    // EdgeMesh.calculateArrowPosition: a round cap's center half its size behind the tip, any other by its offset
+    const centreBack =
+        geometry.positioningMode === "center"
+            ? (length * (geometry.scaleFactor ?? 1)) / 2
+            : length * geometry.positionOffset;
+    return {
+        key: `edge-pulled-cap|${key}|${String(opacity)}`,
+        shape,
+        opacity,
+        place: {
+            fromGap: 0,
+            headGap: 0,
+            capGap: 0,
+            centreBack,
+            size: length,
+            colour: arrow.color ?? style.line?.color ?? "#FFFFFF",
+        },
+        lineStop: EdgeMesh.lineStopOf(length, geometry),
+    };
+}
+
+/**
+ * The cap batch a head is drawn in, one per shape and opacity, kept by the graph's mesh cache.
+ * @param head - The head.
+ * @param cache - The mesh cache.
+ * @param scene - The scene.
+ * @param rows - The row table.
+ * @returns The batch.
+ */
+export function pulledHeadBatch(head: PulledHead, cache: MeshCache, scene: Scene, rows: RowTable): PulledCapBatch {
+    return cache.getPulledCapBatch(head.key, () => {
+        const shape = EdgeMesh.billboardShape(head.shape, scene);
+        if (shape === null) {
+            throw new Error(`no billboarded cap for ${head.key}`);
+        }
+
+        const mesh = FilledArrowRenderer.applyPulledShader(shape.create(), head.opacity, scene);
+        // The rows are in graph-root's space, as a pulled line's are (`EdgeMesh.pulledBatch`).
+        mesh.parent = scene.getTransformNodeByName("graph-root");
+        return new PulledCapBatch(mesh, scene, () => ({ position: rows.positionTexture, extent: rows.extentTexture }));
+    });
+}
+
+/**
+ * Whether a node row's outline is round, so a pulled head stands on it with no ray (`RowTable.extentOf`).
+ * @param rows - The row table.
+ * @param row - The node row.
+ * @returns True when it is.
+ */
+export function roundRow(rows: RowTable, row: number): boolean {
+    return row >= 0 && rows.extentOf(row).round !== null;
+}

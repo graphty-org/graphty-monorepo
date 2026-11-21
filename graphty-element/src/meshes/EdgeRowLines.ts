@@ -5,6 +5,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import type { EdgeStyleConfig } from "../config";
 import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import { GraphtyError } from "../errors/GraphtyError";
 import { type EdgePaint, isPlainPaint } from "../managers/StylePainter";
 import type { RowTable } from "../render/RowTable";
 import { EdgeMesh } from "./EdgeMesh";
@@ -343,7 +344,18 @@ export class EdgeRowLines {
         });
         // as `Edge.pullLine` gives its piece the look: in 2D a world width
         const drawnWidth = EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20;
-        const piece = batch.acquire(drawnWidth);
+        let piece: number;
+        try {
+            piece = batch.acquire(drawnWidth);
+        } catch (error) {
+            // a batch the card cannot hold more of: the row's `Edge` draws it, and reports it (`Edge.refuseTooLarge`)
+            if (error instanceof GraphtyError && error.code === "E_TOO_LARGE") {
+                return false;
+            }
+
+            throw error;
+        }
+
         batch.setLook(piece, look.rgb, look.opacity, drawnWidth);
         batch.setRows(piece, source, target);
         let at = this.batches.indexOf(batch);

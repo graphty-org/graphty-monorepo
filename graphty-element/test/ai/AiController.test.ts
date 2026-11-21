@@ -312,7 +312,10 @@ describe("AiController", () => {
 
             await multi.execute("do it");
 
-            assert.strictEqual(JSON.parse(provider.asks[1].at(-1)?.content ?? "{}").success, false);
+            assert.strictEqual(
+                (JSON.parse(provider.asks[1].at(-1)?.content ?? "{}") as { success?: boolean }).success,
+                false,
+            );
             assert.deepStrictEqual(fixed, ["b"]);
         });
 

@@ -1493,6 +1493,19 @@ class Runs implements SessionRunsApi {
     private readonly dispatch: DispatchFunction = (command, options) => this.dispatcher.dispatch(command, options);
 
     /**
+     * Throw what the dispatcher would refuse a run's command with now (a draft's After drawn), so
+     * the caller gets its code rather than a run started and canceled when its command is refused.
+     * @param command - The run's command.
+     * @param command.op - Its op.
+     */
+    private refuseNow(command: { readonly op: string }): void {
+        const refusal = this.dispatcher.services.refuse?.(command) ?? null;
+        if (refusal !== null) {
+            throw refusal;
+        }
+    }
+
+    /**
      * Start one algorithm, or hand back the run that already answers this question.
      * @param via - Where the run's command is dispatched.
      * @param algorithm - Which algorithm to run.
@@ -1544,6 +1557,7 @@ class Runs implements SessionRunsApi {
         // A run of its own under a counted id: its command names that id, or carrying it out would
         // derive the shared id again and re-run that run in place.
         const command = own ? this.pinnedTo(id, asked) : asked;
+        this.refuseNow(command);
         const launch: Launch = { via, command, beside: options.queue === "now" };
         const existing = this.runs.get(id);
         algorithmLog.info("run requested", { algorithm, id, params: params ?? null, existing: existing !== undefined });
@@ -1773,6 +1787,7 @@ class Runs implements SessionRunsApi {
             },
             entry: () => this.dispatcher.state.runs.get(id),
             numberedAfter: () => this.sameQuestion(id)?.result,
+            keptLayers: () => this.bindings(id),
         };
         const run = new ManagedRun<RunResult>(definition, surroundings);
 

@@ -35,6 +35,7 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
+import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import type { saveProjectAsV2 } from "./actions";
 import { NameField } from "./NameField";
@@ -336,6 +337,17 @@ function storageOf(facts: ProjectSaveFacts): Record<string, SourceStorage> {
     );
 }
 
+/**
+ * Closes Save as and says why when graphty-element could not tell what a save would write.
+ * @param store - the workspace store.
+ */
+function cannotDescribe(store: WorkspaceStore): void {
+    store.set({
+        dialog: null,
+        notice: { message: "This project cannot be saved as a version 2 file.", error: true },
+    });
+}
+
 /** What the workspace hands the lazily loaded dialogs, so they import nothing of actions.ts. */
 export interface SaveFilesV2DialogsProps {
     /** The dialog id Save as opens. */
@@ -364,6 +376,9 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
     const [storage, setStorage] = useState<Record<string, SourceStorage>>({});
     const [form, setForm] = useState<"full" | "section">("full");
     const [saving, setSaving] = useState(false);
+    // Whether the reader asked to save (Save or Enter) before graphty-element answered: the save
+    // then runs once it does, and Save shows it is waiting.
+    const [pending, setPending] = useState(false);
     // Whether the save chosen is the project or a copy, as graphty-element says, and for which
     // choice: a verdict for an earlier choice is no verdict, so Save waits for the current one.
     const [verdict, setVerdict] = useState<{
@@ -384,6 +399,7 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
         setChosen([...DOCUMENT_SECTIONS]);
         setForm("full");
         setFacts(null);
+        setPending(false);
         let live = true;
         session.project.describe().then(
             (described) => {
@@ -394,10 +410,7 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
             },
             () => {
                 if (live) {
-                    workspace.store.set({
-                        dialog: null,
-                        notice: { message: "This project cannot be saved as a version 2 file.", error: true },
-                    });
+                    cannotDescribe(workspace.store);
                 }
             },
         );
@@ -425,22 +438,34 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
                     setVerdict({ chosen, form: fileForm, project: described.project });
                 }
             },
-            () => undefined,
+            // Never swallowed: without a verdict Save would wait forever and say nothing.
+            () => {
+                if (live) {
+                    cannotDescribe(workspace.store);
+                }
+            },
         );
         return () => {
             live = false;
         };
-    }, [opened, session, chosen, fileForm]);
+    }, [opened, session, chosen, fileForm, workspace.store]);
 
     const whole = verdict?.chosen === chosen && verdict.form === fileForm ? verdict.project : null;
     const trimmed = name.trim();
     const close = (): void => {
         workspace.store.set({ dialog: null });
     };
+    const blocked = trimmed === "" || chosen.length === 0;
+    const ready = facts !== null && whole !== null;
     const save = async (): Promise<void> => {
-        if (trimmed === "" || saving || facts === null || chosen.length === 0 || whole === null) {
+        if (blocked || saving) {
             return;
         }
+        if (facts === null || whole === null) {
+            setPending(true);
+            return;
+        }
+        setPending(false);
         setSaving(true);
         left.current = false;
         try {
@@ -453,6 +478,13 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
             setSaving(false);
         }
     };
+
+    // An early Save or Enter saves once graphty-element answers.
+    useEffect(() => {
+        if (pending && ready) {
+            void save();
+        }
+    });
 
     return (
         <Modal opened={opened} onClose={close} title={`Save ${current} as`} size="lg">
@@ -504,8 +536,10 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
                     </Button>
                     <Button
                         type="submit"
-                        disabled={trimmed === "" || facts === null || chosen.length === 0 || whole === null}
-                        loading={saving}
+                        // Enabled while graphty-element is still answering, so an early Enter is
+                        // kept (a form with a disabled default button drops it); it then waits.
+                        disabled={blocked}
+                        loading={saving || (pending && !blocked)}
                     >
                         {whole === false ? "Save copy" : "Save"}
                     </Button>

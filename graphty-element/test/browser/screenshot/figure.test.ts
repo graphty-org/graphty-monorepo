@@ -1,7 +1,7 @@
 /**
  * @file A vector figure (`exportFigure`, issue #819) draws each node where and in the color the
  * canvas draws it, with its border, each edge along its curve and stopped at its arrowheads, each label over its
- * solid or gradient panel, keeps labels and the key as text, and fails with a code for a format it does
+ * solid or gradient panel, keeps labels (canvas- or glyph-drawn), node glyphs and the key as text, and fails with a code for a format it does
  * not write.
  */
 
@@ -329,6 +329,56 @@ test("a node's border is a ring in its color around the node", async () => {
         });
         assert.ok(around, `node ${id}'s ring sits around it`);
     }
+});
+
+test("a node's glyph is text in its color, centered on the node at the size the canvas draws it, in SVG and PDF", async () => {
+    graph = await createTestGraphWithData();
+    // Flat, so the glyph's face and the node's center are one point on screen.
+    await graph.setViewMode("2d");
+    await graph.getSession().styles.add({
+        name: "Glyph G",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.glyph": "G", "node.glyphColor": "#ff00ff" },
+    });
+    await graph.waitForStableFrame();
+
+    const svg = await parse(exportFigure(graph).blob);
+    const glyphs = [...svg.querySelectorAll("text")].filter((t) => t.textContent === "G");
+    assert.equal(glyphs.length, 3, "one glyph per node");
+    for (const id of ["1", "2", "3"]) {
+        const at = graph.nodeScreenPosition(id);
+        assert.ok(at?.visible);
+        const centred = glyphs.find((t) => {
+            const span = t.querySelector("tspan");
+            return Math.hypot(Number(span?.getAttribute("x")) - at.x, Number(span?.getAttribute("y")) - at.y) < 0.5;
+        });
+        assert.ok(centred, `node ${id}'s glyph is centered on it`);
+        assert.equal(centred.getAttribute("fill"), "#ff00ff");
+        // Unsized, the glyph's font is as tall as the node's face is wide.
+        const size = Number(centred.getAttribute("font-size"));
+        assert.closeTo(size, at.radius * 2, at.radius * 0.2, "the glyph's font size is the node's width on screen");
+    }
+
+    const pdf = new TextDecoder("latin1").decode(await exportFigure(graph, { format: "pdf" }).blob.arrayBuffer());
+    assert.equal(pdf.match(/\(G\) Tj/g)?.length, 3, "every glyph is text in the PDF");
+});
+
+test("labels drawn from the glyph atlas are text", async () => {
+    graph = await createTestGraphWithData();
+    graph.setLayoutBehavior({ labels: { labelText: "glyphs" } });
+    await graph.getSession().styles.add({
+        name: "Labelled",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.label": "N" },
+    });
+    await graph.waitForStableFrame();
+    assert.equal(graph.getNode("1")?.label?.drawnBy, "glyphs");
+
+    const svg = await parse(exportFigure(graph).blob);
+    const words = [...svg.querySelectorAll("text")].map((t) => t.textContent);
+    assert.equal(words.filter((w) => w === "N").length, 3, "every glyph-drawn label is text");
 });
 
 test("an unknown format fails with E_BAD_COMMAND naming the field", async () => {

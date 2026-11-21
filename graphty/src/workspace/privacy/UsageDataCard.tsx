@@ -2,16 +2,16 @@ import { Anchor, Button, CloseButton, Group, Paper, Stack, Text } from "@mantine
 import React, { type RefObject, useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
-import { answerUsageData, type UsageAnswer, useAnalyticsSends, useUsageAnswer } from "./usageData";
+import { ANONYMOUS_COUNTS, answerUsageData, type UsageAnswer, useAnalyticsSends, useUsageAnswer } from "./usageData";
 import { UsageDataText } from "./UsageDataText";
 
-/** The line after an answer, by the answer, with the usage-analytics experiment off. */
+/** The line after an answer, by the answer, where the page sends PostHog nothing. */
 const ANSWER_WORDS: Record<UsageAnswer, string> = {
     share: "Thank you. Usage data is on, with content masked.",
     declined: "Usage data stays off.",
 };
 
-/** The line after an answer, by the answer, with the usage-analytics experiment on. */
+/** The line after an answer, by the answer, where the page sends PostHog. */
 const ANALYTICS_ANSWER_WORDS: Record<UsageAnswer, string> = {
     ...ANSWER_WORDS,
     declined: "Usage data stays off. Anonymous counts are still sent.",
@@ -20,10 +20,10 @@ const ANALYTICS_ANSWER_WORDS: Record<UsageAnswer, string> = {
 /**
  * The usage data question (tier1-design.md section 2.11), pinned to the foot of the window on
  * every page -- the start screen or an open project -- until it is answered, so a first visit is
- * asked wherever it lands. It never blocks: a sample can be opened first. With the usage-analytics
- * experiment on, anonymous counts (PostHog's cookieless mode) are sent whatever the answer, and Share
- * switches PostHog to its shared mode and adds Sentry; off, nothing is collected until the reader
- * answers. After an answer, one line says what was chosen and where to change it, until it is
+ * asked wherever it lands. It never blocks: a sample can be opened first. Where the page sends
+ * PostHog, anonymous counts (PostHog's cookieless mode) are sent whatever the answer, and Share
+ * switches PostHog to its shared mode and adds Sentry; elsewhere nothing is collected until the
+ * reader answers. After an answer, one line says what was chosen and where to change it, until it is
  * closed; an answer from an earlier visit shows nothing.
  * @param props - Component props
  * @param props.returnFocus - Where focus goes when the answer line is closed from inside it, else
@@ -113,7 +113,7 @@ export function UsageDataCard({
                 <UsageDataText />
                 <Text size="xs" c="dimmed">
                     {analytics
-                        ? "Until you share, anonymous counts are sent: visits, the site that sent you, which sample, file format, layout, measure and export you use, and whether you share. No cookies, no stored id, no names or contents."
+                        ? `Until you share, anonymous counts are sent: ${ANONYMOUS_COUNTS}, and whether you share. No cookies, no stored id, no names or contents.`
                         : "Nothing is collected until you answer."}
                 </Text>
                 <Group gap="xs">

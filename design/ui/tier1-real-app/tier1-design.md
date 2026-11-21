@@ -479,8 +479,9 @@ run, result read, style added, export, undo); errors and performance; a feedback
 "No file contents ever leave your computer." After an answer: "Thank you. Usage data is on, with
 content masked." or "Usage data stays off.", then "Change this in Settings > Privacy".
 
-_With the `usage-analytics` experiment on, on a site that sends PostHog anything_ (design/graphty/usage-analytics.md,
-"The experiment flag"; off by default, so the text above is what nightly and production show):
+_On a site that sends PostHog anything_ (design/graphty/usage-analytics.md,
+"Where PostHog is sent"; graphty.app, nightly and canary all do; the text above is what a page
+that sends PostHog nothing shows):
 anonymous counts (PostHog's cookieless mode, no cookies or stored id) are sent whatever the answer.
 Below the owner's words: "Until you share, anonymous counts are sent: visits, the site that sent
 you, which sample, file format, layout, measure and export you use, and whether you share. No
@@ -507,7 +508,7 @@ One dialog, a section list down the left, closed with X or Esc, Mod+, (spec 12.3
 - **Privacy**: Usage data (a switch, with the owner's text and the "What is collected" list);
   **Where your data goes**, read-only lines: files are read on this computer; the project is saved
   where you save it; usage data, masked, is sent only while Usage data is on (off: "Nothing is
-  sent."). _With the `usage-analytics` experiment on, on a site that sends PostHog anything:_ off
+  sent."). _On a site that sends PostHog anything:_ off
   reads "Anonymous counts are still sent: visits, the site that sent you, and which sample, file
   format, layout, measure and export you use."; a line on anonymous counts, shown only while Share
   is off: no cookies or stored id (PostHog, US); and a **Privacy details** link to `/privacy.html`.

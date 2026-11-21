@@ -69,7 +69,8 @@ Cytoscape.js, graphology, vis.js, OBO Graphs),
 [OBO](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/obo.md),
 [Cytoscape sessions](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/cys.md) and
 [SIF](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/sif.md). Each one is read and
-written.
+written. It also reads one sheet of an
+[Excel workbook](https://github.com/graphty-org/graphty-monorepo/blob/master/graph-io/docs/guide/formats/xlsx.md) as a table.
 
 ## License
 

@@ -66,6 +66,25 @@ describe("edge.colorFrom", () => {
         session.dispose();
     });
 
+    it('leaves an edge its own color under "none", the default an editor shows before a pick', async () => {
+        // Issue #9296: with no default an editor showed the first value, "source", for a line nothing
+        // had set, and a reader who took it as set saw every edge stay gray.
+        const session = await path();
+        assert.strictEqual(
+            session.catalog.channels("edge").find((each) => each.channel === "edge.colorFrom")?.default,
+            "none",
+        );
+        await session.styles.add({
+            name: "None",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": "#888888", "edge.colorFrom": "none" },
+        });
+        await session.styles.settled();
+        assert.deepEqual(edgeColors(session), ["#888888", "#888888"]);
+        session.dispose();
+    });
+
     it("leaves an edge its own color when unset", async () => {
         const session = await path();
         await session.styles.add({

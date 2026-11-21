@@ -23,6 +23,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { LabelDeclutter } from "../../src/managers/LabelDeclutter";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 
 const WIDTH = 1280;
 const HEIGHT = 720;
@@ -91,7 +92,7 @@ describe("label declutter performance", () => {
     }
 
     function declutterOf(g: Graph): LabelDeclutter | undefined {
-        const found: unknown = g.scene.metadata?.labelDeclutter;
+        const found: unknown = (g.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
         return found instanceof LabelDeclutter ? found : undefined;
     }
 

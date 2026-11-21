@@ -77,6 +77,8 @@ const SHARD_CACHE_DIR = shardCacheDir();
  * counts a slow frame's layout catch-up rounds, which this mode turns off by design.
  */
 const MINIMUM_WORK_TESTS = [
+    "test/browser/bundle-build-order.test.ts",
+    "test/browser/batched-layout-node-sizes.test.ts",
     "test/browser/pending-work-split-across-frames.test.ts",
     "test/browser/stable-frame-waits-for-framing.test.ts",
     "test/browser/stable-frame-waits-for-work-that-came-late.test.ts",
@@ -91,6 +93,7 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/camera/view-insets.test.ts",
     "test/browser/groups-follow-members.test.ts",
     "test/browser/label-declutter.test.ts",
+    "test/browser/label-declutter-dense.test.ts",
     "test/browser/curves-rest-the-same-however-frames-split.test.ts",
     "test/browser/node-gap-rests-the-same-however-frames-split.test.ts",
     "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
@@ -357,12 +360,16 @@ const heldRequestCommands: {
  * The pictures the style fidelity samples name by a URL on the internet (a Cytoscape custom graphic or image
  * annotation pointing at the cytoscape.js logo), each answered from a copy committed beside the samples
  * (graph-io/test/fidelity/pictures/), so what graphty draws, and how it scores, never depends on the network. Any
- * other internet request a fidelity run makes is refused, and the harness fails the sample naming the URL.
+ * other internet request a fidelity run makes is refused, and the harness fails the sample naming the URL. The map is
+ * pictures.json there, which test/fidelity/load-sample.ts also reads to point the sample files at the copies.
  */
-const SAMPLE_PICTURES: Readonly<Record<string, string>> = {
-    "https://raw.githubusercontent.com/cytoscape/cytoscape.js/master/documentation/img/cytoscape-logo.png":
-        "../graph-io/test/fidelity/pictures/cytoscape-logo.png",
-};
+const SAMPLE_PICTURES: Readonly<Record<string, string>> = Object.fromEntries(
+    Object.entries(
+        JSON.parse(
+            readFileSync(path.resolve(dirname, "../graph-io/test/fidelity/pictures/pictures.json"), "utf8"),
+        ) as Record<string, string>,
+    ).map(([url, file]) => [url, `../graph-io/test/fidelity/pictures/${file}`]),
+);
 
 /** Hosts the test server answers itself: never the internet. */
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0"]);

@@ -177,6 +177,10 @@ describe("a sub-pixel 2D line", () => {
         assert.equal(batch.mesh.visibility, 1, "an opaque line stays in the opaque pass");
         const { lineWidth, lineOpacity } = batch.mesh.metadata as { lineWidth: number; lineOpacity: number };
         assert.equal(lineOpacity, 1);
-        assert.closeTo((material as ShaderMaterial).serialize().floats.width as number, lineWidth, 1e-9);
+        assert.closeTo(
+            ((material as ShaderMaterial).serialize() as { floats: Record<string, number> }).floats.width,
+            lineWidth,
+            1e-9,
+        );
     });
 });

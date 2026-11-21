@@ -203,6 +203,8 @@ const STOP_PAST_BEST = 0.001;
 export interface ScannedTable {
     readonly rows: number;
     readonly rowBounds: Float32Array;
+    /** One row's center, read without bringing every row up to a landing the lane owes. */
+    centerOf(row: number): Vector3;
 }
 
 /** What the scan reads of a row's node, for a candidate only. */
@@ -350,12 +352,8 @@ export class RowScan {
      * @returns The point.
      */
     worldCenter(row: number): Vector3 {
-        const { rowBounds: bounds } = this.table;
-        const at = row * 4;
-        return Vector3.TransformCoordinates(
-            new Vector3(bounds[at], bounds[at + 1], bounds[at + 2]),
-            this.root?.computeWorldMatrix() ?? this.identity,
-        );
+        // one row, so a landing the lane owes is read for this row alone, not written for every row
+        return Vector3.TransformCoordinates(this.table.centerOf(row), this.root?.computeWorldMatrix() ?? this.identity);
     }
 
     /**

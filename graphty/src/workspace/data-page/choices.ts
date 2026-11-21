@@ -13,6 +13,7 @@ import {
     LOAD_ROLES,
     type LoadChoices,
     type LoadDraft,
+    type LoadedChoices,
     type TableMapping,
 } from "@graphty/graphty-element/session";
 
@@ -327,6 +328,9 @@ export function loadChoices(
         unmatched: choices.unmatched,
         directed: choices.directed,
         ...(fileStyles ? { styles: choices.styles, styleOptions: FILE_STYLE_OPTIONS } : {}),
+        // A new graph drawn with its file's styles is laid out as the element recommends for it, so a file that
+        // stores its drawing (a Cytoscape session) opens where its program put its nodes (issue #9297).
+        ...(fileStyles && choices.styles === "file" && mode === "replace" ? { layout: "recommended" as const } : {}),
         ...(Object.keys(tables).length > 0 ? { mapping: { tables } } : {}),
     };
 }
@@ -349,7 +353,10 @@ function mappedColumn(table: DraftTable, value: unknown): string | undefined {
  * @param mapping - the load's mapping.
  * @returns the mappings.
  */
-function tablesOf(draft: LoadDraft, mapping: LoadChoices["mapping"]): Readonly<Partial<Record<string, TableMapping>>> {
+function tablesOf(
+    draft: LoadDraft,
+    mapping: LoadedChoices["mapping"],
+): Readonly<Partial<Record<string, TableMapping>>> {
     if (mapping === undefined) {
         return {};
     }
@@ -357,9 +364,7 @@ function tablesOf(draft: LoadDraft, mapping: LoadChoices["mapping"]): Readonly<P
         return mapping.tables;
     }
     const only = draft.tables.at(0);
-    // graphty-element keeps a load's mapping bare or by table id, never by side.
-    const bySide = "nodes" in mapping || "edges" in mapping;
-    return only === undefined || bySide ? {} : { [only.id]: mapping as TableMapping };
+    return only === undefined ? {} : { [only.id]: mapping };
 }
 
 /**
@@ -401,7 +406,7 @@ function carryTable(draft: LoadDraft, table: DraftTable, read: TableMapping, sta
  * @param fileStyles - whether the element's file styles experiment is on.
  * @returns the page's choices.
  */
-export function carriedChoices(draft: LoadDraft, carried: LoadChoices, fileStyles = false): PageChoices {
+export function carriedChoices(draft: LoadDraft, carried: LoadedChoices, fileStyles = false): PageChoices {
     let choices: PageChoices = {
         ...initialChoices(fileStyles),
         ...(carried.unmatched === undefined ? {} : { unmatched: carried.unmatched }),

@@ -2,6 +2,7 @@ import { StandardMaterial, Vector3 } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import type { LineMeshMetadata } from "../../src/types/sceneMetadata";
 import { addStyleLayer, asData, edgeBetween, styleEveryEdge } from "../helpers/testSetup";
 
 describe("Edge 2D Patterns Integration", () => {
@@ -60,7 +61,11 @@ describe("Edge 2D Patterns Integration", () => {
                 mesh.batchMesh?.material instanceof StandardMaterial,
                 "Pattern mesh should use StandardMaterial in 2D mode",
             );
-            assert.strictEqual(mesh.batchMesh?.metadata?.is2D, true, "Pattern mesh should have is2D metadata");
+            assert.strictEqual(
+                (mesh.batchMesh?.metadata as LineMeshMetadata | null)?.is2D,
+                true,
+                "Pattern mesh should have is2D metadata",
+            );
         }
 
         // Cleanup
@@ -116,7 +121,7 @@ describe("Edge 2D Patterns Integration", () => {
                 "Pattern mesh should NOT use StandardMaterial in 3D mode",
             );
             assert.strictEqual(
-                mesh.batchMesh?.metadata?.is2D,
+                (mesh.batchMesh?.metadata as LineMeshMetadata | null)?.is2D,
                 undefined,
                 "Pattern mesh should NOT have is2D metadata in 3D mode",
             );

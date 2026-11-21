@@ -2,6 +2,7 @@ import { Mesh, NullEngine, Scene, ShaderMaterial, StandardMaterial } from "@baby
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { MaterialHelper } from "../src/meshes/MaterialHelper";
+import type { LineMeshMetadata } from "../src/types/sceneMetadata";
 
 describe("MaterialHelper", () => {
     let scene: Scene;
@@ -22,7 +23,7 @@ describe("MaterialHelper", () => {
 
             assert(mesh.material instanceof StandardMaterial);
             assert.strictEqual(mesh.rotation.x, Math.PI / 2);
-            assert.strictEqual(mesh.metadata.is2D, true);
+            assert.strictEqual((mesh.metadata as LineMeshMetadata).is2D, true);
         });
 
         test("applies correct color to material", () => {

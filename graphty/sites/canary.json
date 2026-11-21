@@ -1,10 +1,10 @@
 {
     "site": "canary",
-    "features": ["assistant", "cosmograph", "file-styles", "usage-analytics"],
+    "features": ["assistant", "cosmograph", "file-styles"],
     "datasets": "https://canary.graphty.app/data/graph-samples/v1/",
     "sentryEnvironment": "canary",
     "analytics": {
         "posthogKey": "phc_x9GDNQ6fTHuntvM6CKzYpsrJMToDxRR7Y2YKQuL7PZbx",
-        "posthogHost": "https://eu.i.posthog.com"
+        "posthogHost": "https://us.i.posthog.com"
     }
 }

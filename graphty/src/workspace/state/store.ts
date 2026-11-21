@@ -27,7 +27,13 @@ import { type ReactNode, useSyncExternalStore } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { InspectedKind } from "../commands/registry";
-import { MAP_DEPTH_INDEPENDENT_SIZE, readPreference } from "../settings/preferences";
+import {
+    layoutOf,
+    MAP_DEPTH_INDEPENDENT_SIZE,
+    readPreference,
+    readWorkspaceLayout,
+    writeWorkspaceLayout,
+} from "../settings/preferences";
 
 /**
  * How the open project was opened, when opening it again gives the same project: one of the app's
@@ -719,6 +725,9 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
     let state: WorkspaceState = {
         ...INITIAL,
         mapDepthIndependentSize: readPreference(MAP_DEPTH_INDEPENDENT_SIZE) === "on",
+        // The application (autosave on) opens as the reader arranged it on the last visit;
+        // stories and tests start from the design's sizes.
+        ...(initial.autosave === true ? readWorkspaceLayout() : {}),
         ...initial,
     };
     const listeners = new Set<() => void>();
@@ -842,6 +851,24 @@ export function keepPlace(store: WorkspaceStore): () => void {
         }
     };
     return store.subscribe(write);
+}
+
+/**
+ * Keeps the panel widths, the table dock and the legend switch in this browser as they change, so
+ * the next visit opens arranged the same way (Settings' preferences, never the project's work).
+ * @param store - the workspace store.
+ * @returns a function that stops keeping it.
+ */
+export function keepLayout(store: WorkspaceStore): () => void {
+    let last = JSON.stringify(layoutOf(store.get()));
+    return store.subscribe(() => {
+        const layout = layoutOf(store.get());
+        const text = JSON.stringify(layout);
+        if (text !== last) {
+            last = text;
+            writeWorkspaceLayout(layout);
+        }
+    });
 }
 
 /** The name the reader's place is stashed under with graphty-element's autosaved work. */

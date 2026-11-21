@@ -229,6 +229,20 @@ export interface LabelStyle {
      */
     backgroundShape?: "rectangle" | "circle";
     /**
+     * The URL of a picture drawn in the label beside or behind its words, as yEd draws a label's icon. Its middle is
+     * the words' middle moved by `imageOffsetX` and `imageOffsetY`; the label's canvas grows to hold it, the panel
+     * behind the words does not. Unset, none.
+     */
+    image?: string;
+    /** How wide `image` is drawn, in the label's units (its font size's). Unset, the font size. */
+    imageWidth?: number;
+    /** How tall `image` is drawn, in the label's units. Unset, the font size. */
+    imageHeight?: number;
+    /** How far right of the words' middle `image`'s middle is, in the label's units. Unset, 0. */
+    imageOffsetX?: number;
+    /** How far below the words' middle `image`'s middle is, in the label's units. Unset, 0. */
+    imageOffsetY?: number;
+    /**
      * The label is not drawn while its letters are drawn smaller than this many pixels on screen,
      * as a program that hides labels too small to read does. Decided again whenever the camera
      * moves. Unset or 0, the label is drawn at any size.
@@ -493,6 +507,11 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     borderAlign: 0,
     borderStyle: 0,
     backgroundShape: 0,
+    image: 0,
+    imageWidth: 0,
+    imageHeight: 0,
+    imageOffsetX: 0,
+    imageOffsetY: 0,
     minScreenSize: 0,
     declutter: 0,
     minNodeScreenSize: 0,
@@ -595,6 +614,11 @@ export const RICH_TEXT_KEYS = {
     borderAlign: "borderAlign",
     borderStyle: "borderStyle",
     backgroundShape: "backgroundShape",
+    image: "image",
+    imageWidth: "imageWidth",
+    imageHeight: "imageHeight",
+    imageOffsetX: "imageOffsetX",
+    imageOffsetY: "imageOffsetY",
     minScreenSize: "minScreenSize",
     minNodeScreenSize: "minNodeScreenSize",
     declutter: "declutter",
@@ -672,7 +696,7 @@ export const RICH_TEXT_KEYS = {
  * @example
  * ```ts
  * import { LABEL_STYLE_DEFAULTS } from "@graphty/graphty-element/catalog";
- * LABEL_STYLE_DEFAULTS.font; // "Verdana"
+ * LABEL_STYLE_DEFAULTS.font; // "Verdana, sans-serif"
  * LABEL_STYLE_DEFAULTS.marginTop; // 5
  * ```
  */
@@ -763,6 +787,11 @@ const FIELD_ROWS = {
     borderAlign: choice("Border Align", ["outside", "center"]),
     borderStyle: choice("Border Style", ["solid", "double"]),
     backgroundShape: choice("Background Shape", ["rectangle", "circle"]),
+    image: text("Image"),
+    imageWidth: num("Image Width", { min: 0 }),
+    imageHeight: num("Image Height", { min: 0 }),
+    imageOffsetX: num("Image Offset X"),
+    imageOffsetY: num("Image Offset Y"),
     minScreenSize: num("Min Screen Size", { min: 0 }),
     declutter: choice("Declutter", ["degree", "size"] satisfies readonly LabelDeclutterOrder[]),
     minNodeScreenSize: num("Min Node Screen Size", { min: 0 }),

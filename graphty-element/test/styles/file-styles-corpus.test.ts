@@ -18,6 +18,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 
+import { statesStyles } from "@graphty/graph-io/styles";
 import { afterAll, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, FILE_STYLE_ISSUE, type GraphSession, type Layer } from "../../session";
@@ -218,7 +219,8 @@ function check(session: GraphSession, read: FileStylesRead, result: FileResult):
     const layers = fileLayers(session);
     assert.deepEqual(
         layers.map((layer) => layer.name),
-        translation.layers.map((layer) => layer.spec.name),
+        // A file that states no style of its own (its program's defaults only) adds no layers (issue #9298).
+        statesStyles(read.extracted) ? translation.layers.map((layer) => layer.spec.name) : [],
         "the load drew the translation's layers",
     );
 
@@ -251,6 +253,11 @@ function check(session: GraphSession, read: FileStylesRead, result: FileResult):
                 }
             }
         }
+    }
+
+    // A file that states no style draws nothing of its program's defaults to compare.
+    if (!statesStyles(read.extracted)) {
+        return;
     }
 
     // explain() against the prediction, both ways.

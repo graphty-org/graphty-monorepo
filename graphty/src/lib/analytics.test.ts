@@ -43,7 +43,7 @@ import {
 import { resetSentryState, type SentryCalls, setSentryCallsForTests, stopSentry } from "./sentry";
 
 const KEY = "phc_testkey123";
-const HOST = "https://eu.i.posthog.com";
+const HOST = "https://us.i.posthog.com";
 /** A site's analytics block that turns PostHog on. */
 const PH: SiteAnalytics = { posthogKey: KEY, posthogHost: HOST };
 const VISITS = "graphty.visits.v1";
@@ -97,7 +97,7 @@ function installCalls(overrides: Parameters<typeof setAnalyticsCallsForTests>[0]
  */
 function site(analytics: SiteAnalytics): Promise<SiteConfig> {
     resetSiteConfig();
-    const file = { site: "production", features: ["usage-analytics"], analytics };
+    const file = { site: "production", analytics };
     return loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(file))}`);
 }
 
@@ -586,7 +586,7 @@ describe("count and detail", () => {
     });
 
     it("allowlists journal ops", () => {
-        assert.isTrue(isGraphActionOp("style.encode"));
+        assert.isTrue(isGraphActionOp("view.remove"));
         assert.isTrue(isGraphActionOp("data.apply"));
         assert.isFalse(isGraphActionOp("layout.set"));
         assert.isFalse(isGraphActionOp("visibility.window"));
@@ -1220,5 +1220,116 @@ describe("maskEveryAttribute", () => {
         for (const masked of ["name", "href", "id", "title", "aria-label", "data-x", "foo"]) {
             assert.equal(maskEveryAttribute(masked, "SECRET"), "*");
         }
+    });
+});
+
+describe("the counts added for the assistant, styling, view, camera and projects", () => {
+    /** Each new or moved counted name with the properties it sends. */
+    const COUNTED: readonly [string, Record<string, string | boolean>][] = [
+        ["style_changed", { op: "style.patch", action: "update", suggested: true, by: "assistant" }],
+        [
+            "assistant_used",
+            { provider: "webllm", step: "message", voice: false, outcome: "AI_COMPLETED", changed: "none" },
+        ],
+        ["view_mode", { mode: "2d", by: "assistant" }],
+        ["xr_entered", { mode: "vr", outcome: "failed", code: "E_UNSUPPORTED" }],
+        ["camera_used", { kind: "orbit" }],
+        ["camera_saved", {}],
+        ["project_saved", { kind: "browser", as: "new" }],
+        ["project_reopened", { from: "recent" }],
+        ["load_failed", { code: "E_PARSE", task: "load" }],
+        ["timeline_played", {}],
+        ["sample_loaded", { sample: "karate", size: "1-100" }],
+        ["own_file_opened", { format: "json", via: "file", size: "10k+" }],
+    ];
+
+    it("sends each one anonymously once a page, first on the page, with its own keys", async () => {
+        startPageCounts(await site(PH));
+        anon = [];
+        for (const [name, props] of COUNTED) {
+            count(name, { ...props, extra: "dropped" });
+            count(name, props);
+        }
+        assert.deepEqual(
+            anonNames(),
+            COUNTED.map(([name]) => name),
+        );
+        for (const [index, [name, props]] of COUNTED.entries()) {
+            const sent = anon[index].properties;
+            assert.include(sent, { ...props, first_on_page: true, tracking: "anonymous" }, name);
+            assert.notProperty(sent, "extra", name);
+        }
+    });
+
+    it("still drops a shared-only name in the anonymous mode", () => {
+        const out = cleanPostHogEvent(
+            { uuid: "u", event: "command_run", properties: { $cookieless_mode: true, command: "view.fit" } },
+            "anonymous",
+        );
+        assert.isNull(out);
+    });
+
+    it("no longer sends style edits, 2D or 3D, VR or AR or a saved view as graph_action", () => {
+        for (const op of [
+            "style.encode",
+            "style.patch",
+            "style.template",
+            "shader.set",
+            "view.dimension",
+            "view.immersive",
+            "view.save",
+        ]) {
+            assert.isFalse(isGraphActionOp(op), op);
+        }
+        assert.isTrue(isGraphActionOp("view.remove"));
+    });
+});
+
+describe("the internal mark", () => {
+    const INTERNAL = "graphty.internal";
+    afterEach(() => {
+        localStorage.removeItem(INTERNAL);
+    });
+
+    /**
+     * Boots a page at a query and returns its anonymous page view's properties.
+     * @param query - the address bar's query.
+     * @returns the page view's properties.
+     */
+    async function bootAt(query: string): Promise<Record<string, unknown>> {
+        freshPage();
+        globalThis.history.replaceState(null, "", query === "" ? globalThis.location.pathname : query);
+        startAnalyticsAtBoot(await site(PH));
+        const view = anon.find((record) => record.event === "$pageview");
+        assert.ok(view, "a page view");
+        return view.properties;
+    }
+
+    it("is sent after ?internal=1, kept across a boot with no query, and cleared by ?internal=0", async () => {
+        assert.notProperty(await bootAt(""), "internal");
+        assert.include(await bootAt("?internal=1&features=a"), { internal: true });
+        // Gone from the address bar at once, every other parameter kept.
+        assert.equal(globalThis.location.search, "?features=a");
+        assert.include(await bootAt(""), { internal: true });
+        assert.notProperty(await bootAt("?internal=0"), "internal");
+        assert.equal(globalThis.location.search, "");
+        assert.notProperty(await bootAt(""), "internal");
+    });
+
+    it("survives the shared mode's cleaning too", async () => {
+        await bootAt("?internal=1");
+        setPostHogClientForTests({});
+        const out = cleanPostHogEvent({ uuid: "u", event: "camera_saved", properties: {} });
+        assert.equal(out?.properties.internal, true);
+    });
+
+    it("boots when storage throws, marked by the address alone", async () => {
+        vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+            throw new Error("blocked");
+        });
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+            throw new Error("blocked");
+        });
+        assert.include(await bootAt("?internal=1"), { internal: true });
     });
 });

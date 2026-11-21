@@ -277,10 +277,11 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
         target: "node",
         path: "texture.icon",
         reason:
-            "The `node.marker` channel exists for this and is published `renderable: false` with " +
-            "a value type of `never`, so writing it is a compile error rather than a silent " +
-            "no-op. Nothing draws a node icon; the badge vocabulary that does exist belongs to a " +
-            "label. This is the one case the package already handled honestly.",
+            "The `node.marker` channel names this field and is published `renderable: false` with " +
+            "a value type of `never`, reserved for markers the element draws itself, so writing it " +
+            "is a compile error rather than a silent no-op. A picture or an icon on a node has its " +
+            "own channels: `node.image` (a URL or data: URL over the face), `node.glyph` (an " +
+            "icon-font character) and `node.texture` (a picture as the shape's surface).",
     },
     {
         reason:

@@ -114,12 +114,16 @@ async function pickInAnalyze(name: string): Promise<void> {
  * How many of each event PostHog has got so far.
  * @returns the counts of the events history must never add.
  */
-function workCounts(): { runs: number; actions: number } {
-    return { runs: sent("algorithm_run").posthog.length, actions: sent("graph_action").posthog.length };
+function workCounts(): { runs: number; actions: number; styles: number } {
+    return {
+        runs: sent("algorithm_run").posthog.length,
+        actions: sent("graph_action").posthog.length,
+        styles: sent("style_changed").posthog.length,
+    };
 }
 
-// The usage-analytics experiment on, in both test configurations: these counts are its own.
-withFeatures(["usage-analytics"]);
+// No experiments, in both test configurations.
+withFeatures([]);
 
 describe("usage counts from Analyze", () => {
     beforeEach(async () => {
@@ -170,13 +174,17 @@ describe("usage counts from Analyze", () => {
         assert.lengthOf(sent("algorithm_run").posthog, 1);
 
         const actionsBefore = sent("graph_action").posthog.length;
-        const recolor = next("graph_action");
+        const stylesBefore = sent("style_changed").posthog.length;
+        const recolor = next("style_changed");
         await userEvent.click(await screen.findByRole("button", { name: "Show anyway" }));
-        assert.deepEqual({ ...(await recolor) }, { kind: "style", op: "style.encode" });
-        const recolors = sent("graph_action").posthog.slice(actionsBefore);
+        assert.deepEqual({ ...(await recolor) }, { op: "style.encode" });
+        const recolors = sent("style_changed").posthog.slice(stylesBefore);
         assert.lengthOf(recolors, 1, "one re-coloring, one event");
         assert.strictEqual(recolors[0]?.op, "style.encode");
         assert.notProperty(recolors[0], "suggested");
+        assert.lengthOf(sent("graph_action").posthog, actionsBefore, "a style edit is no graph action");
+        // Counted for every reader: the first style edit on the page, the reader's own gray layer.
+        assert.deepEqual(sent("style_changed").counted, [{ op: "style.patch", action: "add" }]);
 
         const before = workCounts();
         const commandsBefore = sent("command_run").posthog.length;
@@ -207,7 +215,7 @@ describe("usage counts from Analyze", () => {
         assert.isFalse(session.canRedo, "everything is redone");
 
         // History replays the run and the re-coloring: neither is the reader's new work.
-        assert.deepEqual(workCounts(), before, "no algorithm_run or graph_action from Undo or Redo");
+        assert.deepEqual(workCounts(), before, "no algorithm_run, graph_action or style_changed from Undo or Redo");
         assert.deepEqual(
             sent("command_run")
                 .posthog.slice(commandsBefore)
@@ -239,6 +247,6 @@ describe("usage counts from Analyze", () => {
         assert.deepEqual({ ...props }, { algorithm: "katz", outcome: "failed", code });
         assert.deepEqual(sent("algorithm_run").counted, [{ algorithm: "katz", outcome: "failed", code }]);
         assert.lengthOf(sent("algorithm_run").posthog, 1);
-        assert.isEmpty(sent("graph_action").posthog.filter((each) => each.op === "style.encode"));
+        assert.isEmpty(sent("style_changed").posthog.filter((each) => each.op === "style.encode"));
     });
 });

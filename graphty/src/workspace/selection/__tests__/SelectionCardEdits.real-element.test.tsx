@@ -2,7 +2,8 @@
  * Editing the selection workspace's cards on the REAL graphty-element and Les Miserables, by real
  * clicks and keys: a card's Keep with nothing picked adds no step; a narrowing step's x removes it;
  * Delete on the only card leaves one empty card; a card's own keys (Shift+Ctrl+H, Ctrl+D, Delete)
- * do what its "..." menu says; and the Preview's Styled choice is kept for the next opening.
+ * do what its "..." menu says; its menu's Rename names it; and the Preview's Styled choice is kept
+ * for the next opening.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -292,6 +293,20 @@ describe("the Preview segment", () => {
         await userEvent.click(within(kept).getByText("Card colors"));
         await waitFor(() => {
             assert.isTrue(within(kept).getByRole("radio", { name: "Card colors" }).matches(":checked"));
+        });
+    });
+});
+
+describe("a card's menu", () => {
+    it("Rename opens the card's name box, and the typed name is the card's", async () => {
+        const { session, layer } = await openCards(TWO_CARDS);
+        await runItem("B", /^Rename/);
+        await userEvent.keyboard("{Control>}a{/Control}NY{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(branchesOf(session, layer)[1]?.name, "NY");
+        });
+        await waitFor(() => {
+            assert.match(cards()[1]?.getAttribute("aria-label") ?? "", /^NY, /, "the card reads NY");
         });
     });
 });

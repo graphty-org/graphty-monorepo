@@ -10,6 +10,7 @@ export default {
         "StylesApi.addFolder",
         "StylesApi.addRow",
         "StylesApi.deleteRow",
+        "StylesApi.duplicateRow",
         "StylesApi.hideRow",
         "StylesApi.lockRow",
         "StylesApi.moveRow",

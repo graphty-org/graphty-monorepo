@@ -300,7 +300,8 @@ export const NodeStyle = z.strictObject({
             zIndex: z.number().min(-1000).max(0).optional(),
             /**
              * Which of two overlapping nodes at z-index 0 is drawn on top in a 2D view: the higher.
-             * Set, a node is drawn in front of every edge and every node without one. 3D ignores it.
+             * Set, a node is drawn in front of every edge and every node without one. 3D orders flat
+             * shapes the same way and draws solid ones by real depth.
              */
             drawOrder: z.number().min(0).max(100).optional(),
             /**

@@ -272,7 +272,7 @@ describe("NodeMesh", () => {
         });
     });
 
-    describe("draw order in 2D", () => {
+    describe("draw order in 2D, and for flat shapes in 3D", () => {
         /**
          * The z of a node mesh's front (camera side) and back faces, from its source geometry.
          * @param drawOrder - The node's draw order, or undefined for none.
@@ -324,12 +324,27 @@ describe("NodeMesh", () => {
             }
         });
 
-        test("leaves a node without one, and every node in 3D, as it was", () => {
+        test("leaves a node without one, and a solid in 3D, as it was", () => {
             const plain = faces(undefined, 2);
             assert.closeTo(plain.front, -plain.back, 1e-9);
-            const threeD = faces(100, 2, false);
-            const threeDPlain = faces(undefined, 2, false);
-            assert.closeTo(threeD.front, threeDPlain.front, 1e-9);
+            const solid = (drawOrder: number | undefined): number => {
+                const mesh = NodeMesh.create(
+                    meshCache,
+                    { styleId: `solid-3d-${String(drawOrder)}`, is2D: false, size: 2 },
+                    { shape: { type: "sphere", size: 2, ...(drawOrder === undefined ? {} : { drawOrder }) } },
+                    scene,
+                ) as InstancedMesh;
+                return mesh.sourceMesh.getBoundingInfo().boundingBox.minimum.z;
+            };
+            assert.closeTo(solid(100), solid(undefined), 1e-9);
+        });
+
+        test("orders coplanar flat shapes in 3D as in 2D", () => {
+            const low = faces(10, 8, false);
+            const high = faces(11, 1, false);
+            assert.isBelow(high.front, low.front);
+            // Without one, the larger flat shape is the one nearer the camera.
+            assert.isBelow(faces(undefined, 8, false).front, faces(undefined, 1, false).front);
         });
     });
 

@@ -589,6 +589,7 @@ export interface ChannelValues {
     "edge.colorFrom": EdgeColorFromValue;
     "edge.width": number;
     "edge.minScreenWidth": number;
+    "edge.drawOrder": number;
     "edge.fadeStart": number;
     "edge.fadeEnd": number;
     "edge.fadeOpacity": number;
@@ -2849,7 +2850,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "Which of two overlapping nodes is drawn on top in a 2D view, from 0 to 100: the higher " +
             "one. Every node with a draw order is drawn in front of the edges, and in front of every " +
             "node with none; a node with none is drawn as it always was. Only nodes at z-index 0 " +
-            "are ordered, and 3D views draw by real depth and ignore it. Each distinct value is its " +
+            "are ordered. A 3D view orders flat shapes the same way and draws solid ones by real depth. Each distinct value is its " +
             "own source mesh, so a few levels keep instancing cheap.",
     },
     "node.borderColor": {
@@ -4523,6 +4524,24 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The fewest screen pixels wide the line is drawn, at any zoom: a line whose `edge.width` comes to " +
             "less on screen, a width of 0 included, is drawn this wide, as sigma.js draws every edge at least " +
             "its `minEdgeThickness`. Unset or 0, the line is drawn at its width alone.",
+    },
+    "edge.drawOrder": {
+        channel: "edge.drawOrder",
+        target: "edge",
+        plainName: "Edge Draw Order",
+        shortName: "Draw order",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        max: 100,
+        stylePath: "line.drawOrder",
+        renderable: true,
+        caveat:
+            "Which of two crossing lines is drawn on top, from 0 to 100: the higher one. A line with none is " +
+            "drawn over every line with one, and lines with none keep the order they always had, so give one " +
+            "to every line that may cross (a file's Cytoscape.js z-index sets it on every edge). A line drawn " +
+            "as a row of shapes (dots, stars, boxes) keeps its own order, and no order moves a line in front of " +
+            "a node.",
     },
     "edge.opacity": {
         channel: "edge.opacity",

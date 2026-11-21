@@ -760,6 +760,26 @@ export function topAnnouncement(session: GraphSession, run: Run, name: string): 
     return `${name} finished: ${session.data.name(top.id) ?? top.label} ranks first, ${formatNumber(top.value)}`;
 }
 
+/** What a set run that chose nothing means, for the algorithms whose empty set says more than "none". */
+const NOTHING_CHOSEN: Readonly<Record<string, string>> = {
+    "removal-impact": "Removing this affects no other node",
+};
+
+/**
+ * What a finished set run says when it chose nothing, from the element's reading of its result
+ * ("reading.set" with a count of 0): "Removing this affects no other node".
+ * @param run - the run.
+ * @param name - the run's name in words.
+ * @returns the line, or null for a run that is no set or chose something.
+ */
+export function nothingChosenWords(run: Run, name: string): string | null {
+    const fact = run.result?.readingFact();
+    if (fact?.code !== "reading.set" || fact.params.count !== 0) {
+        return null;
+    }
+    return NOTHING_CHOSEN[run.algorithm] ?? `${name}: no ${String(fact.params.element)}s chosen`;
+}
+
 /**
  * The status line for a finished grouping run, from its result and the layers it made: "Louvain
  * finished: 6 groups, each a layer in the Louvain folder of Style layers" (or "...: 6 groups"

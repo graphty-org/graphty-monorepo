@@ -86,6 +86,8 @@ export interface AutoApplyRun extends EncodingRun {
     readonly status: RunStatus;
     /** Whether the caller let the element paint this run at all, and whether to size by it too. */
     readonly style: RunStyle;
+    /** What the run computed, when it is known: a set that chose nothing has nothing to paint. */
+    readonly computed?: { readonly graph: Readonly<Record<string, unknown>> };
 }
 
 /** Everything the policy is built from. */
@@ -190,6 +192,16 @@ const NO_OUTCOMES: readonly SuggestionOutcome[] = Object.freeze([]);
 
 /** A second release of one hold. */
 const RELEASED: PaintRelease = Object.freeze({ paint: NOTHING, settled: NO_OUTCOMES, members: Object.freeze([]) });
+
+/**
+ * Whether a run is a set that chose no element: its layer would select nothing, so it suggests
+ * none (graphty-element/CLAUDE.md, "Algorithm Styles").
+ * @param run - The run.
+ * @returns True for a node or edge set whose count is 0.
+ */
+function choseNothing(run: AutoApplyRun): boolean {
+    return (run.shape === "node-set" || run.shape === "edge-set") && run.computed?.graph.count === 0;
+}
 
 /**
  * A decision with no suggestions in it.
@@ -417,7 +429,7 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
         // Had whether or not anything is painted. The moment a run first completes is the
         // moment the policy had, and coming back to it later -- after a reader has arranged
         // the stack -- would repaint a picture they had already decided about.
-        const suggestions = suggestStyles(run, run.style);
+        const suggestions = choseNothing(run) ? NOTHING : suggestStyles(run, run.style);
         const pending = hold === undefined ? undefined : held.get(hold);
 
         if (pending === undefined) {

@@ -17,6 +17,7 @@ import { type RichTextStyleType } from "../config";
 import { DEFAULT_LABEL_GRADIENT_COLORS } from "../config/RichTextStyle";
 import { GraphtyLogger, type Logger } from "../logging";
 import { toColorValue } from "../session/styles/channels";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { addGradientStops, gradientOffsets } from "./edgeGradient";
 import { FrameRoster } from "./FrameRoster";
 import { type GlyphLabelEntry, GlyphLabels, recordRuns } from "./GlyphLabels";
@@ -734,7 +735,7 @@ export class RichTextLabel {
             position: { x: 0, y: 0, z: 0 },
             resolution: 512,
             autoSize: true,
-            font: "Verdana",
+            font: "Verdana, sans-serif",
             fontSize: 48,
             fontWeight: "normal",
             fontStyle: "normal",
@@ -1333,8 +1334,12 @@ export class RichTextLabel {
      * @returns The plane's height in lines.
      */
     private measureHeightInLines(ctx: CanvasRenderingContext2D, totalHeight: number): number {
-        // The first line WITH WORDS: a blank line has no height of its own to measure.
-        const firstLine = this.parsedContent.find(hasWords);
+        // The first line WITH WORDS: a blank line has no height of its own to measure. A label that is only its
+        // picture (yEd's wordless label icon) measures a blank line of its font, so its canvas is drawn at the scale
+        // of a label with words, not stretched to one line's height (#7792).
+        const firstLine =
+            this.parsedContent.find(hasWords) ??
+            (this.options.image === undefined ? undefined : this.parser.blankLine());
         if (firstLine === undefined) {
             return 1;
         }
@@ -2699,7 +2704,7 @@ export class RichTextLabel {
      */
     private billboard(): number {
         const mode = this.options.billboardMode;
-        return mode === Mesh.BILLBOARDMODE_ALL && this.scene.metadata?.twoD === true
+        return mode === Mesh.BILLBOARDMODE_ALL && (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true
             ? Mesh.BILLBOARDMODE_X | Mesh.BILLBOARDMODE_Y
             : mode;
     }
@@ -2998,6 +3003,35 @@ export class RichTextLabel {
             right: (x + this.textSize.width) / width,
             top: y / height,
             bottom: (y + this.textSize.height) / height,
+        };
+    }
+
+    /**
+     * What the label draws on its plane, as {@link textBounds} measures: its words, grown by their
+     * outline, and the panel behind them when it has one. Two labels whose words are apart but
+     * whose panels meet still draw over each other, so the declutter keeps these apart (#9275).
+     * @returns The drawn rectangle as fractions of the plane.
+     */
+    public get drawnBounds(): { left: number; right: number; top: number; bottom: number } {
+        const words = this.textBounds;
+        const { width, height } = this.actualDimensions;
+        const reach = this.options.textOutline ? this.options.textOutlineWidth : 0;
+        const box = {
+            left: words.left - reach / Math.max(width, 1),
+            right: words.right + reach / Math.max(width, 1),
+            top: words.top - reach / Math.max(height, 1),
+            bottom: words.bottom + reach / Math.max(height, 1),
+        };
+        const { panel } = this;
+        if (panel === undefined) {
+            return box;
+        }
+
+        return {
+            left: Math.min(box.left, panel.left),
+            right: Math.max(box.right, panel.right),
+            top: Math.min(box.top, panel.top),
+            bottom: Math.max(box.bottom, panel.bottom),
         };
     }
 

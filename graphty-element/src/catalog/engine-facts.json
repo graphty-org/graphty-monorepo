@@ -239,7 +239,30 @@
             "loadedWeightByDefault": true
         },
         "degree": {
-            "options": [],
+            "options": [
+                {
+                    "name": "direction",
+                    "plainName": "Direction",
+                    "technicalName": "direction",
+                    "type": "enum",
+                    "description": "On a directed graph, which edges the published value counts: incoming (in), outgoing (out) or both (total)",
+                    "default": "total",
+                    "values": [
+                        {
+                            "value": "total",
+                            "label": "Total"
+                        },
+                        {
+                            "value": "in",
+                            "label": "In"
+                        },
+                        {
+                            "value": "out",
+                            "label": "Out"
+                        }
+                    ]
+                }
+            ],
             "scopeInput": "subgraph",
             "weightMeaning": null,
             "loadedWeightByDefault": true
@@ -1511,6 +1534,16 @@
                     "advanced": true
                 },
                 {
+                    "name": "spacing",
+                    "plainName": "Spacing",
+                    "technicalName": "spacing",
+                    "type": "number",
+                    "description": "How far apart neighbors are drawn at least, in scene units (a default node is one across): data positions closer than that are spread out, keeping their proportions; 0 draws them as given",
+                    "default": 3,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
                     "name": "edgeRoutes",
                     "plainName": "Edge routes",
                     "technicalName": "edgeRoutes",
@@ -1977,7 +2010,7 @@
                     "plainName": "Unplaced Nodes",
                     "technicalName": "unplaced",
                     "type": "enum",
-                    "description": "Nodes with no usable location: in a row beside the map, or left where they were",
+                    "description": "Nodes with no usable location: in a row beside the map, left where they were, or not drawn (with their edges) while the layout is shown; each way they are still reported",
                     "default": "tray",
                     "values": [
                         {
@@ -1987,6 +2020,10 @@
                         {
                             "value": "leave",
                             "label": "Leave"
+                        },
+                        {
+                            "value": "hide",
+                            "label": "Hide"
                         }
                     ],
                     "advanced": true

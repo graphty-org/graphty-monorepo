@@ -26,7 +26,7 @@ function loss(
     count: number | null = null,
     extra: Readonly<Record<string, string>> = {},
 ): ExportLoss {
-    return { code, params: { columns, count, ...extra } };
+    return { code, expected: false, params: { columns, count, ...extra } };
 }
 
 /**

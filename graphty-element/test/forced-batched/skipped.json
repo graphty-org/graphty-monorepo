@@ -1,4 +1,5 @@
 [
+    { "file": "test/browser/drawn-invariants.test.ts", "reason": "Sets each case's render path by hand" },
     {
         "file": "test/browser/edge-trim-mirror.test.ts",
         "reason": "Holds the row trim against the mesh path's, which a batched row no longer has a mesh for"

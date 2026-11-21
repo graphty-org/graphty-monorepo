@@ -15,10 +15,12 @@
  * every entry below names the field of the parsed style it lands on. Several entries narrow that
  * claim, and every one of them says so in `caveat` rather than pretending:
  *
- * - `node.marker` draws nothing at all. `NodeStyle.texture.icon` is declared in the schema and
- *   no renderer reads it, and the badge vocabulary that does exist belongs to a label, not to a
- *   node. It is marked `renderable: false` and its value type is `never`, so writing it is a
- *   compile error rather than a silent no-op.
+ * - `node.marker` draws nothing at all: it is reserved for markers the element draws itself (a
+ *   note's marker), and `NodeStyle.texture.icon`, the field it names, has no renderer. A picture
+ *   or an icon on a node is `node.image` (a URL or data: URL over the node's face), `node.glyph`
+ *   (an icon-font character) or `node.texture` (a picture as the shape's surface). It is marked
+ *   `renderable: false` and its value type is `never`, so writing it is a compile error rather
+ *   than a silent no-op.
  * - `edge.curvature` is a switch, not an amount. The edge renderer offsets its control points by
  *   a fixed fraction of the edge length, so "curve this edge" is the only thing it can be told.
  * - `edge.patternCount` counts the elements of a PATTERNED line. A solid line has none to count,
@@ -608,6 +610,8 @@ export interface ChannelValues {
     "edge.gradientColors": string;
     "edge.gradientStops": string;
     "edge.gradientKind": EdgeGradientKindValue;
+    "edge.strandColors": string;
+    "edge.strandSpacing": number;
     "edge.style": EdgeLineValue;
     "edge.patternCount": number;
     "edge.waveAmplitude": number;
@@ -1105,6 +1109,12 @@ const EDGE_GRADIENT_CAVEAT =
     'spaced), and `edge.gradientKind` "linear" from the source end to the target end, "radial" out from ' +
     'the line\'s middle to both ends, or "none". Fewer than two colors draw none. Drawn on solid lines.';
 
+const EDGE_STRANDS_CAVEAT =
+    "Draws the line as parallel strands side by side in place of its `edge.color`: `edge.strandColors` are CSS " +
+    "colors separated by spaces, the first strand on the right of the line's direction from source to target and " +
+    "the last on its left, each drawn over the one before, and `edge.strandSpacing` how far apart their middles " +
+    "are in line widths (1: strands that touch). Fewer than two colors draw the line as it is. Drawn on solid lines.";
+
 /** How an edge's gradient runs, or that it has none. */
 const EDGE_GRADIENT_KIND_VALUES: readonly EdgeGradientKindValue[] = ["linear", "radial", "none"];
 
@@ -1129,7 +1139,7 @@ const EDGE_SUPPORT_MODEL_VALUES: readonly EdgeSupportModelValue[] = ["barnesHut"
 const EDGE_SUPPORT_SCALE_VALUES: readonly EdgeSupportScaleValue[] = ["unit", "drawing"];
 const SUPPORT_CAVEAT = " Only an edge with an `edge.supportModel` has a support point; any other ignores it.";
 const EDGE_ROUTE_VALUES: readonly EdgeRouteValue[] = ["straight", "arc", "great-circle"];
-const EDGE_COLOR_FROM_VALUES: readonly EdgeColorFromValue[] = ["source", "target"];
+const EDGE_COLOR_FROM_VALUES: readonly EdgeColorFromValue[] = ["none", "source", "target"];
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
@@ -2769,8 +2779,9 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "texture.icon",
         renderable: false,
         caveat:
-            "The element draws no marker. texture.icon is in the node schema and no renderer " +
-            "reads it, and the badge vocabulary belongs to a label rather than to a node.",
+            "Reserved for markers the element draws itself; a layer cannot write it. A picture or an " +
+            "icon on a node is `node.image` (a URL or data: URL over the node's face), `node.glyph` " +
+            "(an icon-font character) or `node.texture` (a picture as the shape's surface).",
     },
     "node.width": extentChannel("width", "x"),
     "node.height": extentChannel("height", "y"),
@@ -2820,7 +2831,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "Drawing order in a 2D view, from -1000 to 0. A node below 0 is drawn " +
             "behind every edge and every node with a higher z-index, so a group (compound) node " +
-            "drawn at -1 never hides its members. 3D views draw by real depth and ignore it.",
+            "drawn at -1 never hides its members. A 3D view moves a flat shape back the same way and " +
+            "draws a solid one by real depth.",
     },
     "node.drawOrder": {
         channel: "node.drawOrder",
@@ -4478,12 +4490,14 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "line",
         accepts: "enum",
         values: EDGE_COLOR_FROM_VALUES,
+        default: "none",
         stylePath: "line.colorFrom",
         renderable: true,
         caveat:
             'Draws the line in the color the layers painted one of its nodes, in place of `edge.color`: "source" ' +
             "its source node's, \"target\" its target node's. It follows the node: a later layer that recolors the " +
-            "node recolors the line. An end node no layer colored leaves the line its own `edge.color`.",
+            'node recolors the line. An end node no layer colored leaves the line its own `edge.color`. "none", ' +
+            "the default, draws the line in its own `edge.color`.",
     },
     "edge.width": {
         channel: "edge.width",
@@ -4712,6 +4726,30 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "line.gradient.kind",
         renderable: true,
         caveat: EDGE_GRADIENT_CAVEAT,
+    },
+    "edge.strandColors": {
+        channel: "edge.strandColors",
+        target: "edge",
+        plainName: "Edge Strand Colors",
+        shortName: "Strand colors",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.strands.colors",
+        renderable: true,
+        caveat: EDGE_STRANDS_CAVEAT,
+    },
+    "edge.strandSpacing": {
+        channel: "edge.strandSpacing",
+        target: "edge",
+        plainName: "Edge Strand Spacing",
+        shortName: "Strand spacing",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.strands.spacing",
+        renderable: true,
+        caveat: EDGE_STRANDS_CAVEAT,
     },
     "edge.style": {
         channel: "edge.style",
@@ -5449,6 +5487,7 @@ const LIST_OF: ReadonlyMap<string, "color" | "number"> = new Map<string, "color"
     ["node.chartValues", "number"],
     ["edge.gradientColors", "color"],
     ["edge.gradientStops", "number"],
+    ["edge.strandColors", "color"],
 ]);
 
 /**

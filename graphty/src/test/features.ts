@@ -56,14 +56,14 @@ export function withoutFeatures(ids: readonly string[]): void {
 }
 
 /**
- * Runs every test of the calling file on a site that sends PostHog: the usage-analytics experiment
- * on, PostHog ids in site.json and the site's own host, so the app shows the words for it. PostHog's
+ * Runs every test of the calling file on a site that sends PostHog: PostHog ids in site.json and
+ * the site's own host, so the app shows the words for it. PostHog's
  * code never arrives, so nothing is sent. Registered after `withFeatures`, so it wins.
  */
 export function withPostHogSite(): void {
     beforeEach(async () => {
         resetSiteConfig();
-        const site = { site: "production", features: ["usage-analytics"], analytics: TEST_ANALYTICS };
+        const site = { site: "production", analytics: TEST_ANALYTICS };
         await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
         setAnalyticsCallsForTests({ hostname: () => "graphty.app", importPostHog: () => new Promise(() => undefined) });
     });

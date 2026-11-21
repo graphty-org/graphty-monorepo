@@ -1,6 +1,6 @@
 import { assert, describe, it, vi } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../../session";
+import { createGraphSession, type GraphSession, type RunChange } from "../../../session";
 import { GraphtyError } from "../../../src/errors";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
@@ -734,6 +734,127 @@ describe("session.time: what a window move does to finished runs", () => {
         assert.strictEqual(executions(), 2);
         assert.isNull(session.runs.get(id)?.stale);
         session.dispose();
+    });
+
+    it("says on run:changed that the window re-ran them, and nothing for a caller's run", async () => {
+        const { session, id } = await withRun("rerun");
+        const changes: RunChange[] = [];
+        session.on("run:changed", (change) => changes.push(change));
+        // A run's end is announced after its pass, which can be after the promise that started it.
+        const nextEnd = (): Promise<RunChange> =>
+            new Promise((resolve) => {
+                const stop = session.on("run:changed", (change) => {
+                    if (change.run.id === id && change.phase === "end") {
+                        stop();
+                        resolve(change);
+                    }
+                });
+            });
+
+        let ended = nextEnd();
+        await session.time.stepBy(1);
+        assert.strictEqual((await ended).trigger, "time-window");
+        const rerun = changes.filter((change) => change.run.id === id);
+        assert.isTrue(
+            rerun.every((change) => change.trigger === "time-window"),
+            "every moment of the re-run",
+        );
+
+        changes.length = 0;
+        ended = nextEnd();
+        await session.runs.get(id)?.rerun();
+        assert.isFalse("trigger" in (await ended), "a caller's re-run carries none");
+        assert.isNotEmpty(changes);
+        assert.isTrue(changes.every((change) => !("trigger" in change)));
+        session.dispose();
+    });
+
+    it("says the timeline re-ran them when the policy flips to rerun", async () => {
+        const { session, id } = await withRun();
+        await session.time.stepBy(1);
+        assert.strictEqual(session.runs.get(id)?.stale?.reason, "window-moved");
+        // The re-run's end is announced after its pass, which can be after the setting's promise.
+        const ended = new Promise<RunChange>((resolve) => {
+            session.on("run:changed", (change) => {
+                if (change.run.id === id && change.phase === "end") {
+                    resolve(change);
+                }
+            });
+        });
+
+        await session.time.setSettings({ results: "rerun" });
+        assert.strictEqual((await ended).trigger, "time-window");
+        session.dispose();
+    });
+
+    it("lets a play keep its pace under results: rerun, re-running one at a time (#9278)", async () => {
+        let count = 0;
+        let release = (): void => undefined;
+        const session = createGraphSession({
+            runs: {
+                execute: async (context) => {
+                    count++;
+                    // The first re-run is slow: it runs until the test lets it finish.
+                    if (count === 2) {
+                        await new Promise<void>((resolve) => {
+                            release = resolve;
+                        });
+                    }
+
+                    return execute(context);
+                },
+            },
+        });
+        const rows = Array.from(
+            { length: 12 },
+            (_, day) => `n${String(day)},n${String(day + 1)},${String(T0 + day * DAY)}`,
+        );
+        await session.data.import({ type: "csv", config: { data: `source,target,sent\n${rows.join("\n")}\n` } });
+        await session.time.setField({ edges: { start: "sent" } });
+        await session.time.setSettings({ results: "rerun" });
+        await session.time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const run = session.runs.start("degree", undefined, { style: false });
+        await run;
+        let steps = 0;
+        session.on("time:step", (step) => {
+            if (step.cause === "play") {
+                steps++;
+            }
+        });
+        let reran = 0;
+        const caughtUp = new Promise<void>((resolve) => {
+            session.on("run:changed", (change) => {
+                if (change.run.id === run.id && change.phase === "end" && change.trigger === "time-window") {
+                    reran++;
+                    if (reran === 2) {
+                        resolve();
+                    }
+                }
+            });
+        });
+
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            session.time.play({ interval: 100, motion: "steps" });
+            for (let step = 0; step < 4; step++) {
+                await vi.advanceTimersByTimeAsync(100);
+            }
+
+            // Four steps while the first re-run still runs: the play did not wait, and started no
+            // second re-run beside it.
+            assert.strictEqual(steps, 4);
+            assert.strictEqual(count, 1 + 1);
+
+            session.time.pause();
+            release();
+            await caughtUp;
+            // The three steps it missed are caught up by one re-run over the newest window.
+            assert.strictEqual(count, 1 + 2);
+            assert.isNull(session.runs.get(run.id)?.stale);
+        } finally {
+            vi.useRealTimers();
+            session.dispose();
+        }
     });
 
     it("saves the designation and the window with the project", async () => {

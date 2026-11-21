@@ -7,7 +7,8 @@
  * "node-set" option gets `values`: one choice per node in the scope, so a picker lists real ids.
  * A "partition" option on nodes gets `values` too: one choice per categorical node column that
  * can group the nodes -- a node attribute or a finished run's field -- leaving out the key and
- * label columns and any column with a value per node, which would make a group of each node.
+ * label columns and any column with a value per node, which would make a group of each node,
+ * and listing them best grouping first.
  * The location map layout's `latitude`, `longitude` and `location` options get every node column,
  * the columns whose values read in that role first and the rest with a refusal saying why not.
  * Everything else comes back exactly as the descriptor declares it.
@@ -100,12 +101,13 @@ function boundSource(bound: OptionDescriptor["min"]): BoundSource | undefined {
 }
 
 /**
- * The columns that can group the graph's nodes: categorical node attributes that are neither
- * the key nor the label, then each finished run's categorical node fields, leaving out any column
- * with a value per node.
+ * The columns that can group the graph's nodes, best grouping first: each finished run's
+ * categorical node fields, the newest run first, then the categorical node attributes that are
+ * neither the key nor the label, the fewest distinct values first (one value, or an unknown count,
+ * last: that groups nothing). Any column with a value per node is left out.
  * @param source - Where the attributes and the results are read.
  * @param graph - The snapshot, whose node count a grouping must stay under.
- * @returns One choice per column: an attribute's name, or a run field's path.
+ * @returns One choice per column: a run field's path, or an attribute's name.
  */
 function groupings(source: OptionsForSource, graph: GraphSnapshot): OptionDescriptor["values"] {
     const { nodeCount } = graph;
@@ -117,9 +119,11 @@ function groupings(source: OptionsForSource, graph: GraphSnapshot): OptionDescri
                 (a.uniqueCount ?? 0) < nodeCount &&
                 !(a.roles ?? []).some((role) => role === "key" || role === "label"),
         )
-        .map((a) => ({ value: a.name, label: a.plainName }));
+        .map((a) => ({ choice: { value: a.name, label: a.plainName }, rank: groupCount(a.uniqueCount) }))
+        .sort((a, b) => a.rank - b.rank)
+        .map(({ choice }) => choice);
     const results = source.results?.();
-    const fields = (results?.roots ?? []).flatMap((root) => {
+    const fields = [...(results?.roots ?? [])].reverse().flatMap((root) => {
         const result = results?.get(root.runId);
         const grouping = root.fields.filter((field) => {
             if (
@@ -143,9 +147,20 @@ function groupings(source: OptionsForSource, graph: GraphSnapshot): OptionDescri
         return grouping.map((field) => ({
             value: field.path,
             label: grouping.length === 1 ? root.runId : `${root.runId}: ${field.plainName}`,
+            runField: { runId: root.runId, field: field.name },
         }));
     });
-    return [...attributes, ...fields];
+    return [...fields, ...attributes];
+}
+
+/**
+ * How an attribute ranks as a grouping: its distinct count, or last when it has one value or an
+ * unknown count, since that groups nothing.
+ * @param uniqueCount - The attribute's distinct count, when known.
+ * @returns The rank, lower first.
+ */
+function groupCount(uniqueCount: number | undefined): number {
+    return uniqueCount !== undefined && uniqueCount > 1 ? uniqueCount : Number.MAX_SAFE_INTEGER;
 }
 
 /** The location map layout's options that name a column, by their role. */

@@ -879,6 +879,7 @@ function channelPlans(
                 ],
             ],
             ["xlabelOffsetY", [length("node.xlabelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
+            ["xlabelTextAlign", [id("node.xlabelTextAlign")]],
             ["shape", [table("node.shape", shapeTable)]],
             ["labelColor", [label("labelColor")]],
             ["labelSize", labelSize("node.labelSize", "node.labelLetterSize")],
@@ -901,6 +902,12 @@ function channelPlans(
             ["labelItalic", [label("labelItalic")]],
             ...labelBox,
             ...labelBoxShape,
+            // a picture in the label (yEd's label icon), sized and placed in the label's units as its padding is
+            ["labelImage", [picture("node.labelImage")]],
+            ["labelImageWidth", [labelLength("node.labelImageWidth", false)]],
+            ["labelImageHeight", [labelLength("node.labelImageHeight", false)]],
+            ["labelImageOffsetX", [labelLength("node.labelImageOffsetX", false)]],
+            ["labelImageOffsetY", [labelLength("node.labelImageOffsetY", false)]],
             ["labelBox", [label("labelBox")]],
             // moved in the scene's units, as a wrap width is
             ["labelOffsetX", [length("node.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
@@ -954,6 +961,9 @@ function channelPlans(
         ["overlayPadding", [length("edge.overlayPadding")]],
         ["gradientColors", [id("edge.gradientColors")]],
         ["gradientStops", [id("edge.gradientStops")]],
+        ["strandColors", [id("edge.strandColors")]],
+        // a ratio of two lengths, the strands' spacing over the line's width: no unit to convert
+        ["strandSpacing", [id("edge.strandSpacing")]],
         ["gradientKind", [table("edge.gradientKind", GRADIENT_KINDS)]],
         ["lineStyle", [table("edge.style", LINE_STYLES, LINE_STYLES_NEAREST)]],
         // in the line's own widths, as the element draws a dash pattern

@@ -70,6 +70,11 @@ const DECLARED = [
     "node.labelBorderAlign",
     "node.labelBorderStyle",
     "node.labelBackgroundShape",
+    "node.labelImage",
+    "node.labelImageWidth",
+    "node.labelImageHeight",
+    "node.labelImageOffsetX",
+    "node.labelImageOffsetY",
     "node.labelOffsetX",
     "node.labelOffsetY",
     "node.labelShiftX",
@@ -238,6 +243,7 @@ const DECLARED = [
     "node.modelCenter",
     "node.texture",
     "edge.color",
+    "edge.colorFrom",
     "edge.width",
     "edge.minScreenWidth",
     "edge.opacity",
@@ -261,6 +267,8 @@ const DECLARED = [
     "edge.gradientColors",
     "edge.gradientStops",
     "edge.gradientKind",
+    "edge.strandColors",
+    "edge.strandSpacing",
     "edge.style",
     "edge.patternCount",
     "edge.waveAmplitude",
@@ -402,6 +410,11 @@ const DECLARED = [
     "edge.labelBorderAlign",
     "edge.labelBorderStyle",
     "edge.labelBackgroundShape",
+    "edge.labelImage",
+    "edge.labelImageWidth",
+    "edge.labelImageHeight",
+    "edge.labelImageOffsetX",
+    "edge.labelImageOffsetY",
     "edge.labelOffsetX",
     "edge.labelOffsetY",
     "edge.labelShiftX",
@@ -419,6 +432,7 @@ const DECLARED = [
     "node.xlabelLocation",
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
+    "node.xlabelTextAlign",
     "edge.labelTable",
     "edge.xlabel",
     "edge.xlabelStyle",
@@ -451,9 +465,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and eighteen node channels and one hundred and seventy-eight edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 218);
-        assert.strictEqual(channelsFor("edge").length, 178);
+    it("splits into two hundred and twenty-four node channels and one hundred and eighty-six edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 224);
+        assert.strictEqual(channelsFor("edge").length, 186);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -677,6 +691,8 @@ describe("what a style editor needs to draw a row", () => {
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
         "edge.fadeEnd",
+        // Unset, the line is drawn in its own `edge.color`.
+        "edge.colorFrom",
         // Unset, a group reaches its largest member's radius past its members.
         "node.groupPadding",
         "node.groupPaddingRatio",
@@ -699,6 +715,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.xlabelLocation",
         "node.xlabelOffsetX",
         "node.xlabelOffsetY",
+        "node.xlabelTextAlign",
         // Unset, an edge has no external label, and one that has sits beside its middle or where the layout put it.
         "edge.xlabel",
         "edge.xlabelStyle",
@@ -816,6 +833,8 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, a line is painted in its color.
         "edge.gradientColors",
         "edge.gradientStops",
+        // Unset, a line is one strand in its color.
+        "edge.strandColors",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
         "edge.arrowHeadTextLetterSize",
@@ -886,6 +905,11 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelBorderAlign",
         "node.labelBorderStyle",
         "node.labelBackgroundShape",
+        "node.labelImage",
+        "node.labelImageWidth",
+        "node.labelImageHeight",
+        "node.labelImageOffsetX",
+        "node.labelImageOffsetY",
         "node.labelOffsetX",
         "node.labelOffsetY",
         "node.labelShiftX",
@@ -923,6 +947,11 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelBorderAlign",
         "edge.labelBorderStyle",
         "edge.labelBackgroundShape",
+        "edge.labelImage",
+        "edge.labelImageWidth",
+        "edge.labelImageHeight",
+        "edge.labelImageOffsetX",
+        "edge.labelImageOffsetY",
         "edge.labelOffsetX",
         "edge.labelOffsetY",
         "edge.labelShiftX",

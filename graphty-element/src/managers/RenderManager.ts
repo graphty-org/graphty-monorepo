@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 import "./babylonEngineExtensions";
 
 import type { Camera } from "@babylonjs/core/Cameras/camera.js";
@@ -35,6 +36,7 @@ import { GraphtyLogger } from "../logging";
 import type { BackgroundPass } from "../meshes/BackgroundPass";
 import type { BloomPass } from "../meshes/BloomPass";
 import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
+import { FlatBackdrop } from "../meshes/FlatBackdrop";
 import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { GroupOutlinePass, GroupOutlinePick, OutlineMember } from "../meshes/GroupOutlinePass";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
@@ -47,6 +49,7 @@ import { placeOfUse } from "../session/styles/channels";
 import { groupOutlinesOf } from "../session/styles/StylesApi";
 import type { GraphSession, SessionEventMap } from "../session/types";
 import { type LazyShaderHost, lendSceneShaders } from "../shaders/chunk";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
@@ -291,8 +294,8 @@ export async function openWebGPUEngine(
     });
     engine.sharesDevice = shared;
     try {
-        // glslang goes in as a promise: Babylon 8.43 calls `.then` on whatever `glslang` option it
-        // is given, though its type and its docs ask for the instance itself.
+        // glslang goes in as a promise: Babylon (8.43 to 9.37) calls `.then` on whatever `glslang`
+        // option it is given, though its type and its docs ask for the instance itself.
         await engine.initAsync({ glslang: Promise.resolve(compilers.glslang) }, { twgsl: compilers.twgsl });
         return engine;
     } catch (error) {
@@ -492,8 +495,8 @@ interface ShaderBackground {
     readonly params: ShaderParams | undefined;
     /** The background color, hex: drawn beneath, and for a pixel whose result is not a number. */
     readonly color: string;
-    /** The skybox dome, whose image the shader is drawn over; hidden while the shader draws it. */
-    readonly dome: PhotoDome | null;
+    /** The skybox dome or flat backdrop, whose image the shader is drawn over; hidden while the shader draws it. */
+    readonly dome: PhotoDome | FlatBackdrop | null;
 }
 
 /**
@@ -711,6 +714,7 @@ class ShaderScene {
             wanted.params,
             [color.r, color.g, color.b, 1],
             wanted.dome?.texture ?? null,
+            wanted.dome instanceof FlatBackdrop,
         );
         // The pass draws the image beneath the shader, so the dome, which would cover it, hides.
         if (ticket === this.backgroundTicket && !wanted.dome?.isDisposed()) {
@@ -1027,8 +1031,9 @@ export class RenderManager implements Manager {
         }
     };
     private readonly resizeHandler: () => void;
-    /** The one skybox dome, and the image it shows; null while the background is a color. */
-    private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
+    /** The one skybox dome (or flat backdrop), and the image it shows; null while the background is a color. */
+    private dome: { readonly url: string; readonly flat: boolean; readonly dome: PhotoDome | FlatBackdrop } | null =
+        null;
     /** The background shader asked for, kept until {@link bindShaderScene} gives it a graph. */
     private shaderBackground: ShaderBackground | null = null;
     /** The scene-level shader passes, once {@link bindShaderScene} gave them a graph. */
@@ -1106,7 +1111,7 @@ export class RenderManager implements Manager {
             this.scene = new Scene(this.engine);
         }
 
-        useBundledStandardShaders(this.scene);
+        useBundledStandardShaders();
         drawOnlyEnabledMeshes(this.scene);
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;
@@ -1151,10 +1156,14 @@ export class RenderManager implements Manager {
 
         // Initialize camera manager
         this.camera = new CameraManager(this.scene);
+        // A wheel run ends at a frame of its own, which a loop drawing on demand would not draw.
+        this.camera.requestFrame = () => {
+            this.requestFrame();
+        };
 
         // Store camera manager in scene metadata for access by other components
         this.scene.metadata ??= {};
-        this.scene.metadata.cameraManager = this.camera;
+        (this.scene.metadata as GraphSceneMetadata).cameraManager = this.camera;
 
         // Setup cameras
         this.setupCameras();
@@ -1249,6 +1258,12 @@ export class RenderManager implements Manager {
         this.engine.dispose();
         forgetDisposedScene();
         if (gl !== undefined) {
+            // The fence wait below holds the context, and the context holds its canvas: left in
+            // the page, the canvas holds the element and through it the whole disposed graph until
+            // the GPU drains -- minutes on a software GPU after a 1,000,000-edge draw, which kept
+            // about 2 GB alive and crashed the next graph's page (#9217). Out of the page, it holds
+            // nothing else. A renderer swap has already replaced this canvas, so this is a no-op there.
+            this.canvas.remove();
             releaseWhenIdle(gl);
         }
     }
@@ -2173,7 +2188,7 @@ export class RenderManager implements Manager {
 
     /**
      * Draw the graph against a background, bottom to top: the clear color (its own, else the
-     * default), a photo-dome skybox, and a background shader drawn over them once it compiled.
+     * default), a skybox (a photo dome, or flat behind the graph), and a background shader drawn over them once it compiled.
      * While the shader draws, the shader pass draws the skybox image beneath it and the dome hides.
      *
      * The scene holds at most one dome. A color disposes it; a different skybox replaces it; the
@@ -2189,16 +2204,19 @@ export class RenderManager implements Manager {
         this.setBackgroundColor(color);
         if (background.backgroundType === "skybox") {
             const url = background.data;
-            if (this.dome?.url !== url) {
+            const flat = background.projection === "flat";
+            if (this.dome?.url !== url || this.dome.flat !== flat) {
                 this.dome?.dome.dispose();
-                const dome = new PhotoDome("testdome", url, { resolution: 32, size: 500 }, this.scene);
+                const dome = flat
+                    ? new FlatBackdrop(url, this.scene)
+                    : new PhotoDome("testdome", url, { resolution: 32, size: 500 }, this.scene);
                 dome.texture.onLoadObservable.addOnce(() => {
                     onSkybox(url, true);
                 });
                 dome.onLoadErrorObservable.addOnce(() => {
                     onSkybox(url, false);
                 });
-                this.dome = { url, dome };
+                this.dome = { url, flat, dome };
             }
         } else {
             this.dome?.dome.dispose();
@@ -2264,7 +2282,9 @@ export class RenderManager implements Manager {
      * The numbers are the ones measured in `stories/experiments/NodeLighting.stories.ts` (25
      * shapes x 4 colors x 12 rotations). Node materials are frozen, and a frozen material keeps the
      * shader it compiled -- which lights it counts, whether it has a rim -- so every frozen material
-     * is thawed, recompiled on the next frame and frozen again after it.
+     * is thawed, recompiled on the next frame and frozen again after it. The caller thaws the
+     * scene's active-mesh list too: a mesh in a frozen list does not look at its material's new
+     * shader.
      * @param lighting - The lighting.
      */
     applyLighting(lighting: Lighting): void {
@@ -2300,8 +2320,12 @@ export class RenderManager implements Manager {
 
         if (thawed.length > 0) {
             scene.onAfterRenderObservable.addOnce(() => {
+                // Frozen without `freeze()`: it also marks every mesh drawn with the material as not
+                // ready, and a mesh in a frozen active-mesh list (see UpdateManager's
+                // settleActiveMeshFreeze) never checks again, so it is skipped every frame until
+                // the list next thaws. A batch of rows went off the canvas that way (#9246).
                 for (const material of thawed) {
-                    material.freeze();
+                    material.checkReadyOnlyOnce = true;
                 }
             });
         }

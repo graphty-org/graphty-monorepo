@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 /**
  * @file The drawn place and size of every row of one graph, as float textures a shader can read
  * and as a CPU table picking can walk (design/rendering/row-renderer.md 4.1).
@@ -16,9 +17,16 @@ import { INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
 import type { ElementPositions } from "../data/positions";
 import type { Xyz } from "../meshes/edgeRoute";
-import { ROW_EXTENT_ELLIPSE, ROW_EXTENT_ROUND, ROW_EXTENT_SEEN_THROUGH } from "../meshes/edgeTrim";
+import {
+    ROW_EXTENT_ELLIPSE,
+    ROW_EXTENT_ROUND,
+    ROW_EXTENT_SCREEN_BORDER,
+    ROW_EXTENT_SEEN_THROUGH,
+} from "../meshes/edgeTrim";
 import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { Node } from "../Node";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
+import type { GpuBufferHandle, GpuDeviceHandle } from "./gpuHandles";
 
 /** Texels across both textures: a shader reads texel `i` at `(i % 1024, i / 1024)`. */
 const ROW_TEXTURE_WIDTH = 1024;
@@ -56,6 +64,8 @@ export interface RowMeasure {
     readonly drawnScale: number;
     readonly roundRadius: number | null;
     readonly borderReach: number;
+    /** Whether its border is drawn in screen pixels, so {@link RowMeasure.borderReach} changes with the zoom. */
+    readonly screenBorder?: boolean;
     readonly drawnHalfExtents: Readonly<{ x: number; y: number; z: number }>;
     readonly drawnBoundingRadius: number;
     readonly outlineHalfExtents: Readonly<{ x: number; y: number; z: number }>;
@@ -76,7 +86,7 @@ export interface DrawnTarget {
      * the renderer draws elsewhere (WebGL, or WebGPU on its own device), so a landing's drawn rows come back in
      * the batch's readback and go up as they came ({@link RowTable.uploadLanded}).
      */
-    readonly device: GPUDevice | null;
+    readonly device: GpuDeviceHandle | null;
     /** A layout transition is drawing rows off their lanes: landings go up by upload, not by copy. */
     readonly suspended?: boolean;
 }
@@ -88,6 +98,11 @@ export interface RowExtent {
     round: number | null;
     /** How far its surface reaches along each axis. */
     half: Xyz;
+    /**
+     * How far its border reaches past its surface as layout counts it (`Node.layoutRadius`): 0 for a border drawn in
+     * screen pixels, whose reach changes with the zoom.
+     */
+    border: number;
 }
 
 /** One float texture and the CPU copy it is uploaded from. */
@@ -448,12 +463,14 @@ export class RowTable {
      * Fill the first `rows` rows of the `rowPosition` texture from a layout's drawn buffer on the
      * card (design/rendering/row-renderer.md 4.5): one copy, no upload. The CPU copy follows at
      * the next repack, which then sends none of its rows.
-     * @param device - The device the texture and the buffer live on.
-     * @param buffer - Four floats per row, x, y, z and w, as `rowPosition` holds them.
+     * @param handle - The device the texture and the buffer live on.
+     * @param landed - Four floats per row, x, y, z and w, as `rowPosition` holds them.
      * @param rows - Rows to copy.
      * @returns False when the texture is not on the card yet, so nothing was copied.
      */
-    copyLanded(device: GPUDevice, buffer: GPUBuffer, rows: number): boolean {
+    copyLanded(handle: GpuDeviceHandle, landed: GpuBufferHandle, rows: number): boolean {
+        const device = handle as GPUDevice;
+        const buffer = landed as GPUBuffer;
         const texture = this.positions.texture.getInternalTexture()?._hardwareTexture?.underlyingResource as
             GPUTexture | undefined;
         if (texture === undefined || rows <= 0) {
@@ -569,6 +586,7 @@ export class RowTable {
             scale: of(0),
             round: ((floats[base + 3] ?? 0) & ROW_EXTENT_ROUND) === 0 ? null : of(1),
             half: { x: of(4), y: of(5), z: of(6) },
+            border: ((floats[base + 3] ?? 0) & ROW_EXTENT_SCREEN_BORDER) === 0 ? of(2) : 0,
         };
     }
 
@@ -698,7 +716,8 @@ export class RowTable {
         const extentFlags =
             (round === null ? 0 : ROW_EXTENT_ROUND) |
             (node.shapeType === "ellipse" ? ROW_EXTENT_ELLIPSE : 0) |
-            (node.paintedOpacity < 1 ? ROW_EXTENT_SEEN_THROUGH : 0);
+            (node.paintedOpacity < 1 ? ROW_EXTENT_SEEN_THROUGH : 0) |
+            (node.screenBorder === true ? ROW_EXTENT_SCREEN_BORDER : 0);
         this.extents.floats.set(
             [
                 node.drawnScale,
@@ -821,7 +840,7 @@ export class RowTable {
             lane.settle();
         }
 
-        const twoD = this.scene.metadata?.twoD === true;
+        const twoD = (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true;
         if (lane.changes !== this.laneChanges || twoD !== this.twoD) {
             this.twoD = twoD;
             this.laneChanges = lane.changes;

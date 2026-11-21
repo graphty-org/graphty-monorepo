@@ -155,11 +155,32 @@ function fitsNode(shape: NodeStyleConfig["shape"]): boolean {
 /** A resolved style as a node draws it: with what its table label draws over its face, once laid out. */
 type DecoratedStyle = NodeStyleConfig & { readonly table?: TableDecoration };
 
-/** The label fields an external label does not take from the label: what it says, where it sits, its switch. */
+/**
+ * The label fields an external label does not take from the label: what it says (its words or its table), where it
+ * sits, its box (what it is sized to, its background and border), its switch. It takes the label's font, size, color
+ * and outline.
+ */
 export const XLABEL_UNSHARED = [
     "enabled",
     "text",
     "textPath",
+    "table",
+    "box",
+    "backgroundColor",
+    "backgroundOpacity",
+    "backgroundShape",
+    "image",
+    "imageWidth",
+    "imageHeight",
+    "imageOffsetX",
+    "imageOffsetY",
+    "borderWidth",
+    "borderColor",
+    "borderOpacity",
+    "borders",
+    "borderStyle",
+    "borderAlign",
+    "cornerRadius",
     "location",
     "attachOffset",
     "offsetX",
@@ -578,6 +599,12 @@ export class Node implements ModelUser {
     #playing: TemplateAnimation | null = null;
     /** The view's scale on this node (`node.sizeSpace`), a shrink left out. */
     #wholeScale = 1;
+    /**
+     * A model's mesh and the scale it was built at: its size (`NodeMesh.createModelInstance`),
+     * which a view's scale multiplies rather than replaces. A shape's mesh is built at its size,
+     * so it has none (issue #9304).
+     */
+    #modelBuilt: { readonly mesh: AbstractMesh; readonly scale: Vector3 } | null = null;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
 
@@ -1151,7 +1178,17 @@ export class Node implements ModelUser {
      * @returns The reach.
      */
     private get sceneBorderReach(): number {
-        return typeof this.borderBuilt?.scale === "number" ? 0 : this.borderReach;
+        return this.screenBorder ? 0 : this.borderReach;
+    }
+
+    /**
+     * Whether this node's border is drawn in screen pixels (`border.screenWidth`), so {@link Node.borderReach} changes
+     * with the zoom and {@link Node.layoutRadius} leaves it out.
+     * @returns True for a screen-pixel border.
+     * @internal
+     */
+    get screenBorder(): boolean {
+        return typeof this.borderBuilt?.scale === "number";
     }
 
     /**
@@ -2187,7 +2224,17 @@ export class Node implements ModelUser {
      */
     get drawnScale(): number {
         const scale = this.batchTable?.extentOf(this.row).scale;
-        return scale === undefined ? this.#anchor.scaling.x : exactOf(scale, this.#anchor.scaling.x);
+        const own = this.#anchor.scaling.x / (this.builtScale()?.x ?? 1);
+        return scale === undefined ? own : exactOf(scale, own);
+    }
+
+    /**
+     * The scale the node's mesh was built at, when it is a model's.
+     * @returns The scale, or null for a mesh built at its size.
+     */
+    private builtScale(): Vector3 | null {
+        const built = this.#modelBuilt;
+        return built !== null && built.mesh === this.#anchor ? built.scale : null;
     }
 
     /**
@@ -2226,7 +2273,13 @@ export class Node implements ModelUser {
      * @param whole - Its scale when it is not shrunk.
      */
     private drawScaled(scale: number, whole: number): void {
-        this.#anchor.scaling.setAll(scale);
+        const built = this.builtScale();
+        if (built === null) {
+            this.#anchor.scaling.setAll(scale);
+        } else {
+            built.scaleToRef(scale, this.#anchor.scaling);
+        }
+
         this.measureRow();
         if (this.#wholeScale !== whole) {
             this.#wholeScale = whole;
@@ -2970,7 +3023,9 @@ export class Node implements ModelUser {
         const model = this.modelFor(o);
         if (model !== null) {
             this.setDrawn(model, null);
-            return NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
+            const mesh = NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
+            this.#modelBuilt = { mesh, scale: mesh.scaling.clone() };
+            return mesh;
         }
 
         const image = this.imageFor(o);
@@ -3818,8 +3873,10 @@ export class Node implements ModelUser {
 
     /**
      * The band a model node is marked with: its halo (selection or `node.halo*`), else its
-     * outline, else its glow. Width in pixels: a halo's `(scale - 1) x 20` (9 at the default
-     * 1.45), an outline's width x 4, a glow's strength x 8, each between 2 and 16.
+     * outline, else its glow. Width in pixels: a halo's `(scale - 1) x 6` (3 at the default
+     * 1.45, a line that hugs the model at any zoom: at 9 a small model drawn 20 pixels tall
+     * vanished into a disc of the mark), an outline's width x 4, a glow's strength x 8, each
+     * between 2 and 16.
      * @returns The look, or null for no mark.
      */
     private modelMarkLook(): ModelMarkLook | null {
@@ -3827,7 +3884,7 @@ export class Node implements ModelUser {
         const halo = this.haloLook();
         if (halo !== null && halo.opacity !== 0) {
             const { rgb } = readColor(halo.color, DEFAULT_SELECTION_STYLE.color);
-            return { color: rgb.toHexString(), thickness: pixels((halo.scale - 1) * 20) };
+            return { color: rgb.toHexString(), thickness: pixels((halo.scale - 1) * 6) };
         }
 
         const effect = this.drawnStyle?.effect;

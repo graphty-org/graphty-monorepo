@@ -39,7 +39,12 @@ export interface GraphOverview {
      * How many placed nodes fall in each cell of a `size` by `size` grid over the frame, row by
      * row from the top; null when `kind` is `"points"`.
      */
-    density: { size: number; counts: Uint32Array } | null;
+    density: {
+        /** The grid's columns, and its rows. */
+        size: number;
+        /** The node count of each cell, row by row from the top: `size * size` entries. */
+        counts: Uint32Array;
+    } | null;
     /**
      * The part of the frame the camera shows, at the depth of what it looks at. It may reach past
      * 0 to 1 when the view shows more than the graph. All zero when no node is placed.

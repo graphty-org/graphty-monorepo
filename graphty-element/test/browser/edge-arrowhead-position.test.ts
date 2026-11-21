@@ -67,8 +67,10 @@ async function drawGraph(
         await styleEveryNode(graph, nodeStyle);
     }
 
-    // FixedLayout reads node.data.position.{x,y,z}
-    await graph.setLayout("fixed", { dim: twoD ? 2 : 3 });
+    // FixedLayout reads node.data.position.{x,y,z}. spacing 0 draws them as given: the expected
+    // arrow tips are read from these positions, and the edges arriving after the nodes would
+    // otherwise spread the short ones apart, as data loaded in one write is (#9257).
+    await graph.setLayout("fixed", { dim: twoD ? 2 : 3, spacing: 0 });
     for (const [id, position] of Object.entries(nodes)) {
         await graph.addNode(asData({ id, position }));
     }

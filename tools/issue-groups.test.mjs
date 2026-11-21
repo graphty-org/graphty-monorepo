@@ -1675,6 +1675,34 @@ describe("pipeline jobs", () => {
         return l;
     };
 
+    it("offers every red or conflicting agent pull request and idle counts them, however busy the slots (#9136)", () => {
+        // 2026-11-19: 36 red or conflicting agent pull requests, every test slot held by running jobs; the list was
+        // capped at half the free slots, so jobs offered none and idle read "startable" from the issue jobs alone
+        const prs = Array.from({ length: 36 }, (_, k) =>
+            pr(9100 + k, k % 3 ? { mergeable: "CONFLICTING", checks: "SUCCESS" } : {}),
+        );
+        prs.push(pr(9200, { author: "apowers313" }), pr(9201, { branch: "revert/9201" }));
+        prs.push(pr(9202, { markers: [{ kind: "fix attempt", at: NOW - HOUR }] }));
+        prs.push(pr(9203, { markers: [{ kind: "inherited", at: NOW - 9 * HOUR }] }));
+        prs.push(pr(9204, { priority: "high" }));
+        const r = ledgerJobs(withPrs(prs), q([1, "medium"]), NOW, { claims: [] });
+        const red = r.jobs.filter((j) => j.kind === "fix-red");
+        assert.equal(red.length, 37, "every eligible one, never the owner's, a revert, a fresh attempt or inherited");
+        assert.equal(r.jobs[0].pr, 9204, "strict priority: the high one first");
+        const ledgerPath = join(tempDir(), "groups.json");
+        writeFileSync(ledgerPath, JSON.stringify(withPrs(prs)));
+        const v = main(["idle", "--json"], {
+            ledgerPath,
+            now: NOW,
+            sweep: () => ({ claims: [], line: "claims: swept" }),
+            fetchOpen: () => [],
+            session: () => null,
+            sinks: () => ({}),
+            machine: () => ({ slots: { count: 4, held: 4, waitedMs: 0 }, load: 1, cores: 32 }),
+        });
+        assert.equal(JSON.parse(v.out).startable, 37);
+    });
+
     it("offers fix-red for an agent pull request red with a 7 h old head, ranked by the issues it blocks", () => {
         const l = withPrs([pr(9001)]);
         l.blocked = [{ issue: 1, prs: [9001], reason: "same file" }];
@@ -1723,7 +1751,7 @@ describe("pipeline jobs", () => {
         assert.match(jobLines(old)[0], /2 fix attempts: close it, branch kept$/);
     });
 
-    it("offers open for a ready branch with no pull request for over 2 h, never a landed or claimed one, capped at half the free slots", () => {
+    it("offers open for a ready branch with no pull request for over 2 h, never a landed or claimed one", () => {
         const l = withPrs([]);
         for (const n of [1, 2, 3]) {
             make(l, n);
@@ -1741,8 +1769,6 @@ describe("pipeline jobs", () => {
             [["open", "fix/1-x"]],
         );
         assert.match(jobLines(r)[0], /^open fix\/1-x none g1 -- ready sha1 3 h ago, no pull request; issues #1$/);
-        assert.equal(ledgerJobs(l, [], NOW, { isAncestor, free: 3 }).jobs.length, 1, "half of 3 free slots is 1");
-        assert.equal(ledgerJobs(l, [], NOW, { isAncestor, free: 1 }).jobs.length, 0);
         assert.equal(
             ledgerJobs({ ...l, openPrs: undefined }, [], NOW, { isAncestor }).jobs.length,
             0,

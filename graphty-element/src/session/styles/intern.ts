@@ -341,6 +341,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.color": "instance",
     "node.opacity": "instance",
     "edge.color": "instance",
+    // Read by the renderer as the end node's color in place of `edge.color` (GraphSession's paint), so it keys what
+    // `edge.color` keys.
+    "edge.colorFrom": "instance",
     "edge.opacity": "instance",
     // The outline is a batch of its own, keyed by its color, width and opacity.
     "edge.outlineColor": "mesh",
@@ -357,6 +360,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.gradientColors": "mesh",
     "edge.gradientStops": "mesh",
     "edge.gradientKind": "mesh",
+    "edge.strandColors": "mesh",
+    "edge.strandSpacing": "mesh",
 
     // Drawn beside the mesh, and per element by nature: the halo is an overlay instance, the band
     // its own line batch, each rebuilt by the paint that carries it.
@@ -409,6 +414,11 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelBorderAlign": "content",
     "node.labelBorderStyle": "content",
     "node.labelBackgroundShape": "content",
+    "node.labelImage": "content",
+    "node.labelImageWidth": "content",
+    "node.labelImageHeight": "content",
+    "node.labelImageOffsetX": "content",
+    "node.labelImageOffsetY": "content",
     "node.labelOffsetX": "content",
     "node.labelOffsetY": "content",
     "node.labelShiftX": "content",
@@ -453,6 +463,11 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelBorderAlign": "content",
     "edge.labelBorderStyle": "content",
     "edge.labelBackgroundShape": "content",
+    "edge.labelImage": "content",
+    "edge.labelImageWidth": "content",
+    "edge.labelImageHeight": "content",
+    "edge.labelImageOffsetX": "content",
+    "edge.labelImageOffsetY": "content",
     "edge.labelOffsetX": "content",
     "edge.labelOffsetY": "content",
     "edge.labelShiftX": "content",
@@ -544,6 +559,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.xlabelLocation": "content",
     "node.xlabelOffsetX": "content",
     "node.xlabelOffsetY": "content",
+    "node.xlabelTextAlign": "content",
     "edge.xlabel": "content",
     "edge.xlabelStyle": "content",
     "edge.xlabelLocation": "content",

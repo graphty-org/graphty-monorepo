@@ -1,5 +1,6 @@
 import type { OptionsSchema as ZodOptionsSchema } from "../config";
 import { Algorithm } from "./Algorithm";
+import { AllPathsAlgorithm } from "./AllPathsAlgorithm";
 import { AStarAlgorithm } from "./AStarAlgorithm";
 // Phase 4 shortest path algorithms
 import { BellmanFordAlgorithm } from "./BellmanFordAlgorithm";
@@ -13,6 +14,7 @@ import { ClosenessCentralityAlgorithm } from "./ClosenessCentralityAlgorithm";
 import { ClusteringCoefficientAlgorithm } from "./ClusteringCoefficientAlgorithm";
 // Phase 6 component algorithms
 import { ConnectedComponentsAlgorithm } from "./ConnectedComponentsAlgorithm";
+import { ArticulationPointsAlgorithm, BridgesAlgorithm } from "./CutAlgorithms";
 // Phase 1 algorithms
 import { DegreeAlgorithm } from "./DegreeAlgorithm";
 import { DFSAlgorithm } from "./DFSAlgorithm";
@@ -88,8 +90,11 @@ Algorithm.register(MarkovClusteringAlgorithm);
 Algorithm.register(SpectralClusteringAlgorithm);
 Algorithm.register(HierarchicalClusteringAlgorithm);
 Algorithm.register(AStarAlgorithm);
+Algorithm.register(AllPathsAlgorithm);
 Algorithm.register(EdgeBetweennessCentralityAlgorithm);
 Algorithm.register(RemovalImpactAlgorithm);
+Algorithm.register(ArticulationPointsAlgorithm);
+Algorithm.register(BridgesAlgorithm);
 
 // Export base class and types
 export { Algorithm } from "./Algorithm";
@@ -157,8 +162,11 @@ export function getAllAlgorithmInfo(): AlgorithmInfo[] {
         SpectralClusteringAlgorithm,
         HierarchicalClusteringAlgorithm,
         AStarAlgorithm,
+        AllPathsAlgorithm,
         EdgeBetweennessCentralityAlgorithm,
         RemovalImpactAlgorithm,
+        ArticulationPointsAlgorithm,
+        BridgesAlgorithm,
     ];
 
     for (const AlgoClass of knownAlgorithms) {

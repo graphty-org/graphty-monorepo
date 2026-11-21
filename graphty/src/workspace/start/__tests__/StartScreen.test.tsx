@@ -6,9 +6,12 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { count, resetAnalyticsForTests, setPostHogClientForTests, SURVEYS_KEY } from "../../../lib/analytics";
+import { withFeatures, withPostHogSite } from "../../../test/features";
 import { sampleTile } from "../../../test/samples-dialog";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { USE_CASE_SURVEY } from "../../privacy/__tests__/surveyFixtures";
+import { ANONYMOUS_COUNTS, forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
@@ -21,6 +24,16 @@ setUsageSenderForTests({ start: initSentry, stop: stopSentry });
 
 const OWNER_WORDS =
     "We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions.";
+
+/**
+ * Opens a project, hovers the privacy chip in its status bar and reads the chip's tooltip.
+ * @returns the tooltip's words.
+ */
+async function chipTooltip(): Promise<string> {
+    renderStart({ project: { name: "Les Miserables", id: 1 } });
+    await userEvent.hover(screen.getByRole("button", { name: "Local only" }));
+    return (await screen.findByRole("tooltip", undefined)).textContent;
+}
 
 /**
  * Renders the workspace with no project open.
@@ -36,12 +49,14 @@ beforeEach(async () => {
     await clearRecent();
     forgetUsageAnswer();
     localStorage.removeItem(SINGLE_KEY_SHORTCUTS.key);
+    localStorage.removeItem(SURVEYS_KEY);
     initSentry.mockClear();
     stopSentry.mockClear();
 });
 afterEach(() => {
     forgetUsageAnswer();
     localStorage.removeItem(SINGLE_KEY_SHORTCUTS.key);
+    localStorage.removeItem(SURVEYS_KEY);
     vi.unstubAllGlobals();
 });
 
@@ -150,13 +165,22 @@ describe("the start screen", () => {
         assert.isNull(card.closest(".ws-land"));
         assert.equal(getComputedStyle(card).position, "fixed");
         assert.isTrue(card.checkVisibility());
+        assert.isNotNull(within(card).getByText("Nothing is collected until you answer."));
+        // The privacy page is linked only where the page sends PostHog: no PostHog ids here.
+        assert.isNull(screen.queryByRole("link", { name: "Privacy" }));
         assert.isNotNull(within(card).getByText("Your data is yours, but please help us."));
         assert.isNotNull(within(card).getByText(OWNER_WORDS));
         const collected = within(card).getByText("No file contents ever leave your computer.");
         assert.isFalse(collected.checkVisibility());
         await userEvent.click(within(card).getByText("What is collected"));
         assert.isTrue(collected.checkVisibility());
+        assert.isNotNull(within(card).getByText("A feedback widget."));
+        assert.isNull(within(card).queryByText(/PostHog/));
         assert.equal(initSentry.mock.calls.length, 0);
+    });
+
+    it("says nothing is sent in the privacy chip's tooltip", async () => {
+        assert.equal(await chipTooltip(), "Nothing is sent. Opens Settings > Privacy");
     });
 
     it("turns usage data on with Share usage data, and says so", async () => {
@@ -182,6 +206,7 @@ describe("the start screen", () => {
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isFalse(within(dialog).getByRole<HTMLInputElement>("switch", { name: "Share usage data" }).checked);
         assert.isNotNull(within(dialog).getByText("Usage data: off. Nothing is sent."));
+        assert.isNull(within(dialog).queryByRole("link", { name: "Privacy details" }));
     });
 
     it("asks a first visit that lands straight in a project, and the answer line closes", async () => {
@@ -305,6 +330,103 @@ describe("the start screen", () => {
         assert.isNotNull(screen.getByRole("button", { name: /^Open a file/ }));
         assert.isNotNull(screen.getByRole("button", { name: "New project" }));
         assert.isNotNull(screen.getByRole("button", { name: "Open network data" }));
+    });
+});
+
+describe("the start screen on a site with no PostHog ids", () => {
+    withFeatures([]);
+
+    it("says nothing is sent, as it is, and links no privacy page", async () => {
+        renderStart();
+
+        const card = screen.getByRole("complementary", { name: "Usage data" });
+        assert.isNotNull(within(card).getByText("Nothing is collected until you answer."));
+        assert.isNull(screen.queryByRole("link", { name: "Privacy" }));
+        await userEvent.click(within(card).getByText("What is collected"));
+        assert.isNull(within(card).queryByText(/PostHog/));
+    });
+
+    it("says nothing is sent in the privacy chip's tooltip", async () => {
+        assert.equal(await chipTooltip(), "Nothing is sent. Opens Settings > Privacy");
+    });
+});
+
+describe("the start screen on a site that sends PostHog", () => {
+    withFeatures([]);
+    withPostHogSite();
+
+    it("says anonymous counts are sent, links the privacy page, and stacks the card in its corner", async () => {
+        renderStart();
+
+        const card = screen.getByRole("complementary", { name: "Usage data" });
+        const corner = card.parentElement;
+        assert.exists(corner);
+        assert.equal(getComputedStyle(corner).position, "fixed");
+        assert.isNotNull(within(card).getByText(/^Until you share, anonymous counts are sent/));
+        assert.equal(screen.getByRole("link", { name: "Privacy" }).getAttribute("href"), "/privacy.html");
+        await userEvent.click(within(card).getByText("What is collected"));
+        assert.isNotNull(within(card).getByText("PostHog keeps a random id in this browser while sharing is on."));
+        assert.isNull(within(card).queryByText("A feedback widget."));
+
+        await userEvent.click(within(card).getByRole("button", { name: "No thanks" }));
+        assert.isNotNull(
+            screen.getByText(/Usage data stays off\. Anonymous counts are still sent\./, {
+                selector: ".ws-start-answer",
+            }),
+        );
+        await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
+        const dialog = await screen.findByRole("dialog", { name: "Settings" });
+        assert.isNotNull(
+            within(dialog).getByText(`Usage data: off. Anonymous counts are still sent: ${ANONYMOUS_COUNTS}.`),
+        );
+        assert.isNotNull(within(dialog).getByRole("link", { name: "Privacy details" }));
+    });
+
+    it("says anonymous counts are sent in the privacy chip's tooltip", async () => {
+        assert.equal(
+            await chipTooltip(),
+            "Your files stay on this computer. Anonymous counts are sent. Opens Settings > Privacy",
+        );
+    });
+
+    it("stacks a survey that comes up beside the answer line, hiding neither, and keeps focus", async () => {
+        let undoPostHog: () => void = () => undefined;
+        setUsageSenderForTests({
+            start: () => {
+                undoPostHog = setPostHogClientForTests({
+                    getActiveMatchingSurveys: (callback) => {
+                        callback([USE_CASE_SURVEY]);
+                    },
+                });
+            },
+            stop: () => {
+                undoPostHog();
+            },
+        });
+        try {
+            renderStart({ project: { name: "Les Miserables", id: 1 } });
+            const card = screen.getByRole("complementary", { name: "Usage data" });
+            await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+            const close = screen.getByRole("button", { name: "Close" });
+            assert.equal(document.activeElement, close);
+
+            act(() => {
+                count("algorithm_run", { algorithm: "degree", outcome: "succeeded" });
+            });
+
+            const survey = screen.getByRole("complementary", { name: "Survey" });
+            const line = screen.getByText(/Usage data is on/, { selector: ".ws-start-answer" });
+            assert.isTrue(line.checkVisibility(), "the answer line is still shown");
+            assert.equal(document.activeElement, close, "focus stays on the answer line's close");
+            // Stacked in one corner: the line sits above the survey, never under it.
+            const lineBox = line.getBoundingClientRect();
+            const surveyBox = survey.getBoundingClientRect();
+            assert.isAtMost(lineBox.bottom, surveyBox.top);
+        } finally {
+            undoPostHog();
+            resetAnalyticsForTests();
+            setUsageSenderForTests({ start: initSentry, stop: stopSentry });
+        }
     });
 });
 

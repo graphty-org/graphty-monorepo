@@ -4,6 +4,8 @@
  * tmp/save-file-mock/mock.graphty.json ("Card fraud, week 46").
  */
 
+import { type ReportLine, savePresets } from "../saveV2Words";
+
 /** The seven section names of a version 2 file, in the order the dialogs list them. */
 export const SECTIONS = ["data", "style", "recipe", "settings", "results", "notes", "view"] as const;
 export type SectionName = (typeof SECTIONS)[number];
@@ -30,20 +32,10 @@ export const SECTION_SUMMARIES: Record<SectionName, string> = {
     view: "Camera . 1 saved view . 2 sets . filter . 2 layers . 3 runs . layout",
 };
 
-/** The save presets, one per use case, and the sections each picks. */
-export const PRESETS: { value: string; label: string; sections: SectionName[] }[] = [
-    { value: "everything", label: "Everything", sections: [...SECTIONS] },
-    {
-        value: "share",
-        label: "Share without notes",
-        sections: ["data", "style", "recipe", "settings", "view"],
-    },
-    { value: "style", label: "Style only", sections: ["style"] },
-    { value: "recipe", label: "Recipe only", sections: ["recipe"] },
-    { value: "kit", label: "Starting kit", sections: ["style", "recipe", "settings"] },
-    { value: "journal", label: "Journal", sections: ["notes", "view"] },
-    { value: "record", label: "Record", sections: ["data", "recipe", "results", "view"] },
-];
+/** The save presets, one per use case, and the sections each picks: the real dialog's. */
+export const PRESETS: { value: string; label: string; sections: SectionName[] }[] = savePresets(SECTIONS).map(
+    (preset) => ({ ...preset, sections: [...preset.sections] }),
+);
 
 /** A data source of the example project, as the save dialog lists it. */
 export interface MockSource {
@@ -66,13 +58,6 @@ export const SOURCES: MockSource[] = [
         storage: "embed",
     },
 ];
-
-/** One line of a save or load report: the item, what happened to it and the code it came from. */
-export interface ReportLine {
-    item: string;
-    outcome: string;
-    reason: string;
-}
 
 /** The report of saving the style section alone. */
 export const REPORT_STYLE_ONLY: ReportLine[] = [

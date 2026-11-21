@@ -178,6 +178,15 @@ export interface GraphtyErrorDetailsMap {
         /** The repeated id. */
         readonly id?: string | number;
     };
+    /** A number clash rule named for a column holding other values. */
+    E_CLASH_RULE_TYPE: {
+        /** The incoming column. */
+        readonly column: string;
+        /** The rule named for it. */
+        readonly rule: string;
+        /** The step whose merge refused, under the source-steps experiment. */
+        readonly step?: number;
+    };
 }
 
 /**

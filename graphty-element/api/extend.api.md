@@ -72,6 +72,8 @@ import { maskTest } from '@graphty/graph-format';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
 import { ModelFormat } from 'babylonjs-models/detect';
+import type { ModelLimits as ModelLimits_2 } from 'babylonjs-models/files';
+import type { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_3 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
@@ -445,6 +447,7 @@ export interface CameraState {
     beta?: number;
     cameraDistance?: number;
     fov?: number;
+    mode?: DrawingMode;
     orthoBottom?: number;
     orthoLeft?: number;
     orthoRight?: number;
@@ -504,7 +507,7 @@ export interface CameraViewRegistration {
 }
 
 // @public
-export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "bfs.depth-bounded" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
+export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "layers.kept" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "all-paths.length-bounded" | "all-paths.capped" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "bfs.depth-bounded" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
 
 // @public
 export interface Caveats {
@@ -810,6 +813,8 @@ export class Edge {
         pattern: JoinedPatternKind | null;
     } | null;
     get drawnPattern(): readonly ArrowCap[];
+    // @internal
+    get drawnStrands(): readonly string[];
     // (undocumented)
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
@@ -882,6 +887,10 @@ export interface EdgePosition {
     dst: Position;
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
+    laidCurve?: {
+        readonly points: readonly number[];
+        readonly params: readonly number[];
+    };
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
     lineEnds?: {
         readonly source: readonly [along: number, across: number];
@@ -959,6 +968,7 @@ export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExpor
     readonly scope?: ExportScope;
     readonly columns?: readonly string[];
     readonly groupTable?: ExportGroupTable;
+    readonly onProgress?: (fact: PendingWorkProgress) => void;
 };
 
 // @public
@@ -1138,6 +1148,9 @@ export type GraphtyErrorCode =
 /**
 * A command or a call is malformed: a missing required field, or two fields that may not be
 * set together. `details` name the fields.
+* For saved views, `details` are `{ reason: "empty-name" }` for an empty name,
+* `{ reason: "name-taken", name }` for a rename onto a name in use, and
+* `{ missing, available }` for a rename, move or removal of a name that is not saved.
 * The caller fixes the call; retrying the same call always fails the same way.
 */
 "E_BAD_COMMAND"
@@ -1229,7 +1242,7 @@ export type GraphtyErrorCode =
 | "E_NO_TIME_FIELD"
 /**
 * An algorithm key is not registered. `details.available` lists the registered keys. The
-* caller picks a key from the catalogue or registers a plugin that provides it.
+* caller picks a key from the catalog or registers a plugin that provides it.
 */
 | "E_UNKNOWN_ALGORITHM"
 /**
@@ -1247,7 +1260,7 @@ export type GraphtyErrorCode =
 /**
 * A binding, an `encode` call or a saved document names a palette nothing registered.
 * `details.available` lists the known palette ids and `details.candidates` the nearest few.
-* The caller picks a palette from the catalogue or registers its own first.
+* The caller picks a palette from the catalog or registers its own first.
 */
 | "E_UNKNOWN_PALETTE"
 /**
@@ -1270,17 +1283,19 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_SHADER_PARAM"
 /**
-* A camera view name is not one the element knows. `details.available` lists the registered
-* view ids. The caller picks one of those or registers its own view first.
+* A camera view name is not one the element knows. `details` are `{ name, available, stop? }`:
+* `available` lists the camera view ids and then the saved view names, and `stop` is the
+* 0-based tour stop that named it. The caller picks one of those or registers or saves its
+* own view first.
 */
 | "E_UNKNOWN_CAMERA"
 /**
-* `data.generate` names a generator the catalogue does not list. `details.available` lists
+* `data.generate` names a generator the catalog does not list. `details.available` lists
 * the generator names. The caller picks one from `catalog.generators()`.
 */
 | "E_UNKNOWN_GENERATOR"
 /**
-* `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+* `data.loadDataset` names a dataset the catalog does not list. `details.available` lists
 * the dataset names. The caller picks one from `catalog.datasets()`.
 */
 | "E_UNKNOWN_DATASET"
@@ -1359,7 +1374,7 @@ export type GraphtyErrorCode =
 */
 | "E_AUTOSAVE_STALLED"
 /**
-* A document being serialised refers to a run whose id was derived rather than author
+* A document being serialized refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
 * explicit `as:` id and saves again.
 */
@@ -1367,9 +1382,17 @@ export type GraphtyErrorCode =
 /**
 * An id that must be unique is already taken -- a node or edge id arriving twice under a
 * plan that does not merge, or a saved scope, layer or run name that already exists.
-* `details.id` names it. The caller chooses another id or asks for merge behaviour.
+* `details.id` names it. The caller chooses another id or asks for merge behavior.
 */
 | "E_DUPLICATE_ID"
+/**
+* A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
+* incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
+* `details.column` and `details.rule` name them. The caller picks another rule for that column.
+* Under the source-steps experiment a step's merge refuses the same way, and `details.step`
+* also names the step.
+*/
+| "E_CLASH_RULE_TYPE"
 /**
 * Two edges run between the same ordered pair of nodes and `data.knownFields.repeatedEdges`
 * is `"error"`. `details` name both endpoints and the index of the edge already present. The
@@ -1378,14 +1401,16 @@ export type GraphtyErrorCode =
 | "E_DUPLICATE_EDGE"
 /**
 * A plugin is registered twice under one kind and name with a different implementation, and
-* the registration asked for strict behaviour. `details` name the kind and the name. The
+* the registration asked for strict behavior. `details` name the kind and the name. The
 * caller removes one registration, or registers into its own `createRegistry()` instance.
 */
 | "E_DUPLICATE_PLUGIN"
 /**
 * The target is owned by the element and may not be removed or edited: the base and
 * selection style layers carry `locked: true` and exist by construction. `details` name the
-* target. The caller adds its own layer above instead of editing the protected one.
+* target. The caller adds its own layer above instead of editing the protected one. Also what
+* saving a view under a camera view's id refuses with, and a saved view that a camera view's
+* id shadows; `details` are then `{ name }`, and the caller picks another name.
 */
 | "E_PROTECTED"
 /**
@@ -1598,7 +1623,7 @@ export type GraphtyErrorCode =
 */
 | "E_NO_ADAPTER"
 /**
-* An adapter was found but it is a software rasteriser, which is slower than the element's
+* An adapter was found but it is a software rasterizer, which is slower than the element's
 * own CPU path. Acceleration stays off and says why, rather than making the graph slower in
 * silence.
 */
@@ -1677,7 +1702,10 @@ export type GraphtyErrorCode =
 * uses the stated alternative; retrying does not help. Also what `styles.encode({ column })`
 * and `styles.proposeEncoding` refuse a column with when it has no default drawing on that
 * channel (groups on a size, a time column); `details` then carry `kind`, `name`, `channel`
-* and `measurement`, and naming a `scale` draws it anyway.
+* and `measurement`, and naming a `scale` draws it anyway. A camera view, saved view or tour
+* stop that does not fit the drawing mode is refused with
+* `{ reason: "mode", name?, stop?, modes, mode }` (`modes` are the modes it works in, `name` is
+* absent for a raw camera state), and any of them while immersive with `{ reason: "xr", mode }`.
 */
 | "E_UNSUPPORTED"
 /**
@@ -1812,11 +1840,11 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_TOO_LARGE"
 /**
-* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
+* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; `fbx`, `usd` and `usdz` for a damaged file of that format; a reader's damaged-file refusals `ply`, `babylon`, `delayLoad` for a `.babylon` whose meshes load from other files, and `empty` for a USD stage that defines nothing to draw).
 */
 | "E_MODEL_STRUCTURE"
 /**
-* A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
+* A recognized 3D format graphty-element does not load (DAE, .blend, 3MF, BVH, and Gaussian splats: `.splat`, `.spz`, `.sog` and `splat-ply`, a PLY holding splats; a glTF or GLB that uses `KHR_gaussian_splatting`, required or not, names it in `params.extension`). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read, or uses Gaussian splatting; `params.kind` is `"splat"` for every Gaussian splat refusal, whatever its format.
 * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
 */
 | "E_MODEL_FORMAT_UNSUPPORTED"
@@ -1894,7 +1922,10 @@ export type GraphtyErrorCode =
 * A screenshot, a video or a clipboard copy was started and could not be finished: the
 * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
 * no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
-* `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
+* `"clipboard"` for a failed copy, and `cause` carries the original failure. A recording that
+* stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
+* background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
+* it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
 * @since 3.40.0
 */
 | "E_CAPTURE_FAILED"
@@ -1904,13 +1935,79 @@ export type GraphtyErrorCode =
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
 * @since 3.40.0
 */
-| "E_NOT_SETTLED" | "E_INTERNAL";
+| "E_NOT_SETTLED"
+/**
+* A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+* the space. The caller names another space. Experimental: the source-steps experiment.
+*/
+| "E_SPACE_RESERVED"
+/**
+* A key names nodes in more than one id space, so it names no one node. `details.key` is the
+* key, `details.spaces` the spaces holding it. The caller names the space, or the
+* `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+*/
+| "E_AMBIGUOUS_ID"
+/**
+* Make an edge would add a staged source in the id space of the nodes it connects to, so its
+* nodes would meet them instead of being joined by edges. `details.source` and `details.space`
+* name them. The caller stages the source in another space. Experimental: the source-steps
+* experiment.
+*/
+| "E_JOIN_SPACE_SAME"
+/**
+* A merge or Make an edge reads node rows the source does not hold. `details.source` is the
+* source. Experimental: the source-steps experiment.
+*/
+| "E_STEP_NEEDS_NODES"
+/**
+* An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
+* `details.column` is the column. Experimental: the source-steps experiment.
+*/
+| "E_EDIT_ROLE_COLUMN"
+/**
+* A role setter that names no source could mean several built sources: each carries the
+* column and can carry the role. `details.sources` lists them; the caller names one with the
+* setter's `source` option. Experimental: the source-steps experiment.
+*/
+| "E_ROLE_TARGET_AMBIGUOUS"
+/**
+* A draft of the sources and steps is open (`session.data.draft()`), so a data write, an undo
+* or a redo would change what its commit replaces. `details.draft` names the draft. The caller
+* commits or discards it first. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_OPEN"
+/**
+* A draft's commit was refused because the committed sources and steps changed after the
+* draft opened: a data write already on its way when it opened landed first, and the commit
+* would have undone it. `details.draft` names the draft, which stays open. The caller discards
+* it and opens a new one. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_STALE"
+/**
+* A draft opened with `askOverlap` holds a key-overlap question nobody answered: a source it
+* added meets nodes another source's node rows built (`W_SPACE_OVERLAP`). `details.space` and
+* `details.source` name the space and the source. The caller answers it with
+* `draft.answerOverlap(source, "merge" | "separate")` and commits again. Experimental: the
+* source-steps experiment.
+*/
+| "E_OVERLAP_UNANSWERED"
+/**
+* A recording (`captureAnimation`) was canceled: its `signal` aborted, or
+* `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
+* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+*/
+| "E_CANCELED" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
 
 // @public
 export interface GraphtyErrorDetailsMap {
+    E_CLASH_RULE_TYPE: {
+        readonly column: string;
+        readonly rule: string;
+        readonly step?: number;
+    };
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
@@ -2046,7 +2143,7 @@ export function isOptionType(value: unknown): value is OptionType;
 export { IssueCategory }
 
 // @public
-export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
+export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric", "bottomView"];
 
 // @public
 export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "graphty"];
@@ -2451,6 +2548,8 @@ class Node_2 implements ModelUser {
     resampleLabel(): void;
     get roundRadius(): number | null;
     // @internal
+    get screenBorder(): boolean;
+    // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
@@ -2549,18 +2648,19 @@ export interface OptionBound {
 
 // @public
 export interface OptionChoice {
-    // (undocumented)
     label: string;
     refusal?: OptionChoiceRefusal;
+    runField?: {
+        readonly runId: RunId;
+        readonly field: string;
+    };
     // (undocumented)
     value: string;
 }
 
 // @public
 export interface OptionContext {
-    // (undocumented)
     readonly id: string;
-    // (undocumented)
     readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink" | "transition";
 }
 
@@ -3358,6 +3458,7 @@ export interface SourceRead extends SourceInput {
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
     readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
+    readonly issues?: readonly SourceRefreshIssue[];
     readonly removed: SourceCounts;
     readonly updated: SourceCounts;
 }
@@ -3472,7 +3573,7 @@ export interface WeightMeaning {
 }
 
 // @public
-export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
+export type WeightSkip = CodedFact<"weight.meaning-mismatch" | "weight.meaning-mixed">;
 
 // @public
 export interface WholeGraphScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {

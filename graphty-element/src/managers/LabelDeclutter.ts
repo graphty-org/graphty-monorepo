@@ -10,6 +10,7 @@ import type { LabelDeclutterOrder } from "../catalog/label-style";
 import type { Edge } from "../Edge";
 import type { RichTextLabel } from "../meshes/RichTextLabel";
 import type { Node } from "../Node";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { animatesEveryFrame } from "./everyFrameAnimations";
 import type { GraphContext } from "./GraphContext";
 import { LabelSampler } from "./LabelSampler";
@@ -411,7 +412,7 @@ export class LabelDeclutter {
      */
     static withholds(scene: Scene, context: GraphContext, node: Node, wanted: boolean): boolean {
         if (context.getStyles().config.behavior.labels.sampleCell === undefined) {
-            const declutter: unknown = scene.metadata?.labelDeclutter;
+            const declutter: unknown = (scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
             return declutter instanceof LabelDeclutter ? declutter.sampler.withholds(node, wanted) : false;
         }
 
@@ -451,11 +452,11 @@ export class LabelDeclutter {
      */
     private static of(scene: Scene, context: GraphContext): LabelDeclutter {
         scene.metadata ??= {};
-        if (!(scene.metadata.labelDeclutter instanceof LabelDeclutter)) {
-            scene.metadata.labelDeclutter = new LabelDeclutter(scene, context);
+        if (!((scene.metadata as GraphSceneMetadata).labelDeclutter instanceof LabelDeclutter)) {
+            (scene.metadata as GraphSceneMetadata).labelDeclutter = new LabelDeclutter(scene, context);
         }
 
-        return scene.metadata.labelDeclutter as LabelDeclutter;
+        return (scene.metadata as GraphSceneMetadata).labelDeclutter as LabelDeclutter;
     }
 
     /** Stop running before frames. */
@@ -464,8 +465,8 @@ export class LabelDeclutter {
         this.releaseFrames?.();
         this.releaseFrames = null;
         this.release();
-        if (this.scene.metadata?.labelDeclutter === this) {
-            this.scene.metadata.labelDeclutter = undefined;
+        if ((this.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter === this) {
+            (this.scene.metadata as GraphSceneMetadata).labelDeclutter = undefined;
         }
     }
 
@@ -671,9 +672,9 @@ export class LabelDeclutter {
         this.remember(camera);
 
         const engine = this.scene.getEngine();
-        // Read from the ref, not the return value: Babylon 8's toGlobalToRef fills `ref` and then
-        // returns the camera's own normalized viewport, which would put every label inside a
-        // one-pixel screen.
+        // Read from the ref, not the return value: Babylon's toGlobalToRef (8 and 9) fills `ref`
+        // and then returns the camera's own normalized viewport, which would put every label
+        // inside a one-pixel screen.
         camera.viewport.toGlobalToRef(engine.getRenderWidth(), engine.getRenderHeight(), this.viewport);
         const { viewport } = this;
         // World to pixels in one matrix, built once a pass: Vector3.ProjectToRef rebuilds it for

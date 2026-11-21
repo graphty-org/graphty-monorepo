@@ -629,6 +629,17 @@ const CASES: readonly Case[] = [
             };
         },
     },
+    {
+        method: "StylesApi.duplicateRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.duplicateRow(id);
+                await session.styles.settled();
+            };
+        },
+    },
     // Notes: one note per node, so a write that walks every note grows with the graph. The write
     // itself does not (#1890, test/session/notes/scaling.test.ts), nor does the commit after it,
     // which no longer republishes the whole step list (#2733).
@@ -791,6 +802,17 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "VisibilityApi.moveStep",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.visibility.setConditions([
+                { id: "a", effect: "keep", rule: { kind: "degree", min: 1 } },
+                { id: "b", effect: "exclude", rule: { kind: "degree", min: 3 } },
+            ]);
+            return () => session.visibility.moveStep("b", 0);
+        },
+    },
+    {
         method: "VisibilityApi.setWindow",
         growth: "linear",
         prepare: (session, size) =>
@@ -870,6 +892,75 @@ const CASES: readonly Case[] = [
         prepare: async (session) => {
             await session.views.save([{ name: "Saved", camera: VIEW }]);
             return () => session.views.remove(["Saved"]);
+        },
+    },
+    {
+        method: "SessionViews.rename",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.views.save([{ name: "Saved", camera: VIEW }]);
+            return () => session.views.rename("Saved", "Renamed");
+        },
+    },
+    {
+        method: "SessionViews.move",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.views.save([
+                { name: "Saved", camera: VIEW },
+                { name: "Second", camera: VIEW },
+            ]);
+            return () => session.views.move("Second", 0);
+        },
+    },
+    {
+        method: "SessionViews.setKey",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.views.save([
+                { name: "Saved", camera: VIEW, key: "1" },
+                { name: "Second", camera: VIEW },
+            ]);
+            return () => session.views.setKey("Second", "1");
+        },
+    },
+    {
+        method: "SessionViews.setStartingCameras",
+        growth: "constant",
+        prepare: (session) =>
+            Promise.resolve(() => session.views.setStartingCameras([{ name: "Top", follows: "topView", key: "1" }])),
+    },
+    {
+        method: "SessionTours.save",
+        growth: "constant",
+        prepare: (session) =>
+            Promise.resolve(() => session.tours.save([{ name: "Saved", tour: { stops: [{ view: "fitToGraph" }] } }])),
+    },
+    {
+        method: "SessionTours.remove",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.tours.save([{ name: "Saved", tour: { stops: [] } }]);
+            return () => session.tours.remove(["Saved"]);
+        },
+    },
+    {
+        method: "SessionTours.rename",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.tours.save([{ name: "Saved", tour: { stops: [] } }]);
+            return () => session.tours.rename("Saved", "Renamed");
+        },
+    },
+    {
+        method: "SessionTours.move",
+        growth: "constant",
+        prepare: async (session) => {
+            await session.tours.save([
+                { name: "Saved", tour: { stops: [] } },
+                { name: "Second", tour: { stops: [] } },
+            ]);
+            return () => session.tours.move("Second", 0);
         },
     },
     {

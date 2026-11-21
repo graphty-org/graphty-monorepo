@@ -63,9 +63,13 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import { englishReading, type ReadingOptions, type RunResult } from "./src/session/results";
 import type { SelectionOp } from "./src/session/selection";
 
+export type { EasingName, Tour, TourPause, TourStop } from "./src/camera/tour";
+export type { CameraGestureKind } from "./src/cameras/gestureEnd";
+export { CAMERA_GESTURE_KINDS } from "./src/cameras/gestureEnd";
 export type { FeatureId } from "./src/features/registry";
 export type { EnabledFeatures } from "./src/features/resolve";
 export type {
+    ByTableMapping,
     ColumnHistogram,
     ColumnRole,
     CommandOutcome,
@@ -120,6 +124,7 @@ export type {
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,
+    JoinClashRule,
     JoinKey,
     JoinLink,
     JoinLookup,
@@ -136,6 +141,7 @@ export type {
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
+    LoadedChoices,
     LoadedSource,
     LoadedSourceKind,
     LoadedWeight,
@@ -164,9 +170,13 @@ export type {
     PendingId,
     PendingStep,
     PositionEntry,
+    PreparePageControl,
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    ReaderEditRow,
+    RecordMatch,
+    RecordMatchRank,
     RecordPage,
     RecordPageOptions,
     RecordSort,
@@ -183,6 +193,9 @@ export type {
     RowReasonCode,
     RowUpdate,
     RunPlacement,
+    SavedView,
+    SavedViewInput,
+    SavedViewPart,
     ScoreTerm,
     SessionAnnotations,
     SessionAttributes,
@@ -199,9 +212,85 @@ export type {
     SessionPositions,
     SessionRunsOptions,
     SessionStatus,
+    SessionTours,
     SessionViews,
     SettingEffect,
     SettingEffectCode,
+    SideMapping,
+    SourceBuildState,
+    SourceCellState,
+    SourceCellValue,
+    SourceCellValues,
+    SourceClashRule,
+    SourceClearPicksOptions,
+    SourceConflict,
+    SourceConflictQuery,
+    SourceConnectOptions,
+    SourceCopy,
+    SourceCopyChoice,
+    SourceDraft,
+    SourceDraftBucket,
+    SourceDraftCell,
+    SourceDraftCells,
+    SourceDraftCellsQuery,
+    SourceDraftChange,
+    SourceDraftElementsQuery,
+    SourceDraftOptions,
+    SourceDraftPreview,
+    SourceDraftPreviewChanges,
+    SourceDraftPreviewIssue,
+    SourceDraftPreviewSource,
+    SourceDraftPreviewStep,
+    SourceDraftPreviewTotals,
+    SourceDraftRow,
+    SourceDraftRows,
+    SourceDraftRowsQuery,
+    SourceEdgeRef,
+    SourceEditChoice,
+    SourceElementRef,
+    SourceElementsFilter,
+    SourceEndOption,
+    SourceExtractOptions,
+    SourceField,
+    SourceHubValue,
+    SourceJoinInto,
+    SourceLineage,
+    SourceLoaded,
+    SourceMappingPatch,
+    SourceMatchCounts,
+    SourceMatchOptions,
+    SourceMatchPair,
+    SourceMatchValue,
+    SourceMatchValues,
+    SourceMatchValuesOptions,
+    SourceMergeOptions,
+    SourceMoveColumnsOptions,
+    SourceNodeRef,
+    SourceNoPathReason,
+    SourceOverlapQuestion,
+    SourcePickAllOptions,
+    SourceRefreshIssue,
+    SourceRoleName,
+    SourceRoleOptions,
+    SourceRolePatch,
+    SourceRowFilter,
+    SourceSpaceName,
+    SourceSpaceOverlap,
+    SourceSpaceRow,
+    SourceStepByName,
+    SourceStepCounts,
+    SourceStepCountsChange,
+    SourceStepNumber,
+    SourceStepOp,
+    SourceStepPatch,
+    SourceStepResolution,
+    SourceStepRow,
+    SourceTypeEntry,
+    SourceTypeName,
+    SourceTypeRule,
+    SourceValue,
+    SourceValuesDiffer,
+    StartingCamera,
     StyleProblem,
     TableMapping,
     TableMappingRead,
@@ -216,6 +305,9 @@ export type { DrawnAnnotation, DrawnAnnotations } from "./src/session";
 export type { KeymapOptions, KeymapReport, KeymapRoot, KeymapSession } from "./src/session";
 export { createGraphSession } from "./src/session";
 export { attachKeymap } from "./src/session";
+// The recording formats, here too so a consumer can read them without loading the element.
+export type { VideoFormat } from "./src/video/VideoCapture";
+export { VIDEO_FORMATS } from "./src/video/VideoCapture";
 
 /**
  * What the element has to say about a load, once the load is over: which record keys named the
@@ -238,6 +330,7 @@ export type {
     TooLargeDetails,
 } from "./src/data/report";
 export { IMPORT_ROWS_KEPT } from "./src/data/report";
+export type { SessionGraph, SessionGraphCreateOptions, SessionGraphs } from "./src/session/graphs/GraphsApi";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
 export type {
     RecipeColumn,
@@ -266,6 +359,9 @@ export type {
     AssetState,
     BuiltInModelFormat,
     ModelCompression,
+    ModelDefaultChannel,
+    ModelDefaults,
+    ModelDefaultsPatch,
     ModelEncoding,
     ModelFormat,
     ModelGeometry,
@@ -273,11 +369,12 @@ export type {
     ModelPart,
     ModelPartRole,
     ModelPartState,
+    ModelPicture,
     ModelSummary,
     NamedBlob,
     PartAnswer,
 } from "./src/session";
-export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
+export { DEFAULT_MODEL_LIMITS, isAssetId, MODEL_DEFAULT_CHANNELS } from "./src/session";
 
 /**
  * The fetches the page's code did not ask for -- a model URL from a project file, an AI command or
@@ -372,6 +469,8 @@ export type {
     RunStatus,
     RunStyle,
     RunWindow,
+    StabilityOptions,
+    StabilityResult,
     StaleNote,
     StaleReason,
     StartOptions,
@@ -521,23 +620,43 @@ export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "
 export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./src/session";
 export { browserProjects } from "./src/session";
 export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./src/session";
+export type { FileKind, FilesApi } from "./src/session/files/kindOf";
 export type {
     AssetStorage,
+    DocumentBindFacts,
     DocumentCode,
+    DocumentHeldFacts,
+    DocumentHeldReason,
     DocumentSection,
+    DocumentSectionAbout,
+    DocumentSectionFacts,
+    DocumentSectionNeed,
     ProjectApi,
     ProjectAssetChoice,
+    ProjectFileFacts,
+    ProjectFileHandle,
+    ProjectFileRun,
+    ProjectFileSection,
+    ProjectFileSource,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,
+    ProjectSaveFacts,
     ProjectSaveOptions,
     ProjectSaveReport,
+    ProjectSaveSection,
     ProjectSource,
+    ProjectSourceChoice,
+    ProjectSourceKind,
     ProjectStatus,
     SavedProject,
+    SectionBinding,
+    SourceEmbeddedReason,
     SourceStorage,
+    SourceUnavailableReason,
 } from "./src/session/projectFile";
-export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+export { DOCUMENT_SECTIONS, PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+export type { RecipesApi } from "./src/session/recipes/RecipesApi";
 // Autosaved work read and deleted without an element (a start screen that offers it first).
 export type { AutosaveLookupOptions } from "./src/autosave/elementAutosave";
 export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";
@@ -560,6 +679,7 @@ export type {
     SelectionStatisticsOptions,
     SelectionTarget,
     SelectionTextMode,
+    SelectionVia,
     UnknownRulePath,
 } from "./src/session/selection";
 export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
@@ -599,6 +719,7 @@ export type {
     FilterResult,
     FilterSelectWithin,
     FilterStep,
+    FilterStepCount,
     HiddenNotDrawn,
     RuleTree,
     StepCounts,
@@ -646,7 +767,15 @@ export type {
 // Asking what something would do and cost, before doing it
 // ---------------------------------------------------------------------------------------------
 
-export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type { AlgorithmRunCommand, AssetCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type {
+    SavedTour,
+    TourCommand,
+    TourMoveCommand,
+    TourRemoveCommand,
+    TourRenameCommand,
+    TourSaveCommand,
+} from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
     CostBasis,
@@ -856,6 +985,7 @@ export {
     quotePath,
     renamePaths,
     rulePath,
+    ruleValuePath,
     selectorRule,
     selectorStates,
 } from "./src/session/styles";

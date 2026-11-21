@@ -18,6 +18,7 @@ import {
 import { drawnText, labelTextOf, richTextLabelOptions } from "./config/RichTextStyle";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
+import { GraphtyError } from "./errors/GraphtyError";
 import type { Graph } from "./Graph";
 import { type EdgePosition, layoutEngineInternals } from "./layout/LayoutEngine";
 import type { LocationMapFrame } from "./layout/locationMap/place";
@@ -29,7 +30,7 @@ import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
 import type { JoinedPatternKind } from "./meshes/CustomLineRenderer";
 import type { EdgeEffectBatch, ShadedEdgeBatch } from "./meshes/EdgeEffectBatch";
-import { gradientPieceColors } from "./meshes/edgeGradient";
+import { gradientColorList, gradientPieceColors } from "./meshes/edgeGradient";
 import { EDGE_STATE_BITS } from "./meshes/edgeJoinShader";
 import type { EdgeLineBatch, EdgeLineMeta } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
@@ -68,7 +69,15 @@ import { batchUploadFrames } from "./meshes/FrameRoster";
 import type { ColumnRow } from "./meshes/NodeBatch";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { movingTexel } from "./meshes/pulledAnimatedLine";
-import { curvePathPoint, type CurveSpan, curveSpan, loopShape, routed, viaShare } from "./meshes/pulledCurve";
+import {
+    CURVE_STRIDE,
+    curvePathPoint,
+    type CurveSpan,
+    curveSpan,
+    loopShape,
+    routed,
+    viaShare,
+} from "./meshes/pulledCurve";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -79,6 +88,7 @@ import { edgeDrawChanges } from "./render/EdgeIdTarget";
 import type { RowMeasure } from "./render/RowTable";
 import { frozenRecord } from "./session/project/draft";
 import { placeOfUse } from "./session/styles/channels";
+import { transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 interface InterceptPoint {
     srcPoint: Vector3 | null;
@@ -271,6 +281,42 @@ function captionWanted(block: RichTextStyleType | undefined): RichTextStyleType 
  * @param style - The style, or undefined for one not yet painted.
  * @returns True when the line is never placed.
  */
+/**
+ * The colors of the parallel strands a style draws its line as (`line.strands`), first on the right, or null for fewer
+ * than two.
+ * @param style - The resolved style.
+ * @returns The colors, `#rrggbb`, or null.
+ */
+function strandColorsOf(style: EdgeStyleConfig): string[] | null {
+    const colors = gradientColorList(style.line?.strands?.colors).map((c) => c.toLowerCase());
+    return colors.length >= 2 ? colors : null;
+}
+
+/**
+ * A line's points moved sideways in the layout's plane (x, y), to the left of its direction, each along the direction
+ * between its two neighbors.
+ * ponytail: no miter length at a corner, so a strand narrows its spacing there by the corner's cosine
+ * @param flat - The points, flat x, y, z.
+ * @param by - How far, in scene units; a negative distance moves them to the right.
+ * @returns The moved points.
+ */
+function offsetLine(flat: readonly number[], by: number): number[] {
+    const out = [...flat];
+    const count = flat.length / 3;
+    for (let i = 0; i < count; i++) {
+        const [a, b] = [Math.max(0, i - 1), Math.min(count - 1, i + 1)];
+        const dx = flat[3 * b] - flat[3 * a];
+        const dy = flat[3 * b + 1] - flat[3 * a + 1];
+        const length = Math.hypot(dx, dy);
+        if (length > 0) {
+            out[3 * i] -= (dy / length) * by;
+            out[3 * i + 1] += (dx / length) * by;
+        }
+    }
+
+    return out;
+}
+
 function drawsNoLine(style: EdgeStyleConfig | null | undefined): boolean {
     return (
         (style?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) === 0 && !isPositive(style?.line?.minScreenWidth ?? 0)
@@ -553,6 +599,8 @@ export const edgeInternals = {} as {
         haloBands: Edge["haloBands"];
         lineIsCurve: Edge["lineIsCurve"];
         drawnStyle: Edge["drawnStyle"];
+        gradientPieces: Edge["gradientPieces"];
+        strandRuns: Edge["strandRuns"];
     };
     /** Where the edge's line leaves `node`, from `centre` toward `toward`; see `Edge.leaveNode`. */
     leaveNode(edge: Edge, node: Node, centre: Vector3, toward: Vector3): Vector3;
@@ -560,7 +608,34 @@ export const edgeInternals = {} as {
     bareEnd(edge: Edge, end: "source" | "target", centre: Vector3, toward: Vector3): Vector3;
     /** How far a line from a node's center runs before it leaves the node's box; see `Edge.boxReachOf`. */
     boxReachOf(node: Node, direction: Vector3): number;
+    /**
+     * The world points the edge's line is drawn through: its curve's, or a straight line's two ends where
+     * the canvas ends it -- at an arrowhead's back, or at a node's outline or gap -- or null for a line
+     * drawn with no slot of its own (a pulled straight line, a patterned one), which runs between its
+     * nodes' centers.
+     */
+    lineInWorld(edge: Edge): Vector3[] | null;
 };
+
+/**
+ * Points in graph-root's space, where they are seen.
+ * @param edge - The edge whose line they are on.
+ * @param points - The points.
+ * @returns The points in the world.
+ */
+function inWorld(edge: Edge, points: Vector3[]): Vector3[] {
+    // A patterned line's pieces are slots in batches parented to graph-root, and it has no mesh of its own.
+    const root =
+        edge.mesh instanceof PatternedLineMesh
+            ? edge.srcNode.drawnScene.getTransformNodeByName("graph-root")
+            : edge.mesh;
+    if (root === null) {
+        return points;
+    }
+
+    const world = root.getWorldMatrix();
+    return points.map((point) => Vector3.TransformCoordinates(point, world));
+}
 
 /**
  * How far a line through a node's center runs before it leaves the node's bounding box, in the
@@ -697,10 +772,21 @@ export class Edge {
             haloBands: edge.haloBands,
             lineIsCurve: edge.lineIsCurve,
             drawnStyle: edge.drawnStyle,
+            gradientPieces: edge.gradientPieces,
+            strandRuns: edge.strandRuns,
         });
         edgeInternals.leaveNode = (edge, node, centre, toward) => edge.leaveNode(node, centre, toward);
         edgeInternals.bareEnd = (edge, end, centre, toward) => edge.bareEnd(end, centre, toward);
         edgeInternals.boxReachOf = (node, direction) => Edge.boxReachOf(node, direction);
+        edgeInternals.lineInWorld = (edge) => {
+            const curve = edge.drawnCurve;
+            if (curve !== null) {
+                return inWorld(edge, curve);
+            }
+
+            const slot = edge.lineSlots[0];
+            return edge.lineBatch === null || slot === undefined ? null : inWorld(edge, edge.lineBatch.endsOf(slot));
+        };
         writeRecord = (edge, record) => {
             edge.#record = frozenRecord(record);
             edge.shaderDataChanged();
@@ -944,8 +1030,13 @@ export class Edge {
         /** The look's name and visibility, as a batch of its own would carry them ({@link Edge.drawnLine}). */
         name: string;
         visibility: number;
-        /** A lone curve's further pieces, after `piece`: as many as its longest cut so far ({@link Edge.pullCurve}). */
-        run: number[] | null;
+        /** Whether `piece` is a curve batch's entry, whose span each placement writes ({@link Edge.pullCurve}). */
+        curve: boolean;
+        /**
+         * A curve's further entries, after `piece`: one for every `CURVE_STRIDE` pieces of its longest cut so far past
+         * the first ({@link Edge.pullSpan}).
+         */
+        run: number[];
         /** The look its pieces are given, for the pieces a curve takes later. */
         look: { color: Color3; opacity: number; width: number };
         /** A curve's last span and the centers it was cut between, null while it draws nothing ({@link Edge.drawnCurve}). */
@@ -983,6 +1074,21 @@ export class Edge {
      * each a slot in the batch of its color, drawn over the line.
      */
     private gradientPieces: { batch: EdgeLineBatch; slot: number; color: string }[] = [];
+
+    /**
+     * The parallel strands this edge's line is drawn as (`line.strands`), first on the right of its direction, each a
+     * run of slots along the line moved sideways; the line itself is drawn clear under them.
+     */
+    private strandRuns: { batch: EdgeLineBatch; slots: number[]; color: string }[] = [];
+
+    /** How far apart the strands' middles are, in scene units. */
+    private strandStep = 0;
+
+    /**
+     * The curve the layout laid this edge's line along, with its measure ({@link EdgePosition.laidCurve}), in scene
+     * units, while the line follows it: the gradient's pieces are laid by that measure. Null otherwise.
+     */
+    private laidCurve: { points: Vector3[]; params: readonly number[] } | null = null;
 
     /** The caption distances (`textDistance`, head then tail) the captions were last placed by. */
     private drawnCaptionDistances: string | undefined;
@@ -1661,8 +1767,9 @@ export class Edge {
             return;
         }
 
-        const src = new Vector3(lnk.src.x, lnk.src.y, lnk.src.z ?? 0);
-        const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
+        const gliding = transitionsOf(this.context.getLayoutManager())?.active === true;
+        const src = this.laidEnd("source", lnk.src, srcPos, gliding);
+        const dst = this.laidEnd("target", lnk.dst, dstPos, gliding);
         const lift = this.liftDrawn();
         const bentBefore = this.bundled || this.lifted;
         this.bentMiddle = null;
@@ -1670,9 +1777,10 @@ export class Edge {
         let bent = this.lifted;
         if (this.lifted) {
             this.bundled = false;
+            this.laidCurve = null;
             this.placeLifted(this.lineBatch, src, dst, lift);
         } else {
-            bent = this.placeLine(src, dst, lnk.bends, lnk.lineEnds);
+            bent = this.placeLine(src, dst, lnk.bends, lnk.lineEnds, lnk.laidCurve);
         }
 
         if (bentBefore !== (this.bundled || this.lifted)) {
@@ -1700,12 +1808,37 @@ export class Edge {
     }
 
     /**
+     * Where to lay one end of the line: the layout's answer, or while a layout transition moves the nodes, where the
+     * end is drawn this frame. The answer is where the node is going, so a line laid there would be drawn at the new
+     * layout on the move's first frame while its nodes glide in to meet it (issue #9222). A group is drawn set back
+     * behind its members, so its end keeps the answer.
+     * @param end - Which end.
+     * @param laid - The layout's answer.
+     * @param drawn - Where the end is drawn this frame.
+     * @param gliding - Whether a layout transition is under way.
+     * @returns The point.
+     */
+    private laidEnd(
+        end: "source" | "target",
+        laid: EdgePosition["src"],
+        drawn: Readonly<Vector3>,
+        gliding: boolean,
+    ): Vector3 {
+        const group =
+            gliding &&
+            this.columnEnd(end) === undefined &&
+            this.context.getLayoutManager().groupBox((end === "source" ? this.srcNode : this.dstNode).id) !== undefined;
+        return gliding && !group ? drawn.clone() : new Vector3(laid.x, laid.y, laid.z ?? 0);
+    }
+
+    /**
      * Lay the edge's line between its ends: along its bends, along the route its layout laid it (Graphviz's
      * splines), along its bundle's route (a fanned arc or a self-loop), or straight with its arrow caps.
      * @param src - The source end.
      * @param dst - The target end.
      * @param laid - The bends of the route the layout laid, if it laid one.
      * @param laidEnds - Where the layout starts and ends the line, if it ends it itself: the line runs to them.
+     * @param laidCurve - The curve the layout laid the line along, with its measure, if it gives one.
      * @returns Whether the line was laid along its bends.
      */
     private placeLine(
@@ -1713,12 +1846,14 @@ export class Edge {
         dst: Vector3,
         laid?: readonly number[],
         laidEnds?: EdgePosition["lineEnds"],
+        laidCurve?: EdgePosition["laidCurve"],
     ): boolean {
         this.followRoute();
         this.pullCurve(src, dst);
         const lays = this.laysRoute();
         const batch = lays ? this.lineBatch : null;
         const stored = this.lineRoute;
+        this.followLaidCurve(src, dst, laidCurve);
         const bent = lays && stored !== null && this.placeBent(batch, src, dst, stored);
         // a patterned line (no batch) follows the route as its elements (issue #3102); a self-loop's laid bends lie
         // round its node (Graphviz's splines=ortho rectangle), cut where they cross its outline
@@ -1756,6 +1891,20 @@ export class Edge {
         }
 
         return bent;
+    }
+
+    /**
+     * Keep the curve the layout laid this edge along, in scene units, for the gradient's pieces to follow -- unless the
+     * line follows a route of the style's own, or is a self-loop.
+     * @param src - The source end.
+     * @param dst - The target end.
+     * @param laidCurve - The curve, if the layout gives one.
+     */
+    private followLaidCurve(src: Vector3, dst: Vector3, laidCurve: EdgePosition["laidCurve"]): void {
+        this.laidCurve =
+            this.lineRoute === null && laidCurve !== undefined && !this.isLoop
+                ? { points: points(bendPoints(src, dst, laidCurve.points)), params: laidCurve.params }
+                : null;
     }
 
     /**
@@ -2182,8 +2331,7 @@ export class Edge {
         // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
         const pulls = this.wantsPull(style);
         const samePull =
-            pulls === (this.pulled !== null) &&
-            (this.pulled === null || (this.pulled.run !== null) === this.pullsCurve(style));
+            pulls === (this.pulled !== null) && (this.pulled === null || this.pulled.curve === this.pullsCurve(style));
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
         // from a batch of its own, so asking for another one rebuilds the line.
@@ -2293,8 +2441,10 @@ export class Edge {
         const rgb = Color3.FromHexString(this.lineColor);
         const opacity = EdgeMesh.opacityOf(style);
         this.lineOpacity = opacity;
+        // a line drawn as strands shows only its strands
+        const shown = strandColorsOf(style) === null ? opacity : 0;
         for (const slot of this.lineSlots) {
-            batch.setColor(slot, rgb.r, rgb.g, rgb.b, opacity);
+            batch.setColor(slot, rgb.r, rgb.g, rgb.b, shown);
         }
     }
 
@@ -2312,6 +2462,7 @@ export class Edge {
             this.lineWanted === "plain" &&
             this.outlineBatch === null &&
             this.gradientPieces.length === 0 &&
+            this.strandRuns.length === 0 &&
             this.haloBands.length === 0 &&
             this.arrowMiddleHeadCap === null &&
             this.arrowMiddleTailCap === null &&
@@ -2851,6 +3002,7 @@ export class Edge {
             this.lineStatic = null;
             this.createOutline(meshKey, drawnStyle);
             this.createGradient(meshKey, drawnStyle);
+            this.createStrands(meshKey, drawnStyle);
 
             // No per-edge mesh to make unpickable and nothing to hang `parentEdge` on: the batch
             // is unpickable as a whole, and the back-reference was only ever written and never
@@ -2946,7 +3098,7 @@ export class Edge {
      */
     private followRoute(): void {
         const style = this.drawnStyle;
-        if (this.pulled !== null && style !== null && (this.pulled.run !== null) !== this.pullsCurve(style)) {
+        if (this.pulled !== null && style !== null && this.pulled.curve !== this.pullsCurve(style)) {
             this.updateStyle();
         }
     }
@@ -2985,7 +3137,15 @@ export class Edge {
         if (animationSpeed) {
             look = { color: movingTexel(color), opacity, width: options.width / 40 };
         }
-        const piece = batch.acquire(look.width);
+        let piece: number;
+        try {
+            piece = batch.acquire(look.width);
+        } catch (error) {
+            // a batch the card cannot hold more of: this line is drawn as the object path draws it
+            this.refuseTooLarge(batch, error);
+            return null;
+        }
+
         batch.setLook(piece, look.color, look.opacity, look.width);
         if (animationSpeed) {
             batch.setSpeed(piece, animationSpeed);
@@ -3006,7 +3166,8 @@ export class Edge {
             drawn: true,
             name: `edge-style-${options.styleId}-pulled`,
             visibility: Math.min(opacity, 1),
-            run: curve ? [] : null,
+            curve,
+            run: [],
             look,
         };
         this.pullRows();
@@ -3026,7 +3187,7 @@ export class Edge {
      * @param dst - The target node's center.
      */
     private pullCurve(src: Vector3, dst: Vector3): void {
-        if ((this.pulled?.run ?? null) === null) {
+        if (this.pulled?.curve !== true) {
             return;
         }
 
@@ -3093,28 +3254,43 @@ export class Edge {
     }
 
     /**
-     * Write a pulled curve's span to its pieces, taking more while the span needs more than they hold.
+     * Write a pulled curve's span to its entry, and its routed path's points to the batch's route table. Past what the
+     * card can hold, the curve draws nothing and the graph says so once ({@link Edge.refuseTooLarge}).
      * @param span - The span, or null to draw nothing.
      * @param src - The source center it was cut between.
      * @param dst - The target center.
      */
     private pullSpan(span: CurveSpan | null, src: Vector3, dst: Vector3): void {
         const { pulled } = this;
-        const run = pulled?.run ?? null;
-        if (pulled === null || run === null) {
+        if (pulled?.curve !== true) {
             return;
         }
 
         pulled.path = span === null ? null : { src: src.clone(), dst: dst.clone(), span };
 
-        const { batch, look } = pulled;
-        while (run.length + 1 < (span?.pieces ?? 0)) {
-            const piece = batch.acquire(look.width);
-            batch.setLook(piece, look.color, look.opacity, look.width);
-            batch.setRows(piece, pulled.source, pulled.target);
-            run.push(piece);
+        const { batch } = pulled;
+        try {
+            this.writeSpan(pulled, span, src, dst);
+        } catch (error) {
+            this.refuseTooLarge(batch, error);
+            batch.releaseRoute(pulled.route?.at ?? -1);
+            pulled.route = null;
+            pulled.path = null;
+            for (const piece of [pulled.piece, ...pulled.run]) {
+                batch.setCurve(piece, 0, null);
+            }
         }
+    }
 
+    /**
+     * {@link Edge.pullSpan}'s writes, which throw `E_TOO_LARGE` past what the card can hold.
+     * @param pulled - The pulled curve.
+     * @param span - The span, or null.
+     * @param src - The source center.
+     * @param dst - The target center.
+     */
+    private writeSpan(pulled: NonNullable<Edge["pulled"]>, span: CurveSpan | null, src: Vector3, dst: Vector3): void {
+        const { batch } = pulled;
         const kept = pulled.route ?? null;
         // a routed path's points themselves (a line through bends' ends and bends, a center arc's cut samples), placed in
         // doubles as the object path places them, so the card draws the very points the object path does
@@ -3133,10 +3309,39 @@ export class Edge {
             pulled.route = { at: batch.writeRoute(kept?.at ?? -1, points), points };
         }
         const at = pulled.route?.at ?? 0;
+        // an entry a CURVE_STRIDE pieces, taken as the cut grows and kept while the edge is pulled; each entry is
+        // written before the next is taken, so its pieces take their draw slots in piece order, as the object path's
+        // curve takes its batch slots
+        const { look, run } = pulled;
+        const parts = Math.ceil((span?.pieces ?? 0) / CURVE_STRIDE);
         batch.setCurve(pulled.piece, 0, span, at);
-        run.forEach((piece, i) => {
-            batch.setCurve(piece, i + 1, span, at);
-        });
+        for (let part = 1; part < parts || part <= run.length; part++) {
+            if (part > run.length) {
+                const piece = batch.acquire(look.width);
+                batch.setLook(piece, look.color, look.opacity, look.width);
+                batch.setRows(piece, pulled.source, pulled.target);
+                run.push(piece);
+            }
+
+            batch.setCurve(run[part - 1], part, span, at);
+        }
+    }
+
+    /**
+     * Say once a pulled batch, or its route table, is past what the card can hold: the graph's `error` event, with
+     * `E_TOO_LARGE`. The edge that asked is drawn another way or not at all; the caller decides which.
+     * @param batch - The batch.
+     * @param error - What it threw: anything but `E_TOO_LARGE` is thrown on.
+     */
+    private refuseTooLarge(batch: PulledLineBatch, error: unknown): void {
+        if (!(error instanceof GraphtyError) || error.code !== "E_TOO_LARGE") {
+            throw error;
+        }
+
+        if (!batch.refusalReported) {
+            batch.refusalReported = true;
+            this.context.getEventManager?.()?.emitGraphError(this.context, error, "other", { ...error.details });
+        }
     }
 
     /**
@@ -3157,8 +3362,7 @@ export class Edge {
         const source = pulled.drawn ? this.endRow("source") : -1;
         const target = pulled.drawn ? this.endRow("target") : -1;
         if (source !== pulled.source || target !== pulled.target) {
-            pulled.batch.setRows(pulled.piece, source, target);
-            for (const piece of pulled.run ?? []) {
+            for (const piece of [pulled.piece, ...pulled.run]) {
                 pulled.batch.setRows(piece, source, target);
             }
 
@@ -3185,7 +3389,7 @@ export class Edge {
      * @internal
      */
     get followsRows(): boolean {
-        return this.pulled !== null && this.pulled.run === null && this.route === "straight";
+        return this.pulled !== null && !this.pulled.curve && this.route === "straight";
     }
 
     /**
@@ -3259,8 +3463,7 @@ export class Edge {
      */
     private releaseLine(): void {
         if (this.pulled) {
-            this.pulled.batch.release(this.pulled.piece);
-            for (const piece of this.pulled.run ?? []) {
+            for (const piece of [this.pulled.piece, ...this.pulled.run]) {
                 this.pulled.batch.release(piece);
             }
 
@@ -3271,11 +3474,7 @@ export class Edge {
             return;
         }
 
-        for (const { batch, slot } of this.gradientPieces) {
-            batch.release(slot);
-        }
-
-        this.gradientPieces = [];
+        this.releaseColorRuns();
 
         if (this.outlineBatch) {
             for (const slot of this.outlineSlots) {
@@ -3799,6 +3998,10 @@ export class Edge {
             all = visit(batch, slot) && all;
         }
 
+        for (const { batch, slots } of this.strandRuns) {
+            all = everySlotOf(batch, slots, visit) && all;
+        }
+
         return all;
     }
 
@@ -3956,6 +4159,7 @@ export class Edge {
             this.placeEffects(curve);
             this.placeOutline(curve);
             this.placeGradient(curve);
+            this.placeStrands(curve);
         } else if (this.lineBatch) {
             // One straight piece: a run left from a lift, a fan or a loop is handed back to one slot.
             // A line tapered at both ends is two, so its middle can be its widest.
@@ -3975,6 +4179,7 @@ export class Edge {
             this.placeEffects(straight);
             this.placeOutline(straight);
             this.placeGradient(straight);
+            this.placeStrands(straight);
         } else if (this.mesh instanceof PatternedLineMesh) {
             // Pattern lines: Update element positions in world space
             this.mesh.update(srcPoint, dstPoint);
@@ -4087,18 +4292,18 @@ export class Edge {
             return null;
         }
 
-        const { rank, count, first, members } = this.context.getDataManager().drawnBundle(this);
+        const { rank, count, firstSource, members } = this.context.getDataManager().drawnBundle(this);
         if (count < 2) {
             return null;
         }
 
         const slot = fanSlot(
-            members.map((e) => e.fans),
+            members.map((e) => typeof e !== "number" && e.fans),
             rank,
         );
         const radius = Math.max(Edge.radiusOf(this.srcNode), Edge.radiusOf(this.dstNode));
         const offset = fanOffset(slot, count, radius, Vector3.Distance(src, dst), this.drawnStyle?.line?.fanSpacing);
-        return { offset, forward: first.srcNode === this.srcNode };
+        return { offset, forward: firstSource === this.srcId };
     }
 
     /**
@@ -4301,11 +4506,13 @@ export class Edge {
         const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
         const outSrc = Edge.outside(this.srcNode, src, srcGap);
         const outDst = Edge.outside(this.dstNode, dst, dstGap);
-        const span = routeOutside(route, outSrc, outDst);
+        const span = routeOutside(route, outSrc, outDst, true);
         if (span === null) {
             return false;
         }
 
+        // a line along the element's own bundle route does not follow the curve a layout laid
+        this.laidCurve = null;
         const first = Vector3.FromArray(route, 3 * span.first);
         const last = Vector3.FromArray(route, 3 * span.last);
         // where the route itself crosses each outline, on the curve; a line from the center toward the first point
@@ -4757,6 +4964,7 @@ export class Edge {
 
         this.placeOutline(flat);
         this.placeGradient(flat);
+        this.placeStrands(flat);
         this.placeEffects(flat);
     }
 
@@ -4768,6 +4976,16 @@ export class Edge {
      */
     get drawnGradient(): readonly string[] {
         return this.gradientPieces.map((p) => p.color);
+    }
+
+    /**
+     * The colors of the parallel strands this edge's line is drawn as, first on the right of its direction, and none
+     * otherwise.
+     * @returns The strands' colors, `#rrggbb`.
+     * @internal
+     */
+    get drawnStrands(): readonly string[] {
+        return this.strandRuns.map((r) => r.color);
     }
 
     /**
@@ -4809,13 +5027,140 @@ export class Edge {
         }
     }
 
+    /** Hand back the slots of the pieces a gradient is drawn as and of the strands the line is drawn as. */
+    private releaseColorRuns(): void {
+        for (const { batch, slot } of this.gradientPieces) {
+            batch.release(slot);
+        }
+
+        this.gradientPieces = [];
+
+        for (const { batch, slots } of this.strandRuns) {
+            for (const slot of slots) {
+                batch.release(slot);
+            }
+        }
+
+        this.strandRuns = [];
+    }
+
     /**
-     * Lay the gradient's pieces along the line's points, each an equal share of its length.
+     * Build the parallel strands this edge's line is drawn as (`line.strands`): one solid run per color, each as wide
+     * as the line, drawn over it in 2D, each strand a hair before the one before it.
+     * @param meshKey - The source mesh key the edge is drawn under.
+     * @param style - The style the line is drawn from.
+     */
+    private createStrands(meshKey: string, style: EdgeStyleConfig): void {
+        const colors = strandColorsOf(style);
+        if (colors === null || this.lineBatch === null) {
+            return;
+        }
+
+        const width = style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+        // a line `width` wide is `width / 40` scene units across (EdgeMesh.lineBatch)
+        this.strandStep = (width / 40) * (style.line?.strands?.spacing ?? 1);
+        const solid = { ...style, line: { ...style.line, type: "solid" as const, animationSpeed: 0 } };
+        for (const [i, color] of colors.entries()) {
+            const batch = EdgeMesh.lineBatch(
+                this.context.getMeshCache(),
+                { styleId: `${meshKey}-strand-${String(i)}-${color}`, width, color },
+                solid,
+                this.context.getScene(),
+                false,
+            );
+            if (batch === null) {
+                continue;
+            }
+
+            // ponytail: in 3D the strands are drawn at the line's depth, so where two overlap either may show
+            if (this.context.is2D()) {
+                batch.mesh.position.z = -OUTLINE_BEHIND * (2 + i);
+            }
+
+            this.strandRuns.push({ batch, slots: [batch.acquire(this)], color });
+        }
+    }
+
+    /**
+     * Lay the strands along the line's points, each moved sideways from the line's middle: the first furthest to the
+     * right of its direction, the strands `strandStep` apart.
+     * @param flat - The line's points, flat x, y, z.
+     */
+    private placeStrands(flat: readonly number[]): void {
+        const n = this.strandRuns.length;
+        for (const [i, { batch, slots }] of this.strandRuns.entries()) {
+            Edge.placeBand(this, batch, slots, offsetLine(flat, (i - (n - 1) / 2) * this.strandStep));
+        }
+    }
+
+    /**
+     * Where a share of a drawn line lies when its colors follow the curve the layout laid: the line's ends are found on
+     * the curve, and a share is that share of the way from one end's measure to the other's, on the curve.
+     * @param curve - The curve, its points and each one's measure, rising.
+     * @param curve.points - The points.
+     * @param curve.params - Each one's measure.
+     * @param drawn - The drawn line, flat x, y, z.
+     * @returns The point at a share, or null for a curve of fewer than two points or a measure per point.
+     */
+    private static alongLaidCurve(
+        curve: { readonly points: readonly Vector3[]; readonly params: readonly number[] },
+        drawn: readonly number[],
+    ): ((share: number) => Vector3) | null {
+        const { points: pts, params } = curve;
+        if (params.length !== pts.length || pts.length < 2) {
+            return null;
+        }
+
+        // the measure of the curve's point nearest p
+        const measureAt = (p: Vector3): number => {
+            let best = Number.POSITIVE_INFINITY;
+            let value = params[0];
+            for (let i = 1; i < pts.length; i++) {
+                const seg = pts[i].subtract(pts[i - 1]);
+                const len2 = seg.lengthSquared();
+                const f = len2 > 0 ? Math.min(1, Math.max(0, Vector3.Dot(p.subtract(pts[i - 1]), seg) / len2)) : 0;
+                const d = Vector3.DistanceSquared(p, pts[i - 1].add(seg.scale(f)));
+                if (d < best) {
+                    best = d;
+                    value = params[i - 1] + f * (params[i] - params[i - 1]);
+                }
+            }
+
+            return value;
+        };
+        const u0 = measureAt(Vector3.FromArray(drawn, 0));
+        const u1 = measureAt(Vector3.FromArray(drawn, drawn.length - 3));
+        return (share: number): Vector3 => {
+            const u = u0 + share * (u1 - u0);
+            for (let i = 1; i < pts.length; i++) {
+                const span = params[i] - params[i - 1];
+                if (span > 0 && u <= params[i]) {
+                    return Vector3.Lerp(pts[i - 1], pts[i], Math.max(0, (u - params[i - 1]) / span));
+                }
+            }
+
+            return pts.at(-1) ?? pts[0];
+        };
+    }
+
+    /**
+     * Lay the gradient's pieces along the line's points, each an equal share of its length -- or, when the layout laid
+     * the line along a curve it measures ({@link EdgePosition.laidCurve}), an equal share of that measure between the
+     * line's two ends.
      * @param flat - The line's points, flat x, y, z.
      */
     private placeGradient(flat: readonly number[]): void {
         const n = this.gradientPieces.length;
         if (n === 0 || flat.length < 6) {
+            return;
+        }
+
+        const along = this.laidCurve === null ? null : Edge.alongLaidCurve(this.laidCurve, flat);
+        if (along !== null) {
+            for (const [i, { batch, slot }] of this.gradientPieces.entries()) {
+                batch.place(slot, along(i / n), along((i + 1) / n));
+            }
+
             return;
         }
 

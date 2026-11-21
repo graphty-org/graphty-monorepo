@@ -20,6 +20,7 @@ type ConfigGroup =
     | "selectionStyle"
     | "pinnedStyle"
     | "startingRows"
+    | "startingCamerasWritten"
     | "runPlacement"
     | "layoutBehavior"
     | "layoutTransition"
@@ -85,6 +86,8 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
     ["timelineHiddenLook", { group: "startingRows", schema: z.enum(["hidden", "ghost"]).default("hidden") }],
     // Whether the timeline has written its Timeline Hidden row: set with the row, so it is written once.
     ["timelineHiddenAdded", { group: "startingRows", schema: z.boolean().default(false) }],
+    // Whether the session's starting cameras were written into this project: set when they are, so once.
+    ["startingCamerasWritten", { group: "startingCamerasWritten", schema: z.boolean().default(false) }],
     ["runPlacement", { group: "runPlacement", schema: z.enum(["beneath", "top"]).default("beneath") }],
     ...(["preSteps", "stepMultiplier", "minDelta"] as const).map((name): [string, ConfigKey] => [
         `layoutBehavior.${name}`,
@@ -97,7 +100,17 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
         {
             group: "framing",
             schema: z
-                .strictObject({ extent: z.enum(["drawn", "centers"]), padding: z.number().min(0).optional() })
+                .strictObject({
+                    extent: z.enum(["drawn", "centers"]),
+                    padding: z.number().min(0).optional(),
+                    box: z
+                        .strictObject({
+                            min: z.tuple([z.number(), z.number()]).readonly(),
+                            max: z.tuple([z.number(), z.number()]).readonly(),
+                        })
+                        .refine((b) => b.min[0] < b.max[0] && b.min[1] < b.max[1], "box.min must be below box.max")
+                        .optional(),
+                })
                 .optional(),
         },
     ],

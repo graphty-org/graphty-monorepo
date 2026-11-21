@@ -24,6 +24,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
 import { TimeDock } from "../time/TimeDock";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
+import { ViewsPlace } from "../views-place/ViewsPlace";
 import { ElementHost } from "./ElementHost";
 import { focusIsLost, focusOpenedGraph } from "./focus";
 import { Header } from "./Header";
@@ -38,6 +39,7 @@ const PLACES = {
     graph: <GraphPlace />,
     assistant: <AssistantPlace />,
     data: <DataPlace />,
+    views: <ViewsPlace />,
     notes: <NotesPlace />,
 } as const;
 

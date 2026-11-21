@@ -44,6 +44,7 @@ import {
 } from "../layout/locationMap/source";
 import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand, AlgoRenameCommand } from "./commands/algo";
 import type { AnnotationsCommand } from "./commands/annotations";
+import type { AssetCommand } from "./commands/assets";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { DataDeriveCommand } from "./commands/derive";
@@ -54,7 +55,9 @@ import type { PositionsCommand } from "./commands/positions";
 import type { SetCommand } from "./commands/sets";
 import type { ShaderCommand } from "./commands/shaders";
 import type { SourceExpandOpCommand } from "./commands/source-expand";
+import type { DataStepsSetCommand } from "./commands/source-steps";
 import type { StyleCommand } from "./commands/style";
+import type { TourCommand } from "./commands/tour";
 import type { ViewCommand } from "./commands/view";
 import type { VisibilityCommand } from "./commands/visibility";
 import {
@@ -136,12 +139,15 @@ export type SessionCommand =
     | DataDeriveCommand
     | DataIssuesCommand
     | SourceExpandOpCommand
+    | DataStepsSetCommand
     | StyleCommand
     | ShaderCommand
+    | AssetCommand
     | VisibilityCommand
     | SetCommand
     | NoteCommand
     | ViewCommand
+    | TourCommand
     | AnnotationsCommand
     | ConfigSetCommand
     | PositionsCommand
@@ -337,7 +343,7 @@ export interface PlanningContext {
     /** What a filter-steps list would leave visible, step by step. */
     readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
     /** The weight the graph was loaded with, for the weight a run would read. */
-    readonly loadedWeight?: () => LoadedWeightFact | null;
+    readonly loadedWeight?: (scope?: Scope) => LoadedWeightFact | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -661,7 +667,7 @@ function weighedCaveats(
         const reading = resolveRunWeight(
             descriptor?.weightMeaning ?? null,
             askedWeight(command.params?.weight, descriptor?.options),
-            context.loadedWeight?.() ?? null,
+            context.loadedWeight?.(command.scope ?? context.defaultScope) ?? null,
         );
         return {
             caveats: Object.freeze({

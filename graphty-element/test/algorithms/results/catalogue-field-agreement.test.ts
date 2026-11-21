@@ -24,6 +24,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { AllPathsAlgorithm } from "../../../src/algorithms/AllPathsAlgorithm";
 import { AStarAlgorithm } from "../../../src/algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
 import { BetweennessCentralityAlgorithm } from "../../../src/algorithms/BetweennessCentralityAlgorithm";
@@ -32,6 +33,7 @@ import { BipartiteMatchingAlgorithm } from "../../../src/algorithms/BipartiteMat
 import { ClosenessCentralityAlgorithm } from "../../../src/algorithms/ClosenessCentralityAlgorithm";
 import { ClusteringCoefficientAlgorithm } from "../../../src/algorithms/ClusteringCoefficientAlgorithm";
 import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
+import { ArticulationPointsAlgorithm, BridgesAlgorithm } from "../../../src/algorithms/CutAlgorithms";
 import { DegreeAlgorithm } from "../../../src/algorithms/DegreeAlgorithm";
 import { DFSAlgorithm } from "../../../src/algorithms/DFSAlgorithm";
 import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
@@ -174,8 +176,11 @@ const CASES: readonly Case[] = [
     declared("spectral clustering", "spectral-clustering", (g) => new SpectralClusteringAlgorithm(g)),
     declared("hierarchical clustering", "hierarchical-clustering", (g) => new HierarchicalClusteringAlgorithm(g)),
     declared("a-star", "astar", (g) => new AStarAlgorithm(g, { source: "A", target: "F" })),
+    declared("all paths", "all-paths", (g) => new AllPathsAlgorithm(g, { source: "A", target: "F" })),
     declared("edge betweenness", "edge-betweenness", (g) => new EdgeBetweennessCentralityAlgorithm(g)),
     declared("removal impact", "removal-impact", (g) => new RemovalImpactAlgorithm(g, { nodes: ["C"] })),
+    declared("articulation points", "articulation-points", (g) => new ArticulationPointsAlgorithm(g)),
+    declared("bridges", "bridges", (g) => new BridgesAlgorithm(g)),
 ];
 
 /**

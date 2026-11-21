@@ -1,6 +1,7 @@
 import type { ScopeInput } from "../catalog/types";
 import type { OperationCategory } from "../managers/OperationQueueManager";
 
+/** How a data or algorithm call is put on the operation queue. */
 export interface QueueableOptions {
     /**
      * Skip the operation queue and execute immediately (for backwards compatibility).
@@ -56,6 +57,7 @@ export interface AlgorithmSpecificOptions {
     [key: string]: unknown;
 }
 
+/** The options of `runAlgorithm`: the queue options, and what to do with the result. */
 export interface RunAlgorithmOptions extends QueueableOptions {
     /**
      * Automatically apply suggested styles after running the algorithm

@@ -1,0 +1,24 @@
+; FBX 7.4.0 project file
+FBXHeaderExtension:  {
+	FBXHeaderVersion: 1003
+	FBXVersion: 7400
+}
+Objects:  {
+	Geometry: 200, "Geometry::Curve", "NurbsCurve" {
+		Order: 4
+		Form: "Open"
+		Points: *24 {
+			a: 0,0,0,1,1,2,0,1,2,0,1,1,3,1,0,1,4,2,0,1,5,0,0,1
+		}
+		KnotVector: *10 {
+			a: 0,0,0,0,1,2,3,3,3,3
+		}
+	}
+	Model: 100, "Model::Curve", "Line" {
+		Version: 232
+	}
+}
+Connections:  {
+	C: "OO", 100, 0
+	C: "OO", 200, 100
+}

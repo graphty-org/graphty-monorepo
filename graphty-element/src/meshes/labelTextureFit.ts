@@ -15,10 +15,19 @@ export interface ScreenFittedTexture {
 }
 
 /**
- * The most labels checked before one frame. A scene with more is checked over several frames, so a zoom
- * across a scale step costs a bounded redraw per frame however large the graph.
+ * The fewest labels checked before one frame. A scene with more is checked over several frames, so a zoom
+ * across a scale step spreads its redraws over frames.
  */
 export const TEXTURE_FIT_CHECKS_PER_FRAME = 256;
+
+/**
+ * The most frames one walk through a scene's labels takes: a scene with more than this many times
+ * {@link TEXTURE_FIT_CHECKS_PER_FRAME} labels checks more a frame. A walk of a fixed 256 a frame took frames in
+ * proportion to the labels while the graph waits to settle, and each of those frames draws the whole graph, so
+ * settling cost labels x graph: 3,000 labeled nodes and 12,000 arrows took 40 to 60 seconds, 750 and 3,000 took 5
+ * (issue #9364).
+ */
+const TEXTURE_FIT_FRAMES_PER_WALK = 4;
 
 /** One scene's sweep; see {@link fitTexturesToScreen}. */
 class Sweep {
@@ -77,7 +86,11 @@ class Sweep {
         }
 
         let redrawn = false;
-        for (let i = 0; i < TEXTURE_FIT_CHECKS_PER_FRAME && this.unchecked > 0; i++) {
+        const checks = Math.max(
+            TEXTURE_FIT_CHECKS_PER_FRAME,
+            Math.ceil(this.labels.size / TEXTURE_FIT_FRAMES_PER_WALK),
+        );
+        for (let i = 0; i < checks && this.unchecked > 0; i++) {
             const label = this.next();
             if (label === undefined) {
                 break;
@@ -123,9 +136,9 @@ const sweeps = new WeakMap<Scene, Sweep>();
  *
  * A label drawn from a texture with many more pixels than it covers on screen is shrunk by the GPU's
  * mipmaps, which blur its letters; one with fewer is magnified, which blurs them too. Before each frame the
- * sweep asks up to {@link TEXTURE_FIT_CHECKS_PER_FRAME} labels whether their texture still matches, and each
- * that does not redraws it. Until every label has been asked since the picture last changed, the frame on
- * screen is not final.
+ * sweep asks {@link TEXTURE_FIT_CHECKS_PER_FRAME} labels, or a {@link TEXTURE_FIT_FRAMES_PER_WALK}th of them when
+ * that is more, whether their texture still matches, and each that does not redraws it. Until every label has
+ * been asked since the picture last changed, the frame on screen is not final.
  * @param scene - The scene.
  * @param labels - The scene's labels; read live, so labels added later are swept too.
  */

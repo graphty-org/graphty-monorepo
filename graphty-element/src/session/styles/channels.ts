@@ -5618,6 +5618,8 @@ const LABEL_FIT: ChannelCondition = { channel: "node.labelFit", set: true };
 const MODEL: ChannelCondition = { channel: "node.model", set: true };
 const BLENDED: ChannelCondition = { channel: "edge.blending", values: ["true"] };
 const IMAGE_AT_OWN_SIZE: ChannelCondition = { channel: "node.imageFit", values: ["none"] };
+/** A picture placed on the node (`node.image`): `node.texture` wraps its picture over the surface and reads none of these. */
+const IMAGE_SET: ChannelCondition = { channel: "node.image", set: true };
 const SUPPORT: readonly ChannelCondition[] = [CURVED, { channel: "edge.supportModel", set: true }];
 const SHAPE_LINES: readonly ChannelCondition[] = [FLAT_SHAPE, { channel: "node.shapeLines", set: true }];
 
@@ -5737,10 +5739,26 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     // A picture drawn at a size of its own (`node.imageFit` "none"). `node.imageClip` has no entry: under
     // every fit it decides whether the picture is cut to the node's outline (a "contain" picture's corners
     // stick out past a sphere's), NodeDecorationMesh.buildImage.
-    ["node.imageWidth", [IMAGE_AT_OWN_SIZE]],
-    ["node.imageHeight", [IMAGE_AT_OWN_SIZE]],
-    ["node.imagePixelSize", [IMAGE_AT_OWN_SIZE]],
-    ["node.imageAutoSize", [IMAGE_AT_OWN_SIZE]],
+    ["node.imageWidth", [IMAGE_SET, IMAGE_AT_OWN_SIZE]],
+    ["node.imageHeight", [IMAGE_SET, IMAGE_AT_OWN_SIZE]],
+    ["node.imagePixelSize", [IMAGE_SET, IMAGE_AT_OWN_SIZE]],
+    ["node.imageAutoSize", [IMAGE_SET, IMAGE_AT_OWN_SIZE]],
+    // Every other setting of the placed picture: nothing to place, fit, tile or fade without `node.image`.
+    ...(
+        [
+            "node.imageFallback",
+            "node.imageFit",
+            "node.imagePositionX",
+            "node.imagePositionY",
+            "node.imageOffsetX",
+            "node.imageOffsetY",
+            "node.imageRepeat",
+            "node.imageClip",
+            "node.imageSmoothing",
+            "node.imageOpacity",
+            "node.imageAspect",
+        ] as const
+    ).map((channel): [Channel, readonly ChannelCondition[]] => [channel, [IMAGE_SET]]),
     // A chart's line width only on a line chart; its border and background settings only with a color.
     ["node.chartLineWidth", [{ channel: "node.chartKind", values: ["line"] }]],
     ["node.chartBorderWidth", [{ channel: "node.chartBorderColor", set: true }]],

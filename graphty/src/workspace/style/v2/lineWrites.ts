@@ -21,7 +21,8 @@ import { setOn } from "./things";
  */
 export function ruleOf(line: LineSpec, descriptor: ChannelDescriptor): Rule {
     if (line.unit !== undefined) {
-        return "R8";
+        // A Unit line is a strip of units, or a checkbox moving the value to its second unit.
+        return line.rule === "R7" ? "R7" : "R8";
     }
     if (line.rule !== undefined) {
         return line.rule;

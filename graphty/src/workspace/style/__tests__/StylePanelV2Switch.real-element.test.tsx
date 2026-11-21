@@ -17,8 +17,6 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
-import { choose } from "./modelHarness";
 import { openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 /**
@@ -229,31 +227,6 @@ describe("Style panel v2's Switch to", () => {
         await openSettings(row, "Node shape settings");
         assert.isNull(document.querySelector(".lucide-sliders-horizontal"), "a pop-over");
         await userEvent.keyboard("{Escape}");
-    });
-});
-
-describe("Style panel v2's Switch to a member that needs a pick", () => {
-    withFeatures(["file-styles", "style-panel-v2", "node-models"]);
-
-    it("Fill's Picture opens the picture picker beside the pop-over and switches on the pick, in one Undo", async () => {
-        const { session, id } = await openProject();
-        const tab = await openStyle("Key people");
-        const row = await rowOf(sectionOf(tab, "node-fill"), "fill");
-        await pickMember(row, "Node fill", "Picture");
-        const picture = await screen.findByRole("dialog", { name: "Picture" });
-        assert.equal(written(session, id, "node.color"), "#E8590C", "the row keeps Solid until a pick");
-        const file = new File([await (await fetch(colormapUrl)).arrayBuffer()], "colormap.png");
-        await choose(picture, "Choose picture", [file]);
-        await waitFor(() => {
-            assert.match(String(written(session, id, "node.texture")), /^asset:/);
-            assert.isUndefined(written(session, id, "node.color"), "the solid color is taken off");
-        });
-        await userEvent.keyboard("{Escape}");
-        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
-        await waitFor(() => {
-            assert.equal(written(session, id, "node.color"), "#E8590C");
-            assert.isUndefined(written(session, id, "node.texture"));
-        });
     });
 });
 

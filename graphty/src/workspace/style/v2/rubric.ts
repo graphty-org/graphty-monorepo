@@ -339,10 +339,19 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { channel: "node.opacity", name: "Opacity" },
         ],
     },
-    "fill:node.texture": { main: [{ channel: "node.opacity", name: "Opacity" }] },
     image: {
         common: [{ channel: "node.imageOpacity", name: "Opacity" }],
         main: [
+            // Off places the picture on the node, on wraps it over the 3D surface: the value moves between the two.
+            {
+                channel: "node.image",
+                name: "Wrap around shape",
+                rule: "R7",
+                unit: [
+                    ["Off", "node.image"],
+                    ["On", "node.texture"],
+                ],
+            },
             { channel: "node.imageFit", name: "Fit", rule: "R9" },
             { channel: "node.imageFallback", name: "Fallback", rule: "field" },
         ],

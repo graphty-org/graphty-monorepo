@@ -101,12 +101,21 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                     {
                         id: "fill",
                         name: "Fill",
-                        items: ["solid", "gradient", "picture"],
-                        main: ["node.color", "node.gradientColors", "node.texture"],
+                        items: ["solid", "gradient"],
+                        main: ["node.color", "node.gradientColors"],
                         unnamed: true,
                     },
                 ],
-                [{ id: "image", name: "Image", items: ["image"], main: ["node.image"] }],
+                // One picture style: placed on the node, or wrapped over its surface (ia-design 2).
+                [
+                    {
+                        id: "image",
+                        name: "Image",
+                        items: ["image", "picture"],
+                        main: ["node.image", "node.texture"],
+                        start: "node.image",
+                    },
+                ],
                 // ia-design 2's order: stripes are set in more files than pies.
                 [
                     { id: "stripes", name: "Stripes", items: ["stripes"], main: ["node.stripeColors"] },

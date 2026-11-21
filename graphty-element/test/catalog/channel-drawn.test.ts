@@ -41,6 +41,17 @@ describe("channelDrawn", () => {
         assert.deepStrictEqual(channelDrawn("edge.arcHeight", reading({}), "3d"), { drawn: true });
     });
 
+    it("draws a placed picture's settings only while node.image is set, never for a wrapped texture", () => {
+        for (const channel of ["node.imageFit", "node.imageOpacity", "node.imageRepeat", "node.imageWidth"] as const) {
+            assert.deepStrictEqual(
+                channelDrawn(channel, reading({ "node.texture": "asset:a" }), "3d"),
+                { drawn: false, unmet: { channel: "node.image", set: true } },
+                channel,
+            );
+        }
+        assert.isTrue(channelDrawn("node.imageOpacity", reading({ "node.image": "asset:a" }), "2d").drawn);
+    });
+
     it("holds a channel to its view", () => {
         assert.deepStrictEqual(channelDrawn("node.zIndex", reading({}), "2d"), { drawn: true });
         assert.deepStrictEqual(channelDrawn("node.zIndex", reading({}), "3d"), {

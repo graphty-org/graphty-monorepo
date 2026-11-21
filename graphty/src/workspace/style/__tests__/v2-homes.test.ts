@@ -8,6 +8,7 @@
 import { type Channel, STYLE_FAMILIES } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
+import { familyOf } from "../v2/families";
 import { EDGE_RUBRIC, NODE_RUBRIC, rubricChannels, SHAPE_REPLACE_RUBRIC, type ThingRubric } from "../v2/rubric";
 
 /** Each kind's rubric table. */
@@ -23,7 +24,6 @@ const MEMBER_RUBRICS: Readonly<Record<string, Readonly<Record<string, ThingRubri
     "node.fill": {
         solid: NODE_RUBRIC.fill,
         gradient: NODE_RUBRIC["fill:node.gradientColors"],
-        picture: NODE_RUBRIC["fill:node.texture"],
     },
     "edge.line": { solid: EDGE_RUBRIC.line, gradient: EDGE_RUBRIC["line:edge.gradientColors"] },
 };
@@ -68,7 +68,17 @@ describe("Style panel v2's home table", () => {
         });
     }
 
-    for (const family of STYLE_FAMILIES.filter((each) => each.id in MEMBER_RUBRICS)) {
+    // The members each row's Switch to lists (a fill's picture is Image's Wrap around shape, ia-design 2).
+    const listed = STYLE_FAMILIES.filter((each) => each.id in MEMBER_RUBRICS).map((each) => {
+        const things: Readonly<Record<string, string>> = {
+            "node.shape": "shape",
+            "node.fill": "fill",
+            "edge.line": "line",
+        };
+        const thing = things[each.id] ?? "";
+        return familyOf(each.target === "edge" ? "edge" : "node", thing) ?? each;
+    });
+    for (const family of listed) {
         it(`${family.id}: every member's pop-over reaches every setting kept through a switch`, () => {
             for (const member of family.members) {
                 const rubric = MEMBER_RUBRICS[family.id][member.id];

@@ -38,6 +38,15 @@ const THING_FAMILIES: Readonly<Record<"node" | "edge", Readonly<Record<string, S
     edge: { line: "edge.line" },
 };
 
+/**
+ * Members a thing's Switch to leaves out because another row is their home: a fill's picture is Image's Wrap
+ * around shape (ia-design 2), so the picture has one home.
+ */
+const LEFT_OUT: Readonly<Record<"node" | "edge", Readonly<Record<string, readonly string[]>>>> = {
+    node: { fill: ["picture"] },
+    edge: {},
+};
+
 /** What a member needs picked before it can be drawn: a model, a picture, a shader for the shapes' place. */
 export type MemberPick = "model" | "picture" | "shader";
 
@@ -66,7 +75,11 @@ export interface MemberChoice {
  */
 export function familyOf(side: "node" | "edge", thing: string): StyleFamilyDescriptor | undefined {
     const id = THING_FAMILIES[side][thing] as StyleFamilyId | undefined;
-    return id === undefined ? undefined : STYLE_FAMILIES.find((family) => family.id === id);
+    const family = id === undefined ? undefined : STYLE_FAMILIES.find((each) => each.id === id);
+    const left = LEFT_OUT[side][thing] ?? [];
+    return family === undefined
+        ? undefined
+        : { ...family, members: family.members.filter((m) => !left.includes(m.id)) };
 }
 
 /**

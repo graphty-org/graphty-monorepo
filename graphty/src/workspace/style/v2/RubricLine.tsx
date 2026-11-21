@@ -233,6 +233,19 @@ interface ControlArgs {
 function unitControl(args: ControlArgs): React.ReactNode {
     const { ctx, line, descriptor, label, fail } = args;
     const units = (line.unit ?? []).map(([, c]) => c);
+    const [off, on] = units;
+    if (line.rule === "R7" && off !== undefined && on !== undefined) {
+        return (
+            <Checkbox
+                size="xs"
+                label={line.name ?? label}
+                checked={setOn(ctx, on)}
+                onChange={(event) => {
+                    moveUnit(ctx, event.currentTarget.checked ? on : off, units, undefined).catch(fail);
+                }}
+            />
+        );
+    }
     return (
         <SegmentsLine
             label={`${label} unit`}
@@ -736,7 +749,9 @@ function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps
     const own = lineIn(ctx, channel);
     const set = setOn(ctx, channel) || (line.pair !== undefined && setOn(ctx, line.pair));
     const descriptor = shownChannel(session, side, channel, set);
-    if (descriptor?.renderable !== true) {
+    // A Unit line needs every unit offered (Wrap around shape needs `node.texture`, the node-models experiment's).
+    const units = (line.unit ?? []).every(([, c]) => shownChannel(session, side, c, setOn(ctx, c)) !== undefined);
+    if (descriptor?.renderable !== true || !units) {
         return null;
     }
     // A line graphty-element draws nothing for now (a 3D-only line in 2D) is dimmed, never hidden.
@@ -929,7 +944,7 @@ export function RemoveButton({ label, onClick }: Readonly<{ label: string; onCli
  * @returns the rule.
  */
 function frameRule(line: LineSpec, rule: string): string {
-    return line.unit === undefined ? rule : "R8";
+    return line.unit === undefined || rule === "R7" ? rule : "R8";
 }
 
 /**

@@ -491,7 +491,7 @@ const OPTION_WORDS: Readonly<Partial<Record<string, OptionWords>>> = {
     "location-map.size": { label: "Size" },
     "location-map.mapScale": { label: "Map size" },
     "location-map.flatNodeScale": { label: "Flat map node size" },
-    "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place" } },
+    "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place", hide: "Hide" } },
     "location-map.overlap": { label: "Same place", choices: { spread: "Spread", stack: "Stack" } },
     "closeness.k": SAMPLE_SIZE,
     "betweenness.k": SAMPLE_SIZE,
@@ -758,6 +758,26 @@ export function topAnnouncement(session: GraphSession, run: Run, name: string): 
         return null;
     }
     return `${name} finished: ${session.data.name(top.id) ?? top.label} ranks first, ${formatNumber(top.value)}`;
+}
+
+/** What a set run that chose nothing means, for the algorithms whose empty set says more than "none". */
+const NOTHING_CHOSEN: Readonly<Record<string, string>> = {
+    "removal-impact": "Removing this affects no other node",
+};
+
+/**
+ * What a finished set run says when it chose nothing, from the element's reading of its result
+ * ("reading.set" with a count of 0): "Removing this affects no other node".
+ * @param run - the run.
+ * @param name - the run's name in words.
+ * @returns the line, or null for a run that is no set or chose something.
+ */
+export function nothingChosenWords(run: Run, name: string): string | null {
+    const fact = run.result?.readingFact();
+    if (fact?.code !== "reading.set" || fact.params.count !== 0) {
+        return null;
+    }
+    return NOTHING_CHOSEN[run.algorithm] ?? `${name}: no ${String(fact.params.element)}s chosen`;
 }
 
 /**

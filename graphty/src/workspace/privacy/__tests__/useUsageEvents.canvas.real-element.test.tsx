@@ -192,8 +192,8 @@ async function wheelRun(element: Element, notches: number): Promise<void> {
     );
 }
 
-// The usage-analytics experiment on, in both test configurations: these counts are its own.
-withFeatures(["usage-analytics"]);
+// No experiments, in both test configurations.
+withFeatures([]);
 
 describe("usage counts from the reader's hands on the canvas", () => {
     beforeEach(async () => {

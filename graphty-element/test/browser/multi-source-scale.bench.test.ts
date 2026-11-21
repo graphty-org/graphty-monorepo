@@ -5,7 +5,14 @@
  * again after the second source (a held builder is a second copy of the whole graph). Printed as
  * `[multi-source]` lines, never asserted beyond the graph each load made.
  *
+ * The full size runs on a real GPU (`GRAPHTY_BROWSER_GPU` set), where the design note's numbers were
+ * taken. On the software renderer CI draws with, it runs at a tenth of the size (10,000 nodes and
+ * 100,000 edges): at full size the two cases took about 20 minutes of drawing there, most of the
+ * Performance Benchmarks job's budget, while the rows it prints are the same comparison at either
+ * size (#9217).
+ *
  * Run with: npx vitest run --project=browser-bench test/browser/multi-source-scale.bench.test.ts
+ * (and GRAPHTY_BROWSER_GPU=nvidia for the full size).
  */
 
 import "../../src/graphty-element";
@@ -16,8 +23,11 @@ import type { Graphty } from "../../index.js";
 import type { GraphStore } from "../../src/data/GraphStore";
 import { operationQueueOf } from "../../src/Graph";
 
-const NODES = 100_000;
-const EDGES = 1_000_000;
+const GPU = ((import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "") !== "";
+/** A tenth of the size on the software renderer: see the file comment. */
+const SCALE = GPU ? 1 : 10;
+const NODES = 100_000 / SCALE;
+const EDGES = 1_000_000 / SCALE;
 /** The second source: one percent of the graph, half of its nodes shared with the first. */
 const MORE_NODES = NODES / 100;
 const MORE_EDGES = EDGES / 100;
@@ -69,7 +79,7 @@ async function settled(element: Graphty): Promise<{ queueMs: number; frameMs: nu
     return { queueMs: Math.round(queued - start), frameMs: Math.round(performance.now() - queued) };
 }
 
-describe("two data sources at 100k nodes and 1M edges", { timeout: TIMEOUT_MS }, () => {
+describe(`two data sources at ${String(NODES)} nodes and ${String(EDGES)} edges`, { timeout: TIMEOUT_MS }, () => {
     for (const path of ["batched", "objects"] as const) {
         it(`on ${path}`, async () => {
             const element = document.createElement("graphty-element");

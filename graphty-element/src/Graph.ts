@@ -23,6 +23,7 @@ import { Observable } from "@babylonjs/core/Misc/observable.js";
 import { RenderingGroup } from "@babylonjs/core/Rendering/renderingGroup.js";
 import { Scene } from "@babylonjs/core/scene.js";
 import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
+import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
@@ -36,6 +37,7 @@ import { flatMapReach } from "./layout/locationMap/reach";
 import { GraphtyLogger, type Logger } from "./logging";
 import { BasemapManager, mapCorners } from "./managers/BasemapManager";
 import { CAMERA_LOG_INTERVAL_MS, frameFacts, throttle, viewLog } from "./managers/viewLog";
+import type { GraphSceneMetadata } from "./types/sceneMetadata";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
@@ -1421,6 +1423,7 @@ export class Graph implements GraphContext {
                 batched: () => this.#renderPath === "batched",
                 nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
                 darkScheme: () => this.#darkScheme,
+                layoutHidden: () => this.#layoutHidden,
             },
         );
 
@@ -1888,7 +1891,7 @@ export class Graph implements GraphContext {
             "labels",
             "the node label counts have not been announced",
             () => {
-                const declutter: unknown = this.scene.metadata?.labelDeclutter;
+                const declutter: unknown = (this.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
                 return declutter instanceof LabelDeclutter && !declutter.published();
             },
             "wait",
@@ -3244,6 +3247,7 @@ export class Graph implements GraphContext {
                 this.#followedFrame = frame;
                 viewLog.info("map frame", frameFacts(frame));
                 this.#followFrame(frame);
+                this.#hideOffMap(frame);
             }
 
             this.#drawOverMap(frame);
@@ -3555,7 +3559,7 @@ export class Graph implements GraphContext {
      * @returns The counts.
      */
     get nodeLabelCounts(): NodeLabelCounts {
-        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        const declutter: unknown = (this.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
         return declutter instanceof LabelDeclutter ? declutter.counts : NO_NODE_LABELS;
     }
 
@@ -3565,7 +3569,7 @@ export class Graph implements GraphContext {
      * @returns The counts.
      */
     get edgeLabelCounts(): EdgeLabelCounts {
-        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        const declutter: unknown = (this.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
         return declutter instanceof LabelDeclutter ? declutter.edgeCounts : NO_EDGE_LABELS;
     }
 
@@ -6012,7 +6016,7 @@ export class Graph implements GraphContext {
                 this.scene.doNotHandleCursors ||
                 (buttons ?? 0) !== 0 ||
                 canvas.style.cursor === this.scene.hoverCursor ||
-                this.scene.metadata?.xrHelper?.baseExperience?.state === 2
+                (this.scene.metadata as GraphSceneMetadata | null)?.xrHelper?.baseExperience?.state === WebXRState.IN_XR
             ) {
                 return;
             }
@@ -6217,10 +6221,11 @@ export class Graph implements GraphContext {
      */
     private writeSceneDimension(twoD: boolean): void {
         this.scene.metadata ??= {};
-        const was = this.scene.metadata.viewMode as string | undefined;
-        this.scene.metadata.twoD = twoD;
-        this.scene.metadata.viewMode = this.viewSettings.graph.immersive ?? (twoD ? "2d" : "3d");
-        if (was !== undefined && was !== this.scene.metadata.viewMode) {
+        const metadata = this.scene.metadata as GraphSceneMetadata;
+        const was = metadata.viewMode;
+        metadata.twoD = twoD;
+        metadata.viewMode = this.viewSettings.graph.immersive ?? (twoD ? "2d" : "3d");
+        if (was !== undefined && was !== metadata.viewMode) {
             // The drawing mode switched: a tour playing ends, and every view is judged again.
             this.#endTour("mode-changed");
             this.eventManager.emit("views-changed", {});
@@ -6233,7 +6238,7 @@ export class Graph implements GraphContext {
      * @returns True when nothing about the scene needs to change for it.
      */
     private sceneDrawn(choice: LayoutChoice): boolean {
-        return (this.scene.metadata?.twoD === true) === (choice.dimension === "2d");
+        return ((this.scene.metadata as GraphSceneMetadata | null)?.twoD === true) === (choice.dimension === "2d");
     }
 
     /**
@@ -6257,7 +6262,7 @@ export class Graph implements GraphContext {
 
         twoD.rotation = ((this.session.config.viewRotation ?? 0) * Math.PI) / 180;
         this.updateManager.viewMoved();
-        if (reframe && this.scene.metadata?.twoD === true) {
+        if (reframe && (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true) {
             this.autoFrame();
         }
     }
@@ -6495,6 +6500,35 @@ export class Graph implements GraphContext {
 
     /** The frame the camera last followed; see {@link #followFrame}. */
     #followedFrame: LocationMapFrame | null = null;
+
+    /** The nodes the map layout keeps off the canvas (`unplaced: "hide"`), or null; see {@link #hideOffMap}. */
+    #layoutHidden: readonly NodeId[] | null = null;
+
+    /**
+     * Keep the nodes a map frame leaves unplaced off the canvas when it hides them (`unplaced:
+     * "hide"`), their edges with them, and paint again whenever that list changes.
+     * @param frame - The frame now active, or null.
+     */
+    #hideOffMap(frame: LocationMapFrame | null): void {
+        const next = frame?.hidesUnplaced === true && frame.unplacedIds.size > 0 ? [...frame.unplacedIds] : null;
+        const was = this.#layoutHidden;
+        if (next === null ? was === null : was?.length === next.length && next.every((id, at) => was[at] === id)) {
+            return;
+        }
+
+        this.#layoutHidden = next as readonly NodeId[] | null;
+        void this.operationQueue
+            .queueOperationAsync(
+                "style-apply",
+                async () => {
+                    await this.repaintFromSession();
+                },
+                { description: "Repainting for the map's unplaced nodes" },
+            )
+            .catch((error: unknown) => {
+                graphLogger.error("The repaint for the map's unplaced nodes failed.", asError(error));
+            });
+    }
 
     /**
      * The camera's rules on a map: the wheel zooms toward the pointer, and on a globe the camera
@@ -10969,7 +11003,7 @@ export class Graph implements GraphContext {
         // this one meanwhile disposes `manager` itself, and leaves its own in place.
         await manager.ready();
         // Enabled inside an immersive session: bind to it now.
-        const xrCameraController = this.scene.metadata?.xrCameraController as
+        const xrCameraController = (this.scene.metadata as GraphSceneMetadata | null)?.xrCameraController as
             import("./cameras/XRPivotCameraController").XRPivotCameraController | null | undefined;
         if (xrCameraController && this.aiManager === manager) {
             await xr.enter(xrCameraController.getInputHandler(), this.scene, this.graphContext.getConfig().xr?.ai);
@@ -11757,7 +11791,7 @@ export class Graph implements GraphContext {
 
         // Store XR helper in scene metadata for isXRMode() detection
         this.scene.metadata ??= {};
-        this.scene.metadata.xrHelper = xrHelper;
+        (this.scene.metadata as GraphSceneMetadata).xrHelper = xrHelper;
 
         // Create XR pivot camera controller (handles input via pivot-based system)
         const { XRPivotCameraController } = await import("./cameras/XRPivotCameraController");
@@ -11777,8 +11811,8 @@ export class Graph implements GraphContext {
         );
 
         // Store for cleanup
-        this.scene.metadata.xrCameraController = xrCameraController;
-        this.scene.metadata.xrUpdateObserver = xrUpdateObserver;
+        (this.scene.metadata as GraphSceneMetadata).xrCameraController = xrCameraController;
+        (this.scene.metadata as GraphSceneMetadata).xrUpdateObserver = xrUpdateObserver;
 
         // The assistant's talk, approve and deny buttons, pointing and cards (`xr.ai`).
         await this.aiXr
@@ -11797,7 +11831,7 @@ export class Graph implements GraphContext {
      */
     private async drawXRMenu(): Promise<void> {
         const items = this.xrConfig().menu ?? [];
-        const inSession = (): boolean => Boolean(this.scene.metadata?.xrHelper);
+        const inSession = (): boolean => Boolean((this.scene.metadata as GraphSceneMetadata | null)?.xrHelper);
         if (items.length === 0 || !inSession()) {
             this.xrMenu?.dispose();
             this.xrMenu = null;
@@ -11842,15 +11876,15 @@ export class Graph implements GraphContext {
         }
 
         // Remove render loop observer
-        const xrUpdateObserver = this.scene.metadata?.xrUpdateObserver as Nullable<Observer<Scene>> | undefined;
+        const xrUpdateObserver = (this.scene.metadata as GraphSceneMetadata | null)?.xrUpdateObserver;
         if (xrUpdateObserver) {
             this.scene.onBeforeRenderObservable.remove(xrUpdateObserver);
-            this.scene.metadata.xrUpdateObserver = null;
+            (this.scene.metadata as GraphSceneMetadata).xrUpdateObserver = null;
         }
 
         // Clear XR helper from metadata
-        if (this.scene.metadata?.xrHelper) {
-            this.scene.metadata.xrHelper = null;
+        if ((this.scene.metadata as GraphSceneMetadata | null)?.xrHelper) {
+            (this.scene.metadata as GraphSceneMetadata).xrHelper = null;
         }
 
         try {

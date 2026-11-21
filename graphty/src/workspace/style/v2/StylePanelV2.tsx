@@ -7,7 +7,12 @@
  */
 
 import { LabelsProvider } from "@graphty/compact-mantine";
-import { type Channel, type ChannelDescriptor, writeChannelList } from "@graphty/graphty-element/catalog";
+import {
+    type Channel,
+    type ChannelDescriptor,
+    type LabelLookId,
+    writeChannelList,
+} from "@graphty/graphty-element/catalog";
 import { Divider } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
@@ -28,8 +33,8 @@ import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { viewDim } from "./drawn";
 import { replaceUse } from "./families";
-import { kindGroupOf, type KindMember, kindsShown, kindStarts, lineWidthOf, ownsOf } from "./kindGroups";
-import { entryIds, freshEntryId, listChannel } from "./labelEntries";
+import { kindGroupOf, type KindMember, kindsShown, kindStarts, lineWidthOf, ownsOf, PLAIN_LOOK } from "./kindGroups";
+import { entryIds, freshEntryId, listChannel, writeEntry } from "./labelEntries";
 import { TEXT_THINGS } from "./labelRubric";
 import { drawnItems, firstColors, ITEM_LISTS, LISTS } from "./lists";
 import { PlusList, PlusListKind } from "./PlusList";
@@ -248,6 +253,26 @@ interface ThingRowOf {
     readonly entry?: { readonly id: string; readonly n: number };
 }
 
+/** What parts a "+" item's thing from the look it adds a label in: `label#card`. */
+const LOOK_SEP = "#";
+
+/**
+ * The "+" items that add a label in a look (E196): Card, Dark, Pill and Callout after Label, as Label is offered.
+ * @param ctx - the row.
+ * @param label - Label's own "+" item.
+ * @returns the items.
+ */
+function lookOptions(ctx: RowContext, label: AddOption): AddOption[] {
+    const looks = kindGroupOf(ctx.side, "label")?.members.flatMap((member) =>
+        member.look === undefined || member.look.id === PLAIN_LOOK ? [] : [member],
+    );
+    return (looks ?? []).map((member) => ({
+        ...label,
+        key: `${label.key}${LOOK_SEP}${member.look?.id ?? ""}`,
+        label: member.plainName,
+    }));
+}
+
 /** What a waiting further label's key starts with: `label:@<id>`. */
 const ENTRY_WAIT = "label:@";
 
@@ -338,7 +363,8 @@ function kindRowsOf(
  */
 function freeKind(ctx: RowContext, thing: ThingSpec, waiting: readonly string[]): KindMember | undefined {
     const group = kindGroupOf(ctx.side, thing.id);
-    if (group === undefined || thing.id === "label") {
+    // A text's looks are one row's kinds, never a second row of it (E196).
+    if (group === undefined || thing.id === "label" || group.members.some((member) => member.look !== undefined)) {
         return undefined;
     }
     const drawn = new Set(kindsShown(ctx, group).map((member) => member.id));
@@ -452,15 +478,36 @@ function ThingSection({
             }),
         ),
     ];
-    const options = groups.flat().filter((option) => option.disabled !== true);
+    // Label's "+" also adds a label in each look but the plain one, which Label adds (E196): never a Glyph.
+    const plus = groups.map((group) =>
+        group.flatMap((option) => (option.key === "label" ? [option, ...lookOptions(ctx, option)] : [option])),
+    );
+    const options = plus.flat().filter((option) => option.disabled !== true);
     // A Label already drawn adds a further label (labelEntries.ts), waiting for its source as the first does.
-    const addsEntry = (thing: ThingSpec | undefined): boolean => {
+    const fail = (error: unknown): void => {
+        store.set({ notice: { message: failureWords("Label", "added", error), error: true } });
+    };
+    const addsEntry = (thing: ThingSpec | undefined, look: LabelLookId | undefined): boolean => {
         if (thing?.id !== "label" || !shown.some((each) => each.thing === thing)) {
             return false;
         }
         const taken = waiting.filter((key) => key.startsWith(ENTRY_WAIT)).map((key) => key.slice(ENTRY_WAIT.length));
         const entry = freshEntryId(ctx, taken);
         setWaiting((now) => [...now, `${ENTRY_WAIT}${entry}`]);
+        // A look's label is written at once, so its row shows its look while it waits for its source.
+        if (look !== undefined) {
+            writeEntry(ctx, entry, { style: { look } }).catch(fail);
+        }
+        return true;
+    };
+    // The first label in a look: its look is written, and its row waits for its source as Label's does.
+    const addsLook = (look: LabelLookId | undefined): boolean => {
+        const style = TEXT_THINGS[ctx.side].label?.style;
+        if (look === undefined || style === undefined) {
+            return false;
+        }
+        setWaiting((now) => (now.includes("label") ? now : [...now, "label"]));
+        writeIn(ctx, style, { value: { look } }).catch(fail);
         return true;
     };
     const add = (id: string): void => {
@@ -469,8 +516,9 @@ function ThingSection({
             shaders.openGallery();
             return;
         }
-        const found = things.flat().find((each) => each.thing.id === id);
-        if (addsEntry(found?.thing)) {
+        const [thingId, look] = id.split(LOOK_SEP) as [string, LabelLookId | undefined];
+        const found = things.flat().find((each) => each.thing.id === thingId);
+        if (addsEntry(found?.thing, look) || addsLook(look)) {
             return;
         }
         const { free, main } = plusTarget(ctx, found, shown, waiting);
@@ -544,7 +592,7 @@ function ThingSection({
                         <AddButton
                             kind={ctx.side}
                             title={title}
-                            groups={groups}
+                            groups={plus}
                             onAdd={add}
                             alwaysMenu={!single}
                             opened={single ? undefined : menu}

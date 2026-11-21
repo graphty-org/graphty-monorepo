@@ -7,7 +7,12 @@
  */
 
 import { Popout } from "@graphty/compact-mantine";
-import type { ShaderPlace, StyleFamilyDescriptor } from "@graphty/graphty-element/catalog";
+import {
+    LABEL_LOOKS,
+    type LabelLookId,
+    type ShaderPlace,
+    type StyleFamilyDescriptor,
+} from "@graphty/graphty-element/catalog";
 import { ActionIcon, Menu, Tooltip } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
@@ -19,7 +24,9 @@ import type { RowContext } from "../PropertyRow";
 import { ShaderGallery } from "../ShaderGallery";
 import { failureWords } from "../words";
 import { currentMember, isHeld, type MemberChoice, type MemberPick, membersOf, switchMember } from "./families";
-import { type KindGroup, type KindMember, kindsShown, switchKind } from "./kindGroups";
+import { type KindGroup, type KindMember, kindsShown, lookOf, PLAIN_LOOK, switchKind, writeLook } from "./kindGroups";
+import { entryOf, writeEntry } from "./labelEntries";
+import { TEXT_THINGS } from "./labelRubric";
 
 /** The places a shader for the shapes' place is picked from. */
 const REPLACE_PLACES: readonly ShaderPlace[] = ["replace"];
@@ -88,7 +95,17 @@ export function ReplaceGallery({
  * @param props.children - what opens beside it (a picker)
  * @returns The glyph and its menu
  */
-function SwitchMenu<T extends { readonly key: string; readonly name: string; readonly disabled: boolean }>({
+function SwitchMenu<
+    T extends {
+        readonly key: string;
+        readonly name: string;
+        readonly disabled: boolean;
+        /** Drawn after a divider: the first of a second set of choices (an End caption's looks). */
+        readonly divided?: boolean;
+        /** Checked beside the current kind: the current choice of the second set. */
+        readonly checked?: boolean;
+    },
+>({
     boxRef,
     attribute,
     title,
@@ -119,23 +136,26 @@ function SwitchMenu<T extends { readonly key: string; readonly name: string; rea
                 </Menu.Target>
                 <Menu.Dropdown>
                     {members.map((member) => (
-                        <Menu.Item
-                            key={member.key}
-                            aria-current={member.key === now ? "true" : undefined}
-                            disabled={member.disabled && member.key !== now}
-                            leftSection={
-                                member.key === now ? (
-                                    <GLYPHS.check size={14} aria-hidden />
-                                ) : (
-                                    <span className="ws-member-blank" />
-                                )
-                            }
-                            onClick={() => {
-                                onChoose(member);
-                            }}
-                        >
-                            {member.name}
-                        </Menu.Item>
+                        <React.Fragment key={member.key}>
+                            {member.divided === true && <Menu.Divider />}
+                            <Menu.Item
+                                aria-current={member.key === now ? "true" : undefined}
+                                aria-checked={member.checked === true ? "true" : undefined}
+                                disabled={member.disabled && member.key !== now}
+                                leftSection={
+                                    member.key === now || member.checked === true ? (
+                                        <GLYPHS.check size={14} aria-hidden />
+                                    ) : (
+                                        <span className="ws-member-blank" />
+                                    )
+                                }
+                                onClick={() => {
+                                    onChoose(member);
+                                }}
+                            >
+                                {member.name}
+                            </Menu.Item>
+                        </React.Fragment>
                     ))}
                 </Menu.Dropdown>
             </Menu>
@@ -163,11 +183,35 @@ export function KindMenu({
     const { store } = useWorkspace();
     // A kind another row of the thing already draws is listed, not picked.
     const taken = new Set(kindsShown(ctx, group).map((member) => member.id));
-    const members = group.members.map((member) => ({
-        key: member.id,
-        name: member.plainName,
-        disabled: member.id !== now.id && taken.has(member.id),
-    }));
+    // An End caption's looks follow its ends (E196): they are the looks of the caption the row draws.
+    const style =
+        group.looks === true ? Object.values(TEXT_THINGS[ctx.side]).find((t) => t.words === now.head) : undefined;
+    const look = style === undefined ? undefined : lookOf(ctx, style.style);
+    const members = [
+        ...group.members.map((member) => ({
+            key: member.id,
+            name: member.plainName,
+            disabled: member.id !== now.id && taken.has(member.id),
+        })),
+        ...(style === undefined
+            ? []
+            : LABEL_LOOKS.map((each, at) => ({
+                  key: `${LOOK_KEY}${each.id}`,
+                  name: each.id === PLAIN_LOOK ? "Text" : each.plainName,
+                  disabled: false,
+                  divided: at === 0,
+                  checked: each.id === look,
+              }))),
+    ];
+    const done = (promise: Promise<void>, word: string): void => {
+        promise
+            .then(() => {
+                store.set({ announcement: `${group.plainName} now ${word}` });
+            })
+            .catch((error: unknown) => {
+                store.set({ notice: { message: failureWords(group.plainName, "changed", error), error: true } });
+            });
+    };
     return (
         <SwitchMenu
             attribute={{ "data-kind-menu": group.id }}
@@ -175,18 +219,68 @@ export function KindMenu({
             members={members}
             now={now.id}
             onChoose={(choice) => {
+                if (style !== undefined && choice.key.startsWith(LOOK_KEY)) {
+                    const id = choice.key.slice(LOOK_KEY.length) as LabelLookId;
+                    if (id !== look) {
+                        done(writeLook(ctx, style.style, id, group.plainName), choice.name);
+                    }
+                    return;
+                }
                 const to = group.members.find((member) => member.id === choice.key);
                 if (to === undefined || to.id === now.id) {
                     return;
                 }
-                switchKind(ctx, group, now, to)
+                done(switchKind(ctx, group, now, to), to.plainName);
+            }}
+        />
+    );
+}
+
+/** What a look's key in a Switch to starts with, apart from the kinds'. */
+const LOOK_KEY = "look:";
+
+/**
+ * A further label's Switch to (labelEntries.ts): the text's looks, the current one checked; a pick writes only the
+ * entry's look (E196). A further label has no Glyph: a glyph is the node's own channel.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.entry - the further label's id
+ * @param props.title - its name with its kind ("Node label 2")
+ * @returns The glyph and its menu
+ */
+export function EntryLookMenu({
+    ctx,
+    entry,
+    title,
+}: Readonly<{ ctx: RowContext; entry: string; title: string }>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const style = entryOf(ctx, entry)?.style ?? {};
+    const now = style.look ?? PLAIN_LOOK;
+    const members = LABEL_LOOKS.map((each) => ({
+        key: each.id,
+        name: each.id === PLAIN_LOOK ? "Text" : each.plainName,
+        disabled: false,
+    }));
+    return (
+        <SwitchMenu
+            attribute={{ "data-kind-menu": `${ctx.side}.labels` }}
+            title={title}
+            members={members}
+            now={now}
+            onChoose={(choice) => {
+                if (choice.key === now) {
+                    return;
+                }
+                const next: Record<string, unknown> = { ...style, look: choice.key };
+                if (choice.key === PLAIN_LOOK) {
+                    Reflect.deleteProperty(next, "look");
+                }
+                writeEntry(ctx, entry, { style: next })
                     .then(() => {
-                        store.set({ announcement: `${group.plainName} now ${to.plainName}` });
+                        store.set({ announcement: `Label now ${choice.name}` });
                     })
                     .catch((error: unknown) => {
-                        store.set({
-                            notice: { message: failureWords(group.plainName, "changed", error), error: true },
-                        });
+                        store.set({ notice: { message: failureWords("Label", "changed", error), error: true } });
                     });
             }}
         />

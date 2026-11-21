@@ -16,10 +16,13 @@ import { findValuePicker, screen, waitFor, within } from "../../../test/test-uti
 import { showKind } from "./kindTab";
 import { openGraph, openStyle, picture, pixelsApart, sectionOf, written } from "./v2Harness";
 
-/** Each tab's Text "+" items, "|" where a divider sits: the edge tab's adds End caption, an edge's own text. */
+/**
+ * Each tab's Text "+" items, "|" where a divider sits: a label in each look (E196, never a Glyph), and the edge tab
+ * adds End caption, an edge's own text.
+ */
 const TEXT_ITEMS = {
-    node: ["Label", "|", "Tooltip", "|", "Record", "External label"],
-    edge: ["Label", "|", "Tooltip", "|", "End caption", "Record", "External label"],
+    node: ["Label", "Card", "Dark", "Pill", "Callout", "|", "Tooltip", "|", "Record", "External label"],
+    edge: ["Label", "Card", "Dark", "Pill", "Callout", "|", "Tooltip", "|", "End caption", "Record", "External label"],
 } as const;
 
 /**

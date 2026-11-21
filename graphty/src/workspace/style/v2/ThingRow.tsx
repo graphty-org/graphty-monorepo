@@ -4,7 +4,7 @@
  * the whole thing off the layer in one undo step.
  */
 
-import type { Channel, ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import { type Channel, type ChannelDescriptor, LABEL_LOOKS } from "@graphty/graphty-element/catalog";
 import React, { useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
@@ -29,13 +29,13 @@ import { swatchesOf } from "./colorItems";
 import { dimOf } from "./drawn";
 import { familyOf, pickReplace, replaceUse } from "./families";
 import { ItemListEditor } from "./ItemListEditor";
-import { kindGroupOf, type KindMember } from "./kindGroups";
-import { removeEntry } from "./labelEntries";
+import { kindGroupOf, type KindMember, PLAIN_LOOK } from "./kindGroups";
+import { entryOf, removeEntry } from "./labelEntries";
 import { LabelRow } from "./LabelRow";
 import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
 import { firstItemWords, ITEM_LISTS, LISTS } from "./lists";
-import { KindMenu, MemberMenu, ReplaceGallery } from "./MemberMenu";
+import { EntryLookMenu, KindMenu, MemberMenu, ReplaceGallery } from "./MemberMenu";
 import {
     lineChannels,
     type LineSpec,
@@ -325,6 +325,34 @@ function textThingOf(
 }
 
 /**
+ * A row's name and its name with its kind. A kind's row is named by its kind ("Glyph", "Target") everywhere, its
+ * buttons too; a Label's look by its look ("Card", as "+" adds it, E196), its Text look keeping the thing's name; a
+ * tooltip's or an external label's look keeps the thing's name. A further label is numbered, so each row's controls
+ * have names of their own ("Node label 2 source").
+ * @param ctx - the row.
+ * @param thing - the thing.
+ * @param kind - the kind it draws, if any.
+ * @param entry - its further label, if any.
+ * @param entry.id - the further label's id.
+ * @param entry.n - its place among the labels.
+ * @returns the name ("Card") and the title ("Node card").
+ */
+function rowNames(
+    ctx: RowContext,
+    thing: ThingSpec,
+    kind: KindMember | undefined,
+    entry: { readonly id: string; readonly n: number } | undefined,
+): { readonly name: string; readonly title: string } {
+    const entryLook = entry === undefined ? undefined : entryOf(ctx, entry.id)?.style?.look;
+    const lookName = LABEL_LOOKS.find((each) => each.id === entryLook && each.id !== PLAIN_LOOK)?.plainName;
+    const named = kind !== undefined && kind.id !== "text" && (kind.look === undefined || thing.id === "label");
+    const name = lookName ?? (named ? kind.plainName : thing.name);
+    const kindWord = ctx.side === "node" ? "Node" : "Edge";
+    const number = entry === undefined ? "" : ` ${String(entry.n)}`;
+    return { name, title: `${kindWord} ${name.toLowerCase()}${number}` };
+}
+
+/**
  * A row's Switch to: its graphty-element family's members, or its kind group's kinds.
  * @param ctx - the row.
  * @param thing - the thing.
@@ -400,13 +428,13 @@ export function ThingRow({
         return null;
     }
     const text = textThingOf(ctx, thing, kind, main.channel);
-    // A kind's row is named by its kind ("Glyph", "Target") everywhere, its buttons too; a Label's Text kind keeps
-    // the thing's name.
-    const name = kind === undefined || kind.id === "text" ? thing.name : kind.plainName;
-    const kindWord = ctx.side === "node" ? "Node" : "Edge";
-    // A further label is numbered, so each row's controls have names of their own ("Node label 2 source").
-    const title = `${kindWord} ${name.toLowerCase()}${entry === undefined ? "" : ` ${String(entry.n)}`}`;
-    const member = switchTo(ctx, thing, title, kind);
+    const { name, title } = rowNames(ctx, thing, kind, entry);
+    const member =
+        entry === undefined ? (
+            switchTo(ctx, thing, title, kind)
+        ) : (
+            <EntryLookMenu ctx={ctx} entry={entry.id} title={title} />
+        );
     const list = ctx.side === "node" ? LISTS[thing.id] : undefined;
     // A shader drawn in the shapes' place is the Shape row's member (design 5): its row names it.
     const replacing = thing.id === "shape" ? replaceUse(ctx) : undefined;

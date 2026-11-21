@@ -6,7 +6,13 @@
  * holds the rest, while the same row stays selected, so switching back brings them back.
  */
 
-import { type Channel, channelDescriptor, edgeBandWidthAs } from "@graphty/graphty-element/catalog";
+import {
+    type Channel,
+    channelDescriptor,
+    edgeBandWidthAs,
+    LABEL_LOOKS,
+    type LabelLookId,
+} from "@graphty/graphty-element/catalog";
 import type { Encoding, Layer, StaticStyle } from "@graphty/graphty-element/session";
 
 import { itemChannels, partsFor } from "../parts/parts";
@@ -41,6 +47,11 @@ export interface KindMember {
     readonly onSwitch?: SwitchWrites;
     /** Values "+" writes beside its main value, over graphty-element's starts, given the row's line width. */
     readonly plusStarts?: (lineWidth: number | undefined) => Readonly<Record<string, unknown>>;
+    /**
+     * A look of a text (E196): the label style it is the look of, and graphty-element's look id. Looks of one style
+     * share its channels and are told apart by the style's `look`; a switch between two writes only `look`.
+     */
+    readonly look?: { readonly id: LabelLookId; readonly style: Channel };
 }
 
 /**
@@ -73,6 +84,8 @@ export interface KindGroup {
     readonly rowsByHead?: true;
     /** "+" writes a kind's size slot at graphty-element's start too, so its Size line shows (an arrow, E305). */
     readonly startsSize?: true;
+    /** Its Switch to also lists the text's looks, after a divider, for the style of the row's kind (End caption). */
+    readonly looks?: true;
     readonly members: readonly KindMember[];
 }
 
@@ -178,6 +191,76 @@ export function lineWidthOf(ctx: Pick<RowContext, "many" | "layers" | "beneath">
 /** Heads one of which starts with another's name: a kind owns none of the longer one's channels. */
 const KIND_HEADS: readonly Channel[] = ["edge.arrowHead", "edge.arrowHeadText", "edge.arrowTail", "edge.arrowTailText"];
 
+/** The look a text's row draws with no look written: graphty-element's plain one, the Text kind. */
+export const PLAIN_LOOK: LabelLookId = "default";
+
+/**
+ * A label style's look as the row writes it: graphty-element's look id, the plain one when none is written.
+ * @param ctx - the row.
+ * @param style - the label style channel.
+ * @returns the look.
+ */
+export function lookOf(ctx: Pick<RowContext, "many" | "layers">, style: Channel): LabelLookId {
+    const value = lineIn(ctx, style)?.value;
+    const look = typeof value === "object" && value !== null ? (value as { look?: unknown }).look : undefined;
+    return LABEL_LOOKS.find((each) => each.id === look)?.id ?? PLAIN_LOOK;
+}
+
+/**
+ * A text's looks as kinds (E196): Text (graphty-element's plain look), then Card, Dark, Pill and Callout, in
+ * graphty-element's order. Each owns the same channels and writes only its look into the style.
+ * @param head - the text's words.
+ * @param style - its label style.
+ * @param owns - the channels the text owns.
+ * @param color - where its color moves to and from, first the one a switch writes.
+ * @returns the kinds.
+ */
+function lookKinds(
+    head: Channel,
+    style: Channel,
+    owns: (channel: Channel) => boolean,
+    color: readonly SlotRef[] = [{ style, field: "color" }],
+): KindMember[] {
+    return LABEL_LOOKS.map((look) => {
+        const plain = look.id === PLAIN_LOOK;
+        const withLook = (held: unknown): Readonly<Record<string, unknown>> => ({
+            [style]: {
+                ...(typeof held === "object" && held !== null ? held : {}),
+                ...(plain ? {} : { look: look.id }),
+            },
+        });
+        return {
+            id: plain ? "text" : look.id,
+            plainName: plain ? "Text" : look.plainName,
+            head,
+            owns,
+            slots: { color, size: [{ style, field: "size" }] },
+            start: () => withLook(undefined),
+            onSwitch: (moved) => withLook(moved[style]),
+            look: { id: look.id, style },
+        };
+    });
+}
+
+/**
+ * The look kinds of one of a kind's text things, owning every channel of its item but the label list.
+ * @param side - nodes or edges.
+ * @param thing - the text thing's id.
+ * @param head - its words.
+ * @param style - its label style.
+ * @returns the group.
+ */
+function textLooks(side: "node" | "edge", thing: string, head: Channel, style: Channel): KindGroup {
+    return {
+        id: `${side}.${thing}`,
+        plainName: thing === "tooltip" ? "Tooltip" : "External label",
+        side,
+        thing,
+        rowsByHead: true,
+        members: lookKinds(head, style, () => true),
+    };
+}
+
 /** Every kind group (ia-design 2; the collapse candidates of implementation plan 6.2). */
 export const KIND_GROUPS: readonly KindGroup[] = [
     // C6: the four arrows have the same settings, so they are one Arrow item; a row's kind says which end.
@@ -216,6 +299,7 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         thing: "endCaption",
         items: ["targetCaption", "sourceCaption"],
         moveHead: true,
+        looks: true,
         members: [
             prefixKind("target", "Target", "edge.arrowHeadText", {
                 color: "edge.arrowHeadTextColor",
@@ -296,6 +380,7 @@ export const KIND_GROUPS: readonly KindGroup[] = [
             ),
         ],
     },
+    // A node's Label is one of the text's looks (E196) or a Glyph, picked from its row's Switch to (E275).
     {
         id: "node.label",
         plainName: "Label",
@@ -303,18 +388,13 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         thing: "label",
         rowsByHead: true,
         members: [
-            {
-                id: "text",
-                plainName: "Text",
-                head: "node.label",
-                // The further labels are rows of their own (labelEntries.ts), never the main label's.
-                owns: (channel) => !channel.startsWith("node.glyph") && channel !== "node.labels",
-                slots: {
-                    color: ["node.labelColor", { style: "node.labelStyle", field: "color" }],
-                    size: [{ style: "node.labelStyle", field: "size" }],
-                },
-                start: () => ({ "node.labelStyle": {} }),
-            },
+            // The further labels are rows of their own (labelEntries.ts), never the main label's.
+            ...lookKinds(
+                "node.label",
+                "node.labelStyle",
+                (channel) => !channel.startsWith("node.glyph") && channel !== "node.labels",
+                ["node.labelColor", { style: "node.labelStyle", field: "color" }],
+            ),
             {
                 id: "glyph",
                 plainName: "Glyph",
@@ -326,6 +406,21 @@ export const KIND_GROUPS: readonly KindGroup[] = [
             },
         ],
     },
+    {
+        id: "edge.label",
+        plainName: "Label",
+        side: "edge",
+        thing: "label",
+        rowsByHead: true,
+        members: lookKinds("edge.label", "edge.labelStyle", (channel) => channel !== "edge.labels", [
+            "edge.labelColor",
+            { style: "edge.labelStyle", field: "color" },
+        ]),
+    },
+    textLooks("node", "tooltip", "node.tooltip", "node.tooltipStyle"),
+    textLooks("node", "xlabel", "node.xlabel", "node.xlabelStyle"),
+    textLooks("edge", "tooltip", "edge.tooltip", "edge.tooltipStyle"),
+    textLooks("edge", "xlabel", "edge.xlabel", "edge.xlabelStyle"),
 ];
 
 /**
@@ -379,12 +474,46 @@ export function ownsOf(group: KindGroup, member: KindMember): readonly Channel[]
  * @returns the kinds, in the group's order.
  */
 export function kindsShown(ctx: RowContext, group: KindGroup): readonly KindMember[] {
-    const headed = group.members.filter((member) => setOn(ctx, member.head));
+    // Looks of one text share its channels: only the look its style names is drawn (E196).
+    const fits = group.members.filter(
+        (member) => member.look === undefined || lookOf(ctx, member.look.style) === member.look.id,
+    );
+    const headed = fits.filter((member) => setOn(ctx, member.head));
     if (group.rowsByHead === true && headed.length > 0) {
         return headed;
     }
-    const held = group.members.filter((member) => ownsOf(group, member).some((channel) => setOn(ctx, channel)));
-    return held.length > 0 ? held : [group.members[0]];
+    const held = fits.filter((member) => ownsOf(group, member).some((channel) => setOn(ctx, channel)));
+    return held.length > 0 ? held : [fits[0] ?? group.members[0]];
+}
+
+/**
+ * Writes only a text's look into its label style, on the layer that writes the style (else the row's first the
+ * reader may edit), as one undo step: graphty-element's plain look takes `look` off.
+ * @param ctx - the row.
+ * @param style - the label style channel.
+ * @param look - the look.
+ * @param name - the text's name, for the undo step.
+ * @returns when it is written.
+ */
+export async function writeLook(ctx: RowContext, style: Channel, look: LabelLookId, name: string): Promise<void> {
+    const line = lineIn(ctx, style);
+    const layer = line !== undefined && !line.layer.locked ? line.layer : layerOf(ctx, [style]);
+    if (layer === undefined) {
+        return;
+    }
+    const word = LABEL_LOOKS.find((each) => each.id === look)?.plainName ?? look;
+    await ctx.session.transaction(`switching ${name.toLowerCase()} to ${word.toLowerCase()}`, async (tx) => {
+        const own = tx.styles.get(layer.id);
+        const held = own?.set?.[style];
+        const next: Record<string, unknown> =
+            typeof held === "object" && !Array.isArray(held) ? { ...(held as Readonly<Record<string, unknown>>) } : {};
+        if (look === PLAIN_LOOK) {
+            Reflect.deleteProperty(next, "look");
+        } else {
+            next.look = look;
+        }
+        await tx.styles.update(layer.id, { set: { ...own?.set, [style]: next } }, { keepEmpty: true });
+    });
 }
 
 /**
@@ -521,6 +650,11 @@ function layerOf(ctx: RowContext, owns: readonly Channel[]): Layer | undefined {
  */
 export async function switchKind(ctx: RowContext, group: KindGroup, from: KindMember, to: KindMember): Promise<void> {
     if (from.id === to.id) {
+        return;
+    }
+    // Between two looks of one text only the look changes (E196).
+    if (to.look !== undefined && from.look?.style === to.look.style) {
+        await writeLook(ctx, to.look.style, to.look.id, group.plainName);
         return;
     }
     const fromOwns = ownsOf(group, from);

@@ -157,4 +157,10 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         channel: /^edge\.(band|underlay)/,
         source: /edge\.(band|underlay)/,
     },
+    {
+        what: "a Look line in a label's pop-over: a label's look (Card, Dark, Pill, Callout) is a kind in its Switch to",
+        ledger: "E196",
+        selector: '.ws-row[data-line$=".look"]',
+        source: /field: "look", name: "Look"/,
+    },
 ];

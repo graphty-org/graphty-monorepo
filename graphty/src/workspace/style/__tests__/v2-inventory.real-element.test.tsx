@@ -33,6 +33,7 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import graphSettingsSource from "../../inspector/GraphSettingsV2.tsx?raw";
 import { startForOrNone } from "../row";
+import { KIND_GROUPS } from "../v2/kindGroups";
 import { LABEL_COVERED, LABEL_OPTION_NAMES, LABEL_RUBRIC, type LabelField, TEXT_THINGS } from "../v2/labelRubric";
 import { ruleOf } from "../v2/lineWrites";
 import { ITEM_LISTS, LISTS } from "../v2/lists";
@@ -754,6 +755,11 @@ describe("Style panel v2's style inventory", () => {
             } else if (unitOf) {
                 // A Unit line writes the field with one unit and takes it off with the others.
                 offered = values;
+            } else if (descriptor.field === "look") {
+                // A look is a kind of its text's row, picked from its Switch to (E196).
+                offered = KIND_GROUPS.flatMap((group) =>
+                    group.members.flatMap((m) => (m.look === undefined ? [] : [m.look.id])),
+                );
             }
             missing.push(...values.filter((value) => !offered.includes(value)).map((v) => `${descriptor.field}=${v}`));
         }

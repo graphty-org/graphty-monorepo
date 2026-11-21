@@ -124,7 +124,6 @@ export const LABEL_RUBRIC: LabelRubric = {
     ],
     main: [
         { field: "enabled", name: "Show" },
-        { field: "look", name: "Look", rule: "R9" },
         { field: "font", name: "Font", rule: "R13" },
         { field: "weight", name: "Weight", rule: "R5b" },
         // Italic is a line of its own, as every other switch is: no glyph beside Weight (E674).
@@ -364,10 +363,11 @@ export function labelGroupFields(group: LabelGroup): readonly LabelField[] {
     return [...(group.on === undefined ? [] : [group.on]), ...group.lines.flatMap((line) => labelLineFields(line))];
 }
 
-/** Every field the rubric places somewhere. */
-export const LABEL_COVERED: ReadonlySet<LabelField> = new Set([
+/** Every field the panel places somewhere: the rubric's, and the look, a kind in a text row's Switch to (E196). */
+export const LABEL_COVERED: ReadonlySet<LabelField> = new Set<LabelField>([
     ...[...LABEL_RUBRIC.common, ...LABEL_RUBRIC.main].flatMap((line) => labelLineFields(line)),
     ...LABEL_RUBRIC.groups.flatMap((group) => labelGroupFields(group)),
+    "look",
 ]);
 
 /** Each label style channel's field channels, by field, built once a side. */

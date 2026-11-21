@@ -85,7 +85,7 @@ describe("Export opens on Data where a table is showing (R14)", () => {
 });
 
 describe("Export: a camera exports images and a tour videos", () => {
-    it("opens Ctrl+E on the nodes' Data, and neither the main menu nor Quick actions has Export image or video", async () => {
+    it("opens Ctrl+E on the nodes' Data with Image listed, and neither the main menu nor Quick actions has Export image or video", async () => {
         await page.viewport(1440, 900);
         const session = await open();
         await session.data.addNodes(NODES);
@@ -96,7 +96,7 @@ describe("Export: a camera exports images and a tour videos", () => {
         assert.isNotNull(within(dialog).getByRole("heading", { name: "Data" }));
         assert.strictEqual(within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Table" }).value, "Nodes");
         const outputs = within(dialog).getByRole("grid", { name: "What to export" });
-        assert.isNull(within(outputs).queryByText("Image"));
+        assert.isNotNull(within(outputs).queryByText("Image"));
         assert.isNull(within(outputs).queryByText("Video"));
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {

@@ -268,32 +268,22 @@ export interface AttributeDescriptor {
     completeness: number;
     hidden?: boolean;
     holdsNodeIds?: true;
-    // (undocumented)
     kind: "node" | "edge";
-    // (undocumented)
     max?: number;
     measurement?: Measurement;
     measurementSource?: MeasurementSource;
-    // (undocumented)
     min?: number;
-    // (undocumented)
     name: string;
-    // (undocumented)
     origin: "imported" | "joined" | "computed" | "result";
     path: Path;
-    // (undocumented)
     plainName: string;
     roles?: readonly AttributeRole[];
     runId?: RunId;
-    // (undocumented)
     sampleValues: readonly unknown[];
     sources?: readonly SourceKey[];
-    // (undocumented)
     technicalName: string;
     token: string;
-    // (undocumented)
     type: AttributeType;
-    // (undocumented)
     uniqueCount?: number;
     usedBy?: readonly AttributeUse[];
     valuesAreColors?: true;
@@ -487,17 +477,11 @@ export { BuiltInModelFormat }
 // @beta
 export interface BySizeLeaf {
     readonly from?: "high" | "low";
-    // (undocumented)
     readonly kind: "by-size";
-    // (undocumented)
     readonly max?: number;
-    // (undocumented)
     readonly min?: number;
-    // (undocumented)
     readonly path: Path;
-    // (undocumented)
     readonly ties?: TopTies;
-    // (undocumented)
     readonly top?: number;
 }
 
@@ -1379,28 +1363,20 @@ export interface FieldDescriptor {
         readonly max: number;
     };
     interpretation?: FieldInterpretation;
-    // (undocumented)
     kind: "node" | "edge" | "graph";
     measurement?: Measurement;
     // @beta
     missing?: "unreached" | "unmeasured" | (string & {});
-    // (undocumented)
     name: string;
-    // (undocumented)
     normalization?: string;
     // @beta
     order?: readonly (string | number)[];
-    // (undocumented)
     path: Path;
-    // (undocumented)
     plainName: string;
     // @beta
     polarity?: "higher" | "lower";
-    // (undocumented)
     technicalName: string;
-    // (undocumented)
     type: "number" | "integer" | "boolean" | "string" | "table";
-    // (undocumented)
     unit?: string;
     // @beta
     unstable?: true;
@@ -3404,11 +3380,8 @@ export type HistoryStepId = string & {
 
 // @beta
 export interface HopsLeaf {
-    // (undocumented)
     readonly direction?: SelectionDirection;
-    // (undocumented)
     readonly kind: "hops";
-    // (undocumented)
     readonly max?: number;
     readonly of?: StepReference;
 }
@@ -3797,25 +3770,16 @@ export type LayerSource = {
 
 // @public
 export interface LayerSpec {
-    // (undocumented)
     enabled?: boolean;
-    // (undocumented)
     encode?: Encoding;
-    // (undocumented)
     kind?: LayerKind;
-    // (undocumented)
     name: string;
     row?: LayerId;
-    // (undocumented)
     selector: Selector;
-    // (undocumented)
     set?: StaticStyle;
-    // (undocumented)
     source?: LayerSource;
-    // (undocumented)
     target?: "node" | "edge";
     unmatched?: readonly LayerUnmatchedGroup[];
-    // (undocumented)
     userData?: Record<string, unknown>;
 }
 
@@ -4191,12 +4155,9 @@ export interface MarkSuggestion {
 // @beta
 export interface MeasureLeaf {
     readonly algorithm: string;
-    // (undocumented)
     readonly bind?: Readonly<Record<string, StepReference>>;
     readonly field: string;
-    // (undocumented)
     readonly kind: "measure";
-    // (undocumented)
     readonly params?: Readonly<Record<string, unknown>>;
     readonly scope?: Scope;
     readonly test?: MeasureTest;
@@ -4440,7 +4401,6 @@ export interface NodeSource {
 
 // @beta
 export interface NonemptyLeaf {
-    // (undocumented)
     readonly kind: "nonempty";
     readonly of?: StepReference;
 }
@@ -5227,7 +5187,6 @@ export interface QueryValidation {
         position: number;
         params: Readonly<Record<string, unknown>>;
     };
-    // (undocumented)
     ok: boolean;
     unresolvedPaths: readonly {
         path: Path;
@@ -6257,7 +6216,6 @@ export interface RunWindow {
 // @beta
 export interface SameValueLeaf {
     readonly as?: StepReference;
-    // (undocumented)
     readonly kind: "same-value";
     readonly path: Path;
 }
@@ -8751,7 +8709,6 @@ export interface StartOptions extends RunOptions {
 
 // @public
 export interface StateLeaf {
-    // (undocumented)
     readonly kind: "state";
     readonly state: ElementState;
 }
@@ -8907,7 +8864,6 @@ export interface StyleCounts {
 // @public
 export interface StyleDocument {
     labelLooks?: readonly LabelLookDescriptor[];
-    // (undocumented)
     layers: readonly LayerSpec[];
     palettes?: readonly PaletteDescriptor[];
     problems?: readonly ShaderProblem[];
@@ -8916,7 +8872,6 @@ export interface StyleDocument {
         readonly text: ShaderText;
     }[];
     tree?: readonly StyleDocumentRow[];
-    // (undocumented)
     version: 1;
 }
 
@@ -9543,9 +9498,7 @@ export type TopTies = "fewer" | "all";
 
 // @beta
 export interface TouchingLeaf {
-    // (undocumented)
     readonly ends: "either" | "both" | "one";
-    // (undocumented)
     readonly kind: "touching";
     readonly of?: StepReference;
 }
@@ -9642,7 +9595,6 @@ export interface UnionBranch {
 // @beta
 export interface UnionLeaf {
     readonly branches: readonly UnionBranch[];
-    // (undocumented)
     readonly kind: "union";
     readonly side: "nodes" | "edges";
     readonly sources?: readonly SourceKey[];

@@ -2968,7 +2968,9 @@ export interface SessionDataApi {
      *     `"baseUrl"`) when no `baseUrl` is given, `E_UNKNOWN_DATASET` for a name that is not one,
      *     `E_FETCH_FAILED` when the download fails (`recoverable: false` for a client error other
      *     than 408 and 429, `details.status` when the server answered), `E_PARSE_FAILED` when the
-     *     file came back but could not be read, and with the signal's own reason when it is
+     *     file came back but could not be read (`details.issue` `"E_DATASET_CHECKSUM"` when it is
+     *     not the published file), `E_TOO_LARGE` (`details.limit`, `details.of` `"bytes"`) when it
+     *     is larger than graph-samples' download limit, and with the signal's own reason when it is
      *     aborted; nothing is recorded then.
      */
     loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
@@ -7944,7 +7946,8 @@ export interface SessionPositions extends ReadonlyElementPositions {
      */
     readonly pinned: ReadonlySet<NodeId>;
     /**
-     * Place nodes. One step; calls made one after another within the coalescing window are one.
+     * Place nodes. One step; consecutive calls placing the same nodes, with no other step between
+     * them, are one. Wrap a call in `session.transaction` to make it a step of its own.
      * @param entries - The nodes and where to put them.
      * @returns Settles once the step is recorded and the layout has taken the coordinates.
      * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` for a node the graph does not
@@ -8899,7 +8902,8 @@ export interface GraphSession {
     /**
      * Run `fn`, and record everything it dispatches through `tx` as one step. Throw, or abort
      * the transaction, to roll all of it back. A transaction that changed nothing records
-     * nothing.
+     * nothing. Its step never merges with the edits before or after it, which merge into the
+     * step on top when they change the same thing: a transaction keeps an edit a step of its own.
      * @param label - The step's label.
      * @param fn - The body; `signal` fires when the transaction is aborted.
      * @param options - Provenance stamped on the step.

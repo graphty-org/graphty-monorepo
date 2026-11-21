@@ -162,8 +162,10 @@ alphabets print as `?`; use SVG for those.
 A figure draws each node's flat color, without the canvas's lighting, with its border; draws each
 edge along the path the canvas draws it (straight, curved, through its bends or fanned out of a
 bundle), ending where the canvas ends it, with its arrowheads in the shape, size and color the canvas
-draws them; and draws a label's background, solid or a linear or radial gradient, as a box behind
-its text. Picture arrowheads are not in it yet.
+draws them; draws a label's background, solid or a linear or radial gradient, as a box behind
+its text; and draws a node's glyph (`node.glyph`) as text in its font, color and size, centered where
+the canvas draws it. An icon font's glyph keeps its font in an SVG, which shows it where that font
+is installed; a PDF sets it in the nearest standard font. Picture arrowheads are not in it yet.
 
 ### From a saved view
 

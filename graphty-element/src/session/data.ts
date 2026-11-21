@@ -12,6 +12,7 @@
 import "../data/index";
 
 import {
+    coordinateSystemOf,
     type DerivedGraph,
     fromBytes,
     type GraphSnapshot,
@@ -25,6 +26,7 @@ import {
 import { sha256Hex, type SourceListing, type SourceListQuery, type SourceProbe } from "@graphty/graph-io";
 import {
     DATASET_NAMES,
+    DatasetError,
     fetchDataset,
     GENERATOR_CATALOG,
     type SampleGraph,
@@ -1885,6 +1887,9 @@ export class SessionData implements SessionDataApi {
             nodes: readonly Record<string, unknown>[];
             edges: readonly Record<string, unknown>[];
         };
+        if (!("src" in graph)) {
+            placeFromDrawing(graph, data.nodes);
+        }
         const label = LABEL_COLUMNS.find((column) => data.nodes.some((node) => typeof node[column] === "string"));
         if (this.pages.batched?.() !== true || readsThroughDraft(options)) {
             const json = JSON.stringify({ directed: graph.directed, ...data });
@@ -10474,9 +10479,10 @@ function loadFacts(
 
 /**
  * What a failed dataset download rejects with: an abort as it was thrown, a bad name as
- * `E_UNKNOWN_DATASET`, a file that came back but would not decode as `E_PARSE_FAILED`, and an
- * answer that never came or was not ok as `E_FETCH_FAILED`, which is not recoverable for a client
- * error other than 408 and 429.
+ * `E_UNKNOWN_DATASET`, a file past graph-samples' size cap as `E_TOO_LARGE`, a file that came back
+ * but would not decode or is not the published one as `E_PARSE_FAILED` (graph-samples' code in
+ * `details.issue` for the checksum), and an answer that never came or was not ok as
+ * `E_FETCH_FAILED`, which is not recoverable for a client error other than 408 and 429.
  * @param name - The dataset's name.
  * @param baseUrl - The mirror, when one was given.
  * @param signal - The load's signal.
@@ -10495,12 +10501,24 @@ function datasetError(
         return error;
     }
     const mirror = baseUrl === undefined ? {} : { baseUrl };
-    if (status === undefined && error instanceof RangeError) {
+    const dataset = error instanceof DatasetError ? error : undefined;
+    const code = dataset?.code;
+    if (code === "E_DATASET_NAME") {
         return new GraphtyError({
             code: "E_UNKNOWN_DATASET",
             message: `"${name}" is not a dataset name.`,
             source: "data",
             details: { name, available: DATASET_NAMES },
+            cause: error,
+        });
+    }
+    if (code === "E_DATASET_TOO_LARGE") {
+        return new GraphtyError({
+            code: "E_TOO_LARGE",
+            message: `The dataset "${name}" is larger than the download limit.`,
+            source: "data",
+            recoverable: false,
+            details: { limit: Number(dataset?.details.maxBytes), of: "bytes" },
             cause: error,
         });
     }
@@ -10510,7 +10528,12 @@ function datasetError(
             message: `The dataset "${name}" was downloaded but could not be read.`,
             source: "data",
             recoverable: false,
-            details: { name, format: "graph-format", ...mirror },
+            details: {
+                name,
+                format: "graph-format",
+                ...mirror,
+                ...(code === "E_DATASET_CHECKSUM" ? { issue: code } : {}),
+            },
             cause: error,
         });
     }
@@ -10628,4 +10651,30 @@ function mixedAmong(edges: Iterable<BuiltEdge>): readonly string[] | null {
         meanings.add(e.weight === null ? "\u0000none" : (e.weightMeaning ?? "\u0000unstated"));
     }
     return weighted && (meanings.size > 1 || meanings.has("\u0000none")) ? Object.freeze([...sources]) : null;
+}
+
+/**
+ * Gives each node record the saved drawing a dataset's position column holds, as the `position`
+ * every reader seeds the layout from (center, y up), so a dataset graph-samples gives a drawing
+ * (BioPlex 3.0, WikiPathways WP615) is placed like a file with stored positions (issue #9281).
+ * A geographic position column is a place on the Earth, not a drawing, and is left to the map.
+ * @param snapshot - the dataset
+ * @param nodes - its node records, one per row in row order; changed in place
+ */
+function placeFromDrawing(snapshot: GraphSnapshot, nodes: readonly Record<string, unknown>[]): void {
+    const column = snapshot.nodes.byRole("position");
+    if (column === null) {
+        return;
+    }
+    const system = coordinateSystemOf(column.meta);
+    if (system.kind !== "cartesian") {
+        return;
+    }
+    const flip = system.yAxis === "down" ? -1 : 1;
+    for (let row = 0; row < nodes.length; row++) {
+        const xyz = column.isSet(row) ? (column.value(row) as ArrayLike<number>) : null;
+        if (xyz !== null && Number.isFinite(xyz[0]) && Number.isFinite(xyz[1]) && !("position" in nodes[row])) {
+            nodes[row].position = [xyz[0], flip * xyz[1], Number.isFinite(xyz[2]) ? xyz[2] : 0];
+        }
+    }
 }

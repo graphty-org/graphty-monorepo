@@ -363,8 +363,12 @@ async function drawFirst(
     const mapping = lone ? { rowsAre: "nodes" as const } : draft.mapping;
     // A graph file keeps the roles its format sets.
     const styled = fileStylesOn(session);
+    const styles = styled ? fileStylesChoice() : "none";
     await draft.load({
-        ...(styled ? { styles: fileStylesChoice(), styleOptions: FILE_STYLE_OPTIONS } : {}),
+        ...(styled ? { styles, styleOptions: FILE_STYLE_OPTIONS } : {}),
+        // Drawn with its file's styles, the graph is laid out as the element recommends for it, so a file that stores
+        // its drawing (a Cytoscape session) opens where its program put its nodes (issue #9297).
+        ...(styles === "file" ? { layout: "recommended" as const } : {}),
         ...(fixed ? {} : { mapping }),
         ...(fresh ? OPENING : {}),
         ...(origin === undefined ? {} : { origin }),
@@ -379,7 +383,11 @@ async function drawFirst(
     }
     if (!ready) {
         workspace.set({ dockOpen: true, dockMaximized: true, place: "data", ...panelsInView() });
-    } else if (session.data.issues().length > 0) {
+    } else if (
+        // A graph file's repeated edges are its own parallel edges (Cytoscape draws them side by side), not a problem
+        // to show at once (issue #9297); the Data panel still lists them.
+        session.data.issues().some((issue) => !(fixed && issue.code === "repeated-edge"))
+    ) {
         workspace.set({ dockOpen: true });
     }
 }

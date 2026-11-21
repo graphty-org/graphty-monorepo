@@ -13,10 +13,24 @@ const roads = await fetchDataset("road-ny");
 const mine = await fetchDataset("road-ny", { baseUrl: "https://my.cdn/graphs/" }); // a mirror of your own
 ```
 
-`fetchDataset(name, { baseUrl, fetch, signal })` takes a base URL (a mirror, or a copy of the
-files on your own server), a `fetch` implementation and an abort signal. A failed download rejects
-with `fetching <url> failed: HTTP <status>`. `https://graphty.app/data/graph-samples/v1/index.json`
-lists every dataset's metadata with its file's URL, which is what a mirror needs to copy.
+`fetchDataset(name, { baseUrl, fetch, signal, verify, maxBytes })` takes a base URL (a mirror, or
+a copy of the files on your own server), a `fetch` implementation and an abort signal.
+`https://graphty.app/data/graph-samples/v1/index.json` lists every dataset's metadata with its
+file's URL, which is what a mirror needs to copy.
+
+A dataset in `DATASETS` is checked against its published SHA-256; `verify: false` turns that off,
+for a mirror with different content under a known name. The check is of the gzip file, so it is
+skipped when a server sends the file with `Content-Encoding: gzip` and the bytes arrive unzipped.
+A download that reads or unzips to more than `maxBytes` (`DEFAULT_DATASET_MAX_BYTES`, 256 MiB, by
+default) is refused. A failure rejects with a `DatasetError`: branch on its `code`; its `details`
+carry the facts.
+
+| `code`                | When                                                                                      | `details`                   |
+| --------------------- | ----------------------------------------------------------------------------------------- | --------------------------- |
+| `E_DATASET_NAME`      | the name is not lowercase letters, digits and dashes                                      | `name`                      |
+| `E_DATASET_HTTP`      | the server answered with an error status or no body                                       | `url`, `status`             |
+| `E_DATASET_CHECKSUM`  | the file is not the published one (`actual: null` when SHA-256 is unavailable, over http) | `url`, `expected`, `actual` |
+| `E_DATASET_TOO_LARGE` | the download, read or unzipped, passed `maxBytes`                                         | `url`, `maxBytes`           |
 
 ## Small datasets
 
@@ -80,12 +94,14 @@ ontology datasets are read from their published files (a Cytoscape session, a CX
 ontology) by `@graphty/graph-io`'s own importers; the drawn ones carry the saved `x` and `y`, with
 y growing upward.
 
-`openflights` and `wikipathways-senescence-autophagy` also come with a role-`position` node column
+`openflights` and the drawn datasets (`wikipathways-senescence-autophagy`, `stelzl-interactome`,
+`yeast-perturbation` and `bioplex3-hct116`) also come with a role-`position` node column
 that says what kind of positions they are, so a consumer finds them without knowing the dataset:
 `coordinateSystemOf(snapshot.nodes.byRole("position").meta)` from `@graphty/graph-format` gives
 `kind: "geographic"` (longitude, latitude in degrees on WGS 84) for openflights' airports and
-`kind: "cartesian"` with `yAxis: "up"` for the WikiPathways drawing. Their plain columns stay as
-they are.
+`kind: "cartesian"` with `yAxis: "up"` for a saved drawing. Their plain columns stay as they are.
+graphty-element's `session.data.loadDataset(name, { layout: "placed" })` opens a drawn dataset where
+it was drawn.
 
 Each dataset also has a picture of itself, for a gallery or a menu: its metadata's `thumbnail`
 names a 480 x 300 WebP with a transparent background, published beside its file. A large dataset's

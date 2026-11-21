@@ -40,6 +40,7 @@ import { type ResolvedExportOptions } from "../../common/options.js";
 import { plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { neutralPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import { cytoscapeCx2Aspects, type CytoscapeEmitted } from "../../styles/cytoscape/emit.js";
 import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -951,11 +952,13 @@ function bypassValues(columns: readonly Column[], row: number): Record<string, u
  * The CX2 exporter plugin.
  * @category Built-in formats
  */
-export const cx2Exporter: GraphExporter<Cx2ExportOptions> = cytoscapeExporter({
-    format: CX2_FORMAT,
-    capabilities: CX2_CAPABILITIES,
-    styleCapabilities: CX2_STYLE_CAPABILITIES,
-    dialect: "cx2",
-    plan,
-    write,
-});
+export const cx2Exporter: GraphExporter<Cx2ExportOptions> = writingGeographicAsColumns(
+    cytoscapeExporter({
+        format: CX2_FORMAT,
+        capabilities: CX2_CAPABILITIES,
+        styleCapabilities: CX2_STYLE_CAPABILITIES,
+        dialect: "cx2",
+        plan,
+        write,
+    }),
+);

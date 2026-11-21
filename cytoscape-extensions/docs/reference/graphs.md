@@ -649,9 +649,10 @@ A uniform spanning tree of the rows x cols grid, a perfect maze, by Wilson's alg
 `cy.graphtyDataset(name, options)` adds one of these. None of them is inside the package: each is downloaded from
 `<baseUrl>/<name>.gsnp.gz` when it is asked for, in Node and in a browser alike, so a page opened from `file://`
 works too. The Download column is the size of that file.
-When the server answers with an error status, the call rejects with a plain `Error` (no `name` or `code` of its
-own) whose message is `fetching <url> failed: HTTP <status>`, for example `HTTP 404`. A network failure rejects with
-the error `fetch` threw.
+A failed download rejects with graph-samples' `DatasetError`: branch on its `code`, with the facts in `details`.
+`E_DATASET_HTTP` (`url`, `status`) is an error status from the server, `E_DATASET_CHECKSUM` (`url`, `expected`,
+`actual`) a file that is not the published one, and `E_DATASET_TOO_LARGE` (`url`, `maxBytes`) a file over 256 MiB.
+A network failure rejects with the error `fetch` threw.
 
 | Option    | Type           | Default                                        | Meaning                                                                                                                                                                                                                                                   |
 | --------- | -------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

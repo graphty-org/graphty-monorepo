@@ -18,6 +18,7 @@ const STATIC_LAYOUTS = [
     "bipartite",
     "circular",
     "fixed",
+    "geographic",
     "graphviz-circo",
     "graphviz-dot",
     "graphviz-fdp",

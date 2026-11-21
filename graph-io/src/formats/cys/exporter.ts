@@ -37,6 +37,7 @@ import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { hasIllegalXmlChar } from "../../common/xml.js";
 import { writeZip, type ZipWriteEntry } from "../../common/zip.js";
 import { neutralPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import { type CytoscapeEmitted, cytoscapeVizmapXml, emitCytoscapeStyle } from "../../styles/cytoscape/emit.js";
 import { STYLE_BLOCK_NAME, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
@@ -1522,44 +1523,46 @@ async function* write(
  * The Cytoscape session exporter.
  * @category Built-in formats
  */
-export const cysExporter: GraphExporter<CysExportOptions> = Object.freeze({
-    format: FORMAT,
-    options: Object.freeze([]),
-    capabilities: CYS_CAPABILITIES,
-    styles: Object.freeze({ capabilities: CYS_STYLE_CAPABILITIES }),
+export const cysExporter: GraphExporter<CysExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: FORMAT,
+        options: Object.freeze([]),
+        capabilities: CYS_CAPABILITIES,
+        styles: Object.freeze({ capabilities: CYS_STYLE_CAPABILITIES }),
 
-    /**
-     * Pre-flight: what export() would lose, without writing anything.
-     * @param snapshot - the snapshot
-     * @param options - the common options
-     * @returns the notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: CysExportOptions & ExporterStyleOptions): readonly LossNote[] {
-        const p = plan(snapshot, resolveExportOptions(options), options?.styles);
-        return Object.freeze([...p.notes, ...p.styleNotes]);
-    },
+        /**
+         * Pre-flight: what export() would lose, without writing anything.
+         * @param snapshot - the snapshot
+         * @param options - the common options
+         * @returns the notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: CysExportOptions & ExporterStyleOptions): readonly LossNote[] {
+            const p = plan(snapshot, resolveExportOptions(options), options?.styles);
+            return Object.freeze([...p.notes, ...p.styleNotes]);
+        },
 
-    /**
-     * Write the session as zip bytes (stored entries, one at a time).
-     * @param snapshot - the snapshot
-     * @param options - the common options
-     * @returns the bytes
-     */
-    export(snapshot: GraphSnapshot, options?: CysExportOptions): AsyncIterable<Uint8Array> {
-        return write(snapshot, options);
-    },
+        /**
+         * Write the session as zip bytes (stored entries, one at a time).
+         * @param snapshot - the snapshot
+         * @param options - the common options
+         * @returns the bytes
+         */
+        export(snapshot: GraphSnapshot, options?: CysExportOptions): AsyncIterable<Uint8Array> {
+            return write(snapshot, options);
+        },
 
-    /**
-     * A session is a zip archive, not text: always rejects with E_UNSUPPORTED (use exportGraphToBytes() or exportGraphToBlob()).
-     * @returns never
-     */
-    exportToString(): Promise<string> {
-        return Promise.reject(
-            new GraphFormatError(
-                "E_UNSUPPORTED",
-                "a Cytoscape session is a zip file, not text; use exportGraphToBytes() or exportGraphToBlob()",
-                { reason: "binary" },
-            ),
-        );
-    },
-});
+        /**
+         * A session is a zip archive, not text: always rejects with E_UNSUPPORTED (use exportGraphToBytes() or exportGraphToBlob()).
+         * @returns never
+         */
+        exportToString(): Promise<string> {
+            return Promise.reject(
+                new GraphFormatError(
+                    "E_UNSUPPORTED",
+                    "a Cytoscape session is a zip file, not text; use exportGraphToBytes() or exportGraphToBlob()",
+                    { reason: "binary" },
+                ),
+            );
+        },
+    }),
+);

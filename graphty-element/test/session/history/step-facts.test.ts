@@ -400,7 +400,7 @@ describe("history step facts", () => {
         session.dispose();
     });
 
-    it("names every channel of layer updates merged into one step", async () => {
+    it("names every channel of layer updates merged into one step, and keeps another channel's edit apart", async () => {
         const session = await fixtureSession({ now: () => 0 });
         const layer = await session.styles.add({
             name: "Mine",
@@ -409,14 +409,23 @@ describe("history step facts", () => {
             set: { "node.color": "#ff0000", "node.size": 1 },
         });
         const before = session.history.steps.length;
-        await session.styles.update(layer.id, { set: { "node.color": "#00ff00", "node.size": 1 } });
         await session.styles.update(layer.id, { set: { "node.color": "#00ff00", "node.size": 2 } });
+        await session.styles.update(layer.id, { set: { "node.color": "#0000ff", "node.size": 2 } });
 
         assert.equal(session.history.steps.length, before + 1);
         assert.deepEqual(topOf(session.history.steps, session.history.position).fact, {
             code: "style.update-layer",
             params: { layer: "Mine", layerId: "mine_1", channels: ["node.color", "node.size"] },
         });
+
+        // The whole set again, as a panel writes it, changing only the size: a channel the step
+        // already changes, so it merges.
+        await session.styles.update(layer.id, { set: { "node.color": "#0000ff", "node.size": 3 } });
+        assert.equal(session.history.steps.length, before + 1);
+        await session.styles.update(layer.id, {
+            set: { "node.color": "#0000ff", "node.size": 3, "node.opacity": 0.5 },
+        });
+        assert.equal(session.history.steps.length, before + 2, "a new channel is a step of its own");
         session.dispose();
     });
 

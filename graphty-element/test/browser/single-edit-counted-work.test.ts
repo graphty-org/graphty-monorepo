@@ -17,6 +17,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { RowEdges } from "../../src/data/RowMap";
 import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
@@ -86,6 +87,10 @@ interface Counted {
     readonly hashed: number;
     /** Built `Edge`s visited by a walk of every built edge: a renumbering told to each edge visits them all. */
     readonly walked: number;
+    /** Stored edges (those with no `Edge` yet) set again: a renumbering that reads each out and sets it sets them all. */
+    readonly restored: number;
+    /** Lookups in any `Set`: a list swept of its removed items by a lookup per item looks up every edge. */
+    readonly probed: number;
 }
 
 /** The ways a `Map` is walked; each is counted on the data manager's map of built edges. */
@@ -151,17 +156,25 @@ async function countedWork(element: Graphty, edit: () => Promise<unknown>): Prom
     const nodes = vi.spyOn(Node.prototype, "applySessionPaint");
     const rows = vi.spyOn(NodeBatches.prototype, "paintRow");
     const edges = vi.spyOn(Edge.prototype, "applySessionPaint");
+    const restored = vi.spyOn(RowEdges.prototype, "set");
     const { set } = Map.prototype;
+    const { has } = Set.prototype;
     let hashed = 0;
+    let probed = 0;
     Map.prototype.set = function (this: Map<unknown, unknown>, key: unknown, value: unknown) {
         hashed++;
         return set.call(this, key, value);
+    };
+    Set.prototype.has = function (this: Set<unknown>, value: unknown) {
+        probed++;
+        return has.call(this, value);
     };
     try {
         await edit();
         await settle(element);
     } finally {
         Map.prototype.set = set;
+        Set.prototype.has = has;
         walks.stop();
     }
 
@@ -173,7 +186,10 @@ async function countedWork(element: Graphty, edit: () => Promise<unknown>): Prom
             edges.mock.calls.length,
         hashed,
         walked: walks.visited(),
+        restored: restored.mock.calls.length,
+        probed,
     };
+    restored.mockRestore();
     placed.mockRestore();
     nodes.mockRestore();
     rows.mockRestore();
@@ -198,9 +214,13 @@ async function editsOn(size: number): Promise<Record<string, Counted>> {
     // Under "batched" the store let its builder go after the load, and the first edit brings it back once
     // for the session, as whole columns (test/data/builder-release.test.ts counts the cells it writes).
     work.firstEdit = await countedWork(element, () => data.updateNodes([{ id: "n0", values: { group: 1 } }]));
-    work.removeEdge = await countedWork(element, () => data.removeEdges([firstEdge()]));
+    // Each edge an edit names is read before its count starts: a page of edges is a read of its own, which
+    // scans the edges once per revision.
+    let edge = firstEdge();
+    work.removeEdge = await countedWork(element, () => data.removeEdges([edge]));
     work.updateNode = await countedWork(element, () => data.updateNodes([{ id: "n7", values: { group: 9 } }]));
-    work.updateEdge = await countedWork(element, () => data.updateEdges([{ id: firstEdge(), values: { w: 2 } }]));
+    edge = firstEdge();
+    work.updateEdge = await countedWork(element, () => data.updateEdges([{ id: edge, values: { w: 2 } }]));
     work.addNode = await countedWork(element, () =>
         data.addNodes([{ id: "extra", group: 1, position: { x: 1, y: 2, z: 0 } }]),
     );
@@ -212,14 +232,16 @@ async function editsOn(size: number): Promise<Record<string, Counted>> {
     // Undo puts the node and its edges back between the others, and redo takes them out again.
     work.undoRemoveNode = await countedWork(element, () => element.session.undo());
     work.redoRemoveNode = await countedWork(element, () => element.session.redo());
-    work.removeEdgeAgain = await countedWork(element, () => data.removeEdges([firstEdge()]));
+    edge = firstEdge();
+    work.removeEdgeAgain = await countedWork(element, () => data.removeEdges([edge]));
     work.undoRemoveEdge = await countedWork(element, () => element.session.undo());
     work.redoRemoveEdge = await countedWork(element, () => element.session.redo());
     // Undo and redo of edits that change only values.
     work.updateNodeAgain = await countedWork(element, () => data.updateNodes([{ id: "n8", values: { group: 7 } }]));
     work.undoUpdateNode = await countedWork(element, () => element.session.undo());
     work.redoUpdateNode = await countedWork(element, () => element.session.redo());
-    work.updateEdgeAgain = await countedWork(element, () => data.updateEdges([{ id: firstEdge(), values: { w: 3 } }]));
+    edge = firstEdge();
+    work.updateEdgeAgain = await countedWork(element, () => data.updateEdges([{ id: edge, values: { w: 3 } }]));
     work.undoUpdateEdge = await countedWork(element, () => element.session.undo());
     work.redoUpdateEdge = await countedWork(element, () => element.session.redo());
     document.body.replaceChildren();
@@ -257,6 +279,10 @@ describe("one data edit on a large graph", () => {
                 `${edit} repaints only the elements it changed`,
             );
             assert.strictEqual(counted.walked, 0, `${edit} walks no built edge`);
+            assert.isAtMost(counted.restored, 3 * SPAN, `${edit} sets only its own stored edges again`);
+            // Lookups that grow with the graph grow with its nodes (masks and selections over them), never with
+            // every edge: 2,000 edges at 400 nodes, against 500 at 100.
+            assert.isAtMost(counted.probed - before.probed, 3 * (400 - 100), `${edit} looks up no edge per edge`);
             if (/remove/i.test(edit) || edit === "firstEdit") {
                 // A removal, its undo and its redo renumber the rows after it, and the first edit under "batched"
                 // brings the builder back: the builder's id map, and under "batched" the rows waiting for a `Node`
@@ -284,6 +310,7 @@ describe("one data edit on a large graph", () => {
                 `${edit} repaints only what it changed`,
             );
             assert.strictEqual(counted.walked, 0, `${edit} walks no built edge`);
+            assert.isAtMost(counted.restored, 3 * SPAN, `${edit} sets only its own stored edges again`);
         }
     });
 

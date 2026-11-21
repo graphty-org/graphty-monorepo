@@ -2305,16 +2305,17 @@ export class DataManager implements Manager {
      * @param remap - the freeze report's edgeRemap: old index -> new index, or INVALID_INDEX
      */
     private walkEdgeRemap(remap: U32): void {
-        const unbuilt = [...this.unbuiltEdges.values()];
-        this.unbuiltEdges.clear();
-        this.unbuiltEdgeIds.clear();
-        for (const stored of unbuilt) {
-            const moved = remap[stored.edgeIndex] ?? INVALID_INDEX;
-            if (moved !== INVALID_INDEX) {
-                this.unbuiltEdges.set(moved, { ...stored, edgeIndex: moved });
-                this.unbuiltEdgeIds.set(stored.edgeId, moved);
-            }
-        }
+        // In place, column by column: reading a million stored edges out as objects and setting each again
+        // was most of a removal's cost (issue #9164).
+        this.unbuiltEdges.remap(
+            remap,
+            (edgeId, row) => {
+                this.unbuiltEdgeIds.set(edgeId, row);
+            },
+            (edgeId) => {
+                this.unbuiltEdgeIds.delete(edgeId);
+            },
+        );
 
         // An order-keeping renumbering -- every removal -- is kept as runs, and each `Edge` brings its
         // row forward when it is next read: a removal from a million edges places none of them

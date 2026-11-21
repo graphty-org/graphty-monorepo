@@ -740,6 +740,25 @@ function droppedRows(remap: ArrayLike<number>, carried: number, count: number): 
 }
 
 /**
+ * Move rows `[from, end)` of an array down to `to`, in place.
+ * @param values - The array: typed, or a plain one.
+ * @param to - Where the first row goes, at or below `from`.
+ * @param from - The first row moved.
+ * @param end - One past the last.
+ */
+function moveDown(values: Float64Array | Uint8Array | unknown[], to: number, from: number, end: number): void {
+    if (!Array.isArray(values)) {
+        values.copyWithin(to, from, end);
+        return;
+    }
+
+    // A plain array's `copyWithin` takes the generic path, one property at a time with hole checks.
+    for (let row = from; row < end; row++) {
+        values[to + row - from] = values[row];
+    }
+}
+
+/**
  * Close up an array in place over an order-keeping removal: the rows between the dropped ones move down in runs,
  * and what the move frees, up to `used`, is written with the empty value.
  * @param values - The array: typed, or a plain one.
@@ -755,25 +774,14 @@ function closeUp(
     used: number,
     empty: unknown,
 ): void {
-    if (Array.isArray(values)) {
-        // A plain array's own `splice` moves its rows natively, where its `copyWithin` visits each one; the length
-        // it gives back reads as holes, which are rows nothing painted.
-        const { length } = values;
-        values.splice(carried, Math.max(0, used - carried));
-        for (let at = dropped.length - 1; at >= 0; at--) {
-            values.splice(dropped[at], 1);
-        }
-
-        values.length = length;
-        return;
-    }
-
+    // One pass for either kind: a plain array spliced once per dropped row moved every row after it once per
+    // drop, a node removal's twenty edges moving a million rows twenty times (issue #9164).
     let to = dropped.length === 0 ? carried : dropped[0];
     for (let at = 0; at < dropped.length; at++) {
         const from = dropped[at] + 1;
         const end = at + 1 < dropped.length ? dropped[at + 1] : carried;
         if (end > from) {
-            values.copyWithin(to, from, end);
+            moveDown(values, to, from, end);
             to += end - from;
         }
     }

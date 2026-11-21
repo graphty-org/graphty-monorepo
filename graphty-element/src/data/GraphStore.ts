@@ -407,12 +407,26 @@ function rebuildBase(
         const frozen = old.freezeWithReport({ label: "graphty-element rebuild" });
         return {
             base: frozen.snapshot,
-            oldNodes: frozen.report.nodeRemap ?? Uint32Array.from({ length: nodeBound }, (_, row) => row),
-            oldEdges: frozen.report.edgeRemap ?? Uint32Array.from({ length: edgeBound }, (_, row) => row),
+            oldNodes: frozen.report.nodeRemap ?? identityWalk(nodeBound),
+            oldEdges: frozen.report.edgeRemap ?? identityWalk(edgeBound),
         };
     }
 
     return { base: replace.restore ? replace.kept.snapshot : null, oldNodes: null, oldEdges: null };
+}
+
+/**
+ * The walk that keeps every row where it is.
+ * @param rows - The row count.
+ * @returns `walk[row] === row` for every row.
+ */
+function identityWalk(rows: number): U32 {
+    const walk = new Uint32Array(rows);
+    for (let row = 0; row < rows; row++) {
+        walk[row] = row;
+    }
+
+    return walk;
 }
 
 /**
@@ -446,8 +460,8 @@ function pendingRows(
     base: GraphSnapshot | null,
     changes: readonly Structural[],
 ): { nodeRows: Row<RemovedNode>[]; edgeRows: Row<RemovedEdge>[] } {
-    let nodeRows: Row<RemovedNode>[] = Array.from({ length: base?.nodeCount ?? 0 }, (_, row) => row);
-    let edgeRows: Row<RemovedEdge>[] = Array.from({ length: base?.edgeCount ?? 0 }, (_, row) => row);
+    let nodeRows: Row<RemovedNode>[] = [...identityWalk(base?.nodeCount ?? 0)];
+    let edgeRows: Row<RemovedEdge>[] = [...identityWalk(base?.edgeCount ?? 0)];
     for (const change of changes) {
         if (change.kind === "insert") {
             nodeRows = mergeAt(nodeRows, change.rows.nodes);
@@ -588,11 +602,21 @@ function scatterRows(
     rows: number,
 ): Float64Array<ArrayBuffer> {
     const data = new (from.constructor as Float64ArrayConstructor)(rows * width);
-    for (let row = 0; row < moved.length; row++) {
+    // By runs of rows that keep their order, one `copyWithin`-sized `set` each: an undo that puts one row
+    // back moves two runs, not a million rows one `subarray` at a time.
+    let row = 0;
+    while (row < moved.length) {
         const to = moved[row];
+        let end = row + 1;
         if (to !== INVALID_INDEX) {
-            data.set(from.subarray(row * width, row * width + width), to * width);
+            while (end < moved.length && moved[end] === to + (end - row)) {
+                end++;
+            }
+
+            data.set(from.subarray(row * width, end * width), to * width);
         }
+
+        row = end;
     }
 
     return data;
@@ -609,6 +633,28 @@ function copyColumnCells(column: Column, write: (row: number, value: unknown) =>
             write(row, column.value(row));
         }
     }
+}
+
+/**
+ * The edge ids of a rebuild's base rows, by their rows in the new builder: read from the id column's array
+ * where its cell is set, where reading each through the table was a call per edge.
+ * @param base - The graph the rebuild starts from.
+ * @param baseEdge - Each base edge row's row in the new builder, INVALID_INDEX for one dropped.
+ * @param rows - The new builder's edge row bound.
+ * @returns The ids; the rows put back are left for the caller.
+ */
+function baseEdgeIds(base: GraphSnapshot, baseEdge: U32, rows: number): number[] {
+    const ids = new Array<number>(rows);
+    const stamped = base.edges.typed(EDGE_ID_COLUMN, "u32");
+    for (let row = 0; row < baseEdge.length; row++) {
+        const index = baseEdge[row];
+        if (index !== INVALID_INDEX) {
+            ids[index] =
+                stamped?.isSet(row) === true ? stamped.data[row] : (base.edges.value(EDGE_ID_COLUMN, row) as number);
+        }
+    }
+
+    return ids;
 }
 
 /**
@@ -629,29 +675,40 @@ function addEdgeRuns(
     baseEdge: Uint32Array,
 ): [number, RemovedEdge][] {
     const recorded: [number, RemovedEdge][] = [];
-    let run: number[] = [];
+    // The run is base rows [start, end): rows go back in their base order, so a run is a range.
+    let start = 0;
+    let end = 0;
     const flush = (): void => {
-        if (run.length === 0) {
+        const count = end - start;
+        if (count === 0) {
             return;
         }
 
+        const src = new Uint32Array(count);
+        const dst = new Uint32Array(count);
+        for (let at = 0; at < count; at++) {
+            src[at] = baseNode[list.src[start + at]];
+            dst[at] = baseNode[list.dst[start + at]];
+        }
+
         const given = list.weights;
-        const first = builder.addEdges(
-            Uint32Array.from(run, (row) => baseNode[list.src[row]]),
-            Uint32Array.from(run, (row) => baseNode[list.dst[row]]),
-            given === null ? undefined : Float64Array.from(run, (row) => given[row]),
-        );
-        run.forEach((row, at) => {
-            baseEdge[row] = first + at;
-        });
-        run = [];
+        const first = builder.addEdges(src, dst, given === null ? undefined : given.subarray(start, end));
+        for (let at = 0; at < count; at++) {
+            baseEdge[start + at] = first + at;
+        }
+
+        start = end;
     };
     for (const row of edgeRows) {
-        if (typeof row === "number") {
-            run.push(row);
-        } else {
+        if (typeof row !== "number") {
             flush();
             recorded.push([builder.addEdge(row.source, row.target, row.weight), row]);
+        } else if (row === end) {
+            end++;
+        } else {
+            flush();
+            start = row;
+            end = row + 1;
         }
     }
 
@@ -1764,7 +1821,9 @@ export class GraphStore {
         this.completeIdentity();
         // The pass's column writes are the store's own.
         this.account();
-        const frozen = this.current.freezeWithReport({ label: "graphty-element" });
+        // The edge list prepared from the builder's own rows: every consumer reads it, and computing it from
+        // the new core walks every arc, a tenth of a second of each edit at a million edges (issue #9164).
+        const frozen = this.current.freezeWithReport({ label: "graphty-element", prepare: ["edgeList"] });
         const { snapshot } = frozen;
         if (this.restoring !== null) {
             this.restoredFrom = {
@@ -2599,12 +2658,7 @@ export class GraphStore {
         // cells as whole columns: a million edges one `addEdge` and one stamp at a time was most of
         // a second of an undo (issue #9164).
         const recorded = addEdgeRuns(builder, base.edgeList(), baseNode, edgeRows, baseEdge);
-        const ids: number[] = [];
-        baseEdge.forEach((index, row) => {
-            if (index !== INVALID_INDEX) {
-                ids[index] = base.edges.value(EDGE_ID_COLUMN, row) as number;
-            }
-        });
+        const ids = baseEdgeIds(base, baseEdge, builder.edgeBound);
         for (const [index, row] of recorded) {
             ids[index] = row.edgeId;
         }

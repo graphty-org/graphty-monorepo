@@ -540,6 +540,24 @@ await element.session.data.import({ type: "json", config: { data: JSON.stringify
 
 `team` is drawn as a box around `ana`, `bo` and `cy`; `dee` is outside it.
 
+Node records you add yourself nest the same way: a `parent` key names the group a node is in.
+
+```typescript
+await element.session.data.addNodes([{ id: "team" }, { id: "ana", parent: "team" }, { id: "bo", parent: "team" }]);
+```
+
+To style the groups, select the nodes that hold others: `graphty.members` is how many nodes a
+group holds directly, and every other node has no value there.
+
+```typescript
+await element.session.styles.add({
+    name: "Groups",
+    target: "node",
+    selector: { match: "has", path: "graphty.members" },
+    set: { "node.color": "#dddddd" },
+});
+```
+
 A group the file stores a position for (a yEd group's geometry, a Graphviz cluster's `bb`) keeps
 it when the file is drawn where it was saved (`layout: "recommended"`, see
 [Drawing a file where it was saved](#drawing-a-file-where-it-was-saved)). With

@@ -23,7 +23,7 @@ import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } 
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import { keepSourceMetaExtra, readerMetaExtra } from "../../data/graph-io-import";
 import type { GraphStore } from "../../data/GraphStore";
-import { GROUPS_VALUE, RANK_SETS_VALUE, readGroups, readRankSets } from "../../data/groups";
+import { containersOf, GROUPS_VALUE, RANK_SETS_VALUE, readGroups, readRankSets, withMembers } from "../../data/groups";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import {
     type ImportReport,
@@ -1296,6 +1296,45 @@ export class Ingest<K extends KnownEdge> {
         this.outsideLoad(() => {
             this.addNodeRows(nodes, idPath, writer);
         });
+        this.recordParents(nodes, idPath, writer);
+    }
+
+    /**
+     * Read a `parent` key on plain node records as containment, as a Cytoscape.js compound node
+     * is read: each node joins the group its parent names, which is drawn around its members.
+     *
+     * ponytail: a parent named before the graph holds it (a later batch) is not read; read it
+     * when that group's own record arrives if callers send children first.
+     * @param nodes - The records just added.
+     * @param idPath - Where a record holds its id, or undefined for the configured path.
+     * @param writer - The graph primitives to write through.
+     */
+    private recordParents(
+        nodes: readonly Record<string | number, unknown>[],
+        idPath: string | undefined,
+        writer: GraphWriter,
+    ): void {
+        const query = idPath ?? this.host.dataConfig().knownFields.nodeIdPath;
+        const joined = new Map<NodeIdType, NodeIdType[]>();
+        for (const node of nodes) {
+            const { parent } = node;
+            if (typeof parent !== "string" && typeof parent !== "number") {
+                continue;
+            }
+
+            const id = this.heldNode(searchRecord(node, query) as NodeIdType);
+            const group = this.heldNode(parent);
+            if (id !== undefined && group !== undefined && group !== id) {
+                const members = joined.get(group) ?? [];
+                members.push(id);
+                joined.set(group, members);
+            }
+        }
+
+        if (joined.size > 0) {
+            const groups = withMembers(containersOf(writer.graphValue(GROUPS_VALUE)), joined);
+            writer.setGraphValues({ [GROUPS_VALUE]: Object.freeze(groups) });
+        }
     }
 
     /**
@@ -2725,7 +2764,7 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
-     * Record the groups the file read with no stored position, which the layout places by their
+     * Record the groups the file read, those with no stored position placed by the layout on their
      * members (see `LayoutManager.placeGroups`), and its rank subgraphs, which a Graphviz layout
      * hands back to Graphviz.
      *

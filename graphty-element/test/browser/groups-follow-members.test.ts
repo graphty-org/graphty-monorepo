@@ -110,7 +110,19 @@ describe("a group with no stored position follows its members", () => {
      * @param groups - Each group and the nodes inside it, an inner group's included.
      */
     async function follows(type: string, data: string, groups: Record<string, readonly string[]>): Promise<void> {
-        await graph.addDataFromSource(type, { data });
+        await followsAfter(() => graph.addDataFromSource(type, { data }), groups);
+    }
+
+    /**
+     * {@link follows}, for graph data written some other way.
+     * @param load - Writes the graph.
+     * @param groups - Each group and the nodes inside it, an inner group's included.
+     */
+    async function followsAfter(
+        load: () => Promise<unknown>,
+        groups: Record<string, readonly string[]>,
+    ): Promise<void> {
+        await load();
         await operationQueueOf(graph).waitForCompletion();
         const layout = graph.getLayoutManager();
         assert.strictEqual(layout.layoutType, "ngraph");
@@ -157,6 +169,28 @@ describe("a group with no stored position follows its members", () => {
     it("puts Cytoscape.js compound nodes on their members' box, an inner one inside the outer", async () => {
         await follows("json", CYTOSCAPE, { inner: ["m1", "m2"], outer: ["m1", "m2", "m3"] });
         assert.strictEqual(graph.getDataManager().nodes.size, 6, "every node the file declares is in the graph");
+    });
+
+    it("puts plain node records on the box of the node their parent key names", async () => {
+        await followsAfter(
+            async () => {
+                await graph.addNodes([
+                    { id: "outer" },
+                    { id: "inner", parent: "outer" },
+                    { id: "m1", parent: "inner" },
+                    { id: "m2", parent: "inner" },
+                    { id: "m3", parent: "outer" },
+                    { id: "free" },
+                ]);
+                await graph.addEdges([
+                    { source: "m1", target: "m2" },
+                    { source: "m2", target: "m3" },
+                    { source: "m3", target: "free" },
+                ]);
+            },
+            { inner: ["m1", "m2"], outer: ["m1", "m2", "m3"] },
+        );
+        assert.isUndefined(graph.getLayoutManager().groupBox("free"), "a node with no parent key is laid out");
     });
 
     it("puts a Cytoscape.js compound the file saved a position for on its members' box", async () => {

@@ -307,6 +307,18 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
             await ctx.page.keyboard.press("Shift");
         },
         /**
+         * The modes a story is shot in, for its test's own render to be the first one's; none for
+         * a story its settings exclude. Records nothing, unlike visualPlan.
+         * @param {unknown} _ctx the command's context
+         * @param {{ id: string, chromatic: object }} story the story id and its parameters.chromatic
+         * @returns {Promise<object[]>} its modes, each `{ name, globals }`
+         */
+        async visualModes(_ctx, { id, chromatic }) {
+            await ready;
+            const s = await settings(id, chromatic);
+            return s.disableSnapshot ? [] : s.modes;
+        },
+        /**
          * What the browser side does for one story: its modes, the project's wait and the delay.
          * A story its settings exclude is recorded here and has no modes to shoot, only the wait.
          * @param {unknown} _ctx the command's context

@@ -22,6 +22,17 @@ describe("story tests' visual step", () => {
         }
     });
 
+    it("names a story's modes for its test's own render, and none for an excluded story (#8797)", async () => {
+        const v = visualStoryTest({ project: "graphty-element", out: tempDir("story-test-out-"), root: repo({}) });
+        const modes = { light: { colorScheme: "light" }, dark: { colorScheme: "dark" }, off: { disable: true } };
+        expect(await v.commands.visualModes(context([]), { id: "a--two", chromatic: { modes } })).toEqual([
+            { name: "light", globals: { colorScheme: "light" } },
+            { name: "dark", globals: { colorScheme: "dark" } },
+        ]);
+        const excluded = { modes, disableSnapshot: true };
+        expect(await v.commands.visualModes(context([]), { id: "a--off", chromatic: excluded })).toEqual([]);
+    });
+
     it("shoots a story taller than the viewport in scrolled tiles, keeping its layout at the viewport", async () => {
         const root = repo({});
         const out = tempDir("story-test-out-");

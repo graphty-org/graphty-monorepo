@@ -173,7 +173,7 @@ embeds the element would, and the cursor is never on screen. Their helpers are i
 | `layout(h, type, opts)`                                              | `element.setLayout`                                                                                                                                                                                                                                                                                                                     |
 | `shade(h, { shader, params, nodes, edges, name })`, `unshade(h, id)` | a style layer adding a shader preset to every node or edge (or the ids given), through `session.styles`, as the Style panel's Shaders section writes them; returns the layer id                                                                                                                                                         |
 | `backdrop(h, { color, shader, params })`                             | the project `background`: a color and a background shader such as `nebula`                                                                                                                                                                                                                                                              |
-| `addLayer(h, spec)`, `tween(h, id, from, to, ms)`                    | a plain style layer (`session.styles.add`, such as a dim over everything), and its numeric channels eased from one value to another in the page                                                                                                                                                                                         |
+| `addLayer(h, spec)`, `tween(h, id, from, to, ms)`                    | a plain style layer (`session.styles.add`, such as a dim over everything), and its numeric and `#rrggbb` color channels eased from one value to another in the page (`"background"` as the layer eases the canvas color)                                                                                                                |
 | `showRow(h, name, shown)`, `edgesAmong(h, ids)`                      | a style row shown or hidden by name, as its eye does (an algorithm folder: "Louvain"); the ids of the edges among some nodes                                                                                                                                                                                                            |
 | `tweenShader(h, id, param, from, to, ms, ease)`                      | one numeric parameter of a shade layer's shader animated in the page, once a frame: plays a one-shot effect by hand (a shockwave's `ringAge`, a reticle's `lockTime`), since the `since.*` clocks do not advance in the recording build                                                                                                 |
 | `orbit({ node, distance, from, to, ms, ... })`                       | `fly` keys that circle a node in linear steps (an arc, not a chord); `distance` and `elevation` may be `[start, end]`                                                                                                                                                                                                                   |
@@ -247,7 +247,7 @@ Cards hold `1.0 s + 0.33 s a word + 0.8 s` at full opacity (a web address counts
 the two crossfades on top: a chapter card at least 4 s, the title 3-3.4 s (it follows the cold open),
 the end card 6 s; a chapter's `short: true` makes a 2 s mini card (the highlight's change of
 domain); a card's `seconds` can only lengthen that. A `title` card's `laterLines` fade in `laterSec`
-(1.5) after it appears; a card's `hold` sets its seconds at full opacity outright (a title cut to the music), and a `title` over footage takes `veil` (how dark the footage is made, 0-1, default 0.62) and `strong: true` (its first line larger, bold and white). A clip's `seconds` trims it to its last `seconds` (the result and its whole hold); `from` starts it that many seconds in (with `seconds`, that long from there). A
+(1.5) after it appears; a card's `hold` sets its seconds at full opacity outright (a title cut to the music), and a `title` over footage takes `veil` (how dark the footage is made, 0-1, default 0.62) and `strong: true` (its first line larger, bold and white). A full-bleed clip's `vf` (and a title's `over.vf`) lays an ffmpeg filter chain on its footage, a grade such as `eq=gamma=0.85` (its `t` is seconds into the item), and a cut's `grain: 2` lays light film grain over the whole video, so dark gradients do not band. A clip's `seconds` trims it to its last `seconds` (the result and its whole hold); `from` starts it that many seconds in (with `seconds`, that long from there). A
 clip shows its own caption unless the cut's item sets `caption` (`""` for none). `at: ["settled", 0.5]`
 starts the clip that long after one of its marks (counted after any drops), so a re-take needs no new
 numbers. `cut: true` is a hard cut into the item, with no crossfade; `speed: N` plays it N times
@@ -255,8 +255,8 @@ faster, tagged "Nx speed".
 A `title` card with `smash: true` is a smash cut to the title: pure black, its own length (`seconds`,
 default 2.8, no reading floor), fading to black over its last `fadeOut` (0.8) s; `strong: true` makes
 the tagline large and white.
-`bleed: true` shows the app's canvas alone, full-bleed (a 16:9 crop of the canvas, x 297, y 110,
-1383 wide, scaled to fill the frame), with no stage and no caption band; its caption becomes a short
+`bleed: true` shows the app's canvas alone, full-bleed (a 16:9 crop of the canvas, x 300, y 112,
+1378 wide, scaled to fill the frame), with no stage and no caption band; its caption becomes a short
 label at the top left. `bleed: { x, y, w }` picks another 16:9 box; `fadeIn: s` fades a full-bleed
 item up from black (the opening shot). The video always fades up from black over its first crossfade, unless the cut sets
 `"openOnPicture": true` (a cold open already moving on its first frame). The intro uses it; its takes
@@ -283,7 +283,9 @@ before the first `t` is cut: `"ramp": [[2.0, 4], [3.1, 1], [4.0, 0.5]]` races in
 normal speed, and lingers at half speed. Frames are dropped or repeated, never blended (trim, setpts,
 concat), so shoot slow motion slowed down in the app (clips/r4-intro/cine.js `slowMotion`) and ramp
 it up, rather than ramping real-time footage below 1x. Marks and `from`/`at` follow the ramp; `seconds`
-is the ramped length. A ramp adds no tag (unlike `speed`) and cannot be combined with `speed`.
+is the ramped length. A ramp adds no tag (unlike `speed`) and cannot be combined with `speed`. A ramp's
+`t` may be `[mark, s]` (s of the take after one of its marks), and an item's `to: [mark, s]` ends it
+there (its `seconds` follow), so a re-take needs no new numbers.
 
 Sound, all mixed under the video as one AAC track:
 

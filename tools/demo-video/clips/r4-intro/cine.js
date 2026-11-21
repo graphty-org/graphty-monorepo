@@ -262,11 +262,12 @@ export const dimAll = async (h) => ({
 });
 
 /**
- * Animate a layer's numeric channels from one set of values to another, in the page, about 15
- * steps a second by default (session.styles.update with the whole `set` each step, so tween only layers whose
+ * Animate a layer's numeric (or "#rrggbb" color) channels from one set of values to another, in the page, about 15
+ * steps a second by default, any other value (a string such as "scene") held as given
+ * (session.styles.update with the whole `set` each step, so tween only layers whose
  * every channel it names, such as addLayer's). Resolves when the last value is written.
  * @param h - the hand
- * @param id - the layer
+ * @param id - the layer, or "background" for the canvas color (the one channel `color`)
  * @param from - { channel: value } at the start ({ "node.opacity": 0 })
  * @param to - { channel: value } at the end
  * @param ms - how long
@@ -281,9 +282,25 @@ export async function tween(h, id, from, to, ms, stepMs = 66) {
             for (;;) {
                 const k = Math.min(1, (performance.now() - t0) / o.ms);
                 const e = k * k * (3 - 2 * k); // smoothstep: eased in and out
-                const set = {};
-                for (const c of Object.keys(o.to)) set[c] = o.from[c] + (o.to[c] - o.from[c]) * e;
-                await el.session.styles.update(o.id, { set });
+                // a "#rrggbb" color is mixed channel by channel, a number tweened; any other value
+                // (a word, a shader list) is held
+                const hex = (v, j) => Number.parseInt(v.slice(j, j + 2), 16);
+                const mix = (a, b) =>
+                    `#${[1, 3, 5]
+                        .map((j) =>
+                            Math.round(hex(a, j) + (hex(b, j) - hex(a, j)) * e)
+                                .toString(16)
+                                .padStart(2, "0"),
+                        )
+                        .join("")}`;
+                const value = (a, b) => {
+                    if (typeof b === "number") return a + (b - a) * e;
+                    return typeof b === "string" && b.startsWith("#") ? mix(a, b) : b;
+                };
+                const set = Object.fromEntries(Object.keys(o.to).map((c) => [c, value(o.from[c], o.to[c])]));
+                if (o.id === "background")
+                    await el.session.config.set({ background: { backgroundType: "color", color: set.color } });
+                else await el.session.styles.update(o.id, { set });
                 if (k >= 1) return;
                 await new Promise((r) => setTimeout(r, o.stepMs));
             }

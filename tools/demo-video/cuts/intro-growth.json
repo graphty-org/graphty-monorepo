@@ -1,9 +1,9 @@
 {
     "name": "intro-growth",
     "title": "Growth (new)",
-    "note": "Music is a PLACEHOLDER (audio/trailer.wav, slowed): the owner's pick, \"Bright Positive Energy\" by Universfield on Pixabay, could not be downloaded automatically (Pixabay answers 403). Fetch it by hand and swap it into the cut's music.file.",
+    "note": "Music is a PLACEHOLDER (audio/trailer.wav, its build lengthened to the crescendo by ~/intros/growth/make-music.sh, which also sets its loudness curve to the cut's marks): the owner has not chosen a track. To swap it, set music.file, and move the logo onto the new track's final hit by shifting Part B's `to` and the title's `over.at` by the same amount (both after mark turn, so the dissolve into the title shows the same frames on both sides).",
     "top": true,
-    "crossfadeMs": 400,
+    "crossfadeMs": 1500,
     "music": {
         "file": "~/intros/growth/music-placeholder.wav",
         "gain": 0,
@@ -20,25 +20,24 @@
                     "bleed": true,
                     "zoom": false,
                     "caption": "",
-                    "from": 0,
-                    "seconds": 42.85,
+                    "at": ["open", 0],
+                    "to": ["seam", 0],
                     "ramp": [
-                        [0, 2.6],
-                        [32.97, 2],
-                        [38.34, 3.6],
-                        [56.39, 2.6],
-                        [60.76, 2.2],
-                        [69.18, 3],
-                        [79.87, 2],
-                        [82.27, 2.6],
-                        [109.68, 3]
-                    ],
-                    "sfx": [
-                        {
-                            "file": "~/audio/lock-on.wav",
-                            "at": 29.45,
-                            "gain": -6
-                        }
+                        [["open", 0], 2.7],
+                        [["grow", 21], 3.1],
+                        [["grow", 36], 3.5],
+                        [["indigo", 0], 3.6],
+                        [["lift", 0], 3.3],
+                        [["grow3d", 4.5], 3.8],
+                        [["grow3d", 12], 4.0],
+                        [["communities", 0], 3.7],
+                        [["hush", 0], 3.9],
+                        [["route", 0], 3.6],
+                        [["flight", 0], 2.8],
+                        [["flight", 12], 3.1],
+                        [["flight", 22.5], 3.4],
+                        [["close", -4.5], 3.0],
+                        [["close", -1.5], 2.4]
                     ]
                 },
                 {
@@ -46,39 +45,41 @@
                     "bleed": true,
                     "zoom": false,
                     "caption": "",
-                    "from": 114.96,
-                    "seconds": 4.9,
+                    "at": ["onglobe", 0],
+                    "to": ["turn", 4.35],
                     "ramp": [
-                        [114.96, 3],
-                        [115.83, 2]
+                        [["onglobe", 0], 2.4],
+                        [["pull", 0], 3.0],
+                        [["pull", 3], 3.8],
+                        [["pull", 8], 4.5],
+                        [["pull", 16], 4.8],
+                        [["pull", 24], 3.8],
+                        [["pull", 30], 2.8],
+                        [["pull", 34], 1.8],
+                        [["turn", 0], 1]
                     ]
                 },
                 {
                     "card": "title",
                     "over": {
                         "clip": "growth-world",
-                        "at": ["turn", 4.0]
+                        "at": ["turn", 2.85]
                     },
                     "zoom": false,
                     "lines": ["See what your connected data is hiding"],
                     "hold": 2.6,
                     "veil": 0.3,
                     "strong": true,
-                    "onBeat": 47
+                    "sfx": [
+                        {
+                            "file": "~/audio/impact.wav",
+                            "at": 0,
+                            "gain": -6
+                        }
+                    ]
                 }
             ]
         }
     ],
-    "sfx": [
-        {
-            "file": "~/audio/riser.wav",
-            "at": 44.55,
-            "gain": -8
-        },
-        {
-            "file": "~/audio/impact.wav",
-            "onBeat": 47,
-            "gain": -6
-        }
-    ]
+    "grain": 2
 }

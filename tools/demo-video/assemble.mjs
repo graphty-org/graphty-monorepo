@@ -23,7 +23,7 @@
  *     "bpm"?, "offset"?, "sfx"?: [ { "file", "at" | "onBeat", "gain"? } ],
  *     "sections": [ { "marker": "Intro" | null, "chapter": { "number": 1, "title": "...", "seconds": 2 }?,
  *                     "items": [ { "clip": "<id>", "seconds": 5?, "caption": "<used if not recorded>"?,
- *                                  "ramp": [[t, speed], ...]?, "onBeat": n?, "sfx": [ { "file", "at"?, "gain"? } ]? }
+ *                                  "ramp": [[t | [mark, s], speed], ...]?, "to": [mark, s]?, "onBeat": n?, "sfx": [ { "file", "at"?, "gain"? } ]? }
  *                              | { "card": "title" | "end" | "placeholder", "seconds": 3, ...card fields } ] } ] }
  */
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -142,7 +142,15 @@ async function cardSegment(item) {
     if (over && item.over.at) {
         const meta = clipMeta(item.over.clip);
         const from = markTime(meta, item.over.at[0]) + item.over.at[1];
-        const moving = await bleedFramed(join(CLIPS, `${item.over.clip}.mp4`), from, seconds, null, true);
+        const moving = await bleedFramed(
+            join(CLIPS, `${item.over.clip}.mp4`),
+            from,
+            seconds,
+            null,
+            true,
+            0,
+            item.over.vf,
+        );
         const card = await png(item.card, { ...item, over }, next("png"));
         const later = item.laterLines?.length
             ? {
@@ -204,8 +212,9 @@ async function framed(src, start, want, caption, tag, zoom = []) {
 }
 
 // The app's canvas in a take (left of the inspector, right of the layer panel, above the toolbar),
-// as a 16:9 box: `bleed: true` fills the frame with it; `bleed: { x, y, w }` picks another 16:9 box.
-const CANVAS = { x: 297, y: 110, w: 1383 };
+// as a 16:9 box, inset a few pixels so the chrome's light border never shows: `bleed: true` fills
+// the frame with it; `bleed: { x, y, w }` picks another 16:9 box.
+const CANVAS = { x: 300, y: 112, w: 1378 };
 
 /**
  * The crop filter for a full-bleed box.
@@ -227,15 +236,17 @@ function bleedFilter(bleed) {
  * @param label - the label, or none
  * @param bleed - as for bleedFilter
  * @param [fadeIn] - seconds to fade up from black at its start (an item's `fadeIn`; 0 for none)
+ * @param [vf] - an ffmpeg filter chain laid on the footage (an item's `vf`: a grade; its `t` is
+ *     seconds from the item's start)
  * @returns the mp4
  */
-async function bleedFramed(src, start, want, label, bleed, fadeIn = 0) {
+async function bleedFramed(src, start, want, label, bleed, fadeIn = 0, vf = "") {
     const mp4 = next("mp4");
     const lab = label ? await png("label", { text: label }, next("png")) : null;
     const out = Math.max(0.5, want - 0.4);
     const fade = fadeIn ? ",fade=in:st=0:d=" + fadeIn : "";
     const graph =
-        `[0]fps=${FPS},${bleedFilter(bleed)},setpts=PTS-STARTPTS${fade}[v]` +
+        `[0]fps=${FPS},${bleedFilter(bleed)},setpts=PTS-STARTPTS${vf ? "," + vf : ""}${fade}[v]` +
         (lab
             ? `;[1]format=rgba,fade=in:st=0.1:d=0.3:alpha=1,fade=out:st=${out.toFixed(3)}:d=0.3:alpha=1[l];[v][l]overlay=format=auto,format=yuv420p`
             : ";[v]format=yuv420p");
@@ -481,15 +492,22 @@ async function faster(src, meta, item) {
  * @returns the ramped take (src) and the item with `from` in its time
  */
 async function ramped(src, meta, item) {
-    if (!item.ramp?.length) return { src, item };
+    if (!item.ramp?.length) return { src, item: item.to ? { ...item, seconds: until(meta, item) } : item };
     if (item.speed && item.speed !== 1) throw new Error(`${item.clip}: give "speed" or "ramp", not both`);
     const total = await duration(src);
-    const segs = item.ramp.map(([t, s], i) => ({ a: snap(t), b: snap(item.ramp[i + 1]?.[0] ?? total), s }));
+    // a time may be a mark of the take and an offset after it, [mark, s], so a re-take needs no new numbers
+    const when = (t) => (Array.isArray(t) ? markTime(meta, t[0]) + t[1] : t);
+    const segs = item.ramp.map(([t, s], i) => ({
+        a: snap(when(t)),
+        b: snap(item.ramp[i + 1] ? when(item.ramp[i + 1][0]) : total),
+        s,
+    }));
     for (const g of segs)
         if (g.s <= 0 || g.b <= g.a || Number.isNaN(g.s))
             throw new Error(`${item.clip}: ramp needs rising times and speeds above 0`);
     // where source time t lands in the ramped take
     const map = (t) => segs.reduce((out, g) => out + Math.max(0, Math.min(t, g.b) - g.a) / g.s, 0);
+    const to = item.to ? map(markTime(meta, item.to[0]) + item.to[1]) : undefined;
     const graph =
         segs.map((g, i) => `[0:v]trim=start=${g.a}:end=${g.b},setpts=(PTS-STARTPTS)/${g.s}[r${i}]`).join(";") +
         ";" +
@@ -498,8 +516,20 @@ async function ramped(src, meta, item) {
     const out = next("mp4");
     await run(["-i", src, "-filter_complex", graph, "-map", "[v]", "-an", ...ENC, out]);
     meta.events = (meta.events ?? []).map((e) => ({ ...e, t: map(e.t / 1000) * 1000 }));
-    return { src: out, item: { ...item, from: item.from === undefined ? undefined : map(item.from) } };
+    const from = item.from === undefined ? undefined : map(item.from);
+    return {
+        src: out,
+        item: { ...item, from, ...(to === undefined ? {} : { seconds: to - (from ?? 0) }) },
+    };
 }
+
+/**
+ * Where an unramped item with `to: [mark, s]` ends: its length from `from`.
+ * @param meta - the clip's json
+ * @param item - the cut's item
+ * @returns its seconds
+ */
+const until = (meta, item) => markTime(meta, item.to[0]) + item.to[1] - (item.from ?? 0);
 
 /**
  * The take with `drop` and `dropMarks` spans cut out, its input log moved back with them.
@@ -575,7 +605,7 @@ async function clipSegment(item, extra = 0) {
     }
     if (item.bleed) {
         const label = "caption" in item ? item.caption : meta.caption;
-        const file = await bleedFramed(src, start, want, label, item.bleed, item.fadeIn);
+        const file = await bleedFramed(src, start, want, label, item.bleed, item.fadeIn, item.vf);
         return { file, seconds: want, clip: item.clip, start };
     }
     const z =
@@ -843,7 +873,9 @@ for (let i = 0; i < segments.length; i++) {
 const piecesList = join(work, "pieces.ffconcat");
 writeFileSync(piecesList, "ffconcat version 1.0\n" + pieces.map((f) => `file '${f}'`).join("\n") + "\n");
 const silent = join(work, "video.mp4");
-await run(["-f", "concat", "-safe", "0", "-i", piecesList, ...FINAL, "-movflags", "+faststart", silent]);
+// `grain`: light film grain over the whole video, so dark gradients and slow fades in 8 bits do not band or step
+const grain = cut.grain ? ["-vf", `noise=alls=${cut.grain}:allf=t`] : [];
+await run(["-f", "concat", "-safe", "0", "-i", piecesList, ...grain, ...FINAL, "-movflags", "+faststart", silent]);
 
 // ---------------------------------------------------------------- chapters, music, the page
 const ms = (s) => Math.round(s * 1000);

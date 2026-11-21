@@ -404,7 +404,8 @@ function rebuildBase(
             throw new Error("GraphStore: a rebuild from the builder now needs the builder");
         }
 
-        const frozen = old.freezeWithReport({ label: "graphty-element rebuild" });
+        // The rebuild reads the base's edge list; prepared from the builder's rows, not a walk of the core.
+        const frozen = old.freezeWithReport({ label: "graphty-element rebuild", prepare: ["edgeList"] });
         return {
             base: frozen.snapshot,
             oldNodes: frozen.report.nodeRemap ?? identityWalk(nodeBound),

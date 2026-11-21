@@ -86,10 +86,16 @@ A shader is never a section of its own on either tab: shaders are Effects' Shade
 draws instead of the node is a Shape kind (E378).
 
 **Kind groups.** Several kinds of one style are one "+" item whose row carries its kind in the name column:
-node Label (Text or Glyph), node Plate (Behind or Over), edge Arrow (Target, Source, Middle to target, Middle
-to source), edge End caption (Target or Source) and edge Outline (Under line or Over line). "+" adds the first
-free kind in that order, so a second "+" Arrow gives a Source arrow beside the Target one. A row's kind is
-changed from its Switch to (5).
+node Label (Text, Card, Dark, Pill, Callout or Glyph), node Plate (Behind or Over), edge Arrow (Target, Source,
+Middle to target, Middle to source), edge End caption (Target or Source) and edge Outline (Under line or Over
+line). "+" adds the first free kind in that order, so a second "+" Arrow gives a Source arrow beside the Target
+one. A row's kind is changed from its Switch to (5).
+
+**A label's look is its kind** (E196: "the toggle between "Plain" and "Card" label must be removed and replaced
+with `+` having label or card"). There is no look select. The Label kinds Text, Card, Dark, Pill and Callout are
+graphty-element's label looks (`look` unset, `card`, `dark`, `pill`, `callout`); Glyph draws a character instead
+of text and has no look. Tooltip, External label and End caption carry the same looks as kinds, Plain first (End
+caption's Switch to lists its ends, a divider, then its looks).
 
 ### 2.4 Thing row
 
@@ -101,7 +107,7 @@ changed from its Switch to (5).
 
 Row: `[<> name] [main] [-] [...]`.
 
-- **Name**: every row has a name column (E674; ia-design section 2, rule 4). It holds the thing's name
+- **Name**: every row has a name column (ia-design section 2, rule 4). It holds the thing's name
   (Border, Route, Visible, Size), or, for a thing with kinds (Fill, Line, Shape and the other kind groups), its
   current kind (Solid, Gradient, Basic shape ...). One exception: a Label row (node or edge Label) shows its
   text, since one node can hold several labels; an empty one reads "Label" and a Glyph one "Glyph" (7.4).
@@ -113,7 +119,8 @@ Row: `[<> name] [main] [-] [...]`.
 - **Remove** ("-"): removes the thing and every setting it has on this layer.
 - **Settings** (`GLYPHS.more`, "...", drawn `...` in wireframes, never the sliders glyph): opens the settings
   popover; it is the last control in the row. It takes today's set state (accent) when the popover holds a set
-  line. Clicking the row's name opens nothing (ledger 19).
+  line. Clicking the row's name opens nothing; settings open from "..." (E176: "I would have thought that would
+  have been "..."").
 - **Off**: a thing switched off on this layer (2.6) draws its main control as a read-only field reading "Off",
   which opens the popover. Nothing is dimmed for it.
 - **Bound**: a main value bound to data draws as the field with the column name as its value and `GLYPHS.link`
@@ -127,7 +134,8 @@ Under a row show only the lines the layer sets for that thing, in popover order,
 "-". A line appears when its value is set (in the popover, or by "+" writing a required partner, 5.1) and goes
 when it is unset; there are no empty lines waiting to be written. Every line is the one common pattern: name,
 value control, "-" (E674). A line under a row leaves its second trailing slot empty: it carries no by-data link,
-and its value is bound from the same line in the popover (2.6) or by "=" in its field (2.4). Nothing above a
+and its value is bound from the same line in the popover's Main, which holds every common line (2.6), or by "="
+in its field (2.4). Nothing above a
 line moves when one is written.
 
 ### 2.6 Settings popover
@@ -140,31 +148,32 @@ opened from it are plain `Popout`s (SettingsPopout refuses nesting).
   `onClick` and cannot hold a menu, and compact-mantine is locked to Figma. Main draws no legend when it holds
   no lines and there is nothing to add.
 - **Switch to is not in the popover**: it is on the row (2.4).
-- **First lines**: **By data** (R12) for the row's main value while it is not bound, the one clickable way to
-  vary the main value by data (a bound main value is the row's own field, which opens its binding, 2.4); every
-  other line carries its own by-data link in its trailing slot. Then, for a switchable thing, a **Show** line
-  (R7 checkbox, the one control for every Show line, label Show included, 7.3) writing its dedicated off field
-  (10.2); then **Combine** (R8f Replace / Multiply / Add, today's `COMBINE_WORDS` in `words.ts`) on number
-  lines only.
-- **Main** sub-group: always shown, with its lines empty until written.
+- **First lines**: there is no separate By data line. Every line, the main value's included, carries its own
+  by-data link in its trailing slot. For a switchable thing, a **Show** line (R7 checkbox, the one control for
+  every Show line, label Show included, 7.3) writes its dedicated off field (10.2), unless its Switch to has an
+  **Off** member (5): then that member writes the off field and there is no Show line, so it has one control. Then
+  **Combine** (R8f Replace / Multiply / Add, today's `COMBINE_WORDS` in `words.ts`) on number lines only.
+- **Main** sub-group: always shown, with its lines empty until written. Its first line is the row's main value
+  (Color, Visible, Shading ...), then the row's common lines (Width, Strength, Size, Color ...), then the
+  thing's own Main lines. The main value binds from its line's by-data link like any other line; bound, the line
+  shows the column name with `GLYPHS.link` and opens `BindingPopover`.
 - **Other sub-groups**: a `PlusList` at group level (an always-open `ControlGroup` legend with "-", which unsets
-  every line in it) over at most 8 lines. A sub-group shows when it holds a set line or the reader adds it from
+  every line in it) over at most 10 lines. A sub-group shows when it holds a set line or the reader adds it from
   "+". Adding a switchable sub-group (Callout) writes its on field (`pointer`); it has no "On" line. Label shadow
   holds two looks, so its Text shadow and Box shadow lines are their on fields.
 - **Lines**: unset, the control drawn empty (an empty field, an unchecked checkbox, a segment line with nothing
   selected, `value=""`), with no "-"; writing a value sets it and shows "-". A set boolean unchecked writes
   `false`; "-" unsets it. A location line draws only its segments until written (R2).
-- **Never empty**: since every bindable main value has its By data line, a row's "..." always opens lines. A
-  row whose main value cannot be bound and whose thing has no other settings leaves its "..." slot empty (as
-  Figma does) and is drawn `[<> name] [main] [-]`.
+- **Never empty**: a row whose main value can be bound always has its main value line in Main, bound or not,
+  so its "..." always opens lines. A row whose main value cannot be bound and whose thing has no other settings
+  leaves its "..." slot empty (as Figma does) and is drawn `[<> name] [main] [-]`.
 - **Depth**: panel, one popover (settings, or `BindingPopover` in its place, with Back), one picker beside it.
   No tabs. The popover opens scrolled to its first set line; height follows content, capped at the viewport.
 
 ## 3. Marks, counted
 
 Every hit target counts. Budgets: an empty layer at most 8; the default Everything node tab at most 26.
-"-" stays visible on every set line, never on hover only, since every set value needs a visible way to unset it
-(ledger 21, 36).
+"-" stays visible on every set line, never on hover only, since every set value needs a visible way to unset it.
 
 | Layer                                | Shown                      | Marks                                                                                    |
 | ------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------------- |
@@ -193,7 +202,8 @@ Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers
   picture on the node (`node.image`), on wraps it over the 3D surface (`node.texture`). A Solid color it hides
   dims (`x-picture-hides-fill`).
 - **Stripes, Pie, Chart** as today. **Finish** (3D only): a Shading row, Smooth (the default), Flat or Unlit.
-- **Label** (many; kinds Text and Glyph). Glyph is a kind of Label, never a row or "+" item of its own (E275).
+- **Label** (many; kinds Text, Card, Dark, Pill, Callout and Glyph, 2.3). Glyph is a kind of Label, never a row
+  or "+" item of its own (E275); the looks are kinds, never a select (E196).
   **Tooltip**, **Record** (a table of fields inside the node) and **External label** as today.
 - **Size**: the shape's size, its own row, so "size by degree" needs no Shape row (E189).
 - **Shape** (kinds Basic shape, Model, and every shader that declares place "replace", built-in or custom, with
@@ -227,10 +237,6 @@ Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers
 | Text       | Label \| End caption, Record, External label | Label many; End caption one per kind |
 | Visibility | Visible                                      | one                                  |
 | Effects    | Shader, Animation                            | Shader many; Animation one           |
-
-Until graphty-element fix 1 lands (10.2), the panel also keeps two interim items so no channel is without a row:
-**Band** (`edge.band*`) in Line's "+" after Outline, and **Underlay** (`edge.underlay*`) in Effects' "+" after
-Animation. Fix 1 folds both into Outline's Under line and removes them.
 
 - **Line** (kinds Solid and Gradient). Width is its line; the color box's "%" writes `edge.opacity`.
   **Pattern** (dashed, dotted, wavy and the rest) is its own item, so "dashed" is in "+".
@@ -296,36 +302,39 @@ owns come from the element's exclusion data (10.2), never from a list of ids.
 | Shape              | Basic shape: `node.shape` and its shape-only settings (corners, points, custom shape, mesh detail); Model: `node.model*`; each replace shader: its use | shapeRotation                                                      |
 | Fill               | Solid: `node.color`; Gradient: `node.gradient*`                                                                                                        | `node.opacity` (the color box's "%"; an Opacity line for Gradient) |
 | Line               | Solid: `edge.color`; Gradient: `edge.gradient*`                                                                                                        | width, opacity, taper, blending, fade                              |
-| Label look         | each look: `look`                                                                                                                                      | every other label field                                            |
 | Background (graph) | Color: `backgroundType`; Sky: `data`                                                                                                                   | `color`, `shader`                                                  |
 
 A **kind group** is the app's (`v2/kindGroups.ts`): several kinds of one style, which may coexist on one node or
 edge, each kind its own row, all from one "+" item (2.3). Switching a row's kind moves the shared slot values
-(color, size) to the new kind in one undo step. The kind groups are node Label (Text, Glyph), node Plate
+(color, size) to the new kind in one undo step; switching between label looks writes only `look`, so every
+other label field stays. The kind groups are node Label (Text, Card, Dark, Pill, Callout, Glyph), node Plate
 (Behind, Over), edge Arrow (Target, Source, Middle to target, Middle to source), edge End caption (Target,
-Source) and edge Outline (Under line, Over line).
+Source) and edge Outline (Under line, Over line); Tooltip, External label and End caption carry the label
+looks as kinds (2.3).
 
 Collapses considered (owner, E495: "review all other controls that can be collapsed down"):
 
-| Candidate                                    | Outcome                                                                                                   |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| End captions                                 | collapsed: End caption, kinds Target and Source                                                           |
-| Node underlay and overlay                    | collapsed: Plate, kinds Behind and Over                                                                   |
-| The four arrows                              | collapsed: Arrow; their settings are identical                                                            |
-| Glyph and Label                              | collapsed: Label, kinds Text and Glyph (E275)                                                             |
-| Edge band, underlay, outline, overlay        | collapsed: Outline, kinds Under line and Over line (band and underlay fold in with graphty-element fix 1) |
-| Fill picture and Image                       | collapsed: Image with its Wrap around shape setting                                                       |
-| The wide ring and Ring                       | collapsed: Ring; the wide ring is a Ring with a width and an opacity                                      |
-| Route and force curves                       | kept apart: Force curves is a simulation with its own settings; Bundling is a route value                 |
-| Drop shadow and Glow                         | rejected: an offset dark shadow and a centered soft light look plainly different                          |
-| Pie, Stripes, Chart                          | rejected: slices, bands and a chart are different looks with different settings                           |
-| Record and Label                             | rejected: the element draws them by other rules (`shapeTexts`, label lists)                               |
-| Model and Basic shape; Fill and Line members | already families                                                                                          |
+| Candidate                                      | Outcome                                                                                                   |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| End captions                                   | collapsed: End caption, kinds Target and Source                                                           |
+| Node underlay and overlay                      | collapsed: Plate, kinds Behind and Over                                                                   |
+| The four arrows                                | collapsed: Arrow; their settings are identical                                                            |
+| Glyph and Label                                | collapsed: Label, kinds Text and Glyph (E275)                                                             |
+| Label looks (Plain, Card, Dark, Pill, Callout) | collapsed: Label's kinds, no look select (E196)                                                           |
+| Edge band, underlay, outline, overlay          | collapsed: Outline, kinds Under line and Over line (band and underlay fold in with graphty-element fix 1) |
+| Fill picture and Image                         | collapsed: Image with its Wrap around shape setting                                                       |
+| The wide ring and Ring                         | collapsed: Ring; the wide ring is a Ring with a width and an opacity                                      |
+| Route and force curves                         | kept apart: Force curves is a simulation with its own settings; Bundling is a route value                 |
+| Drop shadow and Glow                           | rejected: an offset dark shadow and a centered soft light look plainly different                          |
+| Pie, Stripes, Chart                            | rejected: slices, bands and a chart are different looks with different settings                           |
+| Record and Label                               | rejected: the element draws them by other rules (`shapeTexts`, label lists)                               |
+| Model and Basic shape; Fill and Line members   | already families                                                                                          |
 
 **Switch to** has one look and one place for every family and kind group: the glyph before the row's name
 (`MemberMenu`), opening a menu of every member or kind, the current one checked. There is no Switch to strip in
 the popover. A member gated by a flag or the view (Model in 2D) is disabled, never hidden, and the current
-member is always enabled. A thing with an off field adds an **Off** member (Shape: none).
+member is always enabled. A thing with an off field adds an **Off** member (Shape: none), which is that
+thing's one control for its off field: it has no Show line (2.6).
 
 1. **Same row, same settings.** The row keeps its place and height, and its name column shows the new kind
    (2.4); thing-wide lines stay in every member.
@@ -395,7 +404,9 @@ is a direction, side, alignment or geometric kind. When every option of a settin
 required, not permitted. One exception: an icon set may end in a single "Auto" word segment.
 
 **Common lines** (E674). No row or line carries a toggle, an icon or a widget the other lines lack: a boolean
-that modifies another line (italic, keep ratio, separate sides) is its own R7 line.
+that modifies another line (italic, keep ratio, separate sides) is its own R7 line. Three glyphs are allowed,
+each on every line of its kind: the Switch to glyph on every family and kind row (E100, E105), `GLYPHS.link`
+on every bound value, and the scrub letter on every number field (2.2). Nothing else.
 
 | #    | When                                                                                    | Control                                                                                                                                                     |
 | ---- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -443,35 +454,37 @@ option-name table and fails when one passes the width where it sits.
 
 Ids are graphty-element channel names (`node.` / `edge.` omitted) and `labelStyle` fields. "Row" is the main
 control; "Lines" the lines under the row once set (2.5); "Main" the popover's always-shown sub-group; "Name: a, b"
-a sub-group added with "+"; "|" a pair.
+a sub-group added with "+"; "|" a pair. Every popover's Main starts with the row's main value line and the
+Lines column's common lines (2.6); the Popover column lists only what follows them, and "-" there means nothing
+follows.
 
 ### 7.1 Node
 
-| Thing                         | Row                               | Lines       | Popover                                                                                                                                                                                                                                                                                                  |
-| ----------------------------- | --------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Fill: Solid                   | color R1                          | -           | Main: By data (2.6)                                                                                                                                                                                                                                                                                      |
-| Fill: Gradient                | stops (`GradientRow`)             | -           | Main: kind R8 icons, direction R5 or center X \| Y and radius R5 (by kind), endColor R1, opacity R5                                                                                                                                                                                                      |
-| Image                         | image R16                         | Opacity     | Main: Wrap around shape R7, imageFit R9, fallback R16. Size: width \| height or pixelSize R5 (by fit), autoSize R8f, keep aspect R7. Place: position X \| Y, offset X \| Y. Tiling: repeat R8 icons, clip R8, smoothing R7                                                                               |
-| Stripes                       | colors R15r                       | -           | Main: Stripes R15 (color, size, opacity), direction R8 icons, size R5. Frame: R17                                                                                                                                                                                                                        |
-| Pie                           | slices R15r                       | -           | Main: Slices R15 (color, size, opacity). Disc: hole, radius, rotation R5, pieFitBox R7, offset X \| Y                                                                                                                                                                                                    |
-| Chart                         | kind R10                          | -           | Main: values R12, colors R15, min \| max, horizontal R7 (by kind). Box: size or width \| height, offset X \| Y, margin, gap R5. Strokes: lineWidth R5, borderColor R1, borderWidth R5, backgroundColor R1                                                                                                |
-| Finish (3D only)              | shading R10 (Smooth, Flat, Unlit) | -           | -                                                                                                                                                                                                                                                                                                        |
-| Label: Text                   | text source R12                   | Size, Color | 7.3                                                                                                                                                                                                                                                                                                      |
-| Label: Glyph                  | char R14                          | Size, Color | Main: font R13, weight R5b                                                                                                                                                                                                                                                                               |
-| Tooltip, External label       | text source R12                   | Size, Color | 7.3                                                                                                                                                                                                                                                                                                      |
-| Record                        | fields R15r                       | -           | Main: Fields R15 (`shapeTexts`: point, text R12). Table: the label table editor R15, cell picture R7, padding R5, font R13                                                                                                                                                                               |
-| Size                          | size R5                           | -           | Main: Unit R8f, sizeMode R8f, width \| height, keep ratio R7, depth R5, relativeExtents, planar R7. Fit to label: labelFit R8, padding X \| Y, labelFitSquare R7, labelFitQuantum R5, labelFitImage R7, labelFitImagePadding R5                                                                          |
-| Shape: Basic shape            | shape R10                         | -           | Main: shapeRotation R5. Corners (by shape): cornerRadius R5, exactCornerRadius R7, cornerFraction R5. Custom shape: shapePoints R15, shapeStretchPoints R7, shapeParts R15, inner lines R15, inner line width R5, inner line backing color R1 and width R5. Mesh (3D only): meshDetail R5b, wireframe R7 |
-| Shape: Model                  | model R16                         | -           | Main: Fallback shape R10, modelTint R9, modelFit R8f, modelCenter R8. Orient: modelSourceUp R9, modelTurn R5, modelDoubleSided R8f. Animation: modelAnimation R9, speed \| offset                                                                                                                        |
-| Shape: replace shader         | preset R10                        | -           | Main: ShaderParamRows R16; reach, minSize R5                                                                                                                                                                                                                                                             |
-| Border                        | color R1                          | Width       | Main: Unit R8, opacity R5, style R10, position R8 icons. Wave (wavy styles): amplitude \| period                                                                                                                                                                                                         |
-| Visibility                    | shown R8 Shown / Hidden           | -           | Main: By data (2.6)                                                                                                                                                                                                                                                                                      |
-| Ring                          | color R1                          | Width       | Main: opacity R5, style R10, offset R5, count R5                                                                                                                                                                                                                                                         |
-| Shader use                    | preset R10 (`ShaderGallery`)      | -           | Main: params R16, reach, minSize R5                                                                                                                                                                                                                                                                      |
-| Glow                          | color R1                          | Strength    | -                                                                                                                                                                                                                                                                                                        |
-| Drop shadow                   | color R1                          | -           | Main: Show, opacity, blur R5, offset X \| Y                                                                                                                                                                                                                                                              |
-| Raised edge (2D only)         | width R5                          | -           | Main: lightColor R1, darkColor R1                                                                                                                                                                                                                                                                        |
-| Plate: Behind, Over (2D only) | color R1                          | -           | Main: Show, opacity, padding R5, shape R10 (the element's backdrop shape list), cornerRadius R5                                                                                                                                                                                                          |
+| Thing                                  | Row                               | Lines       | Popover                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------- | --------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fill: Solid                            | color R1                          | -           | -                                                                                                                                                                                                                                                                                                        |
+| Fill: Gradient                         | stops (`GradientRow`)             | -           | Main: kind R8 icons, direction R5 or center X \| Y and radius R5 (by kind), endColor R1, opacity R5                                                                                                                                                                                                      |
+| Image                                  | image R16                         | Opacity     | Main: Wrap around shape R7, imageFit R9, fallback R16. Size: width \| height or pixelSize R5 (by fit), autoSize R8f, keep aspect R7. Place: position X \| Y, offset X \| Y. Tiling: repeat R8 icons, clip R8, smoothing R7                                                                               |
+| Stripes                                | colors R15r                       | -           | Main: Stripes R15 (color, size, opacity), direction R8 icons, size R5. Frame: R17                                                                                                                                                                                                                        |
+| Pie                                    | slices R15r                       | -           | Main: Slices R15 (color, size, opacity). Disc: hole, radius, rotation R5, pieFitBox R7, offset X \| Y                                                                                                                                                                                                    |
+| Chart                                  | kind R10                          | -           | Main: values R12, colors R15, min \| max, horizontal R7 (by kind). Box: size or width \| height, offset X \| Y, margin, gap R5. Strokes: lineWidth R5, borderColor R1, borderWidth R5, backgroundColor R1                                                                                                |
+| Finish (3D only)                       | shading R10 (Smooth, Flat, Unlit) | -           | -                                                                                                                                                                                                                                                                                                        |
+| Label: Text, Card, Dark, Pill, Callout | text source R12                   | Size, Color | 7.3                                                                                                                                                                                                                                                                                                      |
+| Label: Glyph                           | char R14                          | Size, Color | Main: font R13, weight R5b                                                                                                                                                                                                                                                                               |
+| Tooltip, External label                | text source R12                   | Size, Color | 7.3                                                                                                                                                                                                                                                                                                      |
+| Record                                 | fields R15r                       | -           | Main: Fields R15 (`shapeTexts`: point, text R12). Table: the label table editor R15, cell picture R7, padding R5, font R13                                                                                                                                                                               |
+| Size                                   | size R5                           | -           | Main: Unit R8f, sizeMode R8f, width \| height, keep ratio R7, depth R5, relativeExtents, planar R7. Fit to label: labelFit R8, padding X \| Y, labelFitSquare R7, labelFitQuantum R5, labelFitImage R7, labelFitImagePadding R5                                                                          |
+| Shape: Basic shape                     | shape R10                         | -           | Main: shapeRotation R5. Corners (by shape): cornerRadius R5, exactCornerRadius R7, cornerFraction R5. Custom shape: shapePoints R15, shapeStretchPoints R7, shapeParts R15, inner lines R15, inner line width R5, inner line backing color R1 and width R5. Mesh (3D only): meshDetail R5b, wireframe R7 |
+| Shape: Model                           | model R16                         | -           | Main: Fallback shape R10, modelTint R9, modelFit R8f, modelCenter R8. Orient: modelSourceUp R9, modelTurn R5, modelDoubleSided R8f. Animation: modelAnimation R9, speed \| offset                                                                                                                        |
+| Shape: replace shader                  | preset R10                        | -           | Main: ShaderParamRows R16; reach, minSize R5                                                                                                                                                                                                                                                             |
+| Border                                 | color R1                          | Width       | Main: Unit R8, opacity R5, style R10, position R8 icons. Wave (wavy styles): amplitude \| period                                                                                                                                                                                                         |
+| Visibility                             | shown R8 Shown / Hidden           | -           | -                                                                                                                                                                                                                                                                                                        |
+| Ring                                   | color R1                          | Width       | Main: opacity R5, style R10, offset R5, count R5                                                                                                                                                                                                                                                         |
+| Shader use                             | preset R10 (`ShaderGallery`)      | -           | Main: params R16, reach, minSize R5                                                                                                                                                                                                                                                                      |
+| Glow                                   | color R1                          | Strength    | -                                                                                                                                                                                                                                                                                                        |
+| Drop shadow                            | color R1                          | -           | Main: Show, opacity, blur R5, offset X \| Y                                                                                                                                                                                                                                                              |
+| Raised edge (2D only)                  | width R5                          | -           | Main: lightColor R1, darkColor R1                                                                                                                                                                                                                                                                        |
+| Plate: Behind, Over (2D only)          | color R1                          | -           | Main: Show, opacity, padding R5, shape R10 (the element's backdrop shape list), cornerRadius R5                                                                                                                                                                                                          |
 
 ### 7.2 Edge
 
@@ -486,7 +499,7 @@ a sub-group added with "+"; "|" a pair.
 | Label, External label                                     | text source R12    | Size, Color | 7.3                                                                                                                                                                                                              |
 | End caption: Target, Source                               | text source R12    | Size, Color | 7.3, Position adds distance R5                                                                                                                                                                                   |
 | Record                                                    | fields R15r        | -           | as node Record (`edge.labelTable`)                                                                                                                                                                               |
-| Visibility                                                | shown R8           | -           | Main: By data (2.6)                                                                                                                                                                                              |
+| Visibility                                                | shown R8           | -           | -                                                                                                                                                                                                                |
 | Shader use                                                | preset R10         | -           | Main: params R16, reach R5                                                                                                                                                                                       |
 | Animation                                                 | animationSpeed R5  | -           | -                                                                                                                                                                                                                |
 
@@ -507,7 +520,7 @@ homes.
 
 | Sub-group           | Lines                                                                                                                                                                                                |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Main (always shown) | Show R7 (`enabled`); look R9 (Plain / Card / Dark / Pill / Callout); font R13; weight R5b; italic R7 (its own line, E674); textAlign R8 icons; location R2; Unit R8f (`sizeMode`)                    |
+| Main (always shown) | Show R7 (`enabled`); font R13; weight R5b; italic R7 (its own line, E674); textAlign R8 icons; location R2; Unit R8f (`sizeMode`); the look is the row's kind (2.3), never a line here               |
 | Position            | attachOffset R5, offset X \| Y, box R8f, onTop R7, shift X \| Y, shiftOf R8, gapOf R8, keepInView R7                                                                                                 |
 | Letters             | opacity, lineHeight, rotation R5; runAlign R8f; Letter outline R1 (`outline`), Letter outline width R5, Letter outline opacity R5                                                                    |
 | Wrap                | width \| maxLines, Break anywhere R7 (`wrapAnywhere`), Cut long lines R7 (`wrapEllipsis`), Ellipsis at max lines R7, keepBlankLines R7, wrapTrailingSpace R7, wrapSkipEndSpace R7, wrapSpaceCount R5 |
@@ -518,9 +531,9 @@ homes.
 | Badge               | badge R9, then its kind's lines: Icon beside text R14 (`icon`), Icon side R8 icons (`iconPosition`); or progress R5; or maxNumber R5, overflowSuffix R14, smartOverflow R7                           |
 | Behavior            | minScreenSize R5, declutter R8, minNodeScreenSize R5, depthFade R7, near \| far, animation R9, animationSpeed R5, pickable R7, closeButton R7                                                        |
 
-The **Callout** look and the **Callout** group are one home: the look is a preset that writes the box fields
+The **Callout** kind and the **Callout** group are one home: the kind is a look that writes the box fields
 and the Callout group's fields (`pointer`, `pointerDirection`), and those fields show in the Callout group like
-any other set line. Choosing the look adds no setting the Callout group does not hold.
+any other set line. Choosing the kind adds no setting the Callout group does not hold.
 
 The "+" menu holds the sub-groups after Main. Every one of the label fields is reachable from the label row's
 popover by clicks (E673).
@@ -626,8 +639,7 @@ Made since, on the style panel branch:
 
 - `drawnWhen` with `channelDrawn` / `labelFieldDrawn`, and a shader's `views`: the facts behind every "2D only"
   and "3D only" dimming. The raised edge (`node.raisedBorder*`), the node underlay and overlay (Plate) and the
-  edge overlay (Outline, Over line) are drawn in the 2D view only. Edge underlay is also marked 2D only for now;
-  that is interim until fix 1 folds `edge.underlay*` into `edge.outline*` (Outline, Under line), which draws in
+  edge overlay (Outline, Over line) are drawn in the 2D view only; the Under line (`edge.outline*`) draws in
   both views.
 - `needs` and `start` (the values "+" writes), `modifies`, declared defaults and `suggestedMax`, the
   `catalog.shaders` filter by place, `labelFieldOf` for every text kind, shader parameter and list item
@@ -646,8 +658,7 @@ Made since, on the style panel branch:
 
 Still to land, from the style grouping study (`ia-design.md`, section 5): (fix 1) one channel family for the
 edge casing, `edge.band*` and `edge.underlay*` folded into `edge.outline*`; (fix 2) edge tooltips; (fix 4)
-`node.marker`, which nothing draws, removed. Until fix 1 lands the panel keeps its current rows for the edge
-band and underlay channels, so no channel is ever without a row.
+`node.marker`, which nothing draws, removed.
 
 ### 10.3 Home table and its test
 
@@ -691,7 +702,7 @@ bar.
 1. Basic shape (star, size) -> a replace shader -> Basic shape keeps the row's name, place, height and Size row
    and brings back the star; after another row was selected, one undo does. Every family and kind row has the
    same Switch to on the row, and no popover has a Switch to strip.
-2. Depth is panel, one popover, one picker; no tabs; no sub-group passes 8 lines; no menu passes 12 items.
+2. Depth is panel, one popover, one picker; no tabs; no sub-group passes 10 lines; no menu passes 12 items.
 3. Every value list over 12 shows at most 12 rows at a time; every catalog value is in one section.
 4. Every "+" is on a section header, a list legend or a popover header, and is the only button there; a section
    collapses only from its caret; "-" then "...", with "..." at the far right of every row; no control overlays
@@ -700,7 +711,8 @@ bar.
 6. No pill, chip, badge, caption, count, sentence or default anywhere in the panel, popovers or lists, including
    a bound value and the list search placeholder (`SidebarControls` with the flag on).
 7. Glyphs, list rows and pickers are today's; new glyphs only from section 6; no line carries a glyph or toggle
-   the other lines lack.
+   the other lines lack, except the three section 6 allows (Switch to on family and kind rows, the link on a
+   bound value, the scrub letter on a number field).
 8. Every set value is visible in the panel or its thing's popover with a visible "-"; Off never changes another
    value.
 9. Setting label color and size on a Hubs layer draws one label per node.

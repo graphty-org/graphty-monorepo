@@ -22,6 +22,10 @@
 // (the job name before " (", as "Story tests" in "CI / Story tests (layout)") runs fewer legs than its
 // full-run max-parallel (FULL_RUN_MAX_PARALLEL; a job not listed there counts whenever it is queued). The
 // release run is waiting when it has such a job and holds fewer than RELEASE_SHARE in-progress hosted jobs.
+// A pull request that fixes a red master or a red full run never waits (#9473: the fix for a red full run sat 90
+// minutes behind ordinary pull requests): one from a revert/<sha7> branch, or one whose title, body or commits name
+// an open alarm issue (ALARM_SEARCH, the title search the rounds use, checked against ALARM_TITLE) with Fixes or
+// Refs. A closed or non-alarm issue still waits. It costs at most one commits listing and one issue search.
 // Only earlier runs count, so the oldest waiting run always proceeds: no deadlock. A canceled or superseded
 // run is completed and frees its place at once.
 //
@@ -40,9 +44,9 @@
 //   gh variable set CI_PR_JOB_BUDGET --repo graphty-org/graphty-monorepo --body 120   (fewer pull request jobs)
 //   gh variable set CI_PR_RUN_CAP --repo graphty-org/graphty-monorepo --body off      (no run count limit)
 // Either "off" removes that limit; both off waits for nothing.
-// Environment: GITHUB_TOKEN (actions: read, checks: read), GITHUB_REPOSITORY, GITHUB_RUN_ID, CAP, BUDGET,
-// GITHUB_STEP_SUMMARY.
-import { appendFileSync } from "node:fs";
+// Environment: GITHUB_TOKEN (actions: read, checks: read), GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_EVENT_PATH, CAP,
+// BUDGET, GITHUB_STEP_SUMMARY.
+import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 export const POLL_SECONDS = 60;
@@ -68,6 +72,44 @@ export const MASTER_SHARE = 30;
 // the hosted jobs GitHub ran at once for this repository, never more, measured 2026-11-13 (176-184)
 const RUNNER_CEILING = 180;
 export const DEFAULT_BUDGET = RUNNER_CEILING - RELEASE_SHARE - MASTER_SHARE;
+// the open alarm issues a red fix names: the rounds' title search, then the titles it means
+// (tools/refresh-inherited-prs.mjs ALARM, less its flaky-test titles)
+export const ALARM_SEARCH = '"Full run red" OR "Failing on master" OR "Red master" OR "lane red on master" in:title';
+export const ALARM_TITLE = /^(?:Full run red:|Failing on master\b|Red master:)|\blane red on master\b/i;
+const REVERT_BRANCH = /^revert\/[0-9a-f]{7,40}$/;
+const ISSUE_REF = /\b(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?|refs?)\b:?\s+#(\d+)/gi;
+
+/**
+ * The issue numbers a text names with Fixes, Closes, Resolves or Refs.
+ * @param text a pull request's title, body or commit messages
+ * @returns the numbers
+ */
+export function namedIssues(text) {
+    return new Set([...(text ?? "").matchAll(ISSUE_REF)].map((m) => Number(m[1])));
+}
+
+/**
+ * Why this pull request fixes a red master or full run and skips the wait, or null.
+ * @param pr the event payload's pull_request ({ number, title, body, head: { ref } })
+ * @param repo owner/name
+ * @param api path -> parsed JSON (a path starting with "/" is under the API root, not the repository)
+ * @returns the reason, or null
+ */
+export async function redFix(pr, repo, api) {
+    if (REVERT_BRANCH.test(pr.head?.ref ?? "")) return `branch ${pr.head.ref} reverts a master commit`;
+    let nums = namedIssues(`${pr.title ?? ""}\n${pr.body ?? ""}`);
+    if (nums.size === 0) {
+        const commits = await api(`pulls/${pr.number}/commits?per_page=100`);
+        nums = namedIssues(commits.map((c) => c.commit?.message ?? "").join("\n"));
+    }
+    if (nums.size === 0) return null;
+    const q = encodeURIComponent(`repo:${repo} is:issue is:open ${ALARM_SEARCH}`);
+    const found = await api(`/search/issues?q=${q}&per_page=100`);
+    const alarm = found.items.find(
+        (i) => nums.has(i.number) && i.state === "open" && !i.pull_request && ALARM_TITLE.test(i.title),
+    );
+    return alarm ? `it fixes the open alarm #${alarm.number}` : null;
+}
 
 /**
  * The parsed cap.
@@ -203,6 +245,8 @@ export async function check({ me, cap, budget, api }) {
  * @param opts.now the clock, in ms
  * @param opts.log where the progress lines go
  * @param opts.maxWaitSeconds the longest wait, after which the run proceeds
+ * @param opts.pr the event payload's pull_request, to let a red fix skip the wait (none: it waits as usual)
+ * @param opts.repo owner/name, for the alarm issue search
  * @returns waitedSeconds, outcome and the number of checks made
  */
 export async function waitTurn({
@@ -214,10 +258,24 @@ export async function waitTurn({
     now = Date.now,
     log = console.log,
     maxWaitSeconds = MAX_WAIT_MINUTES * 60,
+    pr = null,
+    repo = "",
 }) {
     const start = now();
     let checks = 0;
     if (cap === null && budget === null) return { waitedSeconds: 0, outcome: "no cap", checks };
+    if (pr) {
+        try {
+            const why = await redFix(pr, repo, api);
+            if (why) {
+                log(`Run cap: no wait, ${why}`);
+                return { waitedSeconds: 0, outcome: "red fix", checks };
+            }
+        } catch (e) {
+            // not knowing is no reason to jump the queue: wait as usual
+            log(`::warning::Run cap: could not tell whether this fixes a red master (${e.message})`);
+        }
+    }
     try {
         const me = await api(`actions/runs/${runId}`);
         for (;;) {
@@ -241,10 +299,11 @@ export async function waitTurn({
 }
 
 async function main() {
-    const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_STEP_SUMMARY } = process.env;
+    const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_STEP_SUMMARY, GITHUB_EVENT_PATH } = process.env;
     const base = process.env.GITHUB_API_URL ?? "https://api.github.com";
     const api = async (path, body) => {
-        const res = await fetch(body ? `${base}/graphql` : `${base}/repos/${GITHUB_REPOSITORY}/${path}`, {
+        const url = path.startsWith("/") ? `${base}${path}` : `${base}/repos/${GITHUB_REPOSITORY}/${path}`;
+        const res = await fetch(body ? `${base}/graphql` : url, {
             method: body ? "POST" : "GET",
             body: body && JSON.stringify(body),
             headers: { authorization: `Bearer ${GITHUB_TOKEN}`, accept: "application/vnd.github+json" },
@@ -258,7 +317,14 @@ async function main() {
     const cap = parseCap(process.env.CAP);
     const budget = parseBudget(process.env.BUDGET);
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const r = await waitTurn({ cap, budget, api, runId: Number(GITHUB_RUN_ID), sleep });
+    let pr = null;
+    try {
+        pr = JSON.parse(readFileSync(GITHUB_EVENT_PATH, "utf8")).pull_request ?? null;
+    } catch {
+        // no event payload: wait as usual
+    }
+    const runId = Number(GITHUB_RUN_ID);
+    const r = await waitTurn({ cap, budget, api, runId, sleep, pr, repo: GITHUB_REPOSITORY });
     const line = `Run cap (${cap ?? "off"} runs, ${budget ?? "off"} jobs): waited ${r.waitedSeconds} s for a turn, ${r.checks} check(s), ${r.outcome}.`;
     console.log(line);
     if (GITHUB_STEP_SUMMARY) appendFileSync(GITHUB_STEP_SUMMARY, `${line}\n`);

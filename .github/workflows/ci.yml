@@ -147,6 +147,9 @@ jobs:
             contents: read
             actions: read
             checks: read
+            # a red fix skips the wait: its commits and the open alarm issues they name (#9473)
+            pull-requests: read
+            issues: read
         steps:
             - uses: actions/checkout@v7
               if: github.event_name == 'pull_request'

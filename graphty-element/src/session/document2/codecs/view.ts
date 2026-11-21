@@ -1409,7 +1409,9 @@ async function addParts(r: Reader, parts: readonly ReadLayer[]): Promise<string[
         }
     });
     if (parts.some((part) => part.hidden)) {
-        await tx.styles.hideRow(ids[0], true);
+        // A row is known by its key (its node part's id), never by its edge part's.
+        const row = tx.styles.list().find((layer) => layer.id === ids[0])?.row ?? ids[0];
+        await tx.styles.hideRow(row, true);
     }
 
     return ids;

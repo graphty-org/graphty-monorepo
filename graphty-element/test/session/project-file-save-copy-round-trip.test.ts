@@ -55,8 +55,8 @@ async function appSession(): Promise<GraphSession> {
 }
 
 /**
- * The project: a file's nodes placed, a "Fraud ring" row of three named nodes, a hidden layer
- * over everything, and a betweenness run's layer, hidden too.
+ * The project: a file's nodes placed, a hidden "Fraud ring" row of three named nodes and the edges
+ * among them, a hidden layer over everything, and a betweenness run's layer, hidden too.
  * @returns The session.
  */
 async function bankCase(): Promise<GraphSession> {
@@ -84,7 +84,6 @@ async function bankCase(): Promise<GraphSession> {
     assert.isDefined(runLayer, "the run made its layer");
     await session.styles.hideRow(runLayer?.id ?? "", true);
     await session.styles.hideRow(ring.id, true);
-    await session.styles.hideRow(ring.id, false);
     await session.styles.settled();
     return session;
 }

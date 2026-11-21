@@ -20,7 +20,7 @@ import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import { GraphtyError } from "./errors/GraphtyError";
 import type { Graph } from "./Graph";
-import { type EdgePosition, layoutEngineInternals } from "./layout/LayoutEngine";
+import { type EdgePosition, layoutEngineInternals, laysEdgeRoutes } from "./layout/LayoutEngine";
 import type { LocationMapFrame } from "./layout/locationMap/place";
 import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
@@ -3139,6 +3139,8 @@ export class Edge {
         return (
             (pulledEdgesDefault.value || (this.context.getNodeBatches?.() ?? null) !== null) &&
             pulledLook(style) &&
+            // a route the layout lays itself (Graphviz's splines) is followed by a placed line, never a pulled one
+            !laysEdgeRoutes(this.context.getLayoutManager().layoutEngine) &&
             // a group, or a 2D node below z-index 0, ends the line at its outline (`Edge.groupEnd`), not its center
             !this.endBehindEdges("source") &&
             !this.endBehindEdges("target") &&

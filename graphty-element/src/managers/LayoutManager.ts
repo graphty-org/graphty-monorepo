@@ -28,7 +28,6 @@ import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutWarningEvent } from "../events";
 import { D3GraphEngine, type D3RowSource, type RowExtent, spacingOf } from "../layout/D3GraphLayoutEngine";
-import { FixedLayout } from "../layout/FixedLayoutEngine";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { laidGroupMargins } from "../layout/groupMargins";
 import { labelBounds, paddedBox, sizedGroupBox } from "../layout/groupSizing";
@@ -37,6 +36,7 @@ import {
     LayoutEngine,
     layoutEngineInternals,
     type LayoutEngineStatics,
+    laysEdgeRoutes,
     simpleLayoutInternals,
     StaticLayoutEngine,
 } from "../layout/LayoutEngine";
@@ -1874,7 +1874,7 @@ export class LayoutManager implements Manager {
             };
         }
 
-        if (!placesLateRows(engine) || readsEdges(engine)) {
+        if (!placesLateRows(engine) || laysEdgeRoutes(engine)) {
             return null;
         }
 
@@ -3618,22 +3618,6 @@ const WHAT_RELAYOUT_IS = "the layout is being run again over what is shown";
  */
 function validRow(index: number): boolean {
     return Number.isInteger(index) && index >= 0 && index !== INVALID_INDEX;
-}
-
-/**
- * Whether an engine that lays out by row still builds its structure from the `Edge`s it holds:
- * Graphviz, and `fixed` when it routes edges through Graphviz, read `_edges` and key their routes
- * by `Edge`, so an edge stored under them with no `Edge` would be laid out as absent.
- * @param engine - The engine, or none.
- * @returns True for an engine that needs an `Edge` for every edge.
- */
-function readsEdges(engine: LayoutEngine | undefined): boolean {
-    if (engine instanceof FixedLayout) {
-        return engine.config.edgeRoutes === "graphviz";
-    }
-
-    const type = (engine?.constructor as { type?: unknown } | undefined)?.type;
-    return typeof type === "string" && type.startsWith("graphviz-");
 }
 
 /**

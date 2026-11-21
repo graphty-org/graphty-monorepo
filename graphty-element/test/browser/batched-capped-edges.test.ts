@@ -232,3 +232,38 @@ describe.each(RENDERERS.flatMap((renderer) => VIEWS.map((view) => [renderer, vie
         }
     },
 );
+
+// A route the layout lays itself (Graphviz's splines) is followed by an `Edge`'s placed line: a line pulled from the row
+// table would run straight between its nodes.
+describe("an edge Graphviz routes on the batched path", () => {
+    /**
+     * Mount a 2D element laid out by Graphviz's dot, its edges in the directed default look.
+     * @param path - The render path.
+     * @returns The element, its picture final.
+     */
+    async function dotLaid(path: RenderPath): Promise<Graphty> {
+        const element = document.createElement("graphty-element");
+        element.renderPath = path;
+        element.viewMode = "2d";
+        element.style.display = "block";
+        element.style.width = "400px";
+        element.style.height = "300px";
+        document.body.appendChild(element);
+        await element.updateComplete;
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.graph.setLayout("graphviz-dot");
+        await element.session.data.addNodes(NODES.map(({ id }) => ({ id })));
+        await element.session.data.addEdges(EDGES);
+        await settled(element);
+        return element;
+    }
+
+    it("is drawn as the objects path draws it, along its route", async () => {
+        const objects = await dotLaid("objects");
+        const want = await readCanvas(objects.graph);
+        objects.remove();
+        const batched = await dotLaid("batched");
+        assert.equal(batched.graph.rowCounts.pulledEdges, 0, "no routed line is pulled");
+        assert.equal(pixelsOverBar(want, await readCanvas(batched.graph)), 0);
+    });
+});

@@ -405,6 +405,22 @@ export const layoutEngineInternals = {} as {
  * a view reads them by index and allocates nothing, and a GPU layout can write into the same rows.
  */
 /**
+ * Whether an engine lays each edge's route itself (Graphviz's splines, and `fixed` when it routes edges through
+ * Graphviz): such a route is read from the `Edge` it keys, and a line drawn from the row table would run straight.
+ * Read by shape, so a caller need not import the engines.
+ * @param engine - The engine, or none.
+ * @returns True for an engine that lays edge routes.
+ */
+export function laysEdgeRoutes(engine: LayoutEngine | undefined): boolean {
+    if ((engine as { config?: { edgeRoutes?: unknown } } | undefined)?.config?.edgeRoutes === "graphviz") {
+        return true;
+    }
+
+    const type = (engine?.constructor as { type?: unknown } | undefined)?.type;
+    return typeof type === "string" && type.startsWith("graphviz-");
+}
+
+/**
  * The edges an engine holds against the edges drawn: each drawn edge held exactly once, and
  * nothing held that is not drawn.
  * @param held - What the engine holds.

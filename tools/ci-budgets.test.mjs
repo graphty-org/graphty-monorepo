@@ -183,6 +183,16 @@ describe("report", () => {
         );
     });
 
+    it("gives a job a re-run attempt carried over no queue row, not a negative one", () => {
+        // attempt 2's listing: the carried-over Build keeps attempt 1's times under attempt 2's created_at
+        const carried = { ...jobs[0], created_at: "2026-10-24T11:05:00Z" };
+        const rows = rowsFromJobs({ ...run, created_at: "2026-10-24T11:05:00Z" }, [carried], "full");
+        assert.deepEqual(
+            rows.filter((r) => r.level === "queue" || r.level === "job").map((r) => [r.key, r.seconds]),
+            [["job:ci.yml:Build", 813]],
+        );
+    });
+
     it("lists a full run's alarm under the row's key with the run's own time, and strikes it when back under", async () => {
         const issues = [];
         const gh = async (path, init) => {

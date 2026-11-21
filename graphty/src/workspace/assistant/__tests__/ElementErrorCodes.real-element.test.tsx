@@ -14,6 +14,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
+import { scriptEnable } from "../../../test/element-prototype";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { readAssistantChoice, writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
@@ -45,18 +46,11 @@ beforeEach(async () => {
         indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
     });
     refuse = () => false;
-    const tag = customElements.get("graphty-element") as unknown as {
-        prototype: HTMLElementTagNameMap["graphty-element"];
-    };
-    const realEnable = tag.prototype.enableAiControl;
-    vi.spyOn(tag.prototype, "enableAiControl").mockImplementation(async function enable(
-        this: HTMLElementTagNameMap["graphty-element"],
-        config: AiManagerConfig,
-    ) {
+    scriptEnable((config) => {
         if (refuse(config)) {
             throw missingPackage();
         }
-        await realEnable.call(this, { ...config, apiKey: "stand-in-key", providerInstance: new MockLlmProvider() });
+        return { ...config, apiKey: "stand-in-key", providerInstance: new MockLlmProvider() };
     });
 });
 

@@ -8,12 +8,13 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/ai";
+import { MockLlmProvider } from "@graphty/graphty-element/ai";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
+import { scriptEnable } from "../../../test/element-prototype";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
@@ -69,20 +70,6 @@ class ScriptedModel extends MockLlmProvider {
 }
 
 let model = new ScriptedModel();
-
-/** Every enable reaches the scripted model instead of the network. */
-function scriptEnable(): void {
-    const tag = customElements.get("graphty-element") as unknown as {
-        prototype: HTMLElementTagNameMap["graphty-element"];
-    };
-    const real = tag.prototype.enableAiControl;
-    vi.spyOn(tag.prototype, "enableAiControl").mockImplementation(async function enable(
-        this: HTMLElementTagNameMap["graphty-element"],
-        config: AiManagerConfig,
-    ) {
-        await real.call(this, { ...config, providerInstance: model });
-    });
-}
 
 /**
  * The workspace with three nodes and the panel open on the mock provider.
@@ -153,7 +140,7 @@ describe("a reply's steps", () => {
             indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
         });
         model = new ScriptedModel();
-        scriptEnable();
+        scriptEnable((config) => ({ ...config, providerInstance: model }));
     });
 
     afterEach(() => {

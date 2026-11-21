@@ -6,7 +6,7 @@
  * holds the rest, while the same row stays selected, so switching back brings them back.
  */
 
-import { type Channel, channelDescriptor } from "@graphty/graphty-element/catalog";
+import { type Channel, channelDescriptor, edgeBandWidthAs } from "@graphty/graphty-element/catalog";
 import type { Encoding, Layer, StaticStyle } from "@graphty/graphty-element/session";
 
 import { itemChannels, partsFor } from "../parts/parts";
@@ -189,9 +189,8 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         side: "edge",
         thing: "outline",
         items: ["outline", "overlay"],
-        // A band twice an overlay's padding across is an outline of scale 0 that wide (each channel's caveat), so a
-        // switch carries that band exactly; any other band starts at the kind's own start, which at the default line
-        // is the same width (ia-design 2).
+        // A switch carries the band's width where graphty-element reads it as the other kind (edgeBandWidthAs); any
+        // other band starts at the kind's own start, which at the default line is the same width (ia-design 2).
         members: [
             // Opaque, as graphty-element draws an outline unset.
             prefixKind(
@@ -200,15 +199,12 @@ export const KIND_GROUPS: readonly KindGroup[] = [
                 "edge.outlineColor",
                 { color: "edge.outlineColor" },
                 "edge.outline",
-                (_moved, left) => {
-                    const padding = left["edge.overlayPadding"];
-                    return {
-                        "edge.outlineOpacity": channelDescriptor("edge.outlineOpacity")?.default,
-                        ...(typeof padding === "number"
-                            ? { "edge.outlineScale": 0, "edge.outlineWidth": 2 * padding }
-                            : { "edge.outlineWidth": startsOf("edge.outlineColor")["edge.outlineWidth"] }),
-                    };
-                },
+                (_moved, left) => ({
+                    "edge.outlineOpacity": channelDescriptor("edge.outlineOpacity")?.default,
+                    ...(edgeBandWidthAs("outline", left) ?? {
+                        "edge.outlineWidth": startsOf("edge.outlineColor")["edge.outlineWidth"],
+                    }),
+                }),
             ),
             // Translucent at 30% (ia-design 2), as wide as the Under line was.
             prefixKind(
@@ -217,16 +213,12 @@ export const KIND_GROUPS: readonly KindGroup[] = [
                 "edge.overlayColor",
                 { color: "edge.overlayColor" },
                 "edge.overlay",
-                (_moved, left) => {
-                    const width = left["edge.outlineWidth"];
-                    return {
-                        "edge.overlayOpacity": 0.3,
-                        "edge.overlayPadding":
-                            left["edge.outlineScale"] === 0 && typeof width === "number"
-                                ? width / 2
-                                : startsOf("edge.overlayColor")["edge.overlayPadding"],
-                    };
-                },
+                (_moved, left) => ({
+                    "edge.overlayOpacity": 0.3,
+                    ...(edgeBandWidthAs("overlay", left) ?? {
+                        "edge.overlayPadding": startsOf("edge.overlayColor")["edge.overlayPadding"],
+                    }),
+                }),
             ),
         ],
     },

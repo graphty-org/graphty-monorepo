@@ -129,12 +129,15 @@ export default defineConfig({
             // `@graphty/webgpu-graph-algorithms` and its `/browser` subpath in an import map gets
             // WebGPU acceleration, and without one `capabilities.acceleration` reports
             // `E_MISSING_PACKAGE` and nothing is printed.
+            // @graphty/gazetteer, the location map's place names (6.6 MB of data), is left out too: a page
+            // maps it in an import map, and without one a map by place name rejects with `E_MISSING_PACKAGE`.
             external: [
                 "@mlc-ai/web-llm",
                 "@hpcc-js/wasm-graphviz",
                 "neo4j-driver",
                 "@graphty/webgpu-graph-algorithms",
                 "@graphty/webgpu-graph-algorithms/browser",
+                "@graphty/gazetteer",
             ],
             output: {
                 // Vite 8 warns that this is deprecated in favour of `codeSplitting: false`,

@@ -4,6 +4,7 @@
         "small-node": [
             "graph-format",
             "graph-samples",
+            "gazetteer",
             "babylonjs-map",
             "babylonjs-models",
             "cytoscape-extensions",
@@ -26,6 +27,7 @@
     "memberSeconds": {
         "graph-format": 78,
         "graph-samples": 39,
+        "gazetteer": 5,
         "babylonjs-map": 3,
         "babylonjs-models": 4,
         "cytoscape-extensions": 15,

@@ -8,6 +8,9 @@ storybook-static/
 # graph-samples' hosted datasets: written by `npm run datasets:hosted`, ignored by
 # graph-samples/.gitignore, which prettier does not read (it reads only the root .gitignore)
 graph-samples/public-data/
+# gazetteer's layers: written by gazetteer/scripts/build-gazetteer.mjs one place per line, which prettier
+# would spread over a line per field
+gazetteer/data/
 # pipeline-health's CDK synth output: written by `pnpm run synth`, ignored by tools/pipeline-health/.gitignore
 tools/pipeline-health/cdk.out/
 # benchmark page builds: written by benchmarks/compare, ignored by benchmarks/.gitignore

@@ -2807,7 +2807,17 @@ export class DataManager implements Manager {
      * @param index - Its row.
      */
     private paintBuiltRow(node: Node, index: number): void {
-        const paint = this.graphContext?.getStylePainter?.()?.nodePaint(index) ?? null;
+        const painter = this.graphContext?.getStylePainter?.();
+        // NOT WHILE A PASS IS PAINTING, for the reason `UpdateManager.syncStyles` gives (#440): the
+        // row's paint is then the key from before the pass with a style from the middle of it, and
+        // the mesh built from that pair is kept when the pass announces the same key (#9414). The
+        // row is already queued, so the frame after the pass draws it; until then the `Node` keeps
+        // the look the batch drew it with.
+        if (painter?.isPainting === true) {
+            return;
+        }
+
+        const paint = painter?.nodePaint(index) ?? null;
         if (paint === null) {
             return;
         }

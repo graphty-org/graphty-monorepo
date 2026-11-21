@@ -463,7 +463,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     // The Plate item's rows (kindGroups.ts, C2), by the kind's color.
     "plate:node.underlayColor": backdrop("underlay"),
     "plate:node.overlayColor": backdrop("overlay"),
-    visibility: { row: { channel: "node.visible", name: null, rule: "R8" }, main: [] },
+    visibility: { row: { channel: "node.visible", name: "Visible", rule: "R8" }, main: [] },
     // The Label row's Glyph kind (kindGroups.ts).
     "label:node.glyph": {
         common: [{ channel: "node.glyphColor", name: "Color" }],
@@ -705,7 +705,7 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { channel: "edge.overlayOpacity", name: "Opacity" },
         ],
     },
-    visibility: { row: { channel: "edge.visible", name: null, rule: "R8" }, main: [] },
+    visibility: { row: { channel: "edge.visible", name: "Visible", rule: "R8" }, main: [] },
     // An edge Record is its label table (design 4.2), its rows the list editor's (R15, `ItemList.tsx`).
     record: { rowOwns: ["edge.labelTable"], main: [] },
 };

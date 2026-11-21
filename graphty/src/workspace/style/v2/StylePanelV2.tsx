@@ -313,8 +313,9 @@ function ThingSection({
     // The thing "+" just added whose pop-over or picker opens at once (a list, an image).
     const [opening, setOpening] = useState<string | undefined>(undefined);
     const { things, shown } = thingsOf(ctx, part, section, waiting);
-    // A one-only thing leaves the menu once set; Label stays, disabled, until a node can hold several
-    // labels (design 7.4: list-valued labels are not in graphty-element yet).
+    // A one-only thing leaves the menu once set. Label stays, disabled, once one is set: OPEN GAP (implementation
+    // plan task 6.5, ledger E265). graphty-element draws several labels per node or edge (`node.labels`,
+    // `edge.labels`, since 493ff8bd75); this panel does not yet give each entry a row, so "+" cannot add a second.
     const groups: AddOption[][] = [
         ...things.map((group) =>
             group.flatMap(({ thing }): AddOption[] => {

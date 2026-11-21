@@ -52,8 +52,8 @@ interface RenamedColumn {
  * column becomes a data field of the same name, except that one named `id`, `source`, `target` or `parent` (which
  * Cytoscape reserves) becomes `<name>#<the attribute's id in the file>`, or `<name>#2` when it has none, and:
  * - a node column with the role "position" becomes the node's position (x and y; a z is dropped), turned over when
- *   its y grows up (the default for a cartesian column, and north for a geographic one), since Cytoscape's y grows
- *   down;
+ *   its y grows up (the default for a cartesian column), since Cytoscape's y grows down; a geographic column is not a
+ *   position and stays a data field, for the graphty-geographic layout to place;
  * - a node column with the role "parent" (a compound parent, as Cytoscape JSON, GraphML nested graphs and DOT
  *   clusters carry it) becomes `data.parent`;
  * - an edge column with the role "id" becomes the edge's id when that id is not a node id and not used by an

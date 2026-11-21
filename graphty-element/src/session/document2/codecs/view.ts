@@ -11,6 +11,7 @@
  * session gives back unchanged is written exactly as it was read.
  */
 
+import { isCameraViewName } from "../../../camera/names";
 import type { CameraState } from "../../../camera/types";
 import type { AlgorithmKey, LayerSpec, NodeId, RuleTree, ScopeInput } from "../../../catalog/types";
 import { isGraphtyError } from "../../../errors/GraphtyError";
@@ -19,7 +20,7 @@ import { expandedGraph, type GroupValue, type SavedCollapse } from "../../groups
 import { ENGINE_VERSIONS } from "../../runs/engine";
 import type { Run } from "../../runs/types";
 import type { Layer } from "../../styles/Layer";
-import type { GraphSession, TransactionScope } from "../../types";
+import type { GraphSession, SavedView, SavedViewInput, TransactionScope } from "../../types";
 import type { TimeWindow } from "../../visibility/filter";
 import type { SessionVisibilityApi } from "../../visibility/VisibilityApi";
 import { canonicalText as canonical } from "../framing";
@@ -336,6 +337,8 @@ function layersJson(w: Writer): JsonObject[] {
                 // The eye: the style tree names only the style section's layers (#9307).
                 ...(layer.hidden === true ? { hidden: true } : {}),
                 ...(layer.userData === undefined ? {} : { userData: layer.userData }),
+                // The part of a row it is, so the row's parts open as one row (#9307).
+                ...(layer.row === undefined ? {} : { row: fileLayerId(w.session, layer.row) }),
             };
         });
 }
@@ -500,6 +503,63 @@ function layoutJson(session: GraphSession): JsonObject {
 }
 
 /**
+ * One saved view as the file holds it: its name, its camera, and every part it keeps. A following
+ * view is written with the pose it gives now as well, so a reader that does not know `follows`
+ * still opens it at a camera. Node ids are written as element references; a node that names no
+ * element is left out, with its position.
+ * @param w - The writer.
+ * @param name - The view's name.
+ * @param view - The view.
+ * @returns The entry, or none when it has neither a camera nor a followed view.
+ */
+function savedViewJson(w: Writer, name: string, view: SavedView): JsonObject[] {
+    const state =
+        view.follows === undefined ? view.camera : dispatcherOf(w.session).services.camera?.pose?.(view.follows);
+    const camera = state === undefined ? undefined : cameraJson(state);
+    if (camera === undefined && view.follows === undefined) {
+        return [];
+    }
+
+    const mapped = mapRefs(
+        { hidden: view.hidden, filters: view.filters, layers: view.layers },
+        w.mapper,
+        "",
+    ) as JsonObject;
+    const positions = view.positions === undefined ? undefined : positionsJson(w, view.positions);
+    return [
+        {
+            name,
+            ...(camera === undefined ? {} : { camera }),
+            ...(view.follows === undefined ? {} : { follows: view.follows }),
+            ...(view.key === undefined ? {} : { key: view.key }),
+            ...mapped,
+            ...(positions === undefined ? {} : { positions }),
+            ...(view.legend === undefined ? {} : { legend: view.legend }),
+        },
+    ];
+}
+
+/**
+ * A saved view's positions as the file holds them: element references and x, y, z per node, null
+ * for a node nothing had placed (JSON holds no NaN).
+ * @param w - The writer.
+ * @param positions - The positions.
+ * @returns The member.
+ */
+function positionsJson(w: Writer, positions: NonNullable<SavedView["positions"]>): JsonObject {
+    const order: unknown[] = [];
+    const xyz: (number | null)[] = [];
+    positions.order.forEach((id, n) => {
+        const node = w.refs.nodeRef(id);
+        if (node !== undefined) {
+            order.push(node);
+            xyz.push(...positions.xyz.slice(n * 3, n * 3 + 3).map((value) => (Number.isFinite(value) ? value : null)));
+        }
+    });
+    return { order, xyz };
+}
+
+/**
  * Drop the members with nothing to say.
  * @param body - The members.
  * @returns The members that hold something.
@@ -527,14 +587,7 @@ function freshBody(w: Writer): JsonObject {
     const layers = layersJson(w);
     return compact({
         camera: liveCamera(session),
-        // A following view is written as the pose it gives now; version 2 does not keep `follows`
-        // or `key` yet.
-        views: [...session.views].flatMap(([name, view]) => {
-            const state =
-                view.follows === undefined ? view.camera : dispatcherOf(session).services.camera?.pose?.(view.follows);
-            const camera = state === undefined ? undefined : cameraJson(state);
-            return camera === undefined ? [] : [{ name, camera }];
-        }),
+        views: [...session.views].flatMap(([name, view]) => savedViewJson(w, name, view)),
         selection: compact(selection as JsonObject),
         pinned: pinnedJson(w),
         groups: groupsJson(w),
@@ -932,6 +985,72 @@ function cameraRead(r: Reader, camera: unknown): CameraState | undefined {
 }
 
 /**
+ * One saved view a file holds, as `views.save` takes it. A file from before a view kept more than
+ * its camera has only the name and the camera; a `follows` this release knows no camera view for
+ * opens at the camera written beside it.
+ * @param r - The reader.
+ * @param view - The entry.
+ * @param pointer - Where it is.
+ * @returns The view, or none when it has no name or nothing to open at.
+ */
+function savedViewIn(r: Reader, view: JsonObject, pointer: string): SavedViewInput[] {
+    if (typeof view.name !== "string") {
+        return [];
+    }
+
+    const follows = typeof view.follows === "string" && isCameraViewName(view.follows) ? view.follows : undefined;
+    const camera = follows === undefined ? cameraRead(r, view.camera) : undefined;
+    if (follows === undefined && camera === undefined) {
+        return [];
+    }
+
+    const { hidden, filters, layers } = mapRefs(
+        { hidden: view.hidden, filters: view.filters, layers: view.layers },
+        r.mapper,
+        pointer,
+    ) as JsonObject;
+    const positions = isObject(view.positions) ? positionsIn(r, view.positions, `${pointer}/positions`) : undefined;
+    return [
+        {
+            name: view.name,
+            ...(follows === undefined ? { camera } : { follows }),
+            ...(typeof view.key === "string" && view.key !== "" ? { key: view.key } : {}),
+            ...(Array.isArray(filters) ? { filters: filters as never } : {}),
+            ...(isObject(layers) ? { layers: layers as never } : {}),
+            ...(Array.isArray(hidden) ? { hidden: hidden as NodeId[] } : {}),
+            ...(positions === undefined ? {} : { positions }),
+            ...(typeof view.legend === "boolean" ? { legend: view.legend } : {}),
+        },
+    ];
+}
+
+/**
+ * A saved view's positions as the session holds them: node ids and x, y, z per id, NaN for a node
+ * nothing had placed. A reference that binds nowhere is reported and left out, with its position.
+ * @param r - The reader.
+ * @param positions - The member.
+ * @param pointer - Where it is.
+ * @returns The positions, or undefined when the member is malformed.
+ */
+function positionsIn(r: Reader, positions: JsonObject, pointer: string): SavedView["positions"] {
+    const { order, xyz } = positions;
+    if (!Array.isArray(order) || !Array.isArray(xyz)) {
+        return undefined;
+    }
+
+    const ids: NodeId[] = [];
+    const at: number[] = [];
+    order.forEach((ref: unknown, n) => {
+        const id = r.mapper.node(ref, `${pointer}/order/${n}`);
+        if (id !== undefined) {
+            ids.push(id as NodeId);
+            at.push(...(xyz.slice(n * 3, n * 3 + 3) as unknown[]).map((v) => (typeof v === "number" ? v : Number.NaN)));
+        }
+    });
+    return { order: ids, xyz: at };
+}
+
+/**
  * Apply the camera, the saved views and the view settings.
  * @param r - The reader.
  * @param body - The body.
@@ -939,10 +1058,9 @@ function cameraRead(r: Reader, camera: unknown): CameraState | undefined {
 async function readCameraAndSettings(r: Reader, body: Readonly<JsonObject>): Promise<void> {
     const { tx } = r.context;
     if (Array.isArray(body.views)) {
-        const views = body.views.flatMap((view: unknown) => {
-            const camera = isObject(view) && typeof view.name === "string" ? cameraRead(r, view.camera) : undefined;
-            return camera === undefined ? [] : [{ name: (view as { name: string }).name, camera }];
-        });
+        const views = body.views.flatMap((view: unknown, n) =>
+            isObject(view) ? savedViewIn(r, view, `${r.section.pointer}/views/${n}`) : [],
+        );
         await attempt(r, "views", async () => {
             await tx.views.save(views);
             r.context.restored.add("views");
@@ -1292,59 +1410,127 @@ function keptLayer(r: Reader, layers: readonly unknown[], n: number, pointer: st
     return true;
 }
 
+/** A view layer read and ready to add. */
+interface ReadLayer {
+    /** Its place in the file's `layers`. */
+    readonly n: number;
+    /** Its file id. */
+    readonly id: unknown;
+    /** Whether its row is hidden. */
+    readonly hidden: boolean;
+    /** The row it is a part of, as the file names it. */
+    readonly row: string | undefined;
+    /** The layer, its references bound. */
+    readonly spec: LayerSpec;
+}
+
 /**
- * Add the view layers on top of the stack, remembering their file ids.
+ * Add the view layers on top of the stack, remembering their file ids. The parts of one row (a
+ * layer that paints nodes and edges) come back as one row (#9307).
  * @param r - The reader.
  * @param layers - The layers, bottom first.
  * @returns The session ids of the layers added.
  */
 async function readLayers(r: Reader, layers: readonly unknown[]): Promise<string[]> {
-    const { tx } = r.context;
+    const read = layers.flatMap((entry, n) => readLayer(r, layers, n));
     const added: string[] = [];
-    for (const [n, entry] of layers.entries()) {
-        if (!isObject(entry)) {
+    const done = new Set<string>();
+    for (const one of read) {
+        if (one.row !== undefined && done.has(one.row)) {
             continue;
         }
 
-        const pointer = `${r.section.pointer}/layers/${n}`;
-        if (keptLayer(r, layers, n, pointer)) {
-            continue;
+        const parts = one.row === undefined ? [one] : read.filter((each) => each.row === one.row);
+        if (one.row !== undefined) {
+            done.add(one.row);
         }
 
-        const { id, source, hidden, ...rest } = entry;
-        const spec = mapRefs(rest, r.mapper, pointer) as LayerSpec;
-        const readSource =
-            isObject(source) && source.by === "run" && typeof source.algorithm === "string"
-                ? {
-                      ...source,
-                      params: mapParams(
-                          tx,
-                          source.algorithm,
-                          isObject(source.params) ? source.params : {},
-                          r.mapper,
-                          `${pointer}/source/params`,
-                      ).params,
-                  }
-                : source;
-        await attempt(r, `layers/${n}`, async () => {
-            const layer = await tx.styles.add({
-                ...spec,
-                ...(readSource === undefined ? {} : { source: readSource as never }),
-            });
-            if (typeof id === "string") {
-                fileIdsOf(r.context.session).layers.set(layer.id, id);
-            }
-
-            if (hidden === true) {
-                await tx.styles.hideRow(layer.id, true);
-            }
-
-            added.push(layer.id);
+        await attempt(r, `layers/${String(one.n)}`, async () => {
+            added.push(...(await addParts(r, parts)));
             r.context.restored.add("styles");
         });
     }
 
     return added;
+}
+
+/**
+ * One view layer as read, or none when it is not an object or is kept as read.
+ * @param r - The reader.
+ * @param layers - The layers, bottom first.
+ * @param n - The layer's place.
+ * @returns The layer, or nothing.
+ */
+function readLayer(r: Reader, layers: readonly unknown[], n: number): ReadLayer[] {
+    const entry = layers[n];
+    const pointer = `${r.section.pointer}/layers/${String(n)}`;
+    if (!isObject(entry) || keptLayer(r, layers, n, pointer)) {
+        return [];
+    }
+
+    const { id, source, hidden, row, ...rest } = entry;
+    const spec = mapRefs(rest, r.mapper, pointer) as LayerSpec;
+    const readSource =
+        isObject(source) && source.by === "run" && typeof source.algorithm === "string"
+            ? {
+                  ...source,
+                  params: mapParams(
+                      r.context.tx,
+                      source.algorithm,
+                      isObject(source.params) ? source.params : {},
+                      r.mapper,
+                      `${pointer}/source/params`,
+                  ).params,
+              }
+            : source;
+    return [
+        {
+            n,
+            id,
+            hidden: hidden === true,
+            row: typeof row === "string" ? row : undefined,
+            spec: { ...spec, ...(readSource === undefined ? {} : { source: readSource as never }) },
+        },
+    ];
+}
+
+/**
+ * Add one row's layers: a layer of its own, or the parts of a row, which join it again through
+ * the style document's `row`, as a style section's do.
+ * @param r - The reader.
+ * @param parts - The row's layers, bottom first.
+ * @returns The session ids of the layers added, bottom first.
+ */
+async function addParts(r: Reader, parts: readonly ReadLayer[]): Promise<string[]> {
+    const { tx, session } = r.context;
+    let ids: string[];
+    if (parts.length === 1 && parts[0].row === undefined) {
+        ids = [(await tx.styles.add(parts[0].spec)).id];
+    } else {
+        const before = new Set(tx.styles.list().map((layer) => layer.id));
+        await tx.styles.applyTemplate({
+            version: 1,
+            layers: parts.map((part) => ({ ...part.spec, row: part.row })),
+        });
+        ids = tx.styles
+            .list()
+            .filter((layer) => !before.has(layer.id))
+            .map((layer) => layer.id);
+    }
+
+    ids.forEach((layerId, at) => {
+        const fileId = parts[at]?.id;
+        if (typeof fileId === "string") {
+            fileIdsOf(session).layers.set(layerId, fileId);
+        }
+    });
+    if (parts.some((part) => part.hidden)) {
+        // A row is known by its key (its node part's id), never by its edge part's.
+        const row = tx.styles.list().find((layer) => layer.id === ids[0])?.row ?? ids[0];
+        await tx.styles.hideRow(row, true);
+    }
+
+    return ids;
 }
 
 /**

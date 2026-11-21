@@ -273,6 +273,30 @@ export const Default: Story = {
 };
 
 /**
+ * Three columns sized to what they hold (`columnSizing: "content"`) in a frame far wider than
+ * they need. The columns sit together from the start edge, the number column included, and the
+ * spare room is left after the last one.
+ */
+export const SizedToContent: Story = {
+    render: () => (
+        <Box w={960} p="md" bg="var(--mantine-color-body)">
+            <DataTable
+                columns={[
+                    { id: "id", header: "id", value: (node) => node.id },
+                    { id: "label", header: "name", value: (node) => node.label },
+                    { id: "degree", header: "score", value: (node) => node.degree, align: "end" },
+                ]}
+                data={NODES.slice(0, 4)}
+                getRowId={(node) => node.id}
+                label="Nodes"
+                height={220}
+                columnSizing="content"
+            />
+        </Box>
+    ),
+};
+
+/**
  * Every state, light and dark side by side, on Figma's Variables table: the cell grid, the 40px
  * header, a selected row (every cell tinted), a sorted column with its caret, and the keyboard
  * cell's inside box (on the first body cell). Row hover adds no tint.

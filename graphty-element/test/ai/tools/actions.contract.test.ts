@@ -198,10 +198,11 @@ const withSample = (): void => {
 };
 
 /**
- * Answers every download with a two-node dataset file, until the test ends.
- * @returns When the file is ready.
+ * Answers every download with a two-node dataset file, until the test ends. It is sent unzipped,
+ * as a server using `Content-Encoding: gzip` delivers it: a made-up gzip file would fail the
+ * dataset's published checksum.
  */
-async function answerDownloads(): Promise<void> {
+function answerDownloads(): void {
     const bytes = fromEdgeArrays({
         directed: false,
         nodeCount: 2,
@@ -209,10 +210,7 @@ async function answerDownloads(): Promise<void> {
         dst: new Uint32Array([1]),
         ids: ["d1", "d2"],
     }).toBytes();
-    const zipped = await new Response(
-        new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip")),
-    ).arrayBuffer();
-    vi.stubGlobal("fetch", () => Promise.resolve(new Response(zipped)));
+    vi.stubGlobal("fetch", () => Promise.resolve(new Response(bytes.slice())));
 }
 
 /** A reference call for every action, by `tool.action`. */

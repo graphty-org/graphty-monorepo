@@ -83,6 +83,7 @@ import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
 import type { EdgeRecord, GraphSession, GroupTableOptions, NodeRecord } from "../session/types";
 import { wholeGraph } from "../session/working/graphs";
+import { EXPECTED_EXPORT_LOSS_CODES } from "./exportLossCodes";
 import { writtenPositions } from "./filePositions";
 import { sourceMetaExtra } from "./graph-io-import";
 
@@ -209,7 +210,19 @@ export type ExportLossCode =
  * `code` is an {@link ExportLossCode} for a built-in writer; a writer registered with
  * `registerFormatWriter` reports its own codes.
  */
-export type ExportLoss = CodedFact<ExportLossCode | (string & {})>; // the open-union idiom; keeps the known codes in autocomplete while accepting a registered writer's
+export interface ExportLoss extends CodedFact<ExportLossCode | (string & {})> {
+    // the open-union idiom; keeps the known codes in autocomplete while accepting a registered writer's
+    /**
+     * True when the loss is the format's normal behavior: a kind of information the format (or
+     * the table chosen) has no place for at all, so every graph that holds it loses it there, such
+     * as positions in CSV, styles in a format that writes none, or graph attributes. The nodes,
+     * edges, ids and values the file does hold are written as they are. False when the export
+     * changes or drops part of the data itself (ids rewritten, parallel edges or columns dropped,
+     * values that read back differently), refuses the graph (an `E_` code), or the code is a
+     * registered writer's own.
+     */
+    readonly expected: boolean;
+}
 
 /** What `exportGraph` returns. */
 export interface ExportResult {
@@ -1371,6 +1384,7 @@ function lossOf(note: ElementLossNote): ExportLoss {
     const columns = note.columns ?? (note.column === null ? [] : [note.column]);
     return Object.freeze({
         code: note.code,
+        expected: EXPECTED_EXPORT_LOSS_CODES.has(note.code),
         params: Object.freeze({
             columns: Object.freeze([...columns]),
             count: note.count,

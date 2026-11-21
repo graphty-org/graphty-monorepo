@@ -1076,7 +1076,8 @@ export class NGraphEngine extends LayoutEngine {
                 const pos = this.ngraphLayout.getNodePosition(id);
                 pos.x = at.x;
                 pos.y = at.y;
-                pos.z = at.z;
+                // A 2D engine holds its bodies on the plane, whatever Z the array carries.
+                pos.z = this.ngraphLayout.simulator.settings.dimensions === 3 ? at.z : 0;
             }
         }
     }
@@ -1089,14 +1090,16 @@ export class NGraphEngine extends LayoutEngine {
     protected setNodePosition(n: Node, newPos: Position): void {
         const ngraphNode = this._getMappedNode(n);
         const currPos = this.ngraphLayout.getNodePosition(ngraphNode.id);
+        // A 2D engine holds its bodies on the plane, whatever Z it is handed.
+        const z = this.ngraphLayout.simulator.settings.dimensions === 3 ? (newPos.z ?? 0) : 0;
         currPos.x = newPos.x;
         currPos.y = newPos.y;
-        currPos.z = newPos.z;
+        currPos.z = z;
         // A drag is a placement like any other, so it lands in the shared array immediately rather
         // than waiting for a step that a settled simulation may never run. It is a PLACEMENT and
         // not a layout step, so it writes even onto a pinned row: a reader must be able to move a
         // node they have pinned.
-        this.writeNodePosition(n, newPos.x, newPos.y, newPos.z ?? 0, "placement");
+        this.writeNodePosition(n, newPos.x, newPos.y, z, "placement");
     }
 
     /**

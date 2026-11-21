@@ -86,16 +86,21 @@ A shader is never a section of its own on either tab: shaders are Effects' Shade
 draws instead of the node is a Shape kind (E378).
 
 **Kind groups.** Several kinds of one style are one "+" item whose row carries its kind in the name column:
-node Label (Text, Card, Dark, Pill, Callout or Glyph), node Plate (Behind or Over), edge Arrow (Target, Source,
-Middle to target, Middle to source), edge End caption (Target or Source) and edge Outline (Under line or Over
-line). "+" adds the first free kind in that order, so a second "+" Arrow gives a Source arrow beside the Target
-one. A row's kind is changed from its Switch to (5).
+node Label (Text, Card, Dark, Pill, Callout or Glyph), edge Label (Text, Card, Dark, Pill or Callout), node
+Plate (Behind or Over), edge Arrow (Target, Source, Middle to target, Middle to source), edge End caption
+(Target or Source) and edge Outline (Under line or Over line). Tooltip and External label are kind groups too,
+whose kinds are the label looks. A kind group that holds one row per kind (Plate, Arrow, End caption, Outline)
+is one "+" item that adds the first free kind in that order, so a second "+" Arrow gives a Source arrow beside
+the Target one. Label is "many", so its kinds may repeat: its "+" lists each kind as its own item (below), and
+each adds a new Label row of that kind. A row's kind is changed from its Switch to (5).
 
 **A label's look is its kind** (E196: "the toggle between "Plain" and "Card" label must be removed and replaced
 with `+` having label or card"). There is no look select. The Label kinds Text, Card, Dark, Pill and Callout are
 graphty-element's label looks (`look` unset, `card`, `dark`, `pill`, `callout`); Glyph draws a character instead
-of text and has no look. Tooltip, External label and End caption carry the same looks as kinds, Plain first (End
-caption's Switch to lists its ends, a divider, then its looks).
+of text and has no look. The Text section's "+" offers each look directly: "Label" adds a Text label (`look`
+unset), "Card" a Card label, and so on, so the reader picks label or card from "+" (E196); Switch to changes a
+look afterwards. Tooltip, External label and End caption carry the same looks as kinds, Plain first (End
+caption's Switch to lists its ends, a divider, then its looks); "+" adds them Plain.
 
 ### 2.4 Thing row
 
@@ -145,13 +150,14 @@ opened from it are plain `Popout`s (SettingsPopout refuses nesting).
 
 - **Header**: the thing's name. The popover's "+" (`AddButton`), listing the thing's sub-groups not shown yet
   (at most 12), sits on the Main legend: compact-mantine's `Popout` header actions are icon buttons with an
-  `onClick` and cannot hold a menu, and compact-mantine is locked to Figma. Main draws no legend when it holds
-  no lines and there is nothing to add.
+  `onClick` and cannot hold a menu, and compact-mantine is locked to Figma.
 - **Switch to is not in the popover**: it is on the row (2.4).
 - **First lines**: there is no separate By data line. Every line, the main value's included, carries its own
   by-data link in its trailing slot. For a switchable thing, a **Show** line (R7 checkbox, the one control for
-  every Show line, label Show included, 7.3) writes its dedicated off field (10.2), unless its Switch to has an
-  **Off** member (5): then that member writes the off field and there is no Show line, so it has one control. Then
+  every Show line, label Show included, 7.3) writes its dedicated off field (10.2). Kind groups have no Off
+  member, so a switchable kind group (Label, Tooltip, External label, End caption, Plate) has its Show line. Only
+  a family whose element member list holds an off value (Shape: none, 5) shows it as an **Off** member and has no
+  Show line, so every thing has exactly one control for being off. Then
   **Combine** (R8f Replace / Multiply / Add, today's `COMBINE_WORDS` in `words.ts`) on number lines only.
 - **Main** sub-group: always shown, with its lines empty until written. Its first line is the row's main value
   (Color, Visible, Shading ...), then the row's common lines (Width, Strength, Size, Color ...), then the
@@ -188,22 +194,23 @@ Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers
 
 ### 4.1 Node tab
 
-| Section    | "+" menu (dividers between tiers)                     | Cardinality             |
-| ---------- | ----------------------------------------------------- | ----------------------- |
-| Fill       | Fill \| Image \| Stripes, Pie, Chart, Finish          | one each                |
-| Text       | Label \| Tooltip \| Record, External label            | Label many; others one  |
-| Shape      | Size, Shape                                           | one each                |
-| Border     | Border                                                | one                     |
-| Visibility | Visible                                               | one                     |
-| Effects    | Ring, Shader, Glow \| Drop shadow, Raised edge, Plate | Shader many; others one |
+| Section    | "+" menu (dividers between tiers)                                            | Cardinality                      |
+| ---------- | ---------------------------------------------------------------------------- | -------------------------------- |
+| Fill       | Fill \| Image \| Stripes, Pie, Chart, Finish                                 | one each                         |
+| Text       | Label, Card, Dark, Pill, Callout, Glyph \| Tooltip \| Record, External label | each Label kind many; others one |
+| Shape      | Size, Shape                                                                  | one each                         |
+| Border     | Border                                                                       | one                              |
+| Visibility | Visible                                                                      | one                              |
+| Effects    | Ring, Shader, Glow \| Drop shadow, Raised edge, Plate                        | Shader many; others one          |
 
 - **Fill** (kinds Solid and Gradient). The color box's "%" writes `node.opacity`.
 - **Image** absorbs the old Fill kind Picture as its **Wrap around shape** setting: off (the default) places the
   picture on the node (`node.image`), on wraps it over the 3D surface (`node.texture`). A Solid color it hides
   dims (`x-picture-hides-fill`).
 - **Stripes, Pie, Chart** as today. **Finish** (3D only): a Shading row, Smooth (the default), Flat or Unlit.
-- **Label** (many; kinds Text, Card, Dark, Pill, Callout and Glyph, 2.3). Glyph is a kind of Label, never a row
-  or "+" item of its own (E275); the looks are kinds, never a select (E196).
+- **Label** (many; kinds Text, Card, Dark, Pill, Callout and Glyph, 2.3). Each kind is a "+" item that adds a
+  Label row of that kind ("Label" adds Text). Glyph is a kind of Label, never a separate style (E275); the looks
+  are kinds, never a select (E196).
   **Tooltip**, **Record** (a table of fields inside the node) and **External label** as today.
 - **Size**: the shape's size, its own row, so "size by degree" needs no Shape row (E189).
 - **Shape** (kinds Basic shape, Model, and every shader that declares place "replace", built-in or custom, with
@@ -229,14 +236,14 @@ Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers
 
 ### 4.2 Edge tab
 
-| Section    | "+" menu                                     | Cardinality                          |
-| ---------- | -------------------------------------------- | ------------------------------------ |
-| Line       | Line, Pattern \| Outline                     | one each                             |
-| Arrows     | Arrow                                        | one per kind (four)                  |
-| Route      | Route \| Force curves                        | one each                             |
-| Text       | Label \| End caption, Record, External label | Label many; End caption one per kind |
-| Visibility | Visible                                      | one                                  |
-| Effects    | Shader, Animation                            | Shader many; Animation one           |
+| Section    | "+" menu                                                                | Cardinality                                    |
+| ---------- | ----------------------------------------------------------------------- | ---------------------------------------------- |
+| Line       | Line, Pattern \| Outline                                                | one each                                       |
+| Arrows     | Arrow                                                                   | one per kind (four)                            |
+| Route      | Route \| Force curves                                                   | one each                                       |
+| Text       | Label, Card, Dark, Pill, Callout \| End caption, Record, External label | each Label kind many; End caption one per kind |
+| Visibility | Visible                                                                 | one                                            |
+| Effects    | Shader, Animation                                                       | Shader many; Animation one                     |
 
 - **Line** (kinds Solid and Gradient). Width is its line; the color box's "%" writes `edge.opacity`.
   **Pattern** (dashed, dotted, wavy and the rest) is its own item, so "dashed" is in "+".
@@ -250,7 +257,8 @@ Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers
   into shared paths, force-directed edge bundling) and the rest -- with Curve as its line; ports and node gaps
   are its Attach sub-group, and lift its 3D sub-group. **Force curves** (the force-bowed curve, edges bent by a
   physics simulation) is a separate item.
-- **Label**; **End caption** (kinds Target and Source); **Record** (the label table, `edge.labelTable`);
+- **Label** (many; kinds Text, Card, Dark, Pill and Callout, each a "+" item as on the node tab); **End caption**
+  (kinds Target and Source); **Record** (the label table, `edge.labelTable`);
   **External label**. Tooltip joins Text as on the node tab once graphty-element draws an edge tooltip (10.2,
   fix 2).
 - **Visibility**: Visible, Shown or Hidden.
@@ -263,15 +271,15 @@ Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers
 Opened from the tree footer button "Graph settings"; v2 switches in both `case "graph"` branches of
 `inspector/Inspector.tsx` (`headerOf` and `bodyOf`). Every change below is in v2's branch only.
 
-| Thing (the style model's Graph things) | Home and change                                                                                                                                                                                                                                         | Writes                                                                   |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Background                             | One row, family Color / Sky (5); Sky opens `PicturePopover`. No `drawnIn` caption or sentence. Keep on import (R7)                                                                                                                                      | today's keys                                                             |
-| View (Canvas section)                  | `ControlGroup`s: **View** lighting, rotation (R5, degrees; 2D, dims in 3D), highlight color (R1). **Framing** extent (R8 Drawn / Centers, unnamed line), padding (R5). **Marks** same size at any depth (R7), smallest mark node \| edge                | `styles.setHighlightColor`, `viewRotation`, `framing.*`, `minMarkSize.*` |
-| Labels                                 | Hide overlaps (R7, off by default), Avoid nodes and edges (R7, off by default): the reader's label preferences, so labels draw statically at their set place unless the reader turns these on (E270); sample cell (R5); label text (R9 Canvas / Glyphs) | app preferences; `behavior.labels.*`                                     |
-| Shader gallery                         | as today                                                                                                                                                                                                                                                | -                                                                        |
-| Annotations (new)                      | "+" adds one (many). Row: kind (R9); popover lines by kind: text R14, font R13, fill and border R1, arrow ends R10, picture R16, position X \| Y                                                                                                        | `session.annotations`                                                    |
-| Map                                    | the Layout panel's map fields, unchanged                                                                                                                                                                                                                | -                                                                        |
-| Layout motion                          | the Layout panel's `TransitionRow`, unchanged                                                                                                                                                                                                           | -                                                                        |
+| Thing (the style model's Graph things) | Home and change                                                                                                                                                                                                                                                                                             | Writes                                                                   |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Background                             | One row, family Color / Sky (5); Sky opens `PicturePopover`. No `drawnIn` caption or sentence. Keep on import (R7)                                                                                                                                                                                          | today's keys                                                             |
+| View (Canvas section)                  | `ControlGroup`s: **View** lighting, rotation (R5, degrees; 2D, dims in 3D), highlight color (R1). **Framing** extent (R8 Drawn / Centers, unnamed line), padding (R5). **Marks** same size at any depth (R7), smallest mark node \| edge                                                                    | `styles.setHighlightColor`, `viewRotation`, `framing.*`, `minMarkSize.*` |
+| Labels                                 | Hide overlaps (R7, off by default), Avoid nodes and edges (R7, off by default): the reader's label preferences, so labels draw statically at their set place unless the reader turns these on (E270); sample cell (R5); label text (R9 Canvas / Atlas, never "Glyphs", which reads as the Glyph kind, E275) | app preferences; `behavior.labels.*`                                     |
+| Shader gallery                         | as today                                                                                                                                                                                                                                                                                                    | -                                                                        |
+| Annotations (new)                      | "+" adds one (many). Row: kind (R9); popover lines by kind: text R14, font R13, fill and border R1, arrow ends R10, picture R16, position X \| Y                                                                                                                                                            | `session.annotations`                                                    |
+| Map                                    | the Layout panel's map fields, unchanged                                                                                                                                                                                                                                                                    | -                                                                        |
+| Layout motion                          | the Layout panel's `TransitionRow`, unchanged                                                                                                                                                                                                                                                               | -                                                                        |
 
 View mode stays in the toolbar.
 
@@ -307,34 +315,34 @@ owns come from the element's exclusion data (10.2), never from a list of ids.
 A **kind group** is the app's (`v2/kindGroups.ts`): several kinds of one style, which may coexist on one node or
 edge, each kind its own row, all from one "+" item (2.3). Switching a row's kind moves the shared slot values
 (color, size) to the new kind in one undo step; switching between label looks writes only `look`, so every
-other label field stays. The kind groups are node Label (Text, Card, Dark, Pill, Callout, Glyph), node Plate
-(Behind, Over), edge Arrow (Target, Source, Middle to target, Middle to source), edge End caption (Target,
-Source) and edge Outline (Under line, Over line); Tooltip, External label and End caption carry the label
-looks as kinds (2.3).
+other label field stays. The kind groups are node Label (Text, Card, Dark, Pill, Callout, Glyph), edge Label
+(Text, Card, Dark, Pill, Callout), node Plate (Behind, Over), edge Arrow (Target, Source, Middle to target,
+Middle to source), edge End caption (Target, Source) and edge Outline (Under line, Over line); Tooltip,
+External label and End caption carry the label looks as kinds (2.3).
 
 Collapses considered (owner, E495: "review all other controls that can be collapsed down"):
 
-| Candidate                                      | Outcome                                                                                                   |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| End captions                                   | collapsed: End caption, kinds Target and Source                                                           |
-| Node underlay and overlay                      | collapsed: Plate, kinds Behind and Over                                                                   |
-| The four arrows                                | collapsed: Arrow; their settings are identical                                                            |
-| Glyph and Label                                | collapsed: Label, kinds Text and Glyph (E275)                                                             |
-| Label looks (Plain, Card, Dark, Pill, Callout) | collapsed: Label's kinds, no look select (E196)                                                           |
-| Edge band, underlay, outline, overlay          | collapsed: Outline, kinds Under line and Over line (band and underlay fold in with graphty-element fix 1) |
-| Fill picture and Image                         | collapsed: Image with its Wrap around shape setting                                                       |
-| The wide ring and Ring                         | collapsed: Ring; the wide ring is a Ring with a width and an opacity                                      |
-| Route and force curves                         | kept apart: Force curves is a simulation with its own settings; Bundling is a route value                 |
-| Drop shadow and Glow                           | rejected: an offset dark shadow and a centered soft light look plainly different                          |
-| Pie, Stripes, Chart                            | rejected: slices, bands and a chart are different looks with different settings                           |
-| Record and Label                               | rejected: the element draws them by other rules (`shapeTexts`, label lists)                               |
-| Model and Basic shape; Fill and Line members   | already families                                                                                          |
+| Candidate                                    | Outcome                                                                                                   |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| End captions                                 | collapsed: End caption, kinds Target and Source                                                           |
+| Node underlay and overlay                    | collapsed: Plate, kinds Behind and Over                                                                   |
+| The four arrows                              | collapsed: Arrow; their settings are identical                                                            |
+| Glyph, Label and the label looks             | collapsed: Label, kinds Text, Card, Dark, Pill, Callout and Glyph; no look select (E196, E275)            |
+| Edge band, underlay, outline, overlay        | collapsed: Outline, kinds Under line and Over line (band and underlay fold in with graphty-element fix 1) |
+| Fill picture and Image                       | collapsed: Image with its Wrap around shape setting                                                       |
+| The wide ring and Ring                       | collapsed: Ring; the wide ring is a Ring with a width and an opacity                                      |
+| Route and force curves                       | kept apart: Force curves is a simulation with its own settings; Bundling is a route value                 |
+| Drop shadow and Glow                         | rejected: an offset dark shadow and a centered soft light look plainly different                          |
+| Pie, Stripes, Chart                          | rejected: slices, bands and a chart are different looks with different settings                           |
+| Record and Label                             | rejected: the element draws them by other rules (`shapeTexts`, label lists)                               |
+| Model and Basic shape; Fill and Line members | already families                                                                                          |
 
 **Switch to** has one look and one place for every family and kind group: the glyph before the row's name
 (`MemberMenu`), opening a menu of every member or kind, the current one checked. There is no Switch to strip in
 the popover. A member gated by a flag or the view (Model in 2D) is disabled, never hidden, and the current
-member is always enabled. A thing with an off field adds an **Off** member (Shape: none), which is that
-thing's one control for its off field: it has no Show line (2.6).
+member is always enabled. Only a family whose element member list holds an off value adds an **Off** member
+(today Shape: none), its one control for being off, and it has no Show line. Kind groups never have an Off
+member; a switchable kind group or thing is switched off by its Show line (2.6).
 
 1. **Same row, same settings.** The row keeps its place and height, and its name column shows the new kind
    (2.4); thing-wide lines stay in every member.
@@ -442,7 +450,7 @@ label "Scene" or "World".
 | R8 words, 120       | shiftOf and gapOf Box / Words (91), declutter Degree / Size (102), labelFit Inside / Bounds (116), modelCenter Bounds / Origin (116), supportScale Unit / Drawing (109), clip (88), Unit Graph / Screen (109), px / % (80), Text / Box (84), overflow (95), Show On / Off (80)                              |
 | R8 words, panel 176 | Visibility Shown / Hidden (109), framing extent Drawn / Centers (116)                                                                                                                                                                                                                                       |
 | R8f, 200            | sizeMode (188), location (167), mapping (142), box (167), lineBox (146), runAlign (195), supportModel (179), autoSize (165), modelFit Contain / Stretch (130), modelDoubleSided (124), Combine (177), label Unit Graph / Screen / Letter (167), unmapped (123), pointerDirection four arrows and Auto (152) |
-| R9                  | imageFit (204), modelTint, badge, animation, label text Canvas / Glyphs (116, on a 96 named panel line), paddingOf, modelSourceUp, modelAnimation, the Force curves row's supportModel (179 over 176)                                                                                                       |
+| R9                  | imageFit (204), modelTint, badge, animation, label text Canvas / Atlas (116, on a 96 named panel line), paddingOf, modelSourceUp, modelAnimation, the Force curves row's supportModel (179 over 176)                                                                                                        |
 | R10 lucide          | chart kind, bendCurve, route (its icons inside the list)                                                                                                                                                                                                                                                    |
 
 `ControlGroup` is used in popovers and in Graph settings' View section. v2 popover-page files join the `ignores`
@@ -482,9 +490,9 @@ follows.
 | Ring                                   | color R1                          | Width       | Main: opacity R5, style R10, offset R5, count R5                                                                                                                                                                                                                                                         |
 | Shader use                             | preset R10 (`ShaderGallery`)      | -           | Main: params R16, reach, minSize R5                                                                                                                                                                                                                                                                      |
 | Glow                                   | color R1                          | Strength    | -                                                                                                                                                                                                                                                                                                        |
-| Drop shadow                            | color R1                          | -           | Main: Show, opacity, blur R5, offset X \| Y                                                                                                                                                                                                                                                              |
+| Drop shadow                            | color R1                          | -           | Main: opacity, blur R5, offset X \| Y; Show once its off field lands (4.3, 10.2)                                                                                                                                                                                                                         |
 | Raised edge (2D only)                  | width R5                          | -           | Main: lightColor R1, darkColor R1                                                                                                                                                                                                                                                                        |
-| Plate: Behind, Over (2D only)          | color R1                          | -           | Main: Show, opacity, padding R5, shape R10 (the element's backdrop shape list), cornerRadius R5                                                                                                                                                                                                          |
+| Plate: Behind, Over (2D only)          | color R1                          | -           | Main: opacity, padding R5, shape R10 (the element's backdrop shape list), cornerRadius R5; Show once its off field lands (4.3, 10.2)                                                                                                                                                                     |
 
 ### 7.2 Edge
 
@@ -496,7 +504,7 @@ follows.
 | Arrow: Target, Source, Middle to target, Middle to source | arrow R10          | Size, Color | Main: fill color R1, opacity R5, width R5, side R8 icons, outline width R5, position R5, image R16; Target and Source add gap R5 and stack R15                                                                   |
 | Route                                                     | route R10          | Curve       | Main: arcRadius, arcHeight R5 (by route). Bends: bends R15, bendCurve R10. Attach: nodeGap R5, source \| target gap, sourcePort X \| Y, targetPort X \| Y. Parallel edges: fanned R7, fanSpacing R5. 3D: lift R5 |
 | Force curves                                              | supportModel R9    | -           | Springs: length \| constant, repulsion \| gravity. Curve: supportUnit R5, supportScale R8                                                                                                                        |
-| Label, External label                                     | text source R12    | Size, Color | 7.3                                                                                                                                                                                                              |
+| Label: Text, Card, Dark, Pill, Callout; External label    | text source R12    | Size, Color | 7.3                                                                                                                                                                                                              |
 | End caption: Target, Source                               | text source R12    | Size, Color | 7.3, Position adds distance R5                                                                                                                                                                                   |
 | Record                                                    | fields R15r        | -           | as node Record (`edge.labelTable`)                                                                                                                                                                               |
 | Visibility                                                | shown R8           | -           | -                                                                                                                                                                                                                |

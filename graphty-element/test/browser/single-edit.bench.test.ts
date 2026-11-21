@@ -16,6 +16,9 @@
  * loaded and at rest the render loop is stopped and `graph.update()` drives the frames, so the
  * canvas's own draw is not counted), and the edges placed and elements repainted.
  *
+ * After each step, off its clock, the GPU is made to finish what the step queued (`drainGpu`), so no step is
+ * charged for the frames drawn before it; that time is printed as `gpu after`.
+ *
  * The ids of the edges an edit names are read before its clock starts, and strict state (the
  * test-only check of every drawn element after each pass, test/setup.ts) is off, so a step times
  * what a consumer's edit costs.
@@ -76,9 +79,36 @@ async function drawn(element: Graphty): Promise<void> {
     element.graph.update();
 }
 
+/**
+ * Wait, off the clock, until the GPU has run every command queued so far and the browser has shown a frame.
+ *
+ * The frames here are driven by hand with the render loop stopped, so nothing presents them and nothing holds
+ * the page back while the GPU falls behind: each `graph.update()` queues a whole frame and returns. Under the
+ * software renderer CI draws with (SwiftShader), on four reserved cores, one frame of a million edges takes the
+ * GPU process seconds. Without this drain the queue grew step after step until a step that happened to give
+ * the event loop a turn (a style pass yielding with a timer) let the browser commit a frame, and that commit
+ * waited for the whole backlog: one step in a run took about 75 s, a different step each run, and every
+ * other step was charged a share of the frames the steps before it drew.
+ * @param element - The element.
+ * @returns How long the drain took.
+ */
+async function drainGpu(element: Graphty): Promise<number> {
+    const start = performance.now();
+    const engine = element.graph.engine as unknown as { _gl?: WebGLRenderingContext };
+    engine._gl?.finish();
+    await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+            resolve();
+        });
+    });
+    return performance.now() - start;
+}
+
 interface Step {
     readonly awaitMs: number;
     readonly drawnMs: number;
+    /** How long the GPU took, after the step was drawn, to run what it queued (not part of `drawnMs`). */
+    readonly gpuMs: number;
     readonly placed: number;
     readonly repainted: number;
 }
@@ -100,9 +130,11 @@ async function measure(element: Graphty, edit: () => Promise<unknown>): Promise<
         const awaitMs = performance.now() - start;
         await drawn(element);
         const drawnMs = performance.now() - start;
+        const gpuMs = await drainGpu(element);
         return {
             awaitMs,
             drawnMs,
+            gpuMs,
             placed: placed.mock.calls.length,
             repainted:
                 nodes.mock.calls.length +
@@ -155,6 +187,7 @@ describe("one data edit on a large graph", () => {
                 const loadMs = performance.now() - loadStart;
                 // From here the frames are driven by hand, so a step times its own work and not the canvas's draw.
                 element.graph.engine.stopRenderLoop();
+                await drainGpu(element);
                 const { data } = element.session;
                 // Read before the clock starts: a page of edges is a read of its own, not part of an edit.
                 const [first, second, third] = [1, 5, 9].map(
@@ -190,7 +223,7 @@ describe("one data edit on a large graph", () => {
                 for (const [edit, step] of Object.entries(steps)) {
                     console.log(
                         `[single-edit] ${path} ${String(nodeCount)}/${String(edgeCount)} ${edit}: ` +
-                            `resolved ${ms(step.awaitMs)}, drawn ${ms(step.drawnMs)}, ` +
+                            `resolved ${ms(step.awaitMs)}, drawn ${ms(step.drawnMs)}, gpu after ${ms(step.gpuMs)}, ` +
                             `${String(step.placed)} edges placed, ${String(step.repainted)} repainted`,
                     );
                 }

@@ -23,9 +23,8 @@ function placesOf(channel: Channel): string[] {
 
 describe("the Style panel's parts of the drawing", () => {
     it("every channel graphty-element publishes has exactly one home", () => {
-        // Channels with no home yet, exactly: a channel that gains a home must leave this list. The
-        // label lists get their rows with the panel's several-labels work, which empties it.
-        const knownGaps = ["node.labels", "edge.labels"];
+        // Channels with no home yet, exactly: a channel that gains a home must leave this list.
+        const knownGaps: string[] = [];
         const homeless = (["node", "edge"] as const)
             .flatMap((side) => channelsFor(side))
             .map(({ channel }) => channel)

@@ -69,6 +69,8 @@ export interface TextThing {
     readonly style: Channel;
     /** A caption's distance from its end, a channel of its own on the Position sub-group's last line. */
     readonly distance?: Channel;
+    /** The label list whose further labels are rows of their own beside this one (labelEntries.ts). */
+    readonly list?: Channel;
 }
 
 /**
@@ -77,12 +79,12 @@ export interface TextThing {
  */
 export const TEXT_THINGS: Readonly<Record<"node" | "edge", Readonly<Record<string, TextThing>>>> = {
     node: {
-        label: { words: "node.label", style: "node.labelStyle" },
+        label: { words: "node.label", style: "node.labelStyle", list: "node.labels" },
         xlabel: { words: "node.xlabel", style: "node.xlabelStyle" },
         tooltip: { words: "node.tooltip", style: "node.tooltipStyle" },
     },
     edge: {
-        label: { words: "edge.label", style: "edge.labelStyle" },
+        label: { words: "edge.label", style: "edge.labelStyle", list: "edge.labels" },
         xlabel: { words: "edge.xlabel", style: "edge.xlabelStyle" },
         tooltip: { words: "edge.tooltip", style: "edge.tooltipStyle" },
         targetCaption: {

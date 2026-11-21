@@ -3,8 +3,9 @@
  * (design/ui/style-panel-v2/design.md, sections 2.4, 7.3 and 12 check 9): Label is added from the
  * Text section's "+", its source list opens and a pick binds the words; its Size and color common
  * lines write fields of the layer's label style object; its pop-over's "+" adds Background, whose
- * corner radius is written and taken off again by the line's minus; Label stays in "+", disabled,
- * while set; and a label color set on a second layer over one node draws one label per node.
+ * corner radius is written and taken off again by the line's minus; Label stays in "+", enabled,
+ * while set (it adds a further label); and a label color set on a second layer over one node draws one
+ * label per node.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -123,13 +124,13 @@ describe("Style panel v2's Text section", () => {
         });
         await userEvent.keyboard("{Escape}");
 
-        // Label stays in "+", disabled, while set: one label a node until list-valued labels.
+        // Label stays in "+", enabled, while set: it adds a further label (StylePanelV2SeveralLabels).
         const text = sectionOf(tab, "node-text");
         await userEvent.click(within(text).getByRole("button", { name: /^Add to / }));
         const label = await screen.findByRole("menuitem", { name: "Label" });
-        assert.isTrue(
+        assert.isFalse(
             label.hasAttribute("disabled") || label.getAttribute("aria-disabled") === "true",
-            "Label is disabled",
+            "Label is enabled",
         );
         await userEvent.keyboard("{Escape}");
     });

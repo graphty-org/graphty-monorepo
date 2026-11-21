@@ -16,9 +16,10 @@ import { cardSummary } from "../cardLines";
 import { SourcePicker } from "../LabelSection";
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
-import { type Line, lineIn, propose, sourceName, textBinding, writeIn } from "../row";
+import { type DataBinding, type Line, lineIn, propose, sourceName, textBinding, writeIn } from "../row";
 import { ValueField } from "../ValueField";
-import { failureWords } from "../words";
+import { failureWords, positionWord } from "../words";
+import { entryIds, entryOf, entryWords, listChannel, writeEntry } from "./labelEntries";
 import { LabelFieldLine, type LabelLineContext, type LabelPatch } from "./LabelFieldLine";
 import { LabelPopover } from "./LabelPopover";
 import {
@@ -74,6 +75,9 @@ function sourceText(ctx: RowContext, words: Line | undefined): string {
  * @param props.kind - the text thing
  * @param props.title - its name with its kind ("Node label")
  * @param props.opensAtOnce - just added: the list opens at once
+ * @param props.words - where the words come from now, if anywhere
+ * @param props.also - where the label sits, said after its source when another label reads the same one
+ * @param props.onWrite - writes picked or typed words
  * @returns The control
  */
 function TextSource({
@@ -81,13 +85,25 @@ function TextSource({
     kind,
     title,
     opensAtOnce,
-}: Readonly<{ ctx: RowContext; kind: TextThing; title: string; opensAtOnce: boolean }>): React.JSX.Element {
+    words,
+    also,
+    onWrite,
+}: Readonly<{
+    ctx: RowContext;
+    kind: TextThing;
+    title: string;
+    opensAtOnce: boolean;
+    words: Line | undefined;
+    also: string;
+    onWrite: (write: { readonly value: string } | { readonly binding: DataBinding }) => Promise<unknown>;
+}>): React.JSX.Element {
     const { store } = useWorkspace();
     const [open, setOpen] = useState(opensAtOnce);
     const [typing, setTyping] = useState(false);
     const { session } = ctx;
-    const words = lineIn(ctx, kind.words);
-    const shown = sourceText(ctx, words);
+    const source = sourceText(ctx, words);
+    // Two labels that read one source say where each sits ("Node id, above").
+    const shown = also === "" || source === "" ? source : `${source}, ${also}`;
     const bound = words?.binding !== undefined;
     const typed = words !== undefined && !bound && words.template === undefined && typeof words.value === "string";
     const fail = (error: unknown): void => {
@@ -99,11 +115,11 @@ function TextSource({
             <ValueField
                 descriptor={descriptor}
                 label={`${title} text`}
-                value={typed ? shown : undefined}
+                value={typed ? source : undefined}
                 shown={undefined}
                 onChange={(next) => {
                     setTyping(false);
-                    writeIn(ctx, kind.words, { value: next }, {}, true).catch(fail);
+                    onWrite({ value: String(next) }).catch(fail);
                 }}
             />
         );
@@ -128,7 +144,7 @@ function TextSource({
                 setOpen(false);
                 const proposal = propose(session, choice, kind.words);
                 if (proposal.ok) {
-                    writeIn(ctx, kind.words, { binding: textBinding(session, proposal.binding) }, {}, true).catch(fail);
+                    onWrite({ binding: textBinding(session, proposal.binding) }).catch(fail);
                 }
             }}
         >
@@ -142,6 +158,31 @@ function TextSource({
             />
         </SourcePicker>
     );
+}
+
+/**
+ * Where a label sits, in words, when another label of the row reads the same source ("above"), else nothing: two
+ * labels of one source are told apart by place (ledger E265).
+ * @param ctx - the row.
+ * @param kind - the text thing.
+ * @param entry - the further label's id, or undefined for the main label.
+ * @returns the words, or "".
+ */
+function sharedWhere(ctx: RowContext, kind: TextThing, entry: string | undefined): string {
+    if (kind.words !== `${ctx.side}.label`) {
+        return "";
+    }
+    const main = lineIn(ctx, kind.words);
+    const mainStyle = styleOf(lineIn(ctx, kind.style));
+    // A further label with no words of its own draws the main label's.
+    const sourceOf = (id: string | undefined): string =>
+        sourceText(ctx, id === undefined ? main : (entryWords(ctx, id) ?? main));
+    const placeOf = (id: string | undefined): LabelStyle["location"] =>
+        (id === undefined ? undefined : entryOf(ctx, id)?.style?.location) ?? mainStyle.location;
+    const rows = [...(main === undefined ? [] : [undefined]), ...entryIds(ctx)];
+    const mine = sourceOf(entry);
+    const twins = rows.filter((id) => id !== entry && sourceOf(id) === mine);
+    return mine === "" || twins.length === 0 ? "" : positionWord(placeOf(entry)).toLowerCase();
 }
 
 /** Props for LabelRow. */
@@ -160,6 +201,8 @@ interface LabelRowProps {
     readonly member?: React.ReactNode;
     readonly removeLabel: string;
     readonly onRemove: () => void;
+    /** A further label's id (labelEntries.ts): the row edits that entry of the label list, not the main label. */
+    readonly entry?: string;
 }
 
 /**
@@ -192,6 +235,7 @@ function partnersOf(style: Readonly<LabelStyle>, patch: LabelPatch): LabelPatch 
  * @param props.member - see LabelRowProps
  * @param props.removeLabel - see LabelRowProps
  * @param props.onRemove - see LabelRowProps
+ * @param props.entry - see LabelRowProps
  * @returns The row and its common lines
  */
 export function LabelRow({
@@ -204,10 +248,16 @@ export function LabelRow({
     member,
     removeLabel,
     onRemove,
+    entry,
 }: LabelRowProps): React.JSX.Element {
     const { store } = useWorkspace();
-    const styleLine = lineIn(ctx, kind.style);
-    const style = styleOf(styleLine);
+    const styleLine = entry === undefined ? lineIn(ctx, kind.style) : undefined;
+    const style = entry === undefined ? styleOf(styleLine) : (entryOf(ctx, entry)?.style ?? {});
+    const words = entry === undefined ? lineIn(ctx, kind.words) : entryWords(ctx, entry);
+    const writeWords = (next: { readonly value: string } | { readonly binding: DataBinding }): Promise<unknown> =>
+        entry === undefined
+            ? writeIn(ctx, kind.words, next, {}, true)
+            : writeEntry(ctx, entry, "binding" in next ? { binding: next.binding } : { text: next.value });
     const write = (patch: LabelPatch, drop: readonly Channel[] = []): void => {
         const next = Object.fromEntries(
             Object.entries({ ...partnersOf(style, patch), ...style, ...patch }).filter(
@@ -216,7 +266,10 @@ export function LabelRow({
         ) as LabelStyle;
         const held = drop.filter((channel) => setOn(ctx, channel));
         let done: Promise<unknown>;
-        if (Object.keys(next).length === 0) {
+        if (entry !== undefined) {
+            // A further label's style lives in its entry; it has no channels of its own to drop.
+            done = writeEntry(ctx, entry, { style: next });
+        } else if (Object.keys(next).length === 0) {
             done = unsetIn(ctx, [kind.style, ...held]);
         } else if (
             held.length > 0 &&
@@ -247,11 +300,22 @@ export function LabelRow({
             store.set({ notice: { message: failureWords(title, "changed", error), error: true } });
         });
     };
-    const label: LabelLineContext = { ctx, kind, title, style, write };
+    // A further label's lines are its entry's fields (`node.labels.<id>.<field>`), with no channels of their own.
+    const label: LabelLineContext =
+        entry === undefined
+            ? { ctx, kind, title, style, write }
+            : {
+                  ctx,
+                  kind: { ...kind, style: listChannel(ctx.side) },
+                  title,
+                  style,
+                  write,
+                  address: `${ctx.side}.labels.${entry}`,
+              };
     // Each field's own channel a line draws in its place.
     const flats = new Set(
         [...LABEL_COVERED].flatMap((field) => {
-            const flat = flatOf(ctx.side, kind.style, field);
+            const flat = flatOf(ctx.side, label.kind.style, field);
             return flat === undefined ? [] : [flat];
         }),
     );
@@ -270,14 +334,14 @@ export function LabelRow({
         return descriptor?.renderable === true ? [descriptor] : [];
     });
     const common = new Set(LABEL_RUBRIC.common.flatMap((line) => labelLineFields(line)));
-    const commonFlats = new Set([...common].map((field) => flatOf(ctx.side, kind.style, field)));
+    const commonFlats = new Set([...common].map((field) => flatOf(ctx.side, label.kind.style, field)));
     const changed =
         others.length > 0 ||
         Object.keys(style).some((field) => !common.has(field as keyof LabelStyle)) ||
         [...flats].some((flat) => !commonFlats.has(flat) && setOn(ctx, flat));
     // A field set in the style or through its own channel; each field once, the unit lines left to the pop-over.
     const fieldSet = (field: LabelField): boolean => {
-        const flat = flatOf(ctx.side, kind.style, field);
+        const flat = flatOf(ctx.side, label.kind.style, field);
         return (
             (style as Readonly<Record<string, unknown>>)[field] !== undefined ||
             (flat !== undefined && setOn(ctx, flat))
@@ -309,7 +373,7 @@ export function LabelRow({
         <>
             <ThingLine member={member}>
                 <LineFrame
-                    line={kind.words}
+                    line={entry === undefined ? kind.words : `${ctx.side}.labels.${entry}.text`}
                     name={name}
                     set
                     rule="R12"
@@ -318,7 +382,10 @@ export function LabelRow({
                             ctx={ctx}
                             kind={kind}
                             title={title}
-                            opensAtOnce={pending && lineIn(ctx, kind.words) === undefined}
+                            opensAtOnce={pending && words === undefined}
+                            words={words}
+                            also={sharedWhere(ctx, kind, entry)}
+                            onWrite={writeWords}
                         />
                     }
                     modifier={settings}

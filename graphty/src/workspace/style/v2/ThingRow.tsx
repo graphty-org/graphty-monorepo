@@ -30,6 +30,7 @@ import { dimOf } from "./drawn";
 import { familyOf, pickReplace, replaceUse } from "./families";
 import { ItemListEditor } from "./ItemListEditor";
 import { kindGroupOf, type KindMember } from "./kindGroups";
+import { removeEntry } from "./labelEntries";
 import { LabelRow } from "./LabelRow";
 import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
@@ -353,6 +354,7 @@ function switchTo(ctx: RowContext, thing: ThingSpec, title: string, kind: KindMe
  * @param props.onOpened - told once it has opened
  * @param props.onCancel - takes a waiting thing away again
  * @param props.kind - the kind it draws, for a kind group's row (its channels are that kind's)
+ * @param props.entry - a further label's row (labelEntries.ts): its id and its place among the labels, 2 on
  * @returns The row, or nothing when the element offers none of its main channels here
  */
 export function ThingRow({
@@ -364,6 +366,7 @@ export function ThingRow({
     onOpened,
     onCancel,
     kind,
+    entry,
 }: Readonly<{
     ctx: RowContext;
     thing: ThingSpec;
@@ -373,6 +376,7 @@ export function ThingRow({
     opening?: boolean;
     onOpened?: () => void;
     onCancel: () => void;
+    entry?: { readonly id: string; readonly n: number };
 }>): React.JSX.Element | null {
     const { store } = useWorkspace();
     // Held here, so the pop-over stays open while a switch redraws the row's main control.
@@ -400,7 +404,8 @@ export function ThingRow({
     // the thing's name.
     const name = kind === undefined || kind.id === "text" ? thing.name : kind.plainName;
     const kindWord = ctx.side === "node" ? "Node" : "Edge";
-    const title = `${kindWord} ${name.toLowerCase()}`;
+    // A further label is numbered, so each row's controls have names of their own ("Node label 2 source").
+    const title = `${kindWord} ${name.toLowerCase()}${entry === undefined ? "" : ` ${String(entry.n)}`}`;
     const member = switchTo(ctx, thing, title, kind);
     const list = ctx.side === "node" ? LISTS[thing.id] : undefined;
     // A shader drawn in the shapes' place is the Shape row's member (design 5): its row names it.
@@ -449,7 +454,7 @@ export function ThingRow({
     );
     const remove = (): void => {
         onCancel();
-        unsetIn(ctx, all, { name, shape: thing.id === "shape" })
+        (entry === undefined ? unsetIn(ctx, all, { name, shape: thing.id === "shape" }) : removeEntry(ctx, entry.id))
             .then(() => {
                 store.set({ announcement: `${name} removed` });
             })
@@ -460,7 +465,7 @@ export function ThingRow({
     const removeLabel = `Remove ${title.toLowerCase()}`;
     if (text?.words === main.channel) {
         return (
-            <div data-thing={thing.id}>
+            <div data-thing={thing.id} data-label-entry={entry?.id}>
                 <LabelRow
                     ctx={ctx}
                     kind={text}
@@ -471,6 +476,7 @@ export function ThingRow({
                     member={member}
                     removeLabel={removeLabel}
                     onRemove={remove}
+                    entry={entry?.id}
                 />
             </div>
         );

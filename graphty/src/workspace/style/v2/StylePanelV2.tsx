@@ -7,7 +7,7 @@
  */
 
 import { LabelsProvider } from "@graphty/compact-mantine";
-import { type Channel, writeChannelList } from "@graphty/graphty-element/catalog";
+import { type Channel, type ChannelDescriptor, writeChannelList } from "@graphty/graphty-element/catalog";
 import { Divider } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
@@ -29,6 +29,8 @@ import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { viewDim } from "./drawn";
 import { replaceUse } from "./families";
 import { kindGroupOf, type KindMember, kindsShown, kindStarts, lineWidthOf, ownsOf } from "./kindGroups";
+import { entryIds, freshEntryId, listChannel } from "./labelEntries";
+import { TEXT_THINGS } from "./labelRubric";
 import { drawnItems, firstColors, ITEM_LISTS, LISTS } from "./lists";
 import { PlusList, PlusListKind } from "./PlusList";
 import { lineFor, V2_LABELS } from "./rubric";
@@ -231,7 +233,87 @@ function rowsOf(
     thing: ThingSpec,
     channels: readonly Channel[],
     waiting: readonly string[],
-): readonly { thing: ThingSpec; channels: readonly Channel[]; kind?: KindMember }[] {
+): readonly ThingRowOf[] {
+    if (thing.id === "label") {
+        return labelRowsOf(ctx, thing, channels, waiting);
+    }
+    return kindRowsOf(ctx, thing, channels, waiting);
+}
+
+/** One row of a section: its thing, its channels, its kind and, for a further label, its entry. */
+interface ThingRowOf {
+    readonly thing: ThingSpec;
+    readonly channels: readonly Channel[];
+    readonly kind?: KindMember;
+    readonly entry?: { readonly id: string; readonly n: number };
+}
+
+/** What a waiting further label's key starts with: `label:@<id>`. */
+const ENTRY_WAIT = "label:@";
+
+/**
+ * A row's key, and what "+" waits on for it: its thing, its thing and kind (`arrow:source`), or its further label.
+ * @param row - the row.
+ * @param row.thing - its thing.
+ * @param row.kind - its kind, if any.
+ * @param row.entry - its further label, if any.
+ * @returns the key.
+ */
+function waitKeyOf({ thing, kind, entry }: ThingRowOf): string {
+    if (entry !== undefined) {
+        return `${ENTRY_WAIT}${entry.id}`;
+    }
+    return kind === undefined ? thing.id : `${thing.id}:${kind.id}`;
+}
+
+/**
+ * A Label's rows: the main label's (by kind), when the row sets it or "+" added it, then one per further label
+ * (labelEntries.ts) the row sets or "+" added and waits on, each numbered from 2.
+ * @param ctx - the row.
+ * @param thing - the Label thing.
+ * @param channels - its channels.
+ * @param waiting - what "+" added that waits for its first value.
+ * @returns the rows.
+ */
+function labelRowsOf(
+    ctx: RowContext,
+    thing: ThingSpec,
+    channels: readonly Channel[],
+    waiting: readonly string[],
+): readonly ThingRowOf[] {
+    const list = listChannel(ctx.side);
+    const own = channels.filter((channel) => channel !== list);
+    const ids = [
+        ...entryIds(ctx),
+        ...waiting.filter((key) => key.startsWith(ENTRY_WAIT)).map((key) => key.slice(ENTRY_WAIT.length)),
+    ].filter((id, at, all) => all.indexOf(id) === at);
+    const mainShown = ids.length === 0 || waiting.includes(thing.id) || own.some((channel) => setOn(ctx, channel));
+    const main = mainShown ? kindRowsOf(ctx, thing, own, waiting) : [];
+    const words = TEXT_THINGS[ctx.side].label?.words;
+    return [
+        ...main,
+        ...ids.map((id, at) => ({
+            thing,
+            channels: words === undefined ? [] : [words],
+            entry: { id, n: at + 2 },
+        })),
+    ];
+}
+
+/**
+ * A thing's rows by kind: see `rowsOf`.
+ * @param ctx - the row.
+ * @param thing - the thing.
+ * @param channels - its channels.
+ * @param waiting - the things and kinds "+" added that wait for their first value.
+ * @returns the rows.
+ */
+function kindRowsOf(
+    ctx: RowContext,
+    thing: ThingSpec,
+    channels: readonly Channel[],
+    waiting: readonly string[],
+): readonly ThingRowOf[] {
     const group = kindGroupOf(ctx.side, thing.id);
     if (group === undefined) {
         return [{ thing, channels }];
@@ -261,6 +343,28 @@ function freeKind(ctx: RowContext, thing: ThingSpec, waiting: readonly string[])
     }
     const drawn = new Set(kindsShown(ctx, group).map((member) => member.id));
     return group.members.find((member) => !drawn.has(member.id) && !waiting.includes(`${thing.id}:${member.id}`));
+}
+
+/**
+ * What "+" adds for a thing: a kind group already drawn adds its first free kind; the main channel it writes.
+ * @param ctx - the row.
+ * @param found - the thing and its channels, if the section offers it.
+ * @param shown - the things the row shows.
+ * @param waiting - what "+" added that waits for its first value.
+ * @returns the free kind, if any, and the main channel, if any.
+ */
+function plusTarget(
+    ctx: RowContext,
+    found: { readonly thing: ThingSpec; readonly channels: readonly Channel[] } | undefined,
+    shown: readonly { readonly thing: ThingSpec }[],
+    waiting: readonly string[],
+): { readonly free?: KindMember; readonly main?: ChannelDescriptor } {
+    if (found === undefined) {
+        return {};
+    }
+    const free = shown.some((each) => each.thing === found.thing) ? freeKind(ctx, found.thing, waiting) : undefined;
+    const thing = free === undefined ? found.thing : { ...found.thing, main: [free.head], start: free.head };
+    return { free, main: mainOf(ctx, thing, found.channels) };
 }
 
 /**
@@ -315,9 +419,7 @@ function ThingSection({
     // The thing "+" just added whose pop-over or picker opens at once (a list, an image).
     const [opening, setOpening] = useState<string | undefined>(undefined);
     const { things, shown } = thingsOf(ctx, part, section, waiting);
-    // A one-only thing leaves the menu once set. Label stays, disabled, once one is set: OPEN GAP (implementation
-    // plan task 6.5, ledger E265). graphty-element draws several labels per node or edge (`node.labels`,
-    // `edge.labels`, since 493ff8bd75); this panel does not yet give each entry a row, so "+" cannot add a second.
+    // A one-only thing leaves the menu once set. Label stays: once one is drawn, it adds a further label (E265).
     const groups: AddOption[][] = [
         ...things.map((group) =>
             group.flatMap(({ thing }): AddOption[] => {
@@ -343,11 +445,24 @@ function ThingSection({
                 if (free !== undefined) {
                     return [{ key: thing.id, label: thing.name, hint: thing.hint, dimmed: viewDim(ctx, free.head) }];
                 }
-                return thing.id === "label" ? [{ key: thing.id, label: thing.name, disabled: true }] : [];
+                // Several rows edited together share plain channels only, so a further label waits for one row.
+                return thing.id === "label"
+                    ? [{ key: thing.id, label: thing.name, disabled: ctx.many === undefined ? undefined : true }]
+                    : [];
             }),
         ),
     ];
     const options = groups.flat().filter((option) => option.disabled !== true);
+    // A Label already drawn adds a further label (labelEntries.ts), waiting for its source as the first does.
+    const addsEntry = (thing: ThingSpec | undefined): boolean => {
+        if (thing?.id !== "label" || !shown.some((each) => each.thing === thing)) {
+            return false;
+        }
+        const taken = waiting.filter((key) => key.startsWith(ENTRY_WAIT)).map((key) => key.slice(ENTRY_WAIT.length));
+        const entry = freshEntryId(ctx, taken);
+        setWaiting((now) => [...now, `${ENTRY_WAIT}${entry}`]);
+        return true;
+    };
     const add = (id: string): void => {
         setMenu(false);
         if (id === "shader") {
@@ -355,20 +470,11 @@ function ThingSection({
             return;
         }
         const found = things.flat().find((each) => each.thing.id === id);
+        if (addsEntry(found?.thing)) {
+            return;
+        }
+        const { free, main } = plusTarget(ctx, found, shown, waiting);
         const thing = found?.thing;
-        // A kind group already drawn adds its first free kind.
-        const free =
-            found === undefined || !shown.some((each) => each.thing === found.thing)
-                ? undefined
-                : freeKind(ctx, found.thing, waiting);
-        const main =
-            found === undefined
-                ? undefined
-                : mainOf(
-                      ctx,
-                      free === undefined ? found.thing : { ...found.thing, main: [free.head], start: free.head },
-                      found.channels,
-                  );
         if (thing === undefined || main === undefined) {
             return;
         }
@@ -448,32 +554,32 @@ function ThingSection({
                 }
             >
                 {byKind(shown.flatMap(({ thing, channels }) => rowsOf(ctx, thing, channels, waiting))).map((run) => {
-                    const drawn = run.rows.map(({ thing, channels, kind }) => (
-                        <ThingRow
-                            key={kind === undefined ? thing.id : `${thing.id}:${kind.id}`}
-                            ctx={ctx}
-                            thing={thing}
-                            channels={channels}
-                            kind={kind}
-                            pending={
-                                waiting.includes(thing.id) ||
-                                (kind !== undefined && waiting.includes(`${thing.id}:${kind.id}`))
-                            }
-                            opening={opening === thing.id}
-                            onOpened={() => {
-                                setOpening(undefined);
-                            }}
-                            onCancel={() => {
-                                setWaiting((now) =>
-                                    now.filter(
-                                        (each) =>
-                                            each !== thing.id &&
-                                            (kind === undefined || each !== `${thing.id}:${kind.id}`),
-                                    ),
-                                );
-                            }}
-                        />
-                    ));
+                    const drawn = run.rows.map((row) => {
+                        const { thing, channels, kind, entry } = row;
+                        const key = waitKeyOf(row);
+                        return (
+                            <ThingRow
+                                key={key}
+                                ctx={ctx}
+                                thing={thing}
+                                channels={channels}
+                                kind={kind}
+                                entry={entry}
+                                pending={waiting.includes(key) || (entry === undefined && waiting.includes(thing.id))}
+                                opening={opening === thing.id}
+                                onOpened={() => {
+                                    setOpening(undefined);
+                                }}
+                                onCancel={() => {
+                                    setWaiting((now) =>
+                                        now.filter(
+                                            (each) => each !== key && (entry !== undefined || each !== thing.id),
+                                        ),
+                                    );
+                                }}
+                            />
+                        );
+                    });
                     return run.legend === undefined ? (
                         drawn
                     ) : (

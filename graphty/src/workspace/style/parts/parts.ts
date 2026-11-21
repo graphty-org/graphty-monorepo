@@ -228,6 +228,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     main: ["node.label", "node.labelSize", "node.labelFont", "node.labelLocation"],
                     tail: [
                         "node.labelStyle",
+                        "node.labels",
                         "node.labelDeclutter",
                         "node.labelMinNodeScreenSize",
                         "node.labelFit",
@@ -501,7 +502,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     id: "label",
                     name: "Label",
                     main: ["edge.label", "edge.labelSize", "edge.labelFont"],
-                    tail: ["edge.labelStyle", "edge.labelTable"],
+                    tail: ["edge.labelStyle", "edge.labels", "edge.labelTable"],
                     pages: {
                         Type: [
                             "edge.labelWeight",

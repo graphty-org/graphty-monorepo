@@ -33,7 +33,18 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { AlgorithmKey, Binding, Channel, LayerId, PaletteId, Path, RunId } from "../../catalog/types";
+import type {
+    AlgorithmKey,
+    Binding,
+    Channel,
+    LabelFieldAddress,
+    LayerId,
+    ListItemAddress,
+    PaletteId,
+    Path,
+    RunId,
+    ShaderParamAddress,
+} from "../../catalog/types";
 import { RESULT_ROOT } from "../results/types";
 import type { CodedFact } from "../shared";
 import { asColorValue } from "./channels";
@@ -164,6 +175,13 @@ export interface LegendReading {
 export interface LegendBlock {
     /** The channel the block describes. */
     readonly channel: Channel;
+    /**
+     * The encode key of the binding it describes, when that is an address inside a list channel
+     * (`node.labels.top.text`, `node.shaders.glow.strength`) rather than `channel`: one layer's
+     * blocks are told apart by `address ?? channel`.
+     * @since 3.64.0
+     */
+    readonly address?: ShaderParamAddress | ListItemAddress | LabelFieldAddress;
     /**
      * The layer that paints it. For a block standing for several copies (`layers`), the copy
      * shown on the most elements, whose domain and swatches the block reads.
@@ -1084,6 +1102,7 @@ function buildBlock(
 
     const block: LegendBlock = {
         channel,
+        ...(prepared.address === undefined ? {} : { address: prepared.address }),
         layerId: layer.id,
         ...(layer.source.by === "run" ? { runId: layer.source.runId } : {}),
         kind,
@@ -1220,13 +1239,13 @@ function foldCopies(
     const groups = new Map<string, LegendBlock[]>();
     const order: (LegendBlock | LegendBlock[])[] = [];
     for (const block of blocks) {
-        const binding = byId.get(block.layerId)?.encode?.[block.channel];
+        const binding = byId.get(block.layerId)?.encode?.[block.address ?? block.channel];
         if (binding === undefined || !("by" in binding)) {
             order.push(block);
             continue;
         }
         const { map: _map, ...rest } = binding;
-        const key = `${block.channel}|${JSON.stringify(rest)}`;
+        const key = `${block.address ?? block.channel}|${JSON.stringify(rest)}`;
         const group = groups.get(key);
         if (group === undefined) {
             const fresh = [block];

@@ -52,6 +52,8 @@ export interface LabelLineContext {
     readonly style: Readonly<LabelStyle>;
     /** Writes fields of the style; `drop` channels of the thing are taken off in the same step. */
     readonly write: (patch: LabelPatch, drop?: readonly Channel[]) => void;
+    /** What its lines' `data-line` starts with, when not its style channel (a further label's `node.labels.<id>`). */
+    readonly address?: string;
 }
 
 /**
@@ -490,7 +492,7 @@ export function LabelFieldLine({
     const args: LineControlArgs = { label, line, field, descriptor, name, set, split };
     const control = line.unit === undefined ? controlOf(args, rule) : unitControl(args);
     const { sides } = line;
-    const address = `${label.kind.style}.${line.unit === undefined ? field : "unit"}`;
+    const address = `${label.address ?? label.kind.style}.${line.unit === undefined ? field : "unit"}`;
     const named = rule !== "R7" && (alwaysNamed || (rule !== "R8f" && rule !== "R2" && line.name !== null));
     const frame = (
         <LineFrame

@@ -3478,6 +3478,7 @@ export interface LeftOutEdge {
 
 // @public
 export interface LegendBlock {
+    readonly address?: ShaderParamAddress | ListItemAddress | LabelFieldAddress;
     readonly channel: Channel;
     readonly domain?: {
         readonly min: number;

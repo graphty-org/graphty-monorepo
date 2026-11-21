@@ -101,7 +101,6 @@ const KNOWN_CHANNEL_GAPS: readonly string[] = [
     "edge.tooltipSize",
     "edge.tooltipColor",
     "edge.tooltipBackground",
-    "node.labels",
     "node.xlabelLocation",
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
@@ -168,7 +167,6 @@ const KNOWN_CHANNEL_GAPS: readonly string[] = [
     "edge.labelGapOf",
     // Restored for alignment (E672): the same missing By data as node.labelBox above.
     "edge.labelBox",
-    "edge.labels",
     "edge.xlabelLocation",
     "edge.xlabelOffsetX",
     "edge.xlabelOffsetY",
@@ -613,6 +611,7 @@ function homed(side: Side): ReadonlySet<Channel> {
             thing.words,
             thing.style,
             ...(thing.distance === undefined ? [] : [thing.distance]),
+            ...(thing.list === undefined ? [] : [thing.list]),
         ]),
         `${side}.shaders`,
     ]);

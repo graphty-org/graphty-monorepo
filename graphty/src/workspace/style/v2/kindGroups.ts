@@ -307,7 +307,8 @@ export const KIND_GROUPS: readonly KindGroup[] = [
                 id: "text",
                 plainName: "Text",
                 head: "node.label",
-                owns: (channel) => !channel.startsWith("node.glyph"),
+                // The further labels are rows of their own (labelEntries.ts), never the main label's.
+                owns: (channel) => !channel.startsWith("node.glyph") && channel !== "node.labels",
                 slots: {
                     color: ["node.labelColor", { style: "node.labelStyle", field: "color" }],
                     size: [{ style: "node.labelStyle", field: "size" }],

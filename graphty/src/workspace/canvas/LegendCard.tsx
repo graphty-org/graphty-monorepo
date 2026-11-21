@@ -343,7 +343,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
                     const continuous = block.kind === "sequential" || block.kind === "diverging";
                     return (
                         <fieldset
-                            key={`${block.layerId}-${block.channel}`}
+                            key={`${block.layerId}-${block.address ?? block.channel}`}
                             // Named once: a merged section's one row already says its title, and a
                             // titled section's heading line is hidden from a screen reader, which
                             // hears the title as the section's name.

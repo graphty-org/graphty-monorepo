@@ -65,6 +65,8 @@ import type {
     BindingNumberFormat,
     Channel,
     ChannelValue,
+    LabelFieldAddress,
+    ListItemAddress,
     PaletteDescriptor,
     PaletteId,
     Path,
@@ -212,6 +214,12 @@ export interface PreparedBinding {
      * Empty when the encoding has nothing to confess.
      */
     readonly facts: readonly LegendFact[];
+    /**
+     * The encode key it was bound under, when that is an address inside a list channel (a shader
+     * parameter, a list item, a field of one label) rather than `channel` itself: two bindings of
+     * one list channel are told apart by it.
+     */
+    readonly address?: ShaderParamAddress | ListItemAddress | LabelFieldAddress;
     /**
      * The channel value for one element.
      * @param value - What the element carries for the bound path, including the absent value of
@@ -2317,17 +2325,17 @@ function prepareStops(
 export function prepareBinding(options: PrepareBindingOptions): PreparedBinding {
     const address = parseShaderParamAddress(options.channel);
     if (address !== null) {
-        return prepareParamBinding(address, options);
+        return { ...prepareParamBinding(address, options), address: options.channel as ShaderParamAddress };
     }
 
     const item = parseListItemAddress(options.channel);
     if (item !== null) {
-        return prepareListItemBinding(item, options);
+        return { ...prepareListItemBinding(item, options), address: options.channel as ListItemAddress };
     }
 
     const label = parseLabelFieldAddress(options.channel);
     if (label !== null) {
-        return prepareLabelFieldBinding(label, options);
+        return { ...prepareLabelFieldBinding(label, options), address: options.channel as LabelFieldAddress };
     }
 
     const descriptor = requireChannel(options.channel);

@@ -17,7 +17,7 @@ import {
     measurePaint,
     mountProbeGraph,
     PIXEL_CHANGE,
-    PREREQUISITES,
+    probeBase,
     probeFor,
     sortedDescriptors,
     viewsOf,
@@ -67,10 +67,8 @@ for (const view of ["2d", "3d"] as const) {
                     descriptor.target,
                     descriptor.channel,
                     probeFor(descriptor),
-                    {
-                        ...PREREQUISITES[descriptor.channel],
-                        ...shown?.base,
-                    },
+                    // What it needs to show at all (a plate's opacity, its part), as channel-paints writes it.
+                    { ...probeBase(descriptor, CHANNEL_DESCRIPTORS), ...shown?.base },
                 );
                 // Only the picture counts, both ways, place by place (a cap flipped or a same-size shape swapped moves
                 // no histogram bucket): where it claims to draw, its pixels must change (a mesh built and then hidden

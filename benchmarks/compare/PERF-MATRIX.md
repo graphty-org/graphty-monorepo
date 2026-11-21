@@ -70,10 +70,15 @@ on the shared machine are not comparable.
 
 It fails (exit 1) when, for any scenario and path that is in both the results and the baseline:
 
-- a timed metric is worse than the baseline by more than 25% (`PERF_MARGIN`) plus the metric's slack (1 ms for a
-  frame, 2 ms for a landing, 10 ms for hover, 50 ms for a load, restyle, edit or layout start, 20 MB of heap),
+- a timed metric's median is worse than the baseline's worst run by more than 25% (`PERF_MARGIN`) plus the metric's
+  slack (1 ms for a frame, 2 ms for a landing, 10 ms for hover, 50 ms for a load, restyle, edit or layout start,
+  20 MB of heap),
 - a counted metric is higher at all,
 - a metric the baseline has is missing, or a run failed where the baseline's did not.
+
+Run the gate on three runs of the gate set, as above: one run is too noisy (on reserved cores a 10k first frame
+still varied by 40% between runs of the same commit). The baseline's worst run is the reference for the same reason,
+so the spread its own runs showed is never read as a regression.
 
 When a change makes things faster, or the machine changes, write a new baseline from three runs of the gate set and
 commit it with the change: `node perf-matrix.mjs baseline <file>` (it replaces the entries the file has and keeps the

@@ -186,16 +186,21 @@ function readRows(file) {
         .map((l) => JSON.parse(l))
         .filter((r) => r.scenario && !r.void);
 }
-/** One entry per scenario and path: each metric's median over its runs, and the failures. */
+/**
+ * One entry per scenario and path: each metric's median over its runs, its worst run (the gate's reference for a
+ * timed metric, so the spread the baseline's own runs showed is not read as a regression), and the failures.
+ */
 function summarize(rows) {
     const by = new Map();
     for (const r of rows) (by.get(keyOf(r)) ?? by.set(keyOf(r), []).get(keyOf(r))).push(r);
     const out = {};
     for (const [key, rs] of by) {
-        const e = { runs: rs.length, metrics: {} };
+        const e = { runs: rs.length, metrics: {}, worst: {} };
         for (const [name, { read }] of Object.entries(METRICS)) {
-            const v = median(rs.map((r) => read(r)));
-            if (v !== undefined) e.metrics[name] = v;
+            const xs = rs.map((r) => read(r)).filter((x) => typeof x === "number" && Number.isFinite(x));
+            if (!xs.length) continue;
+            e.metrics[name] = median(xs);
+            e.worst[name] = Math.max(...xs);
         }
         const failures = rs.map((r) => r.failure).filter(Boolean);
         if (failures.length) e.failures = failures.map((f) => f.slice(0, 160));
@@ -291,7 +296,7 @@ function compareEntry(key, cur, b) {
         if (!metric) continue;
         compared++;
         const is = cur.metrics[name];
-        const limit = metric.counted ? was : was * (1 + MARGIN) + metric.slack;
+        const limit = metric.counted ? was : (b.worst?.[name] ?? was) * (1 + MARGIN) + metric.slack;
         if (is === undefined && !cur.failures) worse.push(`${key} ${name}: missing (was ${was})`);
         else if (is > limit) worse.push(`${key} ${name}: ${is} > ${+limit.toFixed(2)} (baseline ${was})`);
     }

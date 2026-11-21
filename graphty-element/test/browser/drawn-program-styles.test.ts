@@ -611,24 +611,4 @@ describe("an edge's overlay", () => {
         // before the line
         assert.isBelow(over.batch.mesh.position.z, 0);
     });
-    test("at scale 1 is its width wider than the line, as an outline of the same width is", async () => {
-        for (const width of [1, 6]) {
-            const edge = await oneEdge({
-                "edge.width": width,
-                "edge.overlayOpacity": 0.5,
-                "edge.overlayScale": 1,
-                "edge.overlayWidth": 2,
-                "edge.outlineWidth": 2,
-            });
-            const [over] = (edge as unknown as { haloBands: { batch: EdgeLineBatch }[] }).haloBands;
-            const { lineBatch, outlineBatch } = edge as unknown as EdgeLines;
-            assert(over && lineBatch && outlineBatch, "the line, its outline and its overlay are drawn");
-            const line = lookOf(lineBatch).width;
-            // 2 past a line of 1 is 3 lines across, past a line of 6 is 8/6 of one, the outline's width each time
-            assert.closeTo(lookOf(over.batch).width / line, (width + 2) / width, 1e-6);
-            assert.closeTo(lookOf(over.batch).width, lookOf(outlineBatch).width, 1e-6);
-            graph?.dispose();
-            container?.remove();
-        }
-    });
 });

@@ -132,4 +132,15 @@ describe("removed channels in a saved layer", () => {
             "edge.outlineOpacity": 0.5,
         });
     });
+
+    it("gives a bound band color with no band width the band's default width as the outline's", () => {
+        const encode: Record<string, unknown> = { "edge.bandColor": { field: "kind", scale: "category" } };
+        const read = readRemovedChannels({ set: {}, encode }).spec;
+        assert.deepEqual(read.encode, { "edge.outlineColor": { field: "kind", scale: "category" } });
+        // unset, the band drew the selection look's scale: twice that, in the line's widths
+        assert.deepEqual(read.set, {
+            "edge.outlineScale": 2 * DEFAULT_SELECTION_STYLE.edgeScale,
+            "edge.outlineWidth": 0,
+        });
+    });
 });

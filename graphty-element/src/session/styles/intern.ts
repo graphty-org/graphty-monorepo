@@ -340,8 +340,6 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.overlayColor": "mesh",
     "edge.overlayOpacity": "mesh",
     "edge.overlayPadding": "mesh",
-    "edge.overlayWidth": "mesh",
-    "edge.overlayScale": "mesh",
     // A gradient's pieces are batches of their own colors, built with the line.
     "edge.gradientColors": "mesh",
     "edge.gradientStops": "mesh",

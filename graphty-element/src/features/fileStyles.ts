@@ -119,8 +119,6 @@ export const FILE_STYLE_CHANNELS: ReadonlySet<string> = new Set([
     "edge.overlayColor",
     "edge.overlayOpacity",
     "edge.overlayPadding",
-    "edge.overlayScale",
-    "edge.overlayWidth",
     "edge.sourceNodeGap",
     "edge.sourcePort",
     "edge.supportCentralGravity",

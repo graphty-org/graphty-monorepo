@@ -5044,9 +5044,8 @@ export class Edge {
     }
 
     /**
-     * Build the band drawn over (`line.overlay`) this edge's line: `scale` of the line's widths plus `width` plus
-     * twice `padding` across (unset, Cytoscape.js's overlay, twice its padding wide whatever the line's width), a
-     * hair before the line, in 2D only. The band beneath
+     * Build the band drawn over (`line.overlay`) this edge's line: Cytoscape.js's overlay, twice its
+     * padding wide whatever the line's width, a hair before the line, in 2D only. The band beneath
      * the line is its outline ({@link Edge.createOutline}).
      * @param meshKey - The source mesh key the edge is drawn under.
      * @param style - The style the line is drawn from.
@@ -5055,8 +5054,7 @@ export class Edge {
         const halo = style.line?.overlay;
         // An overlay is drawn in the 2D view only (its channels' drawnWhen).
         const opacity = this.context.is2D() ? (halo?.opacity ?? 0) : 0;
-        const line = style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
-        const width = line * (halo?.scale ?? 0) + (halo?.width ?? 0) + 2 * (halo?.padding ?? 0);
+        const width = 2 * (halo?.padding ?? 0);
         if (opacity <= 0 || width <= 0 || this.lineBatch === null) {
             return;
         }

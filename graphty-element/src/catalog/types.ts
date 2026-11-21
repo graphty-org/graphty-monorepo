@@ -861,8 +861,6 @@ export type Channel =
     | "edge.overlayColor"
     | "edge.overlayOpacity"
     | "edge.overlayPadding"
-    | "edge.overlayWidth"
-    | "edge.overlayScale"
     | "edge.gradientColors"
     | "edge.gradientStops"
     | "edge.gradientKind"

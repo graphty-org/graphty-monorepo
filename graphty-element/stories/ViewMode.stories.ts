@@ -4,8 +4,16 @@ import type { Decorator, Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { VIEW_MODE_VALUES, type ViewMode } from "../src/config";
 import { Graphty } from "../src/graphty-element";
-import { assertGraphLoaded, assertLayoutPlaced, assertViewMode, drawn } from "./assertions";
-import { edgeData, eventWaitingDecorator, nodeData, setLayoutPreSteps } from "./helpers";
+import {
+    assertGraphLoaded,
+    assertLayoutPlaced,
+    assertViewMode,
+    drawn,
+    holds,
+    pixelsOfColour,
+    renderedElement,
+} from "./assertions";
+import { edgeData, eventWaitingDecorator, nodeData, renderFn, setLayoutPreSteps, storySetup } from "./helpers";
 
 /**
  * What a reader sees when the chosen XR mode is not available, so the fallback to 3D is not silent.
@@ -131,5 +139,63 @@ export const SwitchViewModes: Story = {
         // The control is the story; its opening position is 3d, and the camera the element
         // actually draws through is how a reader can tell the control did anything.
         await assertViewMode(scene, "3d");
+    },
+};
+
+/** The color the edges of {@link SwitchTo2DAfterLoad} are drawn in, counted on the canvas after the switch. */
+const SWITCHED_EDGE_COLOR = "#e8590c";
+
+/**
+ * A graph drawn in 3D, then switched to 2D once it is drawn: the edges are drawn in 2D as they were in 3D.
+ *
+ * The edges are plain lines with no arrowheads, added once the graph is drawn: the kind the batched render path
+ * draws with no edge object of its own. A switch between 2D and 3D rebuilds every line batch, and those lines were once left out of the new
+ * one, so after the switch no edge was drawn at all. The render-parity test draws this story on both render
+ * paths and compares the pictures.
+ */
+export const SwitchTo2DAfterLoad: Story = {
+    name: "Switch to 2D After Load",
+    render: renderFn,
+    parameters: { controls: { include: [] } },
+    args: {
+        viewMode: "3d",
+        nodeData: [
+            { id: "a", position: { x: -6, y: -3, z: 0 } },
+            { id: "b", position: { x: 6, y: -3, z: 0 } },
+            { id: "c", position: { x: 0, y: 5, z: 0 } },
+        ],
+        edgeData: [],
+        layout: "fixed",
+        layoutConfig: {},
+        setup: storySetup({
+            edge: { "edge.arrowHead": "none", "edge.color": SWITCHED_EDGE_COLOR, "edge.width": 1 },
+        }),
+    } as never,
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "ViewMode SwitchTo2DAfterLoad");
+        await assertGraphLoaded(scene, { nodes: 3, edges: 0 });
+        const element = await renderedElement(canvasElement, "ViewMode SwitchTo2DAfterLoad: no graphty-element");
+        // Added once the element is drawn, as a page loads a file into a running graph: the batched render path
+        // draws such edges with no edge object of their own, and those are the lines the switch lost.
+        await element.session.data.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+            { src: "c", dst: "a" },
+        ]);
+        await element.waitForStableFrame();
+        await holds(
+            element.session.status.counts.edges === 3,
+            `ViewMode SwitchTo2DAfterLoad: holds ${String(element.session.status.counts.edges)} edges, not 3`,
+        );
+
+        await element.setViewMode("2d");
+        await element.waitForStableFrame();
+        await assertViewMode(scene, "2d");
+
+        const edgePixels = await pixelsOfColour(scene, SWITCHED_EDGE_COLOR);
+        await holds(
+            edgePixels > 200,
+            `ViewMode SwitchTo2DAfterLoad: after the switch to 2D only ${String(edgePixels)} pixels are in the edges' color, so the edges are not drawn`,
+        );
     },
 };

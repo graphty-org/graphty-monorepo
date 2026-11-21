@@ -984,18 +984,41 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
-        let travelled = 0;
-        this.ngraphLayout.forEachBody((body) => {
-            const start = this.stallStart.get(body);
-            if (start !== undefined) {
-                travelled += Math.hypot(body.pos.x - start.x, body.pos.y - start.y, (body.pos.z ?? 0) - start.z);
-            }
-        });
-        if (travelled < this.stallPath * STALL_WANDER) {
+        if (this.traveledInShape() < this.stallPath * STALL_WANDER) {
             settings.timeStep *= STALL_COOLING;
         }
 
         this.restartStallWindow(avgMovement);
+    }
+
+    /**
+     * How far the bodies moved since the stall window began, leaving out what they all moved
+     * together. A drift of the whole drawing changes no node's place in it: on political-blogs in
+     * 3D (issue #7919) the largest component kept its shape from about step 400 while the whole of
+     * it slid on at a fifth of a unit a step, so a stall that was swinging in place read as
+     * traveling and the time step never shortened.
+     * @returns The summed distance of each body from where it started, net of the mean displacement.
+     */
+    private traveledInShape(): number {
+        const moves: [number, number, number][] = [];
+        const drift = [0, 0, 0];
+        this.ngraphLayout.forEachBody((body) => {
+            const start = this.stallStart.get(body);
+            if (start !== undefined) {
+                const move: [number, number, number] = [
+                    body.pos.x - start.x,
+                    body.pos.y - start.y,
+                    (body.pos.z ?? 0) - start.z,
+                ];
+                moves.push(move);
+                drift[0] += move[0];
+                drift[1] += move[1];
+                drift[2] += move[2];
+            }
+        });
+        const count = Math.max(moves.length, 1);
+        const [dx, dy, dz] = drift.map((d) => d / count);
+        return moves.reduce((sum, [x, y, z]) => sum + Math.hypot(x - dx, y - dy, z - dz), 0);
     }
 
     /**
@@ -1049,11 +1072,12 @@ export class NGraphEngine extends LayoutEngine {
         const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
-            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at, this.rowSource?.positions)) {
                 const pos = this.ngraphLayout.getNodePosition(id);
                 pos.x = at.x;
                 pos.y = at.y;
-                pos.z = at.z;
+                // A 2D engine holds its bodies on the plane, whatever Z the array carries.
+                pos.z = this.ngraphLayout.simulator.settings.dimensions === 3 ? at.z : 0;
             }
         }
     }
@@ -1066,14 +1090,16 @@ export class NGraphEngine extends LayoutEngine {
     protected setNodePosition(n: Node, newPos: Position): void {
         const ngraphNode = this._getMappedNode(n);
         const currPos = this.ngraphLayout.getNodePosition(ngraphNode.id);
+        // A 2D engine holds its bodies on the plane, whatever Z it is handed.
+        const z = this.ngraphLayout.simulator.settings.dimensions === 3 ? (newPos.z ?? 0) : 0;
         currPos.x = newPos.x;
         currPos.y = newPos.y;
-        currPos.z = newPos.z;
+        currPos.z = z;
         // A drag is a placement like any other, so it lands in the shared array immediately rather
         // than waiting for a step that a settled simulation may never run. It is a PLACEMENT and
         // not a layout step, so it writes even onto a pinned row: a reader must be able to move a
         // node they have pinned.
-        this.writeNodePosition(n, newPos.x, newPos.y, newPos.z ?? 0, "placement");
+        this.writeNodePosition(n, newPos.x, newPos.y, z, "placement");
     }
 
     /**

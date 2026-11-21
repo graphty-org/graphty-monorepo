@@ -1,6 +1,7 @@
 /**
  * @file A vector figure (`exportFigure`, issue #819) draws each node where and in the color the
- * canvas draws it, with its border and each edge's arrowheads, keeps labels and the key as text, and fails with a code for a format it does
+ * canvas draws it, with its border, each edge along its curve and stopped at its arrowheads, each label over its
+ * solid or gradient panel, keeps labels (canvas- or glyph-drawn), node glyphs and the key as text, and fails with a code for a format it does
  * not write.
  */
 
@@ -105,6 +106,46 @@ test("a label's solid background is a box behind its text", async () => {
     }
 });
 
+test("a label's gradient background is a box filled with its gradient, in SVG and PDF", async () => {
+    graph = await createTestGraphWithData();
+    await graph.getSession().styles.add({
+        name: "Labelled on red to blue",
+        target: "node",
+        selector: { match: "everything" },
+        set: {
+            "node.label": "N",
+            "node.labelStyle": {
+                gradient: true,
+                gradientColors: ["#ff0000", "#0000ff"],
+                gradientDirection: "horizontal",
+            },
+        },
+    });
+    await graph.waitForStableFrame();
+
+    const svg = await parse(exportFigure(graph).blob);
+    const boxes = [...svg.querySelectorAll('rect[fill^="url(#graphty-panel-"]')];
+    assert.equal(boxes.length, 3, "one box per label");
+    for (const box of boxes) {
+        const id = /url\(#(.+)\)/.exec(box.getAttribute("fill") ?? "")?.[1] ?? "";
+        const ramp = svg.querySelector(`linearGradient[id="${id}"]`);
+        assert.ok(ramp, "the box's gradient is in the file");
+        const stops = [...(ramp?.querySelectorAll("stop") ?? [])].map((s) => s.getAttribute("stop-color"));
+        assert.deepEqual(stops, ["#ff0000", "#0000ff"]);
+        const left = Number(box.getAttribute("x"));
+        const right = left + Number(box.getAttribute("width"));
+        assert.closeTo(Number(ramp?.getAttribute("x1")), left, 1, "red at the box's left");
+        assert.closeTo(Number(ramp?.getAttribute("x2")), right, 1, "blue at its right");
+        assert.equal(ramp?.getAttribute("y1"), ramp?.getAttribute("y2"), "running across it");
+    }
+
+    const pdf = new TextDecoder("latin1").decode(await exportFigure(graph, { format: "pdf" }).blob.arrayBuffer());
+    assert.equal(pdf.match(/ re\nW n/g)?.length, 3, "each label's bands are cut to its box");
+    assert.include(pdf, "1 0 0 rg", "its red end");
+    assert.include(pdf, "0 0 1 rg", "its blue end");
+    assert.match(pdf, /\n0\.\d+ 0 0\.\d+ rg\n/, "and the blend between");
+});
+
 test("a PDF figure is one page the canvas's size with the labels and the key as text", async () => {
     graph = await createTestGraphWithData();
     await graph.getSession().styles.add({
@@ -176,6 +217,96 @@ test("each arrowhead is drawn in its color with its tip at its target node", asy
     assert.include(pdf, "1 0 1 rg", "the arrowheads are filled magenta in the PDF");
 });
 
+/**
+ * A figure's edge lines as the points each is drawn through.
+ * @param svg - The figure.
+ * @returns One list of points per line or polyline.
+ */
+function edgePaths(svg: SVGSVGElement): number[][][] {
+    return [...svg.querySelectorAll("line, polyline")].map((line) =>
+        line.tagName === "line"
+            ? [
+                  [Number(line.getAttribute("x1")), Number(line.getAttribute("y1"))],
+                  [Number(line.getAttribute("x2")), Number(line.getAttribute("y2"))],
+              ]
+            : (line.getAttribute("points") ?? "").split(" ").map((p) => p.split(",").map(Number)),
+    );
+}
+
+/**
+ * How far a point is from the straight line through two others.
+ * @param p - The point.
+ * @param a - One end of the line.
+ * @param b - The other.
+ * @returns The distance.
+ */
+function offLine(p: number[], a: number[], b: number[]): number {
+    const cross = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+    return Math.abs(cross) / Math.hypot(b[0] - a[0], b[1] - a[1]);
+}
+
+test("a curved edge is drawn along the curve the canvas draws", async () => {
+    graph = await createTestGraphWithData();
+    await graph.getSession().styles.add({
+        name: "Curved",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.curvature": true },
+    });
+    await graph.waitForStableFrame();
+
+    const paths = edgePaths(await parse(exportFigure(graph).blob));
+    assert.equal(paths.length, 2, "one line per edge");
+    for (const [path, [from, to]] of paths.map(
+        (p, i) =>
+            [
+                p,
+                [
+                    ["1", "2"],
+                    ["2", "3"],
+                ][i],
+            ] as const,
+    )) {
+        const a = graph.nodeScreenPosition(from);
+        const b = graph.nodeScreenPosition(to);
+        assert.ok(a?.visible && b?.visible);
+        assert.isAbove(path.length, 2, "drawn through the curve's points");
+        const bow = Math.max(...path.map((p) => offLine(p, [a.x, a.y], [b.x, b.y])));
+        assert.isAbove(bow, 2, `edge ${from}-${to} bows off the straight line between its nodes`);
+    }
+    const pdf = new TextDecoder("latin1").decode(await exportFigure(graph, { format: "pdf" }).blob.arrayBuffer());
+    assert.equal(
+        pdf.match(/ m\n(?:[^\n]+ l\n){2,}S\n/g)?.length,
+        2,
+        "each edge is one stroke through its curve in the PDF",
+    );
+});
+
+test("an edge's line stops at its arrowhead instead of running to the node's center", async () => {
+    graph = await createTestGraphWithData();
+    await graph.getSession().styles.add({
+        name: "Arrows",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.arrowHead": "normal" },
+    });
+    await graph.waitForStableFrame();
+
+    const paths = edgePaths(await parse(exportFigure(graph).blob));
+    const pdf = new TextDecoder("latin1").decode(await exportFigure(graph, { format: "pdf" }).blob.arrayBuffer());
+    assert.equal(paths.length, 2, "one line per edge");
+    for (const [path, target] of paths.map((p, i) => [p, ["2", "3"][i]] as const)) {
+        const at = graph.nodeScreenPosition(target);
+        assert.ok(at?.visible);
+        const [x, y] = path.at(-1) ?? [];
+        assert.isAbove(Math.hypot(x - at.x, y - at.y), at.radius, `the line to node ${target} ends outside it`);
+        const ends = [...pdf.matchAll(/(-?[\d.]+) (-?[\d.]+) l\nS\n/g)].map((m) => [Number(m[1]), Number(m[2])]);
+        const height = Number(/\/MediaBox \[0 0 [\d.]+ ([\d.]+)\]/.exec(pdf)?.[1]);
+        const same = ends.some(([px, py]) => Math.hypot(px - x, height - py - y) < 0.05);
+        assert.ok(same, `the PDF's line to node ${target} ends at the same point`);
+    }
+});
+
 test("a node's border is a ring in its color around the node", async () => {
     graph = await createTestGraphWithData();
     await graph.getSession().styles.add({
@@ -198,6 +329,56 @@ test("a node's border is a ring in its color around the node", async () => {
         });
         assert.ok(around, `node ${id}'s ring sits around it`);
     }
+});
+
+test("a node's glyph is text in its color, centered on the node at the size the canvas draws it, in SVG and PDF", async () => {
+    graph = await createTestGraphWithData();
+    // Flat, so the glyph's face and the node's center are one point on screen.
+    await graph.setViewMode("2d");
+    await graph.getSession().styles.add({
+        name: "Glyph G",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.glyph": "G", "node.glyphColor": "#ff00ff" },
+    });
+    await graph.waitForStableFrame();
+
+    const svg = await parse(exportFigure(graph).blob);
+    const glyphs = [...svg.querySelectorAll("text")].filter((t) => t.textContent === "G");
+    assert.equal(glyphs.length, 3, "one glyph per node");
+    for (const id of ["1", "2", "3"]) {
+        const at = graph.nodeScreenPosition(id);
+        assert.ok(at?.visible);
+        const centred = glyphs.find((t) => {
+            const span = t.querySelector("tspan");
+            return Math.hypot(Number(span?.getAttribute("x")) - at.x, Number(span?.getAttribute("y")) - at.y) < 0.5;
+        });
+        assert.ok(centred, `node ${id}'s glyph is centered on it`);
+        assert.equal(centred.getAttribute("fill"), "#ff00ff");
+        // Unsized, the glyph's font is as tall as the node's face is wide.
+        const size = Number(centred.getAttribute("font-size"));
+        assert.closeTo(size, at.radius * 2, at.radius * 0.2, "the glyph's font size is the node's width on screen");
+    }
+
+    const pdf = new TextDecoder("latin1").decode(await exportFigure(graph, { format: "pdf" }).blob.arrayBuffer());
+    assert.equal(pdf.match(/\(G\) Tj/g)?.length, 3, "every glyph is text in the PDF");
+});
+
+test("labels drawn from the glyph atlas are text", async () => {
+    graph = await createTestGraphWithData();
+    graph.setLayoutBehavior({ labels: { labelText: "glyphs" } });
+    await graph.getSession().styles.add({
+        name: "Labelled",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.label": "N" },
+    });
+    await graph.waitForStableFrame();
+    assert.equal(graph.getNode("1")?.label?.drawnBy, "glyphs");
+
+    const svg = await parse(exportFigure(graph).blob);
+    const words = [...svg.querySelectorAll("text")].map((t) => t.textContent);
+    assert.equal(words.filter((w) => w === "N").length, 3, "every glyph-drawn label is text");
 });
 
 test("an unknown format fails with E_BAD_COMMAND naming the field", async () => {

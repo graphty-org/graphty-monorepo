@@ -854,7 +854,10 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
        0.55 to 2.3 ns per element per unit of log2(n + m) (48 ns on the object graph before), and a
        pass 1.7 to 7.1 ns per element, the most on sparse random graphs, whose passes miss the
        cache most. Pinned at 3.3 ns per unit of log2(n + m) (1 / (100 * the iterative rate)) and
-       7.4 ns per pass (1 / (45 * the iterative rate)) while the graph stays in a core's cache.
+       5.2 ns per pass (1 / (64 * the iterative rate)) while the graph stays in a core's cache.
+       The pass was 7.4 ns (1 / 45) until 2026-11-19 (issue #8475), when a pass stopped copying
+       the scores before scaling them: the 10,000-node grid then read 4.2 to 4.5x pessimistic and
+       random m = 1.2n at 100,000 nodes 1.9x, on CI and on the reference machine alike.
        A pass that misses the cache costs more beside the calibration probe, which never does: on
        2026-11-14 (issue #7920) a pass over random m = 1.2n at 100,000 nodes (about 1.8 MB) took
        6.7 ns per element on the reference machine against 3.3 on a 10,000-node grid, and on CI's
@@ -867,7 +870,7 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
         seconds: (nodes, edges, rates, iterations) =>
             ((nodes + edges) *
                 (Math.log2(Math.max(2, nodes + edges)) / 100 +
-                    (iterations / 45) * (1 + cacheMissShare(nodes, edges) / 2))) /
+                    (iterations / 64) * (1 + cacheMissShare(nodes, edges) / 2))) /
             rates.iterativeElementsPerSecond,
     },
 };

@@ -18,7 +18,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import type { ProgressChange } from "../../src/session";
+import type { ProgressChange, SourceLoaded } from "../../src/session";
 
 /** Two nodes and the edge between them, as an inline JSON data source. */
 const GRAPH = JSON.stringify({
@@ -124,6 +124,51 @@ describe("the element's own mirrors on the DOM", () => {
         );
         assert.deepInclude(seen.at(-1), { outcome: "succeeded" }, "and how it ended");
         assert.doesNotThrow(() => structuredClone(seen), "the detail carries plain values");
+    });
+
+    test("graphty-source-loaded arrives once per load with ids and no file name, URL or params", async () => {
+        const element = await mountWithGraph();
+        const seen: SourceLoaded[] = [];
+        element.addEventListener("graphty-source-loaded", (event) => {
+            seen.push(event.detail);
+        });
+
+        await element.session.data.import(
+            { type: "json", name: "SECRET_NAME", config: { data: GRAPH } },
+            { callerKey: "mine" },
+        );
+
+        assert.lengthOf(seen, 1, "one load, one event");
+        const [loaded] = seen;
+        assert.deepInclude(loaded, { kind: "file", format: "json", mode: "replace", callerKey: "mine" });
+        assert.strictEqual(loaded.source, element.session.data.sources().at(-1)?.key);
+        for (const key of ["fileName", "url", "baseUrl", "params", "name", "config"]) {
+            assert.notProperty(loaded, key);
+        }
+        assert.notInclude(JSON.stringify(loaded), "SECRET_NAME");
+        assert.doesNotThrow(() => structuredClone(loaded), "the detail carries plain values");
+    });
+
+    test("graphty-source-loaded arrives for the data-source attribute and loadFromFile", async () => {
+        const element = await mountWithGraph();
+        const seen: SourceLoaded[] = [];
+        element.addEventListener("graphty-source-loaded", (event) => {
+            seen.push(event.detail);
+        });
+
+        element.dataSourceConfig = { data: GRAPH.replace('"b"', '"c"').replace('"b"', '"c"') };
+        await element.waitForSettled();
+        assert.lengthOf(seen, 1, "the attribute's load, one event");
+        assert.strictEqual(seen[0].mode, "replace");
+        assert.strictEqual(seen[0].source, element.session.data.sources().at(-1)?.key);
+
+        await element.graph.loadFromFile(new File([GRAPH], "SECRET_NAME.json", { type: "application/json" }), {
+            replace: false,
+        });
+        assert.lengthOf(seen, 2, "the file's load, one event");
+        assert.strictEqual(seen[1].mode, "merge");
+        assert.strictEqual(seen[1].source, element.session.data.sources().at(-1)?.key);
+        assert.notInclude(JSON.stringify(seen), "SECRET_NAME");
     });
 
     test("graphty-note-change arrives with plain values and no record", async () => {

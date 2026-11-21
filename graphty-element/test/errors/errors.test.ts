@@ -90,6 +90,16 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_SHADER_PARAM",
     "E_UNKNOWN_CAMERA",
     "E_UNKNOWN_GENERATOR",
+    "E_SPACE_RESERVED",
+    "E_AMBIGUOUS_ID",
+    "E_JOIN_SPACE_SAME",
+    "E_STEP_NEEDS_NODES",
+    "E_EDIT_ROLE_COLUMN",
+    "E_CLASH_RULE_TYPE",
+    "E_ROLE_TARGET_AMBIGUOUS",
+    "E_DRAFT_OPEN",
+    "E_DRAFT_STALE",
+    "E_OVERLAP_UNANSWERED",
     "E_UNKNOWN_DATASET",
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
@@ -110,6 +120,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_LOCKED",
     "E_FETCH_FAILED",
     "E_PARSE_FAILED",
+    "E_SHEET_NOT_FOUND",
     "E_PROJECT_FILE_AS_DATA",
     "E_EDGE_ENDPOINTS_UNRESOLVED",
     "E_ID_MISSING",
@@ -169,6 +180,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SELECTOR_EMPTY":
         case "E_UNSCOPED_RUN_ENCODING":
         case "E_OPTION_RANGE":
+        case "E_CLASH_RULE_TYPE":
         case "E_BAD_DOCUMENT":
         case "E_UNSUPPORTED_VERSION":
             return "malformed";
@@ -196,6 +208,9 @@ function bucketOf(code: GraphtyErrorCode): string {
             return "unknown-name";
         case "E_UNSTABLE_RUN_ID":
         case "E_DUPLICATE_ID":
+        case "E_SPACE_RESERVED":
+        case "E_AMBIGUOUS_ID":
+        case "E_JOIN_SPACE_SAME":
         case "E_DUPLICATE_EDGE":
         case "E_DUPLICATE_PLUGIN":
         case "E_PROTECTED":
@@ -211,6 +226,7 @@ function bucketOf(code: GraphtyErrorCode): string {
             return "identity";
         case "E_FETCH_FAILED":
         case "E_PARSE_FAILED":
+        case "E_SHEET_NOT_FOUND":
         case "E_PROJECT_FILE_AS_DATA":
         case "E_EDGE_ENDPOINTS_UNRESOLVED":
         case "E_ID_MISSING":
@@ -240,6 +256,12 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_MISSING_PACKAGE":
             return "hardware";
         case "E_UNSUPPORTED":
+        case "E_STEP_NEEDS_NODES":
+        case "E_EDIT_ROLE_COLUMN":
+        case "E_ROLE_TARGET_AMBIGUOUS":
+        case "E_DRAFT_OPEN":
+        case "E_DRAFT_STALE":
+        case "E_OVERLAP_UNANSWERED":
         case "E_NOT_PLANAR":
         case "E_NOT_CONNECTED":
         case "E_NOT_BIPARTITE":

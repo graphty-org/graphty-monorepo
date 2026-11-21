@@ -73,4 +73,19 @@ describe("Why this look for an edge", () => {
         });
         assert.equal(store.get().styleSide, "edge");
     });
+
+    it("draws its lines at the inspector's body size, not the caption size (#9303)", async () => {
+        const { session } = await openTriangle();
+        await act(async () => {
+            await session.selection.apply({ nodes: ["a"] });
+        });
+        const inspector = within(await screen.findByRole("complementary", { name: "Inspector" }));
+        await userEvent.click(await inspector.findByRole("tab", { name: "Style" }));
+        const [line] = await inspector.findAllByTestId("why-line");
+        const body = getComputedStyle(document.body).fontSize;
+        assert.equal(getComputedStyle(within(line).getByRole("button")).fontSize, body);
+        const words = line.querySelector("p");
+        assert.isNotNull(words);
+        assert.equal(getComputedStyle(words as Element).fontSize, body);
+    });
 });

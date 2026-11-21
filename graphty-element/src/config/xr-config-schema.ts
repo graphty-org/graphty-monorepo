@@ -210,6 +210,22 @@ export const xrConfigSchema = z
                 labels: z.record(z.string(), z.string()).optional(),
             })
             .optional(),
+
+        /**
+         * The in-headset menu (XRMenuItem): one pressable card per item, drawn beside the reader
+         * when a session starts. Pressing one emits `xr-menu-select` with its `id`. Optional with
+         * no default; absent or empty, no menu is drawn.
+         */
+        menu: z
+            .array(
+                z.object({
+                    /** What `xr-menu-select` reports when this card is pressed. */
+                    id: z.string(),
+                    /** The words drawn on the card. */
+                    label: z.string(),
+                }),
+            )
+            .optional(),
     })
     .prefault({});
 

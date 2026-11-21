@@ -2,7 +2,9 @@
     "degree": [
         {
             "code": "degree.as-declared",
-            "params": {}
+            "params": {
+                "direction": "total"
+            }
         }
     ],
     "betweenness": [

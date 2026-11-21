@@ -8,7 +8,7 @@ import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
-import { PULLED_ORDER_GLSL, PULLED_TRIM_GLSL } from "./edgeJoinShader";
+import { PULLED_ORDER_GLSL, PULLED_TRIM_GLSL, pulledTexelGlsl } from "./edgeJoinShader";
 
 /**
  * @file A straight animated line (`line.animationSpeed`) pulled from the row table: the object path's greased line,
@@ -43,9 +43,7 @@ vec4 rowAt(int i) {
     return texelFetch(rowPosition, ivec2(i & 1023, i >> 10), 0);
 }
 
-vec4 edgeAt(int i) {
-    return texelFetch(edgeRows, ivec2(i & 1023, i >> 10), 0);
-}
+${pulledTexelGlsl("edgeRows", "edgeAt")}
 
 vec2 grlFix(vec4 i) {
     vec2 res = i.xy / i.w;

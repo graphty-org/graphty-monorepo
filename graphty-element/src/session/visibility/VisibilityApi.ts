@@ -96,6 +96,7 @@ import {
 import { sealedSet } from "../sealed";
 import { type DependencySources, visibilityCycle } from "../sets/dependencies";
 import type { SetWatch } from "../sets/notify";
+import type { CodedFact } from "../shared";
 import type { HistoryCause } from "../types";
 import {
     assertConditions,
@@ -105,6 +106,7 @@ import {
     conditionsOfSteps,
     selectRule,
     selectsOverGraph,
+    type SourceScopedRule,
     stepsOf,
     wellFormed,
 } from "./conditions";
@@ -114,6 +116,7 @@ import {
     type CompiledVisibility,
     compileVisibility,
     type FilterSources,
+    heldColumn,
     type RuleTree,
     runPass,
     type ScopeLeaf,
@@ -236,6 +239,43 @@ export interface FilterConditionCount {
     readonly edges: FilterConditionMatches | null;
     /** The paths it reads that nothing in this session answers (a removed column); empty when none. */
     readonly unresolved: readonly Path[];
+}
+
+/**
+ * What one filter step leaves out, read in step order: how many nodes and edges were visible
+ * before it (after the filter, the time window and every earlier step that is on), how many are
+ * visible after it, and how many it hid. A step that is off hides nothing, so its `after` equals
+ * its `before` and its `leftOut` is zero.
+ * Experimental: may change or be removed in a minor release.
+ * @since 3.40.0
+ * @beta
+ */
+export interface FilterStepCount {
+    /** The step's id. */
+    readonly id: string;
+    /** Whether the step is on. */
+    readonly on: boolean;
+    /** Visible before the step. */
+    readonly before: {
+        /** The node count. */
+        readonly nodes: number;
+        /** The edge count. */
+        readonly edges: number;
+    };
+    /** Visible after the step. */
+    readonly after: {
+        /** The node count. */
+        readonly nodes: number;
+        /** The edge count. */
+        readonly edges: number;
+    };
+    /** Hidden by the step: `before` minus `after`. */
+    readonly leftOut: {
+        /** The node count. */
+        readonly nodes: number;
+        /** The edge count. */
+        readonly edges: number;
+    };
 }
 
 /**
@@ -460,6 +500,32 @@ export interface VisibilityApi {
      */
     setSteps(steps: readonly FilterStep[], options?: RunOptions): Run<FilterResult>;
     /**
+     * Move one filter step to another place in the order: one undoable step, on the same terms as
+     * {@link VisibilityApi.set}. What is visible does not change (the steps that are on combine
+     * by AND); what each step leaves out does ({@link VisibilityApi.stepCounts}). The step's
+     * condition keeps its effect, its load and its rule; select conditions do not move.
+     * @param id - The step's id.
+     * @param index - Its new place among {@link VisibilityApi.steps}, from 0.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns The run, which resolves with the counts.
+     * @throws A `GraphtyError` (`E_BAD_COMMAND`) when no step has that id or the index is not a
+     *     place in the list.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.40.0
+     * @beta
+     */
+    moveStep(id: string, index: number, options?: RunOptions): Run<FilterResult>;
+    /**
+     * What each filter step leaves out, in step order: see {@link FilterStepCount}. Synchronous,
+     * worked out from the steps, the filter, the time window and the data as they stand, and
+     * kept until one of them changes. Read again on `visibility:changed` or `history:changed`.
+     * @returns The counts, one per step.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.40.0
+     * @beta
+     */
+    stepCounts(): readonly FilterStepCount[];
+    /**
      * The filter conditions, in the order they were added (a stable order for a list; it has no
      * meaning). Each is `{ id, on, effect, rule }`; see {@link FilterCondition} for how they
      * combine. Empty when there are none.
@@ -584,6 +650,15 @@ export interface VisibilityApi {
      * @beta
      */
     readonly notDrawn: readonly HiddenNotDrawn[];
+    /**
+     * Under the source-steps experiment: the keep and exclude conditions that are on but held off,
+     * each as `W_FILTER_HELD { filter, column }` with the condition's id and the column it reads.
+     * A condition is held when no element carries any column it reads (a condition with `source`:
+     * when that source gave no element one), so it judges nothing and never hides every node.
+     * Empty while the experiment is off.
+     * @experimental source-steps
+     */
+    readonly held: readonly CodedFact<"W_FILTER_HELD">[];
 }
 
 /**
@@ -1739,6 +1814,15 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     type ElementBytes = { readonly node: Uint8Array; readonly edge: Uint8Array };
     let ghostCache: { readonly key: readonly unknown[]; readonly bytes: ElementBytes } | null = null;
     let outsideCache: { readonly key: readonly unknown[]; readonly bytes: ElementBytes } | null = null;
+    /** What {@link ghostsNow} answered this turn and under what, or null in a new turn. */
+    let ghostTurn: {
+        readonly state: unknown;
+        readonly graph: GraphSnapshot;
+        readonly held: string | null;
+        readonly heldAll: boolean;
+        readonly working: boolean;
+        readonly bytes: ElementBytes | null;
+    } | null = null;
     /** What {@link outsideCache} was last answered under this turn, or null in a new turn. */
     let outsideStamp: readonly unknown[] | null = null;
 
@@ -1808,6 +1892,39 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns The bytes, or null.
      */
     const ghostsNow = (): ElementBytes | null => {
+        // A repaint asks once per element: within one turn, with the state, the graph, the held
+        // condition and the working graph unmoved, the answer is the one just given (#7966: the
+        // inputs below, compared per element, cost about 150 ms of a drag at 50,000 nodes).
+        // ponytail: per turn, as `outsideNow`, since a set a filter names can move with no command.
+        const turn = ghostTurn;
+        if (
+            turn !== null &&
+            turn.state === dispatcher.state &&
+            turn.graph === sources.snapshot() &&
+            turn.held === held &&
+            turn.heldAll === heldAll &&
+            turn.working === workingOn()
+        ) {
+            return turn.bytes;
+        }
+
+        if (ghostTurn === null) {
+            queueMicrotask(() => {
+                ghostTurn = null;
+            });
+        }
+
+        const bytes = ghostBytes();
+        ghostTurn = { state: dispatcher.state, graph: sources.snapshot(), held, heldAll, working: workingOn(), bytes };
+        return bytes;
+    };
+
+    /**
+     * {@link ghostsNow}, its inputs compared.
+     * @returns The bytes, or null.
+     */
+    const ghostBytes = (): ElementBytes | null => {
+        slideCounters.ghostChecks++;
         if (drawnRuleNow() === ruleNow()) {
             return null;
         }
@@ -2390,6 +2507,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         byRule: Map<string, FilterConditionCount>;
     } | null = null;
     /** The last counts list, for the conditions and the bucket it was read from. */
+    /** The last step counts, and what they were worked out from. */
+    let stepMemo: { readonly key: readonly unknown[]; readonly value: readonly FilterStepCount[] } | null = null;
     let countsMemo: {
         readonly conditions: readonly FilterCondition[];
         readonly bucket: unknown;
@@ -2549,6 +2668,39 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         runPass({ compiled: compileVisibility(graph, rule, window, passSources(graph)), edges, graph, nodes });
 
         return Object.freeze({ nodes: nodes.size, edges: edges.size });
+    };
+
+    const stepCountsNow = (): readonly FilterStepCount[] => {
+        const active = upToDate();
+        const { filter, window, conditions } = dispatcher.state.visibility;
+        const steps = conditions.filter((each) => each.effect === "keep" || each.effect === "exclude");
+        // A rule reading a set whose inputs cannot be enumerated, or one load's provenance, has no
+        // revision to key on: counted every time, as conditionCounts does.
+        const signatures = [filter, ...steps.map((each) => each.rule)].map((rule) => signatureOf(rule));
+        const keyed = !signatures.includes(null) && steps.every((each) => each.source === undefined);
+        const key = [active.graph, dispatcher.state.runs, filter, window, conditions, JSON.stringify(signatures)];
+        if (keyed && stepMemo !== null && sameInputs(stepMemo.key, key)) {
+            return stepMemo.value;
+        }
+
+        const applied: FilterCondition[] = [];
+        let before = countOf(active, filter, window);
+        const value = Object.freeze(
+            steps.map((step): FilterStepCount => {
+                let after = before;
+                if (step.on) {
+                    applied.push(step);
+                    after = countOf(active, combinedRule(filter, [...applied]), window);
+                }
+
+                const leftOut = Object.freeze({ nodes: before.nodes - after.nodes, edges: before.edges - after.edges });
+                const row = Object.freeze({ id: step.id, on: step.on, before, after, leftOut });
+                before = after;
+                return row;
+            }),
+        );
+        stepMemo = keyed ? { key, value } : null;
+        return value;
     };
 
     /**
@@ -2893,6 +3045,31 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             );
         },
 
+        moveStep(id: string, index: number, options: RunOptions = {}): Run<FilterResult> {
+            const list = conditionsNow();
+            const isStep = (each: FilterCondition): boolean => each.effect === "keep" || each.effect === "exclude";
+            const steps = list.filter((each) => isStep(each));
+            const moving = steps.find((each) => each.id === id);
+            if (moving === undefined || !Number.isInteger(index) || index < 0 || index >= steps.length) {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: `There is no filter step "${id}", or ${index} is not a place among ${steps.length} steps.`,
+                    source: "data",
+                    details: { id, index, steps: steps.length },
+                });
+            }
+
+            const order = steps.filter((each) => each !== moving);
+            order.splice(index, 0, moving);
+            // The steps take their new order in the slots steps held; select conditions stay put.
+            let next = 0;
+            return editConditions(Object.freeze(list.map((each) => (isStep(each) ? order[next++] : each))), options);
+        },
+
+        stepCounts(): readonly FilterStepCount[] {
+            return stepCountsNow();
+        },
+
         get conditions(): readonly FilterCondition[] {
             return conditionsNow();
         },
@@ -3229,6 +3406,29 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         get notDrawn(): readonly HiddenNotDrawn[] {
             return notDrawnNow();
+        },
+
+        get held(): readonly CodedFact<"W_FILTER_HELD">[] {
+            if (sources.sourceSteps?.() !== true) {
+                return [];
+            }
+            const graph = sources.snapshot();
+            const read = passSources(graph);
+            const held: CodedFact<"W_FILTER_HELD">[] = [];
+            for (const condition of dispatcher.state.visibility.conditions) {
+                if (!condition.on || condition.effect === "select") {
+                    continue;
+                }
+                const scoped: SourceScopedRule | undefined =
+                    condition.source === undefined
+                        ? undefined
+                        : { kind: "all", of: [condition.rule], withinSources: [condition.source], outside: true };
+                const column = heldColumn(graph, scoped ?? condition.rule, read);
+                if (column !== null) {
+                    held.push({ code: "W_FILTER_HELD", params: { filter: condition.id, column } });
+                }
+            }
+            return held;
         },
 
         workingGraphChanged(): void {

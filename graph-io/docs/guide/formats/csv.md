@@ -2,7 +2,8 @@
 
 CSV and TSV files hold one table per file. graph-io reads three kinds of table: an edge list
 (one edge per row), a node table (one node per row), and an adjacency list (a node and its
-neighbors per row). It understands the column names Gephi, NetworkX, SNAP and KONECT use.
+neighbors per row). It understands the column names Gephi, NetworkX, SNAP and KONECT use, and the
+interaction downloads of STRING and BioGRID.
 
 ## At a glance
 
@@ -244,6 +245,22 @@ those labels.
 
 <!-- generated:end -->
 
+### STRING and BioGRID downloads
+
+The protein interaction tables of STRING and BioGRID read with no options. graph-io recognizes
+them by their header, also when the header line starts with `#` as both databases write it.
+
+| Download                                   | Source column                  | Target column                  | Weight           |
+| ------------------------------------------ | ------------------------------ | ------------------------------ | ---------------- |
+| STRING network export (`#node1 node2 ...`) | `node1`                        | `node2`                        | `combined_score` |
+| STRING protein links (`protein1 protein2`) | `protein1`                     | `protein2`                     | `combined_score` |
+| BioGRID TAB3                               | `Official Symbol Interactor A` | `Official Symbol Interactor B` | none             |
+
+Every other column (STRING's evidence scores, BioGRID's `Experimental System`, `Throughput` and the
+rest) is an edge attribute. Pass `weightFrom` to weight the edges by another column, or
+`sourceColumn` and `targetColumn` to key the nodes by other ids, such as BioGRID's
+`Entrez Gene Interactor A` and `Entrez Gene Interactor B`.
+
 ## What a saved file keeps and loses
 
 A CSV file is one table, so one file cannot hold everything:
@@ -333,6 +350,7 @@ These come on top of the [options every importer takes](../options.md#every-impo
 | [`nodes`](#import-nodes)                 | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| Blob` |                                       |
 | [`rowNumberIds`](#import-rownumberids)   | `boolean`                                                                                           | `false`                               |
 | [`blankIdPrefix`](#import-blankidprefix) | `string`                                                                                            | undefined (blank-id rows are skipped) |
+| [`missing`](#import-missing)             | `readonly string[]`                                                                                 | undefined (no placeholder texts)      |
 
 - <a id="import-delimiter"></a>`delimiter`: The field delimiter. The default is to detect it from the first rows: `,`, tab, `;`, `|` or space. It applies to the `nodes` table too.
 - <a id="import-decimal"></a>`decimal`: The decimal separator of numbers. With ",", a cell such as `2,5` (digits, a comma, digits) is read as the number 2.5, for weights and attributes alike, and the delimiter is detected among the others (`;`, tab, `|`, space), so a spreadsheet saved in a locale that writes decimal commas reads as it is. A thousands separator is not read.
@@ -346,6 +364,7 @@ These come on top of the [options every importer takes](../options.md#every-impo
 - <a id="import-nodes"></a>`nodes`: A node table to read before the edges: its ids become nodes and its other columns node attributes. Pass it as a string, bytes, a stream, or a `File` or `Blob` (for example, the second file a user picked).
 - <a id="import-rownumberids"></a>`rowNumberIds`: Give the nodes of a node table without an id column the row number as id (0 for the first data row, turned into an id by `ids`), instead of failing with `E_CSV_NO_ID_COLUMN`. It applies to the `nodes` table when you pass one, else to the input. Under `header: "auto"` that table's first row is then read as a header; under `header: false` the option is ignored with a warning, because a table without a header takes its ids from its first column.
 - <a id="import-blankidprefix"></a>`blankIdPrefix`: Keep a node row whose id cell is blank, as a node whose id is this prefix followed by the row's number (0 for the first data row), instead of skipping it with `E_MISSING_ID`. Choose a prefix no id in the file starts with: a minted id that repeats one is merged like any repeated id.
+- <a id="import-missing"></a>`missing`: Cell texts read as unset, such as `["N/A", "null"]`. A data cell whose text equals an entry (both compared after Unicode NFC normalization, never trimmed: `" N/A"` stays text) is read as an empty cell before anything else reads it, so a key cell becomes blank, an endpoint missing, and a numeric column stays numeric. A quoted cell matches too; the header row is never compared.
 
 ## Export options
 

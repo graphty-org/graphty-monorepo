@@ -4,6 +4,7 @@
  * session.
  */
 import { GraphtyError } from "../errors";
+import type { SessionData } from "./data";
 import type { Dispatcher } from "./project/Dispatcher";
 import type { SessionRunsApi } from "./runs";
 import type { GraphSession } from "./types";
@@ -64,4 +65,31 @@ export function sessionRunsOf(session: GraphSession): SessionRunsApi {
     }
 
     return runs;
+}
+
+/** Each session's data surface; see {@link sessionDataOf}. */
+const SESSION_DATA = new WeakMap<GraphSession, SessionData>();
+
+/**
+ * Record the data surface a session was built with.
+ * @param session - The session.
+ * @param data - Its data surface.
+ */
+export function registerSessionData(session: GraphSession, data: SessionData): void {
+    SESSION_DATA.set(session, data);
+}
+
+/**
+ * The data surface behind a session, with `announcing`: how the renderer's own loads publish
+ * `source:loaded` as `session.data`'s do. Not published.
+ * @param session - A session this module built.
+ * @returns Its data surface.
+ */
+export function sessionDataOf(session: GraphSession): SessionData {
+    const data = SESSION_DATA.get(session);
+    if (data === undefined) {
+        throw new GraphtyError({ code: "E_INTERNAL", message: "That session was not built here.", source: "data" });
+    }
+
+    return data;
 }

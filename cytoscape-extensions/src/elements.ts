@@ -4,7 +4,13 @@
  * carry every data field across.
  */
 
-import { type Column, type ColumnInput, fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
+import {
+    type Column,
+    type ColumnInput,
+    coordinateSystemOf,
+    fromEdgeArrays,
+    type GraphSnapshot,
+} from "@graphty/graph-format";
 import { writtenPositions } from "@graphty/graph-io/positions";
 import type { Collection, ElementDefinition } from "cytoscape";
 
@@ -169,7 +175,10 @@ function nodeElements(
     keep: (c: Column) => boolean,
 ): ElementDefinition[] {
     const nodeCols = [...snapshot.nodes].filter(keep);
-    const position = nodeCols.find((c) => c.meta.role === "position" && c.meta.components >= 2);
+    // a geographic column holds places on the Earth, not where Cytoscape draws a node: it stays a data field
+    const position = nodeCols.find(
+        (c) => c.meta.role === "position" && c.meta.components >= 2 && coordinateSystemOf(c.meta).kind !== "geographic",
+    );
     const nodeData = nodeCols.filter((c) => c !== position);
     const names = fieldNames(nodeData, "node", onRename);
     const parent = snapshot.nodes.byRole("parent");

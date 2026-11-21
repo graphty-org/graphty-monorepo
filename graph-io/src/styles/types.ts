@@ -1753,6 +1753,12 @@ export interface FileStyles {
         readonly dialect: StyleDialect | null;
         /** The program whose defaults were applied, or null when the writer is not identified. */
         readonly tool: StyleTool | null;
+        /**
+         * True when the import was given the program's settings (GEXF's `gephiPreview` option) and they differ from
+         * the program's defaults: the rules of `tool` origin then draw what those settings state, not the program's
+         * defaults alone.
+         */
+        readonly settingsGiven?: boolean;
     };
     /** The unit of every length: pixels, or the writing tool's relative size factor. */
     readonly units: {
@@ -1943,6 +1949,8 @@ export type ImporterStyles =
           readonly dialect?: StyleDialect | null;
           /** The program whose defaults apply, or null. */
           readonly tool?: StyleTool | null;
+          /** Whether the import was given program settings that differ from the program's defaults (see `FileStyles`). */
+          readonly settingsGiven?: boolean;
           /** The unit of every length. */
           readonly units?: "px" | "relative";
           /** Node output. */

@@ -1398,6 +1398,7 @@ export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): 
         canonical: true,
         dialect: "gexf",
         tool: "gephi",
+        ...(preview.customized ? { settingsGiven: true } : {}),
         units: "relative",
         node: { values: node, ...rules.node },
         edge: { values: edge, ...rules.edge },

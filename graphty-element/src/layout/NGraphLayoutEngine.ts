@@ -352,7 +352,7 @@ export class NGraphEngine extends LayoutEngine {
         this._settled = (resting && overlaps === 0) || this._stepCount >= maxSteps;
         if (this._settled && overlaps > 0) {
             for (let sweep = 0; sweep < MAX_FINAL_SWEEPS && this.separate() > 0; sweep++) {
-                // Each sweep resolves what the one before it pushed into a neighbour.
+                // Each sweep resolves what the one before it pushed into a neighbor.
             }
         }
 
@@ -369,7 +369,7 @@ export class NGraphEngine extends LayoutEngine {
      * One sweep that pushes apart every two nodes closer than their drawn radii plus `nodeGap`,
      * moving the simulation's own bodies so the next step starts from there. A pinned node is not
      * moved; its partner takes the whole push. Pairs are found through a grid of cells one
-     * largest diameter wide, so each node is compared with its neighbours, not with every node.
+     * largest diameter wide, so each node is compared with its neighbors, not with every node.
      *
      * WHILE THE SIMULATION IS STILL SPREADING a graph whose nodes cannot yet fit in the space it
      * spans is left alone: every node starts within half a spring length of the origin, and
@@ -502,7 +502,7 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
-     * Push one body apart from every later body in its own and the neighbouring cells.
+     * Push one body apart from every later body in its own and the neighboring cells.
      * @param i - The body.
      * @param size - The cell size.
      * @param flat - Whether depth is ignored.
@@ -584,7 +584,7 @@ export class NGraphEngine extends LayoutEngine {
      * @param i - One body's index.
      * @param j - The other's.
      * @param flat - Whether depth is ignored.
-     * @param d - The other's centre minus the first's, per axis.
+     * @param d - The other's center minus the first's, per axis.
      * @returns True when they overlapped.
      */
     private pushBoxes(i: number, j: number, flat: boolean, d: number[]): boolean {
@@ -609,7 +609,7 @@ export class NGraphEngine extends LayoutEngine {
             return true;
         }
 
-        // Two centres level on that axis: a side from their indices, so a seeded layout stays
+        // Two centers level on that axis: a side from their indices, so a seeded layout stays
         // the same from run to run.
         const level = (i + j) % 2 === 0 ? 1 : -1;
         const sign = d[axis] === 0 ? level : Math.sign(d[axis]);
@@ -838,7 +838,7 @@ export class NGraphEngine extends LayoutEngine {
      */
     private place(id: NodeIdType): void {
         if (this.seededPlacement) {
-            // THE RULE NGRAPH ITSELF USES for a node with no placed neighbour -- within half a
+            // THE RULE NGRAPH ITSELF USES for a node with no placed neighbor -- within half a
             // spring length of the origin -- only drawn from the seed. A wider start is a graph
             // that flies in from far away: a box of ten spring lengths took a 20-node graph four
             // times as long to settle, and was drawn a few pixels wide while it did.
@@ -984,18 +984,41 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
-        let travelled = 0;
-        this.ngraphLayout.forEachBody((body) => {
-            const start = this.stallStart.get(body);
-            if (start !== undefined) {
-                travelled += Math.hypot(body.pos.x - start.x, body.pos.y - start.y, (body.pos.z ?? 0) - start.z);
-            }
-        });
-        if (travelled < this.stallPath * STALL_WANDER) {
+        if (this.traveledInShape() < this.stallPath * STALL_WANDER) {
             settings.timeStep *= STALL_COOLING;
         }
 
         this.restartStallWindow(avgMovement);
+    }
+
+    /**
+     * How far the bodies moved since the stall window began, leaving out what they all moved
+     * together. A drift of the whole drawing changes no node's place in it: on political-blogs in
+     * 3D (issue #7919) the largest component kept its shape from about step 400 while the whole of
+     * it slid on at a fifth of a unit a step, so a stall that was swinging in place read as
+     * traveling and the time step never shortened.
+     * @returns The summed distance of each body from where it started, net of the mean displacement.
+     */
+    private traveledInShape(): number {
+        const moves: [number, number, number][] = [];
+        const drift = [0, 0, 0];
+        this.ngraphLayout.forEachBody((body) => {
+            const start = this.stallStart.get(body);
+            if (start !== undefined) {
+                const move: [number, number, number] = [
+                    body.pos.x - start.x,
+                    body.pos.y - start.y,
+                    (body.pos.z ?? 0) - start.z,
+                ];
+                moves.push(move);
+                drift[0] += move[0];
+                drift[1] += move[1];
+                drift[2] += move[2];
+            }
+        });
+        const count = Math.max(moves.length, 1);
+        const [dx, dy, dz] = drift.map((d) => d / count);
+        return moves.reduce((sum, [x, y, z]) => sum + Math.hypot(x - dx, y - dy, z - dz), 0);
     }
 
     /**
@@ -1131,7 +1154,7 @@ export class NGraphEngine extends LayoutEngine {
     /**
      * Give a group that follows its members a body that pulls and pushes nothing: ngraph's
      * repulsion is proportional to both bodies' masses, so a mass this small is no force at all.
-     * Zero would divide by zero in its quadtree's centre of mass. A body that stops following
+     * Zero would divide by zero in its quadtree's center of mass. A body that stops following
      * gets ngraph's own mass back.
      * @param row - The body's row.
      * @param id - Its ngraph id.

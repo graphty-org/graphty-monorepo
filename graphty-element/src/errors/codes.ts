@@ -23,7 +23,10 @@
 export type GraphtyErrorCode =
     /**
      * A command or a call is malformed: a missing required field, or two fields that may not be
-     * set together (the `src` and `sample` attributes, for instance). `details` name the fields.
+     * set together. `details` name the fields.
+     * For saved views, `details` are `{ reason: "empty-name" }` for an empty name,
+     * `{ reason: "name-taken", name }` for a rename onto a name in use, and
+     * `{ missing, available }` for a rename, move or removal of a name that is not saved.
      * The caller fixes the call; retrying the same call always fails the same way.
      */
     | "E_BAD_COMMAND"
@@ -115,7 +118,7 @@ export type GraphtyErrorCode =
     | "E_NO_TIME_FIELD"
     /**
      * An algorithm key is not registered. `details.available` lists the registered keys. The
-     * caller picks a key from the catalogue or registers a plugin that provides it.
+     * caller picks a key from the catalog or registers a plugin that provides it.
      */
     | "E_UNKNOWN_ALGORITHM"
     /**
@@ -133,7 +136,7 @@ export type GraphtyErrorCode =
     /**
      * A binding, an `encode` call or a saved document names a palette nothing registered.
      * `details.available` lists the known palette ids and `details.candidates` the nearest few.
-     * The caller picks a palette from the catalogue or registers its own first.
+     * The caller picks a palette from the catalog or registers its own first.
      */
     | "E_UNKNOWN_PALETTE"
     /**
@@ -156,17 +159,19 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_SHADER_PARAM"
     /**
-     * A camera view name is not one the element knows. `details.available` lists the registered
-     * view ids. The caller picks one of those or registers its own view first.
+     * A camera view name is not one the element knows. `details` are `{ name, available, stop? }`:
+     * `available` lists the camera view ids and then the saved view names, and `stop` is the
+     * 0-based tour stop that named it. The caller picks one of those or registers or saves its
+     * own view first.
      */
     | "E_UNKNOWN_CAMERA"
     /**
-     * `data.generate` names a generator the catalogue does not list. `details.available` lists
+     * `data.generate` names a generator the catalog does not list. `details.available` lists
      * the generator names. The caller picks one from `catalog.generators()`.
      */
     | "E_UNKNOWN_GENERATOR"
     /**
-     * `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+     * `data.loadDataset` names a dataset the catalog does not list. `details.available` lists
      * the dataset names. The caller picks one from `catalog.datasets()`.
      */
     | "E_UNKNOWN_DATASET"
@@ -245,7 +250,7 @@ export type GraphtyErrorCode =
      */
     | "E_AUTOSAVE_STALLED"
     /**
-     * A document being serialised refers to a run whose id was derived rather than author
+     * A document being serialized refers to a run whose id was derived rather than author
      * assigned, so the reference would resolve differently on reload. The caller re-runs with an
      * explicit `as:` id and saves again.
      */
@@ -253,9 +258,17 @@ export type GraphtyErrorCode =
     /**
      * An id that must be unique is already taken -- a node or edge id arriving twice under a
      * plan that does not merge, or a saved scope, layer or run name that already exists.
-     * `details.id` names it. The caller chooses another id or asks for merge behaviour.
+     * `details.id` names it. The caller chooses another id or asks for merge behavior.
      */
     | "E_DUPLICATE_ID"
+    /**
+     * A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
+     * incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
+     * `details.column` and `details.rule` name them. The caller picks another rule for that column.
+     * Under the source-steps experiment a step's merge refuses the same way, and `details.step`
+     * also names the step.
+     */
+    | "E_CLASH_RULE_TYPE"
     /**
      * Two edges run between the same ordered pair of nodes and `data.knownFields.repeatedEdges`
      * is `"error"`. `details` name both endpoints and the index of the edge already present. The
@@ -264,14 +277,16 @@ export type GraphtyErrorCode =
     | "E_DUPLICATE_EDGE"
     /**
      * A plugin is registered twice under one kind and name with a different implementation, and
-     * the registration asked for strict behaviour. `details` name the kind and the name. The
+     * the registration asked for strict behavior. `details` name the kind and the name. The
      * caller removes one registration, or registers into its own `createRegistry()` instance.
      */
     | "E_DUPLICATE_PLUGIN"
     /**
      * The target is owned by the element and may not be removed or edited: the base and
      * selection style layers carry `locked: true` and exist by construction. `details` name the
-     * target. The caller adds its own layer above instead of editing the protected one.
+     * target. The caller adds its own layer above instead of editing the protected one. Also what
+     * saving a view under a camera view's id refuses with, and a saved view that a camera view's
+     * id shadows; `details` are then `{ name }`, and the caller picks another name.
      */
     | "E_PROTECTED"
     /**
@@ -297,6 +312,13 @@ export type GraphtyErrorCode =
      * the file, or re-imports naming the true format.
      */
     | "E_PARSE_FAILED"
+    /**
+     * A workbook source's `sheet` option names no sheet of the workbook. `details` are
+     * `{ sheet, available }`: the name asked for, and every sheet's name in tab order. The file
+     * itself was read fine. The caller loads again naming one of the available sheets, or leaves
+     * `sheet` out to read the first.
+     */
+    | "E_SHEET_NOT_FOUND"
     /**
      * A graphty project or document file (one `session.project.save` writes) was handed to a data
      * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
@@ -446,9 +468,10 @@ export type GraphtyErrorCode =
      */
     | "E_NO_ACCELERATOR"
     /**
-     * No accelerator factory is registered, so the element never looked for a GPU. Usually
-     * `import "@graphty/graphty-element/webgpu"` was never evaluated -- not written, or its module
-     * failed to load (a network error, a blocked request, a stale dev-server cache). Reported
+     * No accelerator factory is registered, so the element never looked for a GPU. The root entry
+     * point registers one for `@graphty/webgpu-graph-algorithms` by itself, so this means the
+     * element was used only through an entry point that does not (`./session` and the other
+     * Node-safe entries) and nothing called `import "@graphty/graphty-element/webgpu"`. Reported
      * through `capabilities.acceleration`; a registration that arrives later switches
      * acceleration on without the consumer doing anything.
      */
@@ -457,9 +480,20 @@ export type GraphtyErrorCode =
      * A registered accelerator factory threw while setting up, with an error that is not one of
      * the other acceleration codes -- a module of the backend that failed to load, or a defect in
      * the backend. `reason` carries what it threw. Reported through `capabilities.acceleration`;
-     * the CPU path runs.
+     * the CPU path runs. Also what an installed `@graphty/webgpu-graph-algorithms` reports when
+     * it is present and fails to load (a syntax error, a throw while its module evaluates, an
+     * import-map URL that does not answer); `params.package` names it.
      */
     | "E_ACCELERATOR_FAILED"
+    /**
+     * The installed accelerator package loaded but lacks what this graphty-element needs: an
+     * export it calls is missing, usually because the installed version is older or newer than
+     * the range graphty-element declares as its peer, or because a bundler alias replaced it with
+     * an empty module. Reported through `capabilities.acceleration` with `params.package` and
+     * `params.missing` (the export names); the CPU path runs. The caller installs a version in
+     * the declared peer range.
+     */
+    | "E_ACCELERATOR_INCOMPATIBLE"
     /**
      * The runtime exposes no WebGPU at all: no `navigator.gpu`, usually because the page is not
      * in a secure context or the browser does not implement it. Reported through
@@ -472,7 +506,7 @@ export type GraphtyErrorCode =
      */
     | "E_NO_ADAPTER"
     /**
-     * An adapter was found but it is a software rasteriser, which is slower than the element's
+     * An adapter was found but it is a software rasterizer, which is slower than the element's
      * own CPU path. Acceleration stays off and says why, rather than making the graph slower in
      * silence.
      */
@@ -497,6 +531,16 @@ export type GraphtyErrorCode =
      * the CPU in silence.
      */
     | "E_DEVICE_LOST"
+    /**
+     * An accelerated run got no answer from the GPU within its time limit, and the device never
+     * reported itself lost either. WebGPU has no event for a device that stops answering without
+     * being lost, so the element waits for a limit it scales from the run's size, then fails the
+     * run rather than wait forever. `details` carry `capability`, `nodeCount`, `edgeCount`,
+     * `elapsedMs` and `limitMs`. The element releases the device as suspect and tries a fresh one
+     * for the next run; it never finishes the stuck run on the CPU. Change the limit with
+     * `getAcceleration().setRunTimeout(ms)`.
+     */
+    | "E_GPU_TIMEOUT"
     /**
      * The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
      * device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
@@ -528,8 +572,10 @@ export type GraphtyErrorCode =
     /**
      * A feature the caller asked for needs an optional peer package that is not installed.
      * `details.package` names the package to install and `details.feature` the feature that
-     * needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
-     * picks a feature that does not need it.
+     * needs it (for the in-browser AI provider, `"webllm"`; for acceleration, `"webgpu"`). The
+     * caller installs the package, or picks a feature that does not need it. Also reported, not
+     * thrown, on `capabilities.acceleration` when `@graphty/webgpu-graph-algorithms` is not
+     * installed, with `params.package`; nothing is printed then, because nothing asked for a GPU.
      */
     | "E_MISSING_PACKAGE"
     /**
@@ -539,7 +585,10 @@ export type GraphtyErrorCode =
      * uses the stated alternative; retrying does not help. Also what `styles.encode({ column })`
      * and `styles.proposeEncoding` refuse a column with when it has no default drawing on that
      * channel (groups on a size, a time column); `details` then carry `kind`, `name`, `channel`
-     * and `measurement`, and naming a `scale` draws it anyway.
+     * and `measurement`, and naming a `scale` draws it anyway. A camera view, saved view or tour
+     * stop that does not fit the drawing mode is refused with
+     * `{ reason: "mode", name?, stop?, modes, mode }` (`modes` are the modes it works in, `name` is
+     * absent for a raw camera state), and any of them while immersive with `{ reason: "xr", mode }`.
      */
     | "E_UNSUPPORTED"
     /**
@@ -674,11 +723,11 @@ export type GraphtyErrorCode =
      */
     | "E_MODEL_TOO_LARGE"
     /**
-     * A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
+     * A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; `fbx`, `usd` and `usdz` for a damaged file of that format; a reader's damaged-file refusals `ply`, `babylon`, `delayLoad` for a `.babylon` whose meshes load from other files, and `empty` for a USD stage that defines nothing to draw).
      */
     | "E_MODEL_STRUCTURE"
     /**
-     * A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
+     * A recognized 3D format graphty-element does not load (DAE, .blend, 3MF, BVH, and Gaussian splats: `.splat`, `.spz`, `.sog` and `splat-ply`, a PLY holding splats; a glTF or GLB that uses `KHR_gaussian_splatting`, required or not, names it in `params.extension`). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read, or uses Gaussian splatting; `params.kind` is `"splat"` for every Gaussian splat refusal, whatever its format.
      * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
      */
     | "E_MODEL_FORMAT_UNSUPPORTED"
@@ -756,7 +805,10 @@ export type GraphtyErrorCode =
      * A screenshot, a video or a clipboard copy was started and could not be finished: the
      * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
      * no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
-     * `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
+     * `"clipboard"` for a failed copy, and `cause` carries the original failure. A recording that
+     * stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
+     * background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
+     * it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
      * @since 3.40.0
      */
     | "E_CAPTURE_FAILED"
@@ -767,6 +819,67 @@ export type GraphtyErrorCode =
      * @since 3.40.0
      */
     | "E_NOT_SETTLED"
+    /**
+     * A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+     * the space. The caller names another space. Experimental: the source-steps experiment.
+     */
+    | "E_SPACE_RESERVED"
+    /**
+     * A key names nodes in more than one id space, so it names no one node. `details.key` is the
+     * key, `details.spaces` the spaces holding it. The caller names the space, or the
+     * `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+     */
+    | "E_AMBIGUOUS_ID"
+    /**
+     * Make an edge would add a staged source in the id space of the nodes it connects to, so its
+     * nodes would meet them instead of being joined by edges. `details.source` and `details.space`
+     * name them. The caller stages the source in another space. Experimental: the source-steps
+     * experiment.
+     */
+    | "E_JOIN_SPACE_SAME"
+    /**
+     * A merge or Make an edge reads node rows the source does not hold. `details.source` is the
+     * source. Experimental: the source-steps experiment.
+     */
+    | "E_STEP_NEEDS_NODES"
+    /**
+     * An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
+     * `details.column` is the column. Experimental: the source-steps experiment.
+     */
+    | "E_EDIT_ROLE_COLUMN"
+    /**
+     * A role setter that names no source could mean several built sources: each carries the
+     * column and can carry the role. `details.sources` lists them; the caller names one with the
+     * setter's `source` option. Experimental: the source-steps experiment.
+     */
+    | "E_ROLE_TARGET_AMBIGUOUS"
+    /**
+     * A draft of the sources and steps is open (`session.data.draft()`), so a data write, an undo
+     * or a redo would change what its commit replaces. `details.draft` names the draft. The caller
+     * commits or discards it first. Experimental: the source-steps experiment.
+     */
+    | "E_DRAFT_OPEN"
+    /**
+     * A draft's commit was refused because the committed sources and steps changed after the
+     * draft opened: a data write already on its way when it opened landed first, and the commit
+     * would have undone it. `details.draft` names the draft, which stays open. The caller discards
+     * it and opens a new one. Experimental: the source-steps experiment.
+     */
+    | "E_DRAFT_STALE"
+    /**
+     * A draft opened with `askOverlap` holds a key-overlap question nobody answered: a source it
+     * added meets nodes another source's node rows built (`W_SPACE_OVERLAP`). `details.space` and
+     * `details.source` name the space and the source. The caller answers it with
+     * `draft.answerOverlap(source, "merge" | "separate")` and commits again. Experimental: the
+     * source-steps experiment.
+     */
+    | "E_OVERLAP_UNANSWERED"
+    /**
+     * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
+     * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
+     * an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+     */
+    | "E_CANCELED"
     | "E_INTERNAL";
 
 /**
@@ -784,8 +897,85 @@ export type GraphtyWarningCode =
      * know: kept and never run (`params.kind`, `params.pointer`, `params.found`).
      */
     | "W_UNKNOWN_KIND"
-    /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
+    /** No longer reported: a project open computes each saved run again over the data it holds, so no saved result can disagree with it. */
     | "W_DATA_DIFFERS"
+    /**
+     * A source's keys meet nodes already in the id space it would join (`params.space`,
+     * `params.count` of `params.of` keys; `params.other` names the other source for an untyped
+     * one). Kept in the source's own space unless the load asked `overlap: "merge"`. In a draft's
+     * preview `questions`, an open question a draft opened with `askOverlap` waits on:
+     * `params.source` is the source asked about and `params.sources` the sources whose node rows
+     * built the nodes it meets. Experimental: the source-steps experiment.
+     */
+    | "W_SPACE_OVERLAP"
+    /**
+     * A step went with a removed source (`params.step`, `params.reason` `"source-removed"`,
+     * `params.source`). Experimental: the source-steps experiment.
+     */
+    | "W_STEP_REMOVED"
+    /**
+     * Values from different sources differ in one column of one step (`params.step`,
+     * `params.column`, `params.count` cells, `params.rule` the step's rule for the column,
+     * `params.decided` cells a reader decision settles). Experimental: the source-steps experiment.
+     */
+    | "W_VALUES_DIFFER"
+    /**
+     * A refresh or replace brought a column the source's old rows did not hold (`params.source`,
+     * `params.column`). Experimental: the source-steps experiment.
+     */
+    | "W_COLUMN_UNUSED"
+    /**
+     * The value under a reader edit moved since it was made (`params.edit`, `params.was`,
+     * `params.now`, and `params.picked` for a pick). Experimental: the source-steps experiment.
+     */
+    | "W_EDIT_SOURCE_CHANGED"
+    /**
+     * A note, a pin or a reader edit names an element a rebuild left out (`params.ref`): the
+     * reference is kept and binds again when Undo brings the element back. Experimental: the
+     * source-steps experiment.
+     */
+    | "W_REFERENCE_UNBOUND"
+    /**
+     * Rows of a step name more than one element, so they join nothing (`params.step`,
+     * `params.rows`). Reported by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_FAN_OUT"
+    /**
+     * Rows of a step meet no element (`params.step`, `params.rows`). Reported by a draft's preview.
+     * Experimental: the source-steps experiment.
+     */
+    | "W_UNMATCHED"
+    /**
+     * Nodes of the space a merge folds into that no row reached (`params.step`, `params.nodes`).
+     * Reported by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_UNTOUCHED"
+    /**
+     * A step joins end pairs an earlier edge already joins (`params.step`, `params.pairs`). Reported
+     * by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_PARALLEL_EDGES"
+    /**
+     * A step makes edges whose two ends are one node (`params.step`, `params.count`). Reported by a
+     * draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_SELF_LOOPS"
+    /**
+     * Rows of one repeated key hold different values in a column (`params.step`, `params.column`,
+     * `params.keys`). Reported by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_ROWS_DIFFER"
+    /**
+     * A source's edges name nodes of its own space its node rows lack (`params.step`,
+     * `params.source`, `params.nodes`); a merge leaves them unmerged. Reported by a draft's preview.
+     * Experimental: the source-steps experiment.
+     */
+    | "W_NODE_NAMED_ONLY"
+    /**
+     * Edge ends of a step found no node in a space (`params.step`, `params.space`, `params.ends`).
+     * Reported by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_EDGE_END_MISSING"
     /** A run was still computing when the project was saved, so the file does not hold it. */
     | "W_RUN_PENDING"
     /**
@@ -885,8 +1075,9 @@ export type GraphtyWarningCode =
     /**
      * A glTF uses an extension that is drawn without: the transmission family
      * (`KHR_materials_transmission`, `_volume`, `_dispersion`, `_diffuse_transmission`,
-     * `_volume_scatter`), whose parts are drawn opaque. `params.extension` names it; one fact per
-     * extension.
+     * `_volume_scatter`). A transmissive part is drawn alpha blended, as see-through as its
+     * transmission factor says (at least 20% opaque); the rest of the family draws opaque.
+     * `params.extension` names it; one fact per extension.
      */
     | "W_MODEL_EXTENSION_IGNORED"
     /**
@@ -905,9 +1096,8 @@ export type GraphtyWarningCode =
      */
     | "W_MODEL_ANIMATION_PARTIAL"
     /**
-     * A point cloud or Gaussian splat model is drawn as small solids, one per point: a splat's
-     * size, opacity falloff and rotation are not drawn, and more points than are drawn were thinned
-     * evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
+     * A point cloud model is drawn as small solids, one per point, and more points than are drawn
+     * were thinned evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
      */
     | "W_MODEL_POINTS_APPROXIMATED"
     /**
@@ -989,12 +1179,54 @@ export type GraphtyWarningCode =
      */
     | "W_WEIGHT_MEANING_MISMATCH"
     /**
+     * Under the `source-steps` experiment, a layout that reads edge weights left them unread because
+     * the edges' weights do not share one meaning, or some edges' sources read no weight (design
+     * 8.6): every edge counts the same. Emitted as a `layout-warning` event. `params.sources` lists
+     * the sources of the edges.
+     */
+    | "W_WEIGHT_MEANING_MIXED"
+    /**
+     * Under the `source-steps` experiment, a Source scope on a source's edges named sources that
+     * supplied no edges, so it holds their nodes and the edges between them instead (design 8.6).
+     * Reported in `scope.count(...).issues`. `params.nodes` is how many nodes it holds.
+     */
+    | "W_SCOPE_NO_EDGES"
+    /**
+     * Under the `source-steps` experiment, a filter condition reads a column no element carries, so
+     * it is held off and judges nothing rather than hiding every node (design 8.4). Reported in
+     * `visibility.held`. `params.filter` is the condition's id and `params.column` its column.
+     */
+    | "W_FILTER_HELD"
+    /**
      * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
      * the `graphty-sources` member: query parameters of a URL load's address, or of a network
      * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
      * names left out. See the project file guide, "What a save leaves out".
      */
     | "W_SOURCE_URL_REDACTED"
+    /**
+     * A load cannot be saved as a reference: there is nothing to read it from again. It stays a
+     * copy. `params.source` is the load's key and `params.reason` why (`file`, `inline`, `join`,
+     * `secret-url`, `relative-url`, `no-seed`; OPEN UNION).
+     */
+    | "W_SOURCE_NO_PATH"
+    /**
+     * A load saved as a reference could not be read again: the project opened with its rows held
+     * bare in their places (node ids and edge ends, with no values; a save writes them and the
+     * reference back as they were), or a save kept it as a copy. `params.source` is the load's key
+     * and `params.reason` is `not-found`, `denied` or `unreadable`. On an open, `params.name` (its
+     * name, when it has one) and `params.url` (its address, for a URL load) say which it was.
+     * When the read threw, `params.cause` is what it threw: the error's code (a `GraphtyErrorCode`,
+     * or `unknown` for an error that is not a `GraphtyError`), and `params["cause.<name>"]` each
+     * plain value of its `details` (`cause.status`, `cause.url`, ...; `cause.name`, the error's
+     * name, for `unknown`). Absent when nothing was thrown (`denied`, or a copy that changed).
+     */
+    | "W_SOURCE_UNAVAILABLE"
+    /**
+     * A load saved as a reference was read again and is no longer what the project was saved
+     * with: its rows hold the new values. `params.source` is the load's key.
+     */
+    | "W_SOURCE_CHANGED"
     /**
      * A `graphty-sources` entry of an opened project names a network source this release has not
      * registered: its elements are there and the entry is written back, but it is not offered to
@@ -1003,7 +1235,9 @@ export type GraphtyWarningCode =
     | "W_SOURCE_UNREGISTERED"
     /**
      * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
-     * data applied. `params.graph` names the graph, null for the file's one graph.
+     * data applied. `params.graph` names the graph, null for the file's one graph. Under the
+     * `source-steps` experiment, also when the member's sources and steps build a graph other than
+     * the one the file embeds: the embedded graph applied and the sources and steps were left out.
      */
     | "W_SOURCE_STEPS_IGNORED"
     /**
@@ -1071,6 +1305,16 @@ const CODE_TABLE = {
     E_UNKNOWN_SHADER_PARAM: "E_UNKNOWN_SHADER_PARAM",
     E_UNKNOWN_CAMERA: "E_UNKNOWN_CAMERA",
     E_UNKNOWN_GENERATOR: "E_UNKNOWN_GENERATOR",
+    E_SPACE_RESERVED: "E_SPACE_RESERVED",
+    E_AMBIGUOUS_ID: "E_AMBIGUOUS_ID",
+    E_JOIN_SPACE_SAME: "E_JOIN_SPACE_SAME",
+    E_STEP_NEEDS_NODES: "E_STEP_NEEDS_NODES",
+    E_EDIT_ROLE_COLUMN: "E_EDIT_ROLE_COLUMN",
+    E_CLASH_RULE_TYPE: "E_CLASH_RULE_TYPE",
+    E_ROLE_TARGET_AMBIGUOUS: "E_ROLE_TARGET_AMBIGUOUS",
+    E_DRAFT_OPEN: "E_DRAFT_OPEN",
+    E_DRAFT_STALE: "E_DRAFT_STALE",
+    E_OVERLAP_UNANSWERED: "E_OVERLAP_UNANSWERED",
     E_UNKNOWN_DATASET: "E_UNKNOWN_DATASET",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
@@ -1091,6 +1335,7 @@ const CODE_TABLE = {
     E_LOCKED: "E_LOCKED",
     E_FETCH_FAILED: "E_FETCH_FAILED",
     E_PARSE_FAILED: "E_PARSE_FAILED",
+    E_SHEET_NOT_FOUND: "E_SHEET_NOT_FOUND",
     E_PROJECT_FILE_AS_DATA: "E_PROJECT_FILE_AS_DATA",
     E_EDGE_ENDPOINTS_UNRESOLVED: "E_EDGE_ENDPOINTS_UNRESOLVED",
     E_ID_MISSING: "E_ID_MISSING",
@@ -1114,11 +1359,13 @@ const CODE_TABLE = {
     E_NO_ACCELERATOR: "E_NO_ACCELERATOR",
     E_NO_ACCELERATOR_REGISTERED: "E_NO_ACCELERATOR_REGISTERED",
     E_ACCELERATOR_FAILED: "E_ACCELERATOR_FAILED",
+    E_ACCELERATOR_INCOMPATIBLE: "E_ACCELERATOR_INCOMPATIBLE",
     E_NO_WEBGPU: "E_NO_WEBGPU",
     E_NO_ADAPTER: "E_NO_ADAPTER",
     E_SOFTWARE_ONLY: "E_SOFTWARE_ONLY",
     E_DEVICE_INCORRECT: "E_DEVICE_INCORRECT",
     E_DEVICE_LOST: "E_DEVICE_LOST",
+    E_GPU_TIMEOUT: "E_GPU_TIMEOUT",
     E_RENDER_LOST: "E_RENDER_LOST",
     E_NO_WEBGL: "E_NO_WEBGL",
     E_SHADER_REFUSED: "E_SHADER_REFUSED",
@@ -1171,6 +1418,7 @@ const CODE_TABLE = {
     E_IMAGE_DECODE: "E_IMAGE_DECODE",
     E_CAPTURE_FAILED: "E_CAPTURE_FAILED",
     E_NOT_SETTLED: "E_NOT_SETTLED",
+    E_CANCELED: "E_CANCELED",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 
@@ -1194,9 +1442,12 @@ export type AccelerationErrorCode =
     | "E_SOFTWARE_ONLY"
     | "E_DEVICE_INCORRECT"
     | "E_DEVICE_LOST"
+    | "E_GPU_TIMEOUT"
     | "E_TOO_LARGE"
     | "E_NO_ACCELERATOR_REGISTERED"
-    | "E_ACCELERATOR_FAILED";
+    | "E_ACCELERATOR_FAILED"
+    | "E_ACCELERATOR_INCOMPATIBLE"
+    | "E_MISSING_PACKAGE";
 
 /**
  * Every code that can appear on `capabilities.acceleration.code`.
@@ -1207,9 +1458,12 @@ export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[] = Object
     CODE_TABLE.E_SOFTWARE_ONLY,
     CODE_TABLE.E_DEVICE_INCORRECT,
     CODE_TABLE.E_DEVICE_LOST,
+    CODE_TABLE.E_GPU_TIMEOUT,
     CODE_TABLE.E_TOO_LARGE,
     CODE_TABLE.E_NO_ACCELERATOR_REGISTERED,
     CODE_TABLE.E_ACCELERATOR_FAILED,
+    CODE_TABLE.E_ACCELERATOR_INCOMPATIBLE,
+    CODE_TABLE.E_MISSING_PACKAGE,
 ]);
 
 /**

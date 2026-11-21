@@ -143,7 +143,7 @@ down from lists of connections.
 - The load screen is new to me (before, opening a file just drew it). It was clear, but the minutes
   column came in as "Attribute" with "Weight: none (each edge counts 1)" -- if I hadn't read that
   line I would have loaded it as-is and every calculation would have ignored the minutes. Nothing
-  stops you; it's one small grey line.
+  stops you; it's one small gray line.
 - Picking "Weight" was not enough on its own: the "Higher means" row then appeared with "Not set"
   chosen, and the sentence said a path would still count every edge as one step. The sentence
   explained it well, but it's a second decision hidden behind the first.

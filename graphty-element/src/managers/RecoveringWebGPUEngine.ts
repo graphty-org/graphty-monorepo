@@ -1,5 +1,8 @@
+/// <reference types="@webgpu/types" />
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+
+import type { GpuDeviceHandle } from "../render/gpuHandles";
 
 /**
  * A WebGPU engine that comes back from a lost device.
@@ -24,7 +27,7 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
     /** Babylon's reopening of the device after the last loss, kept for {@link retryRestore}. */
     private reopen: (() => void) | null = null;
     /** Those told of the new device by {@link drawingDevice}. */
-    private readonly waiting: { resolve: (device: GPUDevice) => void; reject: (error: unknown) => void }[] = [];
+    private readonly waiting: { resolve: (device: GpuDeviceHandle) => void; reject: (error: unknown) => void }[] = [];
 
     /**
      * The device drawn on, waiting for the new one during a loss. The wait is already set when a
@@ -33,7 +36,7 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
      * @returns The device; rejects once a restore has failed or the engine is disposed, since
      * nothing would ever answer.
      */
-    drawingDevice(): Promise<GPUDevice> {
+    drawingDevice(): Promise<GpuDeviceHandle> {
         if (this.noDevice !== null) {
             return Promise.reject(this.noDevice.error);
         }
@@ -49,7 +52,7 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
      * The device drawn on now, or null while a loss waits for the new one.
      * @returns The device, or null.
      */
-    deviceNow(): GPUDevice | null {
+    deviceNow(): GpuDeviceHandle | null {
         return this.awaitingDevice || this.noDevice !== null ? null : this._device;
     }
 
@@ -80,18 +83,20 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
                 return;
             }
 
-            // Typed as returning nothing, but the initEngine Babylon passes is async.
-            (initEngine as unknown as () => Promise<void>)().then(
-                () => {
+            // Typed as returning nothing, but the initEngine Babylon passes is async. A rebuild on
+            // the new device that throws fails the restore as a refused device does: left as an
+            // unhandled rejection, nothing said the graph had stopped drawing and every wait for
+            // the restore waited forever (issue #6422).
+            (initEngine as unknown as () => Promise<void>)()
+                .then(() => {
                     this.finishRestore(loss);
-                },
-                (error: unknown) => {
+                })
+                .catch((error: unknown) => {
                     if (loss === this.losses && !this.isDisposed) {
                         this.onRestoreFailed?.(error);
                         this.giveUp(error);
                     }
-                },
-            );
+                });
         });
     }
 

@@ -2,7 +2,7 @@
  * Simulate removing, on the REAL graphty-element: the node and edge inspectors' action runs the
  * element's removal impact on what is selected, opens its result, and leaves the graph as it was.
  *
- * The graph: a triangle a-b-c joined to a pair d-e by the bridge c-d.
+ * The graph: a triangle a-b-c joined to a pair d-e by the bridge c-d; e is a leaf.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -109,5 +109,23 @@ describe("Simulate removing", () => {
         assert.deepEqual(cutOff, ["d", "e"]);
         assert.deepInclude(graph, { removedEdges: 1, removedNodes: 0 });
         assert.lengthOf(element.session.data.edges(), 5);
+    });
+
+    it("from a leaf's menu says the removal affects no other node and adds no empty layer", async () => {
+        const { element, store } = await open();
+        await act(async () => {
+            await element.session.selection.apply({ nodes: ["e"] });
+        });
+        const layersBefore = element.session.styles.list().map((layer) => layer.id);
+
+        const { cutOff } = await simulate(element, store, "Node");
+
+        assert.deepEqual(cutOff, []);
+        await screen.findByText("Removing this affects no other node");
+        await element.session.styles.settled();
+        assert.deepEqual(
+            element.session.styles.list().map((layer) => layer.id),
+            layersBefore,
+        );
     });
 });

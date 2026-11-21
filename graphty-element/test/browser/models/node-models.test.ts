@@ -241,56 +241,67 @@ describe("nodes drawn as models", () => {
         assert.lengthOf(loads, 1, "the model is prepared once");
     });
 
-    it("draws a model as wide as an icosphere of the same size under the default size mode", async () => {
-        const element = await mount(600, 300);
-        const { graph } = element;
-        const asset = await element.session.assets.add(sphereGlb(24, 12));
-        await graph.addNodes([
-            { id: "model", position: { x: -2, y: 0, z: 0 } },
-            { id: "shape", position: { x: 2, y: 0, z: 0 } },
-        ]);
-        await graph.setLayout("fixed", { dim: 3 });
-        const drawn = nextModelEvent(element, (change) => change.state === "drawn");
-        await element.session.styles.add({
-            name: "one model",
-            target: "node",
-            selector: { match: "ids", nodes: ["model"] },
-            set: { "node.model": asset.id },
-        });
-        await drawn;
-        await operationQueueOf(graph).waitForCompletion();
-        await element.waitForStableFrame();
-        assert.isTrue(drawnAsModel(graph, "model"));
+    // A size space other than "scene" scales each node for the view; it used to replace the
+    // scale a model is built at with the view's, so the model drew at a unit box (issue #9304).
+    it.each(["scene", "pivot", "screen"] as const)(
+        "draws a model as wide as an icosphere of the same size under the default size mode, size space %s",
+        async (sizeSpace) => {
+            const element = await mount(600, 300);
+            const { graph } = element;
+            const asset = await element.session.assets.add(sphereGlb(24, 12));
+            await graph.addNodes([
+                { id: "model", position: { x: -2, y: 0, z: 0 } },
+                { id: "shape", position: { x: 2, y: 0, z: 0 } },
+            ]);
+            await graph.setLayout("fixed", { dim: 3 });
+            await element.session.styles.add({
+                name: "one size space",
+                target: "node",
+                selector: { match: "ids", nodes: ["model", "shape"] },
+                set: { "node.sizeSpace": sizeSpace },
+            });
+            const drawn = nextModelEvent(element, (change) => change.state === "drawn");
+            await element.session.styles.add({
+                name: "one model",
+                target: "node",
+                selector: { match: "ids", nodes: ["model"] },
+                set: { "node.model": asset.id },
+            });
+            await drawn;
+            await operationQueueOf(graph).waitForCompletion();
+            await element.waitForStableFrame();
+            assert.isTrue(drawnAsModel(graph, "model"));
 
-        /**
-         * How wide a node is drawn on screen, from the world box of everything it draws.
-         * @param id - The node.
-         * @returns Its width in CSS pixels.
-         */
-        const screenWidth = (id: string): number => {
-            const mesh = graph.getNodeMesh(id);
-            assert.isNotNull(mesh);
-            const drawnMeshes = drawnAsModel(graph, id) ? [mesh, ...mesh.getChildMeshes(true)] : [mesh];
-            let min = Infinity;
-            let max = -Infinity;
-            for (const part of drawnMeshes) {
-                part.computeWorldMatrix(true);
-                const box = part.getBoundingInfo().boundingBox;
-                min = Math.min(min, box.minimumWorld.x);
-                max = Math.max(max, box.maximumWorld.x);
-            }
+            /**
+             * How wide a node is drawn on screen, from the world box of everything it draws.
+             * @param id - The node.
+             * @returns Its width in CSS pixels.
+             */
+            const screenWidth = (id: string): number => {
+                const mesh = graph.getNodeMesh(id);
+                assert.isNotNull(mesh);
+                const drawnMeshes = drawnAsModel(graph, id) ? [mesh, ...mesh.getChildMeshes(true)] : [mesh];
+                let min = Infinity;
+                let max = -Infinity;
+                for (const part of drawnMeshes) {
+                    part.computeWorldMatrix(true);
+                    const box = part.getBoundingInfo().boundingBox;
+                    min = Math.min(min, box.minimumWorld.x);
+                    max = Math.max(max, box.maximumWorld.x);
+                }
 
-            const center = mesh.getAbsolutePosition();
-            const left = element.worldToScreen(new Vector3(min, center.y, center.z));
-            const right = element.worldToScreen(new Vector3(max, center.y, center.z));
-            return Math.abs(right.x - left.x);
-        };
+                const center = mesh.getAbsolutePosition();
+                const left = element.worldToScreen(new Vector3(min, center.y, center.z));
+                const right = element.worldToScreen(new Vector3(max, center.y, center.z));
+                return Math.abs(right.x - left.x);
+            };
 
-        const model = screenWidth("model");
-        const shape = screenWidth("shape");
-        assert.isAbove(shape, 0);
-        assert.approximately(model / shape, 1, 0.02, `model ${String(model)} px, icosphere ${String(shape)} px`);
-    });
+            const model = screenWidth("model");
+            const shape = screenWidth("shape");
+            assert.isAbove(shape, 0);
+            assert.approximately(model / shape, 1, 0.02, `model ${String(model)} px, icosphere ${String(shape)} px`);
+        },
+    );
 
     it("makes the same draw calls for 10 model nodes as for 1,000", async () => {
         const element = await mount();

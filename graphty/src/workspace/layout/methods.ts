@@ -25,7 +25,7 @@ const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
  * The app's name for each of the element's layouts, by catalog id. A layout a third party
  * registered reads under its technical name, the element's fact about it.
  */
-const LAYOUT_NAMES: Readonly<Record<string, string>> = {
+const LAYOUT_NAMES: Readonly<Partial<Record<string, string>>> = {
     force: "Force",
     circular: "Circle",
     radial: "Rings around a node",
@@ -225,7 +225,7 @@ export function startingValues(session: GraphSession, descriptor: LayoutDescript
         ? { seed: LAYOUT_SEED }
         : {};
     // On a map the app draws the map, flat or globe, six times larger than the element's default
-    // under the same nodes and edges, so a dense region (the United States, Europe) is not one grey
+    // under the same nodes and edges, so a dense region (the United States, Europe) is not one gray
     // patch. With nodes one size on screen (Settings, "Map layout automatically enables
     // depth-independent size", frame/ElementHost.tsx) that leaves a flat map's nodes too small to
     // see, so they are drawn twice that size: still apart.
@@ -348,10 +348,22 @@ function choiceOf(session: GraphSession, descriptor: LayoutDescriptor, recommend
  */
 export function layoutChoices(session: GraphSession, layouts: readonly LayoutDescriptor[]): LayoutChoice[] {
     const recommended = session.recommendLayout()?.layout.id;
+    return layoutRows(layouts).map((descriptor) =>
+        choiceOf(session, descriptor, engineOf(descriptor) === undefined && descriptor.id === recommended),
+    );
+}
+
+/**
+ * The Layout list's rows before any per-graph facts: every layout, in catalog order, each followed
+ * by one descriptor for every engine but its default. The start page counts these.
+ * @param layouts - the layouts, from {@link useLayouts} or the element's catalog.
+ * @returns one descriptor per row, with the engine the row applies.
+ */
+export function layoutRows(layouts: readonly LayoutDescriptor[]): LayoutDescriptor[] {
     return layouts.flatMap((descriptor) => [
-        choiceOf(session, descriptor, descriptor.id === recommended),
+        descriptor,
         ...(layoutEntry(descriptor.id)?.implementations ?? [])
             .filter((implementation) => !implementation.isDefault)
-            .map((implementation) => choiceOf(session, withEngine(descriptor, implementation), false)),
+            .map((implementation) => withEngine(descriptor, implementation)),
     ]);
 }

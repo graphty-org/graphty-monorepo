@@ -74,6 +74,7 @@ export const URL_DESCRIPTOR: SourceDescriptor = Object.freeze({
                 { value: "cx", label: "CX" },
                 { value: "obo", label: "OBO" },
                 { value: "cys", label: "Cytoscape session" },
+                { value: "sif", label: "SIF" },
             ],
         },
         {

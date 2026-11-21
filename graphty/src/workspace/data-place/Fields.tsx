@@ -31,7 +31,6 @@ import {
     kindChoices,
     loadValue,
     LOCATION_ENTRIES,
-    remap,
     roleHolder,
     ROWS_ARE,
     sidesOf,
@@ -495,7 +494,7 @@ function SideGroup({
         if (!ready) {
             return;
         }
-        const field = group.current?.querySelector<HTMLElement>(`[data-entry="${wantedHere ?? ""}"] input`);
+        const field = group.current?.querySelector<HTMLElement>(`[data-entry="${wantedHere}"] input`);
         if (field !== null && field !== undefined) {
             field.scrollIntoView({ block: "nearest" });
             focusWithRing(field);
@@ -522,7 +521,7 @@ function SideGroup({
             const key = entry.load;
             if (key !== undefined) {
                 if (source !== undefined) {
-                    onReload({ mapping: remap(source, side, { [key]: picked }) });
+                    onReload({ mapping: { [side]: { [key]: picked } } });
                 }
             } else if (entry.id === "time") {
                 designateTime(session, store, side, picked);
@@ -564,7 +563,7 @@ function SideGroup({
                     onRemove={() => {
                         focusPlus();
                         if (source !== undefined) {
-                            onReload({ mapping: remap(source, side, { [key]: null }) });
+                            onReload({ mapping: { [side]: { [key]: null } } });
                         }
                     }}
                 />
@@ -860,7 +859,7 @@ function SourceFields({
                     value={value}
                     choices={columnChoices(attributes, source, side, value)}
                     onPick={(picked) => {
-                        reload({ mapping: remap(source, side, { [row.key]: picked }) });
+                        reload({ mapping: { [side]: { [row.key]: picked } } });
                     }}
                 />
             );
@@ -881,7 +880,7 @@ function SourceFields({
                         if (picked === "edges") {
                             store.set({ ends: { load: source.key, source: null, target: null } });
                         } else if (ends === null) {
-                            reload({ mapping: remap(source, "edges", { rowsAre: "nodes" }) });
+                            reload({ mapping: { rowsAre: "nodes" } });
                         } else {
                             store.set({ ends: null });
                         }

@@ -31,7 +31,7 @@ export function uploadBuffer(ctx: GpuContext, data: ArrayBufferView, label: stri
 }
 
 /**
- * A zeroed STORAGE | COPY_SRC | COPY_DST buffer of byteLength (WebGPU zero-initialises new buffers).
+ * A zeroed STORAGE | COPY_SRC | COPY_DST buffer of byteLength (WebGPU zero-initializes new buffers).
  * @param ctx - the context
  * @param byteLength - the size (a multiple of 4)
  * @param label - the buffer label

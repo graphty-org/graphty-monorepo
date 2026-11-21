@@ -23,7 +23,7 @@ with that category's state, so every page repeats the status line; Issues has no
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.                                                                                                                                                                                                                                                                                                                                                                                      |
-| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner". **Issue grouping** (fixing related issues in one pull request, design/ci/issue-grouping.md): issues closed per merged PR, merged PRs closing 2+ issues, runner-minutes per issue closed, grouped issues released as not part of their branch, and finished branches not opened.                                                                                                                                        |
 | CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; **Runner-minutes per merge** by run kind; **Shard times**: median and p90 per shard against budget, and for full runs each test group's members added up per run against its test step's deadline (not OK past 80%), with the members slower than their `GROUP_MEMBER_SECONDS` entry; **Chronically failing jobs**, gating or not; **Allowed to fail, and failing**: each non-gating job's pass rate; and **Benchmarks**: each benchmark's trend. |
 | Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.                                                                                                                                                                                                                                                                                                                                                                                              |
 | Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -221,10 +221,16 @@ write (pull request runs, or the listed workflows on master). A body is at most 
 | `tmp/waits.jsonl` (test and GPU slot waits)                | `POST /v1/local/waits`       |
 | `tmp/test-ledger/records/<date>/*.json.gz` (pre-push gate) | `POST /v1/local/invocations` |
 | `tmp/push-log.jsonl` (pre-push gate runs)                  | `POST /v1/local/push-runs`   |
+| `tmp/issue-round/grouping-metrics.jsonl` (daily ledger)    | `POST /v1/local/grouping`    |
 
 Every test run on this machine holds a test slot (`tools/test-slots.mjs`), which logs the hold with what ran
 (the package, or the shard family `tools/run-tests.sh` ran) and its exit code: those are the Local runs page's
 runs and local time. The test ledger and the push log are written only by the pre-push gate, now run by hand.
+The grouping metrics line is appended once a day by issue-round (`tools/issue-groups.mjs metrics --append`). Only
+these fields are posted, as the source `grouping-ledger` (age limit 48 hours): `issuesPerMergedPr` and `multiFixShare`
+(the ledger counts a pull request's closing links and its commits' Fixes lines, so the dashboard never counts issues
+itself), `ledger.releasedNotPartShare`, `ledger.ready`, `combinable` and `combinableBranches`. A field a line lacks is
+not posted. Runner-minutes per issue closed is Runner-minutes per merge divided by the newest `issuesPerMergedPr`.
 
 Host paths, gate logs, working directories and session ids are never posted. Every row has an id from
 its content, so a retried post is harmless.
@@ -298,7 +304,7 @@ the SNS topic `graphty-health-alarms` when that happens.
 
 The Costs page's LLM regression line (`costs.llm`) estimates what CI spends on Gemini; it is not the Google bill. It
 counts every paid step -- release.yml's `LLM regression tests` step, and the `Run the failing files` step of each
-point of a bisect of the llm lane (bisect.yml's run name `Bisect (llm lane)`) -- with a passed, failed or cancelled
+point of a bisect of the llm lane (bisect.yml's run name `Bisect (llm lane)`) -- with a passed, failed or canceled
 conclusion, at a flat 0.94 USD each (`config/rates.json`, measured 2026-10-12 at about 194 calls of 0.00485 USD).
 Local runs with the same key and any other use of the Google project are not counted. The member's value is the
 projection to month-end; the money table shows the spend so far beside it.

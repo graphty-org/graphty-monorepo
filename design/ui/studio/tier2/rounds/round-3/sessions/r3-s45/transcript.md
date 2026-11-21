@@ -11,5 +11,5 @@
   friends-of-friends -- I clicked it on a guess. "Degree" isn't a word I use; "connections" would
   have told me. Ava being the smallest dot ("#20 of 20") made me think she's the least important
   runner, which seemed odd for the person throwing the party. After filtering, the legend changed to
-  "PageRank, full graph" and I didn't know what that meant. The Filter button greying out after I
+  "PageRank, full graph" and I didn't know what that meant. The Filter button graying out after I
   pressed it made me wonder for a second if it had worked, but the "15 of 20 nodes" at the top told me.

@@ -84,7 +84,14 @@ function withBranch(rule: UnionLeaf, id: string, edit: (branch: UnionBranch) => 
  * @returns the selection.
  */
 export const editBranch = (rule: UnionLeaf, id: string, patch: Partial<UnionBranch>): UnionLeaf =>
-    withBranch(rule, id, (branch) => ({ ...branch, ...patch }));
+    withBranch(rule, id, (branch) => {
+        if (!("name" in patch)) {
+            return { ...branch, ...patch };
+        }
+        // A name the reader types is theirs, never a letter to clear or reuse.
+        const { autoName: _auto, ...typed } = branch;
+        return { ...typed, ...patch };
+    });
 
 /**
  * Removes a group.
@@ -96,8 +103,8 @@ export const removeBranch = (rule: UnionLeaf, id: string): UnionLeaf => {
     const left = withBranch(rule, id, () => null);
     // One group left goes by the selection's title again, never by the letter it was given.
     const [only] = left.branches;
-    if (left.branches.length === 1 && only.name !== undefined && /^[A-Z]{1,2}$/.test(only.name)) {
-        const { name: _name, ...rest } = only;
+    if (left.branches.length === 1 && only.autoName === true) {
+        const { name: _name, autoName: _auto, ...rest } = only;
         return { ...left, branches: [rest] };
     }
     return left;
@@ -137,7 +144,10 @@ function placeOf(name: string): number {
  */
 function lettered(branches: readonly UnionBranch[]): UnionBranch[] {
     const used = new Set(branches.flatMap((branch) => (branch.name === undefined ? [] : [branch.name])));
-    let next = Math.max(-1, ...[...used].map(placeOf)) + 1;
+    const letters = branches.flatMap((branch) =>
+        branch.autoName === true && branch.name !== undefined ? [branch.name] : [],
+    );
+    let next = Math.max(-1, ...letters.map(placeOf)) + 1;
     const take = (): string => {
         while (used.has(letterOf(next))) {
             next++;
@@ -146,7 +156,7 @@ function lettered(branches: readonly UnionBranch[]): UnionBranch[] {
         used.add(name);
         return name;
     };
-    return branches.map((branch) => (branch.name === undefined ? { ...branch, name: take() } : branch));
+    return branches.map((branch) => (branch.name === undefined ? { ...branch, name: take(), autoName: true } : branch));
 }
 
 /**
@@ -180,7 +190,7 @@ export function moveBranch(rule: UnionLeaf, id: string, to: number): UnionLeaf {
  */
 export function duplicateBranch(rule: UnionLeaf, id: string): { rule: UnionLeaf; id: string } {
     const at = rule.branches.findIndex((branch) => branch.id === id);
-    const source = rule.branches[at];
+    const source = at === -1 ? undefined : rule.branches[at];
     if (source === undefined) {
         return { rule, id };
     }
@@ -257,37 +267,3 @@ export const editStep = (rule: UnionLeaf, branchId: string, stepId: string, patc
  */
 export const removeStep = (rule: UnionLeaf, branchId: string, stepId: string): UnionLeaf =>
     withSteps(rule, branchId, (steps) => steps.filter((step) => step.id !== stepId));
-
-/**
- * Moves a step within its group. Start with never changes (spec 1).
- * @param rule - the selection.
- * @param branchId - the group.
- * @param stepId - the step.
- * @param to - its new place.
- * @returns the selection.
- */
-export const moveStep = (rule: UnionLeaf, branchId: string, stepId: string, to: number): UnionLeaf =>
-    withSteps(rule, branchId, (steps) =>
-        moveItem(
-            steps,
-            steps.findIndex((step) => step.id === stepId),
-            to,
-        ),
-    );
-
-/**
- * A copy of a step, under it, with a new id.
- * @param rule - the selection.
- * @param branchId - the group.
- * @param stepId - the step.
- * @returns the selection and the copy's id.
- */
-export function duplicateStep(rule: UnionLeaf, branchId: string, stepId: string): { rule: UnionLeaf; id: string } {
-    const id = newId("s");
-    return {
-        rule: withSteps(rule, branchId, (steps) =>
-            steps.flatMap((step) => (step.id === stepId ? [step, { ...step, id }] : [step])),
-        ),
-        id,
-    };
-}

@@ -7,15 +7,20 @@
  */
 
 import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
+import { type Edge, type EdgeCapEnd, edgeInternals } from "../Edge";
 import type { DrawnNodeSpot, Graph, NodeScreenPosition } from "../Graph";
 import { dataManagerInternals } from "../managers/DataManager";
-import type { RichTextLabel } from "../meshes/RichTextLabel";
+import type { ArrowCap } from "../meshes/ArrowCapBatch";
+import type { PanelGradientShape, RichTextLabel } from "../meshes/RichTextLabel";
 import { pixelsPerUnit } from "../meshes/screenSize";
 import { convexHull, flatShapeOutline, isFlatShape, type Point2 } from "../meshes/shapeOutlines";
+import { type Node, nodeInternals } from "../Node";
 import { toColorValue } from "../session/styles/channels";
 import { downloadBlob } from "../utils/download";
 import { captureError } from "./captureError";
@@ -49,13 +54,22 @@ export interface FigureResult {
     downloaded: boolean;
 }
 
-/** One node, as a circle or a closed outline, in screen pixels. */
-type FigureShape = ({ circle: { x: number; y: number; r: number } } | { points: readonly Point2[] }) & {
+/** A triangle on screen. */
+type Triangle = readonly [Point2, Point2, Point2];
+
+/**
+ * One filled shape in screen pixels: a node as a circle or a closed outline, or a mesh the canvas
+ * draws (an arrow cap, a node's border) as its triangles, all wound one way so they fill as one
+ * shape and a ring keeps its hole.
+ */
+export type FigureShape = (
+    { circle: { x: number; y: number; r: number } } | { points: readonly Point2[] } | { triangles: readonly Triangle[] }
+) & {
     fill: string;
     opacity: number;
 };
 
-/** One label's lines of text, centred on its point, over its panel when it has a solid one. */
+/** One label's lines of text, centered on its point, over its panel when it has one. */
 export interface FigureText {
     x: number;
     y: number;
@@ -65,11 +79,23 @@ export interface FigureText {
     weight: string;
     style: string;
     color: string;
-    /** The panel drawn behind the words, in screen pixels. */
-    background?: { x: number; y: number; w: number; h: number; radius: number; fill: string; opacity: number };
+    /** The panel drawn behind the words, in screen pixels, filled with `fill` or, when it has one, its gradient. */
+    background?: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        radius: number;
+        fill: string;
+        opacity: number;
+        gradient?: FigureGradient;
+    };
 }
 
-/** One mark of the key: a box, a color ramp, a filled outline or a line of text centred on its `y`. */
+/** A gradient in screen pixels: its line or circle, its colors and where each sits, 0 to 1. */
+export type FigureGradient = PanelGradientShape & { colors: readonly string[]; stops: readonly number[] };
+
+/** One mark of the key: a box, a color ramp, a filled outline or a line of text centered on its `y`. */
 export type FigureMark =
     | {
           rect: { x: number; y: number; w: number; h: number; radius?: number };
@@ -86,7 +112,11 @@ export interface FigureDrawing {
     width: number;
     height: number;
     background?: string;
-    edges: readonly { x1: number; y1: number; x2: number; y2: number; color: string; opacity: number; width: number }[];
+    /** Each edge's line through the points the canvas draws it through: two for a straight line, more for a curve. */
+    edges: readonly { points: readonly Point2[]; color: string; opacity: number; width: number }[];
+    /** The arrow caps, drawn over the nodes, as the canvas draws a cap over its node's border. */
+    caps: readonly FigureShape[];
+    /** The nodes, far first, each followed by its border and outer border. */
     nodes: readonly FigureShape[];
     texts: readonly FigureText[];
     legend?: {
@@ -183,7 +213,49 @@ function markSvg(mark: FigureMark, index: number): string {
 }
 
 /**
- * The SVG document for a drawing: background, edges, nodes, labels, then the key on top.
+ * A filled shape as SVG.
+ * @param shape - The shape.
+ * @returns The element.
+ */
+function shapeSvg(shape: FigureShape): string {
+    const paint = `fill="${esc(shape.fill)}"${opacityAttr("fill-opacity", shape.opacity)}`;
+    if ("circle" in shape) {
+        return `<circle cx="${num(shape.circle.x)}" cy="${num(shape.circle.y)}" r="${num(shape.circle.r)}" ${paint}/>`;
+    }
+    if ("points" in shape) {
+        return `<polygon points="${pointList(shape.points)}" ${paint}/>`;
+    }
+    const d = shape.triangles.map(([a, b, c]) => `M${corner(a)}L${corner(b)}L${corner(c)}Z`).join("");
+    return `<path d="${d}" ${paint}/>`;
+}
+
+/**
+ * A gradient as an SVG paint server, in the figure's own pixels.
+ * @param g - The gradient.
+ * @param id - Its id.
+ * @returns The element.
+ */
+function gradientSvg(g: FigureGradient, id: string): string {
+    const stops = g.colors.map((c, i) => `<stop offset="${num(g.stops[i] ?? 0)}" stop-color="${esc(c)}"/>`).join("");
+    const at =
+        g.kind === "linear"
+            ? `x1="${num(g.x1)}" y1="${num(g.y1)}" x2="${num(g.x2)}" y2="${num(g.y2)}"`
+            : `cx="${num(g.cx)}" cy="${num(g.cy)}" r="${num(g.r)}"`;
+    const tag = g.kind === "linear" ? "linearGradient" : "radialGradient";
+    return `<${tag} id="${id}" gradientUnits="userSpaceOnUse" ${at}>${stops}</${tag}>`;
+}
+
+/**
+ * A point as a path takes it.
+ * @param point - The point.
+ * @returns `x y`.
+ */
+function corner(point: Point2): string {
+    return `${num(point[0])} ${num(point[1])}`;
+}
+
+/**
+ * The SVG document for a drawing: background, edges, nodes, arrow caps, labels, then the key on top.
  * @param drawing - What to draw.
  * @param key - The key's marks.
  * @returns The document.
@@ -196,27 +268,35 @@ function figureSvg(drawing: FigureDrawing, key: readonly FigureMark[]): string {
     if (drawing.background !== undefined) {
         out.push(`<rect width="100%" height="100%" fill="${esc(drawing.background)}"/>`);
     }
-    out.push(`<g stroke-linecap="round">`);
+    out.push(`<g fill="none" stroke-linecap="round" stroke-linejoin="round">`);
     for (const e of drawing.edges) {
+        const paint = `stroke="${esc(e.color)}" stroke-width="${num(e.width)}"${opacityAttr("stroke-opacity", e.opacity)}`;
+        const [[x1, y1], [x2, y2]] = e.points;
         out.push(
-            `<line x1="${num(e.x1)}" y1="${num(e.y1)}" x2="${num(e.x2)}" y2="${num(e.y2)}" stroke="${esc(e.color)}" ` +
-                `stroke-width="${num(e.width)}"${opacityAttr("stroke-opacity", e.opacity)}/>`,
+            e.points.length > 2
+                ? `<polyline points="${pointList(e.points)}" ${paint}/>`
+                : `<line x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}" ${paint}/>`,
         );
     }
+    // One push per shape: spreading a million shapes into one call overflows the stack (#9034).
     out.push(`</g><g>`);
     for (const n of drawing.nodes) {
-        const paint = `fill="${esc(n.fill)}"${opacityAttr("fill-opacity", n.opacity)}`;
-        if ("circle" in n) {
-            out.push(`<circle cx="${num(n.circle.x)}" cy="${num(n.circle.y)}" r="${num(n.circle.r)}" ${paint}/>`);
-        } else {
-            out.push(`<polygon points="${pointList(n.points)}" ${paint}/>`);
-        }
+        out.push(shapeSvg(n));
+    }
+    out.push(`</g><g>`);
+    for (const c of drawing.caps) {
+        out.push(shapeSvg(c));
     }
     out.push(`</g><g text-anchor="middle" dominant-baseline="central">`);
-    for (const t of drawing.texts) {
+    drawing.texts.forEach((t, i) => {
         if (t.background !== undefined) {
             const bg = t.background;
-            out.push(rectSvg(bg, `fill="${esc(bg.fill)}"${opacityAttr("fill-opacity", bg.opacity)}`));
+            const id = `graphty-panel-${String(i)}`;
+            const fill = bg.gradient === undefined ? esc(bg.fill) : `url(#${id})`;
+            if (bg.gradient !== undefined) {
+                out.push(`<defs>${gradientSvg(bg.gradient, id)}</defs>`);
+            }
+            out.push(rectSvg(bg, `fill="${fill}"${opacityAttr("fill-opacity", bg.opacity)}`));
         }
         const first = t.y - ((t.lines.length - 1) * t.size * 1.2) / 2;
         const spans = t.lines
@@ -226,7 +306,7 @@ function figureSvg(drawing: FigureDrawing, key: readonly FigureMark[]): string {
             `<text font-family="${esc(t.font)}" font-size="${num(t.size)}" font-weight="${esc(t.weight)}" ` +
                 `font-style="${esc(t.style)}" fill="${esc(t.color)}">${spans}</text>`,
         );
-    }
+    });
     out.push(`</g>`);
     if (key.length > 0) {
         out.push(
@@ -418,7 +498,7 @@ function labelText(
 function labelPanel(label: RichTextLabel, mesh: Mesh, graph: Graph): FigureText["background"] {
     const { panel } = label;
     const color = panel === undefined ? null : toColorValue(panel.color);
-    if (panel === undefined || color === null || color.a <= 0) {
+    if (panel === undefined || color === null || (panel.gradient === undefined && color.a <= 0)) {
         return undefined;
     }
     const corners = mesh.getBoundingInfo().boundingBox.vectorsWorld.map((c) => graph.worldToScreen(c));
@@ -428,16 +508,24 @@ function labelPanel(label: RichTextLabel, mesh: Mesh, graph: Graph): FigureText[
     const top = Math.min(...ys);
     const w = Math.max(...xs) - left;
     const h = Math.max(...ys) - top;
-    // ponytail: a pointer, a border or a gradient panel is drawn as its solid box only.
-    return {
+    // ponytail: a pointer or a border is drawn as the panel's box only.
+    const box = {
         x: left + panel.left * w,
         y: top + panel.top * h,
         w: (panel.right - panel.left) * w,
         h: (panel.bottom - panel.top) * h,
         radius: panel.radius * w,
         fill: rgb(color),
-        opacity: color.a,
     };
+    const g = panel.gradient;
+    if (g === undefined) {
+        return { ...box, opacity: color.a };
+    }
+    const shape: PanelGradientShape =
+        g.kind === "linear"
+            ? { kind: "linear", x1: left + g.x1 * w, y1: top + g.y1 * h, x2: left + g.x2 * w, y2: top + g.y2 * h }
+            : { kind: "radial", cx: left + g.cx * w, cy: top + g.cy * h, r: g.r * w };
+    return { ...box, opacity: g.opacity, gradient: { ...shape, colors: g.colors, stops: g.stops } };
 }
 
 /**
@@ -488,18 +576,18 @@ function lineWidthPx(width: number, mid: Vector3, camera: Camera, is2D: boolean,
     return (width * 10) / Math.max(clipW, 1e-6);
 }
 
-/** A visible node as the figure reads it: where it is on screen, and its centre in the world. */
+/** A visible node as the figure reads it: where it is on screen, and its center in the world. */
 interface ShownNode {
     readonly at: NodeScreenPosition;
     readonly centre: Vector3;
 }
 
-/** One edge to draw: its ends' rows, its paint's style and, for an `Edge`, its label. */
+/** One edge to draw: its ends' rows, its paint's style and, for an `Edge`, the `Edge` (its label and caps). */
 interface FigureEdge {
     readonly source: number;
     readonly target: number;
     readonly style: EdgeStyleConfig | undefined;
-    readonly label: RichTextLabel | null | undefined;
+    readonly edge: Edge | undefined;
 }
 
 /**
@@ -516,7 +604,7 @@ function* drawnEdges(graph: Graph): Generator<FigureEdge> {
             // By id, not `srcNode`: an `Edge` builds the `Node` of an end it is asked for.
             const source = dataManagerInternals.rowOf(data, edge.srcId);
             const target = dataManagerInternals.rowOf(data, edge.dstId);
-            yield { source, target, style: painter.edgePaint(edge.index)?.style, label: edge.label };
+            yield { source, target, style: painter.edgePaint(edge.index)?.style, edge };
         }
     }
 
@@ -524,18 +612,20 @@ function* drawnEdges(graph: Graph): Generator<FigureEdge> {
     for (const row of lines?.rows() ?? []) {
         const ends = lines?.endsOf(row);
         if (ends !== undefined && !(lines?.isHidden(row) ?? true)) {
-            yield { source: ends[0], target: ends[1], style: painter.edgePaint(row)?.style, label: undefined };
+            yield { source: ends[0], target: ends[1], style: painter.edgePaint(row)?.style, edge: undefined };
         }
     }
 }
 
 /**
- * Every visible edge as a straight line between its ends' centres, its label added to `texts`.
+ * Every visible edge as a straight line between its ends' centers, its label added to `texts` and
+ * its arrow caps to `caps`.
  * @param graph - The graph.
  * @param shown - Where each visible node is drawn, by row.
  * @param camera - The camera.
  * @param css - CSS pixels per render pixel.
  * @param texts - The labels drawn so far, added to.
+ * @param caps - The caps drawn so far, added to.
  * @returns The lines.
  */
 function edgeLines(
@@ -544,10 +634,11 @@ function edgeLines(
     camera: Camera,
     css: number,
     texts: FigureText[],
+    caps: FigureShape[],
 ): FigureDrawing["edges"][number][] {
     const is2D = graph.getViewMode() === "2d";
     const edges: FigureDrawing["edges"][number][] = [];
-    for (const { source, target, style, label } of drawnEdges(graph)) {
+    for (const { source, target, style, edge } of drawnEdges(graph)) {
         const src = shown.get(source);
         const dst = shown.get(target);
         if (!src || !dst || !style) {
@@ -559,22 +650,192 @@ function edgeLines(
         if (px <= 0) {
             continue;
         }
+        // Where the canvas draws the line: along its curve, bends or bundle, or straight and stopped at
+        // its arrowheads; a line drawn with no slot of its own runs between its nodes' centers.
+        const path = edge === undefined ? null : edgeInternals.lineInWorld(edge);
+        const points =
+            path?.map((p): Point2 => {
+                const at = graph.worldToScreen(p);
+                return [at.x, at.y];
+            }) ??
+            ([
+                [src.at.x, src.at.y],
+                [dst.at.x, dst.at.y],
+            ] as const);
         edges.push({
-            x1: src.at.x,
-            y1: src.at.y,
-            x2: dst.at.x,
-            y2: dst.at.y,
+            points,
             color: typeof line.color === "string" ? line.color : "#a9a9a9",
             opacity: line.opacity ?? 1,
             width: px,
         });
-        const words = labelText(label, graph, camera, css);
+        if (edge) {
+            caps.push(...edgeCaps(graph, edge, style, camera));
+        }
+        const words = labelText(edge?.label, graph, camera, css);
         if (words) {
             texts.push(words);
         }
     }
 
     return edges;
+}
+
+/**
+ * An edge's arrow caps as the canvas draws them: each cap's own triangles, placed as its batch's
+ * shader or its slot's matrix places them, then projected. Heads, tails, middle caps and stacks.
+ * @param graph - The graph.
+ * @param edge - The edge.
+ * @param style - Its style, for each cap's color and an open cap's inside color.
+ * @param camera - The camera.
+ * @returns The caps, each its inside (when it has a fill) before its frame.
+ */
+function edgeCaps(graph: Graph, edge: Edge, style: EdgeStyleConfig, camera: Camera): FigureShape[] {
+    const caps: [EdgeCapEnd, ArrowCap | null][] = [
+        ["arrowHead", edge.arrowCap],
+        ...edge.arrowHeadStackCaps.map((cap): [EdgeCapEnd, ArrowCap] => ["arrowHead", cap]),
+        ["arrowTail", edge.arrowTailCap],
+        ...edge.arrowTailStackCaps.map((cap): [EdgeCapEnd, ArrowCap] => ["arrowTail", cap]),
+        ["arrowMiddleHead", edge.arrowMiddleHeadCap],
+        ["arrowMiddleTail", edge.arrowMiddleTailCap],
+    ];
+    return caps.flatMap(([end, cap]) => (cap === null ? [] : capShapes(graph, cap, style, end, camera)));
+}
+
+/**
+ * One cap's shapes: its inside when it has a fill, then its frame or whole shape.
+ * @param graph - The graph.
+ * @param cap - The cap.
+ * @param style - Its edge's style.
+ * @param end - Which of the edge's caps it is drawn for: a stacked cap is its end's.
+ * @param camera - The camera.
+ * @returns The shapes, none for a hidden cap.
+ */
+function capShapes(
+    graph: Graph,
+    cap: ArrowCap,
+    style: EdgeStyleConfig,
+    end: EdgeCapEnd,
+    camera: Camera,
+): FigureShape[] {
+    const opacity = cap.visibility;
+    const mesh = cap.batchMesh;
+    // ponytail: an image cap is a picture, which a figure leaves out.
+    if (cap.isDisposed() || opacity <= 0 || mesh === null || cap.name === "arrow-2d-image") {
+        return [];
+    }
+    const triangles = capTriangles(graph, cap, mesh, camera);
+    const arrow = style[end];
+    const color = arrow?.color ?? style.line?.color;
+    const out: FigureShape[] = [];
+    // An open cap with a fill has its inside's triangles first (FilledArrowRenderer.splitInside).
+    const inside = mesh.subMeshes.length > 1 ? ((mesh.metadata as { capFill?: number } | null)?.capFill ?? 0) / 3 : 0;
+    if (inside > 0 && typeof arrow?.fillColor === "string") {
+        out.push({ triangles: triangles.slice(0, inside), fill: arrow.fillColor, opacity });
+    }
+    if (triangles.length > inside) {
+        out.push({ triangles: triangles.slice(inside), fill: typeof color === "string" ? color : "#FFFFFF", opacity });
+    }
+    return out;
+}
+
+/**
+ * One cap's triangles on screen, in its mesh's index order.
+ * @param graph - The graph.
+ * @param cap - The cap.
+ * @param mesh - Its batch's mesh: its shape at scale 1, tip at the origin, pointing along +X.
+ * @param camera - The camera.
+ * @returns The triangles; none when the cap is hidden.
+ */
+function capTriangles(graph: Graph, cap: ArrowCap, mesh: Mesh, camera: Camera): Triangle[] {
+    const slot = cap.transform;
+    if (slot.m[15] === 0) {
+        return [];
+    }
+    const world = slot.multiply(mesh.getWorldMatrix());
+    const look = cap.drawnAppearance;
+    let place: (x: number, y: number, z: number) => Vector3;
+    if (look === null) {
+        // A 2D cap or the 3D sphere-dot: its geometry under its slot's matrix.
+        place = (x, y, z) => Vector3.TransformCoordinates(new Vector3(x, y, z), world);
+    } else {
+        // The billboard shader's frame (FilledArrowRenderer, filledArrowVertexShader): along the
+        // line, across it facing the camera, at the cap's length.
+        const centre = world.getTranslation();
+        const forward = look.direction.normalizeToNew();
+        let right = Vector3.Cross(forward, camera.globalPosition.subtract(centre).normalize());
+        if (right.lengthSquared() < 1e-12) {
+            right = Vector3.Cross(forward, Math.abs(forward.y) < 0.99 ? Vector3.Up() : Vector3.Right());
+        }
+        right.normalize();
+        const up = Vector3.Cross(right, forward);
+        place = (x, y, z) =>
+            centre.add(forward.scale(x).addInPlace(up.scale(y)).addInPlace(right.scale(z)).scaleInPlace(look.size));
+    }
+    return meshTriangles(graph, mesh, place);
+}
+
+/**
+ * A mesh's triangles on screen, each wound the same way, in its index order.
+ * @param graph - The graph.
+ * @param mesh - The mesh whose geometry is drawn.
+ * @param place - Where a vertex of it is in the world.
+ * @returns The triangles.
+ */
+function meshTriangles(graph: Graph, mesh: Mesh, place: (x: number, y: number, z: number) => Vector3): Triangle[] {
+    const positions = mesh.getVerticesData("position");
+    const indices = mesh.getIndices();
+    if (!positions || !indices) {
+        return [];
+    }
+    const screen: Point2[] = [];
+    for (let i = 0; i < positions.length; i += 3) {
+        const p = graph.worldToScreen(place(positions[i], positions[i + 1], positions[i + 2]));
+        screen.push([p.x, p.y]);
+    }
+    const triangles: Triangle[] = [];
+    for (let i = 0; i + 2 < indices.length; i += 3) {
+        const a = screen[indices[i]];
+        const b = screen[indices[i + 1]];
+        const c = screen[indices[i + 2]];
+        const turn = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+        // One winding for all, so a cap's triangles fill as one shape and an open cap keeps its hole.
+        triangles.push(turn < 0 ? [a, c, b] : [a, b, c]);
+    }
+    return triangles;
+}
+
+/**
+ * A node's border and outer border as the canvas draws them: each ring's triangles, placed by its
+ * instance (turned to the camera for a solid in 3D), in its material's color.
+ * @param graph - The graph.
+ * @param node - The node, or null for a row drawn with no `Node`, which draws no border.
+ * @returns The rings, border first.
+ */
+function nodeRings(graph: Graph, node: Node | null): FigureShape[] {
+    if (node === null) {
+        return [];
+    }
+    const { border, outerBorder } = nodeInternals.drawn(node);
+    const out: FigureShape[] = [];
+    for (const ring of [border, outerBorder]) {
+        const material = ring?.material;
+        if (
+            !(ring instanceof InstancedMesh) ||
+            !ring.isEnabled() ||
+            !ring.isVisible ||
+            !(material instanceof StandardMaterial) ||
+            material.alpha <= 0
+        ) {
+            continue;
+        }
+        const world = ring.computeWorldMatrix(true);
+        const place = (x: number, y: number, z: number): Vector3 =>
+            Vector3.TransformCoordinates(new Vector3(x, y, z), world);
+        const triangles = meshTriangles(graph, ring.sourceMesh, place);
+        const c = material.emissiveColor;
+        out.push({ triangles, fill: rgb({ r: c.r * 255, g: c.g * 255, b: c.b * 255 }), opacity: material.alpha });
+    }
+    return out;
 }
 
 /**
@@ -612,16 +873,22 @@ function figureDrawing(graph: Graph, options: FigureOptions = {}): FigureDrawing
             painter.nodePaint(row)?.color ?? { r: 255, g: 255, b: 255, a: 1 };
         const opacity = node?.drawnOpacity ?? (column === null ? 1 : (batches?.columnOpacityOf(column) ?? 1));
         const paint = { fill: rgb(color), opacity: color.a * opacity };
-        nodes.push({ depth: depthOf(spot.centre), shape: { ...nodeOutline(graph, spot), ...paint } });
+        const depth = depthOf(spot.centre);
+        nodes.push({ depth, shape: { ...nodeOutline(graph, spot), ...paint } });
+        for (const ring of nodeRings(graph, node)) {
+            nodes.push({ depth, shape: ring });
+        }
         const words = node === null ? undefined : labelText(node.label, graph, camera, css);
         if (words) {
             texts.push(words);
         }
     }
-    // Far first, so a nearer node covers a farther one as it does on the canvas.
+    // Far first, so a nearer node covers a farther one as it does on the canvas; a stable sort,
+    // so a node's rings stay over it.
     nodes.sort((a, b) => b.depth - a.depth);
 
-    const edges = edgeLines(graph, shown, camera, css, texts);
+    const caps: FigureShape[] = [];
+    const edges = edgeLines(graph, shown, camera, css, texts, caps);
 
     const { sections, position } = resolveLegend(graph, options.legend);
     const bg = scene.clearColor;
@@ -632,6 +899,7 @@ function figureDrawing(graph: Graph, options: FigureOptions = {}): FigureDrawing
             ? {}
             : { background: rgb({ r: bg.r * 255, g: bg.g * 255, b: bg.b * 255 }) }),
         edges,
+        caps,
         nodes: nodes.map((n) => n.shape),
         texts,
         ...(sections.length > 0 ? { legend: { sections, position, ...legendSize(sections) } } : {}),

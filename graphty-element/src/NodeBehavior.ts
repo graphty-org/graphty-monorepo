@@ -17,7 +17,7 @@ import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
-import { MIN_RADIUS_PX } from "./render/NodeIdTarget";
+import { HOVER_RADIUS_PX } from "./render/NodeIdTarget";
 import { filterPointerPicks, hoverNodeId, type HoverPick, pickNodeId } from "./render/PickService";
 import { dispatcherOf } from "./session/GraphSession";
 import {
@@ -399,7 +399,7 @@ function clickNode(node: GraphNode): void {
 }
 
 /**
- * Expand a double-clicked node: fetch its neighbourhood through the layout behaviour's fetchers
+ * Expand a double-clicked node: fetch its neighborhood through the layout behavior's fetchers
  * and add it as one step.
  * @param node - The node.
  */
@@ -422,7 +422,7 @@ function expandNode(node: GraphNode): void {
     context.getLayoutManager().running = true;
 
     // Add what was fetched as one step; the command adds the edges under
-    // `repeated: "first"`, because a neighbourhood legitimately names edges the
+    // `repeated: "first"`, because a neighborhood legitimately names edges the
     // graph already holds.
     void dispatcherOf(graph.getSession())
         .dispatch(command)
@@ -459,8 +459,8 @@ function expandFromSource(node: GraphNode, gesture: "click" | "double-click"): v
 
 /*
  * The XR tracking-glitch guard: the largest move a reader's hand can make between two drag updates,
- * in metres of the reader's own space, measured before `zAxisAmplification`. A bigger jump is a
- * controller losing and reacquiring tracking (a snap of tens of centimetres in one frame), not a
+ * in meters of the reader's own space, measured before `zAxisAmplification`. A bigger jump is a
+ * controller losing and reacquiring tracking (a snap of tens of centimeters in one frame), not a
  * hand, and is ignored.
  *
  * - XR_MAX_HAND_SPEED: 10 m/s. Deliberate arm movement peaks well below it: fast reaching runs 1 to
@@ -480,9 +480,9 @@ const XR_MAX_HAND_REACH = 2;
 /**
  * The longest pointer move one XR drag update may make. XRInputHandler moves the drag pointer by the
  * hand's movement in the reader's own space (its position under the pivot, turned with the pivot
- * but never scaled by zoom), so the pointer moves in metres.
+ * but never scaled by zoom), so the pointer moves in meters.
  * @param elapsedMs - Time since the previous update.
- * @returns The limit, in metres.
+ * @returns The limit, in meters.
  */
 function xrMaxDragStep(elapsedMs: number): number {
     const seconds = Math.max(elapsedMs / 1000, XR_SHORTEST_FRAME_SECONDS);
@@ -1041,7 +1041,7 @@ export class NodeDragHandler {
 
     /**
      * Where this node is drawn now, with the radius hover picks it within: on a batch, never under
-     * the node ID target's least radius.
+     * the radius the node ID target keeps a small row at its own depth within.
      * @returns The place, or undefined when the graph cannot say.
      */
     private drawnNow(): HoverDrawn | undefined {
@@ -1050,7 +1050,7 @@ export class NodeDragHandler {
             return undefined;
         }
 
-        const least = drawnByBatch(this.node) ? MIN_RADIUS_PX * this.scene.getEngine().getHardwareScalingLevel() : 0;
+        const least = drawnByBatch(this.node) ? HOVER_RADIUS_PX * this.scene.getEngine().getHardwareScalingLevel() : 0;
         return { x: screen.x, y: screen.y, radius: Math.max(screen.radius, least) };
     }
 
@@ -1119,11 +1119,13 @@ export class NodeDragHandler {
         // the selection stays whole; on any other node it selects that node, as a click does.
         const secondary = this.clickState?.pointerEvent?.button === 2;
         if (selectionManager && !(secondary && selectionManager.isSelected(this.node))) {
-            if (this.clickState?.pointerEvent?.shiftKey === true && !secondary) {
-                selectionManager.toggle(this.node);
-            } else {
-                selectionManager.select(this.node);
-            }
+            selectionManager.byInput("click", () => {
+                if (this.clickState?.pointerEvent?.shiftKey === true && !secondary) {
+                    selectionManager.toggle(this.node);
+                } else {
+                    selectionManager.select(this.node);
+                }
+            });
         }
 
         // A click does NOT pin. `pinOnDrag` means what it says: a node is fixed because the user
@@ -1190,8 +1192,7 @@ export class NodeDragHandler {
     private isXRMode(): boolean {
         // Check if we're in an XR session
         // The scene has an xrSession property when XR is active
-        const xrHelper = this.scene.metadata?.xrHelper;
-        return xrHelper?.baseExperience?.state === 2; // WebXRState.IN_XR
+        return inXR(this.scene);
     }
 
     private getContext(): GraphContext {

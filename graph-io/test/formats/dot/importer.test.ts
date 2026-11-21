@@ -101,7 +101,7 @@ function dtypeOf(column: Column | null): string | null {
     return column === null ? null : column.dtype;
 }
 
-/** Container nodes the importer synthesises per corpus file, on top of the manifest's node count. */
+/** Container nodes the importer synthesizes per corpus file, on top of the manifest's node count. */
 const CONTAINERS: Record<string, string[]> = {
     "hello.gv": [],
     "cluster.gv": ["cluster_0", "cluster_1"],
@@ -560,6 +560,24 @@ describe("dot importer: the grammar", () => {
         expect(nodeCell(snapshot, "b", "pin")).toBe(true);
         expect(nodeCell(snapshot, "a", "pin")).toBeUndefined();
         expect(cell(snapshot, "edges", "pos", 0)).toBe("e,1,2 3,4");
+    });
+
+    it("reads pin and a ! suffix as the fixed role, as neato does", async () => {
+        const { snapshot, report } = await load(
+            'graph { a [pos="1,2!", pin=false]; b [pin=YES]; c [pin=0]; d [pin=2]; e [pin=maybe]; f }',
+        );
+        expect(codes(report)).toEqual([]);
+        const fixed = snapshot.nodes.byRole("fixed");
+        expect(fixed?.meta.name).toBe("pin");
+        expect(fixed?.dtype).toBe("bool");
+        expect(["a", "b", "c", "d", "e", "f"].map((id) => nodeCell(snapshot, id, "pin"))).toEqual([
+            true,
+            true,
+            false,
+            true,
+            false,
+            undefined,
+        ]);
     });
 
     it("reads every pos spelling of a point and rejects the rest", async () => {

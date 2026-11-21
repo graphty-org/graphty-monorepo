@@ -1,6 +1,7 @@
 import { assert, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Edge } from "../../src/Edge";
+import type { EventCallbackType, EventOfType } from "../../src/events";
 import type { Graph } from "../../src/Graph";
 import { EventManager } from "../../src/managers/EventManager";
 import type { Node } from "../../src/Node";
@@ -133,7 +134,7 @@ describe("EventManager", () => {
 
     describe("graph events", () => {
         it("should emit graph error events", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("error", callback);
 
             const mockGraph = {} as Graph;
@@ -143,7 +144,7 @@ describe("EventManager", () => {
             eventManager.emitGraphError(mockGraph, error, "other", details);
 
             assert.equal(callback.mock.calls.length, 1);
-            const emittedEvent = callback.mock.calls[0][0];
+            const emittedEvent = callback.mock.calls[0][0] as EventOfType<"error">;
             assert.equal(emittedEvent.type, "error");
             assert.equal(emittedEvent.error, error);
             assert.equal(emittedEvent.context, "other");
@@ -153,13 +154,13 @@ describe("EventManager", () => {
         });
 
         it("should emit data-added events", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("data-added", callback);
 
             eventManager.emitDataAdded("nodes", 10, true, true);
 
             assert.equal(callback.mock.calls.length, 1);
-            const emittedEvent = callback.mock.calls[0][0];
+            const emittedEvent = callback.mock.calls[0][0] as EventOfType<"data-added">;
             assert.equal(emittedEvent.type, "data-added");
             assert.equal(emittedEvent.dataType, "nodes");
             assert.equal(emittedEvent.count, 10);
@@ -170,13 +171,13 @@ describe("EventManager", () => {
         });
 
         it("should emit layout-initialized events", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("layout-initialized", callback);
 
             eventManager.emitLayoutInitialized("force", true);
 
             assert.equal(callback.mock.calls.length, 1);
-            const emittedEvent = callback.mock.calls[0][0];
+            const emittedEvent = callback.mock.calls[0][0] as EventOfType<"layout-initialized">;
             assert.equal(emittedEvent.type, "layout-initialized");
             assert.equal(emittedEvent.layoutType, "force");
             assert.equal(emittedEvent.shouldZoomToFit, true);
@@ -185,7 +186,7 @@ describe("EventManager", () => {
         });
 
         it("should emit data-loaded events", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("data-loaded", callback);
 
             const mockGraph = {} as Graph;
@@ -200,7 +201,7 @@ describe("EventManager", () => {
             });
 
             assert.equal(callback.mock.calls.length, 1);
-            const emittedEvent = callback.mock.calls[0][0];
+            const emittedEvent = callback.mock.calls[0][0] as EventOfType<"data-loaded">;
             assert.equal(emittedEvent.type, "data-loaded");
             assert.equal(emittedEvent.graph, mockGraph);
             assert.equal(emittedEvent.details.chunksLoaded, 5);
@@ -222,22 +223,23 @@ describe("EventManager", () => {
 
     describe("node events", () => {
         it("should emit node events", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("node-add-before", callback);
 
-            const mockNode = { id: "test-node" } as Node;
-            eventManager.emitNodeEvent("node-add-before", { node: mockNode });
+            const metadata = { label: "test" };
+            eventManager.emitNodeEvent("node-add-before", { nodeId: "test-node", metadata });
 
             assert.equal(callback.mock.calls.length, 1);
-            const emittedEvent = callback.mock.calls[0][0];
+            const emittedEvent = callback.mock.calls[0][0] as EventOfType<"node-add-before">;
             assert.equal(emittedEvent.type, "node-add-before");
-            assert.equal(emittedEvent.node, mockNode);
+            assert.equal(emittedEvent.nodeId, "test-node");
+            assert.equal(emittedEvent.metadata, metadata);
 
             eventManager.removeListener(listenerId);
         });
 
         it("should emit node update events", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("node-update-after", callback);
 
             const mockNode = { id: "test-node" } as Node;
@@ -252,22 +254,24 @@ describe("EventManager", () => {
 
     describe("edge events", () => {
         it("should emit edge events", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("edge-add-before", callback);
 
-            const mockEdge = { id: "test-edge" } as Edge;
-            eventManager.emitEdgeEvent("edge-add-before", { edge: mockEdge });
+            const metadata = { weight: 1 };
+            eventManager.emitEdgeEvent("edge-add-before", { srcNodeId: "a", dstNodeId: "b", metadata });
 
             assert.equal(callback.mock.calls.length, 1);
-            const emittedEvent = callback.mock.calls[0][0];
+            const emittedEvent = callback.mock.calls[0][0] as EventOfType<"edge-add-before">;
             assert.equal(emittedEvent.type, "edge-add-before");
-            assert.equal(emittedEvent.edge, mockEdge);
+            assert.equal(emittedEvent.srcNodeId, "a");
+            assert.equal(emittedEvent.dstNodeId, "b");
+            assert.equal(emittedEvent.metadata, metadata);
 
             eventManager.removeListener(listenerId);
         });
 
         it("should emit edge update events", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("edge-update-after", callback);
 
             const mockEdge = { id: "test-edge" } as Edge;
@@ -370,7 +374,7 @@ describe("EventManager", () => {
         });
 
         it("should emit error events for each retry", async () => {
-            const errorCallback = vi.fn();
+            const errorCallback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("error", errorCallback);
 
             const operation = vi.fn().mockRejectedValue(new Error("Always fails"));
@@ -382,9 +386,9 @@ describe("EventManager", () => {
             assert.equal(errorCallback.mock.calls.length, 3);
 
             // Check error details include attempt info
-            const lastError = errorCallback.mock.calls[2][0];
-            assert.equal(lastError.details.attempt, 3);
-            assert.equal(lastError.details.maxAttempts, 3);
+            const lastError = errorCallback.mock.calls[2][0] as EventOfType<"error">;
+            assert.equal(lastError.details?.attempt, 3);
+            assert.equal(lastError.details?.maxAttempts, 3);
 
             eventManager.removeListener(listenerId);
         });

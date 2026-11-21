@@ -2,7 +2,8 @@ id: legend-panel
 name: Legend Panel
 category: display
 description: Collapsible panel displaying visual encoding legend. Shows color, size, and shape mappings for nodes and edges.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/canvas/LegendCard.tsx."
 implements_capabilities:
     - legend-display
     - visual-encoding-nodes

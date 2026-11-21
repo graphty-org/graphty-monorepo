@@ -1,5 +1,70 @@
 {
     "algorithms": {
+        "all-paths": {
+            "options": [
+                {
+                    "name": "source",
+                    "plainName": "Source Node",
+                    "technicalName": "source",
+                    "type": "node-id",
+                    "description": "Node every path starts at (uses first node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "target",
+                    "plainName": "Target Node",
+                    "technicalName": "target",
+                    "type": "node-id",
+                    "description": "Node every path ends at (uses last node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "maxLength",
+                    "plainName": "Max Length",
+                    "technicalName": "maxLength",
+                    "type": "integer",
+                    "description": "The longest path to find, in edges (optional - any length if not set)",
+                    "default": null,
+                    "min": 1
+                },
+                {
+                    "name": "maxPaths",
+                    "plainName": "Max Paths",
+                    "technicalName": "maxPaths",
+                    "type": "integer",
+                    "description": "The most paths to find; the search stops once it has this many",
+                    "default": 1000,
+                    "min": 1,
+                    "advanced": true
+                },
+                {
+                    "name": "direction",
+                    "plainName": "Follow Edges",
+                    "technicalName": "direction",
+                    "type": "enum",
+                    "description": "On a directed graph, which way a path may cross an edge: out (source to target), in (target to source) or all (either way). An undirected graph is always read either way",
+                    "default": "all",
+                    "values": [
+                        {
+                            "value": "out",
+                            "label": "Out"
+                        },
+                        {
+                            "value": "in",
+                            "label": "In"
+                        },
+                        {
+                            "value": "all",
+                            "label": "All"
+                        }
+                    ],
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
         "astar": {
             "options": [
                 {
@@ -122,6 +187,16 @@
                     "description": "Target node for early termination (optional - searches all nodes if not set)",
                     "default": null,
                     "advanced": true
+                },
+                {
+                    "name": "maxDepth",
+                    "plainName": "Max Depth",
+                    "technicalName": "maxDepth",
+                    "type": "integer",
+                    "description": "Stop the walk this many steps from the source (optional - walks everything reachable if not set)",
+                    "default": null,
+                    "min": 0,
+                    "advanced": true
                 }
             ],
             "scopeInput": "subgraph",
@@ -164,7 +239,30 @@
             "loadedWeightByDefault": true
         },
         "degree": {
-            "options": [],
+            "options": [
+                {
+                    "name": "direction",
+                    "plainName": "Direction",
+                    "technicalName": "direction",
+                    "type": "enum",
+                    "description": "On a directed graph, which edges the published value counts: incoming (in), outgoing (out) or both (total)",
+                    "default": "total",
+                    "values": [
+                        {
+                            "value": "total",
+                            "label": "Total"
+                        },
+                        {
+                            "value": "in",
+                            "label": "In"
+                        },
+                        {
+                            "value": "out",
+                            "label": "Out"
+                        }
+                    ]
+                }
+            ],
             "scopeInput": "subgraph",
             "weightMeaning": null,
             "loadedWeightByDefault": true
@@ -259,6 +357,24 @@
                             "label": "All"
                         }
                     ],
+                    "advanced": true
+                },
+                {
+                    "name": "invertStrength",
+                    "plainName": "Read Strength as Closeness",
+                    "technicalName": "invertStrength",
+                    "type": "boolean",
+                    "description": "When the weight read is a strength (a larger weight is a stronger connection), cross each edge at a cost of 1 / weight, so the route prefers strong edges. Off, a strength is left unread and every edge counts the same",
+                    "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "timeOrder",
+                    "plainName": "Time Order",
+                    "technicalName": "timeOrder",
+                    "type": "string",
+                    "description": "An edge column holding each edge's time. Set, the route only takes edges in time order: each edge at or after the one before it, and never an edge with no time",
+                    "default": null,
                     "advanced": true
                 }
             ],
@@ -1006,6 +1122,18 @@
             "weightMeaning": null,
             "loadedWeightByDefault": true
         },
+        "articulation-points": {
+            "options": [],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "bridges": {
+            "options": [],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
         "spectral-clustering": {
             "options": [
                 {
@@ -1402,6 +1530,16 @@
                     "type": "number",
                     "description": "What every data position is multiplied by, on top of the element's positionScale",
                     "default": 1,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "spacing",
+                    "plainName": "Spacing",
+                    "technicalName": "spacing",
+                    "type": "number",
+                    "description": "How far apart neighbors are drawn at least, in scene units (a default node is one across): data positions closer than that are spread out, keeping their proportions; 0 draws them as given",
+                    "default": 3,
                     "min": 0,
                     "advanced": true
                 },
@@ -1872,7 +2010,7 @@
                     "plainName": "Unplaced Nodes",
                     "technicalName": "unplaced",
                     "type": "enum",
-                    "description": "Nodes with no usable location: in a row beside the map, or left where they were",
+                    "description": "Nodes with no usable location: in a row beside the map, left where they were, or not drawn (with their edges) while the layout is shown; each way they are still reported",
                     "default": "tray",
                     "values": [
                         {
@@ -1882,6 +2020,10 @@
                         {
                             "value": "leave",
                             "label": "Leave"
+                        },
+                        {
+                            "value": "hide",
+                            "label": "Hide"
                         }
                     ],
                     "advanced": true
@@ -2362,10 +2504,10 @@
                     "plainName": "Dimensions",
                     "technicalName": "dim",
                     "type": "integer",
-                    "description": "Layout dimensionality (2D only for spiral)",
+                    "description": "Layout dimensionality: 2D, or 3D for a spiral rising into a cone",
                     "default": 2,
                     "min": 2,
-                    "max": 2
+                    "max": 3
                 },
                 {
                     "name": "resolution",
@@ -2385,6 +2527,16 @@
                     "type": "boolean",
                     "description": "Place nodes at equal distances along the spiral",
                     "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "height",
+                    "plainName": "Height",
+                    "technicalName": "height",
+                    "type": "number",
+                    "description": "In 3D, how far the spiral rises per unit of radius; 0 lies flat",
+                    "default": 1,
+                    "step": 0.1,
                     "advanced": true
                 }
             ],

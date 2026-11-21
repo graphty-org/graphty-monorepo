@@ -2,7 +2,7 @@
  * `ALGORITHMS` is only worth having if it is true and complete, so every claim in it is checked by running the
  * algorithm: the direction rule on a directed and an undirected graph, the weight rule on a weighted graph and its
  * unweighted twin, the inputs by calling `fn(graph, ...inputs, options)`, and the per-element result arrays by
- * their length. A new export that is not catalogued fails the completeness test.
+ * their length. A new export that is not cataloged fails the completeness test.
  */
 
 import { fromEdgeArrays, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
@@ -50,7 +50,12 @@ function graph(directed: boolean, weighted: boolean): GraphSnapshot {
     });
 }
 
-const REQUIRED_OPTIONS: Readonly<Record<string, unknown>> = { k: 2, numClusters: 2 };
+// `times` is per arc: every arc at time 0 (an undirected snapshot has two arcs per edge, so 2 * edges covers both kinds).
+const REQUIRED_OPTIONS: Readonly<Record<string, unknown>> = {
+    k: 2,
+    numClusters: 2,
+    times: new Float64Array(2 * src.length),
+};
 
 /** Options an algorithm needs to answer on the weighted fixture: Katz diverges at its default alpha there. */
 const FIXTURE_OPTIONS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
@@ -125,9 +130,11 @@ const NOT_ALGORITHMS = new Set([
     "accelerated",
     "walkPredArcs",
     "walkPredEdges",
+    "countShortestPaths",
     "bipartiteFlowNetwork",
     "arcSourceIn",
     "groupsById",
+    "partitionAgreement",
     "pathIds",
     "scoresById",
     "mulberry32",

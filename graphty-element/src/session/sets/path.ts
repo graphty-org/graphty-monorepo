@@ -30,7 +30,7 @@ import {
 type PathDefinition = Extract<SetDefinition, { kind: "path" }>;
 
 /**
- * The walk's named edge members, flattened, with the step each belongs to. Memoised per frozen
+ * The walk's named edge members, flattened, with the step each belongs to. Memoized per frozen
  * definition, so the binding table sees one member array per path.
  */
 const flattened = new WeakMap<

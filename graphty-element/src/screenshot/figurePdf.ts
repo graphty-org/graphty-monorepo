@@ -9,7 +9,7 @@
 import type { Point2 } from "../meshes/shapeOutlines";
 import { toColorValue } from "../session/styles/channels";
 import { LEGEND_METRICS } from "./drawLegend";
-import type { FigureDrawing, FigureMark, FigureText } from "./figure";
+import type { FigureDrawing, FigureGradient, FigureMark, FigureShape, FigureText } from "./figure";
 
 /** How far a cubic Bezier's handles sit from a quarter circle's ends, per unit of radius. */
 const KAPPA = 0.5523;
@@ -231,10 +231,17 @@ class Page {
  * @param t - The label.
  */
 function drawText(page: Page, t: FigureText): void {
-    if (t.background !== undefined) {
+    const bg = t.background;
+    if (bg?.gradient !== undefined) {
         page.ops.push("q");
-        page.paint(t.background.fill, false, t.background.opacity);
-        page.box(t.background);
+        page.box(bg);
+        page.ops.push("W n");
+        drawGradient(page, bg.gradient, bg, bg.opacity);
+        page.ops.push("Q");
+    } else if (bg !== undefined) {
+        page.ops.push("q");
+        page.paint(bg.fill, false, bg.opacity);
+        page.box(bg);
         page.ops.push("f", "Q");
     }
     const bold = t.weight === "bold" || Number(t.weight) >= 600;
@@ -250,6 +257,130 @@ function drawText(page: Page, t: FigureText): void {
             anchor: "middle",
         });
     });
+}
+
+/**
+ * A gradient's color at a fraction of its line: the stop before it blended into the one after, the
+ * first color before the first stop and the last after the last.
+ * @param g - The gradient.
+ * @param t - The fraction.
+ * @returns The color, `rgba(...)`.
+ */
+function gradientColorAt(g: FigureGradient, t: number): string {
+    const colors = g.colors.map((c) => toColorValue(c) ?? { r: 0, g: 0, b: 0, a: 0 });
+    let i = g.stops.findIndex((s) => s >= t);
+    if (i === -1) {
+        i = colors.length - 1;
+    }
+    const hi = colors[i];
+    const lo = colors[Math.max(i - 1, 0)];
+    const span = (g.stops[i] ?? 0) - (g.stops[i - 1] ?? 0);
+    const f = i === 0 || span <= 0 ? 1 : Math.min(1, (t - g.stops[i - 1]) / span);
+    const mix = (a: number, b: number): number => a + (b - a) * f;
+    return `rgba(${num(mix(lo.r, hi.r))},${num(mix(lo.g, hi.g))},${num(mix(lo.b, hi.b))},${num(mix(lo.a, hi.a))})`;
+}
+
+/**
+ * A gradient over a box, as strips across its line or rings round its middle, each one color,
+ * reaching past the box on every side; the caller clips to the box.
+ * @param page - The page.
+ * @param g - The gradient.
+ * @param box - The box it fills.
+ * @param box.x - Its left.
+ * @param box.y - Its top.
+ * @param box.w - Its width.
+ * @param box.h - Its height.
+ * @param opacity - Its opacity.
+ */
+function drawGradient(
+    page: Page,
+    g: FigureGradient,
+    box: { x: number; y: number; w: number; h: number },
+    opacity: number,
+): void {
+    // ponytail: RAMP_STRIPS bands of flat color, not a PDF shading; a smooth shading if a figure shows banding.
+    const reach = Math.hypot(box.w, box.h) * 2;
+    const band = (t: number, path: () => void, evenOdd: boolean): void => {
+        // Each band in its own state: `paint` sets an opacity only below 1, so one would leak into the next.
+        page.ops.push("q");
+        page.paint(gradientColorAt(g, t), false, opacity);
+        path();
+        page.ops.push(evenOdd ? "f*" : "f", "Q");
+    };
+    if (g.kind === "radial") {
+        const far = reach + Math.hypot(g.cx - box.x, g.cy - box.y);
+        band(
+            1,
+            () => {
+                page.circle(g.cx, g.cy, far);
+                page.circle(g.cx, g.cy, g.r);
+            },
+            true,
+        );
+        for (let i = RAMP_STRIPS - 1; i >= 0; i--) {
+            const inner = (g.r * i) / RAMP_STRIPS;
+            // Each ring a hair wider than its share, so no seam shows between them.
+            const outer = Math.min((g.r * (i + 1)) / RAMP_STRIPS + 0.5, g.r);
+            band(
+                (i + 0.5) / RAMP_STRIPS,
+                () => {
+                    page.circle(g.cx, g.cy, outer);
+                    if (inner > 0) {
+                        page.circle(g.cx, g.cy, inner);
+                    }
+                },
+                true,
+            );
+        }
+        return;
+    }
+    const length = Math.hypot(g.x2 - g.x1, g.y2 - g.y1);
+    if (length <= 0) {
+        band(
+            1,
+            () => {
+                page.box(box);
+            },
+            false,
+        );
+        return;
+    }
+    const [ux, uy] = [(g.x2 - g.x1) / length, (g.y2 - g.y1) / length];
+    const strip = (from: number, to: number): void => {
+        const [ax, ay] = [g.x1 + ux * from * length, g.y1 + uy * from * length];
+        const [bx, by] = [g.x1 + ux * to * length, g.y1 + uy * to * length];
+        page.polygon([
+            [ax - uy * reach, ay + ux * reach],
+            [bx - uy * reach, by + ux * reach],
+            [bx + uy * reach, by - ux * reach],
+            [ax + uy * reach, ay - ux * reach],
+        ]);
+    };
+    const past = (reach + Math.hypot(g.x1 - box.x, g.y1 - box.y)) / length;
+    band(
+        0,
+        () => {
+            strip(-past, 0);
+        },
+        false,
+    );
+    band(
+        1,
+        () => {
+            strip(1, 1 + past);
+        },
+        false,
+    );
+    for (let i = 0; i < RAMP_STRIPS; i++) {
+        const hair = 0.5 / length;
+        band(
+            (i + 0.5) / RAMP_STRIPS,
+            () => {
+                strip(i / RAMP_STRIPS, (i + 1) / RAMP_STRIPS + hair);
+            },
+            false,
+        );
+    }
 }
 
 /**
@@ -315,7 +446,27 @@ function drawMark(page: Page, mark: FigureMark): void {
 }
 
 /**
- * The PDF file for a drawing: background, edges, nodes, labels, then the key on top.
+ * A filled shape: a mesh's triangles are filled as one path, nonzero, so no seam shows between them.
+ * @param page - The page.
+ * @param shape - The shape.
+ */
+function drawShape(page: Page, shape: FigureShape): void {
+    page.ops.push("q");
+    page.paint(shape.fill, false, shape.opacity);
+    if ("circle" in shape) {
+        page.circle(shape.circle.x, shape.circle.y, shape.circle.r);
+    } else if ("points" in shape) {
+        page.polygon(shape.points);
+    } else {
+        for (const t of shape.triangles) {
+            page.polygon(t);
+        }
+    }
+    page.ops.push("f", "Q");
+}
+
+/**
+ * The PDF file for a drawing: background, edges, nodes, arrow caps, labels, then the key on top.
  * @param drawing - What to draw.
  * @param key - The key's marks.
  * @returns The file's bytes.
@@ -327,19 +478,13 @@ export function figurePdf(drawing: FigureDrawing, key: readonly FigureMark[]): U
         page.ops.push(`0 0 ${num(drawing.width)} ${num(drawing.height)} re f`);
     }
     for (const e of drawing.edges) {
-        page.ops.push("q", "1 J", `${num(e.width)} w`);
+        page.ops.push("q", "1 J", "1 j", `${num(e.width)} w`);
         page.paint(e.color, true, e.opacity);
-        page.ops.push(`${page.at(e.x1, e.y1)} m ${page.at(e.x2, e.y2)} l S`, "Q");
+        e.points.forEach(([x, y], i) => page.ops.push(`${page.at(x, y)} ${i === 0 ? "m" : "l"}`));
+        page.ops.push("S", "Q");
     }
-    for (const n of drawing.nodes) {
-        page.ops.push("q");
-        page.paint(n.fill, false, n.opacity);
-        if ("circle" in n) {
-            page.circle(n.circle.x, n.circle.y, n.circle.r);
-        } else {
-            page.polygon(n.points);
-        }
-        page.ops.push("f", "Q");
+    for (const shape of [...drawing.nodes, ...drawing.caps]) {
+        drawShape(page, shape);
     }
     for (const t of drawing.texts) {
         drawText(page, t);

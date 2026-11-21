@@ -23,7 +23,7 @@ import json from "../../../graph-io/test/corpus/json/sigma-format.json?raw";
 import neo4j from "../../../graph-io/test/corpus/neo4j/typed-properties.csv?raw";
 import pajek from "../../../graph-io/test/corpus/pajek/karate.net?raw";
 import { type GraphtyError, isGraphtyError } from "../../extend";
-import type { ExportLoss, ExportResult } from "../../index.js";
+import type { ExportLoss, ExportResult, PendingWorkProgress } from "../../index.js";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { fileStylesOn } from "../helpers/file-styles-on";
 
@@ -146,6 +146,31 @@ describe("exportGraph round trip", () => {
     }
 });
 
+describe("export progress", () => {
+    it("reports the queued work the export waits behind, and stops once it writes", async () => {
+        const graph = await loaded("json", json);
+        let release = (): void => undefined;
+        const gate = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        operationQueueOf(graph).queueOperation("algorithm-run", async (context) => {
+            context.progress.setProgress(30);
+            await gate;
+            context.progress.setProgress(90);
+        });
+        const facts: PendingWorkProgress[] = [];
+        const exported = graph.exportGraph("json", { onProgress: (fact) => facts.push(fact) });
+        assert.strictEqual(facts[0]?.params.operations, 1, "told at once what is ahead");
+        release();
+        assert.isAbove((await (await exported).text()).length, 0, "onProgress is not a writer option");
+        assert.deepInclude(facts, {
+            code: "PENDING_WORK",
+            params: { operations: 1, category: "algorithm-run", percent: 90 },
+        });
+        assert.strictEqual(facts.at(-1)?.params.operations, 0, "the last reading counts nothing left");
+    });
+});
+
 describe("what an export carries", () => {
     /**
      * A graph laid out by a static layout, with a degree run published.
@@ -174,7 +199,7 @@ describe("what an export carries", () => {
         const degreeColumn = session.results.path(root.runId, "value");
         const rankColumn = session.results.path(root.runId, "rank");
 
-        // GEXF holds positions, colours and sizes, and attributes of any name.
+        // GEXF holds positions, colors and sizes, and attributes of any name.
         const gexfOut: ExportResult = await graph.exportGraph("gexf");
         const gexfText = await gexfOut.text();
         assert.include(gexfText, "<viz:position", "positions are written");

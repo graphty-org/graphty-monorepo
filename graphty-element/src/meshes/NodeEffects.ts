@@ -14,6 +14,7 @@ import { Scene } from "@babylonjs/core/scene.js";
 import type { NodeStyleConfig } from "../config";
 import { GraphtyLogger, type Logger } from "../logging";
 import { DEFAULT_GLOW_COLOR, DEFAULT_OUTLINE_COLOR } from "../session/styles/channels";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import type { MeshCache } from "./MeshCache";
 import { readColor } from "./readColor";
 
@@ -41,8 +42,8 @@ const OUTLINE_RING_INNER = 0.9;
 const OUTLINE_RING_OUTER = 1.35;
 
 /**
- * How far the ring sits in front of the node's centre, toward the camera, in node radii: at the
- * node's front surface. Through the centre, the node's own edges (which meet there) were drawn
+ * How far the ring sits in front of the node's center, toward the camera, in node radii: at the
+ * node's front surface. Through the center, the node's own edges (which meet there) were drawn
  * over the ring wherever they crossed it; in front, they pass behind it.
  */
 const OUTLINE_RING_LIFT = 1.05;
@@ -85,7 +86,7 @@ const GRAPH_RENDERING_GROUP = 0;
  * Babylon writes every highlighted mesh's opacity as 1; the per-mesh opacity is set just before
  * each mesh is drawn into the glow map, which is the one hook the layer offers for it.
  */
-class NodeGlowLayer extends HighlightLayer {
+export class NodeGlowLayer extends HighlightLayer {
     /** The opacity each glowing source mesh is drawn at, by uniqueId. */
     readonly alphas = new Map<number, number>();
 
@@ -137,14 +138,14 @@ export class NodeEffects {
     private static writeStencilOnlyFor(mesh: Mesh): void {
         const scene = mesh.getScene();
         const engine = scene.getEngine();
-        scene.metadata = scene.metadata ?? {};
+        scene.metadata ??= {};
         // Only inside the main pass: a render target drawn before it (the layers' own glow maps)
         // and the next frame's clear keep the full write mask.
-        let main = scene.metadata.stencilMainPass as { on: boolean } | undefined;
+        let main = (scene.metadata as GraphSceneMetadata).stencilMainPass;
         if (main === undefined) {
             const state = { on: false };
             main = state;
-            scene.metadata.stencilMainPass = state;
+            (scene.metadata as GraphSceneMetadata).stencilMainPass = state;
             scene.onBeforeDrawPhaseObservable.add(() => {
                 state.on = true;
                 engine.setStencilMask(0x00);
@@ -193,8 +194,8 @@ export class NodeEffects {
      * @param width - The width as a multiple of the ring's own, or undefined for that.
      */
     static setOutlineWidth(scene: Scene, width: number | undefined): void {
-        scene.metadata = scene.metadata ?? {};
-        scene.metadata.outlineWidth = width;
+        scene.metadata ??= {};
+        (scene.metadata as GraphSceneMetadata).outlineWidth = width;
         const outer = this.ringOuterOf(this.outlineWidthOf(scene, undefined));
         for (const mesh of scene.meshes) {
             if (
@@ -215,13 +216,13 @@ export class NodeEffects {
      * @returns The width, as a multiple of the ring's own.
      */
     static outlineWidthOf(scene: Scene, width: number | undefined): number {
-        const shared: unknown = scene.metadata?.outlineWidth;
+        const shared: unknown = (scene.metadata as GraphSceneMetadata | null)?.outlineWidth;
         return width ?? (typeof shared === "number" ? shared : 1);
     }
 
     /**
      * Whether a node's style draws an outline: it names one, and not a width alone (a width with
-     * no colour draws nothing, as a glow strength with no colour draws nothing).
+     * no color draws nothing, as a glow strength with no color draws nothing).
      * @param effect - The effect configuration from the node style.
      * @returns True when an outline is drawn.
      */
@@ -311,7 +312,7 @@ export class NodeEffects {
 
     /**
      * Place a node's ring for one camera, before that camera draws: on the line from the node's
-     * centre to the camera, {@link OUTLINE_RING_LIFT} node radii toward it, and sized to the cone
+     * center to the camera, {@link OUTLINE_RING_LIFT} node radii toward it, and sized to the cone
      * of sight lines that graze the node, so its inner edge lies on the node's visible edge.
      *
      * WHY EVERY FRAME. Under perspective a node's visible edge is where that cone meets it, and the
@@ -471,15 +472,15 @@ export class NodeEffects {
      * @returns The glow layer for the scene
      */
     private static getOrCreateGlowLayer(scene: Scene): NodeGlowLayer {
-        const existingLayer = scene.metadata?.glowLayer as NodeGlowLayer | undefined;
+        const existingLayer = (scene.metadata as GraphSceneMetadata | null)?.glowLayer;
         if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
             return existingLayer;
         }
 
         const glowLayer = new NodeGlowLayer(this.GLOW_LAYER_NAME, scene);
 
-        scene.metadata = scene.metadata ?? {};
-        scene.metadata.glowLayer = glowLayer;
+        scene.metadata ??= {};
+        (scene.metadata as GraphSceneMetadata).glowLayer = glowLayer;
 
         // Strengths are re-shared every frame, not only when a glow is applied: a node that
         // moves to another source mesh (a strength edit) leaves the old one with no instances,
@@ -507,7 +508,7 @@ export class NodeEffects {
      * doesn't work" exactly. This method is the missing renderer, and it is
      * deliberately shaped like `applyOutlineEffect` -- same call site in `Node.updateStyle`, same
      * try/catch -- so the two effects cannot drift apart. Unlike the outline, glow is on only
-     * when the merged style names a glow colour: a strength on its own draws nothing.
+     * when the merged style names a glow color: a strength on its own draws nothing.
      *
      * ORDERING TRAP, do not "fix" this by touching the material: `NodeMesh.createMaterial` calls
      * `mat.freeze()` immediately after building it. The highlight layer's per-mesh color is the
@@ -529,8 +530,8 @@ export class NodeEffects {
 
         // A COLOUR SWITCHES GLOW ON; a strength alone does not. `node.glowStrength` writes
         // `effect.glow.strength`, so a layer that binds only a strength (to a metric, say) leaves
-        // an `effect.glow` with no colour on every node it paints. Treated as "glow on", that drew
-        // the white fallback on all of them (#2068). The strength only scales a colour some layer set.
+        // an `effect.glow` with no color on every node it paints. Treated as "glow on", that drew
+        // the white fallback on all of them (#2068). The strength only scales a color some layer set.
         // A STRENGTH OF 0 IS NO GLOW (#2067), so it takes the removal branch and never creates or
         // keeps alive the full-screen glow layer for a glow nobody can see.
         const colorValue = this.extractColorValue(effect?.glow?.color);
@@ -541,7 +542,7 @@ export class NodeEffects {
             const { rgb: color, alpha } = readColor(colorValue, DEFAULT_GLOW_COLOR);
             this.glowStrengths(scene).set(renderedMesh, { strength, alpha });
 
-            // Same defence as the outline path: a mesh in an unexpected state must not take down
+            // Same defense as the outline path: a mesh in an unexpected state must not take down
             // a repaint.
             try {
                 glowLayer.addMesh(renderedMesh, color);
@@ -558,7 +559,7 @@ export class NodeEffects {
             // NO LAYER IS CREATED HERE. Asking a node not to glow must not cost a full-screen
             // post-process, which is what calling getOrCreateGlowLayer in this branch would do --
             // and it would do it for every node of every graph, since most nodes have no glow.
-            const existingLayer = scene.metadata?.glowLayer as NodeGlowLayer | undefined;
+            const existingLayer = (scene.metadata as GraphSceneMetadata | null)?.glowLayer;
             if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
                 this.glowStrengths(scene).delete(renderedMesh);
                 existingLayer.alphas.delete(renderedMesh.uniqueId);
@@ -574,11 +575,10 @@ export class NodeEffects {
      * @returns The per-source-mesh strengths and opacities
      */
     private static glowStrengths(scene: Scene): Map<Mesh, { strength: number; alpha: number }> {
-        scene.metadata = scene.metadata ?? {};
-        scene.metadata.glowStrengths =
-            scene.metadata.glowStrengths ?? new Map<Mesh, { strength: number; alpha: number }>();
+        scene.metadata ??= {};
+        (scene.metadata as GraphSceneMetadata).glowStrengths ??= new Map<Mesh, { strength: number; alpha: number }>();
 
-        return scene.metadata.glowStrengths as Map<Mesh, { strength: number; alpha: number }>;
+        return (scene.metadata as GraphSceneMetadata).glowStrengths as Map<Mesh, { strength: number; alpha: number }>;
     }
 
     /**
@@ -662,14 +662,14 @@ export class NodeEffects {
      * @param scene - The Babylon.js scene
      */
     static disposeGlowLayer(scene: Scene): void {
-        const existingLayer = scene.metadata?.glowLayer as NodeGlowLayer | undefined;
+        const existingLayer = (scene.metadata as GraphSceneMetadata | null)?.glowLayer;
         if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
             existingLayer.dispose();
         }
 
         if (scene.metadata) {
-            scene.metadata.glowLayer = undefined;
-            scene.metadata.glowStrengths = undefined;
+            (scene.metadata as GraphSceneMetadata).glowLayer = undefined;
+            (scene.metadata as GraphSceneMetadata).glowStrengths = undefined;
         }
     }
 }

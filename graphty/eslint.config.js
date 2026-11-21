@@ -146,9 +146,33 @@ export default tseslint.config(
         // Stories are linted without type information (root eslint.config.js), and the rules need it.
         ignores: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
         rules: {
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-return": "error",
         },
+    },
+    // A condition that can never be false is a wrong type or dead code. Still off for the tests
+    // (__tests__, *.test.*, src/test/), whose findings are not fixed yet, and for the assistant files
+    // that read an AI result's params: graphty-element types AiResultParams as a Record whose every
+    // key is present, so each check for a param a code leaves out reads as unnecessary.
+    {
+        files: ["src/**/*.ts", "src/**/*.tsx"],
+        ignores: [
+            "**/*.stories.ts",
+            "**/*.stories.tsx",
+            "**/stories/**/*.ts",
+            "**/__tests__/**",
+            "**/*.test.ts",
+            "**/*.test.tsx",
+            "src/test/**",
+            "src/workspace/assistant/AiProviderSection.tsx",
+            "src/workspace/assistant/Checks.tsx",
+            "src/workspace/assistant/Conversation.tsx",
+            "src/workspace/assistant/words.ts",
+        ],
+        rules: { "@typescript-eslint/no-unnecessary-condition": "error" },
     },
 
     // ============================================
@@ -330,5 +354,12 @@ export default tseslint.config(
         // components (src/workspace/glyphs.ts), which the rule reads as a component named GLYPHS.
         files: ["src/workspace/**"],
         rules: { "react/jsx-pascal-case": "off" },
+    },
+    {
+        // PostHog's vocabulary: its init options (opt_out_capturing_by_default), client methods
+        // (opt_in_capturing) and the event names and properties it reads (use_case, $geoip_disable)
+        // are snake_case. Names the app declares itself are still checked.
+        files: ["src/lib/analytics.ts", "src/lib/analytics*.test.ts", "src/workspace/privacy/**"],
+        rules: { camelcase: ["error", { properties: "never" }] },
     },
 );

@@ -21,7 +21,7 @@ as always.
 Seen: start screen. Two spreadsheets this time, not one. "New from data..." sounds more like
 building something from tables than "Open", so I try that.
 `--click "New from data..."` -> 03.png. A page "Open as a new graph" with a "Tables" list and a
-"+" beside it, "Drop a file here, or choose a file...", Direction "As the file says", and a greyed
+"+" beside it, "Drop a file here, or choose a file...", Direction "As the file says", and a grayed
 Load ("Choose a file first"). "Tables", plural -- good sign. I will choose the players first.
 
 ### Step 4
@@ -142,7 +142,7 @@ unlike Ana). Edges 1: s04 -> s11. So the extra player and that one pass are in. 
 `--click "s11"` (tool: ambiguous, took the node, not the edge) -> 20.png. s11 is the BIGGEST ball,
 right in the middle of the drawing, ringed yellow. Panel: id s11, Degree 1. No name, no position --
 fair, the coach never gave any. But on the picture the one player nobody knows looks like the
-centre of the team. Is that size telling me something, or is it just nearer in 3D? Nothing says.
+center of the team. Is that size telling me something, or is it just nearer in 3D? Nothing says.
 I'd not hand this picture to anyone without a word on that ball. And nothing on the drawing marks
 s11 as "not on the squad list"; I only know because the loader told me.
 Last thing I want: names instead of codes on the drawing. Let me look at Style.
@@ -213,7 +213,7 @@ needs to tell me who s11 is (a sub, or a typo for s01/s10).
   names is not an answer for me.
 - Two names were hidden until I ticked "Show all labels", and then they overlapped others.
 - The unknown s11 is drawn as the biggest ball in the middle. It is only nearer in 3D (Style's "Why
-  this look" says node defaults, size 1), but on a picture it looks like the centre of the team.
+  this look" says node defaults, size 1), but on a picture it looks like the center of the team.
   Nothing on the drawing marks it as the one that wasn't on the squad list.
 - Good: the loader's sentence "10 node rows and 18 edge rows read; the load makes 11 nodes and 18
   edges" is exactly the check I want, and "Show the 1 unmatched row" saved me hunting through the

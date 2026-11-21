@@ -19,6 +19,11 @@
  *   direction and later rows that differ go through `onMixedDirection` (expansion by default).
  * - The weight column (`weightFrom`, default "weight", matched case-insensitively) is parsed per
  *   row; a blank cell means "no weight given" and the edge is pushed without one.
+ * - STRING (`#node1 node2 ... combined_score`, `protein1 protein2 ... combined_score`) and BioGRID
+ *   TAB3 (`#BioGRID Interaction ID ... Official Symbol Interactor A ...`) downloads are recognized by
+ *   their header, read even when it is a `#` line: their endpoint columns are the source and target,
+ *   STRING's `combined_score` is the weight (unless `weightFrom` is given), every other column an
+ *   attribute.
  * - Every other column is an attribute: cells are parsed by the fixed lexical grammar of design
  *   section 5.1 and the sink infers the column dtype (widening per column, never per cell); an
  *   all-text column of low cardinality becomes a dict (design section 5.4); an `id` column of the
@@ -58,7 +63,6 @@ import {
     MISSING_ENDPOINT_CODE as SHARED_MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE as SHARED_MISSING_ID_CODE,
     OPTION_IGNORED_CODE,
-    ROLE_TAKEN_CODE as SHARED_ROLE_TAKEN_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
@@ -77,6 +81,7 @@ import {
     type CsvColumnRef,
     EDGE_ID_NAMES,
     findColumn,
+    headerDialect,
     headerNames,
     ID_NAMES,
     idCandidates,
@@ -88,6 +93,7 @@ import {
     TARGET_NAMES,
     TYPE_NAME,
 } from "./header.js";
+import { csvPositions } from "./positions.js";
 import {
     checkRecordSyntax,
     type CsvReaderOptions,
@@ -187,6 +193,22 @@ export interface CsvImportOptions extends CommonImportOptions {
      * @defaultValue false
      */
     rowNumberIds?: boolean | undefined;
+    /**
+     * Keep a node row whose id cell is blank, as a node whose id is this prefix followed by the
+     * row's number (0 for the first data row), instead of skipping it with E_MISSING_ID. Choose a
+     * prefix no id in the file starts with: a minted id that repeats one is merged like any repeated id.
+     * @defaultValue undefined (blank-id rows are skipped)
+     */
+    blankIdPrefix?: string | undefined;
+    /**
+     * Cell texts read as unset, such as `["N/A", "null"]`. A data cell whose text equals an entry
+     * (both compared after Unicode NFC normalization, never trimmed: `" N/A"` stays text) is read
+     * as an empty cell before anything else reads it, so a key cell becomes blank, an endpoint
+     * missing, and a numeric column stays numeric. A quoted cell matches too; the header row is
+     * never compared.
+     * @defaultValue undefined (no placeholder texts)
+     */
+    missing?: readonly string[] | undefined;
 }
 
 /**
@@ -249,7 +271,7 @@ export const COLUMN_MISSING_CODE = "W_CSV_COLUMN_MISSING";
  * role.
  * @category Issue and loss codes
  */
-export const ROLE_TAKEN_CODE = SHARED_ROLE_TAKEN_CODE;
+
 /**
  * A repeated edge id (the column is unique); the edge is skipped.
  * @category Issue and loss codes
@@ -363,6 +385,9 @@ interface ResolvedCsvOptions {
     readonly labelColumn: CsvColumnRef | null;
     readonly nodes: ImportInput | null;
     readonly rowNumberIds: boolean;
+    readonly blankIdPrefix: string | null;
+    /** The NFC forms of the missing option's cell texts; null when none were given. */
+    readonly missing: ReadonlySet<string> | null;
     /** The caller's explicit defaultDirected; null when it was left to its default. */
     readonly explicitDirected: boolean | null;
 }
@@ -533,6 +558,12 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
             found: o.rowNumberIds,
         });
     }
+    if (o.blankIdPrefix !== undefined && typeof o.blankIdPrefix !== "string") {
+        throw new GraphFormatError("E_UNSUPPORTED", "option blankIdPrefix: expected a string", {
+            option: "blankIdPrefix",
+            found: o.blankIdPrefix,
+        });
+    }
     return {
         delimiter: o.delimiter ?? null,
         decimalComma: o.decimal === ",",
@@ -545,8 +576,55 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
         labelColumn: o.labelColumn ?? null,
         nodes: nodesInput(o.nodes),
         rowNumberIds: o.rowNumberIds ?? false,
+        blankIdPrefix: o.blankIdPrefix ?? null,
+        missing: missingSet(o.missing),
         explicitDirected: typeof options?.defaultDirected === "boolean" ? options.defaultDirected : null,
     };
+}
+
+/**
+ * Check the missing option and turn it into the set of NFC cell texts it names.
+ * @param missing - the caller's value
+ * @returns the set, or null when the option is absent
+ */
+function missingSet(missing: unknown): ReadonlySet<string> | null {
+    if (missing === undefined) {
+        return null;
+    }
+    if (!Array.isArray(missing) || !missing.every((text) => typeof text === "string")) {
+        throw new GraphFormatError("E_UNSUPPORTED", "option missing: expected an array of strings", {
+            option: "missing",
+            found: missing,
+        });
+    }
+    return new Set(missing.map((text: string) => text.normalize("NFC")));
+}
+
+/**
+ * Empty, in place, every cell of a row whose NFC text is one of the missing option's texts, and
+ * mark it unquoted, so it reads as an unset cell.
+ * @param row - the cells, changed in place
+ * @param quoted - whether each cell was quoted
+ * @param missing - the NFC missing texts, or null
+ * @returns the quoted flags, a copy when a cell changed
+ */
+function unsetMissing(
+    row: string[],
+    quoted: readonly boolean[],
+    missing: ReadonlySet<string> | null,
+): readonly boolean[] {
+    if (missing === null) {
+        return quoted;
+    }
+    let copy: boolean[] | null = null;
+    for (let i = 0; i < row.length; i++) {
+        if (missing.has(row[i].normalize("NFC"))) {
+            row[i] = "";
+            copy ??= quoted.slice();
+            copy[i] = false;
+        }
+    }
+    return copy ?? quoted;
 }
 
 /**
@@ -687,7 +765,7 @@ const ABORT_CHECK_INTERVAL = 64;
 
 /**
  * Header names made unique within the table: a repeated name becomes `<name>#<position>` (1-based,
- * the CSV analogue of the `#<origin.id>` rule of design section 5.6) and is reported.
+ * the CSV analog of the `#<origin.id>` rule of design section 5.6) and is reported.
  * @param names - the header names
  * @param report - the report
  * @param line - the header line
@@ -714,16 +792,23 @@ function uniqueNames(names: readonly string[], report: ImportReportBuilder, line
  * Whether a column holds a distinct, set value on every row (a row too short counts as unset).
  * @param rows - the data rows
  * @param column - the column index
+ * @param blankKept - whether a blank cell is kept under blankIdPrefix, and so does not disqualify it
  * @returns true when the column can key the rows
  */
-function isKey(rows: readonly PendingRow[], column: number): boolean {
+function isKey(rows: readonly PendingRow[], column: number, blankKept = false): boolean {
     const seen = new Set<string>();
     for (const { row, quoted } of rows) {
         if (column >= row.length) {
             return false;
         }
         const text = row[column];
-        if (isUnset(text, quoted[column]) || seen.has(text)) {
+        if (isUnset(text, quoted[column])) {
+            if (blankKept) {
+                continue;
+            }
+            return false;
+        }
+        if (seen.has(text)) {
             return false;
         }
         seen.add(text);
@@ -803,7 +888,7 @@ function parseKind(text: string): EdgeKind | null | undefined {
  * @returns the id text and the weight (undefined when the cell has none)
  * @category Plugin helpers
  */
-export function splitNeighbour(
+export function splitNeighbor(
     text: string,
     report?: ImportReportBuilder,
 ): { readonly id: string; readonly weight: number | undefined } {
@@ -950,17 +1035,26 @@ class TableReader {
         const firstLine = this.reader.line;
         const firstQuoted = this.reader.quoted.slice(0, firstRow.length);
         const pending: PendingRow[] = [];
-        const header = await this.decideHeader(
-            iterator,
-            { row: firstRow, quoted: firstQuoted, line: firstLine },
-            pending,
-        );
-        const names = header ? uniqueNames(headerNames(firstRow), report, firstLine) : positionalNames(firstRow.length);
+        const commented = this.commentedHeader(firstRow.length);
+        if (commented !== null) {
+            pending.push({ row: firstRow, quoted: firstQuoted, line: firstLine });
+        }
+        const header =
+            commented !== null ||
+            (await this.decideHeader(iterator, { row: firstRow, quoted: firstQuoted, line: firstLine }, pending));
+        const headerRow = commented ?? firstRow;
+        const names = header
+            ? uniqueNames(headerNames(headerRow), report, firstLine)
+            : positionalNames(firstRow.length);
         const last = firstRow.length - 1;
-        const optionalLast = header && last > 0 && isUnset(firstRow[last], firstQuoted[last]);
+        const optionalLast = commented === null && header && last > 0 && isUnset(firstRow[last], firstQuoted[last]);
         if (this.guessesNodeId(names, header)) {
             await this.drain(iterator, pending);
         }
+        // the id guess reads the queued rows, so their placeholders are unset first
+        pending.forEach((p, i) => {
+            pending[i] = { ...p, quoted: unsetMissing(p.row, p.quoted, this.state.csv.missing) };
+        });
         this.applyCommentDirection();
         this.plan = this.resolvePlan(
             names,
@@ -995,6 +1089,22 @@ class TableReader {
         }
         this.reportPossibleHeader();
         this.reportReaderFindings();
+    }
+
+    /**
+     * The header row of a STRING or BioGRID download, which both write as a `#` line the reader
+     * skipped as a leading comment: the last leading comment when it splits into as many cells as
+     * the first record and names a known dialect.
+     * @param width - the number of cells of the first record
+     * @returns the header cells, or null
+     */
+    private commentedHeader(width: number): string[] | null {
+        const { delimiter, leadingComments } = this.reader;
+        if (this.headerMode() === false || delimiter === null || leadingComments.length === 0) {
+            return null;
+        }
+        const cells = leadingComments.at(-1)?.split(delimiter) ?? [];
+        return cells.length === width && headerDialect(cells) !== null ? cells : null;
     }
 
     /** Warn when a first row read as data could be a header and no later row repeated any of its cells. */
@@ -1095,6 +1205,7 @@ class TableReader {
             csv.targetColumn === null &&
             csv.nodes === null &&
             idCandidates(names).length > 0 &&
+            headerDialect(names) === null &&
             findColumn(names, SOURCE_NAMES) < 0 &&
             findColumn(names, TARGET_NAMES) < 0
         );
@@ -1247,7 +1358,13 @@ class TableReader {
         }
         for (let i = 0; i < leadingComments.length; i++) {
             const comment = leadingComments[i];
-            if (comment.length > 1 && comment[1].trim().length > 0 && comment.split(delimiter).length === width) {
+            const cells = comment.split(delimiter);
+            if (
+                comment.length > 1 &&
+                comment[1].trim().length > 0 &&
+                cells.length === width &&
+                headerDialect(cells) === null
+            ) {
                 this.state.report.warnOnce(
                     "parse-error",
                     COMMENT_LIKE_RECORD_CODE,
@@ -1318,8 +1435,12 @@ class TableReader {
         let source = -1;
         let target = -1;
         if (this.kind !== "nodes") {
-            source = endpointColumn(names, header, csv.sourceColumn, "sourceColumn", SOURCE_NAMES, 0);
-            target = endpointColumn(names, header, csv.targetColumn, "targetColumn", TARGET_NAMES, 1);
+            // a STRING or BioGRID header names its endpoints its own way; generic names still come first
+            const dialect = header ? headerDialect(names) : null;
+            const sources = dialect === null ? SOURCE_NAMES : [...SOURCE_NAMES, dialect.source];
+            const targets = dialect === null ? TARGET_NAMES : [...TARGET_NAMES, dialect.target];
+            source = endpointColumn(names, header, csv.sourceColumn, "sourceColumn", sources, 0);
+            target = endpointColumn(names, header, csv.targetColumn, "targetColumn", targets, 1);
             if (source >= 0 && target >= 0 && source === target) {
                 throw new GraphFormatError("E_UNSUPPORTED", "sourceColumn and targetColumn name the same column", {
                     option: "targetColumn",
@@ -1495,7 +1616,13 @@ class TableReader {
             return -1;
         }
         if (header) {
-            const weight = findFree(names, [common.weightFrom], claimed);
+            // STRING's combined_score is the weight unless the caller named one or a weight column exists
+            const dialectWeight = this.state.weightFromExplicit ? null : headerDialect(names)?.weight;
+            const weight = findFree(
+                names,
+                dialectWeight ? [common.weightFrom, dialectWeight] : [common.weightFrom],
+                claimed,
+            );
             if (weight < 0 && this.state.weightFromExplicit) {
                 report.warning(
                     "missing-value",
@@ -1682,7 +1809,7 @@ class TableReader {
         const chosen =
             rows === null || candidates.length === 0
                 ? findColumn(names, ID_NAMES)
-                : (candidates.find((column) => isKey(rows, column)) ?? null);
+                : (candidates.find((column) => isKey(rows, column, this.state.csv.blankIdPrefix !== null)) ?? null);
         if (chosen !== null) {
             if (chosen >= 0) {
                 this.state.report.resolve("idColumn", names[chosen]);
@@ -1790,11 +1917,12 @@ class TableReader {
     /**
      * Push one data row.
      * @param row - the cells
-     * @param quoted - whether each cell was quoted (a quoted empty cell is the empty string)
+     * @param cellQuoted - whether each cell was quoted (a quoted empty cell is the empty string)
      * @param line - the row's line
      */
-    private processRow(row: string[], quoted: readonly boolean[], line: number): void {
+    private processRow(row: string[], cellQuoted: readonly boolean[], line: number): void {
         const plan = this.requirePlan();
+        const quoted = unsetMissing(row, cellQuoted, this.state.csv.missing);
         this.dataRows++;
         const possible = this.possibleHeader;
         if (possible !== null && line !== possible.line && row.some((cell) => possible.cells.has(cell.trim()))) {
@@ -1863,7 +1991,7 @@ class TableReader {
             const text = idCell(row[k], quoted[k]);
             where.element = text;
             try {
-                const cell = splitNeighbour(text, report);
+                const cell = splitNeighbor(text, report);
                 const target = this.coerce(cell.id);
                 const targetNew = sink.indexOf(target) === INVALID_INDEX;
                 const before = sink.edgeCount;
@@ -2062,13 +2190,15 @@ class TableReader {
             counts.skippedNodes++;
             return;
         }
-        const idText = plan.id >= 0 ? idCell(row[plan.id], quoted[plan.id]) : String(ordinal);
-        if (plan.id >= 0 && isUnset(row[plan.id], quoted[plan.id])) {
+        const { blankIdPrefix } = this.state.csv;
+        const blank = plan.id >= 0 && isUnset(row[plan.id], quoted[plan.id]);
+        if (blank && blankIdPrefix === null) {
             report.error("missing-value", MISSING_ID_CODE, `blank id cell`, { line });
             counts.skippedNodes++;
             return;
         }
-        if (plan.id >= 0) {
+        const idText = plan.id >= 0 && !blank ? idCell(row[plan.id], quoted[plan.id]) : String(ordinal);
+        if (plan.id >= 0 && !blank) {
             this.checkPadded(idText, quoted[plan.id], line);
         }
         const { where } = this;
@@ -2076,7 +2206,7 @@ class TableReader {
         where.element = idText;
         let index: number;
         try {
-            const id = plan.id >= 0 || plan.rowNumber ? this.coerce(idText) : ordinal;
+            const id = this.nodeIdOf(plan, blank, idText, ordinal);
             if (sink.indexOf(id) !== INVALID_INDEX) {
                 report.warning(
                     "merged",
@@ -2115,6 +2245,22 @@ class TableReader {
                 { line, element: text },
             );
         }
+    }
+
+    /**
+     * A node row's id: the prefix and row number for a kept blank-id row, else the coerced id
+     * cell or row number, else the raw ordinal.
+     * @param plan - the node plan
+     * @param blank - whether the id cell is blank (kept under blankIdPrefix)
+     * @param idText - the id cell text, or the row number as text
+     * @param ordinal - the row number
+     * @returns the id
+     */
+    private nodeIdOf(plan: NodePlan, blank: boolean, idText: string, ordinal: number): NodeId {
+        if (blank) {
+            return `${this.state.csv.blankIdPrefix ?? ""}${idText}`;
+        }
+        return plan.id >= 0 || plan.rowNumber ? this.coerce(idText) : ordinal;
     }
 
     /**
@@ -2490,11 +2636,13 @@ async function importCsv(
 export const csvImporter: GraphImporter<CsvImportOptions> = Object.freeze({
     format: "csv",
     options: Object.freeze([
+        "blankIdPrefix",
         "decimal",
         "delimiter",
         "header",
         "idColumn",
         "labelColumn",
+        "missing",
         "nodes",
         "rowNumberIds",
         "sourceColumn",
@@ -2506,6 +2654,7 @@ export const csvImporter: GraphImporter<CsvImportOptions> = Object.freeze({
     mimeTypes: Object.freeze(["text/csv", "text/tab-separated-values", "text/plain"]),
     sniff,
     import: importCsv,
+    positions: csvPositions,
 });
 
 /**
@@ -2522,3 +2671,5 @@ function nodesInput(value: ImportInput | Blob | undefined): ImportInput | null {
     const blob = typeof value === "object" && typeof object.stream === "function" && typeof object.size === "number";
     return blob ? (value as Blob).stream() : (value as ImportInput);
 }
+
+export { ROLE_TAKEN_CODE } from "../../common/codes.js";

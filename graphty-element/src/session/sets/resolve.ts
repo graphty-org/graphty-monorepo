@@ -58,7 +58,7 @@ import { keptDefinition, scopeSignature } from "./signature";
  * - `edgePasses`: full passes over the edge list; `edgeRowVisits`: edge rows those passes read.
  * - `maskPacks`: byte masks packed into bitmaps.
  * - `digestSums`: masked sums over the hash columns.
- * - `idSetBuilds`: id `Set`s materialised from a bitmap.
+ * - `idSetBuilds`: id `Set`s materialized from a bitmap.
  */
 export const resolveCounters = {
     edgePasses: 0,
@@ -142,6 +142,8 @@ export interface ResolveContext {
     readonly values?: FilterValueSource;
     /** What each load supplied. Absent refuses a rule's `source` leaf. */
     readonly supplied?: FilterSources["supplied"];
+    /** Whether the source-steps experiment is on; see {@link FilterSources.sourceSteps}. */
+    readonly sourceSteps?: FilterSources["sourceSteps"];
     /** The hovered node, else a lone selected node. Absent refuses a step's `"hovered-or-selected"`. */
     readonly focus?: FilterSources["focus"];
     /** Whether an element is in a state. Absent refuses a `state` leaf. */
@@ -189,7 +191,7 @@ export interface ResolveContext {
      * @returns The token.
      */
     readonly executionOf?: (run: RunId) => string | undefined;
-    /** The session input tick, which scopes the signature memo. Absent: nothing is memoised. */
+    /** The session input tick, which scopes the signature memo. Absent: nothing is memoized. */
     readonly tick?: InputTick;
     /** The resolution cache. Absent: every resolution is computed. */
     readonly cache?: SetsCache;
@@ -215,7 +217,7 @@ export interface NodeHalf {
 }
 
 /**
- * The refusal a scope the session cannot honour yet gets, naming what would honour it.
+ * The refusal a scope the session cannot honor yet gets, naming what would honor it.
  * @param spec - What was asked for.
  * @param needs - The capability whose absence is the reason.
  * @returns The error to throw.
@@ -620,6 +622,7 @@ export function filterSourcesIn(context: ResolveContext, seen: readonly SetId[] 
         ...(context.matchEdges === undefined ? {} : { matchEdges: context.matchEdges }),
         ...(context.values === undefined ? {} : { values: context.values }),
         ...(context.supplied === undefined ? {} : { supplied: context.supplied }),
+        ...(context.sourceSteps === undefined ? {} : { sourceSteps: context.sourceSteps }),
         ...(context.focus === undefined ? {} : { focus: context.focus }),
         ...(context.inState === undefined ? {} : { inState: context.inState }),
         ...(context.steps === undefined ? {} : { steps: context.steps }),
@@ -1321,7 +1324,7 @@ const digests = new WeakMap<Resolution, string>();
 
 /**
  * A resolution's `d1:` membership digest: one masked sum over each hash column, computed on first
- * read and memoised on the resolution.
+ * read and memoized on the resolution.
  * @param resolution - The resolution.
  * @param snapshot - The snapshot it was resolved against.
  * @returns The digest.

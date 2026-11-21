@@ -1,0 +1,69 @@
+diff --git a/Misc/rgbdTextureTools.js b/Misc/rgbdTextureTools.js
+index 4a3beadf2109e61112863c8d5393a91ba2eba2ec..3180ee650992956d7ddec120401a48537c2753f2 100644
+--- a/Misc/rgbdTextureTools.js
++++ b/Misc/rgbdTextureTools.js
+@@ -45,6 +45,11 @@ export class RGBDTextureTools {
+             else {
+                 await import("../Shaders/rgbdDecode.fragment.js");
+             }
++            // The engine may have been disposed while the shader loaded: a disposed engine's effects
++            // report ready with no program, and the decode would throw.
++            if (engine.isDisposed) {
++                return;
++            }
+             // Expand the texture if possible
+             // Simply run through the decode PP.
+             const rgbdPostProcess = new PostProcess("rgbdDecode", "rgbdDecode", null, null, 1, null, 3, engine, false, undefined, internalTexture.type, undefined, null, false, undefined, shaderLanguage);
+@@ -60,6 +65,10 @@ export class RGBDTextureTools {
+             });
+             rgbdPostProcess.onEffectCreatedObservable.addOnce((e) => {
+                 e.executeWhenCompiled(() => {
++                    // Disposed while the shader compiled: nothing left to draw into.
++                    if (engine.isDisposed) {
++                        return;
++                    }
+                     // PP Render Pass
+                     rgbdPostProcess.onApply = (effect) => {
+                         effect._bindTexture("textureSampler", internalTexture);
+diff --git a/Shaders/ShadersInclude/pbrDirectLightingSetupFunctions.js b/Shaders/ShadersInclude/pbrDirectLightingSetupFunctions.js
+index caa7dbd477b1295eb2efa550c19a4de242441671..b65c1b834ad3142c1b69a8c4b64f032c02dd00b9 100644
+--- a/Shaders/ShadersInclude/pbrDirectLightingSetupFunctions.js
++++ b/Shaders/ShadersInclude/pbrDirectLightingSetupFunctions.js
+@@ -1,4 +1,7 @@
+ // Do not edit.
++// graphty patch: a hemispheric light sets L, H and VdotH for clear coat and sheen too, not only when a
++// light has a specular color. Clear coat and sheen read them whatever the lights specular, so under
++// lights with black specular they read garbage and a clear-coated part drew pure white.
+ import { ShaderStore } from "../../Engines/shaderStore.js";
+ import "./ltcHelperFunctions.js";
+ const name = "pbrDirectLightingSetupFunctions";
+@@ -16,7 +19,7 @@ vec3 areaLightSpecular;vec4 areaLightFresnel;
+ };preLightingInfo computePointAndSpotPreLightingInfo(vec4 lightData,vec3 V,vec3 N,vec3 posW) {preLightingInfo result;result.lightOffset=lightData.xyz-posW;result.lightDistanceSquared=dot(result.lightOffset,result.lightOffset);result.lightDistance=sqrt(result.lightDistanceSquared);result.L=normalize(result.lightOffset);result.H=normalize(V+result.L);result.VdotH=saturate(dot(V,result.H));result.NdotLUnclamped=dot(N,result.L);result.NdotL=saturateEps(result.NdotLUnclamped);result.LdotV=0.;result.roughness=0.;result.diffuseRoughness=0.;result.surfaceAlbedo=vec3(0.);return result;}
+ preLightingInfo computeDirectionalPreLightingInfo(vec4 lightData,vec3 V,vec3 N) {preLightingInfo result;result.lightDistance=length(-lightData.xyz);result.L=normalize(-lightData.xyz);result.H=normalize(V+result.L);result.VdotH=saturate(dot(V,result.H));result.NdotLUnclamped=dot(N,result.L);result.NdotL=saturateEps(result.NdotLUnclamped);result.LdotV=dot(result.L,V);result.roughness=0.;result.diffuseRoughness=0.;result.surfaceAlbedo=vec3(0.);return result;}
+ preLightingInfo computeHemisphericPreLightingInfo(vec4 lightData,vec3 V,vec3 N) {preLightingInfo result;result.NdotL=dot(N,lightData.xyz)*0.5+0.5;result.NdotL=saturateEps(result.NdotL);result.NdotLUnclamped=result.NdotL;
+-#ifdef SPECULARTERM
++#if defined(SPECULARTERM) || defined(CLEARCOAT) || defined(SHEEN)
+ result.L=normalize(lightData.xyz);result.H=normalize(V+result.L);result.VdotH=saturate(dot(V,result.H));
+ #endif
+ result.LdotV=0.;result.roughness=0.;result.diffuseRoughness=0.;result.surfaceAlbedo=vec3(0.);return result;}
+diff --git a/ShadersWGSL/ShadersInclude/pbrDirectLightingSetupFunctions.js b/ShadersWGSL/ShadersInclude/pbrDirectLightingSetupFunctions.js
+index a51aa427258a21f1f991d3ac64d8d4e46b65cd0f..b2d614910d784c5de2209bace626b04faf67952f 100644
+--- a/ShadersWGSL/ShadersInclude/pbrDirectLightingSetupFunctions.js
++++ b/ShadersWGSL/ShadersInclude/pbrDirectLightingSetupFunctions.js
+@@ -1,4 +1,7 @@
+ // Do not edit.
++// graphty patch: a hemispheric light sets L, H and VdotH for clear coat and sheen too, not only when a
++// light has a specular color. Clear coat and sheen read them whatever the lights specular, so under
++// lights with black specular they read garbage and a clear-coated part drew pure white.
+ import { ShaderStore } from "../../Engines/shaderStore.js";
+ import "./ltcHelperFunctions.js";
+ const name = "pbrDirectLightingSetupFunctions";
+@@ -30,7 +33,7 @@ areaLightFresnel: vec4f
+ };fn computePointAndSpotPreLightingInfo(lightData: vec4f,V: vec3f,N: vec3f,posW: vec3f)->preLightingInfo {var result: preLightingInfo;result.lightOffset=lightData.xyz-posW;result.lightDistanceSquared=dot(result.lightOffset,result.lightOffset);result.lightDistance=sqrt(result.lightDistanceSquared);result.L=normalize(result.lightOffset);result.H=normalize(V+result.L);result.VdotH=saturate(dot(V,result.H));result.NdotLUnclamped=dot(N,result.L);result.NdotL=saturateEps(result.NdotLUnclamped);return result;}
+ fn computeDirectionalPreLightingInfo(lightData: vec4f,V: vec3f,N: vec3f)->preLightingInfo {var result: preLightingInfo;result.lightDistance=length(-lightData.xyz);result.L=normalize(-lightData.xyz);result.H=normalize(V+result.L);result.VdotH=saturate(dot(V,result.H));result.NdotLUnclamped=dot(N,result.L);result.NdotL=saturateEps(result.NdotLUnclamped);result.LdotV=dot(result.L,V);return result;}
+ fn computeHemisphericPreLightingInfo(lightData: vec4f,V: vec3f,N: vec3f)->preLightingInfo {var result: preLightingInfo;result.NdotL=dot(N,lightData.xyz)*0.5+0.5;result.NdotL=saturateEps(result.NdotL);result.NdotLUnclamped=result.NdotL;
+-#ifdef SPECULARTERM
++#if defined(SPECULARTERM) || defined(CLEARCOAT) || defined(SHEEN)
+ result.L=normalize(lightData.xyz);result.H=normalize(V+result.L);result.VdotH=saturate(dot(V,result.H));
+ #endif
+ return result;}

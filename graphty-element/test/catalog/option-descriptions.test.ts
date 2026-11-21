@@ -1,5 +1,5 @@
 /**
- * @file No option descriptor in the catalogue carries an English sentence without a coded form:
+ * @file No option descriptor in the catalog carries an English sentence without a coded form:
  * a `description` always comes with a `descriptionId` an application keys its own words on, and
  * the old `unsupportedReason` sentence is gone.
  */
@@ -15,7 +15,7 @@ import { SCALE_DESCRIPTORS } from "../../src/catalog/scales";
 import { catalogFormatDescriptors } from "../../src/catalog/writerRegistry";
 import { transitionDescriptors } from "../../src/transitions/registry";
 
-/** Every built-in catalogue, by name. */
+/** Every built-in catalog, by name. */
 const CATALOGUES: Record<string, unknown> = {
     algorithms: BUILT_IN_ALGORITHMS,
     layouts: LAYOUT_CATALOG,
@@ -27,7 +27,7 @@ const CATALOGUES: Record<string, unknown> = {
     transitions: transitionDescriptors(),
 };
 
-/** Every option descriptor reachable from the built-in catalogues, with where it was found. */
+/** Every option descriptor reachable from the built-in catalogs, with where it was found. */
 function allOptions(): { where: string; option: Record<string, unknown> }[] {
     const found: { where: string; option: Record<string, unknown> }[] = [];
     const seen = new Set<unknown>();

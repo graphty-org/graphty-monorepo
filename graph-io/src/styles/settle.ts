@@ -612,6 +612,30 @@ function styleKeysOf(rule: StyleRule): string[] {
 }
 
 /**
+ * Whether a file states any style of its own. A file that states none (a NetworkX node-link document, a Cytoscape
+ * desktop export without a stylesheet, a GEXF file without `viz:` values) still has styles, its program's defaults
+ * and the values settling derives from them; this tells a consumer that wants to draw only what a file states that
+ * there is nothing to draw.
+ * @param extracted - the styles, settled or not
+ * @returns true when a rule, a note or a graph value comes from the file rather than its program's defaults, or the
+ * import was given program settings of its own (`gephiPreview`)
+ * @category Styles
+ */
+export function statesStyles(extracted: ExtractedStyles): boolean {
+    const { rules, notes, graph, source } = extracted.styles;
+    if (
+        source.settingsGiven === true ||
+        notes.length > 0 ||
+        rules.some((rule) => rule.origin !== "tool" && markOf(rule)?.derived !== true)
+    ) {
+        return true;
+    }
+    const defaults = (source.tool === null ? null : toolDefaults(source.tool)?.graph) as
+        Readonly<Record<string, { readonly value: unknown } | undefined>> | null | undefined;
+    return Object.entries(graph).some(([property, value]) => defaults?.[property]?.value !== value);
+}
+
+/**
  * Settles a file's styles: every decision that depends on the program that wrote the file is written onto the rules
  * as neutral properties, so a consumer draws them the same way whatever produced them. `extractStyles()` and
  * `importGraph()` return settled styles; settling them again changes nothing.
@@ -670,12 +694,12 @@ export function settleFor(
     if (defaults?.arrowhead !== undefined) {
         arrows(extracted, snapshot, work, defaults.arrowhead, tool);
     }
-    if (!graphty && snapshot.nodeCount > 1) {
-        const last = snapshot.nodeCount - 1;
+    // a reader that read the file's own order (Cytoscape.js's `z-index`) has written it already
+    if (!graphty && snapshot.nodeCount > 1 && !work.rules.some((r) => r.target === "node" && writes(r, "drawOrder"))) {
         addValues(
             work,
             { id: "node.draw-order", name: "Draw order", target: "node" },
-            { drawOrder: Array.from({ length: snapshot.nodeCount }, (_unused, i) => Math.round((i * 100) / last)) },
+            { drawOrder: drawOrders(snapshot) },
         );
     }
     labelGrid(extracted, snapshot, work, options.frame ?? null);
@@ -687,6 +711,28 @@ export function settleFor(
         styles: { ...extracted.styles, lengths, rules: named(work.rules), notes },
         columns: work.columns,
     };
+}
+
+/**
+ * Each node's draw order, 0 to 100, as the program that wrote the file stacks its nodes: by Cytoscape's stored `z`
+ * (XGMML, CX, CX2 and sessions), higher on top, and in file order among equal ones, a node later in the file on top.
+ * @param snapshot - the graph, at least two nodes
+ * @returns the draw order by node index
+ */
+function drawOrders(snapshot: GraphSnapshot): number[] {
+    const n = snapshot.nodeCount;
+    const z = [...snapshot.nodes].find((c) => c.meta.name === "z" && c.meta.origin?.namespace === "cytoscape");
+    const zOf = (i: number): number => {
+        const v = z?.isSet(i) === true ? z.value(i) : null;
+        return typeof v === "number" && Number.isFinite(v) ? v : 0;
+    };
+    const order = new Array<number>(n);
+    Array.from({ length: n }, (_unused, i) => i)
+        .sort((a, b) => zOf(a) - zOf(b) || a - b)
+        .forEach((node, rank) => {
+            order[node] = Math.round((rank * 100) / (n - 1));
+        });
+    return order;
 }
 
 /**
@@ -918,8 +964,8 @@ function lengthsOf(defaults: ToolDefaults | null, nodes: number): StyleLengths {
 
 /**
  * Each edge's dash and gap in its own line's widths, where its program draws its line style in dashes of its own and
- * the file gives the edge none (`dashLength` and `dashGap`). Dots that would repeat within a width, which would merge
- * into a solid line, keep the consumer's own spacing.
+ * the file gives the edge none (`dashLength` and `dashGap`), dots shorter than the line is wide included (Cytoscape.js's
+ * dotted line, 1 px on and 1 px off at any width).
  * @param extracted - the styles being settled
  * @param snapshot - the graph
  * @param work - the work
@@ -946,9 +992,7 @@ function dashes(
         if (dash === undefined || typeof w !== "number" || Number.isNaN(w) || w <= 0) {
             return null;
         }
-        const pair = dash(w);
-        // a dot is drawn round and one width across, so dots repeating within a width would draw a solid line
-        return value === "dotted" && pair.dash + pair.gap <= w ? null : pair;
+        return dash(w);
     });
     addValues(
         work,

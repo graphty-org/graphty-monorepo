@@ -133,3 +133,20 @@ describe("an accelerated seeded simulation layout", () => {
         });
     }
 });
+
+describe("a seeded simulation layout applied again over a laid-out graph", () => {
+    // Applying a layout again over the arrangement the last run left started the new run from
+    // that arrangement, not from the seed, so every apply of the same seed drew another picture
+    // (issue #9292).
+    for (const layout of ["forceatlas2", "spring"]) {
+        test(`${layout} draws the same picture at every apply of the same seed`, async () => {
+            const expected = await load(layout, 0, 0);
+            const element = mounted[mounted.length - 1];
+            for (const pass of [1, 2]) {
+                await element.session.layout.set(layout, { options: { seed: 42 } });
+                await element.waitForStableFrame();
+                assert.deepEqual(positions(element), expected, `apply ${pass}`);
+            }
+        });
+    }
+});

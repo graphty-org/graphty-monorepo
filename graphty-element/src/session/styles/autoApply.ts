@@ -15,27 +15,27 @@
  *   undo that takes the run away takes the moment with it, and a redo brings both back.
  * - **A layer somebody wrote by hand wins.** If an authored layer already drives the channel a
  *   suggestion would paint on EVERY element, the suggestion is dropped rather than painted over
- *   the decision. One that names only some elements -- a node coloured by hand -- is a decision
+ *   the decision. One that names only some elements -- a node colored by hand -- is a decision
  *   about those elements alone: the suggestion still paints, placed beneath the lowest authored
  *   layer driving its channel, so last-writer-wins keeps the reader's choice where they made it
  *   and the run paints the rest. The element's own base layers are not authored and do not
  *   suppress anything, or nothing would ever paint.
  * - **A batch paints once, not once per member.** A sweep of six node metrics would otherwise add
- *   six colour layers, five of them invisible under the sixth and every one of them in the legend.
+ *   six color layers, five of them invisible under the sixth and every one of them in the legend.
  *   Suggestions are held while a batch is in flight and coalesced per channel on release, keeping
  *   the one that would have ended up on top -- so the picture is the same as running the six by
  *   hand, without the five dead layers.
  * - **An explicit `encode()` replaces the derived layer rather than stacking on it.** That rule is
  *   `styles.encode()`'s own, which is exactly why a suggestion is applied as the same command a
  *   consumer's call dispatches (see {@link suggestionCommand}) instead of adding layers by another
- *   door: a stranger who runs an algorithm and then colours by it gets one layer and one legend
+ *   door: a stranger who runs an algorithm and then colors by it gets one layer and one legend
  *   block, in the place the derived layer already had.
  * - **A chosen subset is a mark, and marks stack.** A route, a matching or a spanning tree is
  *   applied as `styles.mark()`: an ordinary layer per half, scoped to the chosen elements, that
  *   replaces only the same run's earlier mark. Two algorithms' marks both stay, the later one on
  *   top where they overlap, and a batch keeps every member's mark, since none of them hides
  *   another.
- * - **`{ style: false }` opts out**, and a run that failed, was cancelled or has nothing per
+ * - **`{ style: false }` opts out**, and a run that failed, was canceled or has nothing per
  *   element to paint suggests nothing in the first place.
  *
  * WHERE THE LAYERS GO. This policy only decides; the runs API plans what it decides into the run's
@@ -86,6 +86,8 @@ export interface AutoApplyRun extends EncodingRun {
     readonly status: RunStatus;
     /** Whether the caller let the element paint this run at all, and whether to size by it too. */
     readonly style: RunStyle;
+    /** What the run computed, when it is known: a set that chose nothing has nothing to paint. */
+    readonly computed?: { readonly graph: Readonly<Record<string, unknown>> };
 }
 
 /** Everything the policy is built from. */
@@ -192,6 +194,16 @@ const NO_OUTCOMES: readonly SuggestionOutcome[] = Object.freeze([]);
 const RELEASED: PaintRelease = Object.freeze({ paint: NOTHING, settled: NO_OUTCOMES, members: Object.freeze([]) });
 
 /**
+ * Whether a run is a set that chose no element: its layer would select nothing, so it suggests
+ * none (graphty-element/CLAUDE.md, "Algorithm Styles").
+ * @param run - The run.
+ * @returns True for a node or edge set whose count is 0.
+ */
+function choseNothing(run: AutoApplyRun): boolean {
+    return (run.shape === "node-set" || run.shape === "edge-set") && run.computed?.graph.count === 0;
+}
+
+/**
  * A decision with no suggestions in it.
  * @param state - Where it stands.
  * @returns The decision.
@@ -205,7 +217,7 @@ export function bare(state: RunPainting["state"]): RunPainting {
  *
  * Highlights share one key however many halves they paint, because the stack holds one highlight
  * at a time whatever produced it. An encoding is keyed by the channel it paints, so a run that
- * colours nodes and a run that colours edges both survive a batch while two runs that colour the
+ * colors nodes and a run that colors edges both survive a batch while two runs that color the
  * same nodes do not.
  * @param suggestion - The suggestion.
  * @returns The key.
@@ -224,7 +236,7 @@ function coalesceKey(suggestion: StyleSuggestion): string {
  * Whether a layer somebody wrote is painting one of these channels.
  *
  * The element's own layers are excluded and so are the layers a run produced: the base layer
- * paints a colour on every node, so counting it would suppress every suggestion there will ever
+ * paints a color on every node, so counting it would suppress every suggestion there will ever
  * be, and a layer derived from an earlier run is this policy's own work rather than a decision to
  * be protected. A disabled layer paints nothing and therefore drives nothing.
  * @param layer - The layer.
@@ -417,7 +429,7 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
         // Had whether or not anything is painted. The moment a run first completes is the
         // moment the policy had, and coming back to it later -- after a reader has arranged
         // the stack -- would repaint a picture they had already decided about.
-        const suggestions = suggestStyles(run, run.style);
+        const suggestions = choseNothing(run) ? NOTHING : suggestStyles(run, run.style);
         const pending = hold === undefined ? undefined : held.get(hold);
 
         if (pending === undefined) {

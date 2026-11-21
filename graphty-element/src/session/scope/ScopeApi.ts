@@ -51,6 +51,7 @@ import type {
     ScopeInput,
     SetDefinition,
     SetDefinitionInput,
+    SourceKey,
     UnionLeaf,
     UnionStep,
 } from "../../catalog/types";
@@ -163,6 +164,11 @@ export interface ScopeSources {
     snapshot(): GraphSnapshot;
     /** The store instance every resolution is tagged with. Absent tags them with null. */
     readonly store?: object;
+    /**
+     * Whether the source-steps experiment is on; while it is off a `{ types }` scope is refused, as
+     * before the experiment. Absent reads on.
+     */
+    readonly sourceSteps?: () => boolean;
     /** What is visible. Absent means nothing hides anything, so `visible` is the whole graph. */
     readonly visibility?: ScopeVisibilitySource;
     /** What is selected. Absent refuses the `selection` scope. */
@@ -296,6 +302,12 @@ export interface ScopeCount {
     readonly missingNodes?: number;
     /** For a kept fixed or path set: the edge members (a path's steps) no edge of the graph matches. */
     readonly missingEdges?: number;
+    /**
+     * Under the source-steps experiment: `W_SCOPE_NO_EDGES { nodes }` when a Source scope on
+     * edges named sources that supplied none, so it holds their nodes instead.
+     * @experimental source-steps
+     */
+    readonly issues?: readonly CodedFact<"W_SCOPE_NO_EDGES">[];
 }
 
 /** What {@link ScopeApi.count} accepts. */
@@ -348,7 +360,7 @@ export interface ScopeApi {
      */
     resolve(spec: ScopeInput): Promise<ResolvedScope>;
     /**
-     * How many elements a specification covers, without materialising them.
+     * How many elements a specification covers, without materializing them.
      * @param spec - What to count.
      * @param options - Whether an estimate is acceptable, and how big a sample to take.
      * @returns The counts, saying whether the edge count was exact.
@@ -423,7 +435,7 @@ export interface ScopeApi {
         },
     ): UnionLeaf | null;
     /**
-     * The refusal the element would give writing a step on a host, so a picker can grey a value
+     * The refusal the element would give writing a step on a host, so a picker can gray a value
      * with the element's reason: `circular-scope` for a filter that reads the filtered graph,
      * `reference-outside-union`, `nested-union`, or the error code of any other refusal.
      * @param step - The step.
@@ -664,7 +676,7 @@ export function resolutionBehind(scope: ResolvedScope): ScopeBehind | undefined 
 
 /**
  * Dress a resolution as the published {@link ResolvedScope}. `nodes`, `edges` and `digest` are
- * lazy: each is built on its first read and kept by this object; the digest is memoised on the
+ * lazy: each is built on its first read and kept by this object; the digest is memoized on the
  * resolution, so every object dressing one resolution shares one digest computation.
  * @param resolution - The resolution.
  * @param graph - The snapshot it was resolved against.
@@ -759,7 +771,7 @@ function countOf(resolution: Resolution, kind: string | undefined): ScopeCount {
  * (`session/sets/cache.ts`), keyed by its input signature: exactly the inputs it reads -- the
  * snapshot, a mask version, a saved scope's record, the attribute revisions and run results a
  * predicate reads. The reader that asks most often is the staleness check on a finished run, and
- * the digest is memoised on the resolution, so a staleness read over unchanged inputs sums nothing.
+ * the digest is memoized on the resolution, so a staleness read over unchanged inputs sums nothing.
  * @param sources - Where to read the graph and the capabilities a narrowing scope needs.
  * @returns The resolver.
  */
@@ -800,7 +812,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
      * What a `state` leaf and a step's focus read: the pointer and the selection, live.
      * @returns The readers the sources supply.
      */
-    const stateReaders = (): Pick<ResolveContext, "focus" | "inState" | "stateRevision"> => ({
+    const stateReaders = (): Pick<ResolveContext, "focus" | "inState" | "stateRevision" | "sourceSteps"> => ({
+        ...(sources.sourceSteps === undefined ? {} : { sourceSteps: sources.sourceSteps }),
         ...(sources.focus === undefined ? {} : { focus: sources.focus }),
         ...(sources.inState === undefined ? {} : { inState: sources.inState }),
         ...(sources.stateRevision === undefined ? {} : { stateRevision: sources.stateRevision }),
@@ -863,12 +876,58 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
 
     /**
      * A write position's scope, canonical: session edge ids inside `{ define }`, at any depth,
-     * replaced by their stable members, the definition validated and canonicalised.
+     * replaced by their stable members, the definition validated and canonicalized.
      * @param spec - The scope as given.
      * @returns The scope.
      * @throws `E_BAD_COMMAND` when it is not a scope.
      */
-    const scopeOf = (spec: ScopeInput): Scope => parseScope(stabiliseEdgeRefs(spec, stable));
+    /**
+     * Under source-steps, the `W_SCOPE_NO_EDGES` a scope's `source` leaves on edges report when
+     * their sources supplied no edges (design 8.6).
+     * @param spec - The scope.
+     * @param nodes - How many nodes it holds.
+     * @returns The issues, or undefined when there are none.
+     */
+    const noEdgeIssues = (spec: Scope, nodes: number): readonly CodedFact<"W_SCOPE_NO_EDGES">[] | undefined => {
+        if (sources.sourceSteps?.() !== true || sources.supplied === undefined || typeof spec !== "object") {
+            return undefined;
+        }
+        if (!("define" in spec) || spec.define.kind !== "rule") {
+            return undefined;
+        }
+        const { supplied } = sources;
+        const empty = (node: unknown): boolean => {
+            if (typeof node !== "object" || node === null) {
+                return false;
+            }
+            const leaf = node as { kind?: unknown; side?: unknown; sources?: readonly SourceKey[] };
+            if (leaf.kind === "source" && leaf.side === "edges" && Array.isArray(leaf.sources)) {
+                return supplied(leaf.sources).edges.size === 0;
+            }
+            return Object.values(node).some((each) => empty(each));
+        };
+        return empty(spec.define.where) ? [{ code: "W_SCOPE_NO_EDGES", params: { nodes } }] : undefined;
+    };
+
+    /**
+     * A `{ types }` scope in its canonical `{ where }` form, refused while source-steps is off.
+     * @param spec - The `{ types }` scope.
+     * @returns The `{ where }` scope.
+     */
+    const typesScope = (spec: Record<string, unknown>): Scope => {
+        if (sources.sourceSteps?.() === false) {
+            throw new GraphtyError({
+                code: "E_FEATURE_OFF",
+                message: 'A { types } scope needs the "source-steps" experiment.',
+                source: "run",
+                details: { feature: "source-steps", key: "types" },
+            });
+        }
+
+        return parseScope(spec);
+    };
+
+    const scopeOf = (spec: ScopeInput): Scope => parseScope(stabiliseEdgeRefs(spec, stable, typesScope));
 
     /**
      * The nodes one specification covers, and the edge constraint it came with. Uncached: only an
@@ -1251,7 +1310,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         },
 
         admit<T>(value: T): T {
-            const admitted = stabiliseEdgeRefs(value, stable);
+            // A { types } scope anywhere in it is written as its canonical { where }.
+            const admitted = stabiliseEdgeRefs(value, stable, typesScope);
             assertIssued(admitted as Scope, kept);
             refuseNotePaths(admitted as Scope, sources.pathsOf);
 
@@ -1338,8 +1398,10 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             }
 
             const { resolution } = membershipOf(spec);
+            const counted = countOf(resolution, undefined);
+            const issues = noEdgeIssues(spec, counted.nodes);
 
-            return Promise.resolve(countOf(resolution, undefined));
+            return Promise.resolve(issues === undefined ? counted : { ...counted, issues });
         },
 
         save(name: string, spec: Scope): ScopeId {

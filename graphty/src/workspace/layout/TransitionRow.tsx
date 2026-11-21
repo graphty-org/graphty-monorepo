@@ -35,7 +35,7 @@ export function TransitionRow({ session }: Readonly<{ session: GraphSession }>):
     useEffect(() => {
         if (shown.current !== chosen) {
             shown.current = chosen;
-            added.current?.scrollIntoView?.({ block: "nearest" });
+            added.current?.scrollIntoView({ block: "nearest" });
         }
     }, [chosen]);
     const seconds =

@@ -383,7 +383,7 @@ describe("session.data.prepare", () => {
         session.dispose();
     });
 
-    it("counts a node row with no id as rejected and lists it (#929)", async () => {
+    it("counts a node row with no id as rejected and lists it: an empty key is never a node (#929)", async () => {
         const session = createGraphSession();
         const draft = await session.data.prepare({ type: "csv", config: { data: "id,name\n,A\nb,B\n" } });
 
@@ -422,7 +422,8 @@ describe("session.data.prepare", () => {
             } else {
                 assert.isNull(outcome, duplicateIds);
                 const node = session.data.node("a");
-                assert.strictEqual(node?.name, duplicateIds === "merge" ? "B" : "A", duplicateIds);
+                // Under merge too the first row's values stand; a repeat only fills unset columns.
+                assert.strictEqual(node?.name, "A", duplicateIds);
                 assert.strictEqual(node?.team, "red", duplicateIds);
                 assert.deepEqual(session.data.lastImport()?.duplicates, { rows: 1, ids: ["a"] });
             }
@@ -536,6 +537,53 @@ describe("session.data.prepare", () => {
 
         const graph = await session.data.prepare({ type: "graphml", config: { data: GRAPHML } });
         assert.isUndefined(graph.tables[0].delimiter);
+        session.dispose();
+    });
+
+    it("keeps the separator a CSV load was read with on its data.sources() entry (#9078)", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "id;name\na;A\n" } });
+        assert.deepEqual(session.data.sources()[0].delimiter, { value: ";", detected: true });
+
+        await session.data.import({ type: "graphml", config: { data: GRAPHML } }, { mode: "merge" });
+        assert.isUndefined(session.data.sources()[1].delimiter);
+
+        await session.data.import(
+            { type: "csv", config: { data: "id\tname\na\tA\n", delimiter: "\t" } },
+            { mode: "merge", mapping: { key: "id" } },
+        );
+        assert.deepEqual(session.data.sources()[2].delimiter, { value: "\t", detected: false });
+        session.dispose();
+    });
+
+    it("takes a mapping named by side, for one table or a pair (#9078)", async () => {
+        const session = createGraphSession();
+        const one = await session.data.prepare({ type: "csv", config: { data: PEOPLE } });
+        assert.strictEqual(one.mapping.tables.rows.rowsAre, "nodes");
+        assert.deepInclude(one.resolve({ mapping: { nodes: { label: "team" } } }).tables.rows, {
+            rowsAre: "nodes",
+            label: "team",
+        });
+        // The side picks the table and never changes what its rows are: a side no table is read as
+        // is refused, and the roles' own rowsAre turns the table.
+        const other = await refusal(one.report({ mapping: { edges: { source: "id", target: "team" } } }));
+        assert.strictEqual(other?.code, "E_BAD_COMMAND");
+        const both = await refusal(one.report({ mapping: { nodes: {}, edges: {} } }));
+        assert.strictEqual(both?.code, "E_BAD_COMMAND");
+        assert.deepInclude(
+            one.resolve({ mapping: { nodes: { rowsAre: "edges", source: "id", target: "team" } } }).tables.rows,
+            { rowsAre: "edges", source: { column: "id" }, target: { column: "team" } },
+        );
+        one.dispose();
+
+        const draft = await pair(session);
+        const resolved = draft.resolve({ mapping: { edges: { weight: null } } });
+        assert.isNull(resolved.tables.edges.weight);
+        assert.deepEqual(resolved.tables.nodes, draft.mapping.tables.nodes);
+        await draft.load({ mapping: { edges: { weight: null } } });
+        assert.deepEqual(session.data.sources()[0].choices?.mapping, {
+            tables: { edges: { rowsAre: "edges", weight: null } },
+        });
         session.dispose();
     });
 

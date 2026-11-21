@@ -4,7 +4,7 @@ import { Effect } from "@babylonjs/core/Materials/effect.js";
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
-import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Vector2, Vector3, Vector4 } from "@babylonjs/core/Maths/math.vector.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
@@ -74,7 +74,7 @@ export type JoinedPatternKind = keyof typeof JOINED_PATTERN_KINDS;
 export interface JoinedLineOptions {
     /** The line's width: screen width (the 3D line's own scale), or world units with `worldWidth`. */
     width: number;
-    /** Hex colour. */
+    /** Hex color. */
     color: string;
     /** Opacity 0-1; default 1. */
     opacity?: number;
@@ -89,12 +89,17 @@ export interface JoinedLineOptions {
     fade?: EdgeFade | undefined;
     /** Draw without alpha blending (`line.blending` false): every fragment at full strength. */
     opaque?: boolean | undefined;
-    /** A patterned line: its element's length along the line (world units), its kind, count and gap. */
+    /**
+     * A patterned line: its element's length along the line (world units), its kind, count and gap; with `dashes`,
+     * dashes and gaps of several lengths alternating from the line's start (world units, at most 8, an even count),
+     * drawn in place of its elements every `elementLength + gap`.
+     */
     pattern?: {
         kind: JoinedPatternKind;
         elementLength: number;
         count?: number | undefined;
         gap?: number | undefined;
+        dashes?: readonly number[] | undefined;
     };
     /**
      * Whether its slots carry the static values a taper or a shader reads (`EDGE_WIDENED`). A
@@ -132,6 +137,26 @@ export interface JoinedLineOptions {
      * `"smooth"` also widens it by a pixel and smooths its edges in the fragment shader (`EDGE_LINE_AA`).
      */
     pulledLean?: boolean | "smooth";
+}
+
+/**
+ * Set a joined line's pattern on its material: (element length, kind: 0 solid, 1 dash or box, 2 dot, 3 diamond, 4 star,
+ * 5 a dash array, half the width), read by the fragment shader, with the dash array's dashes and gaps.
+ * @param material - The line's material.
+ * @param options - The line's look.
+ */
+function setPattern(material: ShaderMaterial, options: JoinedLineOptions): void {
+    const { pattern } = options;
+    const dashes = pattern?.dashes;
+    if (pattern === undefined) {
+        material.setVector3("pattern", Vector3.Zero());
+    } else {
+        const kind = dashes === undefined ? JOINED_PATTERN_KINDS[pattern.kind] : 5;
+        material.setVector3("pattern", new Vector3(pattern.elementLength, kind, options.width / 2));
+    }
+    const dash = (i: number): number => dashes?.[i] ?? 0;
+    material.setVector4("dashA", new Vector4(dash(0), dash(1), dash(2), dash(3)));
+    material.setVector4("dashB", new Vector4(dash(4), dash(5), dash(6), dash(7)));
 }
 
 /**
@@ -188,7 +213,13 @@ function joinedLineMeta(options: JoinedLineOptions, widened: boolean, color: Col
     return {
         joinedLine: true,
         pattern: pattern
-            ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count, gap: pattern.gap }
+            ? {
+                  kind: pattern.kind,
+                  elementLength: pattern.elementLength,
+                  count: pattern.count,
+                  gap: pattern.gap,
+                  dashes: pattern.dashes,
+              }
             : undefined,
         ...(widened ? { widened: true } : {}),
         ...(opaque ? { opaque: true } : {}),
@@ -248,7 +279,10 @@ function joinedLineSamplers(options: JoinedLineOptions): string[] {
     }
 
     const tables = ["rowPosition", "edgeRows", "edgeHidden", "edgeOrder"];
-    return options.pulledCurve === true ? [...tables, "edgeRoutes"] : tables;
+    // a straight piece stops at a translucent row's outline (`PULLED_TRIM_GLSL`)
+    return options.pulledCurve === true
+        ? [...tables, "edgeRoutes", "edgeSlots"]
+        : [...tables, "rowExtent", "rowOutline"];
 }
 
 interface LineGeometry {
@@ -555,10 +589,10 @@ void main(void) {
 
     /**
      * The mesh a batch of joined lines is drawn from: one instance per straight piece, joined to
-     * its neighbours at every corner by `edgeJoinShader`. `EdgeLineBatch` supplies the instances.
-     * A piece with no neighbours is the same rectangle the line renderer always drew, at the same
+     * its neighbors at every corner by `edgeJoinShader`. `EdgeLineBatch` supplies the instances.
+     * A piece with no neighbors is the same rectangle the line renderer always drew, at the same
      * width, so a straight edge looks exactly as it did.
-     * @param options - Width, colour, opacity, the width's unit and a dash or dot pattern.
+     * @param options - Width, color, opacity, the width's unit and a dash or dot pattern.
      * @param scene - The scene it is drawn in.
      * @returns The template mesh with its material, marked `joinedLine` for `EdgeLineBatch`.
      */
@@ -599,6 +633,8 @@ void main(void) {
                     "color",
                     "opacity",
                     "pattern",
+                    "dashA",
+                    "dashB",
                     ...(options.pulled === true ? ["edgeOrdered"] : []),
                     ...(widened ? ["edgeReach"] : []),
                     ...(fade === undefined ? [] : ["edgeFade"]),
@@ -646,14 +682,7 @@ void main(void) {
         material.setFloat("minWidth", options.minScreenWidth ?? 0);
         material.setFloat("opacity", opacity);
         material.setFloat("miterLimit", EDGE_MITER_LIMIT);
-        const { pattern } = options;
-        // (element length, kind: 0 solid, 1 dash or box, 2 dot, 3 diamond, 4 star, half the width), read by the
-        // fragment shader.
-        const kind = pattern === undefined ? 0 : JOINED_PATTERN_KINDS[pattern.kind];
-        material.setVector3(
-            "pattern",
-            pattern ? new Vector3(pattern.elementLength, kind, options.width / 2) : Vector3.Zero(),
-        );
+        setPattern(material, options);
         // See create (issue #2894).
         material.blockDirtyMechanism = true;
         material.backFaceCulling = false;
@@ -1062,7 +1091,7 @@ void main(void) {
      * pass, where Babylon draws with blending off, so this turns blending on for this mesh's own
      * draw and off again after it. Moving the line to the transparent pass instead would reorder
      * it against labels and every other transparent mesh. A fragment of alpha 1 -- every line of
-     * one pixel or more at full opacity -- blends to exactly the colour it wrote before.
+     * one pixel or more at full opacity -- blends to exactly the color it wrote before.
      * @param mesh - The line mesh.
      * @param blend - Straight alpha over (a line, a surface), premultiplied over or added (an effect).
      */
@@ -1162,7 +1191,7 @@ void main(void) {
         // Blocked for the material's life, as in FilledArrowRenderer.applyShader: a ShaderMaterial
         // re-derives its defines on every readiness check, and everything set on it later is a
         // uniform. Unblocked, the setter below walks every mesh in the scene, so a line in a new
-        // colour cost the size of the graph (issue #2894).
+        // color cost the size of the graph (issue #2894).
         shaderMaterial.blockDirtyMechanism = true;
         // Disable backface culling for double-sided rendering
         shaderMaterial.backFaceCulling = false;

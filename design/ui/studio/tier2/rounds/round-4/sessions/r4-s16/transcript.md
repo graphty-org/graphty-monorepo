@@ -8,13 +8,13 @@ Session folder (screenshots, logs): tmp/studio-sessions/tier2/rounds/round-4/ses
 
 Command: `REAL_DIST=/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r4d1-5277e2cbe/ node design/ui/studio/tool/real.mjs --start <session> setup:florentine-ranked.txt`
 
-01.png: The network is open, colored and sized by PageRank (that is the ranking I usually run). The balls have no names on them. Left panel: search box "Find nodes, edges, values", Selection, PageRank (15), Everything. Toolbar at the bottom with icons. I need a route from Strozzi to Pazzi. No idea where either is on the picture since nothing is labelled.
+01.png: The network is open, colored and sized by PageRank (that is the ranking I usually run). The balls have no names on them. Left panel: search box "Find nodes, edges, values", Selection, PageRank (15), Everything. Toolbar at the bottom with icons. I need a route from Strozzi to Pazzi. No idea where either is on the picture since nothing is labeled.
 
 ## Step 1 -- `--step <session> --click-at 615,863` (button "Analyze")
 02.png: A list of analyses with a "Filter analyses" box: Recent PageRank, then "Rank nodes and edges": Degree, Betweenness, Closeness... Each has a one-line explanation, good. I want a route, so I will filter for "path".
 
 ## Step 2 -- `--step <session> --type "path"`
-03.png: Filtered list: "Find paths and edge sets": Shortest path (Start here) "The fewest steps, or the shortest path by weight, between two nodes"; Guided route (greyed, "Select 2 nodes first"). Shortest path is what I want. Clicking it.
+03.png: Filtered list: "Find paths and edge sets": Shortest path (Start here) "The fewest steps, or the shortest path by weight, between two nodes"; Guided route (grayed, "Select 2 nodes first"). Shortest path is what I want. Clicking it.
 
 ## Step 3 -- `--step <session> --click-at 500,630` (option "Shortest path")
 04.png: A small form: From "Where the path starts" (focused), To "Where the path ends", Weight None, Advanced, "Find path". Plain enough. Typing Strozzi in From.
@@ -70,5 +70,5 @@ Session ended.
 - The circles have no names on them, so the drawing alone is no use to me; I relied entirely on the list on the right. I could not tell which black circle was the Strozzi without reading the list.
 - Running the second route replaced the first one. The left panel still says just "Shortest path, 4 hops", and the Strozzi-Pazzi route is gone from the picture and the panel. Nothing told me it would be replaced. For a "compare two routes" slide I would want both kept.
 - "Weight: None" -- I left it alone and the panel then said "Each edge counts as 1", which reassured me, but I would not have known what "edge" meant if that line had not been right next to it.
-- Small grey labels in the right panel ("Path", "ran Oct 11...") are hard to read without my glasses.
+- Small gray labels in the right panel ("Path", "ran Oct 11...") are hard to read without my glasses.
 - So-what for my job: on my supplier data a route like this only works where I have the Tier 2 links, which is maybe 15 percent of spend. Where do I get the rest?

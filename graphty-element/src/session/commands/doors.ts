@@ -2496,6 +2496,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             steppedPublishes: READ,
             reducedMotion: VIEW_SETTING,
             drawingHeld: READ,
+            // Asked by the frame loop once a frame: the frame after a switch to 2D flattened the arrangement takes no step.
+            takeFrameHold: TRANSPORT,
             placeGroups: TRANSPORT,
             groupBox: READ,
             getNodePosition: READ,
@@ -4285,6 +4287,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             owe: LANE,
             forgive: LANE,
             settle: LANE,
+            // One row of an owed publish, read without writing it.
+            owesRows: READ,
+            owedReadsSpill: READ,
+            readOwed: READ,
+            owedWrites: READ,
+            owedRowsRead: READ,
             keeps: READ,
             unsettledView: READ,
         },

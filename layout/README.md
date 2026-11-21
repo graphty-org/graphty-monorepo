@@ -431,6 +431,35 @@ try {
 }
 ```
 
+### Geographic
+
+`geographic` puts each node at its longitude and latitude, projected onto a flat map with north up:
+`"equirectangular"` (the default), `"web-mercator"` or `"equal-earth"` (areas kept in proportion). It reads named
+`longitude` and `latitude` node columns, a named `position` column, or by default a role-`position` column whose
+coordinates are geographic. `scale` is the radius of the globe, and `centralMeridian: "auto"` draws nodes on both sides
+of the 180th meridian side by side.
+
+<!-- doc-check -->
+
+```typescript
+import { fromEdgeArrays } from "@graphty/graph-format";
+import { geographic } from "@graphty/layout";
+
+// three airports and two routes, with their longitudes and latitudes in degrees
+const s = fromEdgeArrays({
+    directed: false,
+    nodeCount: 3,
+    src: Uint32Array.of(0, 1),
+    dst: Uint32Array.of(1, 2),
+    nodeColumns: {
+        lon: Float64Array.of(-0.45, 2.55, 174.79), // London, Paris, Auckland
+        lat: Float64Array.of(51.47, 49.01, -37.01),
+    },
+});
+const map = geographic(s, { longitude: "lon", latitude: "lat", projection: "equal-earth" });
+console.log(map.positions[1] > 0); // true
+```
+
 ## Common options
 
 Every layout takes these options besides its own. `arf` rescales only when it is given `scale` or `center`; without

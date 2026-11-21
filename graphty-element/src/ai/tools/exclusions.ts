@@ -1240,6 +1240,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "loadArrangement",
             "step",
             "stepBatch",
+            "takeFrameHold",
             "updatePositions",
             "onRest",
             "restoring",

@@ -13,15 +13,17 @@ interface PositionSource {
     readonly coordinates: CoordinateSystemInput;
 }
 
+/** A saved drawing: the file's own unit, y growing upward. */
+const DRAWING: CoordinateSystemInput = { kind: "cartesian", dims: 2, units: "file", yAxis: "up" };
+
 /** The datasets with positions, by name. */
 const POSITIONS: ReadonlyMap<string, PositionSource> = new Map<string, PositionSource>([
     // each airport's place on the Earth, in degrees on WGS 84 (OpenFlights' own datum)
     ["openflights", { columns: ["longitude", "latitude"], coordinates: { kind: "geographic", dims: 2 } }],
-    // the published drawing, its y already turned to grow upward by graph-io's CX2 importer
-    [
-        "wikipathways-senescence-autophagy",
-        { columns: ["x", "y"], coordinates: { kind: "cartesian", dims: 2, units: "file", yAxis: "up" } },
-    ],
+    // the published drawings, their y already turned to grow upward by graph-io's CX2 and .cys importers
+    ...["wikipathways-senescence-autophagy", "bioplex3-hct116", "stelzl-interactome", "yeast-perturbation"].map(
+        (name): [string, PositionSource] => [name, { columns: ["x", "y"], coordinates: DRAWING }],
+    ),
 ]);
 
 /**

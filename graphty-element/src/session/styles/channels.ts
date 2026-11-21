@@ -1139,7 +1139,7 @@ const EDGE_SUPPORT_MODEL_VALUES: readonly EdgeSupportModelValue[] = ["barnesHut"
 const EDGE_SUPPORT_SCALE_VALUES: readonly EdgeSupportScaleValue[] = ["unit", "drawing"];
 const SUPPORT_CAVEAT = " Only an edge with an `edge.supportModel` has a support point; any other ignores it.";
 const EDGE_ROUTE_VALUES: readonly EdgeRouteValue[] = ["straight", "arc", "great-circle"];
-const EDGE_COLOR_FROM_VALUES: readonly EdgeColorFromValue[] = ["source", "target"];
+const EDGE_COLOR_FROM_VALUES: readonly EdgeColorFromValue[] = ["none", "source", "target"];
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
@@ -4490,12 +4490,14 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "line",
         accepts: "enum",
         values: EDGE_COLOR_FROM_VALUES,
+        default: "none",
         stylePath: "line.colorFrom",
         renderable: true,
         caveat:
             'Draws the line in the color the layers painted one of its nodes, in place of `edge.color`: "source" ' +
             "its source node's, \"target\" its target node's. It follows the node: a later layer that recolors the " +
-            "node recolors the line. An end node no layer colored leaves the line its own `edge.color`.",
+            'node recolors the line. An end node no layer colored leaves the line its own `edge.color`. "none", ' +
+            "the default, draws the line in its own `edge.color`.",
     },
     "edge.width": {
         channel: "edge.width",

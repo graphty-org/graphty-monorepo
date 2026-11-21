@@ -49,6 +49,7 @@ import { placeOfUse } from "../session/styles/channels";
 import { groupOutlinesOf } from "../session/styles/StylesApi";
 import type { GraphSession, SessionEventMap } from "../session/types";
 import { type LazyShaderHost, lendSceneShaders } from "../shaders/chunk";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
@@ -1162,7 +1163,7 @@ export class RenderManager implements Manager {
 
         // Store camera manager in scene metadata for access by other components
         this.scene.metadata ??= {};
-        this.scene.metadata.cameraManager = this.camera;
+        (this.scene.metadata as GraphSceneMetadata).cameraManager = this.camera;
 
         // Setup cameras
         this.setupCameras();

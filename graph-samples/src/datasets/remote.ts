@@ -5,6 +5,8 @@
 
 import { fromBytes, type GraphSnapshot } from "@graphty/graph-format";
 
+import { withPositions } from "./positions.js";
+
 /**
  * Where the datasets live: `<base><name>.gsnp.gz`, a gzipped graph-format wire container.
  * The `v1` segment is the hosting layout's version, independent of the package version.
@@ -22,7 +24,9 @@ export interface FetchDatasetOptions {
 }
 
 /**
- * Download a dataset and decode it.
+ * Download a dataset and decode it. A dataset with node positions (openflights' airports, WikiPathways WP615's
+ * drawing) also gets a role-`position` column whose `meta.coordinates` says what they are: geographic longitude and
+ * latitude, or a drawing with y growing upward. Its plain columns stay as they are.
  * @param name - the dataset name: lowercase letters, digits and dashes
  * @param options - the base URL, fetch implementation and abort signal
  * @returns the graph as a frozen graph-format snapshot
@@ -37,7 +41,7 @@ export async function fetchDataset(name: string, options: FetchDatasetOptions = 
     if (!response.ok || response.body === null) {
         throw new Error(`fetching ${url.href} failed: HTTP ${response.status}`);
     }
-    return fromBytes(await gunzipIfZipped(new Uint8Array(await response.arrayBuffer())));
+    return withPositions(name, fromBytes(await gunzipIfZipped(new Uint8Array(await response.arrayBuffer()))));
 }
 
 /**

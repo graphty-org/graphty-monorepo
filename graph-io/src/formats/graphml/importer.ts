@@ -90,9 +90,10 @@ import {
     TARGET_PORT_COLUMN,
     XSI_NAMESPACE,
 } from "./constants.js";
+import { graphmlPositions } from "./positions.js";
 import { graphmlStyles } from "./styles-plain.js";
 import { writeXmlTree, XmlTreeBuilder } from "./tree.js";
-import { graphicsDecl, graphicsValues, yfilesPositions } from "./yfiles.js";
+import { graphicsDecl, graphicsValues } from "./yfiles.js";
 
 /**
  * Whether an XML attribute is not data and passes silently: a namespace declaration, an `xml:` or
@@ -3059,7 +3060,7 @@ export const graphmlImporter: GraphImporter<GraphmlImportOptions> = Object.freez
     mimeTypes: MIME_TYPES,
     sniff: sniffGraphml,
     styles: graphmlStyles,
-    positions: yfilesPositions,
+    positions: graphmlPositions,
     import: importGraphml,
 });
 

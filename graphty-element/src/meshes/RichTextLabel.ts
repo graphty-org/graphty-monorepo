@@ -17,6 +17,7 @@ import { type RichTextStyleType } from "../config";
 import { DEFAULT_LABEL_GRADIENT_COLORS } from "../config/RichTextStyle";
 import { GraphtyLogger, type Logger } from "../logging";
 import { toColorValue } from "../session/styles/channels";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { addGradientStops, gradientOffsets } from "./edgeGradient";
 import { FrameRoster } from "./FrameRoster";
 import { type GlyphLabelEntry, GlyphLabels, recordRuns } from "./GlyphLabels";
@@ -2703,7 +2704,7 @@ export class RichTextLabel {
      */
     private billboard(): number {
         const mode = this.options.billboardMode;
-        return mode === Mesh.BILLBOARDMODE_ALL && this.scene.metadata?.twoD === true
+        return mode === Mesh.BILLBOARDMODE_ALL && (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true
             ? Mesh.BILLBOARDMODE_X | Mesh.BILLBOARDMODE_Y
             : mode;
     }

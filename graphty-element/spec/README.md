@@ -652,7 +652,9 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
 `assets`.
 
 1. A layer has `id` (REQUIRED, unique in the section), `name`, `target` (`node` or `edge`),
-   `selector`, and `set` and/or `encode`; optionally `source`, `enabled` and `userData`. A layer
+   `selector`, and `set` and/or `encode`; optionally `source`, `enabled`, `userData` and `row`
+   (in style and view alike: the id of the layer that keys its row, shared by the node and edge
+   parts of one row, which open again as one row). A layer
    has no `kind`: there are no special layers. `source.by` is `run`, `template` or `plugin`; a
    layer no run, template or plugin made writes no `source`, in style and view alike.
 2. `set` maps channel names (`node.color`) to values; `encode` maps channel names to bindings

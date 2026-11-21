@@ -135,30 +135,11 @@ function defined<T extends Record<string, unknown>>(members: T): Partial<T> {
 }
 
 /**
- * Each table's roles in a load mapping; one named by side (`{ nodes, edges }`) is read as that
- * side's rows.
- * @param mapping - The load's mapping.
- * @returns The tables' roles.
- */
-function tablesOf(mapping: LoadMapping): readonly TableMapping[] {
-    if ("tables" in mapping) {
-        return Object.values(mapping.tables);
-    }
-    if (!isSideMapping(mapping)) {
-        return [mapping];
-    }
-    return (["nodes", "edges"] as const).flatMap((side) => {
-        const roles = mapping[side];
-        return roles === undefined ? [] : [{ ...roles, rowsAre: side }];
-    });
-}
-
-/**
- * Whether a mapping names its tables by side.
+ * Whether a mapping names its tables by side (`{ nodes, edges }`).
  * @param mapping - The mapping.
- * @returns True for `{ nodes, edges }`.
+ * @returns True for a mapping by side.
  */
-function isSideMapping(mapping: TableMapping | SideMapping): mapping is SideMapping {
+function isSideMapping(mapping: LoadMapping): mapping is SideMapping {
     return "nodes" in mapping || "edges" in mapping;
 }
 
@@ -172,7 +153,18 @@ function timeRoles(mapping: LoadChoices["mapping"]): { readonly nodes?: string; 
     if (mapping === undefined) {
         return {};
     }
-    const tables = tablesOf(mapping);
+    let tables: readonly TableMapping[];
+    if ("tables" in mapping) {
+        tables = Object.values(mapping.tables);
+    } else if (isSideMapping(mapping)) {
+        // Named by side: each side's roles are the rows it names.
+        tables = (["nodes", "edges"] as const).flatMap((side) => {
+            const roles = mapping[side];
+            return roles === undefined ? [] : [{ ...roles, rowsAre: side }];
+        });
+    } else {
+        tables = [mapping];
+    }
     const timeOf = (edges: boolean): string | undefined =>
         tables.find((t) => (t.rowsAre === "edges") === edges && typeof t.time === "string")?.time ?? undefined;
     return defined({ nodes: timeOf(false), edges: timeOf(true) });

@@ -491,7 +491,7 @@ const OPTION_WORDS: Readonly<Partial<Record<string, OptionWords>>> = {
     "location-map.size": { label: "Size" },
     "location-map.mapScale": { label: "Map size" },
     "location-map.flatNodeScale": { label: "Flat map node size" },
-    "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place" } },
+    "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place", hide: "Hide" } },
     "location-map.overlap": { label: "Same place", choices: { spread: "Spread", stack: "Stack" } },
     "closeness.k": SAMPLE_SIZE,
     "betweenness.k": SAMPLE_SIZE,

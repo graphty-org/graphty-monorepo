@@ -81,7 +81,7 @@ const batch: UndoableDefinition<BatchCommand> = {
     keys: () => [],
     lane: { kind: "immediate" },
     // Its members' own arguments, kept as their definitions keep them.
-    byReference: ["records", "config", "nodes", "edges", "held", "measure"],
+    byReference: ["records", "config", "nodes", "edges", "held", "measure", "copies", "draftBase"],
     members: (command) => ({
         label: command.label ?? batchLabel(command.steps.length),
         fact: batchFact(command),

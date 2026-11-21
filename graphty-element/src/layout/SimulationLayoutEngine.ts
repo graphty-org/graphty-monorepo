@@ -670,6 +670,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
     /** The simulation {@link SimulationLayoutEngine.#setCollision} last told, at {@link SimulationLayoutEngine.#envelopeScale}. */
     #collided: unknown = null;
 
+    /** The radii {@link SimulationLayoutEngine.#setCollision} last told: a new array whenever a node's size changed. */
+    #collidedRadii: F32 | null = null;
+
     /** The arrangement's center at the last publish, in the simulation's own units. */
     readonly #simCentre: [number, number, number] = [0, 0, 0];
 
@@ -968,13 +971,32 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#positions = positions;
         const simPositions = this.#adoptPositions(simGraph.nodeCount, positions);
         if (this.#fromSeed && typeof this.#options.model.seed === "number") {
-            // Every row unplaced, so `#seed` draws the whole graph from the seed alone.
-            simPositions.fill(Number.NaN);
+            this.#unplaceMovable(simGraph.nodeCount, simPositions);
         }
 
         this.#fromSeed = false;
 
         this.#build();
+    }
+
+    /**
+     * Clears every row the layout may move, so `#seed` draws them from the seed alone.
+     *
+     * A PINNED OR HELD ROW KEEPS ITS COORDINATE. It stays where the reader or the scope put it, and the seed
+     * draws the rest inside the box those rows occupy, in the same units: cleared too, the held rows were
+     * written back in scene units over a graph drawn in the seed's, and the moving rows settled against
+     * nodes the simulation saw many times further away than they are drawn.
+     * @param nodeCount - The graph being loaded.
+     * @param positions - The simulation's array, exactly `3 * nodeCount` long.
+     */
+    #unplaceMovable(nodeCount: number, positions: F32): void {
+        const pins = this.#dataManager[WRITABLE_LANE].pinnedView(this.#elementGraph?.nodeCount ?? nodeCount);
+        for (let i = 0; i < nodeCount; i += 1) {
+            const row = this.#elementRow(i);
+            if (pins[row] !== 1 && !this.isHeld(row)) {
+                positions.fill(Number.NaN, 3 * i, 3 * i + 3);
+            }
+        }
     }
 
     /**
@@ -1910,8 +1932,14 @@ export class SimulationLayoutEngine extends LayoutEngine {
         if (measured.placed > 0) {
             // A SETTLED nodeGap ARRANGEMENT NEVER SHRINKS. Its last sweeps left pairs exactly touching at the scale the
             // collision was given, and the refit after them -- the sweeps pushed the furthest node out -- would draw
-            // every such pair a hair inside each other. It is published that hair wider instead (issue #9292).
-            const parted = radii !== null && this.isSettled && this.#collided === this.#simulation;
+            // every such pair a hair inside each other. It is published that hair wider instead (issue #9292). Only
+            // over the radii the simulation settled under: a size that changed since is refitted, or the scale held
+            // would be one from before the sizes arrived, and how many frames they took would decide the drawing.
+            const parted =
+                radii !== null &&
+                this.isSettled &&
+                this.#collided === this.#simulation &&
+                this.#collidedRadii === radii;
             this.#envelopeScale = parted ? Math.max(measured.scale, this.#envelopeScale) : measured.scale;
             this.#simCentre[0] = measured.centre[0];
             this.#simCentre[1] = measured.centre[1];
@@ -2074,6 +2102,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #setCollision(radii: F32, envelopeScale: number): void {
         const simulation = this.#simulation;
         this.#collided = simulation;
+        this.#collidedRadii = radii;
         try {
             simulation?.setCollision?.({
                 radii,

@@ -1531,6 +1531,7 @@ export class LayoutManager implements Manager {
             // `onSnapshotReplaced` -- where an unrecorded driver would look like a decision that
             // had changed and start this rebuild over again.
             this.runningDriver = driver;
+            this.holdBeforeInit(engine, members);
             await engine.init();
             if (!how.live()) {
                 throw cancelledBuild();
@@ -2634,6 +2635,20 @@ export class LayoutManager implements Manager {
         }
 
         return [mask, rows];
+    }
+
+    /**
+     * Hand a new engine its hold before `init()` as well as after it, so a simulation starting from its seed
+     * keeps the held rows where they are (see `SimulationLayoutEngine.load`). `members` is recorded first: the
+     * freeze inside `init()` rebuilds the mask from it.
+     * @param engine - The engine about to be initialized.
+     * @param members - The members it lays out, or null when unscoped.
+     */
+    private holdBeforeInit(engine: LayoutEngine, members: ReadonlySet<NodeIdType> | null): void {
+        this.members = members;
+        if (members !== null) {
+            engine.setHoldMask(...this.holdMaskOf(members));
+        }
     }
 
     /**

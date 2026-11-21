@@ -321,7 +321,6 @@ export const LABEL_OPTION_NAMES: Readonly<Partial<Record<LabelField, Readonly<Re
     gradientType: { linear: { name: "Linear" }, radial: { name: "Radial" } },
     gradientDirection: { vertical: { name: "Down" }, horizontal: { name: "Across" }, diagonal: { name: "Diagonal" } },
     weight: { normal: { name: "Regular" }, bold: { name: "Bold" } },
-    look: { default: { name: "Plain" } },
 };
 
 /** Every label style field's descriptor, by field. */

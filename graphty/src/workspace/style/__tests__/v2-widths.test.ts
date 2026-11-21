@@ -9,7 +9,13 @@
 import { channelDescriptor, LABEL_STYLE_FIELDS } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
-import { LABEL_OPTION_NAMES, LABEL_RUBRIC, labelFieldDescriptor, labelLineFields } from "../v2/labelRubric";
+import {
+    LABEL_OPTION_NAMES,
+    LABEL_RUBRIC,
+    labelFieldDescriptor,
+    type LabelField,
+    labelLineFields,
+} from "../v2/labelRubric";
 import {
     EDGE_RUBRIC,
     LINE_WIDTHS,
@@ -118,6 +124,13 @@ describe("Style panel v2's label rubric", () => {
             place: "popover" as const,
         })),
     ];
+
+    it("names options only for fields a line draws (no stale name, such as the removed Look's 'Plain')", () => {
+        const drawn = new Set(lines.flatMap(({ line }) => labelLineFields(line)));
+        for (const field of Object.keys(LABEL_OPTION_NAMES)) {
+            assert.isTrue(drawn.has(field as LabelField), field);
+        }
+    });
 
     it("every line edits a label style field graphty-element describes", () => {
         for (const { line } of lines) {

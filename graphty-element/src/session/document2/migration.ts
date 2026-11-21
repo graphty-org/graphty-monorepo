@@ -31,7 +31,8 @@
  *   and `styleVersion` and `recipeVersion` are left out and reported `W_MEMBER_LEFT_OUT`.
  * - Style. Edges a version 1 `ids` selector named (session edge ids) are dropped; built-in palettes
  *   are not carried (that needs the catalog); the style tree is not carried.
- * - Cameras. A saved view's camera has no `fov` in version 1 and takes the view codec's default.
+ * - Cameras. A saved view's camera is written as the neutral pose (spec 4.7 rule 2), with no
+ *   `fov` when version 1 had none.
  * - Bare members. A version 1 notes, results, arrangement, view-state, sources or assets member
  *   alone has no data to bind to and is not migrated; neither is a version 1 notes, results or
  *   view section met inside a version 2 file. A version 1 recipe snapshot (`session.recipe()`)

@@ -1099,18 +1099,6 @@ async function readCameraAndSettings(r: Reader, body: Readonly<JsonObject>): Pro
         });
     }
 
-    const live = body.camera === undefined ? undefined : cameraRead(r, body.camera);
-    if (live?.position !== undefined && live.target !== undefined) {
-        try {
-            await tx.execute({ op: "view.camera", position: live.position, target: live.target });
-        } catch (error) {
-            // A session that draws nothing has no camera to move; the camera is kept for the next save.
-            if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED") {
-                refused(r, error, "camera");
-            }
-        }
-    }
-
     const { viewRotation, framing } = body;
     if (typeof viewRotation === "number" || isObject(framing)) {
         await attempt(r, "framing", () =>
@@ -1119,6 +1107,19 @@ async function readCameraAndSettings(r: Reader, body: Readonly<JsonObject>): Pro
                 ...(isObject(framing) ? { framing: framing as never } : {}),
             }),
         );
+    }
+
+    // After viewRotation: in 2D the camera's own turn is the one the file opens at (spec 4.7 rule 2).
+    const live = body.camera === undefined ? undefined : cameraRead(r, body.camera);
+    if (live !== undefined) {
+        try {
+            await tx.execute({ op: "view.camera", camera: live });
+        } catch (error) {
+            // A session that draws nothing has no camera to move; the camera is kept for the next save.
+            if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED") {
+                refused(r, error, "camera");
+            }
+        }
     }
 
     if (Array.isArray(body.hiddenColumns)) {
@@ -1694,22 +1695,6 @@ async function readOrder(r: Reader, order: readonly unknown[], own: readonly str
 }
 
 /**
- * A member the session holds no state for, as it is written back: the camera without `type`,
- * which overlaps its controller, the authority (spec 4.7 rule 2).
- * @param name - The member.
- * @param value - Its value as read.
- * @returns The value to write back.
- */
-function heldValue(name: string, value: unknown): unknown {
-    if (name !== "camera" || !isObject(value)) {
-        return value;
-    }
-
-    const { type: _type, ...camera } = value;
-    return camera;
-}
-
-/**
  * Remember, for each member read, what the session now gives back, so an unchanged member is
  * written back as read.
  * @param r - The reader.
@@ -1723,7 +1708,7 @@ function rememberRead(r: Reader, body: Readonly<JsonObject>): void {
             continue;
         }
 
-        const original = heldValue(name, body[name]);
+        const original = body[name];
         if (HELD_ONLY.has(name)) {
             memory.heldOnly.set(name, original);
         }

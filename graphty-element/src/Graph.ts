@@ -1670,16 +1670,19 @@ export class Graph implements GraphContext {
                 }
                 return this.getCameraState();
             },
-            move: (command) =>
-                this.setCameraState(
-                    command.preset === undefined
+            move: (command) => {
+                const state =
+                    command.camera === undefined
                         ? {
                               ...(command.position === undefined ? {} : { position: { ...command.position } }),
                               ...(command.target === undefined ? {} : { target: { ...command.target } }),
                           }
-                        : { preset: command.preset },
+                        : { ...command.camera };
+                return this.setCameraState(
+                    command.preset === undefined ? state : { preset: command.preset },
                     command.animate === true ? { animate: true } : undefined,
-                ),
+                );
+            },
             state: () => this.getCameraState(),
         };
 

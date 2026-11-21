@@ -670,6 +670,63 @@ describe("a version 1 document of one kind, migrated", () => {
         });
     });
 
+    it("writes each saved view's camera as the neutral pose, with no camera state members", async () => {
+        const session = await baseSession();
+        const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
+        const member = (v1.members as JsonObject[]).find((each) => each.kind === "graphty-session");
+        assert.isDefined(member);
+        member.views = [
+            {
+                // What getCameraState gives: the orbit pivot beside a position an inset shifted.
+                name: "Orbit",
+                camera: {
+                    mode: "3d",
+                    type: "arcRotate",
+                    position: { x: 50, y: 50, z: 50 },
+                    target: { x: 0, y: 0, z: 0 },
+                    pivotRotation: { x: 0, y: Math.PI, z: 0 },
+                    cameraDistance: 10,
+                    fov: 0.8,
+                },
+            },
+            { name: "Flat", camera: { pan: { x: 1, y: 2 }, zoom: 2, rotation: 0.4 } },
+            { name: "Angles", camera: { alpha: 0, beta: Math.PI / 2, radius: 4, target: { x: 1, y: 0, z: 0 } } },
+            { name: "Zoom only", camera: { zoom: 2 } },
+        ];
+        const v2 = migrateDocument1(v1, []);
+        const { view } = v2?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(view), []);
+        const [orbit, flat, angles, ...rest] = view.views as { name: string; camera: JsonObject }[];
+        assert.deepStrictEqual(Object.keys(orbit.camera), [
+            "dimension",
+            "controller",
+            "position",
+            "target",
+            "up",
+            "fov",
+        ]);
+        assert.include(orbit.camera, { dimension: 3, controller: "orbit", fov: 0.8 });
+        // Yaw pi puts the eye on +z of the target: target - 10 * (0, 0, -1).
+        const position = orbit.camera.position as { x: number; y: number; z: number };
+        assert.closeTo(position.x, 0, 1e-9);
+        assert.closeTo(position.y, 0, 1e-9);
+        assert.closeTo(position.z, 10, 1e-9);
+        assert.deepStrictEqual(flat.camera, {
+            dimension: 2,
+            controller: "2d",
+            center: { x: 1, y: 2 },
+            halfWidth: 2.5,
+            rotation: 0.4,
+        });
+        const eye = angles.camera.position as { x: number; y: number; z: number };
+        assert.closeTo(eye.x, 5, 1e-9);
+        assert.closeTo(eye.y, 0, 1e-9);
+        assert.closeTo(eye.z, 0, 1e-9);
+        assert.notProperty(angles.camera, "fov", "version 1 had none");
+        assert.deepStrictEqual(rest, [], "a 2D zoom with no pan has no center, so it is left out");
+        session.dispose();
+    });
+
     it("leaves alone what it does not migrate: a data file, an unknown kind, a version 2 file, notes with no data", () => {
         assert.isUndefined(migrateDocument1({ nodes: [], links: [] }, []));
         assert.isUndefined(migrateDocument1({ kind: "com.example.thing", version: 1 }, []));

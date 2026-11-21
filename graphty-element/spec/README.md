@@ -885,34 +885,59 @@ does not know reads as unsupported and is kept. A cite is `{ "result": <run id> 
 
 View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of:
 
-| Member          | Holds                                                                                                                               |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `camera`        | graphty-element's `CameraState` members as they are but `type`, points as `{ x, y, z }`, plus `dimension` and `controller` (rule 2) |
-| `views`         | saved views: `{ "name", "camera", "follows", "key", "filters", "layers", "hidden", "positions", "legend" }`, `camera` or `follows`  |
-| `selection`     | `{ "nodes": [...], "edges": [...] }` element references                                                                             |
-| `pinned`        | the pinned nodes only: `{ "node", "position": { "x", "y", "z" } }`                                                                  |
-| `groups`        | the collapsed groups, in the order they are collapsed again: `{ "groupBy", "group", "position", "pinned", "edges" }` (rule 8)       |
-| `sets`          | every set: `{ "id", "name", "definition" }`                                                                                         |
-| `visibility`    | `filter`, `window`, `showContext`, `conditions`, `hidden` (rule 4)                                                                  |
-| `timeline`      | `{ "at" }`, the timeline's playhead, as version 1 spells it                                                                         |
-| `viewRotation`  | degrees, -360 to 360                                                                                                                |
-| `framing`       | `{ "extent", "padding" }`, `extent` being `drawn` or `centers`                                                                      |
-| `hiddenColumns` | `{ "kind", "name" }` working columns hidden from the table view                                                                     |
-| `order`         | one list of layer ids for the whole stack, bottom first, style and view layers alike                                                |
-| `layers`        | the layers that name elements or a dataset (section 5 rule 5)                                                                       |
-| `runs`          | the single ordered list of every run record, in the order made (rule 5)                                                             |
-| `layout`        | the layout record in force: `{ id, options, dimension, drawnBy, engine }` (rule 7; `engine` 4.5 rule 6)                             |
+| Member          | Holds                                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `camera`        | the pose the file opens at: `dimension`, the pose for that dimension, and optionally `controller` and `controllers` (rule 2)         |
+| `views`         | saved views: `{ "name", "camera", "follows", "key", "filters", "layers", "hidden", "positions", "legend" }`, `camera` or `follows`   |
+| `selection`     | `{ "nodes": [...], "edges": [...] }` element references                                                                              |
+| `pinned`        | the pinned nodes only: `{ "node", "position": { "x", "y", "z" } }`                                                                   |
+| `groups`        | the collapsed groups, in the order they are collapsed again: `{ "groupBy", "group", "position", "pinned", "edges" }` (rule 8)        |
+| `sets`          | every set: `{ "id", "name", "definition" }`                                                                                          |
+| `visibility`    | `filter`, `window`, `showContext`, `conditions`, `hidden` (rule 4)                                                                   |
+| `timeline`      | `{ "at" }`, the timeline's playhead, as version 1 spells it                                                                          |
+| `viewRotation`  | degrees, -360 to 360: the project setting a new or reset 2D view starts at. The turn in force is the 2D camera's `rotation` (rule 2) |
+| `framing`       | `{ "extent", "padding" }`, `extent` being `drawn` or `centers`                                                                       |
+| `hiddenColumns` | `{ "kind", "name" }` working columns hidden from the table view                                                                      |
+| `order`         | one list of layer ids for the whole stack, bottom first, style and view layers alike                                                 |
+| `layers`        | the layers that name elements or a dataset (section 5 rule 5)                                                                        |
+| `runs`          | the single ordered list of every run record, in the order made (rule 5)                                                              |
+| `layout`        | the layout record in force: `{ id, options, dimension, drawnBy, engine }` (rule 7; `engine` 4.5 rule 6)                              |
 
 1. Positions and cameras are in the frame of section 7. Every other position is layout output.
-2. **Camera.** `dimension` (`2` or `3`, closed; it follows the layout's dimension) and
-   `controller` (`orbit` and `2d` today; an open vocabulary, a third party's controller by
-   reverse-domain name) are recorded separately. The pose is the `CameraState` members that
-   controller reads: orbit `position`, `target`, `pivotRotation`, `cameraDistance`; 2D `zoom`,
-   `pan`, `rotation`; and `fov` and the orthographic members where they apply. `controller` is the
-   authority: `CameraState`'s overlapping `type` is not written, and a reader meeting a `type`
-   that disagrees with `controller` follows `controller`. A reader
-   that does not know the controller MUST apply the members its own default controller for that
-   dimension reads, report `W_CAMERA_CONTROLLER_UNKNOWN`, and keep the camera on re-save.
+2. **Camera.** A camera is one neutral pose per dimension, in the frame of section 7, and every
+   controller reads it. `dimension` is REQUIRED: `2` or `3`, closed, following the layout's
+   dimension. A saved view's `camera` has the same shape.
+    - In 3D:
+        - `position` (REQUIRED) is the eye and `target` (REQUIRED) the point looked at; the two
+          MUST differ.
+        - `up` is OPTIONAL, default `{ "x": 0, "y": 1, "z": 0 }`. It may be any vector not
+          parallel to the line of sight: a reader uses only its part perpendicular to the line of
+          sight and treats a parallel `up` as absent.
+        - `fov` is OPTIONAL: the vertical field of view in radians, in (0, pi). Absent, the
+          reader's default applies. A 3D camera is always perspective.
+    - In 2D:
+        - `center` `{ "x", "y" }` (REQUIRED) is the world point at the view's center.
+        - `halfWidth` (REQUIRED, greater than 0) is the world units from `center` to the left and
+          right edges; the vertical extent follows the reader's aspect ratio.
+        - `rotation` is OPTIONAL, default 0: the radians the drawing is turned counterclockwise on
+          screen about `center`.
+    - `controller` is OPTIONAL: `orbit` (3D) and `2d` (2D) today (builtins.md, "Camera
+      controllers"). It is an open vocabulary, and a third party uses a reverse-domain name.
+      Absent, the reader's default controller for the dimension applies. It never changes what
+      the pose means.
+    - `controllers` is OPTIONAL: an object of controller name to object, holding state a
+      controller keeps beyond the pose. A reader reads only the entries it knows and keeps every
+      entry on re-save. An entry MUST NOT contradict the pose; where the two disagree, the pose
+      wins.
+    - A writer converts its controller's state into the pose and never writes renderer or
+      controller members (orbit angles, Euler pivots, distances, zoom factors, frustum edges)
+      beside it. The pose is the camera with no viewport insets.
+    - A reader that does not know `controller` applies the pose with its default controller for
+      the dimension, reports `W_CAMERA_CONTROLLER_UNKNOWN`, and keeps the camera, `controllers`
+      included, on re-save.
+    - When a 2D file holds both `viewRotation` and a camera `rotation`, the reader applies
+      `viewRotation` first and then the camera, so the camera's `rotation` is the turn the file
+      opens at.
 3. **Sets.** `definition` is graphty-element's set definition (`fixed`, `rule` or `path`), its node
    and edge members written as element references and its source leaves by source id. View holds
    every set in force, rule sets included whatever their rule names.
@@ -1291,9 +1316,10 @@ The test is per run: one results section can restore one run as saved and mark a
 
 Positions and cameras are in graphty-element's scene frame: Babylon.js's default, left-handed,
 y up, in layout units. A point is `{ "x", "y", "z" }`; a 2D drawing writes z as 0. A reader on a
-right-handed system (three.js, NetworkX's drawing, most GIS) mirrors z. Annotations keep their
-file's frame (y up, file units) and their `scale`. A different frame would be a new major version
-of the view section.
+right-handed system (three.js, NetworkX's drawing, most GIS) mirrors z in every point, `up`
+included. A 2D rotation is counterclockwise as seen on screen and does not change with handedness.
+Annotations keep their file's frame (y up, file units) and their `scale`. A different frame would
+be a new major version of the view section.
 
 ## 8. Saving and loading
 
@@ -1475,9 +1501,9 @@ While a section is held:
 9. **Who owns a default.**
     - A **format default** is one this specification states for a member it defines, in text or as
       a schema `default` keyword: `repeatedEdges`, a source's settings, the join step members of
-      4.1.8, `graph.filter`'s `on`, a note's `mediaType`, a view run's `replayable`, and a parse
-      option's absent value where builtins.md states one. It is frozen
-      for the section's major version. Changing it is a change of meaning (rule 4), and that
+      4.1.8, `graph.filter`'s `on`, a note's `mediaType`, a view run's `replayable`, a 3D camera's `up`
+      and a 2D camera's `rotation` (4.7 rule 2), and a parse option's absent value where
+      builtins.md states one. It is frozen for the section's major version. Changing it is a change of meaning (rule 4), and that
       version's migration writes the old default into older files. An absent mapping role means
       none.
     - Every **other default** belongs to code the format does not version: algorithm and layout
@@ -1562,7 +1588,7 @@ by ignoring a member it does not know.
 | recipe              | command `op`, algorithm keys, layout ids (arrangements), layout option names, `drawnBy` engine names, the parts of a run's `style` | an unknown `op` stops the replay unless the command says `narrows: false` (4.3 rule 7); layouts as 5 rule 9                                                            |
 | results             | layout ids, layout option names, `drawnBy` engine names                                                                            | 5 rule 9                                                                                                                                                               |
 | notes               | target kinds, item key forms                                                                                                       | the target reads unsupported and is kept                                                                                                                               |
-| view                | camera controllers                                                                                                                 | 4.7 rule 2                                                                                                                                                             |
+| view                | camera controller names and `controllers` entries                                                                                  | 4.7 rule 2                                                                                                                                                             |
 | view                | run `scope` forms                                                                                                                  | that run's replay stops; the record is kept on re-save                                                                                                                 |
 | view                | layout ids, layout option names, `drawnBy` engine names                                                                            | 5 rule 9                                                                                                                                                               |
 | style, recipe, view | rule tree leaf kinds                                                                                                               | fails the holder alone (4.8.2 rule 6)                                                                                                                                  |

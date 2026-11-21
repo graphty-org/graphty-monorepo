@@ -2,7 +2,7 @@
 
 This registry names and defines every code-backed built-in a graphty document may name: node
 shapes, arrowheads, line patterns, transitions, the fixed sequences an overflow policy steps
-through, label looks, the closed choices of the style channels, and the parse options a source
+through, label looks, the closed choices of the style channels, the camera controllers, and the parse options a source
 record may carry. A document that names one of these depends on its definition here; the
 specification (README.md, "Versions" rule 5) says that a definition never changes.
 
@@ -357,6 +357,16 @@ registry cannot check them yet; each needs an exported list before version 2 is 
 (`src/config/NodeStyle.ts`); arrow `side`, gradient `kind`, `bendCurve`, `supportModel`,
 `supportScale` and `route` (`src/config/EdgeStyle.ts`); and `runPlacement`
 (`src/session/configKeys.ts`).
+
+## Camera controllers
+
+A view camera's `controller` (README.md 4.7 rule 2) names how a reader drives the camera; it never
+changes what the pose means. Neither built-in writes a `controllers` entry.
+
+| Name    | Dimension | Definition                                                                |
+| ------- | --------- | ------------------------------------------------------------------------- |
+| `orbit` | 3         | turns about `target` and moves toward and away from it; reads the 3D pose |
+| `2d`    | 2         | pans, zooms and turns a flat drawing; reads the 2D pose                   |
 
 ## Parse options
 

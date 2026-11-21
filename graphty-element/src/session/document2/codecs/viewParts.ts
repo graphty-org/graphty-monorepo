@@ -4,10 +4,11 @@
  * cameras in both directions, and the walk that turns the ids a rule tree, a selector, a scope or a
  * set definition names into element references and back. Experimental (`save-files-v2`).
  *
- * Nothing here reaches Babylon.js, Lit or the DOM.
+ * Nothing here reaches a Babylon.js scene, Lit or the DOM.
  */
 
-import type { CameraState } from "../../../camera/types";
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "../../../camera/builtins";
+import type { CameraState, Vec3 } from "../../../camera/types";
 import { engineOptionsOf, layoutEntry } from "../../../catalog/layouts";
 import type { EdgeId, EdgeMember } from "../../../catalog/types";
 import { LayoutEngine } from "../../../layout/LayoutEngine";
@@ -171,66 +172,227 @@ export function isObject(value: unknown): value is JsonObject {
 /** The controller graphty-element drives each dimension with. */
 const DEFAULT_CONTROLLER: Readonly<Record<2 | 3, string>> = Object.freeze({ 2: "2d", 3: "orbit" });
 
-/**
- * The members either default controller reads. `CameraState`'s `type` is not among them: it
- * overlaps `controller`, which is the authority, so it is neither written nor read (spec 4.7 rule 2).
- */
-const SHARED = ["orthoLeft", "orthoRight", "orthoTop", "orthoBottom"];
+/** The up a 3D camera has when its file gives none, or gives one along the line of sight. */
+const WORLD_UP: Vec3 = Object.freeze({ x: 0, y: 1, z: 0 });
 
-/** The `CameraState` members each default controller reads, by dimension. */
-const READS: Readonly<Record<2 | 3, ReadonlySet<string>>> = Object.freeze({
-    2: new Set([...SHARED, "zoom", "pan", "rotation"]),
-    3: new Set([...SHARED, "position", "target", "pivotRotation", "cameraDistance", "fov", "alpha", "beta", "radius"]),
-});
-
-/** The `CameraState` members that are points. */
-const POINTS = new Set(["position", "target", "pivotRotation"]);
+/** How small a vector is, against the unit, to count as none: an up along the line of sight, a pole. */
+const DEGENERATE = 1e-9;
 
 /**
- * A camera member as a file writes it: a point as `{ x, y, z }` and nothing else, a number only
- * when finite.
- * @param name - The member.
- * @param value - Its value.
- * @returns The value, or undefined to leave it out.
+ * A point as a file writes it: `{ x, y, z }` and nothing else, every axis finite.
+ * @param value - The value.
+ * @returns The point, or undefined.
  */
-function memberJson(name: string, value: unknown): unknown {
-    if (POINTS.has(name) || name === "pan") {
-        const point = value as { x?: unknown; y?: unknown; z?: unknown } | undefined;
-        const axes = name === "pan" ? ["x", "y"] : ["x", "y", "z"];
-        const out = Object.fromEntries(axes.map((axis) => [axis, point?.[axis as "x"]]));
-        return Object.values(out).every((each) => typeof each === "number" && Number.isFinite(each)) ? out : undefined;
+function point3(value: unknown): Vec3 | undefined {
+    if (!isObject(value)) {
+        return undefined;
     }
 
-    if (typeof value === "number") {
-        return Number.isFinite(value) ? value : undefined;
-    }
-
-    return typeof value === "string" ? value : undefined;
+    const { x, y, z } = value;
+    return [x, y, z].every((axis) => typeof axis === "number" && Number.isFinite(axis))
+        ? { x: x as number, y: y as number, z: z as number }
+        : undefined;
 }
 
 /**
- * A camera state as a view section writes it: `dimension` and `controller`, then the
- * `CameraState` members as they are (spec 4.7 rule 2).
+ * A 2D point as a file writes it: `{ x, y }`, both finite.
+ * @param value - The value.
+ * @returns The point, or undefined.
+ */
+function point2(value: unknown): { x: number; y: number } | undefined {
+    if (!isObject(value)) {
+        return undefined;
+    }
+
+    const { x, y } = value;
+    return typeof x === "number" && Number.isFinite(x) && typeof y === "number" && Number.isFinite(y)
+        ? { x, y }
+        : undefined;
+}
+
+/**
+ * A finite number, or undefined.
+ * @param value - The value.
+ * @returns The number.
+ */
+function finite(value: unknown): number | undefined {
+    return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/**
+ * A field of view a file can hold: in (0, pi).
+ * @param value - The value.
+ * @returns The field of view, or undefined.
+ */
+function fovOf(value: unknown): number | undefined {
+    return typeof value === "number" && value > 0 && value < Math.PI ? value : undefined;
+}
+
+const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
+
+const between = (a: Vec3, b: Vec3): number => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+
+/**
+ * Turn a vector the way a pivot turned by (yaw, pitch, roll) turns it: roll about z, then pitch
+ * about x, then yaw about y, in the left-handed scene frame (Babylon.js's
+ * `Quaternion.RotationYawPitchRoll`, which `src/camera/orientation.ts` turns the orbit pivot with).
+ * @param v - The vector.
+ * @param angles - Pitch (x), yaw (y) and roll (z), in radians.
+ * @returns The turned vector.
+ */
+function turn(v: Vec3, angles: Vec3): Vec3 {
+    const [cr, sr] = [Math.cos(angles.z), Math.sin(angles.z)];
+    const [cp, sp] = [Math.cos(angles.x), Math.sin(angles.x)];
+    const [cy, sy] = [Math.cos(angles.y), Math.sin(angles.y)];
+    const rolled = { x: v.x * cr - v.y * sr, y: v.x * sr + v.y * cr, z: v.z };
+    const pitched = { x: rolled.x, y: rolled.y * cp - rolled.z * sp, z: rolled.y * sp + rolled.z * cp };
+    return { x: pitched.x * cy + pitched.z * sy, y: pitched.y, z: -pitched.x * sy + pitched.z * cy };
+}
+
+/**
+ * The neutral pose of an orbit pivot: the camera sits on the pivot's local -z axis, `distance`
+ * from `target`, with the pivot's local +y as its up.
+ * @param target - The pivot's position, the point looked at.
+ * @param pivotRotation - Pitch (x), yaw (y) and roll (z), in radians.
+ * @param distance - How far the camera is from the target.
+ * @returns The eye and the up.
+ */
+export function poseOfPivot(target: Vec3, pivotRotation: Vec3, distance: number): { position: Vec3; up: Vec3 } {
+    const forward = turn({ x: 0, y: 0, z: 1 }, pivotRotation);
+    return {
+        position: {
+            x: target.x - distance * forward.x,
+            y: target.y - distance * forward.y,
+            z: target.z - distance * forward.z,
+        },
+        up: turn(WORLD_UP, pivotRotation),
+    };
+}
+
+/**
+ * The orbit pivot rotation that puts the camera at `position` looking at `target` with `up`: the
+ * inverse of {@link poseOfPivot}. Yaw and pitch follow `orientationFromPose` (straight above or
+ * below the target the yaw is pi); the roll is the signed angle from the unrolled up to `up`'s part
+ * across the line of sight. An `up` that is missing or along the line of sight is the world up,
+ * and where that too is along the line of sight (at a pole) the roll is 0.
+ * @param position - The eye.
+ * @param target - The point looked at; differs from `position`.
+ * @param up - Which way is up, when the pose says.
+ * @returns Pitch (x), yaw (y) and roll (z), in radians.
+ */
+export function pivotOfPose(position: Vec3, target: Vec3, up?: Vec3): Vec3 {
+    const dx = position.x - target.x;
+    const dy = position.y - target.y;
+    const dz = position.z - target.z;
+    const distance = Math.hypot(dx, dy, dz);
+    const pole = Math.hypot(dx, dz) < DEGENERATE * distance;
+    const yaw = pole ? Math.PI : Math.atan2(dx, dz) + Math.PI;
+    const pitch = pole ? Math.sign(dy) * (Math.PI / 2) : Math.asin(Math.max(-1, Math.min(1, dy / distance)));
+    const unrolled = { x: pitch, y: yaw, z: 0 };
+    const forward = turn({ x: 0, y: 0, z: 1 }, unrolled);
+    const across = (v: Vec3): Vec3 | undefined => {
+        const along = dot(v, forward);
+        const out = { x: v.x - along * forward.x, y: v.y - along * forward.y, z: v.z - along * forward.z };
+        return Math.hypot(out.x, out.y, out.z) > DEGENERATE * Math.hypot(v.x, v.y, v.z) ? out : undefined;
+    };
+    const seen = (up === undefined ? undefined : across(up)) ?? across(WORLD_UP);
+    if (seen === undefined) {
+        return unrolled;
+    }
+
+    // Rolling by r turns the unrolled up toward minus the unrolled right: cos r up0 - sin r right0.
+    const up0 = turn(WORLD_UP, unrolled);
+    const right0 = turn({ x: 1, y: 0, z: 0 }, unrolled);
+    return { x: pitch, y: yaw, z: Math.atan2(-dot(seen, right0), dot(seen, up0)) };
+}
+
+/**
+ * Which dimension a camera state is for: its `mode`, else 2D when it holds a 2D member.
+ * @param state - The state.
+ * @returns 2 or 3.
+ */
+function dimensionOf(state: CameraState): 2 | 3 {
+    if (state.mode !== undefined) {
+        return state.mode === "2d" ? 2 : 3;
+    }
+
+    return state.zoom !== undefined || state.pan !== undefined || state.rotation !== undefined ? 2 : 3;
+}
+
+/**
+ * A 3D camera state as the neutral pose: an orbit pivot's own pose, which leaves out the shift a
+ * viewport inset puts in the camera's world position, else its position and target.
+ * @param state - The state.
+ * @returns The camera, or undefined with no pose.
+ */
+function pose3Json(state: CameraState): JsonObject | undefined {
+    const orbit = orbitAnglesToPosition(state);
+    const target = point3(orbit.target);
+    const pivot = point3(orbit.pivotRotation);
+    const distance = finite(orbit.cameraDistance);
+    let position: Vec3 | undefined;
+    let up: Vec3 = WORLD_UP;
+    if (target !== undefined && pivot !== undefined && distance !== undefined && distance > 0) {
+        ({ position, up } = poseOfPivot(target, pivot, distance));
+    } else {
+        position = point3(orbit.position);
+    }
+
+    if (target === undefined || position === undefined || between(position, target) <= 0) {
+        return undefined;
+    }
+
+    const fov = fovOf(state.fov);
+    return {
+        dimension: 3,
+        controller: DEFAULT_CONTROLLER[3],
+        position: { ...position },
+        target,
+        up: { ...up },
+        ...(fov === undefined ? {} : { fov }),
+    };
+}
+
+/**
+ * A 2D camera state as the neutral pose: the center, the half width and the turn.
+ * @param state - The state.
+ * @returns The camera, or undefined with no pose.
+ */
+function pose2Json(state: CameraState): JsonObject | undefined {
+    const center = point2(state.pan);
+    const left = finite(state.orthoLeft);
+    const right = finite(state.orthoRight);
+    const zoom = finite(state.zoom);
+    let halfWidth: number | undefined;
+    if (left !== undefined && right !== undefined && right > left) {
+        halfWidth = (right - left) / 2;
+    } else if (zoom !== undefined && zoom > 0) {
+        halfWidth = FLAT_HALF_WIDTH_AT_ZOOM_ONE / zoom;
+    }
+
+    if (center === undefined || halfWidth === undefined) {
+        return undefined;
+    }
+
+    const rotation = finite(state.rotation);
+    return {
+        dimension: 2,
+        controller: DEFAULT_CONTROLLER[2],
+        center,
+        halfWidth,
+        ...(rotation === undefined ? {} : { rotation }),
+    };
+}
+
+/**
+ * A camera state as a view section writes it: the neutral pose of its dimension, and the
+ * controller graphty-element drives that dimension with (spec 4.7 rule 2). No `controllers` entry
+ * is written.
  * @param state - The camera state.
  * @returns The camera, or undefined for a state with no pose a reader could apply.
  */
 export function cameraJson(state: CameraState): JsonObject | undefined {
-    const dimension = state.zoom !== undefined || state.pan !== undefined ? 2 : 3;
-    const members = Object.fromEntries(
-        Object.entries(state).flatMap(([name, value]) => {
-            const written = name === "type" ? undefined : memberJson(name, value);
-            return written === undefined ? [] : [[name, written]];
-        }),
-    );
-    const posed =
-        dimension === 2
-            ? typeof members.zoom === "number" && members.zoom > 0
-            : members.target !== undefined || members.position !== undefined;
-    if (!posed || (members.fov !== undefined && (members.fov as number) <= 0)) {
-        return undefined;
-    }
-
-    return { dimension, controller: DEFAULT_CONTROLLER[dimension], ...members };
+    return dimensionOf(state) === 2 ? pose2Json(state) : pose3Json(state);
 }
 
 /** A camera as read: the state to apply, and whether its controller is one this reader knows. */
@@ -241,26 +403,59 @@ export interface ReadCamera {
 }
 
 /**
- * A view section's camera as a camera state. An unknown controller gives only the members the
- * default controller of its dimension reads.
+ * The camera state a pose asks for.
+ * @param camera - The camera as the file holds it.
+ * @param dimension - Its dimension.
+ * @returns The state, or undefined when the pose is incomplete.
+ */
+function stateOfPose(camera: JsonObject, dimension: 2 | 3): CameraState | undefined {
+    if (dimension === 2) {
+        const center = point2(camera.center);
+        const halfWidth = finite(camera.halfWidth);
+        return center === undefined || halfWidth === undefined || halfWidth <= 0
+            ? undefined
+            : { pan: center, zoom: FLAT_HALF_WIDTH_AT_ZOOM_ONE / halfWidth, rotation: finite(camera.rotation) ?? 0 };
+    }
+
+    const position = point3(camera.position);
+    const target = point3(camera.target);
+    const distance = position === undefined || target === undefined ? 0 : between(position, target);
+    if (position === undefined || target === undefined || distance <= 0 || !Number.isFinite(distance)) {
+        return undefined;
+    }
+
+    const fov = fovOf(camera.fov);
+    return {
+        position,
+        target,
+        pivotRotation: pivotOfPose(position, target, point3(camera.up)),
+        cameraDistance: distance,
+        ...(fov === undefined ? {} : { fov }),
+    };
+}
+
+/**
+ * A view section's camera as a camera state: the whole pose of its dimension, whatever its
+ * controller. `controllers` is not read; it is kept with the rest of the camera on re-save.
  * @param camera - The camera as the file holds it.
  * @returns The state, or undefined for a camera this reader cannot apply.
  */
 export function cameraOf(camera: unknown): ReadCamera | undefined {
-    if (!isObject(camera) || typeof camera.controller !== "string") {
+    if (!isObject(camera)) {
         return undefined;
     }
 
-    const { dimension, controller } = camera;
+    const { dimension } = camera;
     if (dimension !== 2 && dimension !== 3) {
         return undefined;
     }
 
-    const reads = READS[dimension];
-    const state = Object.fromEntries(
-        Object.entries(camera).filter(([name, value]) => reads.has(name) && memberJson(name, value) !== undefined),
-    ) as CameraState;
-    return { state, known: DEFAULT_CONTROLLER[dimension] === controller, controller };
+    const controller =
+        typeof camera.controller === "string" && camera.controller !== ""
+            ? camera.controller
+            : DEFAULT_CONTROLLER[dimension];
+    const state = stateOfPose(camera, dimension);
+    return state === undefined ? undefined : { state, known: DEFAULT_CONTROLLER[dimension] === controller, controller };
 }
 
 // ---------------------------------------------------------------------------------------------

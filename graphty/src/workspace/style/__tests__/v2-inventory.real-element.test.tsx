@@ -38,7 +38,7 @@ import { ruleOf } from "../v2/lineWrites";
 import { ITEM_LISTS, LISTS } from "../v2/lists";
 import { EDGE_RUBRIC, type LineSpec, NODE_RUBRIC, segmentOptions, SHAPE_REPLACE_RUBRIC } from "../v2/rubric";
 import { SECTIONS, type ThingSpec } from "../v2/things";
-import { BASE_CHANNELS, BASE_LABEL_FIELDS, OWNER_REQUESTED } from "./allowed-styles";
+import { BASE_CHANNELS, BASE_LABEL_FIELDS, FILE_TEXT_LOOKS, OWNER_REQUESTED } from "./allowed-styles";
 import { openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 type Side = "node" | "edge";
@@ -97,6 +97,10 @@ const KNOWN_CHANNEL_GAPS: readonly string[] = [
     "node.tooltipSize",
     "node.tooltipColor",
     "node.tooltipBackground",
+    // The edge tooltip's look, as the node tooltip's above (ia-design 5, fix 2).
+    "edge.tooltipSize",
+    "edge.tooltipColor",
+    "edge.tooltipBackground",
     "node.labels",
     "node.xlabelLocation",
     "node.xlabelOffsetX",
@@ -223,6 +227,9 @@ const KNOWN_LABEL_FIELD_GAPS: readonly string[] = [
     "node.tooltipStyle.sizePx",
     "node.tooltipStyle.color",
     "node.tooltipStyle.background",
+    "edge.tooltipStyle.sizePx",
+    "edge.tooltipStyle.color",
+    "edge.tooltipStyle.background",
     "edge.labelStyle.font",
     "edge.labelStyle.sizePx",
     "edge.labelStyle.letterSize",
@@ -678,8 +685,8 @@ describe("Style panel v2's style inventory", () => {
     });
 
     it("2. every label style field of every text kind has a line, varying by data where it can", () => {
-        assert.lengthOf(TEXT_KINDS, 7, "seven text kinds");
-        assert.equal(TEXT_KINDS.length * LABEL_STYLE_FIELDS.length, 630, "630 label styles");
+        assert.lengthOf(TEXT_KINDS, 8, "eight text kinds");
+        assert.equal(TEXT_KINDS.length * LABEL_STYLE_FIELDS.length, 720, "720 label styles");
         // Every field has a line (task 5.6), so every gap left below is a missing By data (task 6.6).
         assert.deepEqual(
             LABEL_STYLE_FIELDS.filter((field) => !LABEL_COVERED.has(field)),
@@ -855,6 +862,7 @@ vec4 shade(NodeInput n) {
             ...BASE_CHANNELS,
             ...fileStyleChannels(),
             ...OWNER_REQUESTED.map(({ channel }) => channel),
+            ...FILE_TEXT_LOOKS,
         ]);
         const fields = new Set<string>(BASE_LABEL_FIELDS);
         // What v2 writes: every channel it has a control for, and the companions a "+" starts with.

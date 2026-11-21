@@ -357,6 +357,9 @@ const DECLARED = [
     "edge.labelSize",
     "edge.labelColor",
     "edge.labelBackground",
+    "edge.tooltipSize",
+    "edge.tooltipColor",
+    "edge.tooltipBackground",
     "edge.arrowHeadTextBackground",
     "edge.arrowTailTextBackground",
     "edge.labelLetterSize",
@@ -407,6 +410,8 @@ const DECLARED = [
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
     "edge.labelTable",
+    "edge.tooltip",
+    "edge.tooltipStyle",
     "edge.xlabel",
     "edge.xlabelStyle",
     "edge.xlabelLocation",
@@ -438,9 +443,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and eleven node channels and one hundred and seventy-two edge channels", () => {
+    it("splits into two hundred and eleven node channels and one hundred and seventy-seven edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 211);
-        assert.strictEqual(channelsFor("edge").length, 172);
+        assert.strictEqual(channelsFor("edge").length, 177);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -502,24 +507,25 @@ describe("what the element can really draw", () => {
         assert.notInclude(LABEL_STYLE_FIELDS as string[], "wrap");
     });
 
-    it("says on both tooltip channels that a tooltip is hover-only, and that an edge has none", () => {
-        // Two things a consumer meets as silence otherwise. A tooltip is drawn on hover, so a
-        // layer that writes one changes nothing on a graph at rest -- which looks exactly like a
-        // layer that never landed. And `edge.tooltip` was published through 1.x and withdrawn in
-        // 2.0, so somebody who had one needs to be told where it went by the channels that are
-        // left rather than by a parse error alone.
-        for (const channel of ["node.tooltip", "node.tooltipStyle"] as const) {
+    it("says on every tooltip channel that a tooltip is hover-only, for a node and an edge alike", () => {
+        // A tooltip is drawn on hover, so a layer that writes one changes nothing on a graph at
+        // rest -- which looks exactly like a layer that never landed.
+        for (const channel of ["node.tooltip", "node.tooltipStyle", "edge.tooltip", "edge.tooltipStyle"] as const) {
             const { caveat } = CHANNEL_DESCRIPTORS[channel];
 
             assert.isDefined(caveat, channel);
             assert.include(caveat, "hover", channel);
-            assert.include(caveat, "edge.tooltip", channel);
         }
 
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.tooltip"].stylePath, "tooltip.text");
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.tooltipStyle"].stylePath, "tooltip");
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.tooltipStyle"].accepts, "labelStyle");
-        assert.isFalse(isChannel("edge.tooltip"));
+        for (const target of ["node", "edge"] as const) {
+            assert.strictEqual(CHANNEL_DESCRIPTORS[`${target}.tooltip`].stylePath, "tooltip.text");
+            assert.strictEqual(CHANNEL_DESCRIPTORS[`${target}.tooltipStyle`].stylePath, "tooltip");
+            assert.strictEqual(CHANNEL_DESCRIPTORS[`${target}.tooltipStyle`].accepts, "labelStyle");
+            // the same size, color and background channels as a node's tooltip
+            for (const look of ["Size", "Color", "Background"] as const) {
+                assert.isTrue(isChannel(`${target}.tooltip${look}`), `${target}.tooltip${look}`);
+            }
+        }
     });
 
     it("says what a caption at the end of an arrow narrows, on all four of its channels", () => {
@@ -680,6 +686,9 @@ describe("what a style editor needs to draw a row", () => {
         "edge.xlabelOffsetX",
         "edge.xlabelOffsetY",
         "node.tooltipStyle",
+        // Unset, an edge has no tooltip.
+        "edge.tooltip",
+        "edge.tooltipStyle",
         "node.marker",
         // Unset, a node's width, height and depth follow its size and its shape's proportions.
         "node.width",
@@ -999,6 +1008,8 @@ describe("colour channels", () => {
             "node.tooltipBackground",
             "edge.labelColor",
             "edge.labelBackground",
+            "edge.tooltipColor",
+            "edge.tooltipBackground",
             "edge.arrowHeadTextBackground",
             "edge.arrowTailTextBackground",
             "edge.labelOutline",
@@ -1314,6 +1325,11 @@ describe("ChannelDescriptor.drawnWhen", () => {
         "node.tooltipSize": "drawn on hover: the condition is the pointer, not a channel",
         "node.tooltipColor": "drawn on hover: the condition is the pointer, not a channel",
         "node.tooltipBackground": "drawn on hover: the condition is the pointer, not a channel",
+        "edge.tooltip": "drawn on hover: the condition is the pointer, not a channel",
+        "edge.tooltipStyle": "drawn on hover: the condition is the pointer, not a channel",
+        "edge.tooltipSize": "drawn on hover: the condition is the pointer, not a channel",
+        "edge.tooltipColor": "drawn on hover: the condition is the pointer, not a channel",
+        "edge.tooltipBackground": "drawn on hover: the condition is the pointer, not a channel",
         "node.borderColor": "turns to face the camera in 3D; drawn in both views",
         "node.borderWidth": "turns to face the camera in 3D; drawn in both views",
         "node.borderOpacity": "turns to face the camera in 3D; drawn in both views",
@@ -1649,6 +1665,7 @@ describe("textFieldOf", () => {
         "node.xlabel",
         "edge.xlabel",
         "edge.label",
+        "edge.tooltip",
         "edge.arrowHeadText",
         "edge.arrowTailText",
     ] as const;

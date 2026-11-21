@@ -455,22 +455,11 @@ const LineStyle = z.strictObject({
 /**
  * Everything a style layer can say about how one edge is drawn.
  *
- * TWO FIELDS WERE WITHDRAWN IN 2.0, and both were declared here and drawn by nothing.
- *
- * `tooltip` was a full rich-text block, published through 1.x as a channel and never drawn in
- * any released version: a tooltip appears on hover, and an edge cannot be hovered, because
- * `Edge.ts` sets `isPickable = false` in three places and `PatternedLineMesh` declares it false
- * as a field -- the same fact that leaves the element with no `edge-click` event. Keeping the
- * field would have gone on publishing sixty-two settings that reach no pixel.
- *
- * `enabled` was a switch superseded by the session's visibility mask, which is what decides
- * whether an edge is drawn. Nothing read it. Only the label block's own `enabled` is read, and
- * that one stays.
- *
- * Both removals are recorded in `WITHDRAWN_CAPABILITIES` in `src/catalog/unreachable.ts`, with
- * what a consumer who wrote either one should do instead. This object is strict, so a style
- * document that still carries either key is now a parse error rather than a silent no-op --
- * which is the point of removing them in a major rather than leaving them accepted and ignored.
+ * `enabled` was withdrawn in 2.0: a switch superseded by the session's visibility mask, which is what
+ * decides whether an edge is drawn. Nothing read it. Only the label block's own `enabled` is read, and
+ * that one stays. The removal is recorded in `WITHDRAWN_CAPABILITIES` in `src/catalog/unreachable.ts`.
+ * This object is strict, so a style document that still carries it is a parse error rather than a
+ * silent no-op.
  */
 export const EdgeStyle = z.strictObject({
     arrowHead: ArrowStyle.optional(),
@@ -492,6 +481,17 @@ export const EdgeStyle = z.strictObject({
      * centered where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
      */
     xlabel: RichTextStyle.optional(),
+    /**
+     * Words drawn beside the line's middle while the pointer is over the line, and only then, switched on by its
+     * words (the `edge.tooltip` channel). Unset, it is black on a white panel up and right of the middle, as a
+     * node's tooltip is beside its node.
+     * @since 3.63.0
+     */
+    tooltip: RichTextStyle.prefault({
+        location: "top-right",
+        textColor: "#000000",
+        backgroundColor: "#FFFFFF",
+    }).optional(),
     /**
      * False stops drawing the edge (its line, caps and words) and nothing else: it stays in the
      * graph, counted, selectable and measured. The `edge.visible` channel writes it.

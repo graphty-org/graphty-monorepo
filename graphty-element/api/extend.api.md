@@ -839,6 +839,7 @@ export class Edge {
         options: BundleOptions;
     } | undefined;
     getInterceptPoints(): InterceptPoint;
+    hideTooltip(): void;
     readonly id: string;
     get index(): number;
     invalidatePositionCache(): void;
@@ -866,6 +867,7 @@ export class Edge {
     setSelected(selected: boolean): boolean;
     // @internal
     shaderDataChanged(): void;
+    showTooltip(): void;
     // (undocumented)
     readonly srcId: NodeIdType;
     get srcNode(): Node_2;
@@ -876,6 +878,8 @@ export class Edge {
     supportEdge(centerOf?: (node: Node_2) => Readonly<Vector3>): SupportEdge | null;
     // @internal
     togglesOwnMeshes(): boolean;
+    tooltip: RichTextLabel | null;
+    get tooltipText(): string | undefined;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     // @internal

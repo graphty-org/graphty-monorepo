@@ -71,6 +71,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "node.shape": ["shape"],
     "node.label": ["label"],
     "node.tooltip": ["tooltip"],
+    "edge.tooltip": ["tooltip"],
     "node.xlabel": ["xlabel"],
     "node.labelDeclutter": ["labelAvoidOverlap"],
     "node.labelTextAlign": ["labelTextAlign"],

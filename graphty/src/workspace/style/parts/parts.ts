@@ -596,6 +596,12 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     main: ["edge.xlabel"],
                     tail: ["edge.xlabelStyle", "edge.xlabelLocation", "edge.xlabelOffsetX", "edge.xlabelOffsetY"],
                 },
+                {
+                    id: "tooltip",
+                    name: "Tooltip",
+                    main: ["edge.tooltip"],
+                    tail: ["edge.tooltipStyle", "edge.tooltipSize", "edge.tooltipColor", "edge.tooltipBackground"],
+                },
             ],
         },
         {

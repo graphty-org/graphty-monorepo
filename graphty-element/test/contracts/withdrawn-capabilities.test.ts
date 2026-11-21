@@ -23,7 +23,7 @@ import { assert, describe, it } from "vitest";
 import { WITHDRAWN_CAPABILITIES } from "../../src/catalog/unreachable";
 import { EdgeStyle } from "../../src/config/EdgeStyle";
 import { NodeStyle } from "../../src/config/NodeStyle";
-import { CHANNELS, isChannel } from "../../src/session/styles/channels";
+import { isChannel } from "../../src/session/styles/channels";
 
 /**
  * How to prove one withdrawn subject is really gone, keyed by the subject as it was published.
@@ -32,22 +32,6 @@ import { CHANNELS, isChannel } from "../../src/session/styles/channels";
  * boolean, so a failure here says what came back rather than that something did.
  */
 const PROBES: Readonly<Record<string, () => string | null>> = {
-    "edge.tooltip": () => {
-        if (isChannel("edge.tooltip")) {
-            return (
-                "`edge.tooltip` is a channel again. Nothing draws an edge tooltip -- an edge " +
-                "cannot be hovered -- so if it has been republished, the entry in " +
-                "WITHDRAWN_CAPABILITIES is now false and something has to go."
-            );
-        }
-
-        const parsed = EdgeStyle.safeParse({ tooltip: { enabled: true, text: "anything at all" } });
-
-        return parsed.success
-            ? "EdgeStyle accepts a `tooltip` block again, so sixty-two settings that reach no " +
-                  "pixel are being published alongside the ones that work."
-            : null;
-    },
     "NodeStyle.enabled": () => {
         const parsed = NodeStyle.safeParse({ enabled: true });
 
@@ -106,20 +90,5 @@ describe("the capabilities 2.0 withdrew", () => {
 
             assert.isNull(still, `${entry.subject}: ${String(still)}`);
         }
-    });
-
-    it("leaves no channel behind on an edge that could only be drawn on hover", () => {
-        // The one fact the whole edge-tooltip withdrawal rests on, checked here so that restoring
-        // the channel without building edge picking first fails something.
-        const edgeChannels = CHANNELS.filter((channel) => channel.startsWith("edge."));
-
-        assert.notInclude(
-            edgeChannels,
-            "edge.tooltip" as never,
-            "an edge cannot be hovered: src/Edge.ts sets isPickable = false in three places and " +
-                "PatternedLineMesh declares it false, which is the same fact src/events.ts gives " +
-                "as the reason there is no edge-click event. A hover-only channel on an edge " +
-                "cannot be anything but a documented lie until that changes.",
-        );
     });
 });

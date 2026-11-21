@@ -532,6 +532,11 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.xlabelLocation": "content",
     "edge.xlabelOffsetX": "content",
     "edge.xlabelOffsetY": "content",
+    "edge.tooltip": "content",
+    "edge.tooltipStyle": "content",
+    "edge.tooltipSize": "content",
+    "edge.tooltipColor": "content",
+    "edge.tooltipBackground": "content",
 });
 
 /**

@@ -2239,6 +2239,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             label: RENDER,
             xlabelLabel: RENDER,
             extraLabels: RENDER,
+            tooltip: RENDER,
+            showTooltip: RENDER,
+            hideTooltip: RENDER,
+            tooltipText: READ,
             // What the edge hands the bundler: its end positions and bundle options, read only.
             forceBundleInput: READ,
             arrowHeadText: RENDER,

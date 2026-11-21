@@ -755,6 +755,11 @@ export interface ChannelValues {
     "edge.xlabelLocation": LabelLocation;
     "edge.xlabelOffsetX": number;
     "edge.xlabelOffsetY": number;
+    "edge.tooltip": string;
+    "edge.tooltipStyle": LabelStyle;
+    "edge.tooltipSize": number;
+    "edge.tooltipColor": ColorValue;
+    "edge.tooltipBackground": ColorValue;
 }
 
 /**
@@ -790,6 +795,8 @@ export type ColorChannel =
     | "edge.arrowTailColor"
     | "edge.labelColor"
     | "edge.labelBackground"
+    | "edge.tooltipColor"
+    | "edge.tooltipBackground"
     | "edge.arrowHeadTextColor"
     | "edge.arrowHeadTextBackground"
     | "edge.arrowTailTextColor"
@@ -1291,16 +1298,24 @@ const ARROW_CAPTION_CAVEAT =
  * written with no `node.tooltip` beneath it says how a tooltip should look without asking for
  * one, and nothing is drawn.
  *
- * AN EDGE HAS NO TOOLTIP. `edge.tooltip` was published through 1.x, drawn by nothing in any
- * released version, and withdrawn in 2.0 -- an edge cannot be hovered at all, which is the same
- * fact that leaves the element with no `edge-click` event. The record is `WITHDRAWN_CAPABILITIES`
- * in `src/catalog/unreachable.ts`.
+ * An edge has the same tooltip (`edge.tooltip`, {@link EDGE_TOOLTIP_CAVEAT}): it is drawn while the pointer is over
+ * the edge's line, as the pointer cursor already says a line can be clicked there.
  */
 const NODE_TOOLTIP_CAVEAT =
     "A tooltip is drawn on hover and only on hover, so a graph at rest shows none: a layer that " +
     "writes one changes nothing until a reader points at the node. The words are what switch it " +
-    "on, so a layer that writes only the tooltip's appearance and no words draws nothing. " +
-    "Only a NODE has a tooltip; `edge.tooltip` was withdrawn in 2.0 because an edge cannot be hovered.";
+    "on, so a layer that writes only the tooltip's appearance and no words draws nothing.";
+
+/**
+ * What an edge tooltip narrows: the node tooltip's terms, with the line in place of the node. It is
+ * drawn beside the line's middle while the pointer is over the line (the place a click selects the
+ * edge), and taken down when the pointer leaves it.
+ */
+const EDGE_TOOLTIP_CAVEAT =
+    "A tooltip is drawn on hover and only on hover, so a graph at rest shows none: a layer that " +
+    "writes one changes nothing until a reader points at the edge's line. It is drawn beside the " +
+    "line's middle. The words are what switch it on, so a layer that writes only the tooltip's " +
+    "appearance and no words draws nothing.";
 
 /**
  * The colour an edge's line is drawn in by default, which is also the colour of both arrow caps:
@@ -2203,7 +2218,12 @@ const OTHER_TEXT_FIELDS: ReadonlyMap<string, { readonly into: Channel; readonly 
             ["Color", "color"],
             ["Background", "background"],
         ] as const
-    ).map(([suffix, field]): TextField => [`node.tooltip${suffix}`, { into: "node.tooltipStyle", field }]),
+    ).flatMap(([suffix, field]): TextField[] =>
+        (["node", "edge"] as const).map((target): TextField => [
+            `${target}.tooltip${suffix}`,
+            { into: `${target}.tooltipStyle` as Channel, field },
+        ]),
+    ),
     ...(["node", "edge"] as const).flatMap((target) =>
         (
             [
@@ -2461,6 +2481,7 @@ const LOOK_AND_VISIBILITY = {
         caveat: VISIBLE_CAVEAT,
     } satisfies ChannelDescriptor,
     ...textLookChannels("edge.label", "edge", "label", "Edge Label", "Label"),
+    ...textLookChannels("edge.tooltip", "edge", "tooltip", "Edge Tooltip", "Tooltip", EDGE_TOOLTIP_CAVEAT, "#FFFFFF"),
     ...textLookChannels(
         "edge.arrowHeadText",
         "edge",
@@ -5345,6 +5366,28 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "the words, with no margin or padding round it, and the label's border stands for the table's own " +
             "outline. Pictures in cells are not drawn.",
     },
+    "edge.tooltip": {
+        channel: "edge.tooltip",
+        target: "edge",
+        plainName: "Edge Tooltip",
+        shortName: "Tooltip",
+        group: "text",
+        accepts: "text",
+        stylePath: "tooltip.text",
+        renderable: true,
+        caveat: EDGE_TOOLTIP_CAVEAT,
+    },
+    "edge.tooltipStyle": {
+        channel: "edge.tooltipStyle",
+        target: "edge",
+        plainName: "Edge Tooltip Style",
+        shortName: "Tooltip style",
+        group: "text",
+        accepts: "labelStyle",
+        stylePath: "tooltip",
+        renderable: true,
+        caveat: EDGE_TOOLTIP_CAVEAT,
+    },
     "edge.xlabel": {
         channel: "edge.xlabel",
         target: "edge",
@@ -5465,7 +5508,7 @@ const DECLARED_MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>
             `edge.arrow${end}Text` as Channel,
         ]),
     ]),
-    ...(["node.label", "node.tooltip", "edge.label"] as const).flatMap((base) =>
+    ...(["node.label", "node.tooltip", "edge.label", "edge.tooltip"] as const).flatMap((base) =>
         ["Style", "Size", "Color", "Background"].map((suffix): [string, Channel] => [`${base}${suffix}`, base]),
     ),
 ]);

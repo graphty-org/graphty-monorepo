@@ -850,6 +850,8 @@ export class Graph implements GraphContext {
         this.eventManager.emit(loaded ? "skybox-loaded" : "skybox-failed", { graph: this, url });
     };
     #autoFrame = true;
+    /** The edge whose tooltip is on screen, because the pointer is over its line: see {@link hoverEdgeTooltip}. */
+    #tooltipEdge: EdgeId | undefined;
     /** Whether the wheel zooms toward the pointer; see {@link setZoomToPointer}. */
     #zoomToPointer = false;
     /** How the 3D nodes are lit; see {@link setLighting}. */
@@ -1868,11 +1870,12 @@ export class Graph implements GraphContext {
             this.updateManager.holdSelectionFollow(pivoted ? [...stayed, ...left] : []);
             pivoted = false;
         });
-        // The pointer left the graph: no node is under it, whatever node it last crossed.
+        // The pointer left the graph: no node is under it, whatever node it last crossed, and no line.
         this.element.addEventListener(
             "pointerleave",
             () => {
                 this.session.selection.hover(null);
+                this.hoverEdgeTooltip(undefined);
             },
             { signal: this.#teardown.signal },
         );
@@ -5832,17 +5835,19 @@ export class Graph implements GraphContext {
         // The newest move whose answer was heard: an older read landing later is dropped, but a
         // pointer that keeps moving still hears each read one late, instead of never (#8016).
         let edgeHoverHeard = 0;
+        // The same read draws an edge's tooltip (`edge.tooltip`) while the pointer is over its line.
         this.scene.onPointerObservable.add((pointerInfo) => {
             const move = ++edgeHoverMoves;
             const canvas = this.scene.getEngine().getInputElement();
             const { buttons } = pointerInfo.event as { buttons?: number };
-            if (
-                !canvas ||
-                this.scene.doNotHandleCursors ||
-                (buttons ?? 0) !== 0 ||
-                canvas.style.cursor === this.scene.hoverCursor ||
-                this.scene.metadata?.xrHelper?.baseExperience?.state === 2
-            ) {
+            if (!canvas || (buttons ?? 0) !== 0 || this.scene.metadata?.xrHelper?.baseExperience?.state === 2) {
+                return;
+            }
+
+            // Over a node (whose pointer triggers set `hoverCursor`), no line is pointed at.
+            if (canvas.style.cursor === this.scene.hoverCursor) {
+                edgeHoverHeard = move;
+                this.hoverEdgeTooltip(undefined);
                 return;
             }
 
@@ -5852,7 +5857,8 @@ export class Graph implements GraphContext {
                 }
 
                 edgeHoverHeard = move;
-                if (edgeId !== undefined) {
+                this.hoverEdgeTooltip(edgeId);
+                if (edgeId !== undefined && !this.scene.doNotHandleCursors) {
                     canvas.style.cursor = this.scene.hoverCursor;
                 }
             };
@@ -7319,6 +7325,26 @@ export class Graph implements GraphContext {
      * object of its own to pick, restyle or rebuild. Every edge while all are built.
      * @returns They.
      */
+    /**
+     * Show the tooltip of the edge whose line the pointer is over, and take down the one it was over before.
+     * @param edgeId - The edge under the pointer, or undefined for none.
+     */
+    private hoverEdgeTooltip(edgeId: EdgeId | undefined): void {
+        if (edgeId === this.#tooltipEdge) {
+            return;
+        }
+
+        const built = dataManagerInternals.builtEdges(this.dataManager);
+        if (this.#tooltipEdge !== undefined) {
+            built.get(this.#tooltipEdge)?.hideTooltip();
+        }
+
+        this.#tooltipEdge = edgeId;
+        if (edgeId !== undefined) {
+            built.get(edgeId)?.showTooltip();
+        }
+    }
+
     private builtEdges(): MapIterator<Edge> {
         return dataManagerInternals.builtEdges(this.dataManager).values();
     }

@@ -109,6 +109,9 @@ const EDGE_LABEL_OFFSET = 0;
  */
 const EDGE_XLABEL_LOCATION: AttachPosition = "top-left";
 
+/** Where an edge's tooltip hangs from the line's middle when its block does not say: up and right, as a node's. */
+const EDGE_TOOLTIP_LOCATION: AttachPosition = "top-right";
+
 /**
  * Where a caption hangs from the cap it belongs to, when its own block does not say.
  *
@@ -1130,6 +1133,17 @@ export class Edge {
     private drawnXlabel?: string;
 
     /**
+     * The tooltip on screen (`edge.tooltip`), and null whenever the pointer is not over this edge's line. Hover-only,
+     * as a node's is: built when the pointer arrives and disposed when it leaves, so a graph whose every edge has a
+     * tooltip carries at most one tooltip mesh.
+     */
+    tooltip: RichTextLabel | null = null;
+    /** The tooltip block the style stack resolved for this edge, or undefined when it has none. */
+    private wantedTooltip?: RichTextStyleType;
+    private _tooltipOffset = 0;
+    private _tooltipAttachPosition: AttachPosition = EDGE_TOOLTIP_LOCATION;
+
+    /**
      * The words the label on screen is drawing, and undefined when this edge draws no label.
      *
      * WHY THIS EXISTS, which is the defect it closes. `edge.label`, `edge.labelStyle` and the
@@ -1745,6 +1759,11 @@ export class Edge {
         );
 
         this.placeXlabel(src, dst, bent, lnk.xlabelAt);
+        this.tooltip?.attachTo(
+            this.labelPoint(src, dst, bent, undefined),
+            this._tooltipAttachPosition,
+            this._tooltipOffset,
+        );
         for (const [id, label] of this.extraLabels) {
             const place = this.extraLabelPlaces.get(id);
             label.attachTo(
@@ -3398,6 +3417,7 @@ export class Edge {
         const label = own || extra;
         const xlabel = this.syncXlabel(style, rebuild);
         const captions = this.syncArrowCaptions(style, rebuild);
+        this.syncTooltip(style);
         const bends = this.syncBends(style);
         const placement = this.syncPlacement(style);
 
@@ -3519,6 +3539,67 @@ export class Edge {
         this._xlabelOffset = placement.attachOffset;
         this._xlabelPlacedByStyle = wanted.location !== undefined;
         return true;
+    }
+
+    /**
+     * Remember what this edge's tooltip should say, and redraw it if one is on screen. A tooltip is drawn when the
+     * pointer arrives over the line, which no paint knows of, so a paint records the answer for then; a tooltip the
+     * reader is looking at is rebuilt so it does not keep saying what a layer has just stopped saying.
+     * @param style - The resolved style.
+     */
+    private syncTooltip(style: EdgeStyleConfig): void {
+        const wanted = drawnText(style.tooltip);
+        if (isEqual(wanted, this.wantedTooltip)) {
+            return;
+        }
+
+        // CLONED, as the label's block is: it belongs to a paint the painter rebuilds on every call.
+        this.wantedTooltip = wanted === undefined ? undefined : cloneDeep(wanted);
+        if (this.tooltip) {
+            this.hideTooltip();
+            this.showTooltip();
+        }
+    }
+
+    /**
+     * Draw this edge's tooltip, if a layer gave it one: called when the pointer arrives over the line. Does nothing
+     * when no layer wrote `edge.tooltip`, so hovering an unannotated graph costs one comparison.
+     */
+    showTooltip(): void {
+        if (this.disposed || this.tooltip || this.wantedTooltip === undefined) {
+            return;
+        }
+
+        const placement = this.placementOf(this.wantedTooltip, EDGE_TOOLTIP_LOCATION, 0);
+        this.tooltip = new RichTextLabel(this.context.getScene(), {
+            ...this.createLabelOptions(this.extractLabelText(this.wantedTooltip), this.wantedTooltip, placement),
+            onTop: true,
+        });
+        this._tooltipAttachPosition = placement.attachPosition;
+        this._tooltipOffset = placement.attachOffset;
+        // Drawn on a pointer's arrival, when the graph is already at rest: placed now, and its animation starts now.
+        if (this._lastSrcPos !== null && this._lastDstPos !== null) {
+            this.tooltip.attachTo(
+                this.labelPoint(this._lastSrcPos, this._lastDstPos, true, undefined),
+                placement.attachPosition,
+                placement.attachOffset,
+            );
+        }
+        this.tooltip.startAnimation();
+    }
+
+    /** Take this edge's tooltip off the screen: the pointer left the line, or the edge went. */
+    hideTooltip(): void {
+        this.tooltip?.dispose();
+        this.tooltip = null;
+    }
+
+    /**
+     * The words this edge's tooltip draws, or undefined when no layer gave it one.
+     * @returns The tooltip text.
+     */
+    get tooltipText(): string | undefined {
+        return this.wantedTooltip === undefined ? undefined : this.extractLabelText(this.wantedTooltip);
     }
 
     /**
@@ -3713,6 +3794,7 @@ export class Edge {
 
         this.disposed = true;
         edgeDrawChanges.count++;
+        this.hideTooltip();
 
         this.releaseLine();
         this.releaseHalo();

@@ -342,6 +342,8 @@ A channel is one visual property with one name. These are all of them:
 | `edge.arrowTailTextOffsetY`   | as `edge.arrowHeadTextOffsetY`                                                                                   |
 | `edge.animationSpeed`         | a number                                                                                                         |
 | `edge.label`                  | the words to draw                                                                                                |
+| `edge.tooltip`                | the words to show while the pointer is over the line                                                             |
+| `edge.tooltipStyle`           | as `edge.labelStyle`, for the tooltip                                                                            |
 | `edge.labelStyle`             | as `node.labelStyle`                                                                                             |
 | `edge.labelColor`             | as `node.labelColor`                                                                                             |
 | `edge.labelSize`              | as `node.labelSize`                                                                                              |
@@ -667,11 +669,8 @@ await element.session.styles.add({
 vocabulary `node.labelStyle` takes. The words are what switch a tooltip on, so a layer that
 writes only the appearance draws nothing.
 
-**An edge has no tooltip.** `edge.tooltip` was published through 1.x and drawn by nothing in any
-released version, and it was withdrawn in 2.0: a tooltip needs the pointer to land on the thing
-it belongs to, and an edge is not pickable -- the same reason the element emits no `edge-click`.
-Put the words on the edge itself with `edge.label`, or at one of its ends with
-`edge.arrowHeadText` and `edge.arrowTailText`.
+An edge has a tooltip on the same terms: `edge.tooltip` carries the words and `edge.tooltipStyle`
+how they are drawn, and it is drawn beside the line's middle while the pointer is over the line.
 
 An arrow that is told nothing about its own appearance follows the line it caps, at either end:
 

@@ -268,6 +268,8 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
             part: "text",
             groups: [
                 [{ id: "label", name: "Label", items: ["label"], main: ["edge.label"] }],
+                // In the node tab's place (ia-design 5, fix 2), so the two Text "+" menus match.
+                [{ id: "tooltip", name: "Tooltip", items: ["tooltip"], main: ["edge.tooltip"] }],
                 // The two end captions are one End caption item, a row per end (kindGroups.ts, C1).
                 [
                     {

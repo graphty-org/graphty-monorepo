@@ -88,6 +88,7 @@ export const TEXT_THINGS: Readonly<Record<"node" | "edge", Readonly<Record<strin
     edge: {
         label: { words: "edge.label", style: "edge.labelStyle" },
         xlabel: { words: "edge.xlabel", style: "edge.xlabelStyle" },
+        tooltip: { words: "edge.tooltip", style: "edge.tooltipStyle" },
         targetCaption: {
             words: "edge.arrowHeadText",
             style: "edge.arrowHeadTextStyle",

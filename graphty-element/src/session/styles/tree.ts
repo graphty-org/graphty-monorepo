@@ -402,7 +402,7 @@ export function insertRow(rows: Rows, parent: StyleRowId | null, index: number, 
  * folder's run stays in that folder, and one added at the top of the stack lands at the top level.
  * @param rows - The rows before the edit.
  * @param planned - The stack the edit planned.
- * @param moved - A layer the edit moved, which is placed again like a new one.
+ * @param moved - A layer the edit moved, placed again by its new neighbors with its pin, lock and eye.
  * @returns The rows, banded by pin; the same array when nothing changed.
  */
 export function reconcile(rows: Rows, planned: readonly CompiledLayer[], moved?: LayerId): Rows {
@@ -414,6 +414,8 @@ export function reconcile(rows: Rows, planned: readonly CompiledLayer[], moved?:
         return rows;
     }
 
+    // The moved row is placed again by its new neighbors as it was: hidden, locked and pinned (#9307).
+    const movedRow = moved === undefined ? undefined : findRow(rows, moved)?.row;
     let next = pruneRows(rows, (row) => row.kind === "layer" && (!alive.has(row.id) || row.id === moved));
     const placed = new Set(layerIdsOf(next));
 
@@ -427,7 +429,7 @@ export function reconcile(rows: Rows, planned: readonly CompiledLayer[], moved?:
             .reverse()
             .find((each) => placed.has(each));
         const above = live.slice(at + 1).find((each) => placed.has(each));
-        next = placeBetween(next, id, below, above);
+        next = placeBetween(next, id === moved && movedRow !== undefined ? movedRow : layerRow(id), below, above);
         placed.add(id);
     }
 
@@ -438,14 +440,14 @@ export function reconcile(rows: Rows, planned: readonly CompiledLayer[], moved?:
  * Place a new layer row just above the row holding `below`, in the deepest folder holding both
  * neighbors.
  * @param rows - The rows.
- * @param id - The new layer.
+ * @param row - The new layer's row.
  * @param below - The nearest placed layer beneath it in the stack, if any.
  * @param above - The nearest placed layer above it in the stack, if any.
  * @returns The rows with it placed.
  */
-function placeBetween(rows: Rows, id: LayerId, below: LayerId | undefined, above: LayerId | undefined): Rows {
+function placeBetween(rows: Rows, row: RowNode, below: LayerId | undefined, above: LayerId | undefined): Rows {
     if (below === undefined) {
-        return insertRow(rows, null, 0, layerRow(id));
+        return insertRow(rows, null, 0, row);
     }
 
     const low = findRow(rows, below);
@@ -461,7 +463,7 @@ function placeBetween(rows: Rows, id: LayerId, below: LayerId | undefined, above
     const siblings = container === null ? rows : (container.children ?? []);
     const index = lowPath[depth] === undefined ? -1 : siblings.indexOf(lowPath[depth]);
 
-    return insertRow(rows, container?.id ?? null, index + 1, layerRow(id));
+    return insertRow(rows, container?.id ?? null, index + 1, row);
 }
 
 /**

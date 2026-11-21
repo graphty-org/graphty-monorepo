@@ -1,8 +1,9 @@
-import { equalsTopology, fromEdgeArrays } from "@graphty/graph-format";
+import { coordinateSystemOf, equalsTopology, fromEdgeArrays } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_DATASET_BASE_URL, fetchDataset } from "../../src/datasets/remote.js";
-import { karate } from "../helpers/datasets.js";
+import { toElementData } from "../../src/element.js";
+import { karate, openflights, wikipathwaysSenescenceAutophagy } from "../helpers/datasets.js";
 
 /**
  * Gzip bytes the way the hosted files are written.
@@ -57,5 +58,43 @@ describe("fetchDataset", () => {
         await expect(fetchDataset("absent", { fetch: missing })).rejects.toThrow(/HTTP 404/);
         await expect(fetchDataset("../secrets", { fetch: missing })).rejects.toThrow(RangeError);
         await expect(fetchDataset("", { fetch: missing })).rejects.toThrow(RangeError);
+    });
+
+    it("gives openflights a geographic position column and WP615 a y-up one, beside their plain columns", async () => {
+        const serve = (bytes: Uint8Array) => (): Promise<Response> => Promise.resolve(new Response(bytes.slice()));
+        const flights = await fetchDataset("openflights", { fetch: serve(fromEdgeArrays(openflights()).toBytes()) });
+        const geo = flights.nodes.byRole("position");
+        expect(geo === null ? null : coordinateSystemOf(geo.meta)).toMatchObject({
+            kind: "geographic",
+            dims: 2,
+            units: "degrees",
+            datum: "WGS84",
+            order: ["longitude", "latitude", "altitude"],
+        });
+        const i = flights.ids.indexOf("LHR");
+        expect(Array.from(geo?.value(i) as ArrayLike<number>)).toEqual([
+            flights.nodes.get("longitude")?.value(i),
+            flights.nodes.get("latitude")?.value(i),
+            0,
+        ]);
+        const pathway = await fetchDataset("wikipathways-senescence-autophagy", {
+            fetch: serve(fromEdgeArrays(wikipathwaysSenescenceAutophagy()).toBytes()),
+        });
+        const drawn = pathway.nodes.byRole("position");
+        expect(drawn === null ? null : coordinateSystemOf(drawn.meta)).toMatchObject({
+            kind: "cartesian",
+            yAxis: "up",
+            dims: 2,
+        });
+        expect(pathway.nodes.has("x") && pathway.nodes.has("y")).toBe(true);
+        // the records a graph is loaded from keep the plain columns, not the position they repeat
+        expect(Object.keys(toElementData(pathway).nodes[0])).not.toContain("position");
+    });
+
+    it("leaves a dataset without positions as it was", async () => {
+        const snapshot = await fetchDataset("karate", {
+            fetch: () => Promise.resolve(new Response(fromEdgeArrays(karate()).toBytes().slice())),
+        });
+        expect(snapshot.nodes.byRole("position")).toBeNull();
     });
 });

@@ -23,6 +23,11 @@ export const POSITION_ISSUE = Object.freeze({
     OTHER_VIEWS: "W_POSITION_OTHER_VIEWS",
     /** The file has position-like columns this format does not read (plain `x` / `y`). */
     NOT_READ: "W_POSITIONS_NOT_READ",
+    /**
+     * The format does not say which columns are coordinates: plain `x`, `y` (and `z`) columns were read as the
+     * positions by their names, y up in the file's own unit (CSV, a plain JSON node list). `samples` names them.
+     */
+    GUESSED: "W_POSITIONS_GUESSED",
 } as const);
 
 /**

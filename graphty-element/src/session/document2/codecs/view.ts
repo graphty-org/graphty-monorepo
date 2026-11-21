@@ -333,6 +333,8 @@ function layersJson(w: Writer): JsonObject[] {
                 ...(layer.encode === undefined ? {} : { encode: mapRefs(layer.encode, w.mapper, "") }),
                 ...layerSourceJson(w, source),
                 ...(layer.enabled ? {} : { enabled: false }),
+                // The eye: the style tree names only the style section's layers (#9307).
+                ...(layer.hidden === true ? { hidden: true } : {}),
                 ...(layer.userData === undefined ? {} : { userData: layer.userData }),
             };
         });
@@ -1309,7 +1311,7 @@ async function readLayers(r: Reader, layers: readonly unknown[]): Promise<string
             continue;
         }
 
-        const { id, source, ...rest } = entry;
+        const { id, source, hidden, ...rest } = entry;
         const spec = mapRefs(rest, r.mapper, pointer) as LayerSpec;
         const readSource =
             isObject(source) && source.by === "run" && typeof source.algorithm === "string"
@@ -1331,6 +1333,10 @@ async function readLayers(r: Reader, layers: readonly unknown[]): Promise<string
             });
             if (typeof id === "string") {
                 fileIdsOf(r.context.session).layers.set(layer.id, id);
+            }
+
+            if (hidden === true) {
+                await tx.styles.hideRow(layer.id, true);
             }
 
             added.push(layer.id);

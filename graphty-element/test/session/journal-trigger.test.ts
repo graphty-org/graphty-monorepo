@@ -196,6 +196,40 @@ describe("JournalEntry.callerKey", () => {
     });
 });
 
+describe("JournalEntry.step", () => {
+    it("names the step a command recorded, a transaction's for each member, and none for a no-op", async () => {
+        const session = createGraphSession();
+        const heard: JournalEntry[] = [];
+        session.on("journal:appended", ({ entry }) => heard.push(entry));
+
+        await session.config.set({ name: "Mine" });
+        assert.strictEqual(heard[0]?.step, session.history.steps.at(-1)?.id);
+
+        heard.length = 0;
+        await session.transaction(
+            "Two",
+            async (tx) => {
+                await tx.config.set({ name: "Ours" });
+                await tx.data.addNodes([{ id: "a" }]);
+            },
+            { provenance: { via: "assistant" } },
+        );
+        const [step] = session.history.steps.slice(-1);
+        assert.strictEqual(step?.provenance.via, "assistant");
+        assert.deepEqual(
+            heard.map((entry) => entry.step),
+            [step?.id, step?.id],
+            "both members are in the transaction's one step",
+        );
+
+        heard.length = 0;
+        await session.config.set({ name: "Ours" });
+        assert.lengthOf(heard, 1);
+        assert.notProperty(heard[0], "step", "a command that changed nothing recorded no step");
+        session.dispose();
+    });
+});
+
 /**
  * Every journal entry a session appends from now on.
  * @param session - The session.

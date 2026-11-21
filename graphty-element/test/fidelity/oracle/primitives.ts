@@ -572,6 +572,8 @@ export interface PStray {
     text: string | null;
     /** Words a program drew as glyph outlines (`isLettering`), whose words it does not say. */
     lettering?: true;
+    /** A picture graphty draws in a node's label (yEd's label icon). */
+    label?: true;
 }
 
 /** One side's drawing, associated with graph elements. */

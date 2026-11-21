@@ -231,6 +231,18 @@ describe("when a finished run paints", () => {
         assert.lengthOf(harness.policy.completed(DIAMETER, false).paint, 0);
     });
 
+    it("paints nothing for a set that chose no element, and paints one that chose some", () => {
+        const harness = record();
+        const empty = { ...INFLUENCERS, computed: { graph: { count: 0 } } };
+        const some = { ...INFLUENCERS, id: "some", computed: { graph: { count: 2 } } };
+
+        const decision = harness.policy.completed(empty, false);
+
+        assert.lengthOf(decision.paint, 0);
+        assert.strictEqual(decision.painting?.state, "decided");
+        assert.lengthOf(harness.policy.completed(some, false).paint, 1);
+    });
+
     it("marks a run that chose a subset with explicit channels, never as a highlight", () => {
         const harness = record();
 

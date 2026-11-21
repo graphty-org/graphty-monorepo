@@ -93,6 +93,7 @@ import {
     TARGET_NAMES,
     TYPE_NAME,
 } from "./header.js";
+import { csvPositions } from "./positions.js";
 import {
     checkRecordSyntax,
     type CsvReaderOptions,
@@ -2590,6 +2591,7 @@ export const csvImporter: GraphImporter<CsvImportOptions> = Object.freeze({
     mimeTypes: Object.freeze(["text/csv", "text/tab-separated-values", "text/plain"]),
     sniff,
     import: importCsv,
+    positions: csvPositions,
 });
 
 /**

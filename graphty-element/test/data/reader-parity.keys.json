@@ -2902,15 +2902,15 @@
         "edges": []
     },
     "graphml/gephi-large/othercriteria__StochasticBlockmodel__celegans-modified.graphml.gz": {
-        "nodes": ["Modularity Class", "PageRank", "b", "g", "id", "label", "r", "size", "x", "y"],
+        "nodes": ["Modularity Class", "PageRank", "b", "g", "id", "label", "position", "r", "size", "x", "y"],
         "edges": ["Edge Id", "source", "target", "weight"]
     },
     "graphml/gephi-large/saraiva3__Shape-of-War__ONLY_RED.graphml": {
-        "nodes": ["b", "continent", "g", "id", "label", "r", "size", "x", "y"],
+        "nodes": ["b", "continent", "g", "id", "label", "position", "r", "size", "x", "y"],
         "edges": ["color", "networkx_key", "relation", "source", "target", "weight", "year_end", "year_start"]
     },
     "graphml/gephi-rgb/NetworkGraphs__graphysics__LesMiserables.graphml": {
-        "nodes": ["Modularity Class", "b", "g", "id", "label", "r", "size", "x", "y"],
+        "nodes": ["Modularity Class", "b", "g", "id", "label", "position", "r", "size", "x", "y"],
         "edges": ["source", "target", "weight"]
     },
     "graphml/gephi-rgb/nielmclaren__constellation.js__data.graphml": {
@@ -2923,6 +2923,7 @@
             "g",
             "id",
             "label",
+            "position",
             "r",
             "size",
             "x",

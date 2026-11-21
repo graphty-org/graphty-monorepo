@@ -110,7 +110,7 @@ const branch = (name, files = { "f.txt": "f\n" }, message = "fix(tools): a fix")
     git(work, "commit", "-q", "-m", message);
 };
 
-const run = (args = ["--proof", proof], extra = {}) => {
+const run = (args = ["--proof", proof], extra = {}, cwd = work) => {
     const env = {
         ...process.env,
         HOME: home,
@@ -126,7 +126,7 @@ const run = (args = ["--proof", proof], extra = {}) => {
         ...extra,
     };
     for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_CONFIG_GLOBAL", "GH_CONFIG_DIR"]) delete env[k];
-    const r = spawnSync("bash", [script, ...args], { cwd: work, env, encoding: "utf8" });
+    const r = spawnSync("bash", [script, ...args], { cwd, env, encoding: "utf8" });
     return { code: r.status, out: r.stdout + r.stderr };
 };
 const armed = () => calls().filter((x) => x.a[1] === "merge" && x.a.includes("--auto"));
@@ -612,6 +612,19 @@ describe("pr-open.sh", () => {
         r = run(undefined, { FAKE_REVIEW_RC: "1" });
         assert.equal(r.code, 1, r.out);
         assert.match(r.out, /the review failed/);
+    });
+
+    it("refuses a branch that adds a British spelling, pushing nothing, as the push gate does", () => {
+        branch("fix/1251-spelling", { "notes.md": "It honours the seed.\n", "sub/keep.txt": "k\n" });
+        const r = run();
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /notes\.md:1: British spelling honours/);
+        assert.equal(git(work, "branch", "-r", "--list", "origin/fix/1251-spelling"), "", "nothing was pushed");
+        assert.throws(() => readFileSync(ghLog), undefined, "gh was not called");
+        // run from a subdirectory, the check still finds the file by its path from the repository root
+        const sub = run(undefined, {}, join(work, "sub"));
+        assert.equal(sub.code, 1, sub.out);
+        assert.match(sub.out, /notes\.md:1: British spelling honours/);
     });
 
     it("reminds about the real GPU when webgpu-graph-algorithms changes", () => {

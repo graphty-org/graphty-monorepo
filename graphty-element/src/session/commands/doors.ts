@@ -4290,6 +4290,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             owedReadsSpill: READ,
             readOwed: READ,
             owedWrites: READ,
+            owedRowsRead: READ,
             keeps: READ,
             unsettledView: READ,
         },

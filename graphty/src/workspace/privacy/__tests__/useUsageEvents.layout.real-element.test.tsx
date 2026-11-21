@@ -99,8 +99,8 @@ function selectionWorkspace(): HTMLElement {
     return found;
 }
 
-// The usage-analytics experiment on, in both test configurations: these counts are its own.
-withFeatures(["usage-analytics"]);
+// No experiments, in both test configurations.
+withFeatures([]);
 
 describe("usage counts for layout, filters and the timeline on the real element", () => {
     beforeEach(async () => {

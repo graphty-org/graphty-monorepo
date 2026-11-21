@@ -85,7 +85,7 @@ import { isPositive } from "./meshes/shapeOutlines";
 import { SUPPORT_DEFAULTS, type SupportEdge } from "./meshes/supportPoints";
 import { Node, NodeIdType, XLABEL_UNSHARED } from "./Node";
 import { edgeDrawChanges } from "./render/EdgeIdTarget";
-import type { RowMeasure } from "./render/RowTable";
+import type { RowMeasure, RowTable } from "./render/RowTable";
 import { frozenRecord } from "./session/project/draft";
 import { placeOfUse } from "./session/styles/channels";
 import { transitionsOf } from "./transitions/LayoutTransitionRunner";
@@ -343,6 +343,11 @@ function freshenWorldMatrix(mesh: AbstractMesh): void {
 
 interface EdgeOpts {
     metadata?: object;
+    /**
+     * When the edge arrived, by `performance.now()`, for an `Edge` built for a row stored earlier;
+     * now when absent.
+     */
+    arrivedAt?: number;
 }
 
 /** Most uses along one edge drawn at once; past it the highest are kept. */
@@ -1620,7 +1625,7 @@ export class Edge {
 
         // An edge arriving in a graph already drawing edge shaders plays the entrances it starts with.
         if (EdgeShaderDrawing.peek(this.context.getScene()) !== undefined) {
-            this.causedAt = performance.now();
+            this.causedAt = opts.arrivedAt ?? performance.now();
         }
 
         // create arrow mesh if needed
@@ -2449,15 +2454,14 @@ export class Edge {
     }
 
     /**
-     * Whether this edge draws only a plain batched line and its end caps, which
+     * Whether this edge draws only a plain batched or pulled line and its end caps, which
      * {@link Edge.restyleInPlace} knows how to move: no outline, gradient, band, middle cap, cap
      * stack or arrow caption.
      * @returns True for one.
      */
     private drawsPlainLine(): boolean {
         return (
-            this.lineBatch !== null &&
-            this.pulled === null &&
+            (this.lineBatch === null) !== (this.pulled === null) &&
             this.lineBuilt === "plain" &&
             this.lineWanted === "plain" &&
             this.outlineBatch === null &&
@@ -2496,16 +2500,23 @@ export class Edge {
      *     must be rebuilt.
      */
     private restyleInPlace(meshKey: string, style: EdgeStyleConfig): boolean {
-        const old = this.lineBatch;
         const width = style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
         if (
-            old === null ||
             width <= 0 ||
             flavorOf(style) !== "plain" ||
             !this.drawsPlainLine() ||
             this.drawnStyle === null ||
             !differsOnlyInColour(style, this.drawnStyle)
         ) {
+            return false;
+        }
+
+        if (this.pulled !== null) {
+            return this.recolorPulled(this.pulled, meshKey, style, width);
+        }
+
+        const old = this.lineBatch;
+        if (old === null) {
             return false;
         }
 
@@ -2544,6 +2555,48 @@ export class Edge {
 
         // Whatever could not be copied is placed by the next update.
         if (!placed) {
+            this.invalidatePositionCache();
+        }
+
+        return true;
+    }
+
+    /**
+     * {@link Edge.restyleInPlace} for a pulled line: its pieces keep their draw slots and only their look changes, as
+     * the object path's line keeps its batch slots. Releasing and taking them again moved a curve's slots in draw
+     * order, so where curves cross the batched path drew a different one on top (#9370).
+     * @param pulled - The pulled line.
+     * @param meshKey - The new look's mesh key.
+     * @param style - The new look.
+     * @param width - Its line width.
+     * @returns False, having changed nothing, when the new look is drawn from another batch.
+     */
+    private recolorPulled(
+        pulled: NonNullable<Edge["pulled"]>,
+        meshKey: string,
+        style: EdgeStyleConfig,
+        width: number,
+    ): boolean {
+        const rows = this.context.getRowTable?.() ?? null;
+        if (rows === null) {
+            return false;
+        }
+
+        const options = { styleId: meshKey, width, color: style.line?.color ?? "#FFFFFF" };
+        const batch = this.pulledBatchOf(options, style, rows);
+        if (batch !== pulled.batch) {
+            return false;
+        }
+
+        const look = this.pulledLook(options, style);
+        for (const piece of [pulled.piece, ...pulled.run]) {
+            batch.setLook(piece, look.color, look.opacity, look.width);
+        }
+
+        pulled.look = look;
+        pulled.name = `edge-style-${meshKey}-pulled`;
+        pulled.visibility = Math.min(look.opacity, 1);
+        if (!this.moveEndCaps(style)) {
             this.invalidatePositionCache();
         }
 
@@ -3104,6 +3157,55 @@ export class Edge {
     }
 
     /**
+     * The pulled batch a line's look is drawn from.
+     * @param options - The line's look.
+     * @param options.styleId - The look's key.
+     * @param options.width - Its width.
+     * @param options.color - Its color.
+     * @param style - The resolved style.
+     * @param rows - The graph's row table.
+     * @returns The batch.
+     */
+    private pulledBatchOf(
+        options: { styleId: string; width: number; color: string },
+        style: EdgeStyleConfig,
+        rows: RowTable,
+    ): PulledLineBatch {
+        return EdgeMesh.pulledBatch(this.context.getMeshCache(), options, style, this.context.getScene(), () => rows, {
+            loop: this.isLoop,
+            route: this.routeOf(style),
+            lean: this.context.leansLines?.() ?? false,
+        });
+    }
+
+    /**
+     * The look a pulled line's pieces are given, as `createStaticLine` hands the plain line's material its look.
+     * @param options - The line's look.
+     * @param options.width - Its width.
+     * @param options.color - Its color.
+     * @param style - The resolved style.
+     * @returns The pieces' color, opacity and width.
+     */
+    private pulledLook(
+        options: { width: number; color: string },
+        style: EdgeStyleConfig,
+    ): { color: Color3; opacity: number; width: number } {
+        const opacity = EdgeMesh.opacityOf(style);
+        const color = Color3.FromHexString(options.color);
+        // an animated line's width and color as its greased line takes them (`EdgeMesh.createAnimatedLine`);
+        // in 2D a world width, as `Simple2DLineRenderer.createBatchMesh` is handed it
+        if (style.line?.animationSpeed) {
+            return { color: movingTexel(color), opacity, width: options.width / 40 };
+        }
+
+        return {
+            color,
+            opacity,
+            width: EdgeMesh.drawsFlat(this.context.getScene()) ? options.width / 40 : options.width * 20,
+        };
+    }
+
+    /**
      * Take a piece of the pulled batch and give it this line's look.
      * @param options - The line's look.
      * @param options.styleId - The look's key.
@@ -3121,22 +3223,10 @@ export class Edge {
             return null;
         }
 
-        const scene = this.context.getScene();
-        const batch = EdgeMesh.pulledBatch(this.context.getMeshCache(), options, style, scene, () => rows, {
-            loop: this.isLoop,
-            route: this.routeOf(style),
-            lean: this.context.leansLines?.() ?? false,
-        });
-        // As `createStaticLine` hands the plain line's material its look.
-        const opacity = EdgeMesh.opacityOf(style);
+        const batch = this.pulledBatchOf(options, style, rows);
+        const look = this.pulledLook(options, style);
+        const { opacity } = look;
         const animationSpeed = style.line?.animationSpeed ?? 0;
-        const color = Color3.FromHexString(options.color);
-        // an animated line's width and color as its greased line takes them (`EdgeMesh.createAnimatedLine`);
-        // in 2D a world width, as `Simple2DLineRenderer.createBatchMesh` is handed it
-        let look = { color, opacity, width: EdgeMesh.drawsFlat(scene) ? options.width / 40 : options.width * 20 };
-        if (animationSpeed) {
-            look = { color: movingTexel(color), opacity, width: options.width / 40 };
-        }
         let piece: number;
         try {
             piece = batch.acquire(look.width);

@@ -222,6 +222,37 @@ describe("a file's stored positions", () => {
         assert.strictEqual(graph.getSession().layout.id, "circular");
     });
 
+    it("draws a file where it was saved with layout: placed, as a GEXF with viz:position (issue #9281)", async () => {
+        const graph = await newGraph();
+        await graph.setLayout("circular");
+        const gexf = SAMPLES.find((sample) => sample.format === "gexf");
+        assert.isDefined(gexf);
+        if (gexf === undefined) {
+            return;
+        }
+        await graph.loadFromFile(new File([gexf.text], gexf.name), { layout: "placed" });
+        await settled(graph);
+        await published(graph);
+
+        assert.strictEqual(graph.getSession().layout.id, "fixed", "every node placed: the fixed layout");
+        assertAt(graph, gexf.expected);
+    });
+
+    it("leaves the layout alone with layout: placed when the file places no node", async () => {
+        const graph = await newGraph();
+        await graph.setLayout("circular");
+        const text = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<gexf xmlns="http://gexf.net/1.3" version="1.3">',
+            '<graph defaultedgetype="directed"><nodes><node id="a"/><node id="b"/><node id="c"/></nodes>',
+            '<edges><edge id="e1" source="a" target="b"/><edge id="e2" source="b" target="c"/></edges></graph></gexf>',
+        ].join("\n");
+        await graph.loadFromFile(new File([text], "unplaced.gexf"), { layout: "placed" });
+        await settled(graph);
+
+        assert.strictEqual(graph.getSession().layout.id, "circular");
+    });
+
     it("computes a layout for a file whose nodes are all on one point", async () => {
         const graph = await newGraph();
         const stacked = ["*Vertices 3", '1 "a" 0 0', '2 "b" 0 0', '3 "c" 0 0', "*Edges", "1 2", "2 3"].join("\n");

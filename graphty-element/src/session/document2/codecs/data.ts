@@ -35,8 +35,9 @@
  * - On read: only `join.add` builds (by key in the mapping's spaces), with its own `duplicateIds`;
  *   every other step that is not `off` (`join.merge`, `join.node-values`, `join.edge-values`,
  *   `join.edges`), a `join.add` with `columns`, and a second `join.add` of one source hold the
- *   section. A referenced source parsed again with a `pointer`, `sheet` or `missing` option holds
- *   it too: no parser here reads them. `repeatedEdges` reduces repeats of one pair and one type
+ *   section. A referenced source parsed again with a parse option its format does not read holds
+ *   it too: `pointer` is read by `json`, `missing` by `csv`, `json` and `xlsx`, and `sheet` by `xlsx`,
+ *   and a malformed value of any holds it as well. `repeatedEdges` reduces repeats of one pair and one type
  *   (spec 6.1), and becomes the session's setting; the writer writes the session's setting back. A
  *   node only edges name is supplied by their sources, not a row of their copies. A referenced `file` or `url` source is built from the rows an open read again
  *   (dataFetch.ts); one it could not read supplies nothing, is reported `W_SOURCE_UNAVAILABLE` with
@@ -54,6 +55,7 @@ import type { ColumnSettings } from "../../commands/data";
 import type { SessionData } from "../../data";
 import type { TransactionOptions } from "../../project/Dispatcher";
 import { SOURCE_ATTR } from "../../sources/ids";
+import { causeParams, type ReadCause } from "../../sources/references";
 import type { SourceLoadRecord, SourceRefreshReport } from "../../sources/types";
 import type { GraphSession, LoadedSource, TransactionScope } from "../../types";
 import { token } from "../framing";
@@ -156,8 +158,21 @@ const READ_SPACES = [
     ["target", "targetSpace"],
 ] as const;
 const DUPLICATE_IDS = new Set(["first", "merge", "refuse"]);
-/** Parse options this reader's parsers do not read (spec 4.1.2 rule 9): a source parsed again with one is held. */
-const UNREAD_OPTIONS = ["pointer", "sheet", "missing"];
+/**
+ * The parse options of spec 4.1.2 rule 9, the formats whose parser reads each, and the values it
+ * takes: a source parsed again with one its format does not read, or a malformed value, is held.
+ */
+const PARSE_OPTIONS: Readonly<Record<string, { formats: readonly string[]; valid: (value: unknown) => boolean }>> = {
+    pointer: {
+        formats: ["json"],
+        valid: (value) => typeof value === "string" && /^(?:\/(?:[^~/]|~[01])*)*$/.test(value),
+    },
+    sheet: { formats: ["xlsx"], valid: (value) => typeof value === "string" },
+    missing: {
+        formats: ["csv", "json", "xlsx"],
+        valid: (value) => Array.isArray(value) && value.every((text) => typeof text === "string"),
+    },
+};
 const SOURCE_MEMBERS = new Set([
     "id",
     "label",
@@ -406,6 +421,8 @@ interface ReadSource {
     /** For a referenced source not read again: why, and its new byte count when its copy changed. */
     readonly reason?: SourceUnavailableReason;
     readonly size?: number;
+    /** For a referenced source whose read failed: what it threw. */
+    readonly cause?: ReadCause;
 }
 
 /**
@@ -537,6 +554,7 @@ function referencedSource(record: JsonObject, pointer: string): ReadSource {
         const unread: SourceUnavailableReason = record.kind === "network" ? "copy-changed" : "kind";
         const reason = fetched?.unavailable ?? (fetches ? "needs-file" : unread);
         const size = fetched?.size;
+        const cause = fetched?.cause;
         return {
             record,
             id,
@@ -545,6 +563,7 @@ function referencedSource(record: JsonObject, pointer: string): ReadSource {
             embedded: false,
             reason,
             ...(size === undefined ? {} : { size }),
+            ...(cause === undefined ? {} : { cause }),
         };
     }
 
@@ -870,8 +889,11 @@ function checked(body: Readonly<JsonObject>): Checked {
         const options = isPlainObject(record.options) ? record.options : {};
         // Parsed again with an option its parser does not read, it would build another graph.
         if (record.copy === undefined) {
-            for (const name of UNREAD_OPTIONS) {
-                need(!(name in options), `${pointer}/options/${name}`);
+            for (const [name, { formats, valid }] of Object.entries(PARSE_OPTIONS)) {
+                need(
+                    !(name in options) || (formats.includes(String(record.format)) && valid(options[name])),
+                    `${pointer}/options/${name}`,
+                );
             }
         }
     }
@@ -1850,6 +1872,7 @@ function unavailableProblem(source: ReadSource): DocumentProblem {
             source: source.id,
             ...(source.reason === undefined ? {} : { reason: source.reason }),
             ...(source.size === undefined ? {} : { size: source.size }),
+            ...causeParams(source.cause),
         },
     };
 }
@@ -2583,7 +2606,7 @@ export async function refreshHeldSource(
             code: REFRESH_REFUSED[fetched.unavailable] ?? "E_FETCH_FAILED",
             message: `The source ${source} could not be read again (${fetched.unavailable}).`,
             source: "data",
-            details: { source, reason: fetched.unavailable },
+            details: { source, reason: fetched.unavailable, ...causeParams(fetched.cause) },
         });
     }
 

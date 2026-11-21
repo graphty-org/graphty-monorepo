@@ -65,7 +65,9 @@ describe("generated documentation", () => {
         const names = (await facts()).optionNames;
         for (const [format, own] of Object.entries(names.formats)) {
             expect([...(registry.importer(format).options ?? [])].sort(), `${format} import`).toEqual(own.import);
-            expect([...(registry.exporter(format).options ?? [])].sort(), `${format} export`).toEqual(own.export);
+            // a read-only format (a workbook) has no exporter, and so no export options
+            const exported = registry.hasExporter(format) ? (registry.exporter(format).options ?? []) : [];
+            expect([...exported].sort(), `${format} export`).toEqual(own.export);
         }
         // and every option the load and save functions take themselves is known: none is reported
         const all = Object.fromEntries(names.common.map((n) => [n, undefined]));

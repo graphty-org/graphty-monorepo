@@ -549,6 +549,17 @@ describe("edge change", () => {
     }
 
     it("draws nothing at rest and asks for no frame once its layer is added", async () => {
+        // A graph drawn with the effect once already, so the next one's first painted edge brings
+        // the shader drawing at once. Then the clock stands still, as on a machine that mounts the
+        // graph and adds the layer well inside the 0.4 s an arrival plays its entrance in: on
+        // "batched" the second edge's `Edge` is built by the layer's style pass after the drawing
+        // exists, and that build must not count as the edge arriving (issue #9438).
+        (await changing()).remove();
+        const now = performance.now();
+        const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+        cleanups.push(() => {
+            clock.mockRestore();
+        });
         const element = await changing();
         await drawnFrames(element.graph.getScene(), 3);
         assert.strictEqual(everyFrameAnimationsOn(element.graph.getScene()), 0);

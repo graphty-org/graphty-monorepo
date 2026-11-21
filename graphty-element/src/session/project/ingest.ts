@@ -17,13 +17,20 @@ import type { RequestedLayout } from "@graphty/graph-io";
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import { CSVDataSource } from "../../data/CSVDataSource";
-import { DataSource, type DataSourceChunk, type DeclaredDirection, setReaderSignal } from "../../data/DataSource";
+import {
+    DataSource,
+    type DataSourceChunk,
+    type DeclaredDirection,
+    setReaderSignal,
+    settledOptionsOf,
+} from "../../data/DataSource";
 import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey, recordType, reducesInto } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import { keepSourceMetaExtra, readerMetaExtra } from "../../data/graph-io-import";
 import type { GraphStore } from "../../data/GraphStore";
-import { GROUPS_VALUE, RANK_SETS_VALUE, readGroups, readRankSets } from "../../data/groups";
+import { containersOf, GROUPS_VALUE, RANK_SETS_VALUE, readGroups, readRankSets, withMembers } from "../../data/groups";
+import { JsonDataSource, setKnownEnds } from "../../data/JsonDataSource";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import {
     type ImportReport,
@@ -185,6 +192,20 @@ function drawnOf(command: DataImportCommand): { readonly drawn?: Pick<DataImport
 }
 
 /**
+ * A load's source with the options its reader settled that the load left out (the sheet a workbook
+ * load read), recorded as if the load had named them, so a save reads the file the same way.
+ * @param described - The source as the load named it.
+ * @param reader - The load's reader.
+ * @returns The source.
+ */
+function withSettled(described: DataSourceDescriptor, reader: unknown): DataSourceDescriptor {
+    const settled = settledOptionsOf(reader);
+    return settled === undefined
+        ? described
+        : Object.freeze({ ...described, config: Object.freeze({ ...settled, ...described.config }) });
+}
+
+/**
  * The separator a CSV load was split by: the draft's, since a draft's rows reach the load without
  * their reader, or else the reader's.
  * @param command - The import.
@@ -196,12 +217,12 @@ function csvDelimiter(command: DataImportCommand, reader: unknown): LoadedSource
 }
 
 /**
- * The header columns a CSV reader read its table by, if the reader is one.
+ * The columns a CSV reader read its table by, or a JSON reader its collection, if the reader is one.
  * @param reader - The load's reader.
  * @returns The columns, or undefined.
  */
 function csvReadBy(reader: unknown): CSVDataSource["readBy"] {
-    return reader instanceof CSVDataSource ? reader.readBy : undefined;
+    return reader instanceof CSVDataSource || reader instanceof JsonDataSource ? reader.readBy : undefined;
 }
 
 /**
@@ -1054,7 +1075,7 @@ export class Ingest<K extends KnownEdge> {
                       })
                     : undefined;
             this.recordLoad(command, writer, {
-                described,
+                described: withSettled(described, outcome.reader),
                 readBy: readByOfLoad(outcome.reader, command.held),
                 delimiter: csvDelimiter(command, outcome.reader),
                 type,
@@ -1296,6 +1317,45 @@ export class Ingest<K extends KnownEdge> {
         this.outsideLoad(() => {
             this.addNodeRows(nodes, idPath, writer);
         });
+        this.recordParents(nodes, idPath, writer);
+    }
+
+    /**
+     * Read a `parent` key on plain node records as containment, as a Cytoscape.js compound node
+     * is read: each node joins the group its parent names, which is drawn around its members.
+     *
+     * ponytail: a parent named before the graph holds it (a later batch) is not read; read it
+     * when that group's own record arrives if callers send children first.
+     * @param nodes - The records just added.
+     * @param idPath - Where a record holds its id, or undefined for the configured path.
+     * @param writer - The graph primitives to write through.
+     */
+    private recordParents(
+        nodes: readonly Record<string | number, unknown>[],
+        idPath: string | undefined,
+        writer: GraphWriter,
+    ): void {
+        const query = idPath ?? this.host.dataConfig().knownFields.nodeIdPath;
+        const joined = new Map<NodeIdType, NodeIdType[]>();
+        for (const node of nodes) {
+            const { parent } = node;
+            if (typeof parent !== "string" && typeof parent !== "number") {
+                continue;
+            }
+
+            const id = this.heldNode(searchRecord(node, query) as NodeIdType);
+            const group = this.heldNode(parent);
+            if (id !== undefined && group !== undefined && group !== id) {
+                const members = joined.get(group) ?? [];
+                members.push(id);
+                joined.set(group, members);
+            }
+        }
+
+        if (joined.size > 0) {
+            const groups = withMembers(containersOf(writer.graphValue(GROUPS_VALUE)), joined);
+            writer.setGraphValues({ [GROUPS_VALUE]: Object.freeze(groups) });
+        }
     }
 
     /**
@@ -2604,6 +2664,13 @@ export class Ingest<K extends KnownEdge> {
             if (source !== null && signal !== undefined) {
                 setReaderSignal(source, signal);
             }
+            if (source instanceof JsonDataSource) {
+                const { knownFields } = this.host.dataConfig();
+                setKnownEnds(source, {
+                    source: knownFields.edgeSrcIdPath ?? null,
+                    target: knownFields.edgeDstIdPath ?? null,
+                });
+            }
             const reader: ChunkReader | null = held === undefined ? source : heldReader(held);
             if (!reader) {
                 throw unknownFormat(type);
@@ -2725,7 +2792,7 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
-     * Record the groups the file read with no stored position, which the layout places by their
+     * Record the groups the file read, those with no stored position placed by the layout on their
      * members (see `LayoutManager.placeGroups`), and its rank subgraphs, which a Graphviz layout
      * hands back to Graphviz.
      *

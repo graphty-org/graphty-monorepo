@@ -37,11 +37,9 @@ storage features only in a secure context).
 The sample datasets the app offers beyond the start screen's own are downloaded from graphty.app
 when a reader opens one.
 
-Usage data: by default the app sends PostHog nothing, and Share usage data turns on error reports
-(Sentry) only. The `usage-analytics` experiment, switched on in the `features` list of the site's
-`/site.json` or with `?features=usage-analytics` in the address, adds usage counts to PostHog (US
-region). They are sent only when that `/site.json` also has an `analytics` block with PostHog ids
-and the page is served from that site's own host, so a copy you host yourself sends PostHog nothing.
+Usage data: the app sends usage counts to PostHog (US region) only when the site's `/site.json` has
+an `analytics` block with PostHog ids and the page is served from that site's own host, so a copy you
+host yourself sends PostHog nothing; there, Share usage data turns on error reports (Sentry) only.
 Where they are sent, every visitor who has not turned on Share usage data sends anonymous counts,
 at most one of each kind per page, in PostHog's cookieless mode, with no cookies and no stored id:
 visits, the site that sent them, which sample, file format, layout, measure and export they use and

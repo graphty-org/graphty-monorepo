@@ -66,12 +66,17 @@ export interface GephiFont {
 export class GephiPreview {
     private readonly values: Readonly<Record<string, string>>;
 
+    /** Whether a setting given differs from Gephi's default, so the drawing is not Gephi's default drawing. */
+    readonly customized: boolean;
+
     /**
      * The settings: Gephi's defaults under the ones given.
      * @param given - the settings given, by Gephi's property names
      */
     constructor(given: Readonly<Record<string, string>> = {}) {
         this.values = { ...GEPHI_PREVIEW, ...given };
+        const norm = (v: string | undefined): string => (v ?? "").trim().toLowerCase();
+        this.customized = Object.entries(given).some(([name, v]) => norm(v) !== norm(GEPHI_PREVIEW[name]));
     }
 
     /**

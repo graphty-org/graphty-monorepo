@@ -593,6 +593,17 @@ function DataTableInner<TRow extends object>(
         setFocus((previous) => (samePosition(previous, next) ? previous : next));
     };
 
+    /**
+     * Records that a cell has taken focus, keeping the same position object
+     * when it already had it so nothing re-renders.
+     * @param row - The cell's row
+     * @param column - The cell's column
+     */
+    const trackFocus = (row: number, column: number): void => {
+        const next = { row, column };
+        setFocus((previous) => (samePosition(previous, next) ? previous : next));
+    };
+
     // A cell that has scrolled out of view is not in the document, so focus
     // cannot reach it until the row it belongs to has been drawn. The request
     // is therefore left standing until the cell turns up, which is the render
@@ -1069,11 +1080,7 @@ function DataTableInner<TRow extends object>(
                     handleSort(column, event);
                 }}
                 onFocus={() => {
-                    setFocus((previous) =>
-                        samePosition(previous, { row: HEADER_ROW, column: index })
-                            ? previous
-                            : { row: HEADER_ROW, column: index },
-                    );
+                    trackFocus(HEADER_ROW, index);
                 }}
                 className="cm-dt-sort"
                 data-align={config?.align === "end" ? "end" : undefined}
@@ -1082,6 +1089,49 @@ function DataTableInner<TRow extends object>(
             >
                 {caption}
             </UnstyledButton>
+        );
+    };
+
+    /**
+     * What a header cell holds: its caption (inside the sort button when the
+     * column sorts), the content at its end, and its menu.
+     * @param column - The column
+     * @param config - The column's configuration
+     * @param index - The column's position
+     * @param rovingTabIndex - The tab index the grid's tab stop gives it
+     * @param sortable - Whether the column sorts
+     * @param caption - What the header shows
+     * @returns The cell's content
+     */
+    const headerContent = (
+        column: HeaderColumn,
+        config: HeaderConfig,
+        index: number,
+        rovingTabIndex: number,
+        sortable: boolean,
+        caption: React.ReactNode,
+    ): React.JSX.Element => {
+        const hasMenu = isPresent(config?.menu);
+        const hasEnd = isPresent(config?.headerEnd);
+        return (
+            <>
+                {sortable
+                    ? withTooltip(
+                          config?.headerTooltip,
+                          sortButton(column, config, index, rovingTabIndex, hasMenu, hasEnd, caption),
+                      )
+                    : caption}
+                {hasEnd && (
+                    <span
+                        className="cm-dt-header-end"
+                        data-testid="data-table-header-end"
+                        data-with-menu={hasMenu ? "" : undefined}
+                    >
+                        {config?.headerEnd}
+                    </span>
+                )}
+                {hasMenu && headerMenu(column, config, index)}
+            </>
         );
     };
 
@@ -1388,39 +1438,12 @@ function DataTableInner<TRow extends object>(
                                             sortable
                                                 ? undefined
                                                 : () => {
-                                                      setFocus((previous) =>
-                                                          samePosition(previous, { row: HEADER_ROW, column: index })
-                                                              ? previous
-                                                              : { row: HEADER_ROW, column: index },
-                                                      );
+                                                      trackFocus(HEADER_ROW, index);
                                                   }
                                         }
                                         style={{ ...cellBox(config, index), gap: PANEL_GRID.GUTTER / 2 }}
                                     >
-                                        {sortable
-                                            ? withTooltip(
-                                                  config?.headerTooltip,
-                                                  sortButton(
-                                                      column,
-                                                      config,
-                                                      index,
-                                                      rovingTabIndex,
-                                                      hasMenu,
-                                                      hasEnd,
-                                                      caption,
-                                                  ),
-                                              )
-                                            : caption}
-                                        {hasEnd && (
-                                            <span
-                                                className="cm-dt-header-end"
-                                                data-testid="data-table-header-end"
-                                                data-with-menu={hasMenu ? "" : undefined}
-                                            >
-                                                {config?.headerEnd}
-                                            </span>
-                                        )}
-                                        {hasMenu && headerMenu(column, config, index)}
+                                        {headerContent(column, config, index, rovingTabIndex, sortable, caption)}
                                     </Table.Th>
                                 );
 
@@ -1523,11 +1546,7 @@ function DataTableInner<TRow extends object>(
                                                 // all of it, since the ellipsis is only drawn.
                                                 className="cm-dt-cell"
                                                 onFocus={() => {
-                                                    setFocus((previous) =>
-                                                        samePosition(previous, { row: item.index, column: index })
-                                                            ? previous
-                                                            : { row: item.index, column: index },
-                                                    );
+                                                    trackFocus(item.index, index);
                                                 }}
                                                 onClick={(event) => {
                                                     setFocus({ row: item.index, column: index });

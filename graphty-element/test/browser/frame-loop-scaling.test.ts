@@ -21,7 +21,8 @@ import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
-import { laneStoreOf } from "../../src/managers/DataManager";
+import { dataManagerInternals, laneStoreOf } from "../../src/managers/DataManager";
+import { layoutManagerInternals } from "../../src/managers/LayoutManager";
 import { minimumWorkPerFrame, setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
@@ -376,6 +377,32 @@ const CASES: readonly Case[] = [
             ),
     },
     {
+        // Thawing only flips a flag; its cost lands on the draw after it, which walks every mesh
+        // again instead of reusing the frozen list, so the pair may grow with the graph.
+        methods: ["UpdateManager.thawActiveMeshes"],
+        prepare: async (element) => {
+            const scene = element.graph.getScene();
+            // Quiet frames freeze the list of what is drawn.
+            while (!scene._activeMeshesFrozen) {
+                element.graph.getUpdateManager().renderFrames(1);
+                await new Promise((resolve) => requestAnimationFrame(resolve));
+            }
+
+            return drawing(
+                element.graph,
+                1,
+                0,
+                () => {
+                    element.graph.getUpdateManager().thawActiveMeshes();
+                    element.graph.render();
+                },
+                () => {
+                    assert.isFalse(scene._activeMeshesFrozen, "the list was thawed");
+                },
+            );
+        },
+    },
+    {
         methods: ["UpdateManager.forceEdgeWalk"],
         prepare: (element, size) => {
             const manager = element.graph.getUpdateManager();
@@ -677,7 +704,7 @@ const CASES: readonly Case[] = [
                         graph.getUpdateManager().renderFrames(1);
                     },
                     () => {
-                        assert.strictEqual((data as unknown as { styles: unknown }).styles, graph.styles);
+                        assert.strictEqual(dataManagerInternals.styles(data), graph.styles);
                     },
                 ),
             );
@@ -698,7 +725,7 @@ const CASES: readonly Case[] = [
                         graph.getUpdateManager().renderFrames(1);
                     },
                     () => {
-                        assert.strictEqual((layout as unknown as { styles: unknown }).styles, graph.styles);
+                        assert.strictEqual(layoutManagerInternals.styles(layout), graph.styles);
                     },
                 ),
             );

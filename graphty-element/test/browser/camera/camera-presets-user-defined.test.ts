@@ -1,4 +1,4 @@
-import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors/index.js";
 import { Graph } from "../../../src/Graph.js";
@@ -31,7 +31,7 @@ describe("Camera Presets - User Defined", () => {
         await graph.setCameraPosition({ x: 75, y: 75, z: 75 });
         await graph.setCameraTarget({ x: 10, y: 10, z: 10 });
 
-        graph.saveCameraPreset("myView");
+        await graph.saveCameraPreset("myView");
 
         const presets = graph.getCameraPresets();
         assert.ok(presets.myView);
@@ -54,7 +54,7 @@ describe("Camera Presets - User Defined", () => {
 
     test("loadCameraPreset applies saved camera state", async () => {
         await graph.setCameraPosition({ x: 100, y: 100, z: 100 });
-        graph.saveCameraPreset("customView");
+        await graph.saveCameraPreset("customView");
 
         // Move camera somewhere else
         await graph.setCameraPosition({ x: 0, y: 0, z: 10 });
@@ -69,9 +69,9 @@ describe("Camera Presets - User Defined", () => {
         assert.approximately(state.position.z, 100, 0.1);
     });
 
-    test("cannot overwrite built-in presets", () => {
+    test("cannot overwrite built-in presets", async () => {
         try {
-            graph.saveCameraPreset("fitToGraph");
+            await graph.saveCameraPreset("fitToGraph");
             assert.fail("Should have thrown an error");
         } catch (error) {
             // A snapshot records where the camera IS; a view is a rule that recomputes itself for
@@ -85,10 +85,10 @@ describe("Camera Presets - User Defined", () => {
 
     test("exportCameraPresets returns JSON of user-defined presets", async () => {
         await graph.setCameraPosition({ x: 50, y: 50, z: 50 });
-        graph.saveCameraPreset("view1");
+        await graph.saveCameraPreset("view1");
 
         await graph.setCameraPosition({ x: 100, y: 100, z: 100 });
-        graph.saveCameraPreset("view2");
+        await graph.saveCameraPreset("view2");
 
         const exported = graph.exportCameraPresets();
 
@@ -139,24 +139,23 @@ describe("Camera Presets - User Defined", () => {
         }
     });
 
-    test("importCameraPresets reports a preset the views refuse as graph-error", async () => {
-        const reported: { code: unknown; details: unknown }[] = [];
-        graph.addListener("error", (event) => {
-            const { error, details } = event as { error: unknown; details?: unknown };
-            reported.push({ code: isGraphtyError(error) ? error.code : undefined, details });
+    test("importCameraPresets leaves out a preset the views would refuse, and says which", () => {
+        const { skipped } = graph.importCameraPresets({
+            " ": { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+            isometric: { zoom: 2 },
+            kept: { zoom: 3 },
         });
 
-        // A blank name is refused by the views; nobody holds the import's promise.
-        graph.importCameraPresets({ " ": { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } } });
-
-        await vi.waitFor(() => {
-            assert.deepEqual(reported, [{ code: "E_BAD_COMMAND", details: { op: "views.save" } }]);
-        });
+        assert.deepEqual(skipped, [
+            { name: " ", code: "E_BAD_COMMAND" },
+            { name: "isometric", code: "E_PROTECTED" },
+        ]);
+        assert.deepEqual(graph.exportCameraPresets(), { kept: { zoom: 3 } });
     });
 
     test("getCameraPresets returns both built-in and user-defined presets", async () => {
         await graph.setCameraPosition({ x: 50, y: 50, z: 50 });
-        graph.saveCameraPreset("myCustomView");
+        await graph.saveCameraPreset("myCustomView");
 
         const presets = graph.getCameraPresets();
 

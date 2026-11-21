@@ -117,10 +117,9 @@ describe("keys in the condition cards, on the real element", () => {
         await openLayer("Poster", POSTER);
         const region = await openCards();
         // The count arrives after the card draws (the element counts asynchronously): wait for the
-        // card to say it, as a reader would, then read the header.
+        // card's name to say it. The header draws only the field's name, never the count (#8739).
         const card = await within(region).findByRole("group", { name: /^name, 3 nodes$/ });
-        // The header names its count with its noun.
-        assert.include(card.querySelector(".ws-card-head")?.textContent ?? "", "3 nodes");
+        assert.notInclude(card.querySelector(".ws-card-head")?.textContent ?? "", "3 nodes");
         // Focus opened on the text box: two steps back is the remove button, drawn first.
         await userEvent.keyboard("{Shift>}{Tab}{Tab}{/Shift}");
         assert.strictEqual(document.activeElement?.getAttribute("aria-label"), "Remove name");
@@ -224,7 +223,7 @@ describe("keys in the condition cards, on the real element", () => {
         });
     });
 
-    it("a chip opens its card with focus drawn, and Enter on a ticked value presses Done", async () => {
+    it("the Which row opens its card with focus drawn, and Enter on a ticked value presses Done", async () => {
         const { session } = await openLayer("Groups", { match: "everything" }, "louvain");
         const group = cardFields(session, "node").find((field) => field.path.endsWith(".group"));
         assert.isDefined(group);
@@ -236,12 +235,8 @@ describe("keys in the condition cards, on the real element", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("group", { name: "Which nodes" }), "Enter on the value closed the cards");
         });
-        const chip = (await whichRow()).querySelector<HTMLElement>("[data-chip]");
-        assert.isNotNull(chip);
-        if (chip === null) {
-            return;
-        }
-        await userEvent.click(chip);
+        // One card: a press on the row opens the cards on it.
+        await userEvent.click(await whichRow());
         const match = await screen.findByRole("combobox", { name: `${name}: how to match` });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, match, "focus is on the card's first field");

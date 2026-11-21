@@ -33,7 +33,7 @@ const CAVEATS: Caveats = {
     notes: [],
 };
 
-/** A field descriptor with the path a catalogue descriptor would have written. */
+/** A field descriptor with the path a catalog descriptor would have written. */
 function field(spec: Omit<FieldDescriptor, "path">): FieldDescriptor {
     return { ...spec, path: `results.$.${spec.name}` };
 }
@@ -93,9 +93,9 @@ function registryOf(entries: readonly ResultsRunEntry[]): ResultsRegistry {
 
 const RESULTS: ResultsApi = createResultsApi(
     registryOf([
-        { id: "degree", label: "Connections", shape: "node-metric", result: NODE_METRIC },
-        { id: "weight", label: "Weight", shape: "edge-metric", result: EDGE_METRIC },
-        { id: "running", label: "Bridges", shape: "node-metric" },
+        { id: "degree", shape: "node-metric", result: NODE_METRIC },
+        { id: "weight", shape: "edge-metric", result: EDGE_METRIC },
+        { id: "running", shape: "node-metric" },
     ]),
 );
 
@@ -341,7 +341,7 @@ describe("a scope", () => {
 
 describe("a neighbourhood", () => {
     it("includes the nodes it was grown from", () => {
-        // A neighbourhood that excluded its own centre would deselect the node a person just
+        // A neighborhood that excluded its own center would deselect the node a person just
         // clicked in order to look around it.
         const harness = line(true);
         const selection = selectionOf(harness);
@@ -528,9 +528,7 @@ describe("a finished run's ranking", () => {
             caveats: CAVEATS,
             durationMs: 1,
         });
-        const results = createResultsApi(
-            registryOf([{ id: "tied", label: "Tied", shape: "node-metric", result: tied }]),
-        );
+        const results = createResultsApi(registryOf([{ id: "tied", shape: "node-metric", result: tied }]));
         const selection = selectionOf(harness, { results });
 
         selection.applyNow({ top: { run: "tied", field: "value", n: 2 } });

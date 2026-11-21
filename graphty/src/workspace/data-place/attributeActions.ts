@@ -1,11 +1,11 @@
-import { type ColumnRef, type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
+import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import { labelLine } from "../style/commands";
 import { designate, panelsInView } from "../time/timeActions";
 import { openFilterDraft } from "./filterCards";
-import { GONE_WORD, labelRefusalWords } from "./words";
+import { labelRefusalWords } from "./words";
 
 /** One verb on an attribute: its words, why it cannot run now (or null), and what it does. */
 export interface AttributeAction {
@@ -17,20 +17,12 @@ export interface AttributeAction {
 /**
  * Why Add label line cannot bind an attribute, in the app's words, or null when it can.
  * @param session - the element's session.
- * @param column - the node attribute.
+ * @param column - the node attribute, one the data holds now.
  * @returns the reason, or null.
  */
-export function labelRefusalFor(session: GraphSession, column: ColumnRef): string | null {
-    try {
-        const proposal = session.styles.proposeEncoding({ column, channel: "node.label" });
-        return proposal.ok ? null : labelRefusalWords(proposal.refusal);
-    } catch (error) {
-        // The attribute went away under the open menu; anything else is the element's to report.
-        if (isGraphtyError(error) && error.code === "E_UNKNOWN_ATTRIBUTE") {
-            return GONE_WORD;
-        }
-        throw error;
-    }
+function labelRefusalFor(session: GraphSession, column: ColumnRef): string | null {
+    const proposal = session.styles.proposeEncoding({ column, channel: "node.label" });
+    return proposal.ok ? null : labelRefusalWords(proposal.refusal);
 }
 
 /**

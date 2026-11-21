@@ -2,7 +2,8 @@ id: visual-encoding-panel
 name: Visual Encoding Panel
 category: display
 description: Panel for configuring visual encodings. Map data attributes to visual properties like color, size, and shape.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/style/BindingPopover.tsx."
 implements_capabilities:
     - visual-encoding-nodes
     - visual-encoding-edges
@@ -16,6 +17,9 @@ used_in_workflows:
     - W11
     - W17
     - W12
+    - W20
+    - W23
+    - W24
 dependencies:
     - select
     - color-picker

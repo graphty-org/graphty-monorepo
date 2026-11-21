@@ -604,7 +604,7 @@ if (!check.valid) {
 
 `AI_STATES`, `AI_STAGES` and `AI_TOOL_CALL_STATUSES` list every value `status.state`,
 `status.stage` and a tool call's `status` can take, for a status display keyed by value. The
-catalogue holds no labels and no order: choose your own.
+catalog holds no labels and no order: choose your own.
 
 Every result of `aiCommand()` carries a `code` and its `params`, so you can tell a missing key
 from a cancelled command or a failed tool without reading `result.message`, which is English
@@ -951,8 +951,7 @@ await session.transaction("Recolor", async (tx) => {
 await session.execute({ op: "visibility.context", show: false });
 ```
 
-Each step's `fact` is a code and its values, for your application to word; `step.label`, an
-English sentence, is deprecated. See [Undo and History](./undo) for the codes, what is and is not
+Each step's `fact` is a code and its values, for your application to word. See [Undo and History](./undo) for the codes, what is and is not
 undoable, transactions, work still running, events and the memory budget.
 
 ## Event Handling

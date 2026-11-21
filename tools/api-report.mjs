@@ -147,6 +147,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     // only by the consumer, never words graphty-element shows
     "mode",
     "key",
+    // the camera view id a saved view follows (SavedView.follows)
+    "follows",
     "nodeId",
     "edgeId",
     "runId",
@@ -331,7 +333,32 @@ const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
  * too much: the column a comparing join writes regions to (JoinChoices.membership) and the kind a
  * link join gives the nodes and edges it adds (JoinLink.kind).
  */
-const PLAIN_STRING_MEMBERS = new Set(["JoinChoices.membership", "JoinLink.kind"]);
+// SourceHubValue.value and SourceDraftPreviewIssue.value: a key value of the consumer's own rows.
+// SourceDraftPreview.draft: the draft's id. SourceDraftPreviewIssue.filter: a filter condition's id.
+// TourStop.view: the name of the view a tour stop flies to, a camera view's id or the consumer's
+// saved view name, never words the element shows. TourRenameCommand.from and .to: the consumer's
+// own names for a saved tour, before and after.
+const PLAIN_STRING_MEMBERS = new Set([
+    "JoinChoices.membership",
+    "JoinLink.kind",
+    "SourceHubValue.value",
+    "SourceDraftPreview.draft",
+    "SourceDraftPreviewIssue.filter",
+    "SourceDraftPreviewIssue.value",
+    // what a save file's section says of itself, as its author wrote it: the reader's data, shown
+    // as given, never graphty-element's words (spec 3 of graphty-element/spec/README.md)
+    "DocumentSectionAbout.description",
+    "DocumentSectionAbout.created",
+    "DocumentSectionAbout.modified",
+    "DocumentSectionAbout.license",
+    "DocumentSectionAbout.from",
+    "DocumentSectionAbout.uri",
+    // a catalog id: the algorithm or layout a saved run names
+    "ProjectFileRun.algorithm",
+    "TourStop.view",
+    "TourRenameCommand.from",
+    "TourRenameCommand.to",
+]);
 
 /**
  * Whether a result type may hold a plain string under this property name.
@@ -397,8 +424,12 @@ const LAYER_TYPE = /Layer|StyleRow|^Row[A-Z]/;
 /** A property, or a literal value of a layer type, that marks a layer as not like the others. */
 const SPECIAL_MARK =
     /locked.?by|locked.?element|element.?locked|protected|system|built.?in|owner|owned|is.?base|^base$|^element$|editable.?base|special|reserved|immutable|deletable|removable/i;
-/** An error code that refuses a change because of which layer it is; `E_LOCKED` is the reader's own. */
-const SPECIAL_CODE = /"(E_(?:[A-Z]+_)*(?:PROTECT[A-Z]*|SYSTEM|BUILT_?IN|OWNE[DR]|RESERVED|BASE|SPECIAL)(?:_[A-Z]+)*)"/g;
+/**
+ * An error code that refuses a change because of which layer it is; `E_LOCKED` is the reader's own.
+ * `E_SPACE_...` codes are about id spaces of loaded keys, never layers.
+ */
+const SPECIAL_CODE =
+    /"(E_(?!SPACE_)(?:[A-Z]+_)*(?:PROTECT[A-Z]*|SYSTEM|BUILT_?IN|OWNE[DR]|RESERVED|BASE|SPECIAL)(?:_[A-Z]+)*)"/g;
 const PROPERTY_NAME = /^\s+(?:readonly )?([A-Za-z_$][\w$]*)\??:/;
 
 /**

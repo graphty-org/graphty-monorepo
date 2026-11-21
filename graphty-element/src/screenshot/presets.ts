@@ -2,7 +2,7 @@ import { SCREENSHOT_PRESET_DESCRIPTORS } from "../catalog/screenshotPresets.js";
 import { captureError } from "./captureError.js";
 import type { ScreenshotOptions } from "./types.js";
 
-// The settings live in the catalogue, which publishes them as plain data.
+// The settings live in the catalog, which publishes them as plain data.
 const SCREENSHOT_PRESETS: Record<string, Partial<ScreenshotOptions>> = Object.fromEntries(
     SCREENSHOT_PRESET_DESCRIPTORS.map(({ id, destination, ...options }) => [
         id,

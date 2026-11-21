@@ -232,7 +232,7 @@ describe("DOTDataSource", () => {
 
         // The four nodes and the two clusters, each a node as graph-io reads it.
         assert.sameMembers(
-            chunks[0].nodes.map((node) => node.id),
+            chunks[0].nodes.map((node): unknown => node.id),
             ["a", "b", "c", "d", "cluster_0", "cluster_1"],
         );
         assert.equal(chunks[0].edges.length, 3);
@@ -253,7 +253,7 @@ describe("DOTDataSource", () => {
 
         // HTML-like labels should be preserved
         assert.equal(chunks[0].nodes[0].id, "a");
-        assert.isTrue(chunks[0].nodes[0].label.includes("Bold"));
+        assert.include(String(chunks[0].nodes[0].label), "Bold");
     });
 
     test("handles numeric node IDs", async () => {
@@ -304,7 +304,7 @@ describe("DOTDataSource", () => {
         }
 
         assert.deepEqual(
-            edges.map(({ tailport, headport }) => ({ tailport, headport })),
+            edges.map(({ tailport, headport }): Record<string, unknown> => ({ tailport, headport })),
             [
                 { tailport: undefined, headport: "c:w" },
                 { tailport: "e", headport: undefined },

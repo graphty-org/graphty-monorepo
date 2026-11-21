@@ -215,8 +215,6 @@ the `file-styles` experiment is off, and otherwise `{ declared, summary }`:
 
 - `declared`: true when reading the file's styles found rules to draw;
 - `summary.nodeRules` and `summary.edgeRules`: how many rules there are for nodes and for edges;
-- `summary.tool`: the program that wrote the file, whose defaults fill in what the file leaves
-  unset (`"cytoscape"`, `"gephi"`, `"graphviz"`, `"yed"`, ...), or null when it is not known.
 
 So a reader can be asked before the load:
 
@@ -340,15 +338,15 @@ key values match nothing; ask the reader then.
 `joinReport(choices)` counts without changing anything, so a picker can show the counts as the
 reader changes the key or the options:
 
-| Choice         | What it does                                                                          |
-| -------------- | ------------------------------------------------------------------------------------- |
-| `ignoreCase`   | `tp53` matches `TP53`. `extraIgnoringCase` says how many more would match             |
-| `ignoreSpaces` | `"TP53 "` matches `TP53`. `extraIgnoringSpaces` says how many more would match        |
-| `columns`      | The columns to bring; every column but the keys by default                            |
-| `clash`        | Per column the graph already has: `"keep"`, `"overwrite"` or `"both"` (default)       |
-| `repeated`     | Several rows with one key: `"first"` (default) or `"both"` (a list, or one edge each) |
-| `via`          | A joined mapping table whose columns translate the incoming keys to the graph's       |
-| `lookup`       | A mapping table held apart from the graph (`draft.lookup()`), read as `via` reads one |
+| Choice         | What it does                                                                                                                            |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `ignoreCase`   | `tp53` matches `TP53`. `extraIgnoringCase` says how many more would match                                                               |
+| `ignoreSpaces` | `"TP53 "` matches `TP53`. `extraIgnoringSpaces` says how many more would match                                                          |
+| `columns`      | The columns to bring; every column but the keys by default                                                                              |
+| `clash`        | Per column the graph already has, `"*"` for the rest: `"keep"` (default), `"overwrite"`, `"both"`, `"min"`, `"max"`, `"mean"`, `"vote"` |
+| `repeated`     | Several rows with one key: `"first"` (default) or `"both"` (a list, or one edge each)                                                   |
+| `via`          | A joined mapping table whose columns translate the incoming keys to the graph's                                                         |
+| `lookup`       | A mapping table held apart from the graph (`draft.lookup()`), read as `via` reads one                                                   |
 
 Every shape, choice and count, with linking by a shared value, merging and comparing two lists,
 is in [Joining Data](./joins).

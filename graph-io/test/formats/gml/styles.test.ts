@@ -21,6 +21,7 @@ import {
     resolveStyles,
     styleFingerprint,
     type StyleRule,
+    unsettledStyles,
 } from "../../../src/styles/internal.js";
 import { editGmlNodeFill, replaceGmlBlock } from "../../styles/formats/gml.js";
 
@@ -53,7 +54,10 @@ async function load(doc: string | Uint8Array, toolDefaults = true) {
 }
 
 const file = (name: string): Uint8Array => new Uint8Array(readFileSync(join(GENERATED, name)));
-const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[];
+// the rules as planned, before values are settled for drawing (which depends on the program, so not the same after a
+// file graphty wrote is read back)
+const plain = (ex: ExtractedStyles): StyleRule[] =>
+    JSON.parse(JSON.stringify(unsettledStyles(ex).styles.rules)) as StyleRule[];
 const toolRules = (ex: ExtractedStyles): StyleRule[] => ex.styles.rules.filter((r) => r.origin === "tool");
 
 /** Every neutral node label position and yEd's GML anchor for it: the inside places, then the outside ones. */
@@ -111,6 +115,42 @@ describe("GML styles: who wrote the file", () => {
         );
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["vee", "none"]);
         expect(resolveStyles(styles, "edge", "sourceArrow", snapshot)).toEqual(["none", "none"]);
+    });
+
+    it("attaches a yEd edge where its edgeAnchor says, in halves of its node's sides", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [",
+                "  node [ id 0 graphics [ x 0 y 0 w 30 h 30 ] ] node [ id 1 graphics [ x 100 y -100 w 30 h 30 ] ]",
+                "  edge [ source 0 target 1 graphics [ Line [ point [ x 0 y 0 ] point [ x 8.3333 y -100 ]",
+                "    point [ x 100 y -100 ] ] ] edgeAnchor [ xSource 0.5556 ySource -1.0 xTarget -1.0 ] ]",
+                "  edge [ source 0 target 1 edgeAnchor [ xSource -1.0 yTarget 1.0 ] ]",
+                "]",
+            ].join("\n"),
+        );
+        // the Line holds the centers; the ports are the anchors: the first leaves the top side straight up to its bend
+        expect(resolveStyles(styles, "edge", "sourcePort", snapshot)).toEqual(["0.5556,1", "-1,0"]);
+        expect(resolveStyles(styles, "edge", "targetPort", snapshot)).toEqual(["-1,0", "0,-1"]);
+    });
+
+    it("draws yEd's stars as yEd does: inscribed in the ellipse of the box, star5 and star6 pointing down", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [",
+                '  node [ id 0 graphics [ w 60 h 40 type "star5" ] ] node [ id 1 graphics [ w 80 h 30 type "star6" ] ]',
+                '  node [ id 2 graphics [ w 40 h 40 type "star8" ] ]',
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["polygon", "polygon", "polygon"]);
+        expect(resolveStyles(styles, "node", "shapePointsStretch", snapshot)).toEqual([false, false, false]);
+        const points = resolveStyles(styles, "node", "shapePoints", snapshot) as string[];
+        expect(points.map((p) => p.split(" ").length)).toEqual([10, 12, 16]);
+        // star6's side points sit sqrt(3)/2 of the way out: 69.3 of its 80 wide box
+        expect(points[1].split(" ")[2]).toBe("0.866,-0.5");
+        expect(points[0].split(" ")[0]).toBe("0,-1");
     });
 
     it("draws a yEd arc edge as one quadratic curve, its apex the arc's height or ratio off the line", async () => {
@@ -519,13 +559,13 @@ describe("GML styles: who wrote the file", () => {
         expect(gmlPositions(snapshot)?.yAxis).toBe("up");
     });
 
-    it("gives an unknown writer (NetworkX writes no Creator) its own values and no defaults", async () => {
+    it("gives an unknown writer (NetworkX writes no Creator) its own values, drawn as Tk draws them, and no defaults", async () => {
         for (const doc of [
             file("networkx-graphics.gml"),
             new Uint8Array(readFileSync(join(CORPUS, "di-unipi-socc_dgLBF__germany50.gml"))),
         ]) {
             const { snapshot, styles } = await load(doc);
-            expect(styles.styles.source.tool).toBeNull();
+            expect(styles.styles.source.tool).toBe("tk");
             expect(toolRules(styles)).toEqual([]);
             expect(resolveStyles(styles, "node", "fill", snapshot).every((v) => v !== null)).toBe(true);
         }

@@ -2,7 +2,7 @@
  * @file The field lists each result shape publishes.
  *
  * A shape fixes the names -- `group` and `groupSize` on a community, `onPath` and `order` on a
- * route, `in` on a set -- and the catalogue states what those names are called in words. These
+ * route, `in` on a set -- and the catalog states what those names are called in words. These
  * builders state which of them a run filled, so the two halves of the same fact are written once
  * each and a test can hold them against one another.
  */

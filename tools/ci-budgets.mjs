@@ -11,9 +11,9 @@
 //       the run's run, job, step, queue and nx task durations against their budgets: a table in
 //       $GITHUB_STEP_SUMMARY, a warning per key over budget, one comment on the pull request for a key
 //       over 1.5 times master's median and 60 s slower, and the rows sent to $RESULTS_URL. Never fails.
-//   node tools/ci-budgets.mjs trend --history <rows.json> [--apply]
-//       the trend alarms over stored rows; with --apply, one issue per key and run kind is filed,
-//       commented on, or closed once the key is back under both lines.
+//       Master's and full runs' alarms go to one issue per workflow, kind and finding (syncAlarms(), #9273).
+//   node tools/ci-budgets.mjs trend --history <rows.json>
+//       the trend alarms over stored rows, printed.
 import { appendFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,7 +24,6 @@ import { call, config } from "./results/client.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const COMMENT_MARKER = "<!-- ci-budgets -->";
-const ISSUE_LABELS = ["bug", "ci-budget", "priority:high", "effort:medium"];
 
 // ---------- the budgets file ----------
 
@@ -389,6 +388,21 @@ function groups(history) {
     return by;
 }
 
+/**
+ * Whether a key is back under its lines with room to spare, so it leaves its alarm. The closing line sits below the
+ * opening one (0.9 x the budget, 1.1 x earlier or under 30 s slower), so a key near the line does not flap.
+ * @param file the parsed ci-budgets.json
+ * @param key the row key
+ * @param seconds the key's time in the run judged
+ * @param earlier median of the 10 runs before the last 5, or null
+ * @returns true when the key is back under
+ */
+export function clearOf(file, key, seconds, earlier) {
+    const minutes = budgetKey(file, key)?.minutes;
+    const underBudget = !minutes || seconds < 0.9 * minutes * 60;
+    return underBudget && (earlier == null || seconds <= 1.1 * earlier || seconds - earlier < 30);
+}
+
 function judge(file, rows) {
     const recentRows = rows.slice(-5);
     const recent = median(recentRows.map((r) => r.seconds));
@@ -400,16 +414,16 @@ function judge(file, rows) {
     const line = overBudget ? minutes * 60 : Math.max(1.3 * earlier, earlier + 60);
     const firstOver = rows.findIndex((r, i) => i >= rows.length - 5 && r.seconds > line);
     const range = firstOver > 0 ? `${rows[firstOver - 1].sha.slice(0, 10)}..${rows[firstOver].sha.slice(0, 10)}` : null;
-    return { recent, earlier, alarm: overBudget || overTrend, range, runs: recentRows };
+    return { recent, earlier, alarm: overBudget || overTrend, range, last: rows.at(-1).seconds, runs: recentRows };
 }
 
 /**
  * Trend verdicts per key and run kind: `recent` = median of the last 5 runs, `earlier` = median of
- * the 10 before; an alarm when recent is over the budget, or over 1.3 x earlier and 60 s slower. A key that
- * stopped getting samples (closeVanished) gets no verdict.
+ * the 10 before; an alarm when recent is over the budget, or over 1.3 x earlier and 60 s slower; `last` = the newest
+ * run's time. A key that stopped getting samples (VANISHED_RUNS) gets no verdict.
  * @param history stored rows { key, run_kind, seconds, sha, recorded_at, outcome }
  * @param file the parsed ci-budgets.json
- * @returns key, kind, recent, earlier, alarm, range, runs per key and kind
+ * @returns key, kind, recent, earlier, alarm, range, last, runs per key and kind
  */
 export function trend(history, file) {
     const live = history.filter((r) => r.outcome !== "cancelled");
@@ -427,51 +441,261 @@ export function trend(history, file) {
         .map(([k, rows]) => ({ key: k.split("\u0000")[0], kind: k.split("\u0000")[1], ...judge(file, rows) }));
 }
 
-export const issuePrefix = (v) => `CI budget: ${v.key} (${v.kind}) `;
+// ---------- the alarm issues ----------
 
-function issueBody(v) {
-    const runs = (v.runs ?? []).map((r) => `- ${r.recorded_at} ${r.sha.slice(0, 10)}: ${fmt(r.seconds)}`).join("\n");
-    const range = v.range
-        ? `Suspects: master's first-parent merges in ${v.range}.`
-        : "Suspects: no single step over the line.";
-    const last = runs ? `\n\nLast 5 runs:\n${runs}` : "";
-    return `\`${v.key}\` on ${v.kind} runs: median of the last 5 runs ${fmt(v.recent)}, of the 10 before ${fmt(v.earlier)}.\n\n${range}${last}`;
+// One open issue per workflow, run kind and finding lists every key over its line (#9273): `code`, the keys a change
+// in their suspect range may have slowed, and `shared`, the keys a slowdown the whole run shares explains (runner
+// contention, a slower runner class). Each run updates the lists instead of filing an issue per key.
+const FINDINGS = {
+    code: { title: "keys over the line", labels: ["bug", "ci-budget", "priority:high", "effort:medium"] },
+    shared: { title: "shared slowdown", labels: ["infrastructure", "ci-budget", "priority:medium", "effort:medium"] },
+};
+
+/**
+ * The title of a workflow's and run kind's alarm issue.
+ * @param workflow the workflow's file name, `release.yml`
+ * @param kind the run kind
+ * @param finding `code` or `shared`
+ * @returns the title
+ */
+export const alarmTitle = (workflow, kind, finding) => `CI budget: ${workflow} (${kind}) ${FINDINGS[finding].title}`;
+
+// A run slowed as a whole when its typical key of 2 minutes or more took SHARED_RATIO times its usual time (`earlier`):
+// full runs measured 0.96 to 1.06 before the runner contention of 2026-11-20 and 1.09 to 1.13 during it (#9273). Which
+// test files changed cannot tell the two apart: a full run's suspect range is 6 hours of master (400 to 519 files, 42 to
+// 99 of them graphty's or graphty-element's tests, on 2026-11-20), and the job cannot see which files a shard ran.
+export const SHARED_RATIO = 1.08;
+// a key slowed past SHARED_SPREAD times its run's own slowdown has a slowdown of its own
+const SHARED_SPREAD = 1.5;
+const LONG_SECONDS = 120;
+const MIN_LONG_KEYS = 20;
+const STATE = /<!-- ci-budgets-alarm (\{.*?\}) -->/s;
+const BODY_MAX = 60_000;
+const REOPEN_DAYS = 7;
+const SETTLED = new Set(["not_planned", "duplicate"]);
+// the per-key issues filed before #9273, folded into the issue that lists their key
+const PER_KEY_TITLE = /^CI budget: ((?:run|job|step|queue):[^:]+:.+) \(([a-z-]+)\) /;
+
+/**
+ * How much slower the run ran as a whole: the median, over its job and step keys whose usual time is 2 minutes or
+ * more, of the key's time in this run (`last`) over its usual time (`earlier`).
+ * @param verdicts the run's verdicts
+ * @returns the factor, or null with fewer than 20 such keys
+ */
+export function sharedSlowdown(verdicts) {
+    const r = verdicts
+        .filter((v) => /^(job|step):/.test(v.key) && v.earlier >= LONG_SECONDS && v.last > 0)
+        .map((v) => v.last / v.earlier);
+    return r.length >= MIN_LONG_KEYS ? median(r) : null;
+}
+
+function readState(body) {
+    try {
+        return JSON.parse(STATE.exec(body ?? "")?.[1] ?? "null") ?? { keys: {} };
+    } catch {
+        return { keys: {} };
+    }
+}
+
+const short = (range) => range?.replaceAll(/([0-9a-f]{10})[0-9a-f]+/g, "$1") ?? "-";
+
+const struckText = (s) => {
+    if (s.gone) return `no longer runs (run ${s.run})`;
+    if (s.moved)
+        return `still over its line in run ${s.run}, which did not slow as a whole: moved to the keys over the line`;
+    return `back under in run ${s.run}: ${fmt(s.seconds)}`;
+};
+
+function alarmBody(workflow, kind, finding, state) {
+    const slow = state.slowdown
+        ? ` In run ${state.slowdown.run} the keys of 2 minutes or more took a median ${state.slowdown.factor} times their usual time, and a key listed here slowed no more than ${SHARED_SPREAD} times that; one still over its line in a run that did not slow as a whole moves to the keys over the line.`
+        : "";
+    const head =
+        finding === "shared"
+            ? `\`${workflow}\` ${kind} runs: keys slowed by a slowdown the whole run shares, not by a change.${slow} A queue key is time spent waiting for a runner. Look at runner contention or the runner class, not at the suspect merges.`
+            : `\`${workflow}\` ${kind} runs: keys over their line (the budget, or 1.3 times their usual time and a minute slower, on the median of the last 5 runs). Suspects: master's first-parent merges in each key's range.`;
+    const rows = Object.entries(state.keys).map(([key, e]) => {
+        const where = e.struck ? struckText(e.struck) : `over since run ${e.since}`;
+        const name = e.struck ? `~~\`${key}\`~~` : `\`${key}\``;
+        return `| ${name} | ${fmt(e.earlier)} | ${fmt(e.recent)} | ${fmt(e.last)} | ${short(e.range)} | ${where} |`;
+    });
+    return [
+        `<!-- ci-budgets-alarm ${JSON.stringify(state)} -->`,
+        head,
+        "",
+        "Each run updates this list: a key back under its closing line in a run is struck with that run as evidence, and the issue closes itself when no key is left (tools/ci-budgets.mjs).",
+        "",
+        "| Key | Usual | Last 5 runs | Latest run | Suspects | State |",
+        "| --- | --- | --- | --- | --- | --- |",
+        ...rows,
+    ].join("\n");
+}
+
+// ponytail: struck keys stay listed until the issue closes; past BODY_MAX the oldest struck ones are dropped
+function fittedBody(workflow, kind, finding, state) {
+    let body = alarmBody(workflow, kind, finding, state);
+    const struck = Object.entries(state.keys)
+        .filter(([, e]) => e.struck)
+        .sort(([, a], [, b]) => a.struck.run - b.struck.run);
+    while (body.length > BODY_MAX && struck.length) {
+        delete state.keys[struck.shift()[0]];
+        body = alarmBody(workflow, kind, finding, state);
+    }
+    return body;
+}
+
+// A key no run of its workflow and kind sampled in VANISHED_RUNS runs (or in the store's 30 days) is gone: its job or
+// step was renamed or removed (#5176). Run and nx task keys never go.
+function gone(key, lastSeen, workflow) {
+    const [level, wf, job, ...step] = key.split(":");
+    if (!Object.keys(lastSeen ?? {}).length || wf !== workflow || !["job", "step", "queue"].includes(level))
+        return false;
+    const seen =
+        lastSeen[level === "job" ? key : `step:${wf}:${job}:${level === "queue" ? QUEUE_STEP : step.join(":")}`];
+    return !seen || seen.runsSince >= VANISHED_RUNS;
+}
+
+// The alarming step: verdict under a job: or run: key, in the same run kind: one slowdown, listed once, as the step.
+function alarmingStep(v, verdicts) {
+    const [type, wf] = v.key.split(":");
+    if (type !== "job" && type !== "run") return undefined;
+    const prefix = type === "job" ? `step:${v.key.slice(4)}:` : `step:${wf}:`;
+    return verdicts.find((s) => s.alarm && s.kind === v.kind && s.key.startsWith(prefix));
 }
 
 /**
- * File, comment on or close one issue per key and run kind.
+ * Lists one run's alarms in its workflow's and kind's issues: a key the trend alarms on (trend()'s line) and over its
+ * closing line in this run joins the issue of its finding, unless an open issue lists it already; a listed key under
+ * its closing line in this run (clearOf) is struck with the run as evidence, and one that no longer runs is struck as
+ * gone; an issue with no key left closes itself. A job or run whose step alarms too is the step's slowdown. A key is
+ * the `shared` finding when it waited for a runner (queue), or when the run slowed as a whole (sharedSlowdown() at
+ * least SHARED_RATIO) and the key no more than SHARED_SPREAD times the run; any other key is `code`, and a shared key
+ * still alarming in a run that did not slow as a whole moves to `code`. Each issue is filed (or reopened when it
+ * closed in the last 7 days, not as not planned or duplicate) with its first keys, its list rewritten every run, and
+ * commented on when a key joins or leaves. An open per-key issue of the form filed before #9273 is closed as a
+ * duplicate of the issue that now holds its workflow's and kind's keys (one labeled in-progress belongs to its
+ * session and is left).
  * @param gh (path, init?) => parsed answer of GitHub's REST API for this repository
- * @param verdicts trend()'s answer
- * @param owner the owner label of the alarm (`defaults.owner`)
- * @returns the actions taken, `{ action, key, kind, number? }[]`
+ * @param verdicts the run's verdicts: key, kind, recent, earlier, alarm, range and `last` (this run's seconds)
+ * @param opts `{ run: { id, html_url? }, workflow, kind, file, lastSeen?, note? }`: lastSeen is the store's (strikes
+ *   gone keys), note a prefix for the per-key issues' closing comments
+ * @returns the actions taken, `{ action, number, finding?, added?, struck? }[]`
  */
-export async function syncIssues(gh, verdicts, owner = "pipeline") {
+export async function syncAlarms(gh, verdicts, opts) {
+    const { workflow, kind, note = "" } = opts;
     const open = await gh(`/issues?state=open&labels=ci-budget&per_page=100`);
+    const lists = Object.fromEntries(
+        Object.keys(FINDINGS).map((f) => {
+            const issue = open.find((i) => i.title === alarmTitle(workflow, kind, f));
+            return [f, { issue, state: readState(issue?.body), added: [], struck: [] }];
+        }),
+    );
+    const ctx = { ...opts, byKey: new Map(verdicts.map((v) => [v.key, v])), shared: sharedSlowdown(verdicts) };
+    for (const [finding, list] of Object.entries(lists)) strikeListed(finding, list, ctx);
+    addAlarms(lists, verdicts, ctx);
     const done = [];
+    for (const [finding, list] of Object.entries(lists)) {
+        const r = await writeList(gh, { ...opts, finding, list, open });
+        if (r) done.push({ ...r, finding, added: list.added, struck: list.struck });
+    }
+    done.push(...(await foldPerKey(gh, open, lists, { ...opts, note })));
+    return done;
+}
+
+const clearNow = (file, v) => v?.last != null && clearOf(file, v.key, v.last, v.earlier);
+const numbers = (v) => ({ earlier: v.earlier, recent: v.recent, last: v.last ?? null });
+const ticked = (keys) => keys.map((k) => `\`${k}\``).join(", ");
+
+// Strikes each listed key back under its closing line in this run, gone, or (a shared one) still alarming in a run that
+// did not slow as a whole; updates the numbers of the rest.
+function strikeListed(finding, list, { run, file, workflow, lastSeen, byKey, shared }) {
+    const calm = shared != null && shared < SHARED_RATIO;
+    for (const [key, e] of Object.entries(list.state.keys).filter(([, x]) => !x.struck)) {
+        const v = byKey.get(key);
+        if (clearNow(file, v)) e.struck = { run: run.id, seconds: v.last };
+        else if (!v && gone(key, lastSeen, workflow)) e.struck = { run: run.id, gone: true };
+        else if (finding === "shared" && calm && v?.alarm && !key.startsWith("queue:"))
+            e.struck = { run: run.id, moved: true };
+        else if (v) Object.assign(e, numbers(v));
+        if (e.struck) list.struck.push(key);
+    }
+}
+
+// Lists each key the trend alarms on, over its closing line in this run and on no list yet, under its finding.
+function addAlarms(lists, verdicts, { run, file, shared }) {
+    const listed = (key) => Object.values(lists).some((l) => l.state.keys[key] && !l.state.keys[key].struck);
+    const findingOf = (v) =>
+        v.key.startsWith("queue:") || (shared >= SHARED_RATIO && v.last / v.earlier <= SHARED_SPREAD * shared)
+            ? "shared"
+            : "code";
     for (const v of verdicts) {
-        const issue = open.find((i) => i.title.startsWith(issuePrefix(v)));
-        if (v.alarm && issue) {
-            await gh(`/issues/${issue.number}/comments`, {
-                method: "POST",
-                body: JSON.stringify({ body: issueBody(v) }),
-            });
-            done.push({ action: "comment", key: v.key, kind: v.kind, number: issue.number });
-        } else if (v.alarm) {
-            const title = `${issuePrefix(v)}${fmt(v.earlier)} -> ${fmt(v.recent)}`;
-            const labels = [...ISSUE_LABELS, ...(owner === "pipeline" ? [] : [owner])];
-            const made = await gh(`/issues`, {
-                method: "POST",
-                body: JSON.stringify({ title, body: issueBody(v), labels }),
-            });
-            done.push({ action: "file", key: v.key, kind: v.kind, number: made?.number });
-        } else if (issue) {
-            await gh(`/issues/${issue.number}/comments`, {
-                method: "POST",
-                body: JSON.stringify({ body: `Back under both lines: last 5 runs ${fmt(v.recent)}.` }),
-            });
-            await gh(`/issues/${issue.number}`, { method: "PATCH", body: JSON.stringify({ state: "closed" }) });
-            done.push({ action: "close", key: v.key, kind: v.kind, number: issue.number });
+        if (!v.alarm || clearNow(file, v) || listed(v.key) || alarmingStep(v, verdicts)) continue;
+        const list = lists[findingOf(v)];
+        list.state.keys[v.key] = { ...numbers(v), range: v.range, since: run.id };
+        list.added.push(v.key);
+    }
+    if (shared >= SHARED_RATIO && lists.shared.added.length)
+        lists.shared.state.slowdown = { run: run.id, factor: +shared.toFixed(2) };
+}
+
+async function writeList(gh, { run, workflow, kind, file, finding, list }) {
+    const runRef = run.html_url ? `[run ${run.id}](${run.html_url})` : `run ${run.id}`;
+    const body = fittedBody(workflow, kind, finding, list.state);
+    const left = Object.values(list.state.keys).filter((e) => !e.struck).length;
+    const comment = (number, text) =>
+        gh(`/issues/${number}/comments`, { method: "POST", body: JSON.stringify({ body: text }) });
+    if (!list.issue) {
+        if (!list.added.length) return null;
+        const title = alarmTitle(workflow, kind, finding);
+        const since = Date.now() - REOPEN_DAYS * 86_400_000;
+        const closed = await gh(`/issues?state=closed&labels=ci-budget&per_page=100`);
+        const old = closed.find(
+            (i) => i.title === title && Date.parse(i.closed_at) >= since && !SETTLED.has(i.state_reason),
+        );
+        if (old) {
+            await gh(`/issues/${old.number}`, { method: "PATCH", body: JSON.stringify({ state: "open", body }) });
+            await comment(old.number, `${runRef}: over the line again: ${ticked(list.added)}.`);
+            list.issue = old;
+            return { action: "reopen", number: old.number };
         }
+        const owner = file.defaults?.owner ?? "pipeline";
+        const labels = [...FINDINGS[finding].labels, ...(owner === "pipeline" ? [] : [owner])];
+        const made = await gh(`/issues`, { method: "POST", body: JSON.stringify({ title, body, labels }) });
+        list.issue = made;
+        return { action: "file", number: made?.number };
+    }
+    const number = list.issue.number;
+    const patch = left ? { body } : { body, state: "closed" };
+    await gh(`/issues/${number}`, { method: "PATCH", body: JSON.stringify(patch) });
+    if (!list.added.length && !list.struck.length) return { action: "update", number };
+    const lines = [
+        list.added.length && `- over the line: ${ticked(list.added)}`,
+        ...list.struck.map((k) => `- \`${k}\`: ${struckText(list.state.keys[k].struck)}`),
+        !left && "\nNo key is left over its line: closing.",
+    ].filter(Boolean);
+    await comment(number, [`${runRef}:`, ...lines].join("\n"));
+    return { action: left ? "update" : "close", number };
+}
+
+async function foldPerKey(gh, open, lists, { run, workflow, kind, note }) {
+    const done = [];
+    for (const issue of open) {
+        const [, key, k] = PER_KEY_TITLE.exec(issue.title) ?? [];
+        const labels = (issue.labels ?? []).map((l) => l.name ?? l);
+        if (!key || k !== kind || key.split(":")[1] !== workflow || labels.includes("in-progress")) continue;
+        const home =
+            Object.values(lists).find((l) => l.issue && l.state.keys[key] && !l.state.keys[key].struck) ??
+            Object.values(lists).find((l) => l.issue && Object.values(l.state.keys).some((e) => !e.struck));
+        const text = home
+            ? `${note}Folded into #${home.issue.number}, which lists every key of ${workflow}'s ${kind} runs over its line and is updated by each run (#9273).`
+            : `${note}Closing: no key of ${workflow}'s ${kind} runs is over its line in run ${run.id} (#9273).`;
+        await gh(`/issues/${issue.number}/comments`, { method: "POST", body: JSON.stringify({ body: text }) });
+        const reason = home ? "duplicate" : "completed";
+        await gh(`/issues/${issue.number}`, {
+            method: "PATCH",
+            body: JSON.stringify({ state: "closed", state_reason: reason }),
+        });
+        done.push({ action: "fold", number: issue.number, key, into: home?.issue.number ?? null });
     }
     return done;
 }
@@ -523,62 +747,29 @@ async function storeMedians(run, rows) {
 }
 
 /**
- * The store's trend answer (POST /v1/durations, per store key within the run's kind) applied as issues: one per
- * key and kind, filed, commented on or closed by syncIssues(), titled by each row's own key.
+ * The store's answer to POST /v1/durations (per store key within the run's kind) as alarm issues: each verdict under
+ * its row's own key with this run's seconds as `last`, listed by syncAlarms().
  * @param gh (path, init?) => parsed answer of GitHub's REST API for this repository
- * @param run the run (`path`)
+ * @param run the run (`id`, `path`, `html_url`)
  * @param rows the run's rows
- * @param answer the answer's `trend`: `{ key, kind, recent, earlier, alarm, range }[]`
+ * @param stored the answer: `kind`, `trend` (`{ key, kind, recent, earlier, alarm, range }[]`) and `lastSeen`
  * @param file the parsed ci-budgets.json
- * @returns syncIssues()'s actions
+ * @returns syncAlarms()'s actions
  */
-export async function applyTrend(gh, run, rows, answer, file) {
-    const rowKey = new Map(storeRows(run, rows).map((s, i) => [storeKey(s), rows[i].key]));
-    const verdicts = answer.map((v) => ({ ...v, key: rowKey.get(v.key) ?? v.key }));
-    return syncIssues(gh, verdicts, file.defaults?.owner);
+export async function applyTrend(gh, run, rows, stored, file) {
+    const rowOf = new Map(storeRows(run, rows).map((s, i) => [storeKey(s), rows[i]]));
+    const verdicts = (stored.trend ?? []).map((v) => {
+        const row = rowOf.get(v.key);
+        return { ...v, key: row?.key ?? v.key, last: row?.seconds };
+    });
+    const workflow = basename(run.path ?? "ci.yml");
+    return syncAlarms(gh, verdicts, { run, workflow, kind: stored.kind, file, lastSeen: stored.lastSeen });
 }
 
 // A key with no sample in this many runs of its workflow and kind is gone (its job or step was renamed or removed,
 // #5176). 10 full runs are two to three days: longer than a red run or two that skips a job's later steps, short
-// enough that a dead alarm does not sit open for a week. A key that comes back is judged and filed again.
+// enough that a dead alarm does not sit open for a week. A key that comes back is judged and listed again.
 export const VANISHED_RUNS = 10;
-
-const ALARM_TITLE = /^CI budget: (.+) \(([a-z-]+)\) /;
-
-/**
- * Closes each open alarm of this run's workflow and kind whose key has had no sample in the last VANISHED_RUNS
- * runs (or none in the store's 30-day window): the trend judges only the keys a run posts, so such an alarm would
- * otherwise stay open for good. Run and nx task keys are left alone (a run always has its run row; a task key
- * names no workflow).
- * @param gh (path, init?) => parsed answer of GitHub's REST API for this repository
- * @param run the run (`path`)
- * @param kind the stored run kind
- * @param lastSeen the store's `lastSeen`: `{ [storeKey]: { runId, sha, at, runsSince } }`
- * @returns the actions taken, `{ action: "vanished", key, kind, number }[]`
- */
-export async function closeVanished(gh, run, kind, lastSeen) {
-    // an older store answers no lastSeen: then nothing is judged gone
-    if (!lastSeen || !Object.keys(lastSeen).length) return [];
-    const workflow = basename(run.path ?? "ci.yml");
-    const open = await gh(`/issues?state=open&labels=ci-budget&per_page=100`);
-    const done = [];
-    for (const issue of open) {
-        const [, key, k] = ALARM_TITLE.exec(issue.title) ?? [];
-        const [level, wf, job, ...step] = key?.split(":") ?? [];
-        if (k !== kind || wf !== workflow || !["job", "step", "queue"].includes(level)) continue;
-        const stepName = level === "queue" ? QUEUE_STEP : step.join(":");
-        const seen = lastSeen[level === "job" ? key : `step:${wf}:${job}:${stepName}`];
-        if (seen && seen.runsSince < VANISHED_RUNS) continue;
-        const last = seen
-            ? `Its last sample was run ${seen.runId} on ${String(seen.sha).slice(0, 10)} at ${new Date(seen.at).toISOString()}, and ${seen.runsSince} ${kind} runs of ${workflow} have had none since.`
-            : `It has no sample in the results store's last 30 days of ${kind} runs of ${workflow}.`;
-        const body = `\`${key}\` no longer runs: the job or step was renamed or removed. ${last} Closing this alarm; it is filed again if the key comes back over its line.`;
-        await gh(`/issues/${issue.number}/comments`, { method: "POST", body: JSON.stringify({ body }) });
-        await gh(`/issues/${issue.number}`, { method: "PATCH", body: JSON.stringify({ state: "closed" }) });
-        done.push({ action: "vanished", key, kind, number: issue.number });
-    }
-    return done;
-}
 
 // The store sets the rows' kind from the job's OIDC token (the timings job needs id-token: write), and judges
 // each posted key's trend against the budgets sent with the rows.
@@ -633,12 +824,9 @@ async function report(v) {
 }
 
 async function alarmIssues(gh, run, rows, stored, file) {
-    // ponytail: two master timings jobs finishing together can both file one key's issue; a lock if seen
-    const done = stored.trend?.length
-        ? await failOpen("the trend alarm issues", () => applyTrend(gh, run, rows, stored.trend, file))
-        : [];
-    const gone = await failOpen("closing vanished alarms", () => closeVanished(gh, run, stored.kind, stored.lastSeen));
-    for (const a of [...(done ?? []), ...(gone ?? [])]) console.log(`${a.action} #${a.number}: ${a.key} (${a.kind})`);
+    // ponytail: two master timings jobs finishing together can both file one list's issue; a lock if seen
+    const done = await failOpen("the trend alarm issues", () => applyTrend(gh, run, rows, stored, file));
+    for (const a of done ?? []) console.log(`${a.action} #${a.number}: ${JSON.stringify(a)}`);
 }
 
 async function trendCommand(v) {
@@ -646,9 +834,6 @@ async function trendCommand(v) {
     const verdicts = trend(JSON.parse(readFileSync(v.history, "utf8")), file);
     for (const x of verdicts.filter((y) => y.alarm))
         console.log(`alarm: ${x.key} (${x.kind}) ${fmt(x.earlier)} -> ${fmt(x.recent)}`);
-    if (v.apply)
-        for (const a of await syncIssues(repoApi(), verdicts, file.defaults?.owner))
-            console.log(`${a.action} #${a.number}: ${a.key} (${a.kind})`);
     return 0;
 }
 
@@ -663,7 +848,6 @@ async function main(argv) {
             medians: { type: "string" },
             "nx-profile": { type: "string", multiple: true },
             history: { type: "string" },
-            apply: { type: "boolean" },
         },
     });
     const cmd = positionals[0];
@@ -671,7 +855,7 @@ async function main(argv) {
     // report and trend warn, never fail a run
     if (cmd === "report" && v.run) return (await failOpen("report", () => report(v))) ?? 0;
     if (cmd === "trend" && v.history) return (await failOpen("trend", () => trendCommand(v))) ?? 0;
-    console.error("usage: ci-budgets.mjs lint | report --run <id> | trend --history <rows.json> [--apply]");
+    console.error("usage: ci-budgets.mjs lint | report --run <id> | trend --history <rows.json>");
     return 2;
 }
 

@@ -21,9 +21,11 @@ import type { StylePatchCommand } from "../commands/style";
 import type { Dispatcher } from "../project/Dispatcher";
 import { RevisionCache } from "../revision";
 import type { Run } from "../runs";
+import { ManagedRun } from "../runs/Run";
 import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
+import type { StepsEdit } from "../sources/steps/project";
 import type { CompiledLayer } from "../styles/Layer";
 import type { Selector } from "../styles/selector";
 import { drawsOutsideWindow, drawsOutsideWindowOf, paintedStack } from "../styles/tree";
@@ -554,7 +556,7 @@ export interface TimeApi {
      * screen or touching history. Step, mode and zone left out come from the window in force, else
      * the settings; `from` and `to` default to the start and end of the data.
      * @param options - Step, mode, range, zone and measures.
-     * @returns A run resolving to the rows, one per window; it can be cancelled. It rejects with
+     * @returns A run resolving to the rows, one per window; it can be canceled. It rejects with
      *     `E_NO_TIME_FIELD` when nothing is designated, `E_OPTION_RANGE` past 10,000 windows or for a
      *     `from` or `to` that is not finite, and `E_BAD_COMMAND` (`reason: "measure"`) for a measure it does not have.
      */
@@ -630,6 +632,12 @@ export interface TimeSources {
      * any other column. Its dispatch is made before its first await. Absent, `asDates` does nothing.
      */
     readonly asDates?: (kind: "node" | "edge", column: string) => Promise<void> | undefined;
+    /**
+     * Under source-steps, the role edit a `data.knownFields` write makes: the time settings are
+     * views of the sources' time roles (design 3.9). Throws `E_ROLE_TARGET_AMBIGUOUS` when several
+     * sources could take the role. Absent, or null, the write sets only the setting.
+     */
+    readonly settingRoles?: (knownFields: Readonly<Record<string, unknown>>) => StepsEdit | null;
     /**
      * Settles on the next drawn frame, or at once when no frame is coming. Absent with no renderer.
      * Asked only by a stepped play with `waitForRender`.
@@ -2371,7 +2379,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             Promise.all(
                 runs.map(async (run) => {
                     try {
-                        await run.rerun();
+                        // Marked as the session's own re-run, so `run:changed` says the window did it.
+                        await (run instanceof ManagedRun ? run.rerun("time-window") : run.rerun());
                     } catch (error) {
                         sources.emit("time:rerun-failed", {
                             run: run.id,
@@ -2602,6 +2611,21 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
         }
 
+        const knownFields = {
+            nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
+            nodeTimeUnit: nodes?.unit ?? null,
+            nodeTimeParseZone: nodes?.parseZone ?? null,
+            nodeTimeEndPath: optionalColumn(nodes?.end) ?? null,
+            nodeTimeSpellsPath: optionalColumn(nodes?.spells) ?? null,
+            edgeTimePath: edges === undefined ? null : columnOf(edges.start),
+            edgeTimeUnit: edges?.unit ?? null,
+            edgeTimeParseZone: edges?.parseZone ?? null,
+            edgeTimeEndPath: optionalColumn(edges?.end) ?? null,
+            edgeTimeSpellsPath: optionalColumn(edges?.spells) ?? null,
+        };
+        // Refused here, before anything changes, when several sources could take the time role.
+        const roles = sources.settingRoles?.(knownFields) ?? null;
+
         const before = fieldNow();
         const column = (edges ?? nodes)?.start;
         const changed = !sameReading(before?.nodes, nodes) || !sameReading(before?.edges, edges);
@@ -2626,25 +2650,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     }
                 }
 
-                await tx.dispatch({
-                    op: "config.set",
-                    values: {
-                        data: {
-                            knownFields: {
-                                nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
-                                nodeTimeUnit: nodes?.unit ?? null,
-                                nodeTimeParseZone: nodes?.parseZone ?? null,
-                                nodeTimeEndPath: optionalColumn(nodes?.end) ?? null,
-                                nodeTimeSpellsPath: optionalColumn(nodes?.spells) ?? null,
-                                edgeTimePath: edges === undefined ? null : columnOf(edges.start),
-                                edgeTimeUnit: edges?.unit ?? null,
-                                edgeTimeParseZone: edges?.parseZone ?? null,
-                                edgeTimeEndPath: optionalColumn(edges?.end) ?? null,
-                                edgeTimeSpellsPath: optionalColumn(edges?.spells) ?? null,
-                            },
-                        },
-                    },
-                });
+                if (roles !== null) {
+                    await tx.dispatch({ op: "data.steps-set", edit: roles });
+                }
+                await tx.dispatch({ op: "config.set", values: { data: { knownFields } } });
                 // Another field, or another reading of it, is another timeline: the window goes.
                 if (changed && visibility.window !== null) {
                     await tx.dispatch({ op: "visibility.window", window: null });

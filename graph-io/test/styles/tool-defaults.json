@@ -65,7 +65,7 @@
             "width": 60,
             "height": 40,
             "borderColor": "#000000",
-            "borderWidth": 2,
+            "borderWidth": 1,
             "labelColor": "#000000",
             "labelFont": "DejaVu Sans, sans-serif",
             "labelWeight": "normal",
@@ -120,6 +120,7 @@
             "labelWeight": "normal",
             "labelPosition": "top",
             "labelWrapTrailingSpace": true,
+            "labelWrapSkipEndSpace": true,
             "borderPosition": "center",
             "outerBorderColor": "#999999",
             "underlayColor": "#000000",
@@ -229,6 +230,8 @@
             "labelColor": "#000000",
             "labelFont": "DejaVu Sans, sans-serif",
             "labelSize": 12,
+            "labelPadding": 2,
+            "labelLineHeight": 1,
             "labelKeepBlankLines": true,
             "fanned": false
         },
@@ -482,5 +485,12 @@
                 "arrow": "triangle"
             }
         ]
+    },
+    "tk": {
+        "units": "px",
+        "node": {},
+        "edge": {},
+        "graph": {},
+        "derived": []
     }
 }

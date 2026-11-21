@@ -11,8 +11,7 @@
 import { Ray, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { Graph, operationQueueOf } from "../../src/Graph";
-import type { RenderManager } from "../../src/managers/RenderManager";
+import { Graph, operationQueueOf, renderManagerOf } from "../../src/Graph";
 import { fileStylesOn } from "../helpers/file-styles-on";
 
 fileStylesOn();
@@ -105,7 +104,7 @@ describe("a group with no stored position follows its members", () => {
     /**
      * Load a file, then step the force layout a counted number of times: the layout never moves a
      * group (its row is where the element last put it after every step), and once the element
-     * places it, the group sits at the centre of its members' box and its box holds every member.
+     * places it, the group sits at the center of its members' box and its box holds every member.
      * @param type - The data source.
      * @param data - The file.
      * @param groups - Each group and the nodes inside it, an inner group's included.
@@ -279,6 +278,50 @@ describe("a group with no stored position follows its members", () => {
         assert.strictEqual(hidden, 0, "the ray to every member's centre meets the member before its group");
     });
 
+    it("draws a Cytoscape.js parent around all three of its children and behind them", async () => {
+        const three = JSON.stringify({
+            elements: [
+                { data: { id: "box" } },
+                { data: { id: "c1", parent: "box" } },
+                { data: { id: "c2", parent: "box" } },
+                { data: { id: "c3", parent: "box" } },
+                { data: { id: "free" } },
+                { data: { id: "e1", source: "c1", target: "c2" } },
+                { data: { id: "e2", source: "c2", target: "c3" } },
+                { data: { id: "e3", source: "c3", target: "free" } },
+            ],
+        });
+        await follows("json", three, { box: ["c1", "c2", "c3"] });
+        const { nodes } = graph.getDataManager();
+        for (const node of nodes.values()) {
+            node.update();
+        }
+
+        const group = nodes.get("box");
+        assert.isDefined(group);
+        group.mesh.computeWorldMatrix(true);
+        const drawnBox = group.mesh.getBoundingInfo().boundingBox;
+        const scene = graph.getScene();
+        for (const id of ["c1", "c2", "c3"]) {
+            const member = nodes.get(id);
+            assert.isDefined(member);
+            member.mesh.computeWorldMatrix(true);
+            const p = member.mesh.getAbsolutePosition();
+            assert.isTrue(
+                p.x >= drawnBox.minimumWorld.x && p.x <= drawnBox.maximumWorld.x,
+                `${id} is inside the drawn box across`,
+            );
+            assert.isTrue(
+                p.y >= drawnBox.minimumWorld.y && p.y <= drawnBox.maximumWorld.y,
+                `${id} is inside the drawn box up and down`,
+            );
+            // Both views look along +z: from in front of the member, the ray meets it before the group.
+            const ray = new Ray(p.subtract(new Vector3(0, 0, 1000)), new Vector3(0, 0, 1), 2000);
+            const hit = scene.pickWithRay(ray, (m) => m === member.mesh || m === group.mesh);
+            assert.strictEqual(hit?.pickedMesh, member.mesh, `${id} is drawn in front of its parent`);
+        }
+    });
+
     it("draws a group the same size in 2D wherever the orthographic camera sits along the view axis", async () => {
         // An orthographic view has no perspective: a group grown for the camera's distance was drawn larger while the
         // camera was near (before the view was framed) than after, so its size depended on which frame drew it last
@@ -309,7 +352,7 @@ describe("a group with no stored position follows its members", () => {
         // frame (or under the minimum-work test mode) the load's repaint is still applied in batches.
         graph.getLayoutManager().running = false;
         await graph.waitForStableFrame();
-        const release = (graph as unknown as { renderManager: RenderManager }).renderManager.holdFrames();
+        const release = renderManagerOf(graph).holdFrames();
         try {
             const group = graph.getDataManager().nodes.get("clusterC");
             assert.isDefined(group);
@@ -409,7 +452,7 @@ describe("a group with no stored position follows its members", () => {
         await graph.getSession().data.import({ type: "json", config: { data: saved } }, { styles: "file" });
         await operationQueueOf(graph).waitForCompletion();
         // Every frame below is drawn by hand, so the live loop cannot draw one in between.
-        const release = (graph as unknown as { renderManager: RenderManager }).renderManager.holdFrames();
+        const release = renderManagerOf(graph).holdFrames();
         try {
             await graph.setLayout("fixed");
             const updates = graph.getUpdateManager();

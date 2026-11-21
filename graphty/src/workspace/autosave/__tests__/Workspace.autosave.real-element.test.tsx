@@ -17,10 +17,11 @@ import { type GraphSession, isGraphtyError, listAutosaves } from "@graphty/graph
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { onUsageEvent } from "../../../lib/analytics";
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { openBy } from "../../../test/open";
 import { pickSample, sampleTile } from "../../../test/samples-dialog";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -734,7 +735,19 @@ describe("Workspace autosave with the real graphty-element", () => {
         assert.include(region.textContent, FLORENTINE.name);
         assert.include(region.textContent, `${String(FLORENTINE.nodes)} nodes`);
 
+        const counted: Readonly<Record<string, unknown>>[] = [];
+        const offUsage = onUsageEvent((name, props) => {
+            if (name === "project_reopened") {
+                counted.push(props);
+            }
+        });
         await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
+        offUsage();
+        // Counted as a reopen of work kept from an earlier visit, never by its name.
+        assert.deepEqual(
+            counted.map((props) => ({ ...props })),
+            [{ from: "kept" }],
+        );
         const reopened = openedElement();
         assert.equal(reopened.session.data.statistics().nodeCount, FLORENTINE.nodes);
         assert.equal(reopened.session.project.name, FLORENTINE.name);
@@ -789,8 +802,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         const first = mountWorkspace();
         await openBy(first.store, () => pickSample(FLORENTINE.name));
         const { element, session } = openedElement();
-        const inspector = (): ReturnType<typeof within> =>
-            within(screen.getByRole("complementary", { name: "Inspector" }));
+        const inspector = (): Within => within(screen.getByRole("complementary", { name: "Inspector" }));
         // A project opens on its Everything row's Style tab (#3409): the reader picks Values.
         await userEvent.click(inspector().getByRole("tab", { name: "Values" }));
         await session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });

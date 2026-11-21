@@ -1,5 +1,5 @@
 /**
- * @file A plugin algorithm with no catalogue descriptor, run on a real `Graph`, is one undoable
+ * @file A plugin algorithm with no catalog descriptor, run on a real `Graph`, is one undoable
  * step: what it writes onto node and edge records and `graphResults`, the doors it calls on the
  * graph it was handed, and the suggested styles asked for with it, are recorded together, and
  * one undo takes them all back. The plugins are in `test/helpers/legacyPlugins.ts`.

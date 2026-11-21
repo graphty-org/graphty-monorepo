@@ -10,12 +10,12 @@
  * destination listening to all of it. That is how a third party actually uses them, and it is
  * the one arrangement none of the six files can reach.
  *
- * WHAT IS BEING BOUGHT. Registration is global and there is one catalogue, so six extensions
+ * WHAT IS BEING BOUGHT. Registration is global and there is one catalog, so six extensions
  * share one table, one options validator, one error vocabulary and one repaint. Six things that
  * each work alone can still produce a page where the layout's options are validated against the
  * camera's descriptor, or where the last registration to load wins a key the others were using.
- * Every assertion below reads what the ELEMENT resolved -- the catalogue it publishes, the
- * coordinates it stored, the colour it says a node is painted, the state it moved the camera to
+ * Every assertion below reads what the ELEMENT resolved -- the catalog it publishes, the
+ * coordinates it stored, the color it says a node is painted, the state it moved the camera to
  * -- rather than the plugin's own bookkeeping.
  *
  * THE SHAPE OF THE SUITE. One graph is stood up once, in `beforeAll`, with all six extensions in
@@ -88,7 +88,7 @@ import type { GraphSession, LayerSpec } from "../../../session";
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Two anchors and nothing in between, so every colour this file asserts is one of them.
+ * Two anchors and nothing in between, so every color this file asserts is one of them.
  *
  * A ramp with two anchors answers the bottom of its domain with the first and the top with the
  * second, exactly, with no interpolation to argue about -- which is what makes "the element
@@ -136,7 +136,7 @@ const ROLL_FILE = [
 /** Who is in the file, in the order the file lists them. */
 const PEOPLE = ["ann", "bo", "cy", "di", "ed"] as const;
 
-/** How many neighbours each person has, which is what the algorithm below measures. */
+/** How many neighbors each person has, which is what the algorithm below measures. */
 const NEIGHBOURS: Readonly<Record<string, number>> = { ann: 1, bo: 2, cy: 2, di: 2, ed: 1 };
 
 /** What a host may pass this format beyond the members `BaseDataSourceConfig` declares. */
@@ -145,7 +145,7 @@ interface RollConfig extends BaseDataSourceConfig {
     scoreScale?: number;
 }
 
-/** What the catalogue publishes about the format, and what an import dialog renders. */
+/** What the catalog publishes about the format, and what an import dialog renders. */
 const ATLAS_FORMAT_DESCRIPTOR: FormatDescriptor = {
     id: ATLAS_FORMAT,
     plainName: "Atlas Roll Call",
@@ -170,7 +170,7 @@ const ATLAS_FORMAT_DESCRIPTOR: FormatDescriptor = {
  * The reader.
  *
  * Fetching the bytes, retrying a failed fetch, chunking, validating each record, collecting the
- * rejects, publishing the description to the catalogue and checking the host's options against it
+ * rejects, publishing the description to the catalog and checking the host's options against it
  * are all inherited. What this class adds is the parser.
  */
 class AtlasRollSource extends DataSource {
@@ -179,7 +179,7 @@ class AtlasRollSource extends DataSource {
     static descriptor: FormatDescriptor = ATLAS_FORMAT_DESCRIPTOR;
 
     /**
-     * Recognise a roll call by its first bytes, so a file whose name says nothing still loads.
+     * Recognize a roll call by its first bytes, so a file whose name says nothing still loads.
      * @param sample - The first bytes of the file, as text.
      * @returns Whether this is a roll call.
      */
@@ -322,7 +322,7 @@ class AtlasColumnLayout extends SimpleLayoutEngine {
      * What a picker reads, and the one place this layout's options are declared.
      *
      * `id` is the same string as `static type` on purpose: a layout has one key, so the name a
-     * consumer types, the name a saved document records and the name the catalogue publishes
+     * consumer types, the name a saved document records and the name the catalog publishes
      * cannot drift apart.
      */
     static descriptor: AuthoredLayoutDescriptor = {
@@ -437,7 +437,7 @@ class AtlasLinks extends DeclaredAlgorithm {
             context.signal.throwIfAborted();
 
             const id = ids[index];
-            // The neighbours of row r are colIdx[rowPtr[r] .. rowPtr[r + 1]).
+            // The neighbors of row r are colIdx[rowPtr[r] .. rowPtr[r + 1]).
             measured.push({ id, values: { value: graph.rowPtr[index + 1] - graph.rowPtr[index] } });
 
             context.report({ phase: "Counting links", completed: index + 1, total: ids.length });
@@ -476,7 +476,7 @@ interface Collector extends Sink {
 /** The one collector a configuration built, so the page can read back what it heard. */
 let collector: Collector | null = null;
 
-/** What the catalogue publishes about the destination, and what a settings panel renders. */
+/** What the catalog publishes about the destination, and what a settings panel renders. */
 const ATLAS_SINK_DESCRIPTOR: LogSinkDescriptor = {
     id: ATLAS_SINK,
     plainName: "Atlas in-page collector",
@@ -555,9 +555,9 @@ let session: GraphSession;
 let runId = "";
 
 /**
- * The colour the element says one node is painted, in the one spelling every anchor is stored in.
+ * The color the element says one node is painted, in the one spelling every anchor is stored in.
  * @param id - The node id.
- * @returns Six upper-case hex digits behind a hash, or null when nothing painted a colour.
+ * @returns Six upper-case hex digits behind a hash, or null when nothing painted a color.
  */
 function paintedColor(id: string): string | null {
     const painted = session.styles.explain({ node: id }).merged["node.color"];
@@ -638,7 +638,7 @@ describe("six extensions, one graph", () => {
     });
 
     // -----------------------------------------------------------------------------------------
-    // Clause 1: every one of the six is in the catalogue a picker reads
+    // Clause 1: every one of the six is in the catalog a picker reads
     // -----------------------------------------------------------------------------------------
 
     it("offers all six in the one catalogue the session publishes, beside the element's own", () => {
@@ -685,7 +685,7 @@ describe("six extensions, one graph", () => {
     });
 
     it("survives a postMessage with all six in it, so a worker and a saved file read the same six", () => {
-        // The catalogue's contract is plain JSON. One plugin that put a function on a descriptor
+        // The catalog's contract is plain JSON. One plugin that put a function on a descriptor
         // would break that for every consumer of the whole table, not just for itself.
         const tables = {
             palettes: session.catalog.palettes(),

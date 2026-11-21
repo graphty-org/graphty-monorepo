@@ -19,7 +19,7 @@
  * oracle (the only checks that see an inverted growing test); the 500-node path from its MIDDLE and the hub-clique
  * fixture (source 0, hubs 1 and 2, a clique on 3..255) forced bottom-up (`direction bottom-up, beta 0`: every growing
  * boundary switches and nothing switches back), which is what exercises `bfs-bottom-up` and `bfs-bitset-build`,
- * with the clique's `arcsScanned` pinned to EXACTLY one read per bottom-up claim (each clique row's first in-neighbour
+ * with the clique's `arcsScanned` pinned to EXACTLY one read per bottom-up claim (each clique row's first in-neighbor
  * is hub 1, so the early exit reads exactly one arc per claim; without it every 254-arc row is read whole, and a
  * sweep that stops counting the winning read reports 0; issue #472); the
  * directed path's unvisited words (the in-degree of vertex 0 is 0 where its out-degree is 1, which is what catches
@@ -63,7 +63,7 @@ const CLIQUE_LAST = 255;
  * P8-T8 Step 6's fixture: source 0 joined to hubs 1 and 2, both hubs joined to every clique vertex, and every pair
  * of 3..255 joined; undirected. Level 0 claims the hubs top-down; the level-1 boundary sees a growing frontier
  * and goes bottom-up under FORCED_BOTTOM_UP; each clique vertex's reverse row is sorted (graph-format I4), so its
- * FIRST in-neighbour is hub 1, in the frontier bits: the sweep claims all 253 with 253 reads, and without the early
+ * FIRST in-neighbor is hub 1, in the frontier bits: the sweep claims all 253 with 253 reads, and without the early
  * exit with 253 x 254.
  * @returns the edges
  */

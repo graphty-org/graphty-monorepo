@@ -132,7 +132,7 @@ function noteOf(dataset: DatasetMeta): string | undefined {
     if (!isLarge(dataset)) {
         return undefined;
     }
-    return dataset.bytes === undefined ? "Large: slower to open" : `Large: ${megabytes(dataset.bytes)}, slower to open`;
+    return `Large: ${megabytes(dataset.bytes)}, slower to open`;
 }
 
 /**

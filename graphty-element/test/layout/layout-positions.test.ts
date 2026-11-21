@@ -39,6 +39,7 @@ import {
 } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /**
  * A node as a layout engine sees one: an id, and the row it owns in the position array.
@@ -47,7 +48,7 @@ import type { Node } from "../../src/Node";
  * @returns the stand-in
  */
 function node(id: string, index: number): Node {
-    return { id, index } as unknown as Node;
+    return fakeNode(id, { index });
 }
 
 /**
@@ -58,7 +59,7 @@ function node(id: string, index: number): Node {
  */
 function edge(src: Node, dst: Node): Edge {
     // both ends drawn by their Nodes, as every end is on "objects" (`Edge.columnEnd`)
-    return { srcId: src.id, dstId: dst.id, srcNode: src, dstNode: dst, columnEnd: () => undefined } as unknown as Edge;
+    return fakeEdge(src, dst, { columnEnd: () => undefined });
 }
 
 /** A layout whose answer is written by the test, including coordinates that cannot be stored. */
@@ -146,6 +147,31 @@ describe("layout engines and the element-owned position array", () => {
         layoutEngineInternals.addNodes(layout, [node("a", 0), node("b", 1)]);
         layout.publishPositions();
         assert.deepEqual(simpleLayoutInternals.publishHeld(layout), { scratch: 0, result: true });
+    });
+
+    it("lets a simulation's publish scratch go while it rests, and makes it again on resume", () => {
+        // A simulation still moving: only the element's stop tells it nothing more is coming.
+        class Moving extends NGraphEngine {
+            override get isSettled(): boolean {
+                return false;
+            }
+        }
+        const layout = new Moving({ seed: 7 });
+        layoutEngineInternals.attachPositions(layout, new ElementPositions(0));
+        layoutEngineInternals.addNodes(layout, [node("a", 0), node("b", 1), node("c", 2)]);
+        layout.step();
+        layout.publishPositions();
+        assert.strictEqual(layoutEngineInternals.scratchHeld(layout), 12, "running: kept for the next frame");
+
+        layoutEngineInternals.rest(layout, true);
+        assert.strictEqual(layoutEngineInternals.scratchHeld(layout), 0, "stopped: let go");
+        layout.publishPositions();
+        assert.strictEqual(layoutEngineInternals.scratchHeld(layout), 0, "a publish while stopped keeps none");
+
+        layoutEngineInternals.rest(layout, false);
+        layout.step();
+        layout.publishPositions();
+        assert.strictEqual(layoutEngineInternals.scratchHeld(layout), 12, "resumed: made again");
     });
 
     it("counts a column publish that moves nothing as no change, for the undo history", () => {

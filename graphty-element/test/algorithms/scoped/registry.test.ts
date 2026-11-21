@@ -18,7 +18,6 @@ import "../../../src/algorithms";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
-import { WHOLE_GRAPH_CAVEAT } from "../../../src/algorithms/input/maskBack";
 import { withRunInput } from "../../../src/algorithms/input/ScopedInput";
 import type { Graph } from "../../../src/Graph";
 import { edgesOf, idsOf, InputGraph } from "../input/harness";
@@ -26,6 +25,7 @@ import { assertComputesOverScope, type Build, coveredBy, handBuilt, runScoped, r
 
 /** Each registered algorithm's `scopeInput`: on computes over the scope, off over the whole graph. */
 const EXPECTED: Readonly<Record<string, "on" | "off">> = {
+    "graphty:all-paths": "on",
     "graphty:astar": "on",
     "graphty:bellman-ford": "on",
     "graphty:betweenness": "on",
@@ -55,6 +55,9 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:min-cut": "on",
     "graphty:pagerank": "on",
     "graphty:prim": "on",
+    "graphty:removal-impact": "on",
+    "graphty:articulation-points": "on",
+    "graphty:bridges": "on",
     "graphty:scc": "on",
     "graphty:spectral-clustering": "on",
 };
@@ -63,7 +66,9 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
 const OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
     "graphty:dijkstra": { source: "a", target: "c" },
     "graphty:astar": { source: "a", target: "c" },
+    "graphty:all-paths": { source: "a", target: "c" },
     "graphty:bfs": { source: "a" },
+    "graphty:removal-impact": { nodes: ["a"] },
 };
 
 /*
@@ -314,7 +319,10 @@ describe.runIf(DECLARED_ON.length > 0)("every algorithm declared on computes ove
 
             const scoped = await assertComputesOverScope(build, graph, scope);
             assert.deepStrictEqual(graph.around, [], "no read of the graph around the input accessor");
-            assert.notInclude(scoped?.summary().caveats.notes ?? [], WHOLE_GRAPH_CAVEAT);
+            assert.notInclude(
+                (scoped?.summary().caveats.facts ?? []).map((fact) => fact.code),
+                "scope.whole-graph",
+            );
 
             const whole = await runWhole(build, fixture(spec));
             const covered = coveredBy(graph, scope);
@@ -343,7 +351,10 @@ describe.runIf(DECLARED_OFF.length > 0)("every algorithm declared off says it co
             const result = await runScoped(builderOf(key), graph, graph.scope(MEMBERS));
 
             assert.isDefined(result, "the run published a result");
-            assert.include(result?.summary().caveats.notes ?? [], WHOLE_GRAPH_CAVEAT);
+            assert.include(
+                (result?.summary().caveats.facts ?? []).map((fact) => fact.code),
+                "scope.whole-graph",
+            );
         });
     }
 });

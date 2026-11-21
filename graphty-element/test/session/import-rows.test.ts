@@ -59,7 +59,8 @@ describe("the rejected and unmatched rows of an import", () => {
     it("keeps the first IMPORT_ROWS_KEPT rejected rows of a large file and counts the rest", async () => {
         const session = createGraphSession();
         const bad = IMPORT_ROWS_KEPT + 50;
-        const text = `id,name\n${Array.from({ length: bad }, (_, i) => `,n${i}`).join("\n")}\nok,Ok\n`;
+        // An edge row with no source is refused.
+        const text = `source,target,name\n${Array.from({ length: bad }, (_, i) => `,b,n${i}`).join("\n")}\na,b,Ok\n`;
         const draft = await session.data.prepare({ type: "csv", config: { data: text } });
         assert.strictEqual((await draft.rows("rows", { only: "rejected", offset: bad - 1 })).records[0].line, bad + 1);
         await draft.load();

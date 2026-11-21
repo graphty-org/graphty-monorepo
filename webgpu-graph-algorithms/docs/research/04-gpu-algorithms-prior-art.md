@@ -29,7 +29,7 @@ Local inputs read:
 1. Every GPU graph library surveyed is built on the same five primitives:
    exclusive scan, segmented reduce over rowPtr, stream compaction,
    radix sort (or sort-by-key), and a load-balanced "advance" that expands
-   a vertex frontier into its neighbours (Merrill 2011 scan+warp+CTA;
+   a vertex frontier into its neighbors (Merrill 2011 scan+warp+CTA;
    Gunrock block_mapped / merge_path_v2; Davidson 2014 load-balanced
    partitioning). Build those once, well, and every algorithm below is a
    few small kernels around them.
@@ -63,7 +63,7 @@ Local inputs read:
    1380-1400). Dependency accumulation is a pull over successors with a
    plus-reduce, no atomics (lines 348-368).
 7. cuGraph Louvain is synchronous: every vertex computes its best
-   neighbour community in one pass, the "up_down" flag lets a vertex move
+   neighbor community in one pass, the "up_down" flag lets a vertex move
    only to a higher-id (or only lower-id) community in alternating passes
    to prevent swaps, then contraction builds the coarse graph
    (louvain_impl.cuh:172-215; detail/common_methods.cuh:120-152, 402-446).
@@ -90,7 +90,7 @@ Local inputs read:
 
 | CUDA/prior-art concept                                                                                                    | WebGPU/WGSL reality (probed on 4070 SUPER, 09-webgpu-requirements.md section 0)                                                                                                               | Pattern to use                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| warp (32 lanes), `__shfl`, `__ballot`, warp vote                                                                          | optional `subgroups` feature: subgroupAdd/Min/Max/Ballot/Broadcast/Shuffle/Elect, `subgroup_size` builtin, size NOT guaranteed constant (WGSL 17.12, adapter minSubgroupSize/maxSubgroupSize) | write every kernel with workgroup-memory fallbacks; specialise with `override USE_SUBGROUPS` when the feature is present; never assume width 32                                                                                                                                                                                                                                   |
+| warp (32 lanes), `__shfl`, `__ballot`, warp vote                                                                          | optional `subgroups` feature: subgroupAdd/Min/Max/Ballot/Broadcast/Shuffle/Elect, `subgroup_size` builtin, size NOT guaranteed constant (WGSL 17.12, adapter minSubgroupSize/maxSubgroupSize) | write every kernel with workgroup-memory fallbacks; specialize with `override USE_SUBGROUPS` when the feature is present; never assume width 32                                                                                                                                                                                                                                   |
 | CTA / thread block + `__shared__` (48 KB) + `__syncthreads`                                                               | workgroup size <= 256 invocations at core defaults (1024 on the adapter), 16 KB workgroup storage default (48 KB adapter)                                                                     | tile size 256; scan of 256 degrees in workgroup memory; keep per-workgroup scratch <= 16 KB unless the device was created with the raised limit                                                                                                                                                                                                                                   |
 | `atomicAdd(float*)` (Gunrock BC deltas, PR, TC counts; cuGraph FA2 attraction)                                            | WGSL `atomic<T>` only for `u32` / `i32`, only in `storage, read_write` or `workgroup` (WGSL 6.2)                                                                                              | (a) gather/pull formulation so each output is owned by one invocation; (b) i32 fixed-point accumulation (GraphWaGu bounding box: `atomicMin(&bounding.x_min, i32(floor(x * 1000.0)))`, GraphWaGu/src/wgsl/apply_forces.wgsl:79-82); (c) CAS loop on `bitcast<u32>(f32)` for rare updates (correct but slow under contention); (d) per-workgroup partial sums + second-pass reduce |
 | `atomicMin(float*)` (SSSP relax)                                                                                          | none for f32                                                                                                                                                                                  | non-negative f32 has the same ordering as its `u32` bit pattern, so `atomicMin(&dist_u32[v], bitcast<u32>(d))` is exact for d >= 0 (sign bit clear). Requires `flags.nonNegativeWeights` (section 10.5), which delta-stepping needs anyway                                                                                                                                        |
@@ -104,7 +104,7 @@ Local inputs read:
 | `cudaMalloc` per iteration (cuGraph frontier buffers resize freely)                                                       | buffer creation is cheap-ish but not free; mapping is async                                                                                                                                   | preallocate 2 x n-slot vertex queues and, when using an edge frontier, an arcCount-slot queue; BufferPool by size class                                                                                                                                                                                                                                                           |
 | texture cache for the bitmask (Merrill 4.2)                                                                               | no read-only texture path worth using for u32 bitsets                                                                                                                                         | plain storage bitset; the visited bitset is 1 bit/vertex either way                                                                                                                                                                                                                                                                                                               |
 
-## 2. Primitive catalogue (what the algorithms below consume)
+## 2. Primitive catalog (what the algorithms below consume)
 
 ### 2.1 Scan (exclusive prefix sum)
 
@@ -118,12 +118,12 @@ available), device-level scan as reduce-then-scan (3 dispatches: block
 sums, scan of block sums, add back) or single-pass decoupled look-back
 (needs storage atomics with acquire/release; WGSL atomics are relaxed
 only, so decoupled look-back must poll with `atomicLoad` and cannot rely
-on ordering of neighbouring non-atomic stores -- prefer reduce-then-scan
+on ordering of neighboring non-atomic stores -- prefer reduce-then-scan
 in v1, revisit with subgroups).
 
 ### 2.2 Segmented reduce over rowPtr (CSR SpMV shape)
 
-Used by: weighted out-degree normaliser (design doc 10.1 explicitly
+Used by: weighted out-degree normalizer (design doc 10.1 explicitly
 delegates it to the GPU package), pull PageRank/Katz/HITS, Brandes
 dependency accumulation, per-row best-community in Louvain, closeness
 partial sums. Per-row gather with the degree-tier dispatch (thread /
@@ -136,7 +136,7 @@ neighborreduce/neighborreduce.hxx) and of cuGraph's
 prims/per_v_transform_reduce_incoming_outgoing_e.cuh). Merge-path
 (Gunrock merge_path_v2.hxx:40-56 and 111, Merrill-Garland SpMV) gives perfect
 balance without tiers but needs a binary search per tile over rowPtr; it
-is a v2 optimisation.
+is a v2 optimization.
 
 ### 2.3 Stream compaction and dedupe
 
@@ -227,7 +227,7 @@ plus the non-atomic bulk path cuGraph takes when the new frontier is
 Strategy (Merrill 2011; Beamer 2012; cuGraph bfs_impl.cuh):
 
 - Top-down, level-synchronous, work-efficient O(n+m): expand the vertex
-  frontier through CSR rows (advance), claim unvisited neighbours,
+  frontier through CSR rows (advance), claim unvisited neighbors,
   compact into the next frontier. Merrill reports 3.3 GTEPS single GPU,
   7-29x over sequential CPU, and that quadratic (all-vertex-per-level)
   kernels are 2,300x slower on europe.osm (papers/merrill2011-bfs.txt
@@ -261,9 +261,9 @@ WebGPU adjustments:
 
 - Visited claim: `atomicCompareExchangeWeak(&dist[v], INVALID_INDEX,
 level)` (Gunrock uses `atomic::min(&distances[neighbor], iteration+1)`
-  and keeps the neighbour iff the old value was larger,
+  and keeps the neighbor iff the old value was larger,
   gunrock/include/gunrock/algorithms/bfs.hxx:125-127; either works with
-  u32 atomics). Predecessor labelling: write `parent[v] = u` only from the
+  u32 atomics). Predecessor labeling: write `parent[v] = u` only from the
   invocation whose CAS won; Merrill notes predecessor variants cost up to
   19 % more traffic (Table 2 discussion).
 - Duplicates in the edge frontier: local warp/history culling becomes
@@ -331,14 +331,14 @@ WebGPU adjustments:
 - Integer weights (`u32` column) can use a plain integer `atomicMin`;
   offer both entry points.
 
-Complexity: near-far is O(m) relaxations amortised, with O(D/delta) rounds;
+Complexity: near-far is O(m) relaxations amortized, with O(D/delta) rounds;
 expect the same order of speedup as BFS on road-like graphs and larger
 on scale-free graphs.
 
 ## 5. PageRank, Katz, eigenvector centrality, HITS (pull SpMV family)
 
 Strategy: all four are power iterations with a per-vertex gather over
-in-neighbours plus a global reduction for convergence. cuGraph runs them
+in-neighbors plus a global reduction for convergence. cuGraph runs them
 on the transposed graph (`pull_graph_view`) with
 `per_v_transform_reduce_incoming_e` and a `plus` reduce; PageRank
 per iteration (pagerank_impl.cuh:222-320): copy old ranks, dangling sum =
@@ -348,9 +348,9 @@ out_weight_sum (guarded), gather `alpha * src_rank * w` +
 `diff_sum` L1 reduce, stop when `diff_sum < epsilon` or max_iterations.
 Katz (katz_centrality_impl.cuh:101-152) is the same gather with
 `alpha * src * w + beta`; eigenvector (eigenvector_centrality_impl.cuh:
-93-148) adds an L2 normalise each iteration and converges on
+93-148) adds an L2 normalize each iteration and converges on
 `diff_sum < n * epsilon`; HITS (hits_impl.cuh:87-93 onward) alternates a
-pull for authorities and a pull for hubs and normalises by sum.
+pull for authorities and a pull for hubs and normalizes by sum.
 Gunrock's PR (gunrock/include/gunrock/algorithms/pr.hxx:145) instead
 pushes with `atomic::add(p + dst, update)` -- the float-atomic form that
 WebGPU cannot use.
@@ -359,7 +359,7 @@ Primitives: segmented reduce over reverse rowPtr (2.2), device reduce
 (sum / L1 / L2 / max), elementwise map. No frontier, no sort.
 
 Format views: `reverse().rowPtr / colIdx / weights` (identity arrays for
-undirected snapshots); weighted out-degree normaliser computed on device
+undirected snapshots); weighted out-degree normalizer computed on device
 by a segmented reduce over forward `rowPtr` / `weights` (design doc 10.1:
 "NOT a format upload"); `outDegree()` optional; personalization vector
 as a node column via `gpuView()`.
@@ -481,7 +481,7 @@ is still ~100k BFS traversals: minutes on the GPU, so the API must expose
 Same forward-pass machinery as BC without the backward sweep: a batched
 multi-source BFS (unweighted) or repeated near-far SSSP (weighted) whose
 per-source distance rows are reduced (sum for closeness, sum of 1/d for
-harmonic, max for eccentricity) on the device without materialising
+harmonic, max for eccentricity) on the device without materializing
 n x n. Kamada-Kawai's APSP need (03-layout-needs.md section 12.4) is the
 one consumer that does want the full n x n Float32Array, which bounds it
 to ~10k nodes (400 MB) as that note says. Views: `rowPtr`, `colIdx`,
@@ -496,7 +496,7 @@ Strategies:
   the lower with `compare_and_swap(comp[high], high, low)`, retrying up
   the trees (lines 41-56); `Compress`: pointer-jump every vertex to its
   root (59-66). Afforest first does `neighbor_rounds = 2` link rounds over
-  only the r-th neighbour of every vertex (a sampled subgraph), compresses,
+  only the r-th neighbor of every vertex (a sampled subgraph), compresses,
   samples `comp` to find the giant component, then links the remaining
   vertices' remaining edges, skipping vertices already in the giant
   component (lines 104-149). Work is close to O(n) on graphs with a giant
@@ -519,7 +519,7 @@ sample; compaction for the "remaining vertices" list.
 
 Format views: `edgeList().src/.dst` (each edge once, correct for both
 directed and undirected per section 10.1); `rowPtr`/`colIdx` for the
-per-vertex r-th-neighbour sampling rounds (`colIdx[rowPtr[v] + r]` if
+per-vertex r-th-neighbor sampling rounds (`colIdx[rowPtr[v] + r]` if
 `r < degree`); for directed WCC also `reverse()` or just treat
 `edgeList()` edges as undirected (which is exactly what WCC means, so no
 reverse view is required).
@@ -557,15 +557,15 @@ by Map iteration, not because CC is GPU-friendly.
   support < k-2 and recount only affected edges ("unroll weak edges").
   Needs an edge mask (bool column, `array<u32>` bitset) and per-edge
   support (`Uint32Array(edgeCount)` written through `edgeToArc`).
-- k-core / core number (core_number_impl.cuh:97-230): initialise core
+- k-core / core number (core_number_impl.cuh:97-230): initialize core
   numbers to degrees, keep a "remaining vertices" list, each round move
-  vertices with degree bound < k into a frontier, decrement neighbours'
+  vertices with degree bound < k into a frontier, decrement neighbors'
   counts via the frontier expansion, repeat; cuGraph notes the remaining-
   vertex scan "can add significant overhead" when many distinct core
   numbers exist (line 216-218). GPU peeling is inherently O(max core)
   rounds; the Batagelj-Zaversnik bucket order is sequential. Practical
   WebGPU form: rounds of (frontier of vertices with count < k) ->
-  (atomicSub neighbour counts, u32) -> compaction; k increases when the
+  (atomicSub neighbor counts, u32) -> compaction; k increases when the
   frontier empties.
 
 Primitives: advance with per-edge intersection (one invocation per
@@ -596,7 +596,7 @@ cuGraph Louvain (louvain_impl.cuh:60-300, detail/common_methods.cuh):
    cluster weights start equal; modularity Q computed by
    `transform_reduce_e` over edges whose endpoints share a cluster.
 2. Move phase, synchronous: `update_clustering_by_delta_modularity`
-   aggregates for every vertex the edge weight into each neighbouring
+   aggregates for every vertex the edge weight into each neighboring
    cluster (`per_v_transform_reduce_dst_key_aggregated_outgoing_e`, a
    per-row group-by-key on `cluster[dst]`, common_methods.cuh:409-424),
    evaluates `delta_Q = 2 * ((new_cluster_sum - old_cluster_sum) /
@@ -642,16 +642,16 @@ annealing temperature; 3.1x over nu-Louvain, contraction 15x faster than
 competitors.
 
 Label propagation (not in cuGraph C++; nx-cugraph has none; the CPU
-package has it): per vertex, the most frequent (weighted) neighbour label
+package has it): per vertex, the most frequent (weighted) neighbor label
 = the same per-row group-by-key as the Louvain move step with `count`
 instead of `delta_Q`, synchronous with the same swap-avoidance rule.
 
-Primitives: per-row group-by-key (sort the row's neighbour keys in
+Primitives: per-row group-by-key (sort the row's neighbor keys in
 workgroup memory for degree <= 256, hash in workgroup memory for larger
 rows, global per-vertex hash region sized 2 \* degree for the largest
 rows), segmented reduce, device reduce for Q and move counts, radix sort
 by (cluster src, cluster dst) + segmented reduce for contraction, COO ->
-CSR builder (2.7), compaction for relabelling.
+CSR builder (2.7), compaction for relabeling.
 
 Format views: `rowPtr`, `colIdx`, `weights` (symmetric CSR; Louvain is
 undirected -- run `toUndirected()` first for directed inputs, design doc
@@ -726,7 +726,7 @@ Read for this note because the owner made layout the first slice:
   `@workgroup_size(1,1,1)` plus a bit-packed adjacency matrix
   (compute_forces.wgsl -- clearly a baseline), a CSR-like
   `EdgeInfo{source_start, source_degree, dest_start, dest_degree}` with two
-  neighbour lists per node built by a single-thread kernel
+  neighbor lists per node built by a single-thread kernel
   (create_sourcelist.wgsl, `@workgroup_size(1,1,1)`, serial over all
   edges -- do not copy), a per-node attraction gather over both lists
   (compute_attractive_new.wgsl), Barnes-Hut via Morton codes ->
@@ -742,7 +742,7 @@ Read for this note because the owner made layout the first slice:
   all-pairs below 4,096 points, otherwise a grid PYRAMID (not a tree):
   finest grid ~2 sqrt(n) cells per axis capped at 512, each level
   aggregates [sum x, sum y, count] per cell, far field from cell
-  centroids, near field (3x3 neighbourhood) by per-tick depth-peeled
+  centroids, near field (3x3 neighborhood) by per-tick depth-peeled
   random subsets (32/16/8 slots by n) with Horvitz-Thompson weighting
   (cosmos/src/modules/ForceManyBody/index.ts:20-110). Link force loops per
   point over a CSR-like first-index+count texture, bounded by the max
@@ -783,7 +783,7 @@ Read for this note because the owner made layout the first slice:
 | PageRank / Katz / eigenvector / HITS | pull SpMV, ping-pong ranks                                                                          | segmented reduce, device reduce                                                      | reverse(), device out-weight sums, gpuView columns                | no atomics; tier by in-degree; batch iterations                               | O(iters / k)                     |
 | Betweenness                          | tagged multi-source BFS forward, successor-pull backward; hybrid edge-parallel for small diameter   | BFS set + reduce-by-key + level ranges                                               | rowPtr, colIdx, edgeList() (edge-parallel), arcToEdge for edge BC | u32 sigma (overflow flag), no float atomics, batch memory planned from limits | O(sources / batch \* 2 diameter) |
 | Closeness / harmonic / eccentricity  | multi-source BFS/SSSP with on-device row reductions                                                 | as BFS/SSSP                                                                          | rowPtr, colIdx, weights                                           | same                                                                          | same                             |
-| Connected components                 | Afforest (2 sampled rounds + giant-component skip + link/compress)                                  | edge map with CAS, compress, histogram sample, compaction                            | edgeList(), rowPtr/colIdx for r-th neighbour                      | all u32; atomicLoad in compress                                               | ~5-10                            |
+| Connected components                 | Afforest (2 sampled rounds + giant-component skip + link/compress)                                  | edge map with CAS, compress, histogram sample, compaction                            | edgeList(), rowPtr/colIdx for r-th neighbor                       | all u32; atomicLoad in compress                                               | ~5-10                            |
 | Triangle count / k-truss / k-core    | degree-oriented edge intersection; peeling rounds                                                   | intersection advance, u32 atomics, masks, compaction                                 | sorted rowPtr/colIdx, outDegree(), edgeToArc                      | workgroup-per-arc tier for hub pairs                                          | 1 / O(iters) / O(max core)       |
 | Louvain / Leiden / LPA / ECG         | synchronous best-move with up/down swap rule; contraction by sort + segmented reduce                | per-row group-by-key, sort-by-key, segmented reduce, COO->CSR                        | symmetric rowPtr/colIdx/weights, edgeList()                       | workgroup hash for rows <= 256, global hash for hubs; no float atomics        | O(levels \* passes)              |
 | Spectral                             | Laplacian SpMV + Lanczos/inverse iteration + k-means                                                | segmented reduce, dot/norm reduce                                                    | rowPtr, colIdx, weights, outDegree()                              | f32 re-orthogonalisation                                                      | O(iters)                         |
@@ -802,7 +802,7 @@ Read for this note because the owner made layout the first slice:
    16 subpartitions; BC batch capped by memory; Louvain up/down rule and
    `threshold` on modularity gain; degree tiers 1024 / 32.
 3. Write every kernel in the pull/gather form first; treat push + atomics
-   as an optimisation only where the value type is u32/i32.
+   as an optimization only where the value type is u32/i32.
 4. Design the frontier so that k rounds run per submit with indirect
    dispatch; a per-level `mapAsync` would make BFS on a road network
    slower than the CPU.

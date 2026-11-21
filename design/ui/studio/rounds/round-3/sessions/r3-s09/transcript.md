@@ -110,7 +110,7 @@ node tool/real.mjs --step /home/apowers/Projects/graphty-monorepo/.worktrees/des
 exit 0
 ```
 
-Ruth (on 09.png): A "Size by attribute" list: Fixed size, then PageRank, PageRank rank, PageRank percentile. "id" is greyed out as "holds groups, not amounts" (fine, a name is not an amount). I want the plain PageRank so size matches the color key.
+Ruth (on 09.png): A "Size by attribute" list: Fixed size, then PageRank, PageRank rank, PageRank percentile. "id" is grayed out as "holds groups, not amounts" (fine, a name is not an amount). I want the plain PageRank so size matches the color key.
 
 ### Step
 
@@ -200,7 +200,7 @@ a file was saved: friends_current-view.png, 1806 x 1720 (/home/apowers/Projects/
 exit 0
 ```
 
-Ruth (on 16.png and the saved file): The dialog closed and a note says "Exported friends_current-view.png". The file (downloads/friends_current-view.png, 1806 x 1720) has the drawing with every name and, in its top left corner, a white key box: "Size: PageRank 0.04382 to 0.06608" (a grey wedge) and "Color: PageRank 0.04382 to 0.06608" (light orange to dark brown). PART 5 DONE -- I could paste that into a document.
+Ruth (on 16.png and the saved file): The dialog closed and a note says "Exported friends_current-view.png". The file (downloads/friends_current-view.png, 1806 x 1720) has the drawing with every name and, in its top left corner, a white key box: "Size: PageRank 0.04382 to 0.06608" (a gray wedge) and "Color: PageRank 0.04382 to 0.06608" (light orange to dark brown). PART 5 DONE -- I could paste that into a document.
 
 ### End
 

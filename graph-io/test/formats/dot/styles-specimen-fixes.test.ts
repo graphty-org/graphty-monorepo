@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../../src/registry.js";
 import { type ExtractedStyles, resolveStyles, type StyleProperty } from "../../../src/styles/index.js";
+import { unsettledStyles } from "../../../src/styles/settle.js";
 
 const registry = createRegistry();
 
@@ -20,7 +21,8 @@ async function load(doc: string): Promise<{ snapshot: GraphSnapshot; styles: Ext
     if (result.styles === null || result.styles === undefined) {
         throw new Error("no styles");
     }
-    return { snapshot: result.snapshot, styles: result.styles };
+    // the reader's values, before they are settled for drawing
+    return { snapshot: result.snapshot, styles: unsettledStyles(result.styles) };
 }
 
 /**
@@ -205,6 +207,44 @@ describe("DOT styles: edges", () => {
         expect(await edges(doc, "gradientColors")).toEqual(["#ff0000 #ff0000 #008000 #008000 #0000ff #0000ff", null]);
         expect((await edges(doc, "gradientStops"))[0]).toBe("0 0.2 0.2 0.5 0.5 1");
         expect((await edges(doc, "gradientKind"))[0]).toBe("linear");
+    });
+
+    it("draws a color list with no fractions as parallel lines, 2 points apart whatever the pen", async () => {
+        const doc = `digraph { a -> b [color="red:green:blue", penwidth=2]; b -> c [color=":blue"]; c -> d [color="red;0.3:blue"] }`;
+        expect(await edges(doc, "strandColors")).toEqual(["#ff0000 #008000 #0000ff", "#000000 #0000ff", null]);
+        expect(await edges(doc, "strandSpacing")).toEqual([1, 2, null]);
+        expect((await edges(doc, "color"))[0]).toBe("#ff0000");
+    });
+
+    it("ends a band on a route the file stores where Graphviz ends it: at a share of the spline's measure", async () => {
+        // one Bezier piece whose control points crowd its far end: t = 0.3 lies about 46% along its length
+        const controls: [number, number][] = [
+            [0, 0],
+            [80, 60],
+            [95, 60],
+            [100, 0],
+        ];
+        const pos = controls.map(([x, y]) => `${String(x)},${String(y)}`).join(" ");
+        const doc = `digraph { a [pos="0,0"]; b [pos="100,0"]; a -> b [color="red;0.3:blue", dir=none, pos="${pos}"] }`;
+        const at = (t: number): [number, number] => {
+            const u = 1 - t;
+            const w = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+            return [0, 1].map((k) => w.reduce((sum, wi, i) => sum + wi * controls[i][k], 0)) as [number, number];
+        };
+        const lengthTo = (t: number): number => {
+            let sum = 0;
+            for (let i = 1; i <= 1000; i++) {
+                const [a, b] = [at(((i - 1) / 1000) * t), at((i / 1000) * t)];
+                sum += Math.hypot(b[0] - a[0], b[1] - a[1]);
+            }
+            return sum;
+        };
+        const stops = String((await edges(doc, "gradientStops"))[0])
+            .split(" ")
+            .map(Number);
+        expect(stops[1]).toBeCloseTo(lengthTo(0.3) / lengthTo(1), 2);
+        expect(stops[1]).toBeGreaterThan(0.4);
+        expect([stops[0], stops[2], stops[3]]).toEqual([0, stops[1], 1]);
     });
 });
 

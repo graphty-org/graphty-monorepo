@@ -1,11 +1,13 @@
-import { type GraphSession, isGraphtyError, type NodeId } from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError, isGraphtyErrorCode, type NodeId } from "@graphty/graphty-element/session";
 
-import { type CommandContext, defineRegistration } from "../commands/registry";
+import { count } from "../../lib/analytics";
+import { type CommandContext, defineRegistration, type PaletteRow } from "../commands/registry";
 import { openFilterDraft, PLUS } from "../data-place/filterCards";
 import { neighborhoodKey } from "../inspector/inspected";
-import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
+import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords } from "../inspector/words";
+import { noGraph, nothingDrawn } from "./disabledReasons";
 import { togglePopover } from "./popover";
-import { noGraph, nothingDrawn } from "./useSessionVersion";
+import { cameraViewName, isFixedCamera, tourProblemWords, viewProblemWords } from "./viewWords";
 
 /**
  * Why Neighborhood cannot run: it acts on a selected node.
@@ -38,15 +40,7 @@ function filteredReach(session: GraphSession, center: NodeId): number {
 }
 
 /**
- * Whether the system asks for reduced motion, which keeps the canvas from turning on its own.
- * @returns True when it does.
- */
-export function reducedMotion(): boolean {
-    return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-}
-
-/**
- * Why Frame selection cannot run: nothing is selected. The element frames a selected edge's ends.
+ * Why Fit selection cannot run: nothing is selected. The element frames a selected edge's ends.
  * @param session - the element's session, or null.
  * @returns the reason, or null when a node or an edge is selected.
  */
@@ -67,7 +61,8 @@ export function immersiveMode(session: GraphSession | null): "vr" | "ar" | null 
 }
 
 /**
- * The Enter VR and Enter AR commands: disabled with the element's reason in the app's words;
+ * The Enter VR and Enter AR commands: disabled, saying only "Not available", when the element
+ * gives a reason the mode cannot be entered;
  * running one asks the element for the session (from 2D it switches to 3D in the same step), and
  * a refusal becomes a notice.
  * @param mode - VR or AR.
@@ -90,16 +85,18 @@ function enterImmersive(mode: "vr" | "ar"): {
             return (
                 nothingDrawn(session) ??
                 (active === null ? null : `Already in ${active.toUpperCase()}`) ??
-                (reason === null ? null : xrReasonWords(reason, mode))
+                (reason === null ? null : "Not available")
             );
         },
         run: async ({ session, workspace }) => {
             try {
                 await session?.execute({ op: "view.immersive", mode });
             } catch (error) {
+                const code = isGraphtyError(error) ? error.code : undefined;
+                count("xr_entered", { mode, outcome: "failed", code: isGraphtyErrorCode(code) ? code : "other" });
                 workspace.set({
                     notice: {
-                        message: xrEntryFailureWords(mode, isGraphtyError(error) ? error.code : undefined),
+                        message: xrEntryFailureWords(mode, code),
                         error: true,
                     },
                 });
@@ -108,19 +105,102 @@ function enterImmersive(mode: "vr" | "ar"): {
     };
 }
 
-/** The element's standard 3D views the Camera menu offers, with their keys (tier1-design.md 2.3). */
-const STANDARD_VIEWS = [
-    { id: "view.front", label: "Front", camera: "frontView", key: "1" },
-    { id: "view.side", label: "Side", camera: "sideView", key: "3" },
-    { id: "view.top", label: "Top", camera: "topView", key: "7" },
-    { id: "view.isometric", label: "Isometric", camera: "isometric" },
-] as const;
+/**
+ * The name a new view, camera or tour gets: the first "View N" (or "Camera N", "Tour N") not saved
+ * yet. The reader's cameras and tours are the element's (`session.views`, `session.tours`), saved
+ * with the project.
+ * @param saved - the names already saved.
+ * @param word - what it is: "View" (Save view), "Camera" or "Tour".
+ * @returns the name.
+ */
+export function nextName(saved: ReadonlyMap<string, unknown>, word: "View" | "Camera" | "Tour"): string {
+    let n = 1;
+    while (saved.has(`${word} ${String(n)}`)) {
+        n += 1;
+    }
+    return `${word} ${String(n)}`;
+}
+
+/**
+ * Why a camera view cannot be applied now: nothing drawn, else the element's `viewProblem`, worded.
+ * @param ctx - the command context.
+ * @param id - the camera view id.
+ * @returns the reason, or null.
+ */
+function cameraViewReason(ctx: CommandContext, id: string): string | null {
+    const { session, element } = ctx;
+    return nothingDrawn(session) ?? viewProblemWords(element?.viewProblem(id) ?? null);
+}
+
+/**
+ * Why a saved view cannot be applied now: the element's judgment of the saved view itself, worded.
+ * @param ctx - the command context.
+ * @param name - the saved view's name.
+ * @returns the reason, or null.
+ */
+export function savedViewReason(ctx: CommandContext, name: string): string | null {
+    const { session, element } = ctx;
+    return (
+        nothingDrawn(session) ??
+        viewProblemWords(element?.viewProblem(name, { saved: true }) ?? null, isFixedCamera(name, element))
+    );
+}
+
+/**
+ * Flies to a saved camera and remembers it as the last one applied (the Views place marks its card).
+ * @param ctx - the command context.
+ * @param name - the saved view's name.
+ */
+export async function goToSavedView(ctx: CommandContext, name: string): Promise<void> {
+    const { element, workspace } = ctx;
+    workspace.set({ lastView: name });
+    await element?.applyCameraView(name, { animate: true });
+}
+
+/**
+ * The reader's saved cameras as rows, project order, each with its key: each flies there, disabled
+ * with the element's reason when it cannot be applied now. Quick actions lists them all; the Camera
+ * menu the first twelve.
+ * @param ctx - the command context.
+ * @returns the rows.
+ */
+export function savedViewRows(ctx: CommandContext): PaletteRow[] {
+    return [...(ctx.session?.views ?? [])].map(([name, view]) => ({
+        id: `view.saved:${name}`,
+        label: name,
+        group: "Cameras",
+        keys: view.key === undefined ? undefined : [view.key],
+        keywords: ["view", "camera"],
+        disabled: (each) => savedViewReason(each, name),
+        run: (each) => goToSavedView(each, name),
+    }));
+}
+
+/**
+ * The project's tours as rows: each plays the tour and puts the camera back when it finishes,
+ * disabled with the element's reason (`planTour`) when it cannot play.
+ * @param ctx - the command context.
+ * @returns the rows.
+ */
+function tourRows(ctx: CommandContext): PaletteRow[] {
+    return [...(ctx.session?.tours.keys() ?? [])].map((name) => ({
+        id: `tour.play:${name}`,
+        label: `Play tour: ${name}`,
+        group: "Video tours",
+        keywords: ["tour", "play"],
+        disabled: ({ session, element }) =>
+            nothingDrawn(session) ?? (element === null ? null : tourProblemWords(element.planTour(name), element)),
+        run: async ({ element }) => {
+            await element?.playTour(name, { restoreCamera: true });
+        },
+    }));
+}
 
 /**
  * The Toolbar package's commands (tier1-design.md 2.3): the Camera and Mode menus and what they
  * hold, the legend switch, Quick actions, and Neighborhood for the selection.
  *
- * The camera moves (Fit, Frame selection, the standard views, zoom) are view state, so they go
+ * The camera moves (Fit, Fit selection, zoom) are view state, so they go
  * through the element's camera methods and record no step, as Auto-rotate (a view preference)
  * does; Switch to 2D or 3D is a project change
  * and goes through the session.
@@ -151,13 +231,37 @@ export const registration = defineRegistration({
             id: "view.auto-rotate",
             label: "Auto-rotate",
             group: "View",
-            // The element turns only the 3D view, and the host keeps it still for reduced motion.
-            disabled: ({ session }) =>
+            keys: ["9"],
+            // graphty-element tells no caller whether auto-rotate turns the drawing now (it turns
+            // only the 3D view); the 2D check stays until it does (graphty-element defect, issue
+            // #8850). Reduced motion is the element's answer.
+            disabled: ({ session, element }) =>
                 nothingDrawn(session) ??
                 (session?.layout.dimension === "2d" ? "Only in 3D" : null) ??
-                (reducedMotion() ? "Reduced motion is on" : null),
+                (element?.isMotionReduced() === true ? "Reduced motion is on" : null),
             run: ({ workspace }) => {
                 workspace.set((state) => ({ autoRotate: !state.autoRotate }));
+            },
+        },
+        {
+            id: "view.follow-selection",
+            label: "Focus selected",
+            group: "View",
+            disabled: ({ session }) => nothingDrawn(session),
+            run: ({ workspace }) => {
+                workspace.set((state) => ({ followSelection: !state.followSelection }));
+            },
+        },
+        {
+            // Escape while a tour plays, taken from Clear selection, after inner controls had their
+            // turn (the key dispatcher gives it to a menu, a list, a dialog or a field first).
+            id: "tour.stop",
+            label: "Stop tour",
+            group: "View",
+            whileShownKeys: ["Escape"],
+            shown: ({ workspace }) => workspace.get().tourProgress !== null,
+            run: ({ element }) => {
+                element?.cancelCameraAnimation();
             },
         },
         {
@@ -177,17 +281,17 @@ export const registration = defineRegistration({
         },
         {
             id: "view.fit",
-            label: "Fit",
+            label: cameraViewName("fitToGraph"),
             group: "View",
             keys: ["0"],
-            disabled: ({ session }) => nothingDrawn(session),
+            disabled: (ctx) => cameraViewReason(ctx, "fitToGraph"),
             run: async ({ element }) => {
-                await element?.applyCameraView("fitToGraph", { animate: true });
+                await element?.applyCameraView("fitToGraph", { params: { keepAngle: true }, animate: true });
             },
         },
         {
             id: "view.frame-selection",
-            label: "Frame selection",
+            label: "Fit selection",
             group: "View",
             keys: ["F"],
             disabled: ({ session }) => nothingSelected(session),
@@ -204,17 +308,6 @@ export const registration = defineRegistration({
                 }
             },
         },
-        ...STANDARD_VIEWS.map(({ id, label, camera, ...rest }) => ({
-            id,
-            label,
-            group: "View" as const,
-            keys: "key" in rest ? [rest.key] : undefined,
-            disabled: ({ session }: CommandContext) =>
-                nothingDrawn(session) ?? (session?.layout.dimension === "2d" ? "Only in 3D" : null),
-            run: async ({ element }: CommandContext) => {
-                await element?.applyCameraView(camera, { animate: true });
-            },
-        })),
         {
             id: "view.zoom-in",
             label: "Zoom in",
@@ -346,4 +439,5 @@ export const registration = defineRegistration({
             },
         },
     ],
+    paletteRows: (ctx) => [...savedViewRows(ctx), ...tourRows(ctx)],
 });

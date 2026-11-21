@@ -40,13 +40,26 @@ const NODE_SAFE_ENTRIES = [
     // Not an entry point yet, but the headless session's data write verbs will reach it, so it
     // is held to the same rule now: ingest must never need a renderer.
     "src/session/project/ingest.ts",
+    // The pure build of sources and steps (the `source-steps` experiment): a draft runs it on a
+    // copy, in Node as in a browser.
+    "src/session/sources/steps/build.ts",
+    "src/session/sources/steps/provenance.ts",
 ];
 
 /**
  * What must never appear in a Node-safe entry point's import graph. `@hpcc-js/wasm-graphviz` is
  * imported only by the Graphviz Worker, which no entry point imports.
  */
-const FORBIDDEN = [/^@babylonjs($|\/)/, /^lit($|\/)/, /^@lit($|\/)/, /^@mlc-ai($|\/)/, /^@hpcc-js($|\/)/];
+const FORBIDDEN = [
+    /^@babylonjs($|\/)/,
+    /^lit($|\/)/,
+    /^@lit($|\/)/,
+    /^@mlc-ai($|\/)/,
+    /^@hpcc-js($|\/)/,
+    // The optional GPU package: only the root entry loads it (lazily, src/acceleration/autoload.ts),
+    // so a Node consumer of a Node-safe entry never tries to import its browser-only subpath.
+    /^@graphty\/webgpu-graph-algorithms($|\/)/,
+];
 
 /** The emitted JavaScript of one source file, keyed by absolute path. */
 const transpiled = new Map<string, string>();
@@ -214,7 +227,7 @@ describe("the Node-safe entry points", () => {
         },
     );
 
-    // The catalogue describes every built-in algorithm and layout from engine-facts.json; the
+    // The catalog describes every built-in algorithm and layout from engine-facts.json; the
     // implementations load only where a run or a layout needs them (#890).
     it.each(["session.ts", "catalog.ts"])("%s reaches no algorithm or layout implementation", (entry) => {
         graphOf(entry);
@@ -258,26 +271,11 @@ describe("the Node-safe entry points", () => {
         assert.isAbove(schema.SHAPE_CONSTANTS.DEFAULT_NODE_SIZE, 0);
     });
 
-    it("reads a layer's file-style facts in plain Node, from ./session alone", () => {
-        const origin: session.FileStyleOrigin = {
-            format: "gexf",
-            importId: "i1",
-            ruleId: "node.by.Modularity Class",
-            role: "mapping",
-            origin: "declared",
-        };
-
-        assert.deepEqual(session.fileStyleOf({ fileStyle: origin }), origin);
-        assert.isNull(session.fileStyleOf({}));
-    });
-
     it("lists every style code in plain Node, from ./session alone", () => {
         const code: session.FileStyleNoteCode = session.FILE_STYLE_ISSUE.LAYER_REFUSED;
 
         assert.include(session.FILE_STYLE_CODES, code);
         assert.include(session.FILE_STYLE_CODES, "W_STYLE_LAYER_CAP");
-        assert.strictEqual(session.FILE_STYLE_SHAPES.ellipse, "ellipse");
-        assert.include(session.FILE_STYLE_REASONS, "NO_EXPLANATION");
     });
 });
 
@@ -304,6 +302,17 @@ describe("the ./webgpu entry point", () => {
     // comparison below would fail. It is not a package-wide census -- an importer outside this
     // entry point's graph is not visible from here -- and `exports-map.test.ts` is what keeps the
     // peer optional in the manifest; this keeps the entry point the only door it comes through.
+    it("the root entry reaches the optional peer only through its lazy loader", () => {
+        const peers = graphOf("index.ts").filter((found) =>
+            /^@graphty\/webgpu-graph-algorithms($|\/)/.test(found.specifier),
+        );
+
+        assert.deepEqual(peers.map((found) => `${found.specifier} from ${found.chain.at(-1) ?? "nowhere"}`).sort(), [
+            "@graphty/webgpu-graph-algorithms from src/acceleration/autoload.ts",
+            "@graphty/webgpu-graph-algorithms/browser from src/acceleration/autoload.ts",
+        ]);
+    });
+
     it("reaches both entries of the optional peer from webgpu.ts, and from no other file", () => {
         const peers = graphOf("webgpu.ts").filter((found) =>
             /^@graphty\/webgpu-graph-algorithms($|\/)/.test(found.specifier),

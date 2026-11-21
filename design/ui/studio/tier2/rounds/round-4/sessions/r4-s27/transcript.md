@@ -19,7 +19,7 @@ Output: button "Filters", tooltip "Filters", cursor: default (arrow, not a hand 
 
 Command: `node $T/real.mjs --step $S --click "Filters"`
 
-Screenshot 03: the left side switched to Data (friends.csv, 20 nodes, 41 edges; Filters; Attributes: Nodes id, Edges weight). On the right a "New filter step": Keep "an attribute's value", an empty Attribute box, and a grey "Add step" button. The third column must be "weight". I'll open the Attribute box.
+Screenshot 03: the left side switched to Data (friends.csv, 20 nodes, 41 edges; Filters; Attributes: Nodes id, Edges weight). On the right a "New filter step": Keep "an attribute's value", an empty Attribute box, and a gray "Add step" button. The third column must be "weight". I'll open the Attribute box.
 
 ## Step 4
 
@@ -31,7 +31,7 @@ Screenshot 04: the list opened with Nodes: id and Edges: weight. Weight is the r
 
 Command: `node $T/real.mjs --step $S --click "role=option:weight"`
 
-Screenshot 05: Attribute now weight, "Is: at least" already chosen, an empty Value box, and a small note "Keeps edges that pass and the nodes at their ends." That reads like exactly what I want (the small grey note is hard for my eyes, but I could read it). I'll click Value and type 4.
+Screenshot 05: Attribute now weight, "Is: at least" already chosen, an empty Value box, and a small note "Keeps edges that pass and the nodes at their ends." That reads like exactly what I want (the small gray note is hard for my eyes, but I could read it). I'll click Value and type 4.
 
 ## Step 6
 
@@ -115,4 +115,4 @@ Command: `node $T/real.mjs --end $S` -- "session ended".
 - The table under the drawing kept showing all 20 people and all 41 pairs, including pairs with 2 and 3 runs, while the filter was on and the top bar said 19 of 20. Nothing on the table says it is showing the whole file and not the drawing. For a minute I thought the filter hadn't worked, or that I was about to put a wrong number on the flyer. I went with 19 because three other places on screen agreed.
 - 19 out of 20 for "4 or more" surprised me -- the drawing looked like it had lost most of its links but almost nobody. I couldn't tell which one person dropped out, and two balls at the bottom left sat on top of each other with no line I could see between them.
 - The filter button in the toolbar shows a plain arrow when I point at it, not the hand, so I hovered first to make sure it did something.
-- The note under the Value box and the labels like "Is" and "Value" are very small and grey for my eyes.
+- The note under the Value box and the labels like "Is" and "Value" are very small and gray for my eyes.

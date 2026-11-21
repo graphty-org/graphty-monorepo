@@ -9,7 +9,7 @@ document.
 ## 1. What an algorithm is
 
 An algorithm computes something over the graph and publishes a result the element can rank,
-summarise, read aloud, style and save: a centrality, a clustering, a path, a set, a list of scored
+summarize, read aloud, style and save: a centrality, a clustering, a path, a set, a list of scored
 pairs. A third party brings one when the element does not ship it -- MCL or MCODE clustering, a
 hub score in the style of cytoHubba, a link predictor, a domain risk score. An embedding (a vector
 per node) cannot be published in this version: no result shape and no field type carries a vector
@@ -22,7 +22,7 @@ so no two algorithms can disagree about what a percentile is.
 
 Grounding: the owner's rejection of second-class plugin algorithms (2026-09-21: "what's the point of
 a plugin algorithm that can't publish a result?"); the owner's list of official points
-(2026-09-21); the owner's decision to deprecate `algorithmGraph()` in favour of a snapshot accessor
+(2026-09-21); the owner's decision to deprecate `algorithmGraph()` in favor of a snapshot accessor
 (2026-09-28); `design/graphty-element/extension-points.md` section "Algorithm" (kept, with the
 changes in section 7 below); the design studio's gap workflows (`design/designloom/workflows/W21.yaml`,
 `W22.yaml`, `W23.yaml`, `W16.yaml`, `W11.yaml`).
@@ -121,7 +121,7 @@ indistinguishable from "nothing was run".
    not declare.
 3. `nodes` holds one entry per node the algorithm MEASURED, keyed by node id. A node the algorithm
    has nothing to say about MUST get no entry: publishing zero for it invents a measurement, and
-   the ranking, distribution and colour ramp would then carry it.
+   the ranking, distribution and color ramp would then carry it.
 4. `edges` holds one entry per edge measured, keyed by the element's `Edge.id` (not a
    source-target pair, which cannot name one of two parallel edges).
 5. `graph` holds graph-level values.
@@ -194,7 +194,7 @@ and `rates` table fields have no declared row schema: unlike `pairs` (section 2.
 which columns the element expects, so a plugin's temporal or category table may be shown wrong.
 All three are part of open decision 18. Two more gaps, decided elsewhere: group NUMBERS are
 whatever the plugin chose, so a re-run or a reordered file can renumber clusters and move their
-colours and labels (open decision 32 recommends canonical renumbering by the element); and there is
+colors and labels (open decision 32 recommends canonical renumbering by the element); and there is
 no convention for nodes a clustering leaves alone -- publishing every singleton as a group inflates
 `groupCount` and overflows every categorical palette, while omitting them changes `groupCount` and
 modularity away from the method's own tool (open decision 18, item c).
@@ -212,7 +212,7 @@ plugin MUST emit the same:
 2. `score` is a finite number, higher meaning more likely or more similar. Rows SHOULD be sorted
    by `score`, descending, and within equal scores by (`source`, `target`) in string form, BEFORE
    any top-k cut, so which tied pairs survive a cut does not depend on record order. (Scores of
-   neighbourhood methods on sparse graphs are small integers, so large ties at the cut are the
+   neighborhood methods on sparse graphs are small integers, so large ties at the cut are the
    normal case.) The element applying the cut itself is part of open decision 18 (f).
 3. Extra members MAY be added per row; they are plain JSON.
 4. Whether a pair already joined by an edge is allowed is the algorithm's to state in its
@@ -268,7 +268,7 @@ them:
 An algorithm MUST NOT ship styling of its own. The element derives a style layer from the result's
 shape, scoped to the elements that carry a row, so a node the algorithm did not measure keeps
 whatever the layers below painted. This is the element's rule for every algorithm (root
-`CLAUDE.md`, "Algorithm Styles"): dimming or greying what an algorithm did not select is the
+`CLAUDE.md`, "Algorithm Styles"): dimming or graying what an algorithm did not select is the
 reader's choice, never the algorithm's.
 
 ## 3. Reading the graph
@@ -312,24 +312,16 @@ Rules:
    "report for these", not "compute without the rest": a what-if run that removes a node cannot be
    expressed by scoping a whole-graph algorithm, and gets the baseline numbers back with only a
    caveat. Separating the two roles is open decision 23.
-4. **Edge identity (not yet met): no conforming edge-shaped plugin exists today.** There is no
-   public way to turn an edge row into the element's `Edge.id`: the mapping is internal. The
-   deprecated `algorithmGraph()` does not help: it is built over the SIMPLIFIED subgraph with
-   `graph.addEdge(source, target, weight)` and never receives an `Edge.id`
-   (`graphty-element/src/algorithms/utils/legacyGraph.ts`), and the legacy graph holds one edge
-   per pair, so parallel edges are already merged. The only route that works is the guide's
-   `edgeIdsByPair` helper, which reads `this.graph.getSession()` -- forbidden by rule 1 -- and
-   which cannot name one of two parallel edges. The parity suite's edge tests use that route too.
-   So an `edge-metric` or `edge-set` plugin cannot publish by id without breaking this contract on
-   any graph, and cannot publish one value per edge at all on a multigraph (an event log, an
-   interaction log). The fix is `ScopedInputEdgeIdentity` in `algorithm.d.ts` (`edgeId(row)` on
-   `graph`, `subgraphEdgeIds(row)` on the subgraph), README open decision 5, which is therefore a
-   blocker for the whole algorithm contract, not only for the deprecation. The migration plan
-   specifies the same accessor differently -- "the scoped input's snapshot plus the edge remap" --
-   and open decision 5 must pick one and update the other document. It must also say what a value
-   published for a subgraph row that merged several parallel edges means: copied to every id
-   behind it, or refused. Until it lands, the `@deprecated` tag on `algorithmGraph` MUST NOT ship,
-   and the "Who this serves" table does not claim edge results as served.
+4. **Edge identity (met).** An edge-shaped plugin publishes by the element's `Edge.id` through
+   the scoped input (`graphty-element/src/algorithms/input/ScopedInput.ts`): `input.edgeId(row)`
+   names one edge of `graph`, and `input.subgraphEdgeIds(row)` names every edge of `graph` behind
+   one edge of `subgraph()` -- more than one when parallel edges were merged or a reciprocal pair
+   collapsed -- and a value computed for that row is published under each of them. So an
+   `edge-metric` or `edge-set` plugin conforms to rule 1 on any graph, and a plugin that needs one
+   value per parallel edge (an event log, an interaction log) reads `graph` or asks for
+   `simplify: "none"`. The deprecated `algorithmGraph()` still cannot name an edge (it is built over
+   the simplified subgraph and never receives an `Edge.id`), which is one reason it is deprecated;
+   the guide's old `edgeIdsByPair` helper, which read `this.graph.getSession()`, is gone.
 5. **What the snapshot carries beyond topology (not yet specified).** The specification does not
    yet say whether `graph` carries the loaded node and edge attributes as columns, which attribute
    (if any) fills a weights array and whether it means a distance or a strength, or whether the
@@ -360,7 +352,7 @@ Rules:
    `graphty.edgeAmong`, `graphty.pinned` and, before attachment, `graphty.importPosition`. Every
    column whose name begins with `graphty.` is element-internal: a plugin MUST NOT read it (a
    plugin that derives edge ids from `graphty.edgeId` works today and breaks silently when the
-   column changes). Edge ids come from the accessor of open decision 5, which is a wrapper over
+   column changes). Edge ids come from `input.edgeId(row)` and `input.subgraphEdgeIds(row)`, which wrap
    that column.
 
 ### 3.2 Deprecated: `algorithmGraph()`
@@ -416,7 +408,7 @@ is not assignable to one from another. Therefore:
    `String()` on both and files a class with no namespace under `"undefined:<type>"`).
 2. With a descriptor: `descriptor.key` MUST equal `type` (`E_BAD_COMMAND`, `field: "descriptor.key"`); no field
    may be named `runs`; `descriptor.scopeInput`, when present, MUST equal the static; a built-in key
-   is `E_DUPLICATE_PLUGIN`. The descriptor is published to the catalogue and the class is filed
+   is `E_DUPLICATE_PLUGIN`. The descriptor is published to the catalog and the class is filed
    under both the key and the legacy address `namespace:type`.
 3. **(not yet met)** A descriptor with no `fields` array fails with a plain `TypeError` instead of
    `E_BAD_COMMAND`, and `shape`, `costClass` and `options` are not validated at registration. A
@@ -427,7 +419,7 @@ is not assignable to one from another. Therefore:
    replaces the built-in implementation. A conforming element MUST refuse a built-in
    `namespace:type` with `E_DUPLICATE_PLUGIN` in every case. Whether a missing descriptor is
    refused outright is README open decision 7. A third-party algorithm MUST declare a descriptor:
-   without one it is invisible to the catalogue and reachable only by the legacy address, which is
+   without one it is invisible to the catalog and reachable only by the legacy address, which is
    not parity.
 5. The `namespace` SHOULD be the vendor prefix of README section 4.3.
 6. Sameness is decided by the class (README section 4.2 item 4) **(not yet met:** 2.6.1 compares
@@ -440,7 +432,7 @@ is not assignable to one from another. Therefore:
 
 | Capability                                                                                                               | Route                                                                           | Pinned by                                                                                                                                                                      |
 | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Listed in the catalogue                                                                                                  | `session.catalog.algorithms()`                                                  | "is listed in the catalogue..."                                                                                                                                                |
+| Listed in the catalog                                                                                                    | `session.catalog.algorithms()`                                                  | "is listed in the catalogue..."                                                                                                                                                |
 | Offered as a metric for this graph with a cost                                                                           | `session.catalog.metrics()`                                                     | "is offered as a metric for this graph..."                                                                                                                                     |
 | Estimated before running                                                                                                 | `session.estimate(...)` from `costUnits`, `cost` or `costClass`                 | "can be asked what it would cost..."                                                                                                                                           |
 | Run by name                                                                                                              | `graph.run(key, params)`, `session.runs.start(key, params, { as, onProgress })` | "runs when the element is asked for it by name..."                                                                                                                             |
@@ -459,14 +451,14 @@ is not assignable to one from another. Therefore:
 | Edge results by `Edge.id`, with a derived picture                                                                        | `edges`                                                                         | the three edge tests -- whose plugin reads ids through `this.graph.getSession()`, which section 3.1 rule 1 forbids; NOT at parity for a conforming plugin (section 3.1 item 4) |
 | Computes over the scope when declared, or whole-graph with a caveat                                                      | `static scopeInput`                                                             | the two scope tests                                                                                                                                                            |
 | Runs on an attached accelerator, on the CPU port otherwise, and fails early when acceleration is required and impossible | protected `accelerated(...)`                                                    | NOT at parity: the "an algorithm written outside this package, on an accelerator" block pins only the element-internal route, which a plugin may not use (section 5.1 item 4)  |
-| Plain catalogue, safe to post to a worker                                                                                | descriptor                                                                      | "leaves the catalogue plain enough to post to a worker"                                                                                                                        |
+| Plain catalog, safe to post to a worker                                                                                  | descriptor                                                                      | "leaves the catalogue plain enough to post to a worker"                                                                                                                        |
 
 ### 5.1 Parity statements
 
 1. A registered algorithm MUST be reachable by every route in the table.
 2. **Progress and cancellation are at parity and REQUIRED.** `compute` MUST check
    `context.signal` at least once per chunk of work and MUST let the abort propagate (never catch
-   and swallow it). A cancelled run MUST NOT publish anything. `compute` SHOULD report progress at
+   and swallow it). A canceled run MUST NOT publish anything. `compute` SHOULD report progress at
    least once per second of work and MUST await `context.yieldNow()` (or use `forEachChunked`)
    between chunks of work done ON THE MAIN THREAD, so the page stays responsive. A hand-written
    loop over row numbers that checks the signal and awaits `yieldNow` once per chunk conforms
@@ -526,7 +518,7 @@ is not assignable to one from another. Therefore:
    graph, so a plugin cannot be unit-tested in Node against real element code. Section 10 proposes
    a headless host.
 6. **Workers.** A plugin MAY run its work in a worker it creates and terminates within the run,
-   honouring `context.signal`. It cannot move the snapshot there conformingly: `structuredClone` of
+   honoring `context.signal`. It cannot move the snapshot there conformingly: `structuredClone` of
    a `GraphSnapshot` delivers a plain object with no methods, and rebuilding one needs
    graph-format's `fromWire`, which `./extend` does not re-export (and a plugin may not take it
    from its own graph-format copy, section 3.3). The only compliant route is to copy the typed
@@ -644,7 +636,7 @@ headless host (section 10); until it exists they run in the browser configuratio
 
 | Check                           | Passes when                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| registers                       | `DeclaredAlgorithm.register` accepts it; the catalogue and `session.catalog.metrics()` list it                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| registers                       | `DeclaredAlgorithm.register` accepts it; the catalog and `session.catalog.metrics()` list it                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | descriptor is valid             | validates against `#/$defs/AlgorithmDescriptor`; `checkShapeContract` returns nothing                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | key is not reserved             | not a built-in key, and `namespace:type` is not a built-in address                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | is plain data                   | the published descriptor survives `structuredClone`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -665,16 +657,16 @@ headless host (section 10); until it exists they run in the browser configuratio
 | values are finite               | every published number is finite (section 2.2 item 8)                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | cost is honest                  | on the kit's degree-skewed graphs (two hubs joined to many leaves; a clique beside a long path), the work the kit counts -- `forEachChunked` items, plus units reported through the work channel of open decision 16 once it exists -- stays within a factor of the declared `costUnits` (a warning with both numbers). Until the work channel exists this check cannot see work done inside one step and under-counts a plugin like the worked example, so it stays a warning                                                     |
 | replays from its record         | a run record, handed back to the run API, is accepted and gives the same output (fails until open decision 26 is met)                                                                                                                                                                                                                                                                                                                                                                                                              |
-| scope is honoured               | with `scopeInput = "subgraph"`, every published id is inside the scope                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| scope is honored                | with `scopeInput = "subgraph"`, every published id is inside the scope                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | failures are coded              | an invalid input the author supplies fails with a `GraphtyError`                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ## 12. Worked example (advanced tier)
 
 A hub score written only against the snapshot: the share of possible links among a node's
-neighbours, damped by neighbourhood size. It resembles cytoHubba's DMNC but is NOT it (DMNC
-measures the largest connected component of the neighbourhood), so it does not borrow that name.
+neighbors, damped by neighborhood size. It resembles cytoHubba's DMNC but is NOT it (DMNC
+measures the largest connected component of the neighborhood), so it does not borrow that name.
 Its work is the sum of squared degrees, which the `(n, m)` cost signature cannot see, so it
-declares the worst case -- a star, where one node's neighbourhood is the whole graph -- and a
+declares the worst case -- a star, where one node's neighborhood is the whole graph -- and a
 graph with a hub of 200,000 leaves is estimated honestly and refused above the cap instead of
 passing as "instant". A cost model that sees the maximum degree is part of open decision 16.
 One limit the example does not overcome: it chunks over ROWS, so on a star the hub's single step
@@ -756,7 +748,7 @@ const run = session.runs.start("acmehub-neighbourhood-density", { epsilon: 1.7 }
 
 `rowPtr`, `colIdx`, `nodeCount` and `ids` are graph-format 1.x's published snapshot members
 (`graph-format/src/types/snapshot.ts`, `AdjacencyView`). The members a plugin reads: `nodeCount`;
-`rowPtr` (length `nodeCount + 1`) and `colIdx`, where the neighbours of row `r` are
+`rowPtr` (length `nodeCount + 1`) and `colIdx`, where the neighbors of row `r` are
 `colIdx[rowPtr[r] .. rowPtr[r + 1])`; `arcCount` (`colIdx.length`); `weights`, one per arc when
 present; and `ids.idOf(row)`. An undirected input stores every edge as two arcs, one in each row;
 a self-loop is one arc in its own row. A plugin imports `GraphSnapshot` from `./extend`, never from
@@ -765,7 +757,6 @@ repository's source.
 
 ## 13. Known gaps
 
-- No public edge identity accessor (section 3.1 item 4; open decision 5).
 - `algorithmGraph` is not yet tagged deprecated and the guide still teaches it (section 3.2).
 - `seed`, `exact`, `sample` and `timeBox` do not reach `compute` (section 5.1).
 - No headless host; plugins cannot be unit-tested in Node (section 10).
@@ -792,7 +783,7 @@ repository's source.
   (section 2.2.1).
 - An option with no default can arrive absent, and nothing refuses the omission (section 6).
 - Ranks are always descending and the derived statistics have no spread measures (open decision 31).
-- Group numbers are the plugin's own, so colours and labels move on a re-run (open decision 32).
+- Group numbers are the plugin's own, so colors and labels move on a re-run (open decision 32).
 - Ties between the string `"1"` and the number `1` have no defined order (section 2.2.3).
 - `require` acceleration does not refuse a plugin run (section 5.1 item 4).
 - Work inside one `forEachChunked` step is invisible to the kit and the run budget (open decision 16).

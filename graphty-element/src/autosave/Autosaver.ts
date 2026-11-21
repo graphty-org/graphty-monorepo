@@ -14,7 +14,8 @@
  *   built at once and written, and the entry is marked `ended: "replaced"` in the same commit as
  *   the new entry's first write, so a kill in between leaves the old entry restorable.
  * - **Fencing.** Every write states the generation it expects. A write the store rejects because
- *   another writer committed to the entry moves this session to a new entry holding all of it.
+ *   another writer committed to the entry moves this session to a new entry holding all of it,
+ *   and so does a write whose entry's lock another tab holds: one tab writes an entry.
  * - **Failures** become `status.problem` codes; the work stays in memory and the next change
  *   tries again.
  * @module autosave
@@ -23,12 +24,13 @@
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
-import { dispatcherOf } from "../session/GraphSession";
+import { dispatcherOf } from "../session/dispatchers";
 import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
 import type { CodedFact } from "../session/shared";
+import { openingKeptWork } from "../session/sources/references";
 import type { GraphSession, ProjectSlice } from "../session/types";
 import { wholeGraph } from "../session/working/graphs";
 import { buildParts, EVERY_PART, type PartTag, PartTooLarge, reassemble, stashOf } from "./parts";
@@ -47,6 +49,7 @@ import {
 import {
     type AutosaveAvailable,
     type AutosaveCode,
+    AutosaveConflict,
     type AutosaveEntry,
     type AutosaveEntryMeta,
     type AutosaveParts,
@@ -352,6 +355,7 @@ function tagsOf(slices: readonly ProjectSlice[]): PartTag[] {
             case "visibility":
             case "sets":
             case "views":
+            case "tours":
             case "notes":
             case "attributes":
             case "shaders":
@@ -1190,7 +1194,7 @@ export class Autosaver {
      * @returns The project-open report.
      * @throws {GraphtyError} `E_UNSAVED_CHANGES`, `E_AUTOSAVE_UNKNOWN_ENTRY`,
      *     `E_AUTOSAVE_ENTRY_TAKEN`, `E_SUPERSEDED` when a clear asked for while the restore waited
-     *     cancelled it (the entry is left as it was), `E_AUTOSAVE_STALLED` when the browser's
+     *     canceled it (the entry is left as it was), `E_AUTOSAVE_STALLED` when the browser's
      *     database did not answer in time (the entry is left as it was, its lock released), or the
      *     code the entry could not be opened with.
      */
@@ -1229,7 +1233,7 @@ export class Autosaver {
         }
 
         if (restored === null && failed === null) {
-            // A clear cancelled the open: the entry is intact, and nothing failed.
+            // A clear canceled the open: the entry is intact, and nothing failed.
             throw supersededError();
         }
 
@@ -1419,12 +1423,12 @@ export class Autosaver {
     }
 
     /**
-     * Report a restore whose open failed. One a clear cancelled (`E_SUPERSEDED`, asked for while
+     * Report a restore whose open failed. One a clear canceled (`E_SUPERSEDED`, asked for while
      * the restore waited) left the work intact: its attempt is taken back and nothing is reported.
      * @param current - The entry, with the attempt recorded.
      * @param untried - The entry as it was before the attempt.
      * @param error - Why the open failed.
-     * @param copied - Whether `current` is a copy this restore made, which a cancelled one removes.
+     * @param copied - Whether `current` is a copy this restore made, which a canceled one removes.
      */
     async #restoreFailed(
         current: AutosaveEntryMeta,
@@ -1563,7 +1567,7 @@ export class Autosaver {
         };
 
         let current: AutosaveEntryMeta;
-        // The entry as it was before this attempt was recorded, which a cancelled restore puts back.
+        // The entry as it was before this attempt was recorded, which a canceled restore puts back.
         let untried: AutosaveEntryMeta;
         let text: string;
         let stash: Map<string, unknown>;
@@ -1612,7 +1616,7 @@ export class Autosaver {
         let report: AutosaveRestored["report"];
         // The open's place in line, taken now. The restore counts as writing only once its turn
         // has come and until a clear cancels it: a change made while it waits behind a load, or
-        // right after a clear cancelled it, is the reader's (issue #3674).
+        // right after a clear canceled it, is the reader's (issue #3674).
         const line = loadLineOf(dispatcherOf(this.#session));
         const turn = line.join();
         try {
@@ -1621,7 +1625,9 @@ export class Autosaver {
             this.#restoringFlag = true;
             // The reader's own work coming back: a network load they ran stays live.
             report = await line.within(turn, () =>
-                this.#session.project.open(text, { discard: true, ownWork: true, limits: { fileBytes: Infinity } }),
+                openingKeptWork(this.#session, () =>
+                    this.#session.project.open(text, { discard: true, ownWork: true, limits: { fileBytes: Infinity } }),
+                ),
             );
         } catch (error) {
             this.#restoringFlag = false;
@@ -1773,7 +1779,7 @@ export class Autosaver {
 
     /**
      * Whether the changes now are a restore's or a discard's reload, not new work: a restore's
-     * open only from when its turn in the load line came, and never once a clear cancelled it.
+     * open only from when its turn in the load line came, and never once a clear canceled it.
      * @returns True while they are.
      */
     get #restoring(): boolean {
@@ -2138,8 +2144,12 @@ export class Autosaver {
         arm();
         try {
             for (const entry of job.claim) {
-                await this.#claim(entry);
-                // ponytail: a fresh random id is never held elsewhere; a refused claim is not retried.
+                // One writer per entry: a lock held by another tab refuses the write before the
+                // store sees it, even when the entry's generation still matches, and the work moves
+                // to a new entry as after a fenced conflict (#818).
+                if ((await this.#claim(entry)) === null) {
+                    return { error: new AutosaveConflict(entry.id, entry.gen, entry.gen), stalled: false };
+                }
             }
 
             await this.#store.commit(job.writes, {

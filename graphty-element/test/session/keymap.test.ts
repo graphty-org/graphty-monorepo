@@ -6,7 +6,7 @@
 import { assert, describe, it } from "vitest";
 
 import { KEYMAP_DESCRIPTORS } from "../../catalog";
-import { attachKeymap, createGraphSession, type GraphSession } from "../../session";
+import { attachKeymap, createGraphSession, type GraphSession, type KeymapReport } from "../../session";
 
 /**
  * A keydown as the browser builds it, made from Node's own `Event`: the session runs with no DOM.
@@ -111,6 +111,58 @@ describe("attachKeymap", () => {
         handled.preventDefault();
         root.dispatchEvent(handled);
         assert.strictEqual(session.selection.size, 1);
+        session.dispose();
+    });
+    it("reports what it did: the counts a deselect cleared, and an undo before it starts", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        await session.selection.apply({ nodes: ["a", "b"] });
+        const reports: KeymapReport[] = [];
+        let stepsBefore = -1;
+        const root = new EventTarget();
+        attachKeymap(session, root, {
+            onAction: (report) => {
+                reports.push(report);
+                if (report.action === "undo") {
+                    stepsBefore = session.history.position;
+                }
+            },
+        });
+
+        press(root, "Escape");
+        assert.deepEqual(reports[0], { action: "deselect", nodes: 2, edges: 0 });
+        assert.strictEqual(session.selection.size, 0, "reported once cleared");
+
+        const { position } = session.history;
+        press(root, "z", { ctrlKey: true });
+        const undo = reports[1];
+        assert.strictEqual(undo.action, "undo");
+        assert.strictEqual(stepsBefore, position, "reported before the undo starts");
+        const outcome = await (undo as Extract<KeymapReport, { action: "undo" | "redo" }>).done;
+        assert.strictEqual(outcome.kind, "undone");
+        session.dispose();
+    });
+
+    it("takes the host's rule for where the keys are its own, in place of the typing rule", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }]);
+        await session.selection.apply({ nodes: ["a"] });
+        const field = Object.assign(new EventTarget(), { tagName: "INPUT" });
+        const actions: string[] = [];
+        const root = new EventTarget();
+        attachKeymap(session, root, {
+            ignore: (event, action) => {
+                actions.push(action);
+                return event.target !== field;
+            },
+        });
+        press(root, "Escape");
+        assert.strictEqual(session.selection.size, 1, "the host kept this Escape");
+        const fromField = keydown("Escape");
+        Object.defineProperty(fromField, "target", { value: field });
+        root.dispatchEvent(fromField);
+        assert.strictEqual(session.selection.size, 0, "the host's rule let a field's Escape through");
+        assert.deepEqual(actions, ["deselect", "deselect"]);
         session.dispose();
     });
 });

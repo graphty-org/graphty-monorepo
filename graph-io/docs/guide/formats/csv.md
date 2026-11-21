@@ -2,7 +2,8 @@
 
 CSV and TSV files hold one table per file. graph-io reads three kinds of table: an edge list
 (one edge per row), a node table (one node per row), and an adjacency list (a node and its
-neighbors per row). It understands the column names Gephi, NetworkX, SNAP and KONECT use.
+neighbors per row). It understands the column names Gephi, NetworkX, SNAP and KONECT use, and the
+interaction downloads of STRING and BioGRID.
 
 ## At a glance
 
@@ -244,6 +245,22 @@ those labels.
 
 <!-- generated:end -->
 
+### STRING and BioGRID downloads
+
+The protein interaction tables of STRING and BioGRID read with no options. graph-io recognizes
+them by their header, also when the header line starts with `#` as both databases write it.
+
+| Download                                   | Source column                  | Target column                  | Weight           |
+| ------------------------------------------ | ------------------------------ | ------------------------------ | ---------------- |
+| STRING network export (`#node1 node2 ...`) | `node1`                        | `node2`                        | `combined_score` |
+| STRING protein links (`protein1 protein2`) | `protein1`                     | `protein2`                     | `combined_score` |
+| BioGRID TAB3                               | `Official Symbol Interactor A` | `Official Symbol Interactor B` | none             |
+
+Every other column (STRING's evidence scores, BioGRID's `Experimental System`, `Throughput` and the
+rest) is an edge attribute. Pass `weightFrom` to weight the edges by another column, or
+`sourceColumn` and `targetColumn` to key the nodes by other ids, such as BioGRID's
+`Entrez Gene Interactor A` and `Entrez Gene Interactor B`.
+
 ## What a saved file keeps and loses
 
 A CSV file is one table, so one file cannot hold everything:
@@ -319,19 +336,20 @@ for graphty: every property is a `W_STYLE_NOT_WRITTEN` note, and the rules a
 
 These come on top of the [options every importer takes](../options.md#every-importer).
 
-| Option                                 | Type                                                                                                | Default         |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------- |
-| [`delimiter`](#import-delimiter)       | `string`                                                                                            | detected        |
-| [`decimal`](#import-decimal)           | `"." \| ","`                                                                                        | `"."`           |
-| [`header`](#import-header)             | `boolean \| "auto"`                                                                                 | `"auto"`        |
-| [`table`](#import-table)               | `"adjacency" \| "auto" \| "nodes" \| "edges"`                                                       | `"auto"`        |
-| [`sourceColumn`](#import-sourcecolumn) | `string \| number`                                                                                  | from the header |
-| [`targetColumn`](#import-targetcolumn) | `string \| number`                                                                                  | from the header |
-| [`typeColumn`](#import-typecolumn)     | `null \| string \| number`                                                                          | Gephi's Type    |
-| [`idColumn`](#import-idcolumn)         | `string \| number`                                                                                  | from the header |
-| [`labelColumn`](#import-labelcolumn)   | `string \| number`                                                                                  | from the header |
-| [`nodes`](#import-nodes)               | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| Blob` |                 |
-| [`rowNumberIds`](#import-rownumberids) | `boolean`                                                                                           | `false`         |
+| Option                                   | Type                                                                                                | Default                               |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| [`delimiter`](#import-delimiter)         | `string`                                                                                            | detected                              |
+| [`decimal`](#import-decimal)             | `"." \| ","`                                                                                        | `"."`                                 |
+| [`header`](#import-header)               | `boolean \| "auto"`                                                                                 | `"auto"`                              |
+| [`table`](#import-table)                 | `"adjacency" \| "auto" \| "nodes" \| "edges"`                                                       | `"auto"`                              |
+| [`sourceColumn`](#import-sourcecolumn)   | `string \| number`                                                                                  | from the header                       |
+| [`targetColumn`](#import-targetcolumn)   | `string \| number`                                                                                  | from the header                       |
+| [`typeColumn`](#import-typecolumn)       | `null \| string \| number`                                                                          | Gephi's Type                          |
+| [`idColumn`](#import-idcolumn)           | `string \| number`                                                                                  | from the header                       |
+| [`labelColumn`](#import-labelcolumn)     | `string \| number`                                                                                  | from the header                       |
+| [`nodes`](#import-nodes)                 | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| Blob` |                                       |
+| [`rowNumberIds`](#import-rownumberids)   | `boolean`                                                                                           | `false`                               |
+| [`blankIdPrefix`](#import-blankidprefix) | `string`                                                                                            | undefined (blank-id rows are skipped) |
 
 - <a id="import-delimiter"></a>`delimiter`: The field delimiter. The default is to detect it from the first rows: `,`, tab, `;`, `|` or space. It applies to the `nodes` table too.
 - <a id="import-decimal"></a>`decimal`: The decimal separator of numbers. With ",", a cell such as `2,5` (digits, a comma, digits) is read as the number 2.5, for weights and attributes alike, and the delimiter is detected among the others (`;`, tab, `|`, space), so a spreadsheet saved in a locale that writes decimal commas reads as it is. A thousands separator is not read.
@@ -344,24 +362,27 @@ These come on top of the [options every importer takes](../options.md#every-impo
 - <a id="import-labelcolumn"></a>`labelColumn`: The label column of a node table, by name or position. The default is the column the header names `label` (in any case). With `nodeIdFrom: "label"`, the node ids come from this column, and the edge table must name its nodes by these labels too.
 - <a id="import-nodes"></a>`nodes`: A node table to read before the edges: its ids become nodes and its other columns node attributes. Pass it as a string, bytes, a stream, or a `File` or `Blob` (for example, the second file a user picked).
 - <a id="import-rownumberids"></a>`rowNumberIds`: Give the nodes of a node table without an id column the row number as id (0 for the first data row, turned into an id by `ids`), instead of failing with `E_CSV_NO_ID_COLUMN`. It applies to the `nodes` table when you pass one, else to the input. Under `header: "auto"` that table's first row is then read as a header; under `header: false` the option is ignored with a warning, because a table without a header takes its ids from its first column.
+- <a id="import-blankidprefix"></a>`blankIdPrefix`: Keep a node row whose id cell is blank, as a node whose id is this prefix followed by the row's number (0 for the first data row), instead of skipping it with `E_MISSING_ID`. Choose a prefix no id in the file starts with: a minted id that repeats one is merged like any repeated id.
 
 ## Export options
 
 These come on top of the [options every exporter takes](../options.md#every-exporter).
 
-| Option                           | Type                                | Default   |
-| -------------------------------- | ----------------------------------- | --------- |
-| [`dialect`](#export-dialect)     | `"gephi" \| "generic"`              | `"gephi"` |
-| [`table`](#export-table)         | `"adjacency" \| "nodes" \| "edges"` | `"edges"` |
-| [`delimiter`](#export-delimiter) | `string`                            | `","`     |
-| [`newline`](#export-newline)     | `"\n" \| "\r\n"`                    | `"\n"`    |
-| [`header`](#export-header)       | `boolean`                           | `true`    |
+| Option                                       | Type                                | Default   |
+| -------------------------------------------- | ----------------------------------- | --------- |
+| [`dialect`](#export-dialect)                 | `"gephi" \| "generic"`              | `"gephi"` |
+| [`table`](#export-table)                     | `"adjacency" \| "nodes" \| "edges"` | `"edges"` |
+| [`delimiter`](#export-delimiter)             | `string`                            | `","`     |
+| [`newline`](#export-newline)                 | `"\n" \| "\r\n"`                    | `"\n"`    |
+| [`header`](#export-header)                   | `boolean`                           | `true`    |
+| [`spreadsheetSafe`](#export-spreadsheetsafe) | `boolean`                           | `false`   |
 
 - <a id="export-dialect"></a>`dialect`: The header spelling: "gephi" writes `Source,Target,Type,...,Weight`, with each edge's direction in `Type`; "generic" writes `source,target,...,weight` and no direction column. A JSON dialect name, from an options object shared with JSON saves, is ignored.
 - <a id="export-table"></a>`table`: Which table to write. "edges": one edge per row, with the edge attributes; isolated nodes and node attributes are not in it. "nodes": one node per row, with the node attributes and no edges. "adjacency": a node and its neighbors per row, which keeps every node and the node order but no attributes (read it back with `table: "adjacency"`). To keep both nodes and edges, write the node table and the edge table to two files and read them back with the `nodes` import option.
 - <a id="export-delimiter"></a>`delimiter`: The field delimiter.
 - <a id="export-newline"></a>`newline`: The line terminator.
 - <a id="export-header"></a>`header`: Whether to write the header row (an adjacency table never has one). A file without a header is read back by position: source, target, weight, then unnamed columns. checkExport() returns `W_CSV_HEADERLESS` when the table has other columns; for a plain headerless edge list, pass `dialect: "generic"` and write a graph whose edges have only weights.
+- <a id="export-spreadsheetsafe"></a>`spreadsheetSafe`: Whether to keep spreadsheets from running cells as formulas: a cell starting with `=`, `+`, `-`, `@`, a tab or a CR (other than a plain number such as `-5`) is written with a leading `'`. Turn it on for a file someone may open in Excel or LibreOffice when the graph came from a source you do not trust: a label such as `=HYPERLINK("http://x","click")` otherwise runs as a formula, quoted or not. The prefixed cells read back with the `'`, so the round trip is no longer exact.
 
 ## Import issue codes
 

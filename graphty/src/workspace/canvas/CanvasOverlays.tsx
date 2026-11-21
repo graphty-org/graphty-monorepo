@@ -14,7 +14,6 @@ import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
 import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
-import { PreviewKey } from "./PreviewKey";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -141,7 +140,7 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
                     if (groups !== null) {
                         store.set({ announcement: groups });
                     }
-                    const notice = runNotice(session, change.run.id);
+                    const notice = runNotice(session, change.run.id, name);
                     if (notice !== null) {
                         store.set({ notice });
                     }
@@ -211,7 +210,7 @@ function useDetailedMapForSmallData(): void {
 }
 
 /** The words a change of the map under a map layout is announced with, by its state. */
-const BASEMAP_STATE_WORDS: Readonly<Record<string, string>> = {
+const BASEMAP_STATE_WORDS: Readonly<Partial<Record<string, string>>> = {
     ready: "Map shown",
     fallback: "Map unavailable, showing Natural Earth",
 };
@@ -398,11 +397,9 @@ export function CanvasOverlays(): React.JSX.Element | null {
     return (
         <>
             {/* Asked for over nothing, the card says nothing is styled yet. */}
-            {/* While a selection is picked, the key says the styles are suspended and names its groups. */}
-            {legendShown && !workspaceOpen ? (
-                <PreviewKey session={session}>
-                    {keyed || legendAsked ? <LegendCard blocks={blocks} session={session} /> : null}
-                </PreviewKey>
+            {/* While a selection is picked, the selection workspace draws its own key at its preview. */}
+            {legendShown && !workspaceOpen && (keyed || legendAsked) ? (
+                <LegendCard blocks={blocks} session={session} />
             ) : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
         </>

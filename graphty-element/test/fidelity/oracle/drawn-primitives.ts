@@ -10,6 +10,7 @@ import type { Scene, SceneNode, ShapeClass } from "../../../../graph-io/test/fid
 import type { DrawnEdge, DrawnGraph, DrawnLabel, DrawnNode } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
 import { extendToTip, measureArrow, mergeTexts, stackedOn, withinShape } from "./associate";
+import { legiblePx } from "./compare-oracle";
 import {
     type ArrowShape,
     boxOfPoints,
@@ -78,6 +79,20 @@ export function inkedLines(d: DrawnLabel, box: PBox): PBox {
     return { ...box, x0, x1 };
 }
 
+/**
+ * The class of a label panel's outline: a disc, a rounded rectangle or a rectangle.
+ * @param bg - the panel
+ * @param bg.circle - whether it is a disc
+ * @param bg.rounded - whether its corners are rounded
+ * @returns the class
+ */
+function panelShape(bg: { circle: boolean; rounded: boolean }): "ellipse" | "roundrect" | "rect" {
+    if (bg.circle) {
+        return "ellipse";
+    }
+    return bg.rounded ? "roundrect" : "rect";
+}
+
 function textOf(d: DrawnLabel): PText {
     // the words' own box, as an SVG text's box is its letters', not the plane they are drawn on with its margins
     const b = d.textBox ?? d.box;
@@ -123,7 +138,7 @@ function textOf(d: DrawnLabel): PText {
                                     dash: null,
                                     dashClass: "solid",
                                 },
-                      shape: bg.rounded ? "roundrect" : "rect",
+                      shape: panelShape(bg),
                   },
     };
 }
@@ -164,6 +179,7 @@ const DASHED_PATTERNS: ReadonlySet<string> = new Set(["dash", "dot", "box", "das
  * @param dashPx - the drawn elements and gaps, or null where none were read
  * @param width - the line's width in pixels
  * @param taper - its width at the target over its width at the source, where it tapers
+ * @param taperSource - its width at the source over the line's width, where it tapers there
  * @returns the class; a line narrowing to a point at one end is tapered, by the rule the oracle's tapered outlines are
  * read by (`taperedOutline`)
  */
@@ -173,8 +189,10 @@ function drawnLineClass(
     dashPx: readonly number[] | null,
     width: number,
     taper: number | undefined,
+    taperSource?: number,
 ): DashClass {
-    if (taper !== undefined && Math.min(taper, 1) <= TAPER_POINT * Math.max(taper, 1)) {
+    const ends = [taperSource ?? 1, taper ?? 1];
+    if ((taper !== undefined || taperSource !== undefined) && Math.min(...ends) <= TAPER_POINT * Math.max(...ends, 1)) {
         return "tapered";
     }
     const name = pattern ?? style;
@@ -507,6 +525,8 @@ function edgeGradientOf(drawn: DrawnEdge["gradient"], points: readonly [number, 
         return null;
     }
     const n = drawn.colors.length;
+    // where each piece starts and ends along the line: as drawn, or equal shares
+    const at = (i: number): number => (drawn.shares?.length === n + 1 ? drawn.shares[i] : i / n);
     // a linear piece is one flat color from its start to its end: a hard switch between two pieces is drawn as one, not
     // blended across the two pieces' middles (dot-specimen-edges-lines color-segments, red;0.5:blue)
     const stops = drawn.colors
@@ -514,8 +534,8 @@ function edgeGradientOf(drawn: DrawnEdge["gradient"], points: readonly [number, 
             drawn.kind === "radial"
                 ? [{ offset: Math.abs((2 * (i + 0.5)) / n - 1), color, opacity: 1 }]
                 : [
-                      { offset: i / n, color, opacity: 1 },
-                      { offset: (i + 1) / n, color, opacity: 1 },
+                      { offset: at(i), color, opacity: 1 },
+                      { offset: at(i + 1), color, opacity: 1 },
                   ],
         )
         .sort((a, b) => a.offset - b.offset);
@@ -803,12 +823,17 @@ export function drawnPrimitives(
                 ? { sizedLabel: { label: textOf(d.label), acrossPx: rule.acrossPx, min: rule.min } }
                 : {};
         // its further texts (a record's fields) are its label too, as the oracle reads every text in the node's box
-        // each drawn on its own line at its own place, so their alignment is read off their boxes, as the oracle's is
-        const parts = (d?.texts ?? []).map((t) => ({ ...textOf(t), align: undefined }));
-        const label =
+        // each drawn on its own line at its own place, so their alignment is read off their boxes, as the oracle's is;
+        // an external label of several lines is drawn in one plane, so its own alignment is declared for them all
+        // (yed-graphml-specimen-labels configuration-er-labels: "Entity" centered over "id" and "name" set left)
+        const drawnParts = d?.texts ?? [];
+        const parts = drawnParts.map((t) => ({ ...textOf(t), align: undefined }));
+        const several = drawnParts.find((t) => t.lineCount >= 2);
+        const merged =
             parts.length === 0
                 ? ownLabel
                 : mergeTexts([...(ownLabel === null || ownLabel.content === "" ? [] : [ownLabel]), ...parts]);
+        const label = several === undefined || merged === null ? merged : { ...merged, align: several.align };
         // a node that draws no body (shape "none", no picture in its place) is its label and its glyph alone, as a
         // program draws a text-only or an icon-only node (vis-network's text and icon shapes): the comparison reads
         // those as free texts, never as a node shape (withoutCaptions)
@@ -924,6 +949,7 @@ export function drawnPrimitives(
             d.dashPx ?? null,
             d.thicknessPx > 0 ? d.thicknessPx : e.width,
             d.taper,
+            d.taperSource,
         );
         return [
             {
@@ -941,6 +967,8 @@ export function drawnPrimitives(
                     dash: dashed(e.style, d.pattern, d.dashPx ?? null),
                     dashClass,
                     gradient,
+                    // a line drawn as strands, side by side in the order drawn
+                    ...(d.strands !== undefined && d.strands.length >= 2 ? { strands: d.strands } : {}),
                 },
                 arrows,
                 outline: outlineOf(d.outline),
@@ -952,7 +980,7 @@ export function drawnPrimitives(
                 // the texts at its ends belong to it too, as the oracle reads every text beside an edge
                 label: mergeTexts(
                     [e.label !== null ? d.label : null, ...d.endLabels]
-                        .filter((l): l is DrawnLabel => l !== null && l.enabled && l.fontPx >= 1 && l.text !== "")
+                        .filter((l): l is DrawnLabel => l !== null && l.enabled && legiblePx(l.fontPx) && l.text !== "")
                         .map(textOf),
                 ),
             },
@@ -1013,6 +1041,7 @@ export function drawnPrimitives(
                     fill: a.fill ?? null,
                     stroke: null,
                     text: a.text ?? null,
+                    ...(a.label === true ? { label: true as const } : {}),
                 },
                 // an arrow's heads are shapes of their own to a reader, as the program's drawing has them (Cytoscape
                 // desktop's annotation arrows on the specimen-images-charts pages, 68 heads a page read as missing)

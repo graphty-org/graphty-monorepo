@@ -30,6 +30,7 @@ describe("a label's wrap width", () => {
      * @param options.text - Its words.
      * @param options.wrapWidth - Its wrap width, or none.
      * @param options.wrapTrailingSpace - Whether the space after a word must fit too.
+     * @param options.wrapSkipEndSpace - Whether a line's last word is measured without a space after it.
      * @param options.wrapEllipsis - Whether a line that does not fit is cut with an ellipsis.
      * @param options.wrapAnywhere - Whether a line may break between any two letters.
      * @param options.wrapSpaceCount - How many blanks a blank counts as.
@@ -40,6 +41,7 @@ describe("a label's wrap width", () => {
         text: string;
         wrapWidth?: number;
         wrapTrailingSpace?: boolean;
+        wrapSkipEndSpace?: boolean;
         wrapEllipsis?: boolean;
         wrapAnywhere?: boolean;
         wrapSpaceCount?: number;
@@ -102,6 +104,9 @@ describe("a label's wrap width", () => {
         assert.closeTo(height(false), planeOf({ text: "aa aa\naa aa" }).height, 1e-9);
         // a space after every word, the last one's too, as Cytoscape desktop measures
         assert.closeTo(height(true), planeOf({ text: "aa\naa\naa\naa" }).height, 1e-9);
+        // with wrapSkipEndSpace, the line's last word has no space after it, as Cytoscape.js measures
+        const skipped = planeOf({ text: "aa aa aa aa", wrapWidth, wrapTrailingSpace: true, wrapSkipEndSpace: true });
+        assert.closeTo(skipped.height, planeOf({ text: "aa\naa\naa aa" }).height, 1e-9);
     });
 
     test("with wrapTrailingSpace, keeps whole a line that fits without the space after its last word", () => {

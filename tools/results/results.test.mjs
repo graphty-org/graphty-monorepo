@@ -558,6 +558,34 @@ describe("runGroup", () => {
         assert.equal(rec.sha.length, 40);
     });
 
+    it("runs a paid lane's command once with its own exit code and records it (RESULTS_RECORD_ONLY)", async () => {
+        const s = await serve(false);
+        const root = join(TMP, "checkout-record-only");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(join(root, "tools/ci-test-matrix.mjs"), "export const SHARDS = [];\n");
+        writeFileSync(join(root, "report.xml"), junit([["ok"], ["bad", "AssertionError: x"]]));
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        const cmd = "echo ran >> runs; mkdir -p test-results; cp report.xml test-results/junit-pkg-rr-1.xml; exit 1";
+        const env = {
+            PATH: process.env.PATH,
+            RESULTS_URL: s.url,
+            GRAPHTY_RESULTS_TOKEN: "t",
+            GITHUB_RUN_ID: "8",
+            TEST_LEDGER_RUN: "rr",
+            RESULTS_RECORD_ONLY: "1",
+        };
+        assert.equal(await runGroup("t4-node", cmd, { root, env, storeMs: NEVER_ANSWERS }), 1);
+        assert.equal(readFileSync(join(root, "runs"), "utf8"), "ran\n", "run once: no retry");
+        const sent = s.seen.filter((r) => r.url === "/v1/invocations").map((r) => r.body);
+        assert.deepEqual([...new Set(sent.map((r) => r.id))], ["8.1.job.t4-node.1"]);
+        assert.equal(sent[0].outcome, "failed");
+        assert.deepEqual(
+            sent[0].failures.map((f) => f.name),
+            ["bad"],
+        );
+    });
+
     it("files an On shard's record and inputs key under flags=on, a plain shard's under flags=off", async () => {
         const s = await serve(false);
         const root = join(TMP, "checkout-on");
@@ -723,6 +751,34 @@ describe("a screenshot run's own plan and inputs (#3648)", () => {
             ["Shots", "layout-shots"],
         ]);
         assert.ok(s.seen.some((r) => r.url.startsWith("/v1/plan") && r.url.includes("layout-shots")));
+    });
+
+    it("on the full path (no plan file) judges by the store's quarantine, else by the committed list (#3454)", async () => {
+        const s = await serve(() => ({ quarantine: [{ family: "layout", file: "l/a.test.ts", name: "A", issue: 7 }] }));
+        const root = join(TMP, "checkout-full-path-quarantine");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout", "test-command": "exit 0" }];\n`,
+        );
+        writeFileSync(join(root, "tools/test-quarantine.json"), JSON.stringify({ quarantine: [] }));
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        const out = join(root, "quarantine.json");
+        const env = {
+            PATH: process.env.PATH,
+            RESULTS_URL: s.url,
+            GRAPHTY_RESULTS_TOKEN: "t",
+            GITHUB_EVENT_NAME: "workflow_call",
+            RESULTS_PLAN: join(root, "absent.json"),
+            RESULTS_QUARANTINE_OUT: out,
+        };
+        const judged = async (e) => {
+            assert.equal(await runGroup("layout", undefined, { root, env: e }), 0);
+            return JSON.parse(readFileSync(out, "utf8")).quarantine.map((q) => q.name);
+        };
+        assert.deepEqual(await judged({ ...env, RESULTS_STORE_QUARANTINE: "1" }), ["A"]);
+        assert.deepEqual(await judged(env), []);
     });
 
     it("fails open to no plan when the store is not configured or does not answer", async () => {
@@ -1034,6 +1090,56 @@ describe("planRead", () => {
         assert.ok(one.includes("layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots"));
         assert.ok(one.includes("layout-storybook|flags=off|whole,layout-storybook|flags=off|selected"));
     });
+    it("packs a family whose own read failed by the durations snapshot, the store's answer winning (#5404)", async () => {
+        mock.method(globalThis, "fetch", (url) => {
+            const variants = new URL(url).searchParams.get("variants").split(",");
+            const families = new Set(variants.map((v) => v.split("|")[0].replace(/-shots$/, "")));
+            if (families.size > 1) return Promise.resolve(new Response('{"error":"internal error"}', { status: 500 }));
+            if (!families.has("layout")) return Promise.resolve(new Response("refused", { status: 400 }));
+            const fileMs = { "layout/a.test.ts": 5 };
+            return Promise.resolve(
+                new Response(JSON.stringify({ variants: Object.fromEntries(variants.map((v) => [v, { fileMs }])) })),
+            );
+        });
+        const out = join(TMP, "plan-by-family-snapshot");
+        const snapshot = join(TMP, "plan-by-family-snapshot.json");
+        const at = Date.parse("2026-11-19T10:00:00Z");
+        writeFileSync(
+            snapshot,
+            JSON.stringify({
+                at,
+                durations: {
+                    layout: { "layout/a.test.ts": 9 },
+                    "layout-storybook": { "layout/s.test.ts": 700 },
+                    "remote-logger": { "r.test.ts": 1 },
+                },
+            }),
+        );
+        const lines = [];
+        mock.method(console, "log", (line) => lines.push(line));
+        try {
+            await planRead({
+                root: process.cwd(),
+                affected: ["layout"],
+                out,
+                snapshot,
+                env: { RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" },
+            });
+        } finally {
+            mock.restoreAll();
+        }
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {
+            layout: { "layout/a.test.ts": 5 },
+            "layout-shots": { "layout/a.test.ts": 5 },
+            "layout-storybook": { "layout/s.test.ts": 700 },
+        });
+        assert.ok(
+            lines.includes(
+                "results store: no file times for layout-storybook; packed by the durations snapshot of 2026-11-19T10:00:00.000Z",
+            ),
+            lines.join("\n"),
+        );
+    });
     it("keeps the changed files in an unavailable plan, for run-group.mjs's own read (#8363)", async () => {
         const out = join(TMP, "plan-unavailable-changed");
         await planRead({ root: process.cwd(), affected: ["layout"], out, files: ["a.ts"], env: {} });
@@ -1294,9 +1400,9 @@ describe("the pull request rules", () => {
                 ["a.test.ts", 1, true],
             ],
         );
-        // a touched flake names no test to file against master (its flake is likely the pull request's own), only
-        // the failed tests and job its re-run needs; an untouched line merged in keeps the check untouched (#8363)
-        assert.equal(checks[0].names, undefined);
+        // a flake whose imports alone the pull request changed names its test, so a 5-repeat pass on master files
+        // its issue (#8795: such flakes went unfiled), besides the failed tests and job its re-run needs (#8363)
+        assert.deepEqual(checks[0].names, ["flips"]);
         assert.deepEqual(checks[0].failed, ["flips"]);
         rmSync(out, { recursive: true, force: true });
         prJudge(
@@ -1310,6 +1416,35 @@ describe("the pull request rules", () => {
                 ["a.test.ts", "4242", ["x"]],
             ],
         );
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("#8795: a flake only its imports changed files its issue from a 5-repeat pass, before the touched cap drops it", async () => {
+        // 2026-11-16..18: five tests flaky on pull requests that changed only their imports (a lint pass, a
+        // Playwright bump) were [NEW-FLAKY]; their base checks named no test, so a pass on master filed nothing
+        const dir = mkdtempSync(join(tmpdir(), "base-checks-"));
+        const variant = o.variant;
+        const line = (file, repeat, name) =>
+            JSON.stringify({ base: "abc1234", file, variant, repeat, name, touched: true, job: "7" });
+        writeFileSync(
+            join(dir, "s.jsonl"),
+            [
+                line("a.test.ts", 1, "x"),
+                line("b.test.ts", 1, "y"),
+                line("heap.test.ts", 5, "leaves nothing alive"),
+            ].join("\n"),
+        );
+        const checks = readChecks(dir);
+        assert.deepEqual(
+            checks.map((c) => [c.file, c.names]),
+            [
+                ["heap.test.ts", ["leaves nothing alive"]],
+                ["a.test.ts", undefined],
+            ],
+        );
+        const calls = [];
+        await dispatchChecks(checks, (args) => calls.push(args.join(" ")), { pr: "8", run: "9" });
+        assert.match(calls[0], /-f file=heap\.test\.ts .*-f repeat=5 .*-f tests=\["leaves nothing alive"\]/);
         rmSync(dir, { recursive: true, force: true });
     });
 
@@ -1461,6 +1596,74 @@ describe("the pull request rules", () => {
         assert.equal(create[create.indexOf("--title") + 1], "Flaky test: x/a.test.ts > d > two");
         for (const l of ["bug", "priority:critical", "effort:medium"]) assert.ok(create.includes(l));
         assert.match(create[create.indexOf("--body") + 1], /pull request #42.*\n.*abc1234/s);
+    });
+
+    it("a closed flaky issue: left closed when the base lacks its fix, reopened otherwise", () => {
+        const closed = {
+            number: 8102,
+            title: "Flaky test: x/a.test.ts > d > one",
+            body: "",
+            state: "CLOSED",
+            stateReason: "COMPLETED",
+        };
+        // fix: the commit that closed the issue ("" when closed by hand); status: compare fix...base; null throws
+        const run = ({ issues = [closed], fix = "f1x", status = "ahead" } = {}) => {
+            const calls = [];
+            const gh = (args) => {
+                calls.push(args);
+                if (args[1] === "list") return JSON.stringify(issues);
+                if (args[0] === "api" && args[1].includes("/events")) return `${fix}\n`;
+                if (args[0] === "api" && status === null) throw new Error("HTTP 404");
+                if (args[0] === "api") return `${status}\n`;
+                if (args[1] === "create") return "https://github.com/o/r/issues/9\n";
+                return "";
+            };
+            const out = fileFlakyUnrelated(
+                { file: "x/a.test.ts", variant: "f|flags=off|selected", base: "abc1234", names: ["d > one"] },
+                gh,
+            );
+            const did = (verb, n) => calls.some((a) => a[1] === verb && (n === undefined || a[2] === String(n)));
+            return { out, calls, did };
+        };
+
+        for (const status of ["behind", "diverged"]) {
+            const older = run({ status });
+            assert.deepEqual(older.out, [{ name: "d > one", number: 8102 }]);
+            assert.ok(!older.did("create") && !older.did("reopen"), status);
+            assert.ok(older.calls.some((a) => a[1] === "repos/{owner}/{repo}/compare/f1x...abc1234"));
+        }
+
+        const newer = run();
+        assert.deepEqual(newer.out, [{ name: "d > one", number: 8102 }]);
+        assert.ok(newer.did("reopen", 8102));
+        const comment = newer.calls.find((a) => a[1] === "comment");
+        assert.match(comment[comment.indexOf("--body") + 1], /^Flaky again after this issue closed/);
+        assert.ok(!newer.did("create"));
+
+        // closed by hand, or GitHub cannot compare: keep filing, by reopening
+        assert.ok(run({ fix: "" }).did("reopen", 8102));
+        assert.ok(run({ status: null }).did("reopen", 8102));
+
+        // closed as not planned or a duplicate: never reopened, a new issue instead
+        for (const stateReason of ["NOT_PLANNED", "DUPLICATE"]) {
+            const settled = run({ issues: [{ ...closed, stateReason }] });
+            assert.deepEqual(settled.out, [{ name: "d > one", number: 9 }], stateReason);
+            assert.ok(!settled.did("reopen"), stateReason);
+        }
+
+        // an open and a closed issue for the same test: the open one wins, whichever comes first
+        const open = { ...closed, number: 8200, state: "OPEN", stateReason: null };
+        const both = run({ issues: [closed, open] });
+        assert.deepEqual(both.out, [{ name: "d > one", number: 8200 }]);
+        assert.ok(both.did("comment", 8200) && !both.did("reopen"));
+
+        const none = run({ issues: [] });
+        assert.deepEqual(none.out, [{ name: "d > one", number: 9 }]);
+        const create = none.calls.find((a) => a[1] === "create");
+        assert.ok(create.includes("priority:critical"));
+        const list = none.calls.find((a) => a[1] === "list");
+        assert.equal(list[list.indexOf("--state") + 1], "all");
+        assert.ok(list[list.indexOf("--json") + 1].split(",").includes("stateReason"));
     });
 
     it("#3925: dispatches a base check once per base, file and variant the store has not seen", async () => {
@@ -2071,6 +2274,24 @@ describe("health API fan-out", () => {
         assert.equal(post.headers["x-results-schema"], "1");
         assert.deepEqual(post.body, { invocation: "1.1.x" });
         assert.equal(s.seen[0].headers.authorization, "Bearer t");
+    });
+    it("sends a PUT and a DELETE to HEALTH_API_URL too, with their method, and never a GET", async () => {
+        const s = await serve();
+        const h = await serveHealth();
+        const cfg = config(healthEnv(s.url, h.url));
+        await call(cfg, "GET", "/v1/plan?variants=");
+        await call(cfg, "DELETE", "/v1/base-checks", { base: "abc" });
+        await call(cfg, "PUT", "/v1/durations/tests/x", { k: [1] });
+        await flushHealth();
+        const writes = h.seen.filter((r) => !r.url.startsWith("/token"));
+        // both are in flight at once, so they may arrive in either order
+        assert.deepEqual(
+            writes.map((r) => [r.method, r.url, r.body]).sort((a, b) => a[0].localeCompare(b[0])),
+            [
+                ["DELETE", "/v1/base-checks", { base: "abc" }],
+                ["PUT", "/v1/durations/tests/x", { k: [1] }],
+            ],
+        );
     });
     it("sends a shard's flaky tests to the health API alone, as try 1's failures marked flaky", async () => {
         const h = await serveHealth();

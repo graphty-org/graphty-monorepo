@@ -14,6 +14,7 @@ import tseslint from "typescript-eslint";
 import { MANTINE_REPLACEMENTS } from "../compact-mantine/eslint/mantine-replacements.js";
 import noElementMutation from "./eslint-rules/no-element-mutation.js";
 import noSpecialLayers from "./eslint-rules/no-special-layers.js";
+import styleSidebarControls from "./eslint-rules/style-sidebar-controls.js";
 
 // The graphty app is only HTML around graphty-element (CLAUDE.md, "Architectural Principles"):
 // it reaches graph functionality through graphty-element's published entry points and nothing
@@ -25,7 +26,13 @@ const ELEMENT_EXPORTS = Object.keys(
     .filter((key) => key !== ".")
     .map((key) => key.slice(2).replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
 /** The app's own lint rules: one object, because ESLint refuses a plugin name defined twice. */
-const graphtyPlugin = { rules: { "no-element-mutation": noElementMutation, "no-special-layers": noSpecialLayers } };
+const graphtyPlugin = {
+    rules: {
+        "no-element-mutation": noElementMutation,
+        "no-special-layers": noSpecialLayers,
+        "style-sidebar-controls": styleSidebarControls,
+    },
+};
 
 const RULE = "The graphty app consumes graphty-element and nothing else (CLAUDE.md, Architectural Principles).";
 const RESTRICTED_IMPORT_PATTERNS = [
@@ -129,6 +136,46 @@ export default tseslint.config(
     },
 
     // ============================================
+    // STRICT TYPE RULES (#7284)
+    // ============================================
+    // The root config switches the no-unsafe-* rules off and turns them back on package by package
+    // ("STRICT TYPE RULES, PACKAGE BY PACKAGE"); its globs are root-relative, so this package lists
+    // its rules here. Add the rest as their findings are fixed.
+    {
+        files: ["src/**/*.ts", "src/**/*.tsx"],
+        // Stories are linted without type information (root eslint.config.js), and the rules need it.
+        ignores: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
+        rules: {
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+    },
+    // A condition that can never be false is a wrong type or dead code. Still off for the tests
+    // (__tests__, *.test.*, src/test/), whose findings are not fixed yet, and for the assistant files
+    // that read an AI result's params: graphty-element types AiResultParams as a Record whose every
+    // key is present, so each check for a param a code leaves out reads as unnecessary.
+    {
+        files: ["src/**/*.ts", "src/**/*.tsx"],
+        ignores: [
+            "**/*.stories.ts",
+            "**/*.stories.tsx",
+            "**/stories/**/*.ts",
+            "**/__tests__/**",
+            "**/*.test.ts",
+            "**/*.test.tsx",
+            "src/test/**",
+            "src/workspace/assistant/AiProviderSection.tsx",
+            "src/workspace/assistant/Checks.tsx",
+            "src/workspace/assistant/Conversation.tsx",
+            "src/workspace/assistant/words.ts",
+        ],
+        rules: { "@typescript-eslint/no-unnecessary-condition": "error" },
+    },
+
+    // ============================================
     // NO STYLE LAYER IS SPECIAL (issue #5905)
     // ============================================
     {
@@ -137,6 +184,35 @@ export default tseslint.config(
         ignores: ["**/__tests__/**", "**/__fixtures__/**", "**/*.test.*", "**/*.stories.*", "**/stories/**"],
         plugins: { graphty: graphtyPlugin },
         rules: { "graphty/no-special-layers": "error" },
+    },
+
+    // ============================================
+    // THE STYLE SIDEBAR DRAWS ONLY APPROVED CONTROLS (issue #8739)
+    // ============================================
+    // The rule and the list it reads: eslint-rules/style-sidebar-controls.js and
+    // src/workspace/style/approved-controls.json. Inside the files it checks, what sits in a pop-over's
+    // panel, a menu's list, a dialog or a tooltip's label is not in the sidebar and is left alone.
+    {
+        files: ["src/workspace/style/**/*.tsx"],
+        ignores: [
+            "**/__tests__/**",
+            "**/*.stories.tsx",
+            // The approved label itself, built on Mantine's Text.
+            "src/workspace/style/ControlLabel.tsx",
+            // Drawn only inside a pop-over or a dialog.
+            "src/workspace/style/BindingPopover.tsx",
+            "src/workspace/style/CustomModelDialog.tsx",
+            "src/workspace/style/ModelChip.tsx",
+            "src/workspace/style/ModelSettings.tsx",
+            "src/workspace/style/ModelsPopover.tsx",
+            "src/workspace/style/PartsPopover.tsx",
+            "src/workspace/style/ShaderEditorDialog.tsx",
+            "src/workspace/style/ShaderGallery.tsx",
+            "src/workspace/style/ShaderParamRows.tsx",
+            "src/workspace/style/ShaderParams.tsx",
+        ],
+        plugins: { graphty: graphtyPlugin },
+        rules: { "graphty/style-sidebar-controls": "error" },
     },
 
     // ============================================
@@ -278,5 +354,12 @@ export default tseslint.config(
         // components (src/workspace/glyphs.ts), which the rule reads as a component named GLYPHS.
         files: ["src/workspace/**"],
         rules: { "react/jsx-pascal-case": "off" },
+    },
+    {
+        // PostHog's vocabulary: its init options (opt_out_capturing_by_default), client methods
+        // (opt_in_capturing) and the event names and properties it reads (use_case, $geoip_disable)
+        // are snake_case. Names the app declares itself are still checked.
+        files: ["src/lib/analytics.ts", "src/lib/analytics*.test.ts", "src/workspace/privacy/**"],
+        rules: { camelcase: ["error", { properties: "never" }] },
     },
 );

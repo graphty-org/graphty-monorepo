@@ -1,17 +1,17 @@
-import { ResultRow, SearchInput } from "@graphty/compact-mantine";
+import { ResultRow, ScrollArea, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
 import { type GraphSession, isGraphtyError, type RuleCheck, rulePath } from "@graphty/graphty-element/session";
-import { ScrollArea, Text, VisuallyHidden } from "@mantine/core";
+import { Text, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { focusInspectorTitle } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { focusValuesNext, takeValuesFocus } from "../inspector/reads";
 import { edgeJoiner, edgeName, selectedNameWords, sizeWords, valueWord, yesNoWord } from "../inspector/words";
+import { GRAPH_PLACE_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { selectorName } from "../style/cards";
 import { attributeName, plainRule, readableName, shownName, shownRule } from "../style/words";
-import { useSessionVersion } from "./useSessionVersion";
 
 /** The find box's id, which `find.focus` ("/") moves focus to. */
 export const FIND_BOX_ID = "ws-find";
@@ -114,7 +114,7 @@ function backtickSuggestion(error: unknown): string | null {
     if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
         return null;
     }
-    const details = (error.details ?? {}) as { reason?: unknown; suggestion?: unknown };
+    const details = error.details as { reason?: unknown; suggestion?: unknown };
     return details.reason === "number-needs-backticks" && typeof details.suggestion === "string"
         ? details.suggestion
         : null;
@@ -155,7 +155,7 @@ function ruleRefusal(error: unknown): Refusal | null {
     if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
         return null;
     }
-    const details = (error.details ?? {}) as { position?: unknown };
+    const details = error.details as { position?: unknown };
     // The element counts from 0 after the "="; the reader counts from 1 including it.
     const words =
         typeof details.position === "number"
@@ -644,12 +644,13 @@ function refusalSpeech(session: GraphSession, refusal: Refusal): string {
  * @param current - the element's session.
  * @param typed - the typed text.
  * @param setRefusal - shows a refusal under the box.
+ * @returns whether it selected, rather than being refused.
  */
 async function runTypedRule(
     current: GraphSession,
     typed: string,
     setRefusal: (refusal: Refusal | null) => void,
-): Promise<void> {
+): Promise<boolean> {
     try {
         // A rule over a column the graph does not have would select nothing, which reads like
         // an answer; it is refused instead.
@@ -659,16 +660,46 @@ async function runTypedRule(
             : null;
         if (unknown !== null) {
             setRefusal(unknown);
-            return;
+            return false;
         }
         await current.selection.apply({ text: rule }, "replace", { cause: "user" });
+        return true;
     } catch (error) {
         const refused = ruleRefusal(error);
         if (refused === null) {
             throw error;
         }
         setRefusal(refused);
+        return false;
     }
+}
+
+/**
+ * Frames every selected node after a find selected several. With Follow selection on, the element
+ * glides the camera to the selection's center at the same zoom, which can push the farther picks
+ * off the canvas (issue #9287); framing them all keeps every pick in view. One node, or Follow
+ * selection off, leaves the camera to the element.
+ * @param session - the element's session.
+ * @param element - the element.
+ * @param store - the workspace store, for Follow selection.
+ */
+async function frameManyPicks(
+    session: GraphSession,
+    element: Workspace["element"],
+    store: Workspace["store"],
+): Promise<void> {
+    if (session.selection.nodes.length < 2 || !store.get().followSelection) {
+        return;
+    }
+    // Keep the angle the reader looks from, as Fit selection does. A move refused because the
+    // drawing mode changed since leaves the camera where it is.
+    await element
+        ?.applyCameraView("fitToGraph", { scope: "selection", params: { keepAngle: true }, animate: true })
+        .catch((error: unknown) => {
+            if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED") {
+                throw error;
+            }
+        });
 }
 
 /** What a pick reads and changes. */
@@ -760,13 +791,16 @@ async function pickOption(ctx: PickContext, option: Option, adding: boolean): Pr
         // element corrected runs the correction, which the line under the box named.
         ctx.setActive(-1);
         ctx.setRefusal(null);
-        await runTypedRule(session, option.rule, ctx.setRefusal);
+        if (await runTypedRule(session, option.rule, ctx.setRefusal)) {
+            await frameManyPicks(session, ctx.element, ctx.store);
+        }
         return;
     }
     ctx.setText("");
     ctx.setActive(-1);
     if (option.type === "value") {
         await session.selection.apply(valueTarget(option), "replace", { cause: "user" });
+        await frameManyPicks(session, ctx.element, ctx.store);
         return;
     }
     await pickHit(ctx, session, option.hit);
@@ -798,7 +832,12 @@ function enterKey(ctx: KeyContext): void {
     if (ctx.chosen !== undefined) {
         void ctx.pick(ctx.chosen);
     } else if (ctx.runsTyped && ctx.session !== null) {
-        void runTypedRule(ctx.session, ctx.text, ctx.setRefusal);
+        const { session, element, store } = ctx;
+        void runTypedRule(session, ctx.text, ctx.setRefusal).then(async (ran) => {
+            if (ran) {
+                await frameManyPicks(session, element, store);
+            }
+        });
     } else if (ctx.text.trim() !== "") {
         // Enter with nothing to pick says so, rather than nothing at all.
         ctx.store.set({ announcement: ctx.spokenLine ?? `No match for "${ctx.text}"` });
@@ -1676,7 +1715,7 @@ export function FindBox(): React.JSX.Element {
     const shiftPicked = useRef(false);
     useClearAfterShiftPicks(listOpen, shiftPicked, setText, setActive, setPickedValues);
     // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
-    const version = useSessionVersion(session);
+    const version = useSessionEvents(session, GRAPH_PLACE_EVENTS);
 
     const found: FindResult | null = useMemo(() => {
         const _changeCount = version; // reads the change count so the memo runs again on each session change
@@ -1727,7 +1766,7 @@ export function FindBox(): React.JSX.Element {
 
     const runsTyped = runsTypedOf(found, session, isRule, text);
     const target = enterTarget(active, ruleOption, runsTyped, options.length);
-    const chosen: Option | undefined = options[target];
+    const chosen = target < 0 ? undefined : options.at(target);
     useScrollActiveIntoView(active >= 0 ? optionIdOf(listId, active) : undefined);
 
     const open = found !== null && listOpen;

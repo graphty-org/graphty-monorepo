@@ -149,6 +149,14 @@ picture or transparency, say) stays a mesh, and so do the other nodes of its sha
 const { batchedNodes, objectNodes } = element.rowCounts;
 ```
 
+While a layout runs on the GPU, the batched path draws a frame only when a new batch of positions
+lands or something else changes the picture (the camera, hover, a style), even with
+`render-on-demand` off: a frame in between would show the same positions again and take GPU time
+from the layout. Once the layout settles it draws every frame again, unless `render-on-demand` is
+on. A property your own code sets on something already in the Babylon.js scene (through
+`graph.scene`) during the layout is drawn at its next landing; use `"objects"` if it must show at
+once.
+
 ### Loading past the size caps
 
 A load past 100,000 nodes or 1,000,000 edges is refused with `E_TOO_LARGE`. On the batched path
@@ -230,6 +238,17 @@ changes, as `layoutBehavior.rendering.onDemand` does. A screenshot is always the
 
 ```html
 <graphty-element render-path="batched" antialias="at-rest"></graphty-element>
+```
+
+`antialias="shader"` builds the canvas without multisampling, as `false` does, and smooths the
+edges of lines in the line shader instead, still or moving, at close to `false`'s cost. It
+smooths plain straight solid lines on `render-path="batched"`. Everything else is drawn as `false`
+draws it, with hard edges: nodes, curved lines, self-loops, lines through bends, arcs, animated,
+dashed and dotted lines, lines with arrows or other caps, and lines with `blending` off. On
+`render-path="objects"` it draws as `false` does.
+
+```html
+<graphty-element render-path="batched" antialias="shader"></graphty-element>
 ```
 
 Set it as an attribute, in any position in the tag, or as a property before using any other

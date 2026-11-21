@@ -36,8 +36,6 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * </ControlGroup>
  * ```
  *
- * `bleed` is deprecated and has no effect: the group no longer draws a rule.
- *
  * ## Keyboard and accessibility
  *
  * - Nothing in the group itself is interactive; Tab moves through the controls
@@ -68,7 +66,6 @@ const meta: Meta<typeof ControlGroup> = {
     argTypes: {
         children: { control: false },
         actions: { control: false },
-        bleed: { control: false },
     },
     decorators: [
         // Every story sits in a 240px panel with a section's 16 | 8 content padding. States

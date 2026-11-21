@@ -42,7 +42,9 @@ describe("project:derived in the element", () => {
         });
         await s.styles.settled();
         const categories = (): string[] =>
-            s.styles.legend().flatMap((block) => ("swatches" in block ? block.swatches.map((w) => w.label) : []));
+            s.styles
+                .legend()
+                .flatMap((block) => ("swatches" in block ? block.swatches.map((w) => String(w.value)) : []));
         assert.deepEqual(categories(), ["x", "y"]);
 
         const reads: string[][] = [];
@@ -74,7 +76,9 @@ describe("project:derived in the element", () => {
         });
         await s.styles.settled();
         const categories = (): string[] =>
-            s.styles.legend().flatMap((block) => ("swatches" in block ? block.swatches.map((w) => w.label) : []));
+            s.styles
+                .legend()
+                .flatMap((block) => ("swatches" in block ? block.swatches.map((w) => String(w.value)) : []));
 
         const reads: string[][] = [];
         s.on("project:derived", () => {

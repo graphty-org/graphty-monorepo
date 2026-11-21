@@ -1,7 +1,8 @@
 import { assert, describe, it } from "vitest";
 
-import { type AlgorithmDescriptor, DEPRECATED_ALGORITHMS, type LayerId, type RunId } from "../../../src/catalog/types";
+import type { AlgorithmDescriptor, LayerId, RunId } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
+import { createRunResult } from "../../../src/session/results/RunResult";
 import {
     createRunsApi,
     RUN_ID_PATTERN,
@@ -60,7 +61,7 @@ interface HeldExecutor {
 
 /**
  * An executor that stays busy until the test releases it, or until its run
- * is cancelled. Nothing here reads the clock, so what a test observes does
+ * is canceled. Nothing here reads the clock, so what a test observes does
  * not depend on timer granularity or scheduling.
  */
 function heldExecutor(): HeldExecutor {
@@ -136,22 +137,6 @@ describe("starting a run", () => {
             assert.strictEqual(isGraphtyError(error) ? error.code : "", "E_UNKNOWN_ALGORITHM");
             assert.deepStrictEqual(isGraphtyError(error) ? error.details.available : [], ["degree", "k-core"]);
         }
-    });
-
-    it("refuses a deprecated built-in name as unsupported, not as unknown", () => {
-        const { runs, calls } = harness();
-
-        for (const algorithm of DEPRECATED_ALGORITHMS) {
-            try {
-                runs.start(algorithm);
-                assert.fail(`the deprecated "${algorithm}" must not start`);
-            } catch (error) {
-                assert.strictEqual(isGraphtyError(error) ? error.code : "", "E_UNSUPPORTED", algorithm);
-                assert.strictEqual(isGraphtyError(error) ? error.details.reason : "", "deprecated", algorithm);
-            }
-        }
-
-        assert.strictEqual(calls(), 0);
     });
 
     it("refuses an option the algorithm does not declare", () => {
@@ -486,23 +471,23 @@ describe("the queue a consumer shows", () => {
     });
 });
 
-describe("labels", () => {
+describe("the name a run's layers are given by default", () => {
     it("is the algorithm's plain name while it is the only run of that algorithm", () => {
         const { runs } = harness();
 
-        assert.strictEqual(runs.start("degree").label, "Connections");
+        assert.strictEqual(runs.defaultLayerName(runs.start("degree").id), "Connections");
     });
 
     it("gains the parameter that differs the moment a sibling exists", () => {
         const { runs } = harness();
         const two = runs.start("k-core", { k: 2 }, { as: "k2" });
 
-        assert.strictEqual(two.label, "Core");
+        assert.strictEqual(runs.defaultLayerName(two.id), "Core");
 
         const three = runs.start("k-core", { k: 3 }, { as: "k3" });
 
-        assert.strictEqual(two.label, "Core (k 2)");
-        assert.strictEqual(three.label, "Core (k 3)");
+        assert.strictEqual(runs.defaultLayerName(two.id), "Core (k 2)");
+        assert.strictEqual(runs.defaultLayerName(three.id), "Core (k 3)");
     });
 
     it("states what tells siblings apart as the differing options, and null for none (#866)", () => {
@@ -524,7 +509,7 @@ describe("labels", () => {
         runs.start("degree");
         const other = runs.start("degree", {}, { scope: "largest-component" });
 
-        assert.strictEqual(other.label, "Connections (largest component)");
+        assert.strictEqual(runs.defaultLayerName(other.id), "Connections (largest component)");
         assert.deepStrictEqual(other.siblingsDifferBy, [], "only the scope differs");
     });
 });
@@ -607,6 +592,18 @@ describe("batches", () => {
         assert.isAbove(seen.length, 0, "a batch publishes one progress stream");
     });
 
+    it("takes members whose style names groups with a function (issue #195)", async () => {
+        const { runs } = harness();
+        const groupName = ({ rank }: { readonly rank: number }): string => `Group ${String(rank)}`;
+
+        const result = await runs.batch([
+            { algorithm: "k-core", params: { k: 1 }, style: { name: "Cores", groupName } },
+            { algorithm: "degree", style: { name: "Degree", groupName } },
+        ]);
+
+        assert.strictEqual(result.completed, 2);
+    });
+
     it("keeps a member that failed from taking the batch down", async () => {
         const { runs } = harness((context) => {
             if (context.params.k === 2) {
@@ -653,7 +650,6 @@ describe("batches", () => {
             code: "partial.batch-incomplete",
             params: { completed: 1, total: 3 },
         });
-        assert.strictEqual(batch.caveats.partialReason, "1 of 3 members finished.");
         assert.deepStrictEqual(
             result.steps.map((step) => step.failure?.code),
             [undefined, "canceled", "not-started"],
@@ -743,6 +739,87 @@ describe("sweeps", () => {
                 [3, false, "not-started"],
             ],
         );
+    });
+});
+
+describe("stability over seeds", () => {
+    const LOUVAIN = descriptor({
+        key: "louvain",
+        plainName: "Groups",
+        technicalName: "louvain",
+        category: "community",
+        shape: "community",
+        fields: [
+            {
+                name: "group",
+                plainName: "Group",
+                technicalName: "community",
+                kind: "node",
+                type: "integer",
+                path: "results.$.group",
+            },
+        ],
+    });
+    // What each seed finds: seeds 1 and 2 the same grouping under other numbers, seed 3 moves c.
+    const FOUND: Record<number, number[]> = {
+        1: [0, 0, 0, 1, 1, 1],
+        2: [4, 4, 4, 2, 2, 2],
+        3: [5, 5, 6, 6, 6, 6],
+    };
+    const execute: RunExecutor = (context) => {
+        const groups = FOUND[context.seed ?? 0];
+        return Promise.resolve({
+            result: createRunResult({
+                runId: context.runId,
+                shape: "community",
+                fields: LOUVAIN.fields,
+                measured: { nodes: groups.length, edges: 0 },
+                nodes: groups.map((group, i) => ({ id: "abcdef"[i], values: { group } })),
+                caveats: CAVEATS,
+                durationMs: 1,
+            }),
+        });
+    };
+
+    it("runs once per seed and reports how far the seeds agree, against scikit-learn's figures", async () => {
+        const { runs } = harness(execute, {}, [LOUVAIN]);
+
+        const stability = await runs.stability("louvain", [1, 2, 3]);
+
+        assert.deepStrictEqual(
+            stability.rows.map((row) => [row.value, row.ok, row.runId]),
+            [
+                [1, true, "louvain_seed_1"],
+                [2, true, "louvain_seed_2"],
+                [3, true, "louvain_seed_3"],
+            ],
+        );
+        assert.deepStrictEqual(
+            runs.list().map((run) => run.record.seed),
+            [1, 2, 3],
+            "each seed is its own listed run",
+        );
+        assert.deepStrictEqual(
+            stability.pairs.map((pair) => [pair.a.runId, pair.b.runId, pair.kind]),
+            [
+                ["louvain_seed_1", "louvain_seed_2", "partition"],
+                ["louvain_seed_1", "louvain_seed_3", "partition"],
+                ["louvain_seed_2", "louvain_seed_3", "partition"],
+            ],
+        );
+        // Pairs: identical (1, 1), then twice the moved grouping (ARI 0.3243..., AMI 0.3552...).
+        assert.closeTo(stability.agreement ?? NaN, (1 + 2 * 0.32432432432432434) / 3, 1e-12);
+        assert.closeTo(stability.adjustedMutualInformation ?? NaN, (1 + 2 * 0.355245321275764) / 3, 1e-12);
+        assert.isUndefined(stability.correlation);
+    });
+
+    it("leaves the means undefined when fewer than two seeds finish", async () => {
+        const { runs } = harness(execute, {}, [LOUVAIN]);
+
+        const stability = await runs.stability("louvain", [1]);
+
+        assert.deepStrictEqual(stability.pairs, []);
+        assert.isUndefined(stability.agreement);
     });
 });
 

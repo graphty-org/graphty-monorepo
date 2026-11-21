@@ -1,5 +1,5 @@
 // Tests of the CI shape: the test matrix's shard groups (tools/ci-test-matrix.mjs), the parts of
-// ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, verification of
+// ci.yml and pr-title.yml that decide what a draft, a pull request and a full run do, verification of
 // golden in CI (golden-verify.yml calling ci.yml), the
 // release train (release.yml, tools/release-diff.mjs, deploy-pages.yml), the record tools/pr-status-broker.mjs writes for agents, the local commit and push hooks
 // (.husky/pre-commit, tools/format-staged.sh, .husky/pre-push), and the warning period of new
@@ -117,8 +117,6 @@ const job = (text, name) => {
     return next === -1 ? text.slice(start) : text.slice(start, start + 1 + next);
 };
 const PACKAGES = [...new Set(SHARDS.map((s) => s.package))];
-const QUEUE =
-    "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 // a full run's jobs: one per shard, a group's members sharing one
 const FULL_RUN_JOBS = SHARDS.length - Object.values(GROUPS).flat().length + Object.keys(GROUPS).length;
@@ -823,7 +821,7 @@ describe("ci.yml", () => {
         assert.ok(test.indexOf("Fetch the Git LFS files the shard reads") < test.indexOf("- name: Run tests"));
     });
 
-    it("runs every pull request, a draft too, and still names the merge queue once (#3418)", () => {
+    it("runs every pull request, a draft too (#3418)", () => {
         // Pull requests are opened ready (tools/pr-open.sh); there is no draft probe and no draft skip.
         assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
         assert.equal(parseJobs(ci).draft, undefined, "no Draft state job");
@@ -833,7 +831,6 @@ describe("ci.yml", () => {
         assert.doesNotMatch(job(ci, "run-cap"), /\n {8}if:/, "the run cap job runs on every event");
         assert.match(job(ci, "packages"), /\n {8}needs: run-cap\n/, "Build needs only the run cap");
         assert.doesNotMatch(ci, /github\.event\.pull_request\.draft/);
-        assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });
 
     it("cancels a pull request's older run, never a running master push build, a dispatch or the release train (#1108, #3418, #3850, #3938)", () => {
@@ -867,11 +864,11 @@ describe("ci.yml", () => {
         assert.deepEqual(run({ event: "push", sha: "a1" }), { group: "ci-master-push", cancels: false }, "a push");
         assert.equal(run({ event: "push", sha: "b2" }).group, "ci-master-push", "a later push, same group");
         // a re-run of an older master build (master-guard re-runs an outside failure) neither cancels the newer
-        // build nor is cancelled: its commit's own group
+        // build nor is canceled: its commit's own group
         assert.deepEqual(run({ event: "push", sha: "a1", attempt: "2" }), { group: "ci-a1", cancels: false });
-        // a dispatch keeps its commit's own group and is never cancelled
+        // a dispatch keeps its commit's own group and is never canceled
         assert.deepEqual(run({ event: "workflow_dispatch", sha: "a1" }), { group: "ci-a1", cancels: false });
-        // the release train's call: its own group, never cancelled, even if a caller were a push
+        // the release train's call: its own group, never canceled, even if a caller were a push
         assert.deepEqual(run({ event: "workflow_dispatch", ref: "c3" }), { group: "ci-release-c3", cancels: false });
         assert.deepEqual(run({ event: "push", ref: "c3" }), { group: "ci-release-c3", cancels: false });
     });
@@ -885,9 +882,8 @@ describe("ci.yml", () => {
         );
     });
 
-    it("runs the full suite on a merge-queue branch", () => {
+    it("builds and lints everything on a full run", () => {
         const step = job(ci, "packages");
-        assert.match(step, /"\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true"/);
         assert.match(
             step,
             /if: steps.plan.outputs.full == 'true' && steps.reuse-build.outputs.artifacts-run == ''\n\s+run: pnpm exec nx run-many -t build/,
@@ -898,7 +894,7 @@ describe("ci.yml", () => {
         );
     });
 
-    it("holds the merge queue to master's rule that every job succeeds", () => {
+    it("holds a full run to the rule that every job succeeds", () => {
         assert.match(
             job(ci, "all-checks"),
             /\[\[ "\$FULL" == "false" \|\| "\$LIGHT" == "true" \]\] && ok='\["success","skipped"\]'/,
@@ -931,12 +927,12 @@ describe("ci.yml", () => {
         assert.ok(!jobs["all-checks"].needs.includes("visual-flaky"));
     });
 
-    it("runs no security audit on pull requests or merge-queue runs", () => {
+    it("runs no security audit on pull requests", () => {
         // advisories land against code a pull request did not change; the release train audits instead
         assert.doesNotMatch(ci, /pnpm audit/);
         const review = workflow("dependency-review.yml");
         assert.match(review, /paths:\n\s+- "pnpm-lock.yaml"/);
-        assert.match(review, /if: \$\{\{ !startsWith\(github.head_ref, 'mergify\/merge-queue\/'\) \}\}/);
+        assert.doesNotMatch(review, /\n {8}if:/, "every pull request that changes a dependency is reviewed");
         assert.match(review, /fail-on-severity: high/);
     });
 
@@ -948,8 +944,8 @@ describe("ci.yml", () => {
         }
     });
 
-    // A job that reaches its timeout-minutes is cancelled, and continue-on-error does not absorb a cancelled job:
-    // the whole run concludes cancelled (issue #7986). The benchmarks fail their own step first, at DEADLINE.
+    // A job that reaches its timeout-minutes is canceled, and continue-on-error does not absorb a canceled job:
+    // the whole run concludes canceled (issue #7986). The benchmarks fail their own step first, at DEADLINE.
     it("ends the benchmarks inside the job's time limit, so a slow one fails a step and never cancels the run", () => {
         // each job runs its own benchmarks under its own deadline (issue #8148: one job for all four outgrew it)
         for (const [name, count] of [
@@ -1069,7 +1065,7 @@ describe("ci.yml", () => {
             { number: 9001, title: "Full run red: ci on abc" },
             { number: 9002, title: "Release held: T4 GPU failed on abc" },
         ];
-        // a Refs restarts without cancelling, so the red run still reaches its verdict, bisect and store record
+        // a Refs restarts without canceling, so the red run still reaches its verdict, bisect and store record
         assert.deepEqual(releaseDue(red, "fix(ci): x\n\nRefs #9001\n"), {
             mode: "restart",
             issue: 9001,
@@ -1200,14 +1196,14 @@ describe("ci.yml", () => {
     });
 
     // ci.yml cancels an unfinished master build when a newer push starts (#3850), and release-due runs only in a
-    // green build, so a cancelled build's merge must still be read by the next green build's release-due.
+    // green build, so a canceled build's merge must still be read by the next green build's release-due.
     it("restarts from a merge whose master build a newer push cancelled", () => {
         const order = ["h", "c2", "c1", "g", "older"];
         const ancestor = (sha) => order.includes(sha);
         assert.equal(lastGreenBuild("h", ["h", "g", "older"], ancestor), "g", "this build's own run is never the base");
         assert.equal(lastGreenBuild("h", ["elsewhere", "g"], ancestor), "g", "only a commit in this history");
         assert.equal(lastGreenBuild("h", [], ancestor), null);
-        // the cancelled merge's Fixes closed the issue more than an hour before this build's release-due ran
+        // the canceled merge's Fixes closed the issue more than an hour before this build's release-due ran
         const now = Date.parse("2026-10-25T12:00:00Z");
         const closed = [
             { number: 9001, title: "Full run red: ci on abc", state: "CLOSED", closedAt: "2026-10-25T10:40:00Z" },
@@ -1215,7 +1211,7 @@ describe("ci.yml", () => {
         assert.equal(releaseDue(closed, "Fixes #9001", now), null, "an hour's window alone misses it");
         assert.equal(releaseDue(closed, "Fixes #9001", now, Date.parse("2026-10-25T10:30:00Z"))?.issue, 9001);
 
-        // end to end, --dry-run: green build at G, a merge M1 (Refs #9001) whose build was cancelled, then this build's
+        // end to end, --dry-run: green build at G, a merge M1 (Refs #9001) whose build was canceled, then this build's
         // merge M2 with no reference. Reading only HEAD^1..HEAD would miss M1.
         const dir = mkdtempSync(join(TMP, "release-due-"));
         const g = (...args) =>
@@ -1354,13 +1350,13 @@ describe("ci.yml", () => {
         assert.match(job(ci, "all-checks"), /strict='\["packages","build","lint","checks","docs"\]'\n/);
     });
 
-    it("still runs every test job on pull requests, merge-queue runs, dispatches and the release train", () => {
+    it("still runs every test job on pull requests, dispatches and the release train", () => {
         const build = job(ci, "packages");
         // light is set only on a push of master itself and on a call that names its shards; every other
         // event takes the affected (pull request) or full path
         assert.equal(build.match(/echo "light=true"/g).length, 2);
         assert.match(build, /if \[\[ -n "\$SHARDS" \]\]; then\n\s+echo "light=true" >> "\$GITHUB_OUTPUT"\n/);
-        assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
+        assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" \]\]; then/);
         assert.equal(plan(PACKAGES).length, FULL_RUN_JOBS, "a full run is every shard");
         // no test-type job is limited to pushes or to master (the nx cache write environment and its probe's
         // WRITES pick a token on master; they skip nothing)
@@ -1508,7 +1504,6 @@ describe("verification runs of ci.yml", () => {
                 ...process.env,
                 PATH: `${bin}:${process.env.PATH}`,
                 GITHUB_OUTPUT: output,
-                MERGE_QUEUE: "false",
                 BASE_REF: "master",
                 SKIP_UNAFFECTED_CAPTURES: "false",
                 LABELS: "[]",
@@ -2033,7 +2028,7 @@ describe("the Sentry source map upload", () => {
                 "github.ref == 'refs/heads/master' && !inputs.ref",
         );
         const i = steps.indexOf(upload);
-        assert.equal(steps[i - 1].name, "Build all (master, a manual dispatch or the merge queue)");
+        assert.equal(steps[i - 1].name, "Build all (master, a manual dispatch or the release train)");
         assert.equal(steps[i + 1].name, "Upload all package builds");
         // deploy-pages.yml publishes only a push run's build, so that one carries the debug ids
         assert.match(workflow("deploy-pages.yml"), /github\.event\.workflow_run\.event == 'push'/);
@@ -2067,7 +2062,7 @@ describe("new required checks start as warnings", () => {
     it("finds the required jobs and steps", () => {
         const checks = requiredChecks(parseJobs(ci));
         assert.ok(checks.packages.includes("Install dependencies"));
-        assert.ok(checks.lint.includes("Lint all (master, a manual dispatch or the merge queue)"));
+        assert.ok(checks.lint.includes("Lint all (master, a manual dispatch or the release train)"));
         // The visual gate reports and never blocks a pull request (#3418).
         assert.ok(!checks["all-checks"].includes("Check visual changes were accepted"));
         assert.ok(!("visual" in checks) && !("performance" in checks), "continue-on-error jobs never block");
@@ -2914,13 +2909,9 @@ describe("base-check.yml", () => {
 });
 
 describe("pr-title.yml", () => {
-    it("skips the whole job, not a step, for Mergify's own merge-queue draft and only for it", () => {
-        // A skipped job completes at once; a job that installs first leaves the required check in progress
-        // for a minute after each of Mergify's body edits.
+    it("runs on every pull request, with no job condition", () => {
         const pr = workflow("pr-title.yml");
-        assert.ok(pr.includes(`        name: Lint PR Title\n`));
-        assert.ok(pr.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
-        assert.equal(pr.split(QUEUE).length, 2);
+        assert.ok(pr.includes(`        name: Lint PR Title\n        runs-on: ubuntu-24.04\n`));
     });
     // The breaking-change step's script, against a stub gh: one GraphQL page with the commits, the labels and
     // who added them; `fail` is gh's error output for a failed call; `ruled` is master's release-not-breaking.json
@@ -3006,7 +2997,7 @@ describe("pr-title.yml", () => {
         assert.equal(breaking({ fail: "HTTP 502: Bad Gateway" }), 1);
         assert.match(breaking.stdout, /::error::could not read this pull request's commits and labels/);
     });
-    it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
+    it("is never cancelled by a later run, so a description edit cannot interrupt the required check", () => {
         // A concurrency group cancels superseded runs even without cancel-in-progress.
         assert.doesNotMatch(workflow("pr-title.yml"), /^concurrency:/m);
     });
@@ -3046,10 +3037,9 @@ describe("pr-issue-link.yml", () => {
         assert.equal(skipReason({ author: "github-actions[bot]" }), null);
         assert.equal(skipReason({ author: "someone" }), null);
     });
-    it("skips the whole job for Mergify's own merge-queue draft, and re-runs on a description edit", () => {
+    it("runs on every pull request, with no job condition, and re-runs on a description edit", () => {
         const wf = workflow("pr-issue-link.yml");
-        assert.ok(wf.includes(`        name: Link PR Issue\n`));
-        assert.ok(wf.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
+        assert.ok(wf.includes(`        name: Link PR Issue\n        runs-on: ubuntu-24.04\n`));
         assert.match(wf, /types: \[opened, edited, synchronize, reopened\]/);
         assert.doesNotMatch(wf, /^concurrency:/m);
         // never in an environment variable: one over 128 KiB stops the runner starting the step
@@ -3277,7 +3267,7 @@ describe("apt in the workflows", () => {
             "visual-review template",
             readFileSync(new URL("../visual-review/templates/visual-review.yml", import.meta.url), "utf8"),
         ]);
-        const APT = /--with-deps|install-deps|install-browser|apt-get|playwright-system-deps/;
+        const APT = /--with-deps|install-deps|install-browser|apt-get|playwright-system-deps|mesa-lavapipe/;
         let checked = 0;
         for (const [file, text] of files) {
             const code = text.replace(/^\s*#.*$/gm, "");
@@ -3300,6 +3290,102 @@ describe("apt in the workflows", () => {
         );
         assert.match(action, /tee \/etc\/apt\/apt\.conf\.d\/99-ci-timeouts/);
         assert.match(action, /Acquire::http::Timeout "20";.*Acquire::https::Timeout "20";.*Acquire::Retries "5";/);
+    });
+
+    // Mesa lavapipe comes only from the cached action: full run 44519887010 failed when a new runner image
+    // missed the ImageVersion-keyed cache during an Ubuntu mirror outage (#9043).
+    const lavapipe = parseYaml(
+        readFileSync(new URL("../.github/actions/mesa-lavapipe/action.yml", import.meta.url), "utf8"),
+    ).runs.steps;
+
+    it("installs Mesa lavapipe in every workflow only through the cached mesa-lavapipe action", () => {
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        let users = 0;
+        for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {
+            const code = readFileSync(new URL(file, dir), "utf8").replace(/^\s*#.*$/gm, "");
+            assert.doesNotMatch(code, /apt-get install[^\n]*mesa-vulkan-drivers/, `${file} runs apt for Mesa itself`);
+            users += code.match(/uses: \.\/\.github\/actions\/mesa-lavapipe\n/g)?.length ?? 0;
+        }
+        assert.ok(users >= 4, `found the lavapipe jobs (${users})`);
+        assert.match(
+            job(workflow("ci.yml"), "test"),
+            /uses: \.\/\.github\/actions\/mesa-lavapipe\n\s+with:\n\s+save: \$\{\{ env\.SAVE_CACHES \}\}\n/,
+        );
+    });
+
+    // Runs one of the action's steps against a fake apt-get, dpkg and sudo, with HOME in a temporary directory.
+    const runLavapipe = (index, { env = {}, apt = 'echo "apt-get $*" >> "$ROOT/calls"', cached = [] } = {}) => {
+        const root = mkdtempSync(join(TMP, "lavapipe-"));
+        const bin = join(root, "bin");
+        const debs = join(root, ".cache", "lavapipe-debs");
+        mkdirSync(bin);
+        mkdirSync(debs, { recursive: true });
+        for (const d of cached) writeFileSync(join(debs, d), "");
+        const stub = (name, body) => writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
+        stub("sudo", '"$@"');
+        stub("apt-get", apt);
+        stub("dpkg", 'echo "dpkg $*" >> "$ROOT/calls"');
+        stub("dpkg-query", 'for p in "${@:3}"; do echo "ii  $p"; done');
+        const step = lavapipe[index];
+        const out = join(root, "output");
+        writeFileSync(out, "");
+        const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", step.run], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                ...step.env,
+                ...env,
+                HOME: root,
+                ROOT: root,
+                ImageOS: "ubuntu24",
+                GITHUB_OUTPUT: out,
+                PATH: `${bin}:${process.env.PATH}`,
+            },
+        });
+        const calls = existsSync(join(root, "calls")) ? readFileSync(join(root, "calls"), "utf8") : "";
+        return { ...r, calls, output: readFileSync(out, "utf8"), debs };
+    };
+
+    it("mesa-lavapipe keys the cache on the .deb files the image's index resolves, not the mirror or the image version", () => {
+        const uris = (mirror) =>
+            `echo "'http://${mirror}/pool/m/mesa-vulkan-drivers_25.2.8_amd64.deb' mesa-vulkan-drivers_25.2.8_amd64.deb 1 SHA512:x"`;
+        const a = runLavapipe(0, { apt: uris("azure.archive.ubuntu.com"), env: { ImageVersion: "1" } });
+        const b = runLavapipe(0, { apt: uris("archive.ubuntu.com"), env: { ImageVersion: "2" } });
+        assert.equal(a.status, 0, a.stderr);
+        assert.equal(a.output, b.output);
+        assert.match(a.output, /^key=lavapipe-debs-ubuntu24-[0-9a-f]{32}\nneeded=true\n$/);
+        assert.doesNotMatch(lavapipe[0].run, /apt-get update/, "the key never touches the network");
+        const none = runLavapipe(0, { apt: "true" });
+        assert.match(none.output, /needed=false\n$/);
+    });
+
+    it("mesa-lavapipe: a hit installs with dpkg alone and never runs apt", () => {
+        const r = runLavapipe(2, { env: { HIT: "true", NEEDED: "true" }, cached: ["a.deb", "b.deb"] });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n$/);
+    });
+
+    it("mesa-lavapipe: a miss installs from the image's index, and updates the index only when that fails", () => {
+        const miss = runLavapipe(2, { env: { HIT: "", NEEDED: "true" } });
+        assert.equal(miss.status, 0, miss.stdout + miss.stderr);
+        assert.ok(
+            miss.calls.startsWith(`apt-get install -y --no-install-recommends -o Dir::Cache::Archives=${miss.debs} `),
+        );
+        assert.doesNotMatch(miss.calls, /update/);
+        // the first install fails (a stale index points at a file the mirror dropped), the second succeeds
+        const apt =
+            'echo "apt-get $*" >> "$ROOT/calls"; [ "$1" = update ] && touch "$ROOT/updated"; [ -e "$ROOT/updated" ]';
+        const stale = runLavapipe(2, { env: { HIT: "", NEEDED: "true" }, apt });
+        assert.equal(stale.status, 0, stale.stdout + stale.stderr);
+        assert.match(stale.calls, /^apt-get install [^\n]*\napt-get update\napt-get install [^\n]*\n$/);
+    });
+
+    it("mesa-lavapipe: an image that already has the packages runs neither apt nor dpkg", () => {
+        const r = runLavapipe(2, { env: { HIT: "", NEEDED: "false" } });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.equal(r.calls, "");
+        assert.equal(lavapipe[1].if, "steps.key.outputs.needed == 'true'");
+        assert.match(lavapipe[3].if, /^steps\.key\.outputs\.needed == 'true' && /);
     });
 });
 
@@ -3409,11 +3495,25 @@ describe("actions/cache in the workflows", () => {
 
     it("fails a stalled git transfer in ci.yml so actions/checkout retries it (#8526)", () => {
         // git waits forever on an HTTPS transfer that stops delivering bytes; a Test job's checkout sat silent
-        // for its whole 30 minutes and the cancelled job turned the full run's CI lane red (run 43924294024).
+        // for its whole 30 minutes and the canceled job turned the full run's CI lane red (run 43924294024).
         const env = parseYaml(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8")).env;
         assert.ok(Number(env.GIT_HTTP_LOW_SPEED_LIMIT) > 0, "env GIT_HTTP_LOW_SPEED_LIMIT is set");
         const secs = Number(env.GIT_HTTP_LOW_SPEED_TIME);
         assert.ok(secs > 0 && secs <= 300, `env GIT_HTTP_LOW_SPEED_TIME is 1-300 s (got ${secs})`);
+    });
+
+    it("bounds the Test jobs' checkout and checks out again when it times out (#8743)", () => {
+        // the low-speed limit did not stop every stall: two Test checkouts still sat 30 minutes (run 44125048943)
+        const jobs = parseYaml(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8")).jobs;
+        for (const name of ["test", "test-2"]) {
+            const [first, retry] = jobs[name].steps;
+            assert.match(String(first.uses), /^actions\/checkout@/, name);
+            assert.ok(first["timeout-minutes"] <= 10 && first["continue-on-error"] === true, name);
+            assert.match(String(retry.uses), /^actions\/checkout@/, name);
+            assert.equal(retry.if, `steps.${first.id}.outcome == 'failure'`, name);
+            assert.ok(retry["timeout-minutes"] <= 10 && !retry["continue-on-error"], name);
+            assert.deepEqual(retry.with, { ...first.with }, `${name}: the retry checks out the same way`);
+        }
     });
 });
 
@@ -3549,6 +3649,11 @@ describe("Mergify is retired", () => {
         assert.doesNotMatch(guard, /mergify|freeze/i);
         assert.doesNotMatch(workflow("master-guard.yml"), /mergify|freeze/i);
     });
+    it("has no workflow condition for Mergify's merge-queue drafts (#7435)", () => {
+        for (const name of ["ci.yml", "pr-title.yml", "pr-issue-link.yml", "dependency-review.yml"]) {
+            assert.doesNotMatch(workflow(name), /mergify\/merge-queue|MERGE_QUEUE: /, name);
+        }
+    });
 });
 
 describe("gpu.yml", () => {
@@ -3626,12 +3731,19 @@ describe("gpu.yml", () => {
         // bare host gets E_NO_WEBGPU at its adapter report (issue #2313: the weekly failed that way every week).
         const dir = new URL("../.github/workflows/", import.meta.url);
         let checked = 0;
+        const images = new Set();
         for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {
             const code = readFileSync(new URL(file, dir), "utf8").replace(/^\s*#.*$/gm, "");
             for (const body of code.split(/\n(?= {4}[a-z][\w-]*:\n)/)) {
                 if (!/\n {8}runs-on: .*gpu=t4/.test(body)) continue;
                 const where = `${file}: ${body.trim().split("\n")[0]}`;
-                assert.match(body, /\n {8}container:\n {12}image: ubuntu:24\.04\n {12}options: --gpus all\b/, where);
+                assert.match(
+                    body,
+                    /\n {8}container:\n {12}image: ubuntu:24\.04@sha256:[0-9a-f]{64}\n {12}options: --gpus all\b/,
+                    where,
+                );
+                // pinned by digest: a new build changes the cached .deb key, and its first run needs archive.ubuntu.com (#9035)
+                images.add(body.match(/image: (\S+)/)[1]);
                 assert.match(body, /NVIDIA_DRIVER_CAPABILITIES: all\n/, where);
                 // the bootstrap's package list, which the cached .deb set is keyed on and checked against (#6390)
                 const install = body.match(/\n {18}PACKAGES: [^\n]*/)?.[0] ?? "";
@@ -3654,6 +3766,7 @@ describe("gpu.yml", () => {
             }
         }
         assert.ok(checked >= 2, `found the T4 jobs (${checked})`);
+        assert.equal(images.size, 1, `every T4 job pins the same image, so they share one .deb set: ${[...images]}`);
     });
 
     it("builds nx's project graph from graphty-element, where the T4's element step runs nx", () => {
@@ -3769,6 +3882,13 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
             [...new Set(legged.map((r) => r.project))],
         );
         assert.ok(legged.some((r) => r.project === "graph-io-fidelity"));
+        assert.ok(
+            legged.some((r) => r.project === "graphty"),
+            "graphty re-shoots in legs (#8128)",
+        );
+        // an unsteady project's fix-forward whole re-shoot runs in leg 1 alone, unlegged, so one capture plans it
+        assert.match(text, /WHOLE: .*&& \(!matrix.unsteady \|\| matrix.leg == 1\)/);
+        assert.match(text, /LEG: \$\{\{ matrix.leg && !\(matrix.unsteady && needs.pick.outputs.source_run != ''/);
         assert.match(text, /plan --project "\$PROJECT" --captures "\$RUNNER_TEMP\/first" \$\{LEG:\+--leg "\$LEG"\}/);
         // ci.yml's gate step is untouched: the re-capture is release.yml's own job
         assert.doesNotMatch(workflow("ci.yml"), /visual-final|recapture/);
@@ -4018,7 +4138,7 @@ describe("master-guard", () => {
         let fake = lister([newer("2026-10-25T10:05:00Z")]);
         assert.equal(await superseded(fake.gh, stopped), true);
         assert.equal(fake.calls.length, 2, "a jobs call and one runs-list call");
-        // a running build that stopped (a job ran into its timeout, or a person cancelled it) alarms, even with a
+        // a running build that stopped (a job ran into its timeout, or a person canceled it) alarms, even with a
         // newer push queued behind it: ci.yml never cancels a running master build, so nothing newer stopped it
         fake = lister([newer("2026-10-25T10:05:00Z")], 4);
         assert.equal(await superseded(fake.gh, stopped), false);
@@ -4673,7 +4793,7 @@ describe("release.yml", () => {
         assert.match(llm, /- name: LLM regression tests\n/, "the step llm-spend.mjs counts");
         // the run's logged cost reaches llm-spend.mjs and the health dashboard as the next step's name
         // priced in a step of its own from the usage file the transport appends to as it spends (else the log), so a
-        // failed, cancelled or cut-off test step still logs what it spent (#5062)
+        // failed, canceled or cut-off test step still logs what it spent (#5062)
         assert.match(llm, /LLM_REGRESSION_USAGE_FILE: \$\{\{ runner\.temp \}\}\/llm-usage\.jsonl\n/);
         assert.match(
             llm,
@@ -4734,6 +4854,7 @@ describe("release.yml", () => {
         );
         chmodSync(join(dir, "npx"), 0o755);
         const ran = spawnSync("bash", ["-e", "-c", step.run], {
+            cwd: new URL(`../${step["working-directory"]}`, import.meta.url), // the step's own
             env: {
                 ...process.env,
                 PATH: `${dir}:${process.env.PATH}`,
@@ -4846,7 +4967,7 @@ describe("release.yml", () => {
 
     // A train attempt ends with a release on master or a "Release held" issue, never with neither. Run
     // 37635516841 (2026-10-07) ended with neither: a GitHub Actions outage left CI's "All Checks Pass" queued for
-    // good, its result "abandoned", and held's `if` listed only failure and cancelled.
+    // good, its result "abandoned", and held's `if` listed only failure and canceled.
     describe("never ends a train attempt without a landed release or a held issue", () => {
         // the version job's needs but the verdict, which runs only in full and restart runs (the nightly promotion)
         const trainNeeds = [
@@ -6409,10 +6530,6 @@ describe("the commit and push hooks", () => {
         );
     });
 
-    it("commit-changes.sh runs the same pre-commit hook as a plain commit", () => {
-        assert.match(repoFile("tools/commit-changes.sh"), /cp \.husky\/pre-commit \.husky\/commit-msg "\$HOOKS_DIR\/"/);
-    });
-
     it("formats fully staged files and leaves partial, baseline and binary files alone", () => {
         inRepo((dir, git) => {
             mkdirSync(join(dir, "visual-baselines"));
@@ -6850,11 +6967,17 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
         }
     });
 
-    it("the hook runs only the LFS upload, the secret scan and the image limit, from its own copy", () => {
+    it("the hook runs only the LFS upload, the secret scan, the image limit and the spelling check, from its own copy", () => {
         const code = (text) => text.replace(/^\s*#.*$/gm, "");
         const hook = code(readFileSync(new URL("../.husky/pre-push", import.meta.url), "utf8"));
         const tools = [...hook.matchAll(/"\$GATE_DIR\/tools\/([\w.-]+)"/g)].map((m) => m[1]);
-        assert.deepEqual(tools, ["lfs-pre-push.sh", "push-base.mjs", "scan-secrets.sh", "check-committed-images.mjs"]);
+        assert.deepEqual(tools, [
+            "lfs-pre-push.sh",
+            "push-base.mjs",
+            "scan-secrets.sh",
+            "check-committed-images.mjs",
+            "check-spelling.mjs",
+        ]);
         assert.doesNotMatch(hook, /\.\/tools\/|prepush|nx /);
     });
 });
@@ -7158,7 +7281,7 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         const packages = job(ci, "packages");
         assert.match(
             packages,
-            /id: reuse\n {14}if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'\n {14}continue-on-error: true\n/,
+            /id: reuse\n {14}if: github.event_name == 'pull_request'\n {14}continue-on-error: true\n/,
         );
         assert.match(packages, /reuse-run: \$\{\{ steps.reuse.outputs.reuse-run \}\}/);
         assert.match(packages, /permissions:\n {12}contents: read\n {12}actions: read\n {12}checks: write\n/);
@@ -8687,7 +8810,7 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
     });
 
     it("a pull request touching no docs or cost files runs neither", () => {
-        assert.deepEqual(optional(["compact-mantine/src/a.ts"], { affected: ["compact-mantine"] }), {
+        assert.deepEqual(optional(["graphty/src/a.ts"], { affected: ["graphty"] }), {
             docs: "false",
             "cost-accuracy": "false",
         });
@@ -8698,7 +8821,7 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
             assert.equal(optional([f]).docs, "true", f);
         }
         assert.equal(optional(["algorithms/src/a.ts"], { affected: ["algorithms"] }).docs, "true");
-        assert.equal(optional(["compact-mantine/README.md"], { affected: ["compact-mantine"] }).docs, "false");
+        assert.equal(optional(["graphty/README.md"], { affected: ["graphty"] }).docs, "false");
     });
 
     it("runs Docs when a file a docs page includes changed (visual-review's README)", () => {

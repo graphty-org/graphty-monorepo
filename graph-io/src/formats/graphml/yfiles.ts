@@ -31,6 +31,14 @@ const YFILES_COLUMN_PREFIX = "yfiles.";
 
 type Tree = Record<string, unknown>;
 
+/**
+ * The neutral flag on a column that only says how an element looks (its size, colors, shape, arrows): any format may
+ * set `meta.extra.presentation`, and `isStyleSlotColumn()` answers true for it, so a reader that draws styles from
+ * `extractStyles()` leaves the column off its records. The position (role `position`) and label (role `label`) are
+ * data, not look.
+ */
+const LOOK = Object.freeze({ presentation: true });
+
 /** The mapped node columns, by the field name graphty-element's records use. */
 const NODE_FIELDS: Readonly<Record<string, Omit<ColumnDecl, "name">>> = {
     // yEd writes the top-left corner of the node's box, y growing downward, in pixels
@@ -47,22 +55,22 @@ const NODE_FIELDS: Readonly<Record<string, Omit<ColumnDecl, "name">>> = {
             height: `${YFILES_COLUMN_PREFIX}height`,
         },
     },
-    width: { dtype: "f64" },
-    height: { dtype: "f64" },
-    color: { dtype: "string" },
-    borderColor: { dtype: "string" },
-    borderWidth: { dtype: "f64" },
+    width: { dtype: "f64", extra: LOOK },
+    height: { dtype: "f64", extra: LOOK },
+    color: { dtype: "string", extra: LOOK },
+    borderColor: { dtype: "string", extra: LOOK },
+    borderWidth: { dtype: "f64", extra: LOOK },
     label: { dtype: "string", role: "label" },
-    shape: { dtype: "string" },
+    shape: { dtype: "string", extra: LOOK },
 };
 
 /** The mapped edge columns, by field name. */
 const EDGE_FIELDS: Readonly<Record<string, Omit<ColumnDecl, "name">>> = {
-    color: { dtype: "string" },
-    width: { dtype: "f64" },
+    color: { dtype: "string", extra: LOOK },
+    width: { dtype: "f64", extra: LOOK },
     directed: { dtype: "bool" },
-    targetArrow: { dtype: "string" },
-    sourceArrow: { dtype: "string" },
+    targetArrow: { dtype: "string", extra: LOOK },
+    sourceArrow: { dtype: "string", extra: LOOK },
 };
 
 /**

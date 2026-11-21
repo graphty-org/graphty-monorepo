@@ -12,7 +12,7 @@ is edited. Design 8.3, the description of the algorithm, stands unchanged, as do
 ## The decision
 
 M8b builds the Afforest of design 8.3 and nothing more: `comp[v] = v`, two sampled link rounds
-over the r-th neighbour of every vertex (`wcc-link-sample`), pointer-jumping compress through
+over the r-th neighbor of every vertex (`wcc-link-sample`), pointer-jumping compress through
 `atomicLoad` (`wcc-compress`), a 1,024-word sample readback whose mode is the giant component
 (`wcc-sample`), then link rounds over `edgeList()` for edges with an endpoint outside the giant
 component until the changed flag stays 0 (`wcc-link-edges`). Every link is a

@@ -8,6 +8,7 @@
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
+import { FixedLayout } from "../../src/layout/FixedLayoutEngine";
 
 type Triple = readonly [number, number, number];
 
@@ -20,7 +21,7 @@ afterEach(() => {
 });
 
 /**
- * A graph in its own container, initialised, with its render loop stopped.
+ * A graph in its own container, initialized, with its render loop stopped.
  * @returns The graph.
  */
 async function newGraph(): Promise<Graph> {
@@ -85,12 +86,15 @@ async function published(graph: Graph): Promise<void> {
  */
 function assertAt(graph: Graph, expected: Readonly<Record<string, Triple>>): void {
     const actual = lane(graph);
+    // A file drawn closer than the fixed layout's spacing is spread in proportion (issue #1171).
+    const engine = graph.getLayoutManager().layoutEngine;
+    const spread = engine instanceof FixedLayout ? engine.spread : 1;
     assert.strictEqual(actual.size, Object.keys(expected).length, "one row per node");
     for (const [id, want] of Object.entries(expected)) {
         const got = actual.get(id);
         assert.isDefined(got, `node ${id} is in the graph`);
         for (let axis = 0; axis < 3; axis++) {
-            assert.closeTo(got?.[axis] ?? Number.NaN, want[axis], 1e-6, `node ${id}, axis ${String(axis)}`);
+            assert.closeTo((got?.[axis] ?? Number.NaN) / spread, want[axis], 1e-6, `node ${id}, axis ${String(axis)}`);
         }
     }
 }

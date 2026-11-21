@@ -1,5 +1,7 @@
 # graphty
 
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fgraphty.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/graphty.md)
+
 graphty is a graph visualization app that runs in the browser: open a graph file, lay it out in 2D
 or 3D, run graph algorithms over it and style the result. It is the app at
 [graphty.app](https://graphty.app/), built on the
@@ -35,8 +37,21 @@ storage features only in a secure context).
 The sample datasets the app offers beyond the start screen's own are downloaded from graphty.app
 when a reader opens one.
 
-Usage data (error reports and masked session replays) is sent to graphty.app's error tracker only
-after a reader turns on Share usage data in the app.
+Usage data: by default the app sends PostHog nothing, and Share usage data turns on error reports
+(Sentry) only. The `usage-analytics` experiment, switched on in the `features` list of the site's
+`/site.json` or with `?features=usage-analytics` in the address, adds usage counts to PostHog (US
+region). They are sent only when that `/site.json` also has an `analytics` block with PostHog ids
+and the page is served from that site's own host, so a copy you host yourself sends PostHog nothing.
+Where they are sent, every visitor who has not turned on Share usage data sends anonymous counts,
+at most one of each kind per page, in PostHog's cookieless mode, with no cookies and no stored id:
+visits, the site that sent them, which sample, file format, layout, measure and export they use and
+the graph's size as a range, and that they edited a style, used the assistant (its provider, whether
+typed or spoken, and how it ended), switched between 2D and 3D, entered VR or AR, moved or saved the
+camera, saved or reopened a project, played the timeline, or hit an error loading a graph (ids and
+fixed codes only, never file names, contents or what they wrote). A `?internal=1` address marks a
+browser's events as the builders' own testing until `?internal=0`. A reader who shares sends the same counts through PostHog's shared mode instead, with
+its stored id, plus masked session replays, click, control-change and command events, page speed and
+survey answers. The app's `/privacy.html` lists every event and property, and how to turn it off.
 
 ## License
 

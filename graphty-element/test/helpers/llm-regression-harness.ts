@@ -480,7 +480,7 @@ export class LlmRegressionTestHarness {
             options.session ?? (await assistantSession(LlmRegressionTestHarness.recordsOf(options.graphData)));
         const graph = { getSession: () => session, ...STAND_IN_RENDERER } as unknown as Graph;
         // The renderer's camera, as the element installs it: a view.camera call arrives at once.
-        dispatcherOf(session).services.camera = { move: () => Promise.resolve() };
+        dispatcherOf(session).services.camera = { move: () => Promise.resolve(), current: () => ({}) };
 
         // What AiManager hands the model, built the way AiManager builds it: the generated tools,
         // the profile AiManager would pick, and the instructions and facts the controller writes.

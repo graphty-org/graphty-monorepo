@@ -14,6 +14,7 @@
 import "@babylonjs/core/Culling/ray.js";
 
 import type { PickingInfo } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Ray } from "@babylonjs/core/Culling/ray.core.js";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
@@ -23,6 +24,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 import type { EdgeId } from "../catalog/types";
 import type { Edge } from "../Edge";
 import { drawnCurveInWorld } from "../edgeWorldCurve";
+import { convexRayHit } from "../meshes/convexHit";
 import { isCloseLabel } from "../meshes/labelClose";
 import { ON_TOP_RENDERING_GROUP } from "../meshes/RichTextLabel";
 import type { NodeIdType } from "../Node";
@@ -323,7 +325,13 @@ export class RowScan {
      */
     rowRayHitOn(row: number, ray: Ray): Vector3 | null {
         const root = this.root?.computeWorldMatrix() ?? this.identity;
-        return this.narrow(row, root, (world) => this.rayInRow(ray, world))?.pickedPoint ?? null;
+        // a closed convex shape (box, cylinder, cone, polyhedron) is met from its face planes, as a node's own mesh is
+        const node = this.nodeAt(row);
+        const convex =
+            node?.drawnByRowScan === true ? convexRayHit(node.drawnSourceMesh, ray, this.rowWorld(row, root)) : null;
+        return convex === undefined
+            ? (this.narrow(row, root, (world) => this.rayInRow(ray, world))?.pickedPoint ?? null)
+            : convex;
     }
 
     /**
@@ -371,8 +379,9 @@ export class RowScan {
         const root = this.rootMatrix();
         // Root, then view (for the depth) and view and projection (for the screen), as
         // `screenProjector` and `pickEdgeAt` take them.
-        const view = root.multiply(this.scene.getViewMatrix()).m;
-        const clip = root.multiply(this.scene.getViewMatrix().multiply(this.scene.getProjectionMatrix())).m;
+        // The camera's matrices, not the scene's: the scene's are unset until its first frame.
+        const view = root.multiply(camera.getViewMatrix()).m;
+        const clip = root.multiply(camera.getViewMatrix().multiply(camera.getProjectionMatrix())).m;
         const engine = this.scene.getEngine();
         const css = engine.getHardwareScalingLevel();
         const halfWidth = 0.5 * engine.getRenderWidth() * css;
@@ -545,9 +554,27 @@ export class RowScan {
             return null;
         }
 
+        return node.drawnSourceMesh.intersects(
+            rayFor(this.rowWorld(row, root)),
+            false,
+            undefined,
+            false,
+            this.world,
+            false,
+        );
+    }
+
+    /**
+     * Where a row's node is drawn in the world: its bound's center and its scaling, under graph-root.
+     * @param row - The row.
+     * @param root - {@link RowScan.rootMatrix}.
+     * @returns The matrix, which the next call overwrites.
+     */
+    private rowWorld(row: number, root: Matrix): Matrix {
+        const node = this.nodeAt(row);
         const { rowBounds: bounds } = this.table;
         const at = row * 4;
-        const { x, y, z } = node.drawnScaling;
+        const { x, y, z } = node?.drawnScaling ?? { x: 1, y: 1, z: 1 };
         Matrix.FromValuesToRef(
             x,
             0,
@@ -568,7 +595,7 @@ export class RowScan {
             this.local,
         );
         this.local.multiplyToRef(root, this.world);
-        return node.drawnSourceMesh.intersects(rayFor(this.world), false, undefined, false, this.world, false);
+        return this.world;
     }
 }
 
@@ -790,13 +817,16 @@ function distanceToSegment(x: number, y: number, a: { x: number; y: number }, b:
  * canvas's top-left corner. `Graph.worldToScreen` is this; a walk takes it once so each point costs
  * no matrix product.
  * @param scene - The scene.
+ * @param camera - The camera it is seen through (the scene's active camera). Its matrices are
+ *   read, not the scene's, which are unset until the scene's first frame.
  * @returns The projection.
  */
 export function screenProjector(
     scene: Scene,
+    camera: Camera,
 ): (point: { x: number; y: number; z: number }) => { x: number; y: number } {
     const engine = scene.getEngine();
-    const viewProjection = scene.getViewMatrix().multiply(scene.getProjectionMatrix());
+    const viewProjection = camera.getViewMatrix().multiply(camera.getProjectionMatrix());
     // The canvas may be drawn at a higher pixel ratio (`pixelRatio`), which the hardware scaling level undoes.
     const css = engine.getHardwareScalingLevel();
     const width = engine.getRenderWidth();
@@ -862,7 +892,7 @@ export function pickEdgeAt(
             found = id;
         }
     };
-    const project = rowEnds === undefined ? toScreen : screenProjector(scene);
+    const project = rowEnds === undefined ? toScreen : screenProjector(scene, camera);
 
     // ponytail: a linear walk over every edge per pick; a spatial index if picking huge graphs on hover.
     for (const edge of edges) {

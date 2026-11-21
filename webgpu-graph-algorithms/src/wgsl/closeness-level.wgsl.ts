@@ -5,7 +5,7 @@
  * node: `visited` at 0, three frontier regions at `P.base`, `2 P.base` and `3 P.base` that rotate by the level
  * (level `L` reads region `1 + L % 3`, writes region `1 + (L + 1) % 3` and zeroes region `1 + (L + 2) % 3`, the
  * frontier of level `L - 1` that nothing reads any more, so no fill runs between levels; a stale bit could never
- * claim anything, since its node's neighbours were claimed the level after, so the clear only keeps a later frontier
+ * claim anything, since its node's neighbors were claimed the level after, so the clear only keeps a later frontier
  * from re-walking old nodes), then a sampled run's
  * per-node distance sums at `4 P.base`. The `table` buffer holds the per-level claim counts of the submit (row `P.row`
  * at `P.row x 32 P.words`, one word per source lane), then a ring of three control slots of four words at `P.ctrl`
@@ -19,7 +19,7 @@
  *     `rowPtr` -- claims the sources at `u` that `x` has not seen with `atomicOr` on `x`'s visited word; the bits it
  *     won (`fresh`) join the next frontier;
  *   - PULL (the frontier's arcs pass `P.pullAt`, and `P.pullOk`): one invocation per node not yet reached by every
- *     source walks its IN-arcs, ORs the neighbours' frontier words, and keeps the bits it had not seen; it stops at
+ *     source walks its IN-arcs, ORs the neighbors' frontier words, and keeps the bits it had not seen; it stops at
  *     the first in-arc after which every source has reached it (the early exit). Only the owner writes a node's
  *     words. The host allows the pull only when no node has more than a few thousand in-arcs, so no
  *     invocation of either step loops more than a few tens of thousands of times (llvmpipe silently ends every loop

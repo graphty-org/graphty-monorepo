@@ -1,5 +1,5 @@
 /**
- * @file Label sampling builds one node label per screen cell, not one per labelled node.
+ * @file Label sampling builds one node label per screen cell, not one per labeled node.
  *
  * With `layoutBehavior.labels.sampleCell` set, the element divides the canvas into square cells of
  * that many CSS pixels and, once the view has settled, builds the label of one node per cell: the
@@ -78,7 +78,7 @@ describe("label sampling builds labels bounded by the cell count", () => {
         g.setLayoutBehavior({ labels: sampleCell === undefined ? {} : { sampleCell } });
         await g.addNodes(square());
         await g.addEdges(EDGES);
-        await g.setLayout("fixed", { dim: 3 });
+        await g.setLayout("fixed", { dim: 3, spacing: 0 });
         await operationQueueOf(g).waitForCompletion();
         await g.setCameraState(VIEW);
         await g.getSession().styles.add({

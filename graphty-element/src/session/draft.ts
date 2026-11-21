@@ -22,13 +22,14 @@ import type { BatchCommand } from "./commands";
 import { type DataImportCommand, type HeldRows, importCommand, type ImportSource } from "./commands/data";
 import { type JoinGraph, joinReport, type JoinTable, suggestJoin } from "./join";
 import { historyMark } from "./loadLine";
-import { HELD_KINDS, isStorableId, unreadableSource, untilAborted } from "./project/ingest";
+import { HELD_KINDS, holdReadBy, isStorableId, loadedKey, unreadableSource, untilAborted } from "./project/ingest";
 import { documentKind } from "./projectFile";
 import { HELD_READERS } from "./styles/fileStyles/apply";
 import { looksLikeTime } from "./time/parse";
 import { columnSpan } from "./time/timeIndex";
 import { isTimeZone, UTC_ZONE } from "./time/zone";
 import type {
+    ByTableMapping,
     ColumnRole,
     DraftColumn,
     DraftRow,
@@ -44,6 +45,7 @@ import type {
     JoinSuggestion,
     LoadChoices,
     LoadDraft,
+    LoadedChoices,
     LoadMapping,
     LoadMappingRead,
     ProjectConfigPatch,
@@ -51,6 +53,7 @@ import type {
     RowReason,
     RowReasonCode,
     SessionDataConfig,
+    SideMapping,
     TableMapping,
     TableMappingRead,
     TimeFound,
@@ -67,20 +70,23 @@ interface DraftHost {
     graph(): NonNullable<DataImportCommand["measure"]>;
     /**
      * Runs a load in the session's load line: `run` gets the dispatch, taken synchronously, which
-     * sends its command once every load asked for earlier has dispatched (issue #3382).
+     * sends its command once every load asked for earlier has dispatched (issue #3382). `choices`
+     * are the load's own, for the `source:loaded` it publishes.
      */
-    inLine(run: (send: DraftSend) => Promise<void>): Promise<void>;
+    inLine(run: (send: DraftSend) => Promise<void>, choices?: LoadChoices): Promise<void>;
     /** Runs an import in a scratch session with this configuration and returns its report. */
     measure(command: DataImportCommand, config: SessionDataConfig): Promise<LoadReport>;
     /** The draft has been disposed. */
     released(draft: Draft): void;
     /** For a draft prepared `onto: "graph"`: the graph as a join reads it. */
     joinGraph?(): JoinGraph;
+    /** Whether a join runs as source steps (the `source-steps` experiment), so only joins they express are suggested. */
+    joinsAsSteps?(): boolean;
     /**
      * For a draft prepared `onto: "graph"`: taken synchronously, as `importer` is; joins a table
      * onto the graph as one step.
      */
-    joiner?(): (table: JoinedTable, choices: JoinChoices, shape: JoinShape) => Promise<void>;
+    joiner?(): (table: JoinedTable, choices: JoinChoices, shape: JoinShape, callerKey?: string) => Promise<void>;
 }
 
 /** A table to join, with the source it was read from. */
@@ -140,14 +146,26 @@ const ROLES: Readonly<Record<"nodes" | "edges", ReadonlySet<string>>> = {
 };
 
 /** The choices a load keeps with it, for `data.reloadSource` to read the rows again the same way. */
-const KEPT_CHOICES = ["mapping", "unmatched", "duplicateIds", "kindIds", "directed"] as const;
+const KEPT_CHOICES = [
+    "mapping",
+    "unmatched",
+    "duplicateIds",
+    "kindIds",
+    "directed",
+    // The source-steps choices (experimental): kept only when given.
+    "key",
+    "type",
+    "space",
+    "edges",
+    "overlap",
+] as const;
 
 /**
  * The choices a load keeps, as `{ choices }`, or nothing when it was given none.
  * @param choices - What the load was given.
  * @returns `{ choices }` or `{}`.
  */
-function keptChoices(choices: LoadChoices): { choices?: LoadChoices } {
+function keptChoices(choices: LoadedChoices): { choices?: LoadedChoices } {
     const kept: Record<string, unknown> = {};
     for (const name of KEPT_CHOICES) {
         if (choices[name] !== undefined) {
@@ -185,6 +203,50 @@ const ROW_ID = "id";
  */
 function badCommand(message: string, details: Record<string, unknown>): GraphtyError {
     return new GraphtyError({ code: "E_BAD_COMMAND", source: "data", message, details });
+}
+
+/**
+ * Whether a mapping names its tables by side.
+ * @param mapping - The mapping.
+ * @returns True for `{ nodes, edges }`.
+ */
+function isSideMapping(mapping: LoadMapping): mapping is SideMapping {
+    return "nodes" in mapping || "edges" in mapping;
+}
+
+/**
+ * A mapping as a bare mapping or by table id: one named by side (`{ nodes, edges }`) names the
+ * table each side's rows are read as, whatever the number of tables, so it never changes what a
+ * table's rows are unless its roles say `rowsAre` themselves.
+ * @param given - The mapping.
+ * @param reading - What each table's rows are read as.
+ * @returns The mapping, never by side.
+ */
+export function byTableId(given: LoadMapping, reading: LoadMappingRead | undefined): ByTableMapping {
+    if (!isSideMapping(given)) {
+        return given;
+    }
+
+    const ids = Object.keys(reading?.tables ?? {});
+    const tables: Record<string, TableMapping> = {};
+    for (const side of ["nodes", "edges"] as const) {
+        const roles = given[side];
+        if (roles === undefined) {
+            continue;
+        }
+
+        const id = ids.find((each) => reading?.tables[each].rowsAre === side);
+        if (id === undefined || id in tables) {
+            throw badCommand(`The mapping names ${side}, but no table of its own is read as ${side}.`, {
+                side,
+                tables: ids,
+            });
+        }
+
+        tables[id] = { rowsAre: side, ...roles };
+    }
+
+    return { tables };
 }
 
 /**
@@ -231,7 +293,9 @@ function withIdText(
         const entries = Object.entries(row);
         return Object.fromEntries([
             ...entries.filter(([column]) => !named.has(column)),
-            ...entries.filter(([column]) => named.has(column)).map(([column, value]) => [column, idText(value, graph)]),
+            ...entries
+                .filter(([column]) => named.has(column))
+                .map(([column, value]): [string, unknown] => [column, idText(value, graph)]),
         ]);
     });
 }
@@ -387,6 +451,21 @@ function heldTable(
 }
 
 /**
+ * The header columns one CSV table is read by, as the CSV reader records them for data.import:
+ * an edge table's ends, or a node table's id column.
+ * @param edgeRoles - The edge table's roles, when the table is one.
+ * @param key - The node table's id column, or null.
+ * @returns The columns, or undefined when the table names none.
+ */
+function readByOf(edgeRoles: TableMappingRead | undefined, key: string | null): CSVDataSource["readBy"] {
+    if (edgeRoles?.source !== undefined && edgeRoles.target !== undefined) {
+        return { source: edgeRoles.source.column, target: edgeRoles.target.column };
+    }
+
+    return key === null ? undefined : { key };
+}
+
+/**
  * The rows a reader refused, as plain data a command can carry.
  * @param reader - The reader, after reading.
  * @returns The refusals and the limit.
@@ -394,6 +473,16 @@ function heldTable(
 function errorsOf(reader: DataSource): Pick<ReadSource, "errors" | "errorLimit"> {
     const aggregator = reader.getErrorAggregator();
     return { errors: aggregator.getErrors(), errorLimit: aggregator.getErrorLimit() };
+}
+
+/**
+ * How a load's CSV file was split into columns: its first table's separator (a pair's node file).
+ * @param read - The rows.
+ * @returns The separator, when a table has one.
+ */
+function delimiterOf(read: ReadSource): { delimiter?: DraftTable["delimiter"] } {
+    const delimiter = read.tables.find((held) => held.table.delimiter !== undefined)?.table.delimiter;
+    return delimiter === undefined ? {} : { delimiter };
 }
 
 /**
@@ -502,13 +591,12 @@ export async function draftStyles(read: ReadSource, signal?: AbortSignal): Promi
         return null;
     }
 
-    const { rules, source } = styles.extracted.styles;
+    const { rules } = styles.extracted.styles;
     return Object.freeze({
         declared: rules.length > 0,
         summary: Object.freeze({
             nodeRules: rules.filter((rule) => rule.target === "node").length,
             edgeRules: rules.filter((rule) => rule.target === "edge").length,
-            tool: source.tool,
         }),
     });
 }
@@ -1063,12 +1151,12 @@ export class Draft implements LoadDraft {
             // Taken before the first await, as the importer is.
             const join = this.joinHost("load").joiner?.();
             const { table, shape } = this.joinTable("load", choices.join);
-            await join?.(table, choices.join, shape);
+            await join?.(table, choices.join, shape, choices.callerKey);
             this.dispose();
             return;
         }
 
-        await this.host.inLine((send) => this.loadVia(send, choices));
+        await this.host.inLine((send) => this.loadVia(send, choices), choices);
     }
 
     /**
@@ -1085,7 +1173,12 @@ export class Draft implements LoadDraft {
                 roles.source === undefined || roles.target === undefined
                     ? undefined
                     : { source: roles.source.column, target: roles.target.column };
-            this.suggestion = suggestJoin(tableOf(read, held), host.joinGraph?.() ?? NO_GRAPH, endpoints);
+            this.suggestion = suggestJoin(
+                tableOf(read, held),
+                host.joinGraph?.() ?? NO_GRAPH,
+                endpoints,
+                host.joinsAsSteps?.() === true,
+            );
         }
 
         return this.suggestion;
@@ -1144,11 +1237,15 @@ export class Draft implements LoadDraft {
     /**
      * Load through a dispatch taken earlier, as `import` takes it before its first await.
      * @param send - The dispatch.
-     * @param choices - The column roles and the rest.
+     * @param given - The column roles and the rest.
      * @returns Settles once the rows are in the graph.
      */
-    async loadVia(send: DraftSend, choices: LoadChoices = {}): Promise<void> {
+    async loadVia(send: DraftSend, given: LoadChoices = {}): Promise<void> {
         const read = this.live("load");
+        // Kept with the load by table id, so `data.sources()` never hands back a mapping by side.
+        const { mapping, ...rest } = given;
+        const choices: LoadedChoices =
+            mapping === undefined ? rest : { ...rest, mapping: byTableId(mapping, this.mapping) };
         const plan = this.plan(read, choices);
         // One entry per table name, the first table of a name giving what it held.
         const named = new Map<string, "nodes" | "edges">();
@@ -1164,6 +1261,7 @@ export class Draft implements LoadDraft {
             tables: [...named.keys()],
             // A graph file's one name holds both kinds, so it says nothing of what it held.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
+            ...delimiterOf(read),
             ...keptChoices(choices),
             // A graph file's tables are the format's own, so only a table's roles are worth keeping.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { mapping: plan.mapping }),
@@ -1236,11 +1334,12 @@ export class Draft implements LoadDraft {
             return this.mapping;
         }
 
+        const named = byTableId(mapping, this.mapping);
         let given: Readonly<Record<string, TableMapping>>;
-        if ("tables" in mapping) {
-            given = mapping.tables;
+        if ("tables" in named) {
+            given = named.tables;
         } else if (read.tables.length === 1) {
-            given = { [read.tables[0].table.id]: mapping };
+            given = { [read.tables[0].table.id]: named };
         } else {
             throw badCommand("A mapping for a source with several tables names each table by id.", {
                 tables: read.tables.map((each) => each.table.id),
@@ -1309,6 +1408,7 @@ export class Draft implements LoadDraft {
         const nodeRoles = nodeTable === undefined ? undefined : mapping.tables[nodeTable.table.id];
         const edgeRoles = edgeTable === undefined ? undefined : mapping.tables[edgeTable.table.id];
         const key = nodeRoles?.key ?? null;
+        const readBy = read.tables.length === 1 ? readByOf(edgeRoles, key) : undefined;
         const nodeRows = nodeTable?.rows ?? [];
         const onto = choices.mode === "merge" ? this.host.graph().nodes : undefined;
         const kinds = withKinds(
@@ -1345,6 +1445,9 @@ export class Draft implements LoadDraft {
             ...(edgeRoles?.target === undefined ? {} : { target: keyExpression(edgeRoles.target.column) }),
             ...(edgeRoles === undefined ? {} : { weight: edgeRoles.weight ?? null }),
         };
+        if (readBy !== undefined) {
+            holdReadBy(held, readBy);
+        }
         if (kinds.report !== undefined) {
             HELD_KINDS.set(held, kinds.report);
         }
@@ -1382,7 +1485,8 @@ export class Draft implements LoadDraft {
                 const seen = new Set<unknown>();
                 held.rows.forEach((row, index) => {
                     const id = roles.key === null ? index : value(row, idPath);
-                    const rejected = !isStorableId(id);
+                    // A row whose id is null or empty is left out and counted, never a node (spec 6.1).
+                    const rejected = !isStorableId(loadedKey(id));
                     if (rejected) {
                         reasons.set(index, { reason: rowReason("refused-row", { rowsAre: "nodes" }) });
                     }
@@ -1410,7 +1514,7 @@ export class Draft implements LoadDraft {
         // With no node rows and no graph to name, every node comes from the edges: none is missing.
         const matching = known.size > 0 || graph.size > 0;
         held.rows.forEach((row, index) => {
-            const ends = expressions === null ? [null, null] : expressions.map((each) => value(row, each));
+            const ends = expressions === null ? [null, null] : expressions.map((each) => loadedKey(value(row, each)));
             const unusable = EDGE_ENDS.filter((_, at) => !isStorableId(ends[at]));
             const rejected = unusable.length > 0;
             const missingAt = [0, 1].filter((at) => {
@@ -1800,8 +1904,9 @@ function knownFieldsOf(
         return {};
     }
 
+    const named = byTableId(given, mapping);
     const tables: Readonly<Record<string, TableMapping>> =
-        "tables" in given ? given.tables : { [read.tables[0].table.id]: given };
+        "tables" in named ? named.tables : { [read.tables[0].table.id]: named };
     const out: Record<string, string | null> = {};
     for (const [id, choice] of Object.entries(tables)) {
         Object.assign(out, tableFields(mapping.tables[id].rowsAre === "nodes", choice));

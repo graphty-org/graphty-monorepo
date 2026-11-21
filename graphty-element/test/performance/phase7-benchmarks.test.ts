@@ -159,8 +159,6 @@ describe("Phase 7 edge-mesh work counts", () => {
         test("arrow mesh creation returns a mesh for every filled arrow type", () => {
             for (const arrowType of ["normal", "inverted", "dot", "diamond", "box"]) {
                 const mesh = EdgeMesh.createArrowHead(
-                    meshCache,
-                    `arrow-perf-${arrowType}`,
                     { type: arrowType, width: 1.0, color: "#FF0000", size: 1.0, opacity: 1.0 },
                     scene,
                 );

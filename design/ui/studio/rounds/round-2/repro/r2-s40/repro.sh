@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Repro for round 2 session r2-s40 (Les Miserables, Layout):
 #  - after Spectral then Undo, the camera keeps Spectral's framing (drawing pushed off the top);
-#  - typing a new Force "Spring length" leaves the button "Applied" (grey) until the field loses focus;
+#  - typing a new Force "Spring length" leaves the button "Applied" (gray) until the field loses focus;
 #  - Force with spring length 80 leaves a scrambled cloud that does not settle.
 # Writes PNGs and run.log into ./run/.
 set -u

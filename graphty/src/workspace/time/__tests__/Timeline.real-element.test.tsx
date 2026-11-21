@@ -14,7 +14,7 @@ import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { dragAcross } from "../../../test/real-pointer";
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { tooltipOf } from "../../../test/tooltip";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -77,7 +77,7 @@ async function open(
  * The Data place.
  * @returns queries inside it.
  */
-function dataPlace(): ReturnType<typeof within> {
+function dataPlace(): Within {
     return within(screen.getByRole("region", { name: "Data place" }));
 }
 
@@ -108,7 +108,7 @@ async function pickField(column: string, row: "Edge time" | "Node time" = "Edge 
  * Opens the timeline's settings from the dock's settings button, opening the dock first.
  * @returns queries inside the settings.
  */
-async function timeCard(): Promise<ReturnType<typeof within>> {
+async function timeCard(): Promise<Within> {
     if (screen.queryByTestId("time-card") === null) {
         const dock = await openDock();
         await userEvent.click(within(dock).getByRole("button", { name: "Timeline settings" }));
@@ -274,7 +274,12 @@ describe("the timeline on the real element", () => {
         await waitFor(() => {
             assert.isAtLeast(waits(), before + 2);
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        // The sample is about 26 weeks, so on a slow machine the play can reach the end of the data
+        // before a click on Pause lands, and the button reads Play again. Stop it whichever way it
+        // stands: pausing an ended play does nothing. The Pause button has its own test above.
+        act(() => {
+            session.time.pause();
+        });
         listening.mockRestore();
     });
 
@@ -625,6 +630,77 @@ describe("the Overview and the import of time", () => {
         await userEvent.click(await screen.findByRole("option", { name: "None" }));
         await waitFor(() => {
             assert.deepEqual(live.time.field?.edges, { start: "began", unit: "ordinal" });
+        });
+    });
+
+    it("picks the time field in the time card, and None takes the timeline away", async () => {
+        const { session, store } = await open();
+        await designateSent(session);
+        // A node column with no times is refused, and the field stays as it was.
+        await pickIn("Time field", "team");
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "team has no times");
+        });
+        assert.deepEqual(session.time.field, { edges: { start: "sent" } });
+        await pickIn("Time field", "None");
+        await waitFor(() => {
+            assert.isNull(session.time.field);
+            assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
+        });
+    });
+
+    it("sets a number column's unit, the step, Untimed and Mode from the time card, both ways", async () => {
+        const store = createWorkspaceStore({ project: { name: "Numbers", id: 1 }, place: "data" });
+        render(<Workspace store={store} registrations={REGISTRATIONS} />);
+        const session = await waitFor(() => {
+            const found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+            return found;
+        });
+        // One edge has no time, so the card offers Untimed.
+        const data = "source,target,t\na,b,1\nb,c,7\nc,d,20\nd,e,\n";
+        await session.data.import({ type: "csv", config: { data }, name: "Numbers" });
+        await pickField("t");
+        await openDock();
+        const radio = async (group: string, label: string): Promise<void> => {
+            await userEvent.click(within((await timeCard()).getByRole("radiogroup", { name: group })).getByText(label));
+        };
+
+        await radio("Unit", "Epoch s");
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "t", unit: "s" } });
+        });
+        await radio("Unit", "Number");
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "t", unit: "ordinal" } });
+        });
+
+        // A number column steps by counts; Auto hands the step back to the element.
+        await pickIn("Step", "5");
+        await waitFor(() => {
+            assert.strictEqual(session.time.settings.step, 5);
+        });
+        await pickIn("Step", /^Auto/);
+        await waitFor(() => {
+            assert.strictEqual(session.time.settings.step, "auto");
+        });
+
+        await radio("Untimed", "Hide");
+        await waitFor(() => {
+            assert.strictEqual(session.time.settings.missing, "outside");
+        });
+        await radio("Untimed", "Show");
+        await waitFor(() => {
+            assert.strictEqual(session.time.settings.missing, "inside");
+        });
+
+        await radio("Mode", "Grow");
+        await waitFor(() => {
+            assert.strictEqual(session.time.settings.mode, "cumulative");
+        });
+        await radio("Mode", "Slide");
+        await waitFor(() => {
+            assert.strictEqual(session.time.settings.mode, "sliding");
         });
     });
 

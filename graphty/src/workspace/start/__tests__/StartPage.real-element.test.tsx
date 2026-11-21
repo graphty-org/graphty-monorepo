@@ -152,7 +152,7 @@ function highlighted(session: GraphSession, node: string): string | undefined {
 async function greenAround(element: Element, node: string): Promise<number> {
     const at = element.nodeScreenPosition(node);
     assert.isTrue(at?.visible, `${node} is on screen`);
-    const shot = await element.captureScreenshot({ destination: { blob: true }, format: "png" });
+    const shot = await element.captureScreenshot({ format: "png" });
     const bitmap = await createImageBitmap(shot.blob);
     const scale = bitmap.width / element.clientWidth;
     const reach = (at?.radius ?? 0) * 1.6 * scale;

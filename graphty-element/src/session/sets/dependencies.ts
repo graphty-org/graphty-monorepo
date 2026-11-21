@@ -21,7 +21,7 @@
  * reaches itself through the filter.
  *
  * The walk reads definitions this element could not validate (a loaded record holding an unknown
- * leaf) as far as it can: a reference it recognises inside one still counts, so a stored set naming
+ * leaf) as far as it can: a reference it recognizes inside one still counts, so a stored set naming
  * `"search"` is still caught.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
@@ -355,6 +355,20 @@ function walk(value: SetDefinition | Scope | RuleTree, pathsOf?: (where: Query) 
 }
 
 /**
+ * Every path a definition, a scope or a rule tree reads, without repeats: its leaves' paths and,
+ * given `pathsOf`, its queries' paths.
+ * @param value - What to walk.
+ * @param pathsOf - The paths a query reads; absent, queries list nothing.
+ * @returns The paths, in the order they are read.
+ */
+export function pathsRead(
+    value: SetDefinition | Scope | RuleTree,
+    pathsOf?: (where: Query) => readonly Path[],
+): readonly Path[] {
+    return [...new Set(walk(value, pathsOf).paths)];
+}
+
+/**
  * Refuse a value that reads a `graphty.notes.*` path at a write door: a note must not change what
  * a result, a set or the visibility filter is computed over (design/notes 6.2). Only style layers
  * and `select({ where })` read them.
@@ -543,7 +557,7 @@ function groupWalkChildren(node: Loose): unknown[] {
     if (node.kind === "rule") {
         children.push(node.where);
     } else if (node.kind === "all" || node.kind === "any") {
-        children.push(...(Array.isArray(node.of) ? node.of : []));
+        children.push(...(Array.isArray(node.of) ? (node.of as readonly unknown[]) : []));
     } else if (node.kind === "not") {
         children.push(node.of);
     } else if (node.kind === "member") {

@@ -725,7 +725,8 @@ export function pathWords(session: GraphSession, run: Run): { from: string; to: 
 
 /**
  * The status line for a finished path search: "Shortest path added: Ava to Lee, 2 hops" (or
- * "..., minutes 14" by a distance weight), or
+ * "..., minutes 14" by a distance weight), "Shortest path updated, layer style kept: ..." for a
+ * re-run the element drew with its existing layer (the `layers.kept` caveat fact), or
  * "No path from Ava to Lee.".
  * @param session - the element's session.
  * @param run - the run.
@@ -736,9 +737,11 @@ export function pathAnnouncement(session: GraphSession, run: Run): string | null
     if (words === null) {
         return null;
     }
+    const kept = run.caveats.facts.some((fact) => fact.code === "layers.kept");
+    const found = kept ? "Shortest path updated, layer style kept" : "Shortest path added";
     return words.length === null
         ? `No path from ${words.from} to ${words.to}.`
-        : `Shortest path added: ${words.from} to ${words.to}, ${words.length}`;
+        : `${found}: ${words.from} to ${words.to}, ${words.length}`;
 }
 
 /**
@@ -755,6 +758,26 @@ export function topAnnouncement(session: GraphSession, run: Run, name: string): 
         return null;
     }
     return `${name} finished: ${session.data.name(top.id) ?? top.label} ranks first, ${formatNumber(top.value)}`;
+}
+
+/** What a set run that chose nothing means, for the algorithms whose empty set says more than "none". */
+const NOTHING_CHOSEN: Readonly<Record<string, string>> = {
+    "removal-impact": "Removing this affects no other node",
+};
+
+/**
+ * What a finished set run says when it chose nothing, from the element's reading of its result
+ * ("reading.set" with a count of 0): "Removing this affects no other node".
+ * @param run - the run.
+ * @param name - the run's name in words.
+ * @returns the line, or null for a run that is no set or chose something.
+ */
+export function nothingChosenWords(run: Run, name: string): string | null {
+    const fact = run.result?.readingFact();
+    if (fact?.code !== "reading.set" || fact.params.count !== 0) {
+        return null;
+    }
+    return NOTHING_CHOSEN[run.algorithm] ?? `${name}: no ${String(fact.params.element)}s chosen`;
 }
 
 /**

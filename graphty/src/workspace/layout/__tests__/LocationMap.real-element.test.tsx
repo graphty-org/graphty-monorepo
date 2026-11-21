@@ -320,6 +320,31 @@ describe("the location map", () => {
         assert.strictEqual(where(), before, "still no node moved");
     });
 
+    it("keeps Map and Same place picked in the Map form when it is closed without Apply", async () => {
+        const element = await openAirports();
+        let popover = await openMapForm();
+        await pickByKeys(popover, "Map", "Natural Earth gray");
+        await pickByKeys(popover, "Same place", "Stack");
+        const field = (scope: HTMLElement, label: string): string =>
+            within(scope).getByRole<HTMLInputElement>("combobox", { name: label }).value;
+        await waitFor(() => {
+            assert.strictEqual(field(popover, "Map"), "Natural Earth gray");
+            assert.strictEqual(field(popover, "Same place"), "Stack");
+        });
+
+        // Esc steps back to the list, and again closes the popover.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Layout" }));
+        });
+        assert.notStrictEqual(element.session.layout.id, "location-map", "nothing was applied");
+
+        popover = await openMapForm();
+        assert.strictEqual(field(popover, "Map"), "Natural Earth gray");
+        assert.strictEqual(field(popover, "Same place"), "Stack");
+    });
+
     it("draws an image chosen from this computer as the map, kept in the project as its contents", async () => {
         const element = await openAirports();
         await layOutOnMap(element, "2D");

@@ -1,7 +1,7 @@
 import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
-import { DEFAULT_NAME_KEY, selectionName } from "./cards";
+import { DEFAULT_NAME_KEY, selectionName, writeKind } from "./cards";
 import { addLabelLine, labelRow, selectionRow, topmostRow } from "./row";
 import { CUSTOM_MODEL, logUnexpected, madeWords } from "./words";
 
@@ -66,17 +66,26 @@ async function layerFromSelection(session: GraphSession, workspace: CommandConte
             target = "both";
         }
         const base = topmostRow(session);
-        const parts = await session.styles.addRow(
-            {
-                name,
-                selector: session.selection.layerSelector,
-                target,
-                // The name is a default: it follows the layer's cards until the reader renames it.
-                userData: { [DEFAULT_NAME_KEY]: name },
-            },
-            base === undefined ? undefined : { above: base.id },
-        );
-        ({ id } = parts);
+        // A neighborhood is a node and its connections: its layer also styles the edges among its
+        // nodes, as "Style edges" would (an Ends card on the node pick), so Add to edge line shows.
+        const { origin } = session.selection;
+        const neighborhood = target === "node" && origin !== null && "neighborsOf" in origin;
+        id = await session.transaction(`New layer ${name}`, async (tx) => {
+            const parts = await tx.styles.addRow(
+                {
+                    name,
+                    selector: session.selection.layerSelector,
+                    target,
+                    // The name is a default: it follows the layer's cards until the reader renames it.
+                    userData: { [DEFAULT_NAME_KEY]: name },
+                },
+                base === undefined ? undefined : { above: base.id },
+            );
+            if (neighborhood) {
+                await writeKind(session, tx, parts.id, "edge", true);
+            }
+            return parts.id;
+        });
     }
     const layerName = session.styles.get(id)?.name ?? name;
     workspace.set({

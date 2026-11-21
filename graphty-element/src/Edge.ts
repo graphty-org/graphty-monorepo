@@ -4228,18 +4228,18 @@ export class Edge {
             return null;
         }
 
-        const { rank, count, first, members } = this.context.getDataManager().drawnBundle(this);
+        const { rank, count, firstSource, members } = this.context.getDataManager().drawnBundle(this);
         if (count < 2) {
             return null;
         }
 
         const slot = fanSlot(
-            members.map((e) => e.fans),
+            members.map((e) => typeof e !== "number" && e.fans),
             rank,
         );
         const radius = Math.max(Edge.radiusOf(this.srcNode), Edge.radiusOf(this.dstNode));
         const offset = fanOffset(slot, count, radius, Vector3.Distance(src, dst), this.drawnStyle?.line?.fanSpacing);
-        return { offset, forward: first.srcNode === this.srcNode };
+        return { offset, forward: firstSource === this.srcId };
     }
 
     /**

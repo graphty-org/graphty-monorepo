@@ -518,7 +518,8 @@ rows drawn in a node batch. A pulled head is a slot of the same `ArrowCapBatch` 
 (`ArrowCapBatch.setPulled`, `CAP_PULLED`, keyed `|pulled` on a scene drawn `"batched"`, `pulledCapHosts`), so placed and
 pulled caps draw in the order their slots were taken, as `"objects"` draws them. The "one sample at the tip" recorded
 for stage 17 was not float32: the old separate batch had no `arrowClip` buffer, and an unbound attribute reads 0, which
-clipped every pulled cap at its tip. Once the rows rest (no `RowTable.moves` for a frame and a settled layout), the CPU
+clipped every pulled cap at its tip. A batch that pulls caps hands out its lowest free slot, so caps keep their edges'
+order through a restyle. Once the rows rest (no `RowTable.drawnWrites` for a frame and a settled layout), the CPU
 places each pulled head and the ends of every capped or patterned pulled line by the object path's own float64
 arithmetic (`meshes/restPlacement.ts`; heads into the slot's matrix, line ends and pattern spacing into
 `PulledLineBatch`'s `edgeEnds` table), so a still graph draws the objects picture to the pixel; a frame that moves a row

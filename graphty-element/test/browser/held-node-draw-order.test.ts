@@ -526,4 +526,41 @@ describe("a node whose mesh was read under batched", () => {
         });
         assert.equal(differ, 0);
     });
+
+    it("keeps the edges at a read node as they are drawn unread", async () => {
+        const drawn: { picture: CanvasFrame; pulled: number }[] = [];
+        for (const reads of [[], [1, 2]]) {
+            const element = await mountElement("batched");
+            // apart, so the edges between them show
+            await element.session.data.addNodes(
+                Array.from({ length: 4 }, (_, id) => ({ id, position: { x: id * 2 - 3, y: (id % 2) * 1.5, z: 0 } })),
+            );
+            await element.session.data.addEdges([0, 1, 2].map((id) => ({ source: id, target: id + 1 })));
+            await element.graph.setLayout("fixed", { dim: 3 });
+            await element.setViewMode("2d");
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            for (const id of reads) {
+                assert.isFalse(element.graph.getNode(id)?.mesh.isDisposed());
+            }
+
+            await readCanvas(element.graph);
+            // plain lines, drawn from the rows, painted after the reads, which asks how their ends are drawn
+            await element.session.styles.add({
+                name: "edges",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.color": "#2563eb", "edge.arrowHead": "none" },
+            } as never);
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            drawn.push({ picture: await readCanvas(element.graph), pulled: element.graph.rowCounts.pulledEdges });
+        }
+
+        const [unread, read] = drawn;
+        assert.isDefined(unread);
+        assert.isDefined(read);
+        assert.equal(read.pulled, unread.pulled, "a read end is drawn, so its edges stay row lines");
+        assert.equal(pixelsOverBar(unread.picture, read.picture), 0);
+    });
 });

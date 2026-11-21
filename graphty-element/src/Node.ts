@@ -2132,12 +2132,14 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The opacity the node is drawn at: its mesh's visibility, or for a row a batch draws, the batch's.
+     * The opacity the node is drawn at: its mesh's visibility, or for a row a batch draws, the batch's,
+     * held rows included, whose mesh shares the source the batch hides.
      * @returns The opacity.
      * @internal
      */
     get drawnOpacity(): number {
-        return this.#mesh?.visibility ?? this.batchOpacity;
+        const mirrored = this.#meshHeld && this.context.getNodeBatches?.()?.mirrors(this) === true;
+        return mirrored ? this.batchOpacity : (this.#mesh?.visibility ?? this.batchOpacity);
     }
 
     /**

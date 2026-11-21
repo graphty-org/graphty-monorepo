@@ -1000,6 +1000,15 @@ export class NodeBatches {
     }
 
     /**
+     * Whether a batch draws this held node's slot from its mesh ({@link NodeBatches.mirror}).
+     * @param node - The node.
+     * @returns True when one does.
+     */
+    mirrors(node: Node): boolean {
+        return this.held.has(node) && this.nodeGroups.get(node)?.batched === true;
+    }
+
+    /**
      * Whether a batch draws this node now, rather than its own mesh.
      * @param node - The node.
      * @returns True when it does.

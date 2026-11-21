@@ -9,7 +9,7 @@
  */
 
 import type { CompactMantineLabels } from "@graphty/compact-mantine";
-import type { Channel } from "@graphty/graphty-element/catalog";
+import type { Channel, ChannelValue } from "@graphty/graphty-element/catalog";
 
 import type { GLYPHS } from "../../glyphs";
 
@@ -45,6 +45,17 @@ export interface LineSpec {
     readonly toggleGlyph?: keyof typeof GLYPHS;
     /** A number's named presets (R5b), where the element names none for its channel. */
     readonly presets?: readonly { readonly id: string; readonly plainName: string }[];
+    /**
+     * A value list over several channels (a Finish's Shading: Smooth, Flat or Unlit over `node.flat` and
+     * `node.unlit`): each choice's name and what it writes; the choice shown is the one whose values the row holds.
+     */
+    readonly choices?: readonly LineChoice[];
+}
+
+/** One choice of a line's value list over several channels. */
+export interface LineChoice {
+    readonly name: string;
+    readonly writes: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
 
 /** One named sub-group of a pop-over, added from its "+". */
@@ -204,12 +215,22 @@ const SIZE_RUBRIC: ThingRubric = {
     ],
 };
 
-/** Every Shape member's sub-groups: thing-wide (design 5). */
+/**
+ * Every Shape member's sub-groups: thing-wide (design 5). Mesh is the geometry the shape is built from (3D only);
+ * how light falls on it is Fill's Finish (ia-design 2).
+ */
 const SHAPE_GROUPS: readonly SubGroup[] = [
     {
-        name: "Finish",
-        lines: [{ channel: "node.wireframe" }, { channel: "node.flat" }, { channel: "node.unlit" }],
+        name: "Mesh",
+        lines: [{ channel: "node.meshDetail", name: "Detail", rule: "R5b" }, { channel: "node.wireframe" }],
     },
+];
+
+/** A Finish's Shading (ia-design 2): Smooth, Flat or Unlit, each writing both of its channels. */
+const SHADING: readonly LineChoice[] = [
+    { name: "Smooth", writes: { "node.flat": false, "node.unlit": false } },
+    { name: "Flat", writes: { "node.flat": true, "node.unlit": false } },
+    { name: "Unlit", writes: { "node.flat": false, "node.unlit": true } },
 ];
 
 /**
@@ -245,10 +266,7 @@ function backdrop(of: "underlay" | "overlay"): ThingRubric {
 export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     size: SIZE_RUBRIC,
     shape: {
-        main: [
-            { channel: "node.shapeRotation", name: "Rotation" },
-            { channel: "node.meshDetail", name: "Detail", rule: "R5b" },
-        ],
+        main: [{ channel: "node.shapeRotation", name: "Rotation" }],
         groups: [
             {
                 name: "Corners",
@@ -306,6 +324,8 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     fill: { main: [] },
+    // Shading only, no settings (ia-design 2): a value list like the Shape, Pattern and Visible rows'.
+    finish: { row: { channel: "node.flat", name: "Shading", rule: "R9", choices: SHADING }, main: [] },
     "fill:node.gradientColors": {
         // The row's gradient bar edits the colors and their stops: one home for both (design 2.6).
         rowOwns: ["node.gradientStops"],
@@ -726,7 +746,8 @@ export function lineChannels(line: LineSpec): readonly Channel[] {
         ...(line.units ?? []),
         ...(line.unit?.map(([, channel]) => channel) ?? []),
         ...(line.toggle === undefined ? [] : [line.toggle]),
-    ];
+        ...(line.choices ?? []).flatMap((choice) => Object.keys(choice.writes) as Channel[]),
+    ].filter((channel, at, all) => all.indexOf(channel) === at);
 }
 
 /**

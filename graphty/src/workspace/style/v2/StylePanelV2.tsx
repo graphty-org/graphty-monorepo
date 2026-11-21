@@ -45,6 +45,8 @@ const FIND_WORDS: Partial<Readonly<Record<Channel, readonly string[]>>> = {
     "edge.visible": ["visibility"],
     "node.label": ["name", "label"],
     "edge.label": ["name", "label"],
+    "node.flat": ["shading", "finish"],
+    "node.unlit": ["shading", "finish"],
 };
 
 /**

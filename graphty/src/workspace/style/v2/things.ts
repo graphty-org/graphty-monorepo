@@ -60,6 +60,9 @@ const RING_CHANNELS: readonly Channel[] = [
     "node.outerBorderCount",
 ];
 
+/** A node's Finish, its shading: Fill's, though `parts.ts` lists it under Shape (ia-design 2). */
+const FINISH_CHANNELS: readonly Channel[] = ["node.flat", "node.unlit"];
+
 /** The raised edge, a bevel: an Effects thing, though `parts.ts` lists it under Border. */
 const RAISED_CHANNELS: readonly Channel[] = [
     "node.raisedBorderWidth",
@@ -109,6 +112,8 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                     { id: "stripes", name: "Stripes", items: ["stripes"], main: ["node.stripeColors"] },
                     { id: "pie", name: "Pie", items: ["pie"], main: ["node.pieColors"] },
                     { id: "chart", name: "Chart", items: ["chart"], main: ["node.chartKind"] },
+                    // How light falls on the surface (3D only): the Shape keeps its mesh (ia-design 2).
+                    { id: "finish", name: "Finish", items: [], main: FINISH_CHANNELS, own: FINISH_CHANNELS },
                 ],
             ],
         },

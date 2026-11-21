@@ -36,9 +36,10 @@ const MEMBER_RUBRICS: Readonly<Record<string, Readonly<Record<string, ThingRubri
  * @returns the channels its main color carries.
  */
 function carried(family: string, member: string): readonly Channel[] {
-    // A node's size settings are the Size row's, beside every Shape member's row (ia-design 2, E189).
+    // A node's size settings are the Size row's and its shading Fill's Finish row's, beside every Shape member's row
+    // (ia-design 2, E189).
     if (family === "node.shape") {
-        return ["node.size", ...rubricChannels(NODE_RUBRIC.size)];
+        return ["node.size", ...rubricChannels(NODE_RUBRIC.size), ...rubricChannels(NODE_RUBRIC.finish)];
     }
     // An edge's pattern is its Pattern row's, beside every Line member's row.
     if (family === "edge.line") {

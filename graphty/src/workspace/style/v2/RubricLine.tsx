@@ -29,7 +29,7 @@ import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
 import { moveUnit, ruleOf, unsetIn } from "./lineWrites";
 import { coordinateDescriptor, ITEM_LISTS } from "./lists";
-import { isPictured, type LineSpec, type Rule, segmentOptions, VALUE_GLYPHS } from "./rubric";
+import { isPictured, lineChannels, type LineSpec, type Rule, segmentOptions, VALUE_GLYPHS } from "./rubric";
 import { setOn } from "./things";
 import { sectionsOf } from "./valueSections";
 
@@ -713,7 +713,20 @@ interface RubricLineProps {
  * @param props.named - always draws its name
  * @returns The line, or nothing where the element offers none of its channels
  */
-export function RubricLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps): React.JSX.Element | null {
+export function RubricLine(props: RubricLineProps): React.JSX.Element | null {
+    return props.line.choices === undefined ? <OneLine {...props} /> : <ChoiceLine {...props} />;
+}
+
+/**
+ * A line of one channel (or a pair, or its units): see the file header.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.line - the line
+ * @param props.row - drawn as a thing's row
+ * @param props.named - always draws its name
+ * @returns The line, or nothing where the element offers none of its channels
+ */
+function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps): React.JSX.Element | null {
     const { store } = useWorkspace();
     // R6 sides: split by the toggle, or because the two sides already differ.
     const [splitAsked, setSplit] = React.useState(false);
@@ -807,6 +820,71 @@ export function RubricLine({ ctx, line, row, named: alwaysNamed = false }: Rubri
             removeName={set || row !== undefined ? removeName : undefined}
             onRemove={onRemove}
             dimmed={dimmed}
+        />
+    );
+}
+
+/**
+ * A value list over several channels (a Finish's Shading): the choice whose values the row holds is shown, and
+ * picking one writes all of its values in one step.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.line - the line
+ * @param props.row - drawn as a thing's row
+ * @returns The line, or nothing where the element offers not all of its channels
+ */
+function ChoiceLine({ ctx, line, row }: RubricLineProps): React.JSX.Element | null {
+    const { store } = useWorkspace();
+    const choices = line.choices ?? [];
+    const channels = lineChannels(line);
+    const offered = channels.every(
+        (channel) => shownChannel(ctx.session, ctx.side, channel, setOn(ctx, channel))?.renderable === true,
+    );
+    if (!offered) {
+        return null;
+    }
+    const name = line.name ?? channelWord(line.channel);
+    const valueOf = (channel: Channel): unknown => lineIn(ctx, channel)?.value ?? ctx.beneath(channel).value ?? false;
+    const now = choices.find((choice) =>
+        Object.entries(choice.writes).every(([channel, value]) => valueOf(channel as Channel) === value),
+    );
+    const set = channels.some((channel) => setOn(ctx, channel));
+    const fail = (error: unknown): void => {
+        store.set({ notice: { message: failureWords(name, "changed", error), error: true } });
+    };
+    const control = (
+        <PanelField
+            label={name}
+            kind="select"
+            width="fill"
+            data={choices.map((choice) => ({ value: choice.name, label: choice.name }))}
+            value={now?.name ?? null}
+            onChange={(next) => {
+                const [first, ...rest] = Object.entries(
+                    choices.find((choice) => choice.name === next)?.writes ?? {},
+                ) as [Channel, ChannelValue][];
+                if (first !== undefined) {
+                    writeIn(ctx, first[0], { value: first[1] }, Object.fromEntries(rest), true).catch(fail);
+                }
+            }}
+        />
+    );
+    return (
+        <LineFrame
+            line={line.channel}
+            name={name}
+            set={set}
+            rule={line.rule ?? "R9"}
+            control={control}
+            modifier={row?.slot ?? null}
+            removeName={row?.removeLabel ?? (set ? `Remove ${name.toLowerCase()}` : undefined)}
+            onRemove={
+                row?.onRemove ??
+                ((): void => {
+                    unsetIn(ctx, channels).catch(fail);
+                })
+            }
+            dimmed={dimOf(ctx, line.channel)}
         />
     );
 }

@@ -146,7 +146,7 @@ describe('Style panel v2\'s "+" writes what a style needs to draw', () => {
             return found;
         });
         await userEvent.click(within(pop).getByRole("button", { name: "Add to node shape settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Finish" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Mesh" }));
         const steps = session.history.position;
         await userEvent.click(await within(pop).findByRole("checkbox", { name: /^Wireframe/ }));
         await waitFor(() => {

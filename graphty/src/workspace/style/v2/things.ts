@@ -67,6 +67,9 @@ const RAISED_CHANNELS: readonly Channel[] = [
     "node.raisedBorderDarkColor",
 ];
 
+/** An edge's overlay, the Outline's Over line kind (ia-design 2), though `parts.ts` lists it under Effects. */
+const OVERLAY_CHANNELS: readonly Channel[] = ["edge.overlayColor", "edge.overlayOpacity", "edge.overlayPadding"];
+
 /** The custom shape's inner lines: the Shape's (its Custom shape sub-group), though `parts.ts` lists them under Border. */
 const INNER_LINE_CHANNELS: readonly Channel[] = [
     "node.shapeLines",
@@ -216,7 +219,17 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                     // Pattern is its own item, so "dashed" is in "+" (ia-design 2).
                     { id: "pattern", name: "Pattern", items: [], main: ["edge.style"], own: PATTERN_CHANNELS },
                 ],
-                [{ id: "outline", name: "Outline", items: ["outline"], main: ["edge.outlineColor"] }],
+                // Every band along the line is one Outline, Under line or Over line (kindGroups.ts, C7).
+                [
+                    {
+                        id: "outline",
+                        name: "Outline",
+                        items: ["outline"],
+                        main: ["edge.outlineColor", "edge.overlayColor"],
+                        start: "edge.outlineColor",
+                        own: OVERLAY_CHANNELS,
+                    },
+                ],
             ],
         },
         {
@@ -279,7 +292,7 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
         {
             part: "effects",
             groups: [
-                // The edge's shaders and its animation first; the 2D-only bands are rare (ia-design 2).
+                // The edge's shaders and its animation; the bands along the line are Line's Outline (ia-design 2).
                 [
                     SHADER,
                     {
@@ -288,14 +301,6 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         items: [],
                         main: ["edge.animationSpeed"],
                         own: ["edge.animationSpeed"],
-                    },
-                ],
-                [
-                    {
-                        id: "overlay",
-                        name: "Overlay",
-                        items: ["overlay"],
-                        main: ["edge.overlayColor"],
                     },
                 ],
             ],

@@ -101,12 +101,27 @@ describe("Style panel v2's Find a setting", () => {
             return ids;
         });
         const outline = await find(tab, "outline");
-        assert.include(outline, "Line - Outline");
+        assert.isTrue(
+            outline.some((heading) => heading.startsWith("Line - Outline")),
+            `outline finds Line - Outline: ${outline.join(", ")}`,
+        );
         assert.isFalse(
             outline.some((heading) => heading.startsWith("Ends")),
             "no result names the old Ends section",
         );
         inDrawnSections("edge", outline, sections);
+        // Every band along the line is the Outline (C7): the underlay is its Under line, the overlay its Over line.
+        const underlay = await find(tab, "underlay");
+        assert.isTrue(
+            underlay.some((heading) => heading.startsWith("Line - Outline")),
+            `underlay finds Line - Outline: ${underlay.join(", ")}`,
+        );
+        inDrawnSections("edge", underlay, sections);
+        const band = await find(tab, "band");
+        assert.isTrue(
+            band.some((heading) => heading.startsWith("Line - Outline")),
+            `band finds Line - Outline: ${band.join(", ")}`,
+        );
         const arrow = await find(tab, "target end");
         assert.include(arrow, "Arrows - Arrow (Target)");
         inDrawnSections("edge", arrow, sections);

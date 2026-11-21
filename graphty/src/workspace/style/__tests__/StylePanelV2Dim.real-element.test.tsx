@@ -98,11 +98,8 @@ describe("Style panel v2 dims what draws nothing in this view", () => {
         });
     });
 
-    // A node's Plate (its underlay and overlay, E669) and an edge's Overlay draw only in 2D.
-    for (const [side, names] of [
-        ["node", ["Plate"]],
-        ["edge", ["Overlay"]],
-    ] as const) {
+    // A node's Plate (its underlay and overlay, E669) draws only in 2D.
+    for (const [side, names] of [["node", ["Plate"]]] as const) {
         it(`${side} ${names.join(" and ")}: in 3D the '+' items are dimmed '2D only', in 2D not (E669)`, async () => {
             await openGraph();
             const tab = await openStyle(side === "node" ? "Key people" : "Links");
@@ -173,5 +170,27 @@ vec4 shade(NodeInput n) { return n.color; }
         await switchView("3D");
         const again = await open();
         assert.isFalse(again.hasAttribute("data-dimmed"), "not dimmed in 3D");
+    });
+    it("edge Outline: '+' Outline is Under line, drawn in both views; with it drawn, the free Over line is dimmed '2D only' in 3D (E669, E677)", async () => {
+        const { session, edges } = await openGraph();
+        const tab = await openStyle("Links");
+        await showKind("edge");
+        const line = sectionOf(tab, "edge-line");
+        const outlineItem = async (): Promise<string | null> => {
+            await userEvent.click(within(line).getByRole("button", { name: /^Add to edge line/ }));
+            const found = dimmed(await screen.findByRole("menuitem", { name: /^Outline/ }));
+            await userEvent.keyboard("{Escape}");
+            return found;
+        };
+        await switchView("3D");
+        assert.isNull(await outlineItem(), "Under line draws in 3D (E677)");
+        await session.styles.update(edges, { set: { "edge.outlineColor": "#ff0000", "edge.outlineWidth": 2 } });
+        await session.styles.settled();
+        await waitFor(() => {
+            assert.isNotNull(line.querySelector('[data-thing="outline"]'));
+        });
+        assert.equal(await outlineItem(), "2D only", "Over line, the free kind, in 3D");
+        await switchView("2D");
+        assert.isNull(await outlineItem(), "not dimmed in 2D");
     });
 });

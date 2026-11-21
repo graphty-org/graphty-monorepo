@@ -89,6 +89,7 @@ import {
     type NodeStyleConfig,
 } from "../../config/NodeStyle";
 import { OKABE_ITO_COLORS } from "../../config/palettes/categorical";
+import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import {
     FILE_STYLE_ARROWS,
     FILE_STYLE_CHANNELS,
@@ -5769,8 +5770,11 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
     [
         "edge.overlayColor",
         [
-            { channel: "edge.overlayOpacity", value: 0.5 },
-            { channel: "edge.overlayPadding", value: 3 },
+            // Translucent enough to read as a wash over the line, never as its color, and as wide as an outline's
+            // start (`edge.outlineWidth` 2 past the default line's 8, so 5 either side of its middle): it reaches
+            // past the line's sides.
+            { channel: "edge.overlayOpacity", value: 0.3 },
+            { channel: "edge.overlayPadding", value: (EDGE_CONSTANTS.DEFAULT_LINE_WIDTH + 2) / 2 },
         ],
     ],
     ["edge.dashLength", [{ channel: "edge.style", value: "dash" }]],

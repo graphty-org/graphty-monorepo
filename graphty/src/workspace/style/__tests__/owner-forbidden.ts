@@ -149,4 +149,12 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         sectionItem: { section: "node-border", item: /^Rings?$/ },
         selector: '[data-section="node-border"] [data-thing="rings"]',
     },
+    {
+        what: "an edge Band or Underlay item: every band along the line is the Line section's Outline",
+        ledger: "E496, E675, E677",
+        text: /^(Band|Underlay)$/,
+        plusItem: /^(Band|Underlay)$/,
+        channel: /^edge\.(band|underlay)/,
+        source: /edge\.(band|underlay)/,
+    },
 ];

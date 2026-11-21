@@ -2,7 +2,7 @@
  * Style panel v2's collapsed kinds on the REAL graphty-element and real input (implementation plan 6.2, owner
  * round 5: "review all other controls that can be collapsed down ... implement the candidate list"): an edge's
  * four arrows are one Arrow item (C6), its two end captions one End caption item (C1) and a node's underlay and
- * overlay one Plate item (C2). A layer holding the channels graph-io writes for two kinds shows one row per kind
+ * overlay one Plate item (C2), and every band along an edge's line one Outline item (C7). A layer holding the channels graph-io writes for two kinds shows one row per kind
  * with its value; a row's Switch to moves it to a free kind and one Undo takes that back; "+" adds the first
  * kind no row draws yet.
  */
@@ -87,6 +87,24 @@ const COLLAPSES: readonly Collapse[] = [
         head: "node.underlayColor",
         // The padding is carried; the opacity is not: a plate laid over the node starts translucent (ia-design 2).
         carries: { to: "node.overlayPadding", value: 0.4 },
+    },
+    {
+        name: "Outline (C7)",
+        side: "edge",
+        section: "edge-line",
+        thing: "outline",
+        kinds: [
+            { row: "Under line", set: { "edge.outlineColor": "#ff0000", "edge.outlineWidth": 3 }, shows: "ff0000" },
+            {
+                row: "Over line",
+                set: { "edge.overlayColor": "#0000ff", "edge.overlayOpacity": 0.3, "edge.overlayPadding": 5 },
+                shows: "0000ff",
+            },
+        ],
+        free: { row: "Over line", head: "edge.overlayColor" },
+        head: "edge.outlineColor",
+        // The color moves; the wash over the line starts translucent (ia-design 2).
+        carries: { to: "edge.overlayOpacity", value: 0.3 },
     },
 ];
 

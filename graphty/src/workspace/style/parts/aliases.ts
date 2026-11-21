@@ -35,4 +35,7 @@ export const SEARCH_ALIASES: Readonly<Partial<Record<Channel, readonly string[]>
     "node.gradientColors": ["gradient stops"],
     // The halo was a ring drawn wider (E305, E496); a selection is marked with a ring (ia-design section 6).
     "node.outerBorderColor": ["ring", "rings", "halo", "highlight", "selection"],
+    // Every band along an edge's line is its Outline (ia-design 2, E677): the casing beneath it, the wash over it.
+    "edge.outlineColor": ["band", "casing", "underlay"],
+    "edge.overlayColor": ["overlay", "wash"],
 };

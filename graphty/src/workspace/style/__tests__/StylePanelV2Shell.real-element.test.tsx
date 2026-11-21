@@ -37,8 +37,14 @@ const SECTION_ORDER = {
 /** Each tab's Effects "+" items, "|" where a divider sits: every shader is the one Shader item (E668). */
 const EFFECTS_ITEMS = {
     node: ["Ring", "Shader", "Glow", "|", "Drop shadow", "Raised edge", "Plate"],
-    edge: ["Shader", "Animation", "|", "Overlay"],
+    edge: ["Shader", "Animation"],
 } as const;
+
+/**
+ * The edge Line section's "+" items on a layer that sets the line's color, "|" where a divider sits: every band
+ * along the line is the one Outline item (C7, ia-design 2).
+ */
+const EDGE_LINE_ITEMS = ["Pattern", "|", "Outline"] as const;
 
 /**
  * A tab's section headings and its separator, top to bottom, as a reader sees them.
@@ -90,6 +96,16 @@ describe("Style panel v2 on", () => {
                     `${view} ${side}`,
                 );
                 await userEvent.keyboard("{Escape}");
+                if (side === "edge") {
+                    const line = sectionOf(tab, "edge-line");
+                    await userEvent.click(within(line).getByRole("button", { name: /^Add to edge line/ }));
+                    assert.deepEqual(
+                        menuOrder(await screen.findByRole("menu")),
+                        [...EDGE_LINE_ITEMS],
+                        `${view} edge line`,
+                    );
+                    await userEvent.keyboard("{Escape}");
+                }
             }
         }
     });

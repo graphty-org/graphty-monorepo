@@ -95,6 +95,16 @@ function prefixKind(
     };
 }
 
+/**
+ * What graphty-element writes beside a channel when a layer starts it (its `needs`): a switch to a kind headed by it
+ * starts the same way.
+ * @param channel - the kind's head.
+ * @returns the writes.
+ */
+function startsOf(channel: Channel): Readonly<Record<string, unknown>> {
+    return Object.fromEntries((channelDescriptor(channel)?.needs ?? []).map((need) => [need.channel, need.value]));
+}
+
 /** Heads one of which starts with another's name: a kind owns none of the longer one's channels. */
 const KIND_HEADS: readonly Channel[] = ["edge.arrowHead", "edge.arrowHeadText", "edge.arrowTail", "edge.arrowTailText"];
 
@@ -159,6 +169,30 @@ export const KIND_GROUPS: readonly KindGroup[] = [
             prefixKind("over", "Over", "node.overlayColor", { color: "node.overlayColor" }, "node.overlay", {
                 "node.overlayOpacity": 0.3,
             }),
+        ],
+    },
+    // C7: every band along an edge's line is one Outline item, Under line (the casing) or Over line (a wash).
+    {
+        id: "edge.outline",
+        plainName: "Outline",
+        side: "edge",
+        thing: "outline",
+        items: ["outline", "overlay"],
+        members: [
+            // Opaque, as graphty-element draws an outline unset, and as wide as its start.
+            prefixKind("under", "Under line", "edge.outlineColor", { color: "edge.outlineColor" }, "edge.outline", {
+                ...startsOf("edge.outlineColor"),
+                "edge.outlineOpacity": channelDescriptor("edge.outlineOpacity")?.default,
+            }),
+            // graphty-element's start: translucent, past the line's sides (ia-design 2).
+            prefixKind(
+                "over",
+                "Over line",
+                "edge.overlayColor",
+                { color: "edge.overlayColor" },
+                "edge.overlay",
+                startsOf("edge.overlayColor"),
+            ),
         ],
     },
     {

@@ -601,12 +601,17 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { name: "Wave", lines: [{ channel: "edge.waveAmplitude", name: "Wave", pair: "edge.wavePeriod" }] },
         ],
     },
-    outline: {
+    // The Outline item's rows (kindGroups.ts, C7), by the kind's color: color and Width, then Opacity (ia-design 2).
+    "outline:edge.outlineColor": {
+        common: [{ channel: "edge.outlineWidth", name: "Width" }],
         main: [
-            { channel: "edge.outlineWidth", name: "Width" },
             { channel: "edge.outlineOpacity", name: "Opacity" },
             { channel: "edge.outlineStyle", name: "Style", rule: "R10" },
         ],
+    },
+    "outline:edge.overlayColor": {
+        common: [{ channel: "edge.overlayPadding", name: "Width" }],
+        main: [{ channel: "edge.overlayOpacity", name: "Opacity" }],
     },
     // The Arrow item's rows (kindGroups.ts, C6), by the kind's arrowhead.
     "arrow:edge.arrowHead": edgeEnd("arrowHead"),
@@ -685,12 +690,6 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     { channel: "edge.supportScale", name: "Scale", rule: "R8" },
                 ],
             },
-        ],
-    },
-    overlay: {
-        main: [
-            { channel: "edge.overlayPadding", name: "Padding" },
-            { channel: "edge.overlayOpacity", name: "Opacity" },
         ],
     },
     visibility: { row: { channel: "edge.visible", name: null, rule: "R8" }, main: [] },

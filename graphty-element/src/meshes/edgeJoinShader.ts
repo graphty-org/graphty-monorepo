@@ -353,10 +353,9 @@ ${PULLED_TRIM_GLSL}
 
 void pullEdge() {
 #ifdef EDGE_PULLED_CURVE
-    // an instance a draw slot, the join template drawn indexed as the object path's batch draws it: its 14 vertices
-    // run once each, not its 30 corners (#9486)
+    // an instance a draw slot, the join template drawn indexed as the object path's batch draws it, its vertex the
+    // position attribute: its 14 vertices run once each, not its 30 corners (#9486)
     int slot = gl_InstanceID;
-    position = JOIN_TEMPLATE[gl_VertexID];
 #else
     int slot = gl_VertexID / PIECE_CORNERS;
     position = JOIN_TEMPLATE[CORNER_OF[gl_VertexID - slot * PIECE_CORNERS]];
@@ -473,7 +472,12 @@ export const EDGE_JOIN_VERTEX_SHADER = `
 precision highp float;
 
 #ifdef EDGE_PULLED
+#ifdef EDGE_PULLED_CURVE
+// the join template's vertex, from the curve batch's indexed template as the object path's batch reads it
+attribute vec3 position;
+#else
 vec3 position;
+#endif
 vec3 pPrev2;
 vec3 pPrev;
 vec3 pA;

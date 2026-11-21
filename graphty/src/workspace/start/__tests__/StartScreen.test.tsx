@@ -11,7 +11,7 @@ import { withFeatures, withoutFeatures, withPostHogSite } from "../../../test/fe
 import { sampleTile } from "../../../test/samples-dialog";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { USE_CASE_SURVEY } from "../../privacy/__tests__/surveyFixtures";
-import { forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
+import { ANONYMOUS_COUNTS, forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
@@ -382,9 +382,7 @@ describe("the start screen with the usage-analytics experiment on", () => {
         await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(
-            within(dialog).getByText(
-                "Usage data: off. Anonymous counts are still sent: visits, the site that sent you, and which sample, file format, layout, measure and export you use.",
-            ),
+            within(dialog).getByText(`Usage data: off. Anonymous counts are still sent: ${ANONYMOUS_COUNTS}.`),
         );
         assert.isNotNull(within(dialog).getByRole("link", { name: "Privacy details" }));
     });

@@ -24,6 +24,7 @@ import { SET_DEFINITIONS } from "./sets";
 import { SHADER_DEFINITIONS } from "./shaders";
 import { SOURCE_EXPAND_DEFINITIONS } from "./source-expand";
 import { SOURCE_LOAD_DEFINITIONS } from "./source-load";
+import { SOURCE_STEPS_DEFINITIONS } from "./source-steps";
 import { STYLE_DEFINITIONS } from "./style";
 import { TOUR_DEFINITIONS } from "./tour";
 import { VIEW_DEFINITIONS } from "./view";
@@ -80,7 +81,7 @@ const batch: UndoableDefinition<BatchCommand> = {
     keys: () => [],
     lane: { kind: "immediate" },
     // Its members' own arguments, kept as their definitions keep them.
-    byReference: ["records", "config", "nodes", "edges", "held", "measure"],
+    byReference: ["records", "config", "nodes", "edges", "held", "measure", "copies", "draftBase"],
     members: (command) => ({
         label: command.label ?? batchLabel(command.steps.length),
         fact: batchFact(command),
@@ -105,6 +106,7 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...ISSUE_DEFINITIONS,
     ...SOURCE_LOAD_DEFINITIONS,
     ...SOURCE_EXPAND_DEFINITIONS,
+    ...SOURCE_STEPS_DEFINITIONS,
     ...STYLE_DEFINITIONS,
     ...SHADER_DEFINITIONS,
     ...ASSET_DEFINITIONS,

@@ -16,6 +16,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import {
+    graphSizeBucket,
     onUsageEvent,
     resetAnalyticsForTests,
     setAnalyticsCallsForTests,
@@ -39,7 +40,15 @@ import { USE_CASE_CHOICES, USE_CASE_SURVEY } from "./surveyFixtures";
 const VISITS = "graphty.visits.v1";
 const NDEX = "https://www.ndexbio.org";
 /** The loads a reader's own opening sends, which a reopen of this tab's work never does. */
-const LOAD_EVENTS = ["own_file_opened", "sample_loaded", "algorithm_run", "graph_action"];
+const LOAD_EVENTS = [
+    "own_file_opened",
+    "sample_loaded",
+    "algorithm_run",
+    "graph_action",
+    "style_changed",
+    // This tab's own work coming back by itself is no reopen the reader asked for.
+    "project_reopened",
+];
 
 /** What the anonymous mode's stand-in recorded, after cleaning. */
 const anonymous: Recorded[] = [];
@@ -191,8 +200,10 @@ describe("usage counts when a project opens", () => {
         const tile = await screen.findByRole("button", { name: "Load network data: WikiPathways WP5483" });
         const loaded = next("sample_loaded");
         await openBy(store, () => userEvent.click(tile));
-        assert.deepEqual({ ...(await loaded) }, { sample: "ndex-wp5483" });
-        assert.deepEqual(sent("sample_loaded").counted, [{ sample: "ndex-wp5483" }]);
+        const props = await loaded;
+        assert.strictEqual(props.sample, "ndex-wp5483");
+        assert.include(["1-100", "101-1k", "1k-10k", "10k+"], props.size);
+        assert.deepEqual(sent("sample_loaded").counted, [{ sample: "ndex-wp5483", size: props.size }]);
         assert.deepEqual(
             sent("sample_loaded").posthog.map(({ sample }) => sample),
             ["ndex-wp5483"],
@@ -274,10 +285,13 @@ describe("usage counts when a project opens", () => {
         await screen.findByRole("button", { name: "New project" });
         const own = next("own_file_opened");
         drop(new File([JSON.stringify(doc)], "SECRET_DOC.graphty.json"));
-        assert.deepEqual({ ...(await own) }, { format: "graphty", via: "file" });
+        const ownProps = { ...(await own) };
         // Not vacuous: the document's graph is in (it is counted once the element's open returned).
-        assert.isAbove(openedSession().data.statistics().nodeCount, 0);
-        assert.deepEqual(sent("own_file_opened").counted, [{ format: "graphty", via: "file" }]);
+        const { nodeCount } = openedSession().data.statistics({ scope: "all" });
+        assert.isAbove(nodeCount, 0);
+        const expected = { format: "graphty", via: "file", size: graphSizeBucket(nodeCount) };
+        assert.deepEqual(ownProps, expected);
+        assert.deepEqual(sent("own_file_opened").counted, [expected]);
         assert.lengthOf(sent("own_file_opened").posthog, 1);
         assert.isEmpty(sent("sample_loaded").posthog);
         assert.isEmpty(sent("graph_action").posthog, "the document's own entries are not the reader's");

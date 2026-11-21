@@ -191,9 +191,12 @@ nx.json's `sharedGlobals` affects every package; a `pnpm-lock.yaml` change affec
 resolved dependencies changed. `graphty-element-lifecycle`, `graphty-element-fidelity-1` to `-4` (the style
 fidelity gate over every oracle, in four slices), `graphty-element-batched-webgpu` (the tests that need a GPU, on
 the batched render path on WebGPU) and `graphty-element-render-parity-webgl`, `-webgpu` and `-webkit` (every
-captured story drawn on both render paths and compared pixel for pixel) run only in the full run.
-`graphty-element-forced-batched-1` to `-12` (the browser and interaction tests on the batched render path) run on
-a pull request exactly as the browser shards do: the selected files, or every file when graphty-element runs whole.
+captured story drawn on both render paths and compared pixel for pixel) run whole only in the full run; a pull
+request that adds or changes a graphty-element story draws just those stories on all three render-parity engines,
+in one job. `graphty-element-forced-batched-1` to `-12` (the browser and interaction tests on the batched render
+path) run on a pull request exactly as the browser shards do: the selected files, or every file when graphty-element
+runs whole. The experiments-on twins never run whole on a pull request: they run the selected files, and when their
+package runs whole, the test and story files the change added or changed plus those its imports reach.
 
 ## Visual review
 

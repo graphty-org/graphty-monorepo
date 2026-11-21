@@ -78,7 +78,7 @@ async function openScoredGraph(): Promise<GraphSession> {
 }
 
 /** The outputs Export... lists, in the list's order. */
-const OUTPUTS = ["Data", "Report", "Styles", "Recipe", "Project"];
+const OUTPUTS = ["Data", "Image", "Report", "Styles", "Recipe", "Project"];
 
 /**
  * Mod+E, and checks every output is listed.
@@ -420,6 +420,24 @@ describe("Export: the report's image and its saved configurations (issue #187)",
     });
 });
 
+/**
+ * The alpha of an image's top-left pixel, as the browser decodes it.
+ * @param image - the image.
+ * @returns 0 (see-through) to 255 (opaque).
+ */
+async function cornerAlpha(image: HTMLImageElement): Promise<number> {
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext("2d");
+    if (context === null) {
+        throw new Error("no 2D context");
+    }
+    context.drawImage(image, 0, 0);
+    return context.getImageData(0, 0, 1, 1).data[3];
+}
+
 describe("Export from a camera or a tour", () => {
     /**
      * Opens the Export dialog from a camera's or a tour's row menu in the Views place, and checks it
@@ -443,7 +461,7 @@ describe("Export from a camera or a tour", () => {
         return dialog;
     }
 
-    it("opens Mod+E on the nodes' Data, with no Image or Video, and offers no edge table without edges", async () => {
+    it("opens Mod+E on the nodes' Data, with Image but no Video, and offers no edge table without edges", async () => {
         await page.viewport(1440, 900);
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
@@ -456,9 +474,8 @@ describe("Export from a camera or a tour", () => {
         }
         await session.data.addNodes(NODES);
 
-        const dialog = await openExport(["Data", "Report", "Styles", "Recipe", "Project"]);
+        const dialog = await openExport();
         const outputs = within(dialog).getByRole("grid", { name: "What to export" });
-        assert.isNull(within(outputs).queryByText("Image"));
         assert.isNull(within(outputs).queryByText("Video"));
         assert.isNotNull(within(dialog).getByRole("heading", { name: "Data" }));
         const preview = within(dialog).getByLabelText("Preview of the exported data");
@@ -504,6 +521,29 @@ describe("Export from a camera or a tour", () => {
         });
         assert.isTrue(transparent().checked);
         assert.equal(preset.value, "For documentation");
+    });
+
+    it("offers Image under Main menu > Export..., where Transparent changes only the background (#9308)", async () => {
+        await page.viewport(1440, 900);
+        await openScoredGraph();
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Export\.\.\./ }));
+        const dialog = await screen.findByRole("dialog", { name: "Export" });
+        await pick(dialog, "Image");
+        const preset = await within(dialog).findByRole<HTMLInputElement>("combobox", { name: "Preset" });
+        const transparent = within(dialog).getByRole<HTMLInputElement>("radio", { name: "Transparent" });
+        assert.equal(preset.value, "To share");
+        assert.isFalse(transparent.checked);
+
+        await userEvent.click(within(dialog).getByText("Transparent"));
+        await waitFor(() => {
+            assert.isTrue(transparent.checked);
+        });
+        assert.equal(preset.value, "To share", "Transparent leaves the preset alone");
+        // The element's preview is drawn again with no background: its corner is see-through.
+        await waitFor(async () => {
+            assert.equal(await cornerAlpha(within(dialog).getByRole<HTMLImageElement>("img", {})), 0);
+        });
     });
 
     it("offers Transparent for PNG and WebP but not JPEG", async () => {
@@ -555,7 +595,7 @@ describe("Export from a camera or a tour", () => {
         assert.match(video?.blob.type ?? "", /^video\//);
 
         // The generic Export lists data files under Recent, never a video.
-        const generic = await openExport(["Data", "Report", "Styles", "Recipe", "Project"]);
+        const generic = await openExport();
         assert.isNull(within(generic).queryByRole("grid", { name: "Recent exports" }));
     });
 

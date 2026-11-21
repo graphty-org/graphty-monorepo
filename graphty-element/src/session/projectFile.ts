@@ -63,6 +63,7 @@ import { expandedGraph, type SavedCollapse } from "./groups";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
 import type { NetworkApiInternal } from "./network";
+import { parentIdsExtension, withParentIds } from "./parentIds";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
@@ -1165,6 +1166,7 @@ export function dataMember(
         ...(source === null ? {} : { source: withoutSecrets(source) }),
         ...(sources.length === 0 ? {} : { sources: sources.map((each) => withoutSecrets(each)) }),
         ...(Object.keys(provenance).length === 0 ? {} : { provenance }),
+        ...parentIdsExtension(nodeRows),
     };
 }
 
@@ -1960,10 +1962,11 @@ function withoutTypes(graph: NodeLink, member: Record<string, unknown> | undefin
 
 /**
  * Check a data member before anything is changed.
- * @param member - The member.
+ * @param saved - The member as read; one saved before its records' parents were ids is read as if it were.
  * @returns Its graph.
  */
-function nodeLinkOf(member: Record<string, unknown>): NodeLink {
+function nodeLinkOf(saved: Record<string, unknown>): NodeLink {
+    const member = withParentIds(saved);
     if (member.dialect !== "node-link" || member.format !== "json") {
         throw new GraphtyError({
             code: "E_UNKNOWN_FORMAT",

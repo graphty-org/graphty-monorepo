@@ -5,6 +5,7 @@ import {
     GraphBuilder,
     type GraphSnapshot,
     type NodeId,
+    type NodeIdMap,
     type U32,
 } from "@graphty/graph-format";
 import {
@@ -696,12 +697,18 @@ export function attributeKey(kind: "node" | "edge", title: string, id: string): 
 }
 
 /**
- * Where {@link copyColumns} puts a column on a record: under its own name, except a reserved
- * `graphty.*` column, the stored node position ({@link toRecords} writes it as `position`) and one
- * named like a key that identifies the record, which it leaves out: graph-io's `recordKey`, so the
- * element's records and graph-io's `readJsonRecords` agree.
+ * Where {@link copyColumns} puts a column on a record unchanged: under its own name, except a
+ * reserved `graphty.*` column, the stored node position ({@link toRecords} writes it as `position`)
+ * and one named like a key that identifies the record, which it leaves out: graph-io's `recordKey`,
+ * so the element's records and graph-io's `readJsonRecords` agree. Nor the containment column, whose
+ * row numbers it writes as the parent nodes' ids, as graph-io's Cytoscape.js records do.
+ * @param kind - node or edge
+ * @param column - the column
+ * @returns the record key, or null
  */
-export const copiedPath: (kind: "node" | "edge", column: Column) => string | null = recordKey;
+export function copiedPath(kind: "node" | "edge", column: Column): string | null {
+    return column.meta.role === "parent" ? null : recordKey(kind, column);
+}
 
 /** The record key the element writes its own edge id under, over any `id` the file gave. */
 const EDGE_ID_KEY = "id";
@@ -857,12 +864,15 @@ function readerImportOf(
  * multi-component cell as an array, an f32 cell widened as {@link cell} does. graph-format's
  * reserved `graphty.*` columns carry structure, not data, and are not copied; nor is the stored
  * node position, which {@link toRecords} writes in one spelling for every format; nor is a key the
- * record already holds, so a column named `id`, `source` or `target` cannot take their place.
+ * record already holds, so a column named `id`, `source` or `target` cannot take their place. The
+ * containment column (role `parent`) holds the parent's row: the record gets the parent node's id,
+ * so a record read back through `addNodes` names its group as any record does.
  * @param table - the node or edge table
  * @param row - the row
  * @param record - receives the values
+ * @param ids - the snapshot's id map, which turns a parent row into its id
  */
-export function copyColumns(table: AttributeTable, row: number, record: Record<string, unknown>): void {
+export function copyColumns(table: AttributeTable, row: number, record: Record<string, unknown>, ids: NodeIdMap): void {
     for (const column of table) {
         const { name } = column.meta;
         const skipped = name.startsWith(RESERVED_PREFIX) || column.meta.role === "position";
@@ -870,7 +880,12 @@ export function copyColumns(table: AttributeTable, row: number, record: Record<s
             continue;
         }
 
-        record[name] = ArrayBuffer.isView(column.value(row)) ? components(column, row) : cell(column, row);
+        const value = column.value(row);
+        if (column.meta.role === "parent" && typeof value === "number") {
+            record[name] = ids.idOf(value);
+        } else {
+            record[name] = ArrayBuffer.isView(value) ? components(column, row) : cell(column, row);
+        }
     }
 }
 
@@ -1018,10 +1033,10 @@ export function columnsMapping(snapshot: GraphSnapshot): RecordMapping {
     return {
         path: copiedPath,
         node: (row, record) => {
-            copyColumns(snapshot.nodes, row, record);
+            copyColumns(snapshot.nodes, row, record, snapshot.ids);
         },
         edge: (row, record) => {
-            copyColumns(snapshot.edges, row, record);
+            copyColumns(snapshot.edges, row, record, snapshot.ids);
         },
     };
 }

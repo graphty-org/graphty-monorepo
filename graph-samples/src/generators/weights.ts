@@ -129,7 +129,7 @@ function euclideanWeights(graph: SampleGraph, out: Float32Array): void {
         const dx = x[src[e]] - x[dst[e]];
         const dy = y[src[e]] - y[dst[e]];
         const dz = z === null ? 0 : z[src[e]] - z[dst[e]];
-        out[e] = Math.hypot(dx, dy, dz);
+        out[e] = Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 }
 

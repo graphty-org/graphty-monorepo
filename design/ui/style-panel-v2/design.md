@@ -53,7 +53,8 @@ The layer name and menu, "Style Nodes..." / "Style Edges...", the node / edge ta
 | Unnamed | `.ws-field:not([data-named])`: control spans name and control | panel 176, popover 200                                                  |
 
 The two trailing slots are the same on every line, panel and popover alike: slot one is "-", slot two is the
-line's settings ("...") on a thing row, or its by-data link on other lines. The settings "..." is always at the
+line's settings ("...") on a thing row, its by-data link on a popover line, and empty on a line under a row
+(2.5). The settings "..." is always at the
 far right of its row (owner, E550).
 
 **Number fields.** Every number field on the Node, Edge and Graph tabs is Figma's scrubbable number input
@@ -93,16 +94,17 @@ changed from its Switch to (5).
 ### 2.4 Thing row
 
 ```
-| [o 1F2937           100%]    -  ... |   paint row: color main control (Border)
+| Border    [o 1F2937   100%]  -  ... |   paint row: name, color main control
 | Width     [W 0.6 ]           -      |   common line (2.5)
-| <> Label  [name           v] -  ... |   row with kinds: Switch to before the name
+| <> Solid  [o 6366F1   100%]  -  ... |   row with kinds (Fill): Switch to, the kind
 ```
 
 Row: `[<> name] [main] [-] [...]`.
 
-- **Name**: the thing's name. A thing named by its section (Fill, Border, Line, Visibility) has no name column;
-  its control spans it. A row with members or kinds starts its name column with the Switch to glyph
-  (`MemberMenu`), which opens the menu of members (5).
+- **Name**: every row has a name column, with no exception (E674; ia-design section 2, rule 4). It holds the
+  thing's name (Border, Route, Visible, Size), or, for a thing with kinds (Fill, Line, Shape, Label and the
+  other kind groups), its current kind (Solid, Gradient, Basic shape, Text ...). A row with members or kinds
+  starts its name column with the Switch to glyph (`MemberMenu`), which opens the menu of members (5).
 - **Main control** (section 7): a paint-like thing (border, ring, plate, outline, effects) leads with its color;
   a geometric thing with its defining value (size, shape, arrow, route). A family row shows the current
   member's value.
@@ -122,7 +124,9 @@ Row: `[<> name] [main] [-] [...]`.
 Under a row show only the lines the layer sets for that thing, in popover order, each named, each with its
 "-". A line appears when its value is set (in the popover, or by "+" writing a required partner, 5.1) and goes
 when it is unset; there are no empty lines waiting to be written. Every line is the one common pattern: name,
-value control, "-" (E674). Nothing above a line moves when one is written.
+value control, "-" (E674). A line under a row leaves its second trailing slot empty: it carries no by-data link,
+and its value is bound from the same line in the popover (2.6) or by "=" in its field (2.4). Nothing above a
+line moves when one is written.
 
 ### 2.6 Settings popover
 
@@ -140,7 +144,8 @@ opened from it are plain `Popout`s (SettingsPopout refuses nesting).
 - **Main** sub-group: always shown, with its lines empty until written.
 - **Other sub-groups**: a `PlusList` at group level (an always-open `ControlGroup` legend with "-", which unsets
   every line in it) over at most 8 lines. A sub-group shows when it holds a set line or the reader adds it from
-  "+". Adding a switchable sub-group (text shadow, box shadow, pointer) writes its on field; it has no "On" line.
+  "+". Adding a switchable sub-group (Callout) writes its on field (`pointer`); it has no "On" line. Label shadow
+  holds two looks, so its Text shadow and Box shadow lines are their on fields.
 - **Lines**: unset, the control drawn empty (an empty field, an unchecked checkbox, a segment line with nothing
   selected, `value=""`), with no "-"; writing a value sets it and shows "-". A set boolean unchecked writes
   `false`; "-" unsets it. A location line draws only its segments until written (R2).
@@ -153,11 +158,11 @@ Every hit target counts. Budgets: an empty layer at most 8; the default Everythi
 "-" stays visible on every set line, never on hover only, since every set value needs a visible way to unset it
 (ledger 21, 36).
 
-| Layer                                | Shown                      | Marks                                                                                   |
-| ------------------------------------ | -------------------------- | --------------------------------------------------------------------------------------- |
-| Empty layer                          | 6 empty section headers    | 6 "+"                                                                                   |
-| Everything, node tab                 | Fill; Size, Shape          | 6 "+", 2 section carets, 3 rows x 3 (main, "-", "..."), 1 Switch to glyph, 1 swatch: 19 |
-| "color by community, size by degree" | Fill (bound); Size (bound) | 6 "+", 2 section carets, 2 rows x 3, 2 links: 16                                        |
+| Layer                                | Shown                      | Marks                                                                                    |
+| ------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------------- |
+| Empty layer                          | 6 empty section headers    | 6 "+"                                                                                    |
+| Everything, node tab                 | Fill; Size, Shape          | 6 "+", 2 section carets, 3 rows x 3 (main, "-", "..."), 2 Switch to glyphs, 1 swatch: 20 |
+| "color by community, size by degree" | Fill (bound); Size (bound) | 6 "+", 2 section carets, 2 rows x 3, 1 Switch to glyph, 2 links: 17                      |
 
 ## 4. Sections and things
 
@@ -179,7 +184,7 @@ Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers
 - **Image** absorbs the old Fill kind Picture as its **Wrap around shape** setting: off (the default) places the
   picture on the node (`node.image`), on wraps it over the 3D surface (`node.texture`). A Solid color it hides
   dims (`x-picture-hides-fill`).
-- **Stripes, Pie, Chart** as today. **Finish** (3D only): Shading, Smooth, Flat or Unlit.
+- **Stripes, Pie, Chart** as today. **Finish** (3D only): a Shading row, Smooth (the default), Flat or Unlit.
 - **Label** (many; kinds Text and Glyph). Glyph is a kind of Label, never a row or "+" item of its own (E275).
   **Tooltip**, **Record** (a table of fields inside the node) and **External label** as today.
 - **Size**: the shape's size, its own row, so "size by degree" needs no Shape row (E189).
@@ -431,7 +436,7 @@ a sub-group added with "+"; "|" a pair.
 
 | Thing                         | Row                               | Lines       | Popover                                                                                                                                                                                                                                                                                                  |
 | ----------------------------- | --------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Fill: Solid                   | color R1                          | -           | Main: By data only                                                                                                                                                                                                                                                                                       |
+| Fill: Solid                   | color R1                          | -           | none: the color binds by "=" in the row's field (2.4)                                                                                                                                                                                                                                                    |
 | Fill: Gradient                | stops (`GradientRow`)             | -           | Main: kind R8 icons, direction R5 or center X \| Y and radius R5 (by kind), endColor R1, opacity R5                                                                                                                                                                                                      |
 | Image                         | image R16                         | Opacity     | Main: Wrap around shape R7, imageFit R9, fallback R16. Size: width \| height or pixelSize R5 (by fit), autoSize R8f, keep aspect R7. Place: position X \| Y, offset X \| Y. Tiling: repeat R8 icons, clip R8, smoothing R7                                                                               |
 | Stripes                       | colors R15r                       | -           | Main: Stripes R15 (color, size, opacity), direction R8 icons, size R5. Frame: R17                                                                                                                                                                                                                        |
@@ -447,7 +452,7 @@ a sub-group added with "+"; "|" a pair.
 | Shape: Model                  | model R16                         | -           | Main: Fallback shape R10, modelTint R9, modelFit R8f, modelCenter R8. Orient: modelSourceUp R9, modelTurn R5, modelDoubleSided R8f. Animation: modelAnimation R9, speed \| offset                                                                                                                        |
 | Shape: replace shader         | preset R10                        | -           | Main: ShaderParamRows R16; reach, minSize R5                                                                                                                                                                                                                                                             |
 | Border                        | color R1                          | Width       | Main: Unit R8, opacity R5, style R10, position R8 icons. Wave (wavy styles): amplitude \| period                                                                                                                                                                                                         |
-| Visibility                    | shown R8 Shown / Hidden           | -           | Main: By data only                                                                                                                                                                                                                                                                                       |
+| Visibility                    | shown R8 Shown / Hidden           | -           | none: the value binds by "=" in the row's field (2.4)                                                                                                                                                                                                                                                    |
 | Ring                          | color R1                          | Width       | Main: opacity R5, style R10, offset R5, count R5                                                                                                                                                                                                                                                         |
 | Shader use                    | preset R10 (`ShaderGallery`)      | -           | Main: params R16, reach, minSize R5                                                                                                                                                                                                                                                                      |
 | Glow                          | color R1                          | Strength    | -                                                                                                                                                                                                                                                                                                        |
@@ -468,7 +473,7 @@ a sub-group added with "+"; "|" a pair.
 | Label, External label                                     | text source R12    | Size, Color | 7.3                                                                                                                                                                                                              |
 | End caption: Target, Source                               | text source R12    | Size, Color | 7.3, Position adds distance R5                                                                                                                                                                                   |
 | Record                                                    | fields R15r        | -           | as node Record (`edge.labelTable`)                                                                                                                                                                               |
-| Visibility                                                | shown R8           | -           | Main: By data only                                                                                                                                                                                               |
+| Visibility                                                | shown R8           | -           | none: the value binds by "=" in the row's field (2.4)                                                                                                                                                            |
 | Shader use                                                | preset R10         | -           | Main: params R16, reach R5                                                                                                                                                                                       |
 | Animation                                                 | animationSpeed R5  | -           | -                                                                                                                                                                                                                |
 
@@ -478,23 +483,27 @@ Each line is a `LabelFieldLine` (10.1) writing one `labelStyle` field (`node.lab
 `node.tooltipStyle`, caption styles); `LabelSettings.tsx` is not used by v2. Each kind shows only the fields
 the element says it draws (`drawnBy`, 10.2).
 
+Every label, tooltip, external label and end caption uses the same groups, as the style grouping study sets
+them (ia-design.md section 2, "Label settings groups"; E268, E675). The row carries the common lines size
+(`size`, `sizePx`, `letterSize`) and color. The popover's Main lines come first, then nine "+" groups of at
+most 10 lines each, with a divider after Position and another after Box stroke (everyday | sometimes | rare).
+No group reuses a node or edge section's name: the box's stroke is **Box stroke**, not Border, and the shadows
+are **Label shadow**, not Shadow, so Find a setting never shows one word for two places. Every shadow is in
+Label shadow, every stroke of the box in Box stroke and the letters' own stroke in Letters, so no look has two
+homes.
+
 | Sub-group           | Lines                                                                                                                                                                                                |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Main (always shown) | Show R7 (`enabled`); look R9 (Plain / Card / Dark / Pill / Callout); font R13; weight R5b; italic R7; textAlign R8 icons; location R2; Unit R8f                                                      |
-| Letters             | lineHeight, rotation, opacity R5; runAlign R8f                                                                                                                                                       |
-| Background          | background R1, opacity R5; backgroundShape R8; cornerRadius R5; padding R5 with Unit R8 and separate sides R7 (top \| right, bottom \| left)                                                         |
-| Gradient            | gradient R7, kind R8, colors R15, direction R5                                                                                                                                                       |
-| Margin              | margin R5 with separate sides R7 (top \| right, bottom \| left)                                                                                                                                      |
-| Border              | borderWidth R5, borderColor R1, opacity R5, labelBorderAlign R8 icons, lineBox R8f                                                                                                                   |
-| Badge               | badge R9, then its kind's lines: icon R14, iconPosition R8 icons; or progress R5; or maxNumber R5, overflowSuffix R14, smartOverflow R7                                                              |
-| Position            | attachOffset R5, offset X \| Y, box R8f, onTop R7, shift X \| Y, shiftOf R8, gapOf R8                                                                                                                |
-| Pointer             | pointerDirection R8f, width \| height, pointerOffset R5, pointerCurve R7                                                                                                                             |
+| Main (always shown) | Show R7 (`enabled`); look R9 (Plain / Card / Dark / Pill / Callout); font R13; weight R5b; italic R7 (its own line, E674); textAlign R8 icons; location R2; Unit R8f (`sizeMode`)                    |
+| Position            | attachOffset R5, offset X \| Y, box R8f, onTop R7, shift X \| Y, shiftOf R8, gapOf R8, keepInView R7                                                                                                 |
+| Letters             | opacity, lineHeight, rotation R5; runAlign R8f; Letter outline R1 (`outline`), Letter outline width R5, Letter outline opacity R5                                                                    |
 | Wrap                | width \| maxLines, Break anywhere R7 (`wrapAnywhere`), Cut long lines R7 (`wrapEllipsis`), Ellipsis at max lines R7, keepBlankLines R7, wrapTrailingSpace R7, wrapSkipEndSpace R7, wrapSpaceCount R5 |
-| Small               | minScreenSize R5, declutter R8, minNodeScreenSize R5, keepInView R7                                                                                                                                  |
-| Outline             | outline R1, outlineWidth R5                                                                                                                                                                          |
-| Text shadow         | color R1, blur R5, offset X \| Y                                                                                                                                                                     |
-| Box shadow          | color R1, blur R5, offset X \| Y                                                                                                                                                                     |
-| Motion              | animation R9, animationSpeed R5, pickable R7, closeButton R7, depthFade R7, near \| far                                                                                                              |
+| Background          | background R1, opacity R5; backgroundShape R8; cornerRadius R5; padding R5; boxPadding R5; gradient R7, gradientType R8, gradientColors R15, gradientDirection R5                                    |
+| Box stroke          | borderWidth R5, borderColor R1, borderOpacity R5, borderAlign R8 icons, lineBox R8f; margin top \| right, bottom \| left                                                                             |
+| Label shadow        | Text shadow R7 (`shadow`), Text shadow color R1, Text shadow blur R5, Text shadow offset X \| Y; Box shadow R7 (`panelShadow`), Box shadow color R1, Box shadow blur R5, Box shadow offset X \| Y    |
+| Callout             | pointerDirection R8f, width \| height, pointerOffset R5, pointerCurve R7                                                                                                                             |
+| Badge               | badge R9, then its kind's lines: Icon beside text R14 (`icon`), Icon side R8 icons (`iconPosition`); or progress R5; or maxNumber R5, overflowSuffix R14, smartOverflow R7                           |
+| Behavior            | minScreenSize R5, declutter R8, minNodeScreenSize R5, depthFade R7, near \| far, animation R9, animationSpeed R5, pickable R7, closeButton R7                                                        |
 
 The "+" menu holds the sub-groups after Main. Every one of the label fields is reachable from the label row's
 popover by clicks (E673).
@@ -553,11 +562,11 @@ section, a section passes 12, or a count differs from the element's descriptor. 
 +------------------------------------------+
 | (header unchanged)                       |
 | v Fill                                 + |
-| [o 6366F1                100%]   -  ...  |
+| <> Solid  [o 6366F1     100%]    -  ...  |
 | Text                                   + |
 | v Shape                                + |
 | Size      [S 1.0        ]        -  ...  |
-| <> [Rectangle           v]       -  ...  |
+| <> Basic shape [Rectangle v]     -  ...  |
 | Border                                 + |
 |==========================================|
 | Visibility                             + |
@@ -599,8 +608,10 @@ Proposed at the start, each its own pull request:
 Made since, on the style panel branch:
 
 - `drawnWhen` with `channelDrawn` / `labelFieldDrawn`, and a shader's `views`: the facts behind every "2D only"
-  and "3D only" dimming. The raised edge (`node.raisedBorder*`) and the node and edge underlay and overlay are
-  drawn in the 2D view only.
+  and "3D only" dimming. The raised edge (`node.raisedBorder*`), the node underlay and overlay (Plate) and the
+  edge overlay (Outline, Over line) are drawn in the 2D view only. Edge underlay is also marked 2D only for now;
+  that is interim until fix 1 folds `edge.underlay*` into `edge.outline*` (Outline, Under line), which draws in
+  both views.
 - `needs` and `start` (the values "+" writes), `modifies`, declared defaults and `suggestedMax`, the
   `catalog.shaders` filter by place, `labelFieldOf` for every text kind, shader parameter and list item
   addresses, a base look without off values, record field placement (a field with no point sits one line below

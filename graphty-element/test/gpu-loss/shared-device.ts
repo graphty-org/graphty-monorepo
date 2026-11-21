@@ -162,6 +162,29 @@ export async function landed(graph: Graph): Promise<void> {
     }
 }
 
+/** Batches a layout keeps in flight, plus one: a row told to its ring is sent again over that many landings at most. */
+const TOLD_LANDINGS = 5;
+/** Landings {@link toldRowsLanded} waits through before it gives up and lets the test's assertions say why. */
+const TOLD_GIVE_UP = 40;
+
+/**
+ * Waits until the rows a test's own setup told the layout's ring (a style's first paints, measured a frame or two
+ * apart) have stopped being sent again: no row was told over the landings of every batch that could have been in
+ * flight. Under load more batches are in flight and a paint lands later, so a fixed count of landings is not
+ * enough. A row told every frame never goes quiet: the wait then ends after {@link TOLD_GIVE_UP} landings.
+ * @param graph - The graph.
+ */
+export async function toldRowsLanded(graph: Graph): Promise<void> {
+    const table = graph.getRowTable();
+    assert.isNotNull(table);
+    let quiet = 0;
+    for (let i = 0; i < TOLD_GIVE_UP && quiet < TOLD_LANDINGS; i++) {
+        const told = table.rowsTold;
+        await landed(graph);
+        quiet = table.rowsTold === told ? quiet + 1 : 0;
+    }
+}
+
 /**
  * Waits for the layout to copy a landing into the `rowPosition` texture, after this call: the ring is
  * attached a batch after a load, so this is the real moment the copy starts, which a fixed number of

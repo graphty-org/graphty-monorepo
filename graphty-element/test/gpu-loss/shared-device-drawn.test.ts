@@ -23,6 +23,7 @@ import {
     startLayout,
     submitLayout,
     textureDiff,
+    toldRowsLanded,
 } from "./shared-device";
 
 describe("the layout filling the row table on a shared device", () => {
@@ -84,13 +85,16 @@ describe("the layout filling the row table on a shared device", () => {
         for (const which of [
             "one labeled node",
             "two labels far apart",
+            "two pinned labels far apart",
+            "a hidden labeled node",
             "a hundred labels spread",
             "one arrowed edge",
         ] as const) {
             it(`writes no row per landing with ${which}, and draws it where the card does (${renderer})`, async () => {
                 // a hundred labels over 2100 rows: fewer than the rows an owed landing answers one at a time
                 const many = which === "a hundred labels spread";
-                const spread = many || which === "two labels far apart";
+                const pinned = which === "two pinned labels far apart";
+                const spread = many || pinned || which === "two labels far apart";
                 const graph = await running("batched", undefined, renderer, spread ? SPREAD : undefined);
                 const { styles } = graph.getSession();
                 if (which !== "one arrowed edge") {
@@ -104,6 +108,18 @@ describe("the layout filling the row table on a shared device", () => {
                         selector: { match: "ids", nodes },
                         set: { "node.label": "n0" },
                     });
+                    if (pinned) {
+                        // a pinned row is one the owed landing leaves where it is: a labeled one is put there each frame
+                        await graph.getSession().positions.pin(nodes);
+                    }
+                    if (which === "a hidden labeled node") {
+                        await styles.add({
+                            name: "hidden",
+                            target: "node",
+                            selector: { match: "ids", nodes },
+                            set: { "node.visible": false },
+                        });
+                    }
                 } else {
                     const edge = edgeBetween(graph, "n0", "n1");
                     assert.isDefined(edge);
@@ -115,8 +131,8 @@ describe("the layout filling the row table on a shared device", () => {
                     });
                 }
 
-                await landed(graph);
-                await landed(graph);
+                // the style's own first paints are sent once, over the batches in flight: not a landing's cost
+                await toldRowsLanded(graph);
                 const lane = graph.getDataManager()[WRITABLE_LANE];
                 const engine = layoutOf(graph);
                 const table = graph.getRowTable();
@@ -133,7 +149,11 @@ describe("the layout filling the row table on a shared device", () => {
                 // written, walked or repacked on the CPU
                 assert.isAtLeast(engine.landedBatchesPublished - landings, 4);
                 assert.strictEqual(lane.changes - written, 0);
-                assert.strictEqual(engine.rowsWalked - walked, 0);
+                // A pinned row makes the layout walk its rows each landing to find the ones its ring leaves, labeled or
+                // not: a cost of pins the same on unfixed code, not of drawing a row from the CPU.
+                if (!pinned) {
+                    assert.strictEqual(engine.rowsWalked - walked, 0);
+                }
                 assert.strictEqual(table.repackedRows - repackedRows, 0);
                 // nor brought up to it row by row: a labeled node put where the card draws it sends nothing
                 assert.strictEqual(table.owedRowsCaughtUp - owedRowsCaughtUp, 0);

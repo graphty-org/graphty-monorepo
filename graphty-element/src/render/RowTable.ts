@@ -313,6 +313,11 @@ export class RowTable {
      * the rest stay owed (`catchUpLines`): what a few rows drawn from the CPU cost per landing.
      */
     owedRowsCaughtUp = 0;
+    /**
+     * Rows told to a layout's ring ({@link RowTable.drawnMirror}): each is sent again over the landings
+     * of the batches in flight when it was told, so a test of what a landing costs waits for them to stop.
+     */
+    rowsTold = 0;
     /** Rows {@link RowTable.flush} copied from the lane: CPU rows a frame touched. */
     repackedRows = 0;
     /**
@@ -652,18 +657,24 @@ export class RowTable {
         const base = row * POSITION_FLOATS;
         const { floats } = this.positions;
         const { bounds } = this;
+        // The row as it stood: one put again where it already was (a pinned labeled node, each frame) is unchanged.
+        const unchanged =
+            floats[base] === Math.fround(x) &&
+            floats[base + 1] === Math.fround(y) &&
+            floats[base + 2] === Math.fround(z);
         floats[base] = bounds[base] = x;
         floats[base + 1] = bounds[base + 1] = y;
         floats[base + 2] = bounds[base + 2] = z;
-        // ...so a node put exactly there, drawn whole, sends nothing: a labeled node following a running
-        // layout costs its own row each frame, and no texture line goes up to be caught up. A measured
-        // row counts: KNOWN says nothing about where the row is drawn.
+        // ...so a node put exactly where the card already draws it sends nothing: either where the owed landing
+        // puts it (the layout copied it in), or where it already was and was sent (a row the landing leaves, as a
+        // pinned one). A labeled node costs its own row each frame, and no texture line goes up to be caught up.
+        // Hidden counts as long as it was hidden before (its w is 0 on the card); held and shrunk rows are drawn
+        // from their own writes. A measured row counts: KNOWN says nothing about where the row is drawn.
         if (
-            onCard &&
             atLane &&
-            Math.fround(z) === lane.z &&
-            (flags & (HELD | HIDDEN | SHRUNK)) === 0 &&
-            floats[base + 3] === 1
+            (onCard ? Math.fround(z) === lane.z : unchanged) &&
+            (flags & (HELD | SHRUNK)) === 0 &&
+            floats[base + 3] === ((flags & HIDDEN) === 0 ? 1 : 0)
         ) {
             return;
         }
@@ -1021,6 +1032,7 @@ export class RowTable {
     private mirror(row: number): void {
         const tell = this.drawnMirror;
         if (tell !== null) {
+            this.rowsTold++;
             const base = row * POSITION_FLOATS;
             const { floats } = this.positions;
             tell(row, floats[base] ?? 0, floats[base + 1] ?? 0, floats[base + 2] ?? 0, floats[base + 3] ?? 0);

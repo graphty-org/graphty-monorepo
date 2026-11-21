@@ -858,6 +858,16 @@ describe("yEd Live GraphML: a group's panel and tab band", () => {
     });
 });
 
+describe("yEd Live GraphML: a node's second label", () => {
+    it("is drawn as the external label, in the box yEd Live draws 2 in from the node's bottom", async () => {
+        const { node } = await sheet("specimen-labels.graphml");
+        expect(node("label", "two-labels")).toBe("Top");
+        expect(node("xlabel", "two-labels")).toBe("Bottom");
+        expect(node("xlabelOffsetX", "two-labels")).toBe(0);
+        expect(node("xlabelOffsetY", "two-labels")).toBe(7);
+    });
+});
+
 describe("yEd Live GraphML: a node label with no layout parameter", () => {
     it("sits below the node, as yEd Live draws it", async () => {
         const { node } = await sheet("specimen-labels.graphml");

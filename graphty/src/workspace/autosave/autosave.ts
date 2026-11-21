@@ -8,6 +8,7 @@ import type { AutosaveEntry } from "@graphty/graphty-element";
 import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import { type GraphSession, listAutosaves, removeAutosave } from "@graphty/graphty-element/session";
 
+import { count } from "../../lib/analytics";
 import type { CommandContext } from "../commands/registry";
 import { baseName } from "../data-page/words";
 import { focusMainHeading } from "../frame/focus";
@@ -102,6 +103,7 @@ function reopen(
 export function restoreRecovered(store: WorkspaceStore, entry: AutosaveEntry): void {
     logger.info("restore pressed", { entry: entry.id, nodes: entry.nodes, edges: entry.edges });
     reopen(store, entry, (_name, place) => {
+        count("project_reopened", { from: "kept" });
         store.set({ ...place, notice: { message: reopenedSentence(entry) } });
     });
 }

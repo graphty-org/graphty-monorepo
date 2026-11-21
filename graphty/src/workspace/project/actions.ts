@@ -22,7 +22,7 @@ import {
     type SourceKey,
 } from "@graphty/graphty-element/session";
 
-import { count, detail } from "../../lib/analytics";
+import { count, graphSizeBucket } from "../../lib/analytics";
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
@@ -373,6 +373,7 @@ async function writeProject(
         ...(on ? { format: 2 as const } : {}),
         ...(on && choices !== null ? { sections: choices.sections, embed: choices.embed } : {}),
     });
+    count("project_saved", { kind: "browser", as: target === null ? "new" : "again" });
     state.target = saved.id;
     if (on && v2 !== null) {
         state.v2 = v2;
@@ -461,6 +462,7 @@ export async function saveProjectAsV2(
             markSaved: false,
             ...(Object.keys(assets).length === 0 ? {} : { assets }),
         });
+        count("project_saved", { kind: "file", as: "new" });
         workspace.set({ notice: { message: withLeftOut(session, `Saved ${fileName}`, report) } });
         await reportSave(workspace, session, `Saved ${fileName}`, report);
     } catch {
@@ -678,7 +680,11 @@ function openedData(
         return;
     }
     // A graphty document that is not a project (styles, notes, a graph) is the reader's own file too.
-    count("own_file_opened", { format: "graphty", via: "file" });
+    count("own_file_opened", {
+        format: "graphty",
+        via: "file",
+        size: graphSizeBucket(session.data.statistics({ scope: "all" }).nodeCount),
+    });
     // Opened as a new graph, it started its history (`history: "start"`).
     focusLater(fresh);
     if (!fresh) {
@@ -716,9 +722,13 @@ async function openedProject(
     });
     // A file the reader picked or dropped counts as their own file; a Recent or browser-kept project is a reopen.
     if (pending.storedId === undefined && pending.recentId === undefined) {
-        count("own_file_opened", { format: "graphty", via: "file" });
+        count("own_file_opened", {
+            format: "graphty",
+            via: "file",
+            size: graphSizeBucket(session.data.statistics({ scope: "all" }).nodeCount),
+        });
     } else {
-        detail("project_reopened");
+        count("project_reopened", { from: pending.recentId === undefined ? "browser" : "recent" });
     }
     const state = fileState(workspace);
     state.target = pending.storedId ?? null;

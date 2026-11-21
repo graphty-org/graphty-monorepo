@@ -12,7 +12,6 @@ import {
     IMAGE_EXTENSIONS,
     type ImageFormat,
     type ImageSize,
-    presetOf,
 } from "./choices";
 import { useImageCapture, useImageContext, useImagePreview, useRefusedSizes } from "./outputHooks";
 import { ImageBody, ImageLookFields, PresetSelect } from "./outputParts";
@@ -66,6 +65,8 @@ interface CameraImageOutputProps {
     onCancel: () => void;
     /** Closes the dialog with a notice, and lists the file under Recent. */
     onDone: (message: string, file?: string) => void;
+    /** Whether it opens with its heading: in the list of outputs, not alone as a camera's Export image... */
+    heading?: boolean;
 }
 
 /**
@@ -78,6 +79,7 @@ interface CameraImageOutputProps {
  * @param props.onChange - Called with new choices
  * @param props.onCancel - Closes the dialog
  * @param props.onDone - Closes the dialog with a notice
+ * @param props.heading - Whether it opens with its heading
  * @returns The output's body and footer
  */
 export function CameraImageOutput({
@@ -85,6 +87,7 @@ export function CameraImageOutput({
     onChange,
     onCancel,
     onDone,
+    heading = false,
 }: Readonly<CameraImageOutputProps>): React.JSX.Element {
     const { element, session, project, legendShown } = useImageContext();
     // The transparency check's answer, kept with the format it was asked for: an answer for
@@ -94,7 +97,6 @@ export function CameraImageOutput({
 
     const views = viewChoice(element, session, choices.view);
     const { chosen } = views;
-    const preset = presetOf(choices);
     const legendOn = choices.legend ?? legendShown;
     const legend = useMemo(() => keyOption(legendOn, choices.corner, session), [legendOn, choices.corner, session]);
 
@@ -147,6 +149,7 @@ export function CameraImageOutput({
 
     return (
         <ImageBody
+            heading={heading}
             status={status}
             preview={preview}
             previewError={previewError}
@@ -157,7 +160,7 @@ export function CameraImageOutput({
             capture={capture}
             fields={
                 <div className="ws-export-fields">
-                    <PresetSelect preset={preset?.id} onPick={set} />
+                    <PresetSelect preset={choices.preset} onPick={set} />
                     <ViewSelect
                         views={views}
                         onChange={(view) => {

@@ -591,4 +591,48 @@ describe("the arrangement under undo and redo", () => {
         assert.deepEqual(lane(session), settled, "where the load came to rest inside it");
         session.dispose();
     });
+    it("canceling a load transaction puts back where every node was, though a placement was recorded meanwhile", async () => {
+        const session = await fixtureSession();
+        const layout = fakeLayout(session);
+        layout.play();
+        layout.step();
+        layout.settle();
+        await styleEdit(session);
+        const before = lane(session);
+
+        let loaded = (): void => undefined;
+        const imported = new Promise<void>((resolve) => {
+            loaded = resolve;
+        });
+        let finish = (): void => undefined;
+        const held = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
+        const document = JSON.stringify({ nodes: [{ id: "n1" }, { id: "x" }], edges: [] });
+        const transaction = session
+            .transaction("Loaded a project", async (tx) => {
+                await tx.execute({ op: "data.import", source: { type: "json", config: { data: document } } });
+                loaded();
+                await held;
+            })
+            .catch((error: unknown) => error);
+        await imported;
+        layout.play();
+        layout.step();
+        layout.settle();
+        await session.positions.set([{ id: "n1", x: 100, y: 100, z: 0 }]);
+        const [pending] = session.history.pending;
+        session.history.cancel(pending.id);
+        finish();
+        await transaction;
+        await session.styles.settled();
+
+        const after = lane(session);
+        for (const [id, at] of Object.entries(before)) {
+            if (id !== "n1") {
+                assert.strictEqual(after[id], at, `${id} is where it was before the load`);
+            }
+        }
+        session.dispose();
+    });
 });

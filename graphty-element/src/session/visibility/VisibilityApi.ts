@@ -1814,6 +1814,15 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     type ElementBytes = { readonly node: Uint8Array; readonly edge: Uint8Array };
     let ghostCache: { readonly key: readonly unknown[]; readonly bytes: ElementBytes } | null = null;
     let outsideCache: { readonly key: readonly unknown[]; readonly bytes: ElementBytes } | null = null;
+    /** What {@link ghostsNow} answered this turn and under what, or null in a new turn. */
+    let ghostTurn: {
+        readonly state: unknown;
+        readonly graph: GraphSnapshot;
+        readonly held: string | null;
+        readonly heldAll: boolean;
+        readonly working: boolean;
+        readonly bytes: ElementBytes | null;
+    } | null = null;
     /** What {@link outsideCache} was last answered under this turn, or null in a new turn. */
     let outsideStamp: readonly unknown[] | null = null;
 
@@ -1883,6 +1892,39 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns The bytes, or null.
      */
     const ghostsNow = (): ElementBytes | null => {
+        // A repaint asks once per element: within one turn, with the state, the graph, the held
+        // condition and the working graph unmoved, the answer is the one just given (#7966: the
+        // inputs below, compared per element, cost about 150 ms of a drag at 50,000 nodes).
+        // ponytail: per turn, as `outsideNow`, since a set a filter names can move with no command.
+        const turn = ghostTurn;
+        if (
+            turn !== null &&
+            turn.state === dispatcher.state &&
+            turn.graph === sources.snapshot() &&
+            turn.held === held &&
+            turn.heldAll === heldAll &&
+            turn.working === workingOn()
+        ) {
+            return turn.bytes;
+        }
+
+        if (ghostTurn === null) {
+            queueMicrotask(() => {
+                ghostTurn = null;
+            });
+        }
+
+        const bytes = ghostBytes();
+        ghostTurn = { state: dispatcher.state, graph: sources.snapshot(), held, heldAll, working: workingOn(), bytes };
+        return bytes;
+    };
+
+    /**
+     * {@link ghostsNow}, its inputs compared.
+     * @returns The bytes, or null.
+     */
+    const ghostBytes = (): ElementBytes | null => {
+        slideCounters.ghostChecks++;
         if (drawnRuleNow() === ruleNow()) {
             return null;
         }

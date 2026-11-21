@@ -1,6 +1,6 @@
 {
-    "about": "Medians per scenario and render path from benchmarks/compare/perf-matrix.mjs; `gate` fails when a timed metric is more than the margin (25%) plus its slack worse, or a counted one is any higher. RTX 4070 SUPER, WebGL through ANGLE on Vulkan, Chromium from the checkout's Playwright.",
-    "written": "2026-11-21T10:30:55.846Z",
+    "about": "Medians and best runs per scenario and render path from benchmarks/compare/perf-matrix.mjs; `gate` fails when a timed metric's best run is more than the margin (30%) plus its slack worse than the baseline's best run, a counted one is any higher, or a gate-set scenario is missing. RTX 4070 SUPER, WebGL through ANGLE on Vulkan, Chromium from the checkout's Playwright.",
+    "written": "2026-11-21T11:47:07.151Z",
     "entries": {
         "layout-circular-2d-10k|batched": {
             "runs": 1,
@@ -17,7 +17,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 500.1,
                 "readyMs": 510.4,
                 "stillMs": 8.6,
@@ -46,7 +46,7 @@
                 "layoutStartMs": 345.1,
                 "heapMB": 282
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2019.5,
                 "readyMs": 2072.4,
                 "stillMs": 11.9,
@@ -75,7 +75,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 547,
                 "readyMs": 561.5,
                 "stillMs": 9.2,
@@ -104,7 +104,7 @@
                 "layoutStartMs": 358.4,
                 "heapMB": 283
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2486.3,
                 "readyMs": 2553.9,
                 "stillMs": 13.2,
@@ -133,7 +133,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 528.4,
                 "readyMs": 540.5,
                 "stillMs": 8.5,
@@ -162,7 +162,7 @@
                 "layoutStartMs": 1340.7,
                 "heapMB": 282
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 1967.2,
                 "readyMs": 2017.3,
                 "stillMs": 12.1,
@@ -191,15 +191,15 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
-                "firstFrameMs": 636.9,
-                "readyMs": 648.3,
-                "stillMs": 9.3,
-                "orbitMs": 9.3,
-                "dragMs": 9.4,
-                "hoverMs": 1.9,
-                "editMs": 380,
-                "layoutStartMs": 868,
+            "best": {
+                "firstFrameMs": 517.7,
+                "readyMs": 532.1,
+                "stillMs": 9.1,
+                "orbitMs": 8.9,
+                "dragMs": 9,
+                "hoverMs": 1.8,
+                "editMs": 245.4,
+                "layoutStartMs": 860.9,
                 "heapMB": 68,
                 "objectNodes": 0,
                 "objectEdges": 0
@@ -220,16 +220,16 @@
                 "layoutStartMs": 1166.9,
                 "heapMB": 282
             },
-            "worst": {
-                "firstFrameMs": 2375.7,
-                "readyMs": 2423.2,
-                "stillMs": 14.8,
-                "orbitMs": 18.4,
-                "dragMs": 19.8,
-                "hoverMs": 5.5,
-                "editMs": 934.6,
-                "layoutStartMs": 1314.5,
-                "heapMB": 283
+            "best": {
+                "firstFrameMs": 2247.4,
+                "readyMs": 2316.1,
+                "stillMs": 12.2,
+                "orbitMs": 16.8,
+                "dragMs": 17.5,
+                "hoverMs": 4.6,
+                "editMs": 818.6,
+                "layoutStartMs": 1153.6,
+                "heapMB": 282
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
             "cpus": "8-15"
@@ -251,7 +251,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 641.6,
                 "readyMs": 661.3,
                 "stillMs": 8.6,
@@ -284,7 +284,7 @@
                 "landingMs": 291.9,
                 "heapMB": 283
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2296.1,
                 "readyMs": 2349.2,
                 "stillMs": 12.2,
@@ -317,17 +317,17 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
-                "firstFrameMs": 528.4,
-                "readyMs": 540.5,
-                "stillMs": 9.1,
-                "orbitMs": 9.1,
-                "dragMs": 9.1,
-                "hoverMs": 1.9,
-                "editMs": 259.2,
-                "layoutStartMs": 235.8,
-                "layoutFrameMs": 83.7,
-                "landingMs": 83.7,
+            "best": {
+                "firstFrameMs": 469.3,
+                "readyMs": 507.7,
+                "stillMs": 9,
+                "orbitMs": 8.7,
+                "dragMs": 8.9,
+                "hoverMs": 1.7,
+                "editMs": 243.7,
+                "layoutStartMs": 226,
+                "layoutFrameMs": 77.2,
+                "landingMs": 77.2,
                 "heapMB": 68,
                 "objectNodes": 0,
                 "objectEdges": 0
@@ -350,18 +350,18 @@
                 "landingMs": 290.8,
                 "heapMB": 283
             },
-            "worst": {
-                "firstFrameMs": 2168.3,
-                "readyMs": 2220,
-                "stillMs": 13.5,
-                "orbitMs": 18.4,
-                "dragMs": 17.8,
-                "hoverMs": 5.7,
-                "editMs": 872.5,
-                "layoutStartMs": 527,
-                "layoutFrameMs": 330.7,
-                "landingMs": 330.7,
-                "heapMB": 283
+            "best": {
+                "firstFrameMs": 2048.3,
+                "readyMs": 2134.1,
+                "stillMs": 12.4,
+                "orbitMs": 17.1,
+                "dragMs": 17.6,
+                "hoverMs": 4.6,
+                "editMs": 818.8,
+                "layoutStartMs": 433.6,
+                "layoutFrameMs": 282.4,
+                "landingMs": 282.4,
+                "heapMB": 282
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
             "cpus": "8-15"
@@ -383,7 +383,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 818.5,
                 "readyMs": 1099.9,
                 "stillMs": 8.6,
@@ -416,7 +416,7 @@
                 "landingMs": 226.5,
                 "heapMB": 282
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2093,
                 "readyMs": 2137.9,
                 "stillMs": 11.6,
@@ -449,7 +449,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 534.1,
                 "readyMs": 547.3,
                 "stillMs": 9.5,
@@ -482,7 +482,7 @@
                 "landingMs": 221.1,
                 "heapMB": 283
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2123.5,
                 "readyMs": 2173.9,
                 "stillMs": 13.3,
@@ -513,7 +513,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 555,
                 "readyMs": 568.9,
                 "stillMs": 8.7,
@@ -542,7 +542,7 @@
                 "layoutStartMs": 334.5,
                 "heapMB": 282
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 1864.3,
                 "readyMs": 1916.9,
                 "stillMs": 11.9,
@@ -571,7 +571,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 583.6,
                 "readyMs": 597.1,
                 "stillMs": 9,
@@ -600,7 +600,7 @@
                 "layoutStartMs": 340.5,
                 "heapMB": 283
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2396.3,
                 "readyMs": 2450.8,
                 "stillMs": 13.4,
@@ -631,7 +631,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 552.3,
                 "readyMs": 565.8,
                 "stillMs": 8.7,
@@ -664,7 +664,7 @@
                 "landingMs": 291.3,
                 "heapMB": 282
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2392.6,
                 "readyMs": 2450.4,
                 "stillMs": 12.3,
@@ -697,7 +697,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 3964.4,
                 "readyMs": 4152.9,
                 "stillMs": 78.6,
@@ -730,7 +730,7 @@
                 "landingMs": 3364.3,
                 "heapMB": 2408
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 37410.5,
                 "readyMs": 38180.8,
                 "stillMs": 117.3,
@@ -763,16 +763,16 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
-                "firstFrameMs": 716.5,
-                "readyMs": 756.5,
+            "best": {
+                "firstFrameMs": 513.3,
+                "readyMs": 525.9,
                 "stillMs": 9.1,
-                "orbitMs": 9.1,
-                "dragMs": 9.1,
-                "hoverMs": 1.9,
-                "editMs": 359.9,
-                "layoutStartMs": 116.9,
-                "layoutFrameMs": 23.8,
+                "orbitMs": 8.9,
+                "dragMs": 9,
+                "hoverMs": 1.8,
+                "editMs": 244.1,
+                "layoutStartMs": 111.3,
+                "layoutFrameMs": 23.4,
                 "landingMs": 11.9,
                 "heapMB": 68,
                 "objectNodes": 0,
@@ -796,17 +796,17 @@
                 "landingMs": 258.6,
                 "heapMB": 283
             },
-            "worst": {
-                "firstFrameMs": 2450.5,
-                "readyMs": 2497.8,
-                "stillMs": 12.7,
-                "orbitMs": 17.6,
-                "dragMs": 19,
-                "hoverMs": 5.9,
-                "editMs": 907.2,
-                "layoutStartMs": 764.7,
-                "layoutFrameMs": 282.2,
-                "landingMs": 288,
+            "best": {
+                "firstFrameMs": 2133.2,
+                "readyMs": 2185.3,
+                "stillMs": 12.5,
+                "orbitMs": 17.5,
+                "dragMs": 17.8,
+                "hoverMs": 4.8,
+                "editMs": 882.2,
+                "layoutStartMs": 744,
+                "layoutFrameMs": 248.2,
+                "landingMs": 253.3,
                 "heapMB": 283
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
@@ -829,7 +829,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 580.6,
                 "readyMs": 594.5,
                 "stillMs": 9.1,
@@ -862,7 +862,7 @@
                 "landingMs": 326.7,
                 "heapMB": 282
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 1968.8,
                 "readyMs": 2025.7,
                 "stillMs": 12.7,
@@ -895,7 +895,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 493.1,
                 "readyMs": 504.6,
                 "stillMs": 8.9,
@@ -928,7 +928,7 @@
                 "landingMs": 253.4,
                 "heapMB": 282
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2167.9,
                 "readyMs": 2229.7,
                 "stillMs": 12.8,
@@ -959,7 +959,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 558.2,
                 "readyMs": 568.8,
                 "stillMs": 8.6,
@@ -988,7 +988,7 @@
                 "layoutStartMs": 345.5,
                 "heapMB": 283
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2208,
                 "readyMs": 2266.9,
                 "stillMs": 12.7,
@@ -1017,7 +1017,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 592.5,
                 "readyMs": 605.1,
                 "stillMs": 9.1,
@@ -1046,7 +1046,7 @@
                 "layoutStartMs": 321.7,
                 "heapMB": 282
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2627.4,
                 "readyMs": 2681.4,
                 "stillMs": 12.6,
@@ -1074,7 +1074,7 @@
                 "objectNodes": 0,
                 "objectEdges": 1000
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 161.4,
                 "readyMs": 202.3,
                 "stillMs": 0.8,
@@ -1101,7 +1101,7 @@
                 "editMs": 16.3,
                 "heapMB": 42
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 123.6,
                 "readyMs": 185.9,
                 "stillMs": 0.8,
@@ -1128,14 +1128,14 @@
                 "objectNodes": 0,
                 "objectEdges": 100000
             },
-            "worst": {
-                "firstFrameMs": 1700.3,
-                "readyMs": 1757.6,
-                "stillMs": 9.8,
-                "orbitMs": 9.6,
-                "dragMs": 13.5,
-                "hoverMs": 1.6,
-                "editMs": 505.6,
+            "best": {
+                "firstFrameMs": 1383.1,
+                "readyMs": 1423.9,
+                "stillMs": 9.3,
+                "orbitMs": 9.2,
+                "dragMs": 12.9,
+                "hoverMs": 1.4,
+                "editMs": 358.3,
                 "heapMB": 237,
                 "objectNodes": 0,
                 "objectEdges": 100000
@@ -1155,14 +1155,14 @@
                 "editMs": 936.1,
                 "heapMB": 301
             },
-            "worst": {
-                "firstFrameMs": 2235.4,
-                "readyMs": 2281.7,
-                "stillMs": 14.1,
-                "orbitMs": 19.1,
-                "dragMs": 22.1,
-                "hoverMs": 6.3,
-                "editMs": 1029.7,
+            "best": {
+                "firstFrameMs": 2112.4,
+                "readyMs": 2168.6,
+                "stillMs": 12.6,
+                "orbitMs": 18.3,
+                "dragMs": 19.4,
+                "hoverMs": 4.4,
+                "editMs": 874.3,
                 "heapMB": 301
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
@@ -1182,7 +1182,7 @@
                 "objectNodes": 0,
                 "objectEdges": 10000
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 368.2,
                 "readyMs": 411,
                 "stillMs": 1.6,
@@ -1209,7 +1209,7 @@
                 "editMs": 71.9,
                 "heapMB": 67
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 379.1,
                 "readyMs": 395.8,
                 "stillMs": 2.5,
@@ -1236,7 +1236,7 @@
                 "objectNodes": 0,
                 "objectEdges": 500000
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 6200.7,
                 "readyMs": 6328.2,
                 "stillMs": 41.1,
@@ -1263,7 +1263,7 @@
                 "editMs": 5147.9,
                 "heapMB": 1300
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 13145.2,
                 "readyMs": 13516.9,
                 "stillMs": 64.4,
@@ -1290,15 +1290,15 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
-                "firstFrameMs": 3867.3,
-                "readyMs": 4037.2,
-                "stillMs": 79.6,
-                "orbitMs": 77.8,
-                "dragMs": 79.4,
-                "hoverMs": 2.3,
-                "editMs": 2541.7,
-                "heapMB": 309,
+            "best": {
+                "firstFrameMs": 3612.5,
+                "readyMs": 3802.5,
+                "stillMs": 78.6,
+                "orbitMs": 77.7,
+                "dragMs": 79,
+                "hoverMs": 2.2,
+                "editMs": 2397.6,
+                "heapMB": 308,
                 "objectNodes": 0,
                 "objectEdges": 0
             },
@@ -1317,14 +1317,14 @@
                 "editMs": 11455.2,
                 "heapMB": 2408
             },
-            "worst": {
-                "firstFrameMs": 37222.3,
-                "readyMs": 38019.5,
-                "stillMs": 122.7,
-                "orbitMs": 172.4,
-                "dragMs": 175,
-                "hoverMs": 54.9,
-                "editMs": 11816.3,
+            "best": {
+                "firstFrameMs": 35594.1,
+                "readyMs": 36355.1,
+                "stillMs": 118.3,
+                "orbitMs": 165.2,
+                "dragMs": 172.2,
+                "hoverMs": 46.6,
+                "editMs": 11404.1,
                 "heapMB": 2408
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
@@ -1344,7 +1344,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 113.1,
                 "readyMs": 147.6,
                 "stillMs": 0.6,
@@ -1371,7 +1371,7 @@
                 "editMs": 17.1,
                 "heapMB": 42
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 116.9,
                 "readyMs": 178.8,
                 "stillMs": 0.7,
@@ -1398,14 +1398,14 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
-                "firstFrameMs": 710.1,
-                "readyMs": 732.2,
-                "stillMs": 9.2,
-                "orbitMs": 9.2,
-                "dragMs": 9.2,
-                "hoverMs": 2.2,
-                "editMs": 278.7,
+            "best": {
+                "firstFrameMs": 544.5,
+                "readyMs": 562.8,
+                "stillMs": 9.1,
+                "orbitMs": 9,
+                "dragMs": 8.9,
+                "hoverMs": 1.8,
+                "editMs": 248.2,
                 "heapMB": 68,
                 "objectNodes": 0,
                 "objectEdges": 0
@@ -1425,15 +1425,15 @@
                 "editMs": 916.8,
                 "heapMB": 282
             },
-            "worst": {
-                "firstFrameMs": 2634,
-                "readyMs": 2700.6,
-                "stillMs": 14,
-                "orbitMs": 19.9,
-                "dragMs": 20.1,
-                "hoverMs": 5.9,
-                "editMs": 1156.6,
-                "heapMB": 283
+            "best": {
+                "firstFrameMs": 2376.1,
+                "readyMs": 2448.4,
+                "stillMs": 13.3,
+                "orbitMs": 18.6,
+                "dragMs": 18.3,
+                "hoverMs": 5.3,
+                "editMs": 876.8,
+                "heapMB": 282
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
             "cpus": "8-15"
@@ -1452,14 +1452,14 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
-                "firstFrameMs": 219,
-                "readyMs": 245.9,
-                "stillMs": 1.9,
+            "best": {
+                "firstFrameMs": 209.8,
+                "readyMs": 221.8,
+                "stillMs": 1.8,
                 "orbitMs": 1.5,
                 "dragMs": 1.5,
-                "hoverMs": 1.4,
-                "editMs": 64.8,
+                "hoverMs": 1.3,
+                "editMs": 48.8,
                 "heapMB": 42,
                 "objectNodes": 0,
                 "objectEdges": 0
@@ -1479,14 +1479,14 @@
                 "editMs": 74.2,
                 "heapMB": 65
             },
-            "worst": {
-                "firstFrameMs": 615.7,
-                "readyMs": 627.2,
-                "stillMs": 2.7,
-                "orbitMs": 2.9,
-                "dragMs": 3,
-                "hoverMs": 1.4,
-                "editMs": 88,
+            "best": {
+                "firstFrameMs": 359.2,
+                "readyMs": 367.4,
+                "stillMs": 2.2,
+                "orbitMs": 2.5,
+                "dragMs": 2.5,
+                "hoverMs": 1.1,
+                "editMs": 66.9,
                 "heapMB": 65
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
@@ -1494,18 +1494,37 @@
         },
         "size-plain-1m|batched": {
             "runs": 1,
-            "metrics": {},
-            "worst": {},
-            "failures": [
-                "load failed: Loading 1,000,000 more nodes would take the graph to 1,000,000, past the 100,000 this renderer can draw. Load a subset of the graph. | Loading 864,"
-            ],
+            "metrics": {
+                "firstFrameMs": 9267.3,
+                "readyMs": 9460.7,
+                "stillMs": 86.1,
+                "orbitMs": 85.4,
+                "dragMs": 86.7,
+                "hoverMs": 10.2,
+                "editMs": 5139.2,
+                "heapMB": 679,
+                "objectNodes": 0,
+                "objectEdges": 0
+            },
+            "best": {
+                "firstFrameMs": 9267.3,
+                "readyMs": 9460.7,
+                "stillMs": 86.1,
+                "orbitMs": 85.4,
+                "dragMs": 86.7,
+                "hoverMs": 10.2,
+                "editMs": 5139.2,
+                "heapMB": 679,
+                "objectNodes": 0,
+                "objectEdges": 0
+            },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
             "cpus": "8-15"
         },
         "size-plain-1m|objects": {
             "runs": 1,
             "metrics": {},
-            "worst": {},
+            "best": {},
             "failures": [
                 "load failed: Loading 1,000,000 more nodes would take the graph to 1,000,000, past the 100,000 this renderer can draw. Load a subset of the graph. | Loading 864,"
             ],
@@ -1526,7 +1545,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 1965.5,
                 "readyMs": 1977.7,
                 "stillMs": 39.6,
@@ -1553,7 +1572,7 @@
                 "editMs": 5359.4,
                 "heapMB": 1223
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 13932.9,
                 "readyMs": 14306.3,
                 "stillMs": 57.1,
@@ -1581,15 +1600,15 @@
                 "objectNodes": 0,
                 "objectEdges": 100000
             },
-            "worst": {
-                "firstFrameMs": 709.2,
-                "readyMs": 724.1,
-                "restyleMs": 1754.5,
-                "stillMs": 9.7,
-                "orbitMs": 9.6,
-                "dragMs": 13.6,
-                "hoverMs": 1.5,
-                "editMs": 405.8,
+            "best": {
+                "firstFrameMs": 511.7,
+                "readyMs": 524.9,
+                "restyleMs": 1388.7,
+                "stillMs": 9.5,
+                "orbitMs": 9.4,
+                "dragMs": 13,
+                "hoverMs": 1.3,
+                "editMs": 334.6,
                 "heapMB": 245,
                 "objectNodes": 0,
                 "objectEdges": 100000
@@ -1610,15 +1629,15 @@
                 "editMs": 899.1,
                 "heapMB": 302
             },
-            "worst": {
-                "firstFrameMs": 2364.9,
-                "readyMs": 2423.9,
-                "restyleMs": 1469.7,
-                "stillMs": 13.3,
-                "orbitMs": 19.7,
-                "dragMs": 23,
-                "hoverMs": 5.7,
-                "editMs": 1075.1,
+            "best": {
+                "firstFrameMs": 2053,
+                "readyMs": 2109.9,
+                "restyleMs": 1210,
+                "stillMs": 12.9,
+                "orbitMs": 17.2,
+                "dragMs": 18.7,
+                "hoverMs": 4.5,
+                "editMs": 852.2,
                 "heapMB": 302
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
@@ -1639,7 +1658,7 @@
                 "objectNodes": 0,
                 "objectEdges": 10000
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 157.8,
                 "readyMs": 192,
                 "restyleMs": 203.5,
@@ -1668,7 +1687,7 @@
                 "editMs": 60.7,
                 "heapMB": 67
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 408.3,
                 "readyMs": 416.9,
                 "restyleMs": 113.9,
@@ -1697,7 +1716,7 @@
                 "objectNodes": 0,
                 "objectEdges": 500000
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 1809.2,
                 "readyMs": 1820.7,
                 "restyleMs": 7645.1,
@@ -1726,7 +1745,7 @@
                 "editMs": 5782.7,
                 "heapMB": 1304
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 14017.2,
                 "readyMs": 14450.4,
                 "restyleMs": 7158,
@@ -1755,7 +1774,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 533.9,
                 "readyMs": 546.1,
                 "restyleMs": 102,
@@ -1784,7 +1803,7 @@
                 "editMs": 866.6,
                 "heapMB": 283
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 4077.1,
                 "readyMs": 4108.5,
                 "restyleMs": 720.7,
@@ -1813,7 +1832,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 246.6,
                 "readyMs": 313.4,
                 "restyleMs": 25.9,
@@ -1842,7 +1861,7 @@
                 "editMs": 81.5,
                 "heapMB": 65
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 344.5,
                 "readyMs": 351.4,
                 "restyleMs": 75.6,
@@ -1864,7 +1883,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 3295.6,
                 "readyMs": 3393.1,
                 "objectNodes": 0,
@@ -1880,7 +1899,7 @@
                 "firstFrameMs": 34281.3,
                 "readyMs": 35116.4
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 34281.3,
                 "readyMs": 35116.4
             },
@@ -1903,15 +1922,15 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
-                "firstFrameMs": 526.4,
-                "readyMs": 539.2,
-                "restyleMs": 3856.2,
-                "stillMs": 55.4,
-                "orbitMs": 55.6,
-                "dragMs": 57.2,
-                "hoverMs": 1.5,
-                "editMs": 639.6,
+            "best": {
+                "firstFrameMs": 497,
+                "readyMs": 509.6,
+                "restyleMs": 3784.2,
+                "stillMs": 55.1,
+                "orbitMs": 55.3,
+                "dragMs": 57,
+                "hoverMs": 1.4,
+                "editMs": 553.8,
                 "heapMB": 688,
                 "objectNodes": 0,
                 "objectEdges": 0
@@ -1932,15 +1951,15 @@
                 "editMs": 1266.2,
                 "heapMB": 1126
             },
-            "worst": {
-                "firstFrameMs": 2077.7,
-                "readyMs": 2078.2,
-                "restyleMs": 4219,
-                "stillMs": 39.1,
-                "orbitMs": 43.8,
-                "dragMs": 98.9,
-                "hoverMs": 4.4,
-                "editMs": 1656.3,
+            "best": {
+                "firstFrameMs": 1727.3,
+                "readyMs": 1754,
+                "restyleMs": 4039.5,
+                "stillMs": 38.7,
+                "orbitMs": 42.8,
+                "dragMs": 97.4,
+                "hoverMs": 4.3,
+                "editMs": 1210.8,
                 "heapMB": 1126
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
@@ -1961,7 +1980,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 172.3,
                 "readyMs": 187.3,
                 "restyleMs": 542.7,
@@ -1990,7 +2009,7 @@
                 "editMs": 94.7,
                 "heapMB": 170
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 426.4,
                 "readyMs": 434.8,
                 "restyleMs": 527.3,
@@ -2019,7 +2038,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2113.8,
                 "readyMs": 2216.7,
                 "restyleMs": 18660.2,
@@ -2041,7 +2060,7 @@
                 "firstFrameMs": 13542.9,
                 "readyMs": 13919.1
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 13542.9,
                 "readyMs": 13919.1
             },
@@ -2064,7 +2083,7 @@
                 "objectNodes": 0,
                 "objectEdges": 100000
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 581.5,
                 "readyMs": 595.8,
                 "restyleMs": 1178.1,
@@ -2093,7 +2112,7 @@
                 "editMs": 1179.3,
                 "heapMB": 283
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2720.4,
                 "readyMs": 2789.3,
                 "restyleMs": 1360.6,
@@ -2122,7 +2141,7 @@
                 "objectNodes": 0,
                 "objectEdges": 10000
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 174,
                 "readyMs": 208.2,
                 "restyleMs": 204.7,
@@ -2151,7 +2170,7 @@
                 "editMs": 62,
                 "heapMB": 65
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 410.2,
                 "readyMs": 410.7,
                 "restyleMs": 100.6,
@@ -2180,7 +2199,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 607.2,
                 "readyMs": 640.9,
                 "restyleMs": 140.5,
@@ -2209,7 +2228,7 @@
                 "editMs": 1019.1,
                 "heapMB": 285
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2472.6,
                 "readyMs": 2571.1,
                 "restyleMs": 1240.7,
@@ -2238,7 +2257,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 168.4,
                 "readyMs": 201.7,
                 "restyleMs": 23.1,
@@ -2267,7 +2286,7 @@
                 "editMs": 61.3,
                 "heapMB": 65
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 419.7,
                 "readyMs": 426.4,
                 "restyleMs": 87,
@@ -2296,7 +2315,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 500.3,
                 "readyMs": 513.1,
                 "restyleMs": 121.5,
@@ -2325,7 +2344,7 @@
                 "editMs": 910,
                 "heapMB": 283
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2353,
                 "readyMs": 2403.7,
                 "restyleMs": 1356.4,
@@ -2354,7 +2373,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 181.5,
                 "readyMs": 196.5,
                 "restyleMs": 26.5,
@@ -2383,7 +2402,7 @@
                 "editMs": 72.6,
                 "heapMB": 65
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 367.6,
                 "readyMs": 376.5,
                 "restyleMs": 92.5,
@@ -2412,15 +2431,15 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
-                "firstFrameMs": 542.8,
-                "readyMs": 554.2,
-                "restyleMs": 22,
-                "stillMs": 9.2,
-                "orbitMs": 9.1,
-                "dragMs": 9.4,
-                "hoverMs": 4.2,
-                "editMs": 520.6,
+            "best": {
+                "firstFrameMs": 504.3,
+                "readyMs": 516.4,
+                "restyleMs": 19,
+                "stillMs": 9,
+                "orbitMs": 8.6,
+                "dragMs": 8.8,
+                "hoverMs": 3.7,
+                "editMs": 225.2,
                 "heapMB": 68,
                 "objectNodes": 0,
                 "objectEdges": 0
@@ -2441,15 +2460,15 @@
                 "editMs": 30669.4,
                 "heapMB": 283
             },
-            "worst": {
-                "firstFrameMs": 2355.8,
-                "readyMs": 2419.4,
-                "restyleMs": 47.1,
-                "stillMs": 13.2,
-                "orbitMs": 18.9,
-                "dragMs": 19.7,
-                "hoverMs": 8.2,
-                "editMs": 30799.7,
+            "best": {
+                "firstFrameMs": 2314.7,
+                "readyMs": 2366.9,
+                "restyleMs": 46.7,
+                "stillMs": 12.6,
+                "orbitMs": 17.4,
+                "dragMs": 19.1,
+                "hoverMs": 7.2,
+                "editMs": 30537.7,
                 "heapMB": 283
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
@@ -2470,7 +2489,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 178.7,
                 "readyMs": 195.1,
                 "restyleMs": 9.6,
@@ -2499,7 +2518,7 @@
                 "editMs": 896.4,
                 "heapMB": 65
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 422.2,
                 "readyMs": 430.5,
                 "restyleMs": 11.3,
@@ -2528,15 +2547,15 @@
                 "objectNodes": 10000,
                 "objectEdges": 0
             },
-            "worst": {
-                "firstFrameMs": 606.5,
-                "readyMs": 619.1,
-                "restyleMs": 7772.4,
-                "stillMs": 26.9,
-                "orbitMs": 51.2,
-                "dragMs": 56.4,
-                "hoverMs": 26.6,
-                "editMs": 468.6,
+            "best": {
+                "firstFrameMs": 511.2,
+                "readyMs": 524.8,
+                "restyleMs": 5810.4,
+                "stillMs": 25.7,
+                "orbitMs": 46.6,
+                "dragMs": 44.2,
+                "hoverMs": 24.6,
+                "editMs": 369.9,
                 "heapMB": 229,
                 "objectNodes": 10000,
                 "objectEdges": 0
@@ -2557,16 +2576,16 @@
                 "editMs": 1210.1,
                 "heapMB": 384
             },
-            "worst": {
-                "firstFrameMs": 2407.5,
-                "readyMs": 2458,
-                "restyleMs": 1007.4,
-                "stillMs": 28.4,
-                "orbitMs": 48.8,
-                "dragMs": 52.4,
-                "hoverMs": 8.3,
-                "editMs": 1259.1,
-                "heapMB": 416
+            "best": {
+                "firstFrameMs": 2025.7,
+                "readyMs": 2099.4,
+                "restyleMs": 818.4,
+                "stillMs": 25.5,
+                "orbitMs": 45.2,
+                "dragMs": 46,
+                "hoverMs": 7,
+                "editMs": 1104.1,
+                "heapMB": 372
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
             "cpus": "8-15"
@@ -2586,7 +2605,7 @@
                 "objectNodes": 1000,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 161.9,
                 "readyMs": 176.7,
                 "restyleMs": 215.4,
@@ -2615,7 +2634,7 @@
                 "editMs": 109.1,
                 "heapMB": 80
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 533.5,
                 "readyMs": 543.8,
                 "restyleMs": 226.5,
@@ -2637,7 +2656,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 1704.5,
                 "readyMs": 1715.1,
                 "objectNodes": 0,
@@ -2660,7 +2679,7 @@
                 "editMs": 5894.9,
                 "heapMB": 1875
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 11825.6,
                 "readyMs": 11826.1,
                 "restyleMs": 4294.9,
@@ -2689,7 +2708,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 3795,
                 "readyMs": 3965.2,
                 "restyleMs": 629.4,
@@ -2718,7 +2737,7 @@
                 "editMs": 12116.4,
                 "heapMB": 2410
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 36013.2,
                 "readyMs": 36882.9,
                 "restyleMs": 3354.2,
@@ -2747,15 +2766,15 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
-                "firstFrameMs": 662.6,
-                "readyMs": 1120.8,
-                "restyleMs": 69,
-                "stillMs": 9.2,
-                "orbitMs": 9.1,
-                "dragMs": 9.1,
-                "hoverMs": 2.2,
-                "editMs": 288.6,
+            "best": {
+                "firstFrameMs": 519.8,
+                "readyMs": 533.4,
+                "restyleMs": 65.9,
+                "stillMs": 9.1,
+                "orbitMs": 9,
+                "dragMs": 9,
+                "hoverMs": 1.8,
+                "editMs": 246.4,
                 "heapMB": 68,
                 "objectNodes": 0,
                 "objectEdges": 0
@@ -2776,15 +2795,15 @@
                 "editMs": 848.6,
                 "heapMB": 283
             },
-            "worst": {
-                "firstFrameMs": 2244.2,
-                "readyMs": 2301.7,
-                "restyleMs": 298.8,
-                "stillMs": 13.2,
-                "orbitMs": 17.8,
-                "dragMs": 19.3,
-                "hoverMs": 5.4,
-                "editMs": 906.7,
+            "best": {
+                "firstFrameMs": 2131.5,
+                "readyMs": 2178.3,
+                "restyleMs": 187,
+                "stillMs": 12.5,
+                "orbitMs": 16.7,
+                "dragMs": 17.9,
+                "hoverMs": 4.7,
+                "editMs": 843.3,
                 "heapMB": 283
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
@@ -2805,7 +2824,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 159.7,
                 "readyMs": 193,
                 "restyleMs": 10.5,
@@ -2834,7 +2853,7 @@
                 "editMs": 58.4,
                 "heapMB": 65
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 345.3,
                 "readyMs": 353.4,
                 "restyleMs": 20.2,
@@ -2850,18 +2869,39 @@
         },
         "style-node-color-1m|batched": {
             "runs": 1,
-            "metrics": {},
-            "worst": {},
-            "failures": [
-                "load failed: Loading 1,000,000 more nodes would take the graph to 1,000,000, past the 100,000 this renderer can draw. Load a subset of the graph. | Loading 864,"
-            ],
+            "metrics": {
+                "firstFrameMs": 9248,
+                "readyMs": 9441.1,
+                "restyleMs": 2793,
+                "stillMs": 86.6,
+                "orbitMs": 85.9,
+                "dragMs": 86.9,
+                "hoverMs": 10.2,
+                "editMs": 5477.1,
+                "heapMB": 690,
+                "objectNodes": 0,
+                "objectEdges": 0
+            },
+            "best": {
+                "firstFrameMs": 9248,
+                "readyMs": 9441.1,
+                "restyleMs": 2793,
+                "stillMs": 86.6,
+                "orbitMs": 85.9,
+                "dragMs": 86.9,
+                "hoverMs": 10.2,
+                "editMs": 5477.1,
+                "heapMB": 690,
+                "objectNodes": 0,
+                "objectEdges": 0
+            },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
             "cpus": "8-15"
         },
         "style-node-color-1m|objects": {
             "runs": 1,
             "metrics": {},
-            "worst": {},
+            "best": {},
             "failures": [
                 "load failed: Loading 1,000,000 more nodes would take the graph to 1,000,000, past the 100,000 this renderer can draw. Load a subset of the graph. | Loading 864,"
             ],
@@ -2883,7 +2923,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 1727.2,
                 "readyMs": 1836.4,
                 "restyleMs": 407.4,
@@ -2912,7 +2952,7 @@
                 "editMs": 4584.5,
                 "heapMB": 1224
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 12618.1,
                 "readyMs": 12618.7,
                 "restyleMs": 1506.3,
@@ -2941,7 +2981,7 @@
                 "objectNodes": 10000,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 616.3,
                 "readyMs": 634.7,
                 "restyleMs": 12327.6,
@@ -2970,7 +3010,7 @@
                 "editMs": 1113.4,
                 "heapMB": 380
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2157.6,
                 "readyMs": 2211.8,
                 "restyleMs": 2116.7,
@@ -2999,7 +3039,7 @@
                 "objectNodes": 1000,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 208.2,
                 "readyMs": 243.4,
                 "restyleMs": 315.6,
@@ -3028,7 +3068,7 @@
                 "editMs": 80.1,
                 "heapMB": 80
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2987.7,
                 "readyMs": 2997.9,
                 "restyleMs": 228.6,
@@ -3057,16 +3097,16 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
-                "firstFrameMs": 653.5,
-                "readyMs": 668.7,
-                "restyleMs": 37297.4,
-                "stillMs": 154.8,
-                "orbitMs": 212.8,
-                "dragMs": 192.8,
-                "hoverMs": 77.1,
-                "editMs": 9627.2,
-                "heapMB": 452,
+            "best": {
+                "firstFrameMs": 517.8,
+                "readyMs": 531,
+                "restyleMs": 27277.8,
+                "stillMs": 140.2,
+                "orbitMs": 209.1,
+                "dragMs": 165.2,
+                "hoverMs": 65.6,
+                "editMs": 7951.6,
+                "heapMB": 451,
                 "objectNodes": 0,
                 "objectEdges": 0
             },
@@ -3086,16 +3126,16 @@
                 "editMs": 9004,
                 "heapMB": 570
             },
-            "worst": {
-                "firstFrameMs": 2801.5,
-                "readyMs": 2866.4,
-                "restyleMs": 6571.5,
-                "stillMs": 120.6,
-                "orbitMs": 207.9,
-                "dragMs": 183.8,
-                "hoverMs": 11.1,
-                "editMs": 9853.6,
-                "heapMB": 570
+            "best": {
+                "firstFrameMs": 2117,
+                "readyMs": 2165.5,
+                "restyleMs": 5822.4,
+                "stillMs": 109.7,
+                "orbitMs": 179.4,
+                "dragMs": 157.7,
+                "hoverMs": 8.8,
+                "editMs": 7726.1,
+                "heapMB": 569
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
             "cpus": "8-15"
@@ -3115,7 +3155,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 189.5,
                 "readyMs": 224.7,
                 "restyleMs": 1068.3,
@@ -3144,7 +3184,7 @@
                 "editMs": 180.3,
                 "heapMB": 97
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 338.7,
                 "readyMs": 344.5,
                 "restyleMs": 584.6,
@@ -3166,7 +3206,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 1750.6,
                 "readyMs": 1761.6,
                 "objectNodes": 0,
@@ -3182,7 +3222,7 @@
                 "firstFrameMs": 12931.3,
                 "readyMs": 13269.6
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 12931.3,
                 "readyMs": 13269.6
             },
@@ -3205,7 +3245,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 540.3,
                 "readyMs": 553.7,
                 "restyleMs": 102.8,
@@ -3234,7 +3274,7 @@
                 "editMs": 1054.4,
                 "heapMB": 285
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2387.5,
                 "readyMs": 2433.9,
                 "restyleMs": 396.3,
@@ -3263,7 +3303,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 151,
                 "readyMs": 182.1,
                 "restyleMs": 19.1,
@@ -3292,7 +3332,7 @@
                 "editMs": 60,
                 "heapMB": 65
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 305.6,
                 "readyMs": 310.6,
                 "restyleMs": 33.6,
@@ -3321,7 +3361,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 536.8,
                 "readyMs": 550.4,
                 "restyleMs": 92.6,
@@ -3350,7 +3390,7 @@
                 "editMs": 866.9,
                 "heapMB": 342
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2268.8,
                 "readyMs": 2319.3,
                 "restyleMs": 621.5,
@@ -3379,7 +3419,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 178.8,
                 "readyMs": 217.2,
                 "restyleMs": 26.3,
@@ -3408,7 +3448,7 @@
                 "editMs": 74.5,
                 "heapMB": 72
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 354.8,
                 "readyMs": 361.8,
                 "restyleMs": 74.2,
@@ -3437,7 +3477,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 529.9,
                 "readyMs": 541.5,
                 "restyleMs": 95.1,
@@ -3466,7 +3506,7 @@
                 "editMs": 862.4,
                 "heapMB": 342
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2275.7,
                 "readyMs": 2343.4,
                 "restyleMs": 563.8,
@@ -3495,7 +3535,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 161,
                 "readyMs": 193.7,
                 "restyleMs": 20.7,
@@ -3524,7 +3564,7 @@
                 "editMs": 75.4,
                 "heapMB": 72
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 344,
                 "readyMs": 352.1,
                 "restyleMs": 53.6,
@@ -3553,7 +3593,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 521,
                 "readyMs": 534,
                 "restyleMs": 43.4,
@@ -3582,7 +3622,7 @@
                 "editMs": 964.1,
                 "heapMB": 282
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 2182.3,
                 "readyMs": 2244.2,
                 "restyleMs": 47.2,
@@ -3611,7 +3651,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 243.5,
                 "readyMs": 281.3,
                 "restyleMs": 19.3,
@@ -3640,7 +3680,7 @@
                 "editMs": 61.6,
                 "heapMB": 65
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 378.4,
                 "readyMs": 384.6,
                 "restyleMs": 10.7,
@@ -3669,15 +3709,15 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
-                "firstFrameMs": 773.6,
-                "readyMs": 841.6,
-                "restyleMs": 56.5,
-                "stillMs": 9.6,
-                "orbitMs": 9.1,
+            "best": {
+                "firstFrameMs": 507.6,
+                "readyMs": 521,
+                "restyleMs": 50.6,
+                "stillMs": 9.1,
+                "orbitMs": 8.9,
                 "dragMs": 9.1,
-                "hoverMs": 1.9,
-                "editMs": 433.1,
+                "hoverMs": 1.7,
+                "editMs": 246.2,
                 "heapMB": 70,
                 "objectNodes": 0,
                 "objectEdges": 0
@@ -3698,15 +3738,15 @@
                 "editMs": 880.5,
                 "heapMB": 285
             },
-            "worst": {
-                "firstFrameMs": 2397.6,
-                "readyMs": 2466.9,
-                "restyleMs": 155.3,
-                "stillMs": 15.2,
-                "orbitMs": 19.9,
-                "dragMs": 21.3,
-                "hoverMs": 5.3,
-                "editMs": 952.4,
+            "best": {
+                "firstFrameMs": 1976,
+                "readyMs": 2022,
+                "restyleMs": 108.5,
+                "stillMs": 12.7,
+                "orbitMs": 16.8,
+                "dragMs": 18.1,
+                "hoverMs": 4.5,
+                "editMs": 796.1,
                 "heapMB": 285
             },
             "sha": "ff5ea1f870d5b11daa57bb12b4007f27fec46afc",
@@ -3727,7 +3767,7 @@
                 "objectNodes": 0,
                 "objectEdges": 0
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 166.1,
                 "readyMs": 180.8,
                 "restyleMs": 36.6,
@@ -3756,7 +3796,7 @@
                 "editMs": 63.3,
                 "heapMB": 65
             },
-            "worst": {
+            "best": {
                 "firstFrameMs": 406.9,
                 "readyMs": 419.9,
                 "restyleMs": 30.5,

@@ -7,13 +7,19 @@
  * through it the whole graph: about 2.4 GB at 1,000,000 edges, and a second graph that size in the
  * same page ran out of memory (`timeline-frame-bench.ts`).
  *
+ * The same holds while the GPU is still drawing the removed graph's last frames. The element gives
+ * its WebGL context back only once a fence says the GPU is done, and the wait for it holds the
+ * context, which holds its canvas: left in the page, that canvas held the element and its whole
+ * graph until the GPU drained -- minutes on a software GPU after a 1,000,000-edge draw, which kept
+ * about 2 GB alive and crashed the next graph's page in multi-source-scale.bench.test.ts (#9217).
+ *
  * The test drops every reference it has to the element, lets the page draw a frame (until its next
  * rendering update Blink itself holds a just-removed canvas, and through its shadow root the
  * element), collects garbage through the DevTools protocol, and counts the objects still alive.
  */
 import "../../src/graphty-element";
 
-import { assert, it, vi } from "vitest";
+import { afterEach, assert, it, vi } from "vitest";
 import { cdp } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
@@ -33,9 +39,10 @@ interface Owned {
 
 /**
  * Mount an element with a small graph, let it draw, then remove it; only weak references leave.
+ * @param beforeRemove - Runs once the graph is drawn, just before the element is removed.
  * @returns Weak references to the element and what it owned.
  */
-async function mountDrawAndRemove(): Promise<Owned> {
+async function mountDrawAndRemove(beforeRemove?: () => void): Promise<Owned> {
     const element = document.createElement("graphty-element");
     element.style.width = "320px";
     element.style.height = "240px";
@@ -60,6 +67,7 @@ async function mountDrawAndRemove(): Promise<Owned> {
         scene: new WeakRef(graph.scene),
         dataManager: new WeakRef(graph.getDataManager()),
     };
+    beforeRemove?.();
     element.remove();
     await vi.waitFor(() => {
         assert.isTrue(graph.scene.isDisposed, "the removed element shut its graph down");
@@ -90,4 +98,25 @@ it("a removed element leaves nothing it owned alive", async () => {
         .filter(([, ref]) => (ref as WeakRef<object>).deref() !== undefined)
         .map(([name]) => name);
     assert.deepEqual(held, [], "still alive after the element was removed and garbage collected");
+});
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
+
+it("a removed element leaves nothing it owned alive while the GPU is still busy", async () => {
+    // From removal on, a GPU that has not reached the fence the element waits on before giving its
+    // context back.
+    const owned = await mountDrawAndRemove(() => {
+        vi.spyOn(WebGL2RenderingContext.prototype, "getSyncParameter").mockReturnValue(
+            WebGL2RenderingContext.UNSIGNALED,
+        );
+    });
+    await twoFrames();
+    await (cdp() as unknown as Session).send("HeapProfiler.collectGarbage");
+
+    const held = Object.entries(owned)
+        .filter(([, ref]) => (ref as WeakRef<object>).deref() !== undefined)
+        .map(([name]) => name);
+    assert.deepEqual(held, [], "still alive while the GPU had not finished the removed graph's frames");
 });

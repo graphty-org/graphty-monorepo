@@ -15,6 +15,7 @@ import { focusPathValuesNext } from "../inspector/reads";
 import { ariaKey, formatKey } from "../keys/keys";
 import { LayoutPopover } from "../layout/LayoutPopover";
 import { errorWords } from "../project/words";
+import { RenderCount } from "../renderCount";
 import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { immersiveMode, savedViewRows } from "./commands";
@@ -407,7 +408,8 @@ function viewMode(session: GraphSession | null): keyof typeof MODE_WORDS {
  */
 export function WorkspaceToolbar(): React.JSX.Element {
     const { session, store, element } = useWorkspace();
-    useSessionEvents(session, TOOLBAR_EVENTS);
+    // The toolbar reads no style layer: a change to them alone does not draw it again.
+    useSessionEvents(session, TOOLBAR_EVENTS, true);
     useCameraFacts(element);
     const dialog = useWorkspaceState((state) => state.dialog);
     // Pressed while a key is drawn, or while the reader asked for one over nothing (the card then
@@ -461,140 +463,152 @@ export function WorkspaceToolbar(): React.JSX.Element {
         }) as const;
 
     return (
-        <Toolbar aria-label="Canvas tools" startAt="first">
-            <Popover
-                {...popoverProps("analyze")}
-                // Path between... (P, a node's menu) opens the same popover on its Path form.
-                opened={dialog === "analyze" || dialog === "path"}
-                onChange={(opened) => {
-                    if (!opened) {
-                        store.set((state) =>
-                            state.dialog === "analyze" || state.dialog === "path" ? { dialog: null } : {},
-                        );
-                    }
-                }}
-                onClose={() => {
-                    if (focusGoesWithClose()) {
-                        (openers.path ?? openers.analyze ?? anchors.current.analyze)?.focus();
-                    }
-                    delete openers.path;
-                    delete openers.analyze;
-                    store.set({ analyzeOn: null, analyzeValues: null });
-                }}
-                closeOnEscape={false}
-                width={380}
-            >
-                <Popover.Target>
-                    <CommandTool ref={anchor("analyze")} command="analyze.open" icon={<GLYPHS.analyze size={20} />} />
-                </Popover.Target>
-                <Popover.Dropdown aria-label="Analyze">
-                    {(dialog !== "analyze" && dialog !== "path") || session === null ? null : (
-                        <AnalyzePopover
-                            session={session}
-                            path={dialog === "path"}
-                            initialPick={dialog === "analyze" ? (store.get().analyzeOn ?? undefined) : undefined}
-                            initialValues={dialog === "analyze" ? (store.get().analyzeValues ?? undefined) : undefined}
-                            onClose={close}
-                            onTab={(back) => {
-                                const opener = openers.path ?? openers.analyze ?? anchors.current.analyze;
-                                // Back goes to the button it opened from; on goes to the next Tab
-                                // stop after it on the page, past the toolbar's other tools. Found
-                                // by page order, not by the opener's own place in the Tab order: a
-                                // toolbar tool the roving focus has left (Analyze while Table was
-                                // last used) or a key press from elsewhere is no Tab stop itself.
-                                const group = opener?.closest('[role="toolbar"]') ?? opener;
-                                const target = back
-                                    ? opener
-                                    : tabStops(document).find(
-                                          (stop) =>
-                                              stop.closest(".mantine-Popover-dropdown") === null &&
-                                              group !== null &&
-                                              group !== undefined &&
-                                              !group.contains(stop) &&
-                                              (group.compareDocumentPosition(stop) &
-                                                  Node.DOCUMENT_POSITION_FOLLOWING) !==
-                                                  0,
-                                      );
-                                target?.focus();
-                                close();
-                            }}
-                            onStarted={(name) => {
-                                store.set({ announcement: `${name} added, running` });
-                            }}
-                            onPathStarted={(run) => {
-                                // The new row is selected, so the inspector shows its path, and
-                                // focus goes to the route's first node once it is drawn.
-                                focusPathValuesNext(run.id);
-                                store.set({ inspected: { kind: "measure-row", id: run.id } });
-                            }}
-                        />
-                    )}
-                </Popover.Dropdown>
-            </Popover>
-            <Toolbar.Divider />
-            <Popover
-                {...popoverProps("layout")}
-                closeOnEscape={false}
-                width={380}
-                // Capped to the room above the toolbar in the visual viewport, so a touch
-                // keyboard never hides the field being typed into; the body scrolls.
-                middlewares={{ flip: false, shift: true, size: { padding: 8 } }}
-            >
-                <Popover.Target>
-                    <CommandTool ref={anchor("layout")} command="layout.open" icon={<GLYPHS.layout size={20} />} />
-                </Popover.Target>
-                <Popover.Dropdown aria-label="Layout" style={{ overflowY: "auto" }}>
-                    {dialog !== "layout" || session === null ? null : (
-                        <LayoutPopover session={session} onClose={close} />
-                    )}
-                </Popover.Dropdown>
-            </Popover>
-            {touring ? (
-                <StopTourTool
-                    onStop={() => {
-                        focusCamera.current = true;
+        <RenderCount id="toolbar">
+            <Toolbar aria-label="Canvas tools" startAt="first">
+                <Popover
+                    {...popoverProps("analyze")}
+                    // Path between... (P, a node's menu) opens the same popover on its Path form.
+                    opened={dialog === "analyze" || dialog === "path"}
+                    onChange={(opened) => {
+                        if (!opened) {
+                            store.set((state) =>
+                                state.dialog === "analyze" || state.dialog === "path" ? { dialog: null } : {},
+                            );
+                        }
                     }}
-                />
-            ) : (
-                <Menu {...popoverProps("camera")}>
+                    onClose={() => {
+                        if (focusGoesWithClose()) {
+                            (openers.path ?? openers.analyze ?? anchors.current.analyze)?.focus();
+                        }
+                        delete openers.path;
+                        delete openers.analyze;
+                        store.set({ analyzeOn: null, analyzeValues: null });
+                    }}
+                    closeOnEscape={false}
+                    width={380}
+                >
+                    <Popover.Target>
+                        <CommandTool
+                            ref={anchor("analyze")}
+                            command="analyze.open"
+                            icon={<GLYPHS.analyze size={20} />}
+                        />
+                    </Popover.Target>
+                    <Popover.Dropdown aria-label="Analyze">
+                        {(dialog !== "analyze" && dialog !== "path") || session === null ? null : (
+                            <AnalyzePopover
+                                session={session}
+                                path={dialog === "path"}
+                                initialPick={dialog === "analyze" ? (store.get().analyzeOn ?? undefined) : undefined}
+                                initialValues={
+                                    dialog === "analyze" ? (store.get().analyzeValues ?? undefined) : undefined
+                                }
+                                onClose={close}
+                                onTab={(back) => {
+                                    const opener = openers.path ?? openers.analyze ?? anchors.current.analyze;
+                                    // Back goes to the button it opened from; on goes to the next Tab
+                                    // stop after it on the page, past the toolbar's other tools. Found
+                                    // by page order, not by the opener's own place in the Tab order: a
+                                    // toolbar tool the roving focus has left (Analyze while Table was
+                                    // last used) or a key press from elsewhere is no Tab stop itself.
+                                    const group = opener?.closest('[role="toolbar"]') ?? opener;
+                                    const target = back
+                                        ? opener
+                                        : tabStops(document).find(
+                                              (stop) =>
+                                                  stop.closest(".mantine-Popover-dropdown") === null &&
+                                                  group !== null &&
+                                                  group !== undefined &&
+                                                  !group.contains(stop) &&
+                                                  (group.compareDocumentPosition(stop) &
+                                                      Node.DOCUMENT_POSITION_FOLLOWING) !==
+                                                      0,
+                                          );
+                                    target?.focus();
+                                    close();
+                                }}
+                                onStarted={(name) => {
+                                    store.set({ announcement: `${name} added, running` });
+                                }}
+                                onPathStarted={(run) => {
+                                    // The new row is selected, so the inspector shows its path, and
+                                    // focus goes to the route's first node once it is drawn.
+                                    focusPathValuesNext(run.id);
+                                    store.set({ inspected: { kind: "measure-row", id: run.id } });
+                                }}
+                            />
+                        )}
+                    </Popover.Dropdown>
+                </Popover>
+                <Toolbar.Divider />
+                <Popover
+                    {...popoverProps("layout")}
+                    closeOnEscape={false}
+                    width={380}
+                    // Capped to the room above the toolbar in the visual viewport, so a touch
+                    // keyboard never hides the field being typed into; the body scrolls.
+                    middlewares={{ flip: false, shift: true, size: { padding: 8 } }}
+                >
+                    <Popover.Target>
+                        <CommandTool ref={anchor("layout")} command="layout.open" icon={<GLYPHS.layout size={20} />} />
+                    </Popover.Target>
+                    <Popover.Dropdown aria-label="Layout" style={{ overflowY: "auto" }}>
+                        {dialog !== "layout" || session === null ? null : (
+                            <LayoutPopover session={session} onClose={close} />
+                        )}
+                    </Popover.Dropdown>
+                </Popover>
+                {touring ? (
+                    <StopTourTool
+                        onStop={() => {
+                            focusCamera.current = true;
+                        }}
+                    />
+                ) : (
+                    <Menu {...popoverProps("camera")}>
+                        <Menu.Target>
+                            <CommandTool
+                                ref={anchor("camera")}
+                                command="view.camera"
+                                icon={<GLYPHS.camera size={20} />}
+                            />
+                        </Menu.Target>
+                        <Menu.Dropdown aria-label="Camera">
+                            <CameraViewsMenuRows session={session} />
+                        </Menu.Dropdown>
+                    </Menu>
+                )}
+                <Menu {...popoverProps("view")}>
                     <Menu.Target>
-                        <CommandTool ref={anchor("camera")} command="view.camera" icon={<GLYPHS.camera size={20} />} />
+                        <CommandTool
+                            ref={anchor("view")}
+                            command="view.open"
+                            icon={<ModeGlyph mode={mode} />}
+                            shows={MODE_WORDS[mode]}
+                        />
                     </Menu.Target>
-                    <Menu.Dropdown aria-label="Camera">
-                        <CameraViewsMenuRows session={session} />
+                    <Menu.Dropdown aria-label="Mode">
+                        <ModeMenuRows session={session} />
                     </Menu.Dropdown>
                 </Menu>
-            )}
-            <Menu {...popoverProps("view")}>
-                <Menu.Target>
-                    <CommandTool
-                        ref={anchor("view")}
-                        command="view.open"
-                        icon={<ModeGlyph mode={mode} />}
-                        shows={MODE_WORDS[mode]}
-                    />
-                </Menu.Target>
-                <Menu.Dropdown aria-label="Mode">
-                    <ModeMenuRows session={session} />
-                </Menu.Dropdown>
-            </Menu>
-            <Toolbar.Divider />
-            <CommandTool command="view.legend" icon={<GLYPHS.legend size={20} />} selected={legendShown} />
-            <CommandTool command="table.toggle" icon={<GLYPHS.table size={20} />} selected={dockOpen} />
-            <CommandTool command="timeline.toggle" icon={<GLYPHS.timeline size={20} />} selected={timelineOpen} />
-            <Toolbar.Divider />
-            <Popover {...popoverProps("quick-actions")}>
-                <Popover.Target>
-                    <CommandTool
-                        ref={anchor("quick-actions")}
-                        command="quick-actions.open"
-                        icon={<GLYPHS.quickActions size={20} />}
-                    />
-                </Popover.Target>
-                <Popover.Dropdown p={0}>
-                    {dialog === "quick-actions" ? <QuickActionsPalette onClose={close} /> : null}
-                </Popover.Dropdown>
-            </Popover>
-        </Toolbar>
+                <Toolbar.Divider />
+                <CommandTool command="view.legend" icon={<GLYPHS.legend size={20} />} selected={legendShown} />
+                <CommandTool command="table.toggle" icon={<GLYPHS.table size={20} />} selected={dockOpen} />
+                <CommandTool command="timeline.toggle" icon={<GLYPHS.timeline size={20} />} selected={timelineOpen} />
+                <Toolbar.Divider />
+                <Popover {...popoverProps("quick-actions")}>
+                    <Popover.Target>
+                        <CommandTool
+                            ref={anchor("quick-actions")}
+                            command="quick-actions.open"
+                            icon={<GLYPHS.quickActions size={20} />}
+                        />
+                    </Popover.Target>
+                    <Popover.Dropdown p={0}>
+                        {dialog === "quick-actions" ? <QuickActionsPalette onClose={close} /> : null}
+                    </Popover.Dropdown>
+                </Popover>
+            </Toolbar>
+        </RenderCount>
     );
 }

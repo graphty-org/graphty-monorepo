@@ -747,6 +747,14 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
             // Another project opening starts with nothing pinned, unless the write puts its kept pins back.
             const otherProject =
                 fields.project !== undefined && fields.project?.id !== state.project?.id && !("reportPins" in fields);
+            // A write that changes nothing tells no one: every panel reading the whole state
+            // would draw again for it (#9423).
+            if (
+                !("announcement" in fields) &&
+                Object.entries(fields).every(([key, value]) => Object.is(state[key as keyof WorkspaceState], value))
+            ) {
+                return;
+            }
             state = {
                 ...state,
                 ...(otherProject ? { reportPins: [] } : {}),

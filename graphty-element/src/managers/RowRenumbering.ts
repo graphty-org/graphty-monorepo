@@ -101,6 +101,23 @@ function through(step: Step, row: number): number {
     return row + step.shifts[run];
 }
 
+/**
+ * Whether a renumbering only drops rows: each kept row moves to the next free row, in order.
+ * @param remap - Old row to new row, or INVALID_INDEX.
+ * @returns True for a removal.
+ */
+function dropsOnly(remap: U32): boolean {
+    let next = 0;
+    for (let row = 0; row < remap.length; row++) {
+        const moved = remap[row];
+        if (moved !== INVALID_INDEX && moved !== next++) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /** The renumberings of one kind of row (the edges of one graph) since each object read its row. */
 export class RowRenumbering {
     /** The epoch now: an object whose stamp is this holds its current row. */
@@ -169,21 +186,36 @@ export class RowRenumbering {
 
     /**
      * Renumber an array indexed by row, as an order-keeping freeze ({@link RowRenumbering.record} took it)
-     * renumbered its rows, in one pass over the rows it holds (`forEach` skips the holes of a sparse one).
-     * Splicing out each dropped row moved every row after it once per drop: a node removal's twenty edges
-     * moved a million rows twenty times.
+     * renumbered its rows. A removal, which only drops rows, is done in place: the dropped rows are spliced out,
+     * which moves the rest natively, with no new array of the graph's length. Any other renumbering (an undo putting
+     * rows back between others) gives a new array.
      * @param rows - The array, by old row.
      * @param remap - Old row to new row, or INVALID_INDEX, keeping order.
-     * @returns A new array by new row.
+     * @returns The array by new row: `rows` itself after a removal.
      */
     static remapRows<T>(rows: (T | undefined)[], remap: U32): (T | undefined)[] {
+        if (dropsOnly(remap)) {
+            if (rows.length > remap.length) {
+                rows.length = remap.length;
+            }
+
+            for (let row = rows.length - 1; row >= 0; row--) {
+                if (remap[row] === INVALID_INDEX) {
+                    rows.splice(row, 1);
+                }
+            }
+
+            return rows;
+        }
+
         const moved: (T | undefined)[] = [];
-        rows.forEach((each, row) => {
+        for (let row = 0; row < rows.length; row++) {
+            const each = rows[row];
             const to = remap[row] ?? INVALID_INDEX;
             if (each !== undefined && to !== INVALID_INDEX) {
                 moved[to] = each;
             }
-        });
+        }
 
         return moved;
     }

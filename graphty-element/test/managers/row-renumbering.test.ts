@@ -1,5 +1,5 @@
 /**
- * Renumbering a row-indexed list after a freeze: a removal closes the list up, and an undo that puts
+ * Renumbering a row-indexed list after a freeze: a removal closes the list up in place, and an undo that puts
  * rows back between the others moves each kept row up to its new place (issue #9164).
  */
 import { INVALID_INDEX } from "@graphty/graph-format";
@@ -10,10 +10,11 @@ import { RowRenumbering } from "../../src/managers/RowRenumbering";
 const X = INVALID_INDEX;
 
 describe("RowRenumbering.remapRows", () => {
-    it("closes a removal up", () => {
+    it("closes a removal up in place", () => {
         const rows = ["a", "b", undefined, "d", "e"];
         const moved = RowRenumbering.remapRows(rows, Uint32Array.from([0, X, 1, 2, X]));
-        assert.deepEqual([...moved], ["a", undefined, "d"]);
+        assert.strictEqual(moved, rows, "the same array");
+        assert.deepEqual(moved, ["a", undefined, "d"]);
     });
 
     it("moves rows up past rows put back between them", () => {

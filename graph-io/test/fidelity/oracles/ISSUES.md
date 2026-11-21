@@ -2568,9 +2568,11 @@ graphty-element now draws, each as a style option with a channel, and graph-io m
 - vis-network image arrows (cap `image`, field `arrowHead.image` and channel `edge.arrowHeadImage`, and the tail's
   and middle caps'; graph-io's `targetArrowImage`, `-ImageWidth`, `-ImageHeight` and the source and middle forms).
 - Cytoscape.js `underlay-*` and `overlay-*` for nodes (`underlay` / `overlay`: color, opacity, padding, shape,
-  corner radius; channels `node.underlayColor` and so on) and edges (`line.underlay` / `line.overlay`: color,
-  opacity, padding; channels `edge.underlayColor` and so on), with Cytoscape.js's defaults (black, 10 px, a round
-  rectangle) under a file's own. `cytoscapejs-specimen-edges-lines-p2` `edge-underlay-opacity-0-5` passes.
+  corner radius; channels `node.underlayColor` and so on) and `overlay-*` for edges (`line.overlay`: color,
+  opacity, padding; channels `edge.overlayColor` and so on), with Cytoscape.js's defaults (black, 10 px, a round
+  rectangle) under a file's own. An edge's `underlay-*` is read as the line's outline (`line.outline`; channels
+  `edge.outlineColor` and so on: scale 0 and twice the padding wide). `cytoscapejs-specimen-edges-lines-p2`
+  `edge-underlay-opacity-0-5` passes.
 
 Re-judged at this commit, the gaps the round-1 list gave graphty-element here: Cytoscape.js middle arrows, line
 gradients, line outlines and node outline rings (solid) pass their rows of `cytoscapejs-specimen-arrows`,

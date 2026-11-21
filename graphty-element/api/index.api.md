@@ -5407,13 +5407,9 @@ export const GREENS_COLORS: readonly ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b"
 
 // @public
 export interface GroupOutlineAtResult {
-    // (undocumented)
     readonly group: string | number | boolean | null;
-    // (undocumented)
     readonly kind: "group-outline";
-    // (undocumented)
     readonly layer: LayerId;
-    // (undocumented)
     readonly shader: string;
 }
 

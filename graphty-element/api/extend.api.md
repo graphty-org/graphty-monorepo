@@ -507,7 +507,7 @@ export interface CameraViewRegistration {
 }
 
 // @public
-export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "all-paths.length-bounded" | "all-paths.capped" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "bfs.depth-bounded" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
+export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "layers.kept" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "all-paths.length-bounded" | "all-paths.capped" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "bfs.depth-bounded" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
 
 // @public
 export interface Caveats {
@@ -1971,6 +1971,27 @@ export type GraphtyErrorCode =
 */
 | "E_ROLE_TARGET_AMBIGUOUS"
 /**
+* A draft of the sources and steps is open (`session.data.draft()`), so a data write, an undo
+* or a redo would change what its commit replaces. `details.draft` names the draft. The caller
+* commits or discards it first. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_OPEN"
+/**
+* A draft's commit was refused because the committed sources and steps changed after the
+* draft opened: a data write already on its way when it opened landed first, and the commit
+* would have undone it. `details.draft` names the draft, which stays open. The caller discards
+* it and opens a new one. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_STALE"
+/**
+* A draft opened with `askOverlap` holds a key-overlap question nobody answered: a source it
+* added meets nodes another source's node rows built (`W_SPACE_OVERLAP`). `details.space` and
+* `details.source` name the space and the source. The caller answers it with
+* `draft.answerOverlap(source, "merge" | "separate")` and commits again. Experimental: the
+* source-steps experiment.
+*/
+| "E_OVERLAP_UNANSWERED"
+/**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
 * an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
@@ -2526,6 +2547,8 @@ class Node_2 implements ModelUser {
     // @internal
     resampleLabel(): void;
     get roundRadius(): number | null;
+    // @internal
+    get screenBorder(): boolean;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;

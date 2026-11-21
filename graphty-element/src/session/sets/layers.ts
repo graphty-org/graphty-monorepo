@@ -382,6 +382,11 @@ export class LayerScopes {
 
     /** Run one whole-graph repaint, or fold this request into the one after the running pass. */
     #repaintWhole(): void {
+        // A pass that ends after the session closed leaves nothing to repaint.
+        if (this.#closed) {
+            return;
+        }
+
         if (this.#whole !== "idle") {
             this.#whole = "again";
             return;

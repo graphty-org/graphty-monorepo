@@ -73,6 +73,11 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
      * is closer to every pair and slower; Gephi uses 1.2 too. Read only with `barnesHutOptimize`. Default 1.2.
      */
     readonly barnesHutTheta?: number | undefined;
+    /**
+     * The nodes that stay where they are: a node mask (the bool-column bit layout) or the name of a bool node column.
+     * null or absent: the snapshot's role-`fixed` bool column when it has one, else none. Read at load().
+     */
+    readonly fixed?: NodeMask | string | null | undefined;
 }
 
 /** Design 9.3 FruchtermanReingoldOptions. */

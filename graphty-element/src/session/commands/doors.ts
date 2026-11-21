@@ -3995,6 +3995,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }],
             ),
             remove: calls([["door view"]], [{ op: "view.remove", names: ["door view"] }]),
+            // The parts the view keeps, as one step; the camera move is exempt, and this session
+            // draws nothing, so it has none.
+            open: {
+                kind: "dispatches",
+                op: "visibility.conditions",
+                call: {
+                    kind: "call",
+                    args: ["door kept"],
+                    around: async (target) => {
+                        const views = target as { save(list: unknown[]): Promise<void> };
+                        await views.save([{ name: "door kept", camera: { zoom: 2 }, filters: [] }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [{ op: "visibility.conditions", conditions: [] }],
+            },
             rename: calls(
                 ["door view", "door renamed"],
                 [{ op: "view.rename", from: "door view", to: "door renamed" }],

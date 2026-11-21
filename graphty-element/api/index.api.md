@@ -8540,9 +8540,27 @@ export interface SavedProject {
 // @public
 export interface SavedView {
     readonly camera?: CameraState;
+    readonly filters?: readonly FilterCondition[];
     readonly follows?: string;
+    readonly hidden?: readonly NodeId_2[];
     readonly key?: string;
+    readonly layers?: StyleDocument;
+    readonly legend?: boolean;
+    readonly positions?: {
+        readonly order: readonly NodeId_2[];
+        readonly xyz: readonly number[];
+    };
 }
+
+// @public
+export interface SavedViewInput extends Omit<SavedView, "key"> {
+    readonly include?: readonly SavedViewPart[];
+    readonly key?: string | null;
+    readonly name: string;
+}
+
+// @public
+export type SavedViewPart = "filters" | "layers" | "hidden" | "positions" | "legend";
 
 // @public
 export interface ScreenshotLegendOptions {

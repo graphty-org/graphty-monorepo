@@ -250,6 +250,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "view.save": ["names"],
     "view.remove": ["names"],
     "view.rename": ["from", "to", "tours"],
+    "view.open": ["name", "parts"],
     "view.move": ["name", "index"],
     "view.key": ["name", "key", "from"],
     "view.starting": ["names"],

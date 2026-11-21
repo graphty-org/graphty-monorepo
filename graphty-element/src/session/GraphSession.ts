@@ -72,7 +72,7 @@ import { readProjectConfig } from "./commands/config";
 import { declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
-import { holdStartingCameras, writeStartingViews } from "./commands/view";
+import { holdStartingCameras, SAVED_VIEW_PARTS, unknownView, writeStartingViews } from "./commands/view";
 import {
     calibrateOnce,
     type CostEstimate,
@@ -131,7 +131,7 @@ import {
 } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice, ProjectState } from "./project/state";
 import { reportCaught } from "./project/strict";
-import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
+import { answeringFromProject, type CannedOutcomes, clearStyleRows, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { type RecipeDocument, recipeOf } from "./recipe";
 import { type RecipesApi, recipesOf } from "./recipes/RecipesApi";
@@ -255,6 +255,8 @@ import type {
     ProjectConfigPatch,
     ProjectSlice,
     SavedView,
+    SavedViewInput,
+    SavedViewPart,
     SessionAnnotations,
     SessionCapabilities,
     SessionCatalogApi,
@@ -437,6 +439,8 @@ const TX_PARTS = [
     "tours",
     "annotations",
     "positions",
+    // Without it `tx.hidden.add` escaped the transaction into a step of its own.
+    "hidden",
     "config",
 ] as const satisfies readonly (keyof GraphSession)[];
 
@@ -833,9 +837,13 @@ class Session implements ElementSession {
         registerSessionRuns(this, this.sessionRuns);
         registerSessionData(this, parts.data);
         this.history = historyOf(this.dispatcher, () => version);
-        this.views = viewsOf(this.dispatcher, (names) => {
-            publish(this.watchers, "views:seeded", { names });
-        });
+        this.views = viewsOf(
+            this.dispatcher,
+            (names) => {
+                publish(this.watchers, "views:seeded", { names });
+            },
+            { read: (part) => this.viewPart(part), open: (name, view) => this.openViewParts(name, view) },
+        );
         this.tours = toursOf(this.dispatcher);
         this.graphs = graphsOf(this);
         this.annotations = annotationsOf(this.dispatcher);
@@ -1085,6 +1093,87 @@ class Session implements ElementSession {
         }
 
         return dispatch(command) as unknown as CommandOutcome<C>;
+    }
+
+    /**
+     * A part of the session a saved view keeps, as the session holds it now.
+     * @param part - The part.
+     * @returns Its value, or undefined for a legend no element draws.
+     */
+    private viewPart(part: SavedViewPart): unknown {
+        const { visibility } = this.dispatcher.state;
+        switch (part) {
+            case "filters":
+                return visibility.conditions;
+            case "hidden":
+                return visibility.hidden ?? [];
+            case "layers": {
+                const { problems: _problems, ...document } = this.styles.toDocument();
+                return document;
+            }
+            case "positions": {
+                const { order, xyz } = this.positions.snapshot();
+                return { order: [...order], xyz: Array.from(xyz) };
+            }
+            default:
+                return this.dispatcher.services.legend?.shown();
+        }
+    }
+
+    /**
+     * Bring back the parts a saved view keeps (all but the legend), as one step.
+     * @param name - The view's name.
+     * @param view - The view.
+     * @returns Settles once the step is recorded.
+     */
+    private async openViewParts(name: string, view: SavedView): Promise<void> {
+        const parts = SAVED_VIEW_PARTS.filter((part) => part !== "legend" && view[part] !== undefined);
+        if (parts.length === 0) {
+            return;
+        }
+        const { filters, layers, hidden, positions } = view;
+        await this.dispatcher.transaction(
+            "view.open",
+            async (scope) => {
+                const tx = this.scopeOf(scope);
+                if (filters !== undefined) {
+                    await tx.execute({ op: "visibility.conditions", conditions: filters });
+                }
+                if (layers !== undefined) {
+                    await clearStyleRows(tx);
+                    await tx.styles.applyTemplate(layers);
+                }
+                if (hidden !== undefined) {
+                    const now = tx.hidden.ids;
+                    const keep = new Set(hidden);
+                    const show = [...now].filter((id) => !keep.has(id));
+                    const hide = hidden.filter((id) => !now.has(id));
+                    if (show.length > 0) {
+                        await tx.hidden.remove(show);
+                    }
+                    if (hide.length > 0) {
+                        await tx.hidden.add(hide);
+                    }
+                }
+                if (positions !== undefined) {
+                    // A node the graph no longer holds, or one nothing had placed, is skipped.
+                    const held = new Set(this.positions.snapshot().order);
+                    const at = positions.order.flatMap((id, index) =>
+                        held.has(id) && !Number.isNaN(positions.xyz[index * 3]) ? [index] : [],
+                    );
+                    if (at.length > 0) {
+                        const xyz = new Float32Array(at.length * 3);
+                        at.forEach((index, row) => {
+                            for (let axis = 0; axis < 3; axis++) {
+                                xyz[row * 3 + axis] = positions.xyz[index * 3 + axis];
+                            }
+                        });
+                        await tx.positions.restore({ order: at.map((index) => positions.order[index]), xyz });
+                    }
+                }
+            },
+            { fact: { code: "view.open", params: { name, parts } } },
+        );
     }
 
     /**
@@ -2083,14 +2172,32 @@ function annotationsOf(dispatcher: Dispatcher): SessionAnnotations {
     });
 }
 
+/** How the saved views read and bring back the parts of the session they keep beside the camera. */
+interface ViewParts {
+    /**
+     * A part as the session holds it now.
+     * @param part - The part.
+     * @returns Its value, or undefined when the session has none to keep (a legend with no element).
+     */
+    read(part: SavedViewPart): unknown;
+    /**
+     * Bring back the parts a view keeps, as one step; nothing when it keeps none.
+     * @param name - The view's name.
+     * @param view - The view.
+     * @returns Settles once the step is recorded.
+     */
+    open(name: string, view: SavedView): Promise<void>;
+}
+
 /**
  * The saved camera views: the dispatcher's `views` slice, read as a map in project order, with the
  * verbs that write it.
  * @param dispatcher - The dispatcher.
  * @param seeded - Told the names the starting cameras wrote into the baseline.
+ * @param parts - Reads and brings back the parts a view keeps beside the camera.
  * @returns The views.
  */
-function viewsOf(dispatcher: Dispatcher, seeded: (names: readonly string[]) => void): SessionViews {
+function viewsOf(dispatcher: Dispatcher, seeded: (names: readonly string[]) => void, parts: ViewParts): SessionViews {
     const { state } = dispatcher;
     const held = state.views;
     /**
@@ -2126,21 +2233,45 @@ function viewsOf(dispatcher: Dispatcher, seeded: (names: readonly string[]) => v
                 .map(([, view]) => view)
                 .values(),
         [Symbol.iterator]: () => ordered()[Symbol.iterator](),
-        save: async (
-            saved: readonly {
-                readonly name: string;
-                readonly camera?: CameraState;
-                readonly follows?: string;
-                readonly key?: string | null;
-            }[],
-        ) => {
-            // The camera is read once, here, so redo and replay never read the live camera again.
-            const resolved = saved.map((view) =>
-                view.camera === undefined && view.follows === undefined
-                    ? { ...view, camera: currentCamera(dispatcher) }
-                    : view,
-            );
+        save: async (saved: readonly SavedViewInput[]) => {
+            // The camera and the kept parts are read once, here, so redo and replay never read the
+            // live session again.
+            const resolved = saved.map(({ include = [], ...view }) => {
+                const read: Record<string, unknown> = {};
+                for (const part of include) {
+                    if (!(SAVED_VIEW_PARTS as readonly string[]).includes(part)) {
+                        throw new GraphtyError({
+                            code: "E_OPTION_RANGE",
+                            message: `A saved view keeps ${SAVED_VIEW_PARTS.join(", ")}; not "${part}".`,
+                            source: "view",
+                            details: { option: "include", value: part },
+                        });
+                    }
+                    read[part] = view[part] ?? parts.read(part);
+                }
+                const kept = {
+                    ...view,
+                    ...Object.fromEntries(Object.entries(read).filter(([, v]) => v !== undefined)),
+                };
+                return view.camera === undefined && view.follows === undefined
+                    ? { ...kept, camera: currentCamera(dispatcher) }
+                    : kept;
+            });
             await dispatcher.dispatch({ op: "view.save", views: resolved });
+        },
+        open: async (name: string, options: { readonly animate?: boolean } = {}) => {
+            const view = held.get(name);
+            if (view === undefined) {
+                throw unknownView([name], state.viewOrder);
+            }
+            await parts.open(name, view);
+            if (view.legend !== undefined) {
+                dispatcher.services.legend?.show(view.legend);
+            }
+            // A session that draws nothing has no camera to move; the rest is brought back.
+            if (dispatcher.services.camera !== undefined) {
+                await dispatcher.dispatch({ op: "view.camera", preset: name, animate: options.animate === true });
+            }
         },
         remove: async (names: readonly string[]) => {
             await dispatcher.dispatch({ op: "view.remove", names });

@@ -39,6 +39,7 @@ import type {
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
+    FilterCondition,
     FormatId,
     LayerId,
     LayoutId,
@@ -54,6 +55,7 @@ import type {
     SetId,
     SourceKey,
     StructureValue,
+    StyleDocument,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
 import type {
@@ -5997,6 +5999,7 @@ export type PendingId = string & {
  * | `view.save`, `view.remove` | `names`: the views |
  * | `view.rename` | `from`: the view's name before; `to`: its new name |
  * | `view.move` | `name`: the view moved; `index`: its new 0-based place |
+ * | `view.open` | `name`: the view opened; `parts`: what it brought back besides the camera |
  * | `annotations.set` | `count`: how many annotations are kept |
  * | `annotations.patch` | `action`: `"add"`, `"update"` or `"remove"`; `id`: the annotation's id, or null |
  * | `view.dimension` | `dimension`: `"2d"` or `"3d"` |
@@ -6122,6 +6125,7 @@ export type HistoryCode =
     | "view.move"
     | "view.key"
     | "view.starting"
+    | "view.open"
     | "tour.save"
     | "tour.remove"
     | "tour.rename"
@@ -6912,6 +6916,63 @@ export interface SavedView {
      * and never listens for it.
      */
     readonly key?: string;
+    /**
+     * The filter conditions (`session.visibility.conditions`) the view brings back. Absent when it
+     * does not keep `"filters"`.
+     * @since 3.59.0
+     */
+    readonly filters?: readonly FilterCondition[];
+    /**
+     * The style layers (`session.styles.toDocument()`) the view brings back. Absent when it does
+     * not keep `"layers"`.
+     * @since 3.59.0
+     */
+    readonly layers?: StyleDocument;
+    /**
+     * The nodes hidden from the drawing (`session.hidden`) the view brings back. Absent when it
+     * does not keep `"hidden"`.
+     * @since 3.59.0
+     */
+    readonly hidden?: readonly NodeId[];
+    /**
+     * Where the nodes were (`session.positions.snapshot()`): the ids and x, y, z per id, NaN for
+     * a node nothing had placed. Absent when it does not keep `"positions"`.
+     * @since 3.59.0
+     */
+    readonly positions?: {
+        /** The node ids. */
+        readonly order: readonly NodeId[];
+        /** x, y and z per id in `order`. */
+        readonly xyz: readonly number[];
+    };
+    /**
+     * Whether the element's legend was shown. Absent when the view does not keep `"legend"`, or
+     * when no element drew the session as it was saved.
+     * @since 3.59.0
+     */
+    readonly legend?: boolean;
+}
+
+/**
+ * A part of the project a saved view can keep beside its camera (`views.save`'s `include`).
+ * @since 3.59.0
+ */
+export type SavedViewPart = "filters" | "layers" | "hidden" | "positions" | "legend";
+
+/**
+ * One view `session.views.save` keeps: a name, its camera, and what else it keeps.
+ * @since 3.59.0
+ */
+export interface SavedViewInput extends Omit<SavedView, "key"> {
+    /** The view's name. */
+    readonly name: string;
+    /** Its key chord; null clears it, absent keeps the key a view already under the name has. */
+    readonly key?: string | null;
+    /**
+     * The parts the view keeps beside its camera, each read from the session now unless given
+     * above. Default none: the view keeps only the camera.
+     */
+    readonly include?: readonly SavedViewPart[];
 }
 
 /**
@@ -6941,23 +7002,32 @@ export interface SessionViews extends ReadonlyMap<string, SavedView> {
      * @param views - The names, each with a `camera`, a camera view it `follows`, or neither: then
      *     it keeps where the camera stands now, read once, so redo puts back the same state. `key`
      *     sets its key chord, taking it from any other view that holds it; null clears it.
+     *     `include` names what else it keeps (`"filters"`, `"layers"`, `"hidden"`, `"positions"`,
+     *     `"legend"`), each read now unless given; `open` brings them back.
      * @returns Settles once the step is recorded.
      * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` `{ name }` when a camera view
      *     answers to a name, `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name,
      *     `E_BAD_COMMAND` `{ reason: "conflict", options: ["camera", "follows"] }` for both,
      *     `E_UNKNOWN_CAMERA` `{ name }` when `follows` names no camera view, `E_BAD_COMMAND`
      *     `{ reason: "empty-key" }` for an empty key, and, for a view with neither, `E_UNSUPPORTED`
-     *     when the session draws nothing or `{ reason: "xr", mode }` while immersive; nothing is
+     *     when the session draws nothing or `{ reason: "xr", mode }` while immersive, and
+     *     `E_OPTION_RANGE` `{ option: "include", value }` for a part no view keeps; nothing is
      *     saved then.
      */
-    save(
-        views: readonly {
-            readonly name: string;
-            readonly camera?: CameraState;
-            readonly follows?: string;
-            readonly key?: string | null;
-        }[],
-    ): Promise<void>;
+    save(views: readonly SavedViewInput[]): Promise<void>;
+    /**
+     * Bring a saved view back: the parts it keeps (filters, layers, hidden nodes, positions) as one
+     * undoable step, then its legend switch, then the camera, which is not a step. A node the
+     * graph no longer holds is skipped. A session that draws nothing skips the camera.
+     * @param name - The view.
+     * @param options - How the camera gets there.
+     * @param options.animate - Fly instead of jumping. Default false.
+     * @returns Settles once the step is recorded and the camera has arrived.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `name`, or as the camera refuses the view (`viewProblem`).
+     * @since 3.59.0
+     */
+    open(name: string, options?: { readonly animate?: boolean }): Promise<void>;
     /**
      * Give a saved view a key chord, taking it from any other view that holds it, in one step; null
      * clears it. The element stores the key and never listens for it.

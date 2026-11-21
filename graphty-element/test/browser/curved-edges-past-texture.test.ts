@@ -4,12 +4,12 @@
  *
  * A curve batch kept an entry of four texels for every PIECE of every curve, 64 pieces for a long one, in tables
  * 1024 texels wide that only grew taller: about 32,000 long curved edges, inside the default limits, made a table
- * taller than an 8192 card allows. A curve now keeps an entry for every 16 pieces, the draw gives every entry 16, and a
- * table grows wider before it grows past the card. The card's largest texture is pinned at 256 here, so a table past
+ * taller than an 8192 card allows. A curve now keeps an entry for every 16 pieces and a draw slot of four bytes a
+ * piece, and a table grows wider before it grows past the card. The card's largest texture is pinned at 256 here, so a table past
  * it is a few hundred curves rather than tens of thousands.
  *
  * What a curve draws is its own: a short curve draws no more slots because a long curve, or a line through hundreds of
- * bends, shares its batch.
+ * bends, shares its batch. And curves that cross draw in the object path's order, so the right one lies on top.
  */
 
 import "../../src/graphty-element";
@@ -19,6 +19,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { JOIN_TEMPLATE_INDICES } from "../../src/meshes/edgeJoinShader";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { edgeBetween } from "../helpers/testSetup";
 import { pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
@@ -226,16 +227,22 @@ async function restyled(element: Graphty, name: string, id: unknown, set: Record
 }
 
 /**
- * Join the two far nodes by a long curve, then bend it through 200 bends, counting the curve batch's vertices at
- * each step (0 on the objects path, which has no curve batch).
- * @param element - The element, loaded with {@link shortPairs}.
+ * Join the two far nodes by a long curve, then bend it through 200 bends, counting at each step the curve batch's
+ * vertices and the pieces the edges' curves are drawn in.
+ * @param element - The element, loaded with {@link shortPairs} on the batched path.
  * @param pairs - Its short pairs.
- * @returns The vertex counts: short curves only, with the long curve, with the bent line.
+ * @returns For short curves only, with the long curve and with the bent line: the vertices, and the pieces.
  */
-async function lengthened(element: Graphty, pairs: number): Promise<number[]> {
-    const vertices = (): number =>
-        element.graph.scene.meshes.find((mesh) => mesh.name.endsWith("|curve"))?.subMeshes[0]?.verticesCount ?? 0;
-    const counts = [vertices()];
+async function lengthened(element: Graphty, pairs: number): Promise<{ vertices: number; pieces: number }[]> {
+    const count = (): { vertices: number; pieces: number } => {
+        const batch = element.graph.scene.meshes.find((mesh) => mesh.name.endsWith("|curve"));
+        let pieces = 0;
+        for (const edge of element.graph.getDataManager().edges.values()) {
+            pieces += (edge.drawnCurve?.length ?? 1) - 1;
+        }
+        return { vertices: batch?.subMeshes[0]?.verticesCount ?? 0, pieces };
+    };
+    const counts = [count()];
     await element.session.data.addEdges([{ src: pairs * 2, dst: pairs * 2 + 1 }]);
     const edge = edgeBetween(element.graph, pairs * 2, pairs * 2 + 1);
     assert.isDefined(edge);
@@ -244,9 +251,9 @@ async function lengthened(element: Graphty, pairs: number): Promise<number[]> {
         "edge.curvature": true,
         "edge.fanned": false,
     });
-    counts.push(vertices());
+    counts.push(count());
     await restyled(element, "200 bends", edge.id, { "edge.curvature": false, "edge.bends": BENDS });
-    counts.push(vertices());
+    counts.push(count());
     return counts;
 }
 
@@ -259,15 +266,81 @@ describe.each(RENDERERS)("a curve's draw on %s", (renderer) => {
         objects.element.remove();
 
         const { element, errors } = await loaded(renderer, "batched", shortPairs(pairs));
-        const [short, long, bent] = (await lengthened(element, pairs)) as [number, number, number];
+        const [short, long, bent] = (await lengthened(element, pairs)) as [
+            { vertices: number; pieces: number },
+            { vertices: number; pieces: number },
+            { vertices: number; pieces: number },
+        ];
         assert.deepInclude(element.graph.rowCounts, { pulledEdges: pairs + 1, objectEdges: 0 });
-        assert.isAbove(short, 0, "the short curves are drawn from the batch");
-        // a short curve is one entry and a long one (64 pieces) four; the bent line (201 pieces) takes thirteen more,
-        // while its curve's four are freed: each short curve's share of the draw stays one entry's
-        const counts = `${String(short)}, then ${String(long)}, then ${String(bent)} vertices`;
-        assert.isAtMost(long * pairs, short * (pairs + 4), `the long curve adds its own entries: ${counts}`);
-        assert.isAtMost(bent * pairs, short * (pairs + 4 + 13), `the bent line adds its own entries: ${counts}`);
+        const corners = JOIN_TEMPLATE_INDICES.length;
+        const counts = [short, long, bent].map(({ vertices, pieces }) => `${String(vertices)} for ${String(pieces)}`);
+        // the draw covers each curve's own pieces, a template's corners each, whatever the other curves ask for: the
+        // bent line's 201 pieces take the long curve's freed slots, then new ones
+        assert.isAbove(short.pieces, 0, "the short curves are drawn from the batch");
+        assert.strictEqual(short.vertices, short.pieces * corners, `short curves: ${counts.join(", then ")}`);
+        assert.strictEqual(long.vertices, long.pieces * corners, `with the long curve: ${counts.join(", then ")}`);
+        assert.strictEqual(bent.pieces, short.pieces + 201, "the bent line is drawn in 201 pieces");
+        assert.strictEqual(bent.vertices, bent.pieces * corners, `with the bent line: ${counts.join(", then ")}`);
         assert.deepEqual(errors, [], "no error");
         assert.equal(overBar(objectsRest, await readCanvas(element.graph)), 0, "the objects path's picture");
+    });
+});
+
+/**
+ * Six horizontal and six vertical long curves (64 pieces each, so four entries apiece) crossing in one plane, the
+ * horizontals first.
+ * @returns The nodes, the edges, and which edges are horizontal.
+ */
+function crossing(): Placed & { across: { src: number; dst: number }[] } {
+    const nodes: Placed["nodes"] = [];
+    const across: Placed["edges"] = [];
+    const down: Placed["edges"] = [];
+    for (let i = 0; i < 6; i++) {
+        const at = -6 + (12 * i) / 5;
+        nodes.push(
+            { id: i, position: { x: -10, y: at, z: 0 } },
+            { id: 100 + i, position: { x: 10, y: at, z: 0 } },
+            { id: 200 + i, position: { x: at, y: 10, z: 0 } },
+            { id: 300 + i, position: { x: at, y: -10, z: 0 } },
+        );
+        across.push({ src: i, dst: 100 + i });
+        down.push({ src: 200 + i, dst: 300 + i });
+    }
+    return { nodes, edges: [...across, ...down], across };
+}
+
+/**
+ * Load {@link crossing}'s curves, the horizontals red and the verticals blue, and read the picture.
+ * @param renderer - The renderer.
+ * @param path - The render path.
+ * @returns The picture, and the element still mounted.
+ */
+async function crossed(
+    renderer: "webgl" | "webgpu",
+    path: RenderPath,
+): Promise<{ element: Graphty; picture: Awaited<ReturnType<typeof readCanvas>> }> {
+    const graph = crossing();
+    const { element } = await loaded(renderer, path, graph, { "edge.color": "#0000ff", "edge.width": 3 });
+    const across = graph.across.map(({ src, dst }) => edgeBetween(element.graph, src, dst)?.id);
+    await element.session.styles.add({
+        name: "red across",
+        target: "edge",
+        selector: { match: "ids", edges: across },
+        set: { "edge.color": "#ff0000" },
+    } as never);
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
+    return { element, picture: await readCanvas(element.graph) };
+}
+
+describe.each(RENDERERS)("crossing curves on %s", (renderer) => {
+    it("draw in the objects path's order, so the later curve lies on top where two cross", async () => {
+        const objects = await crossed(renderer, "objects");
+        objects.element.remove();
+        const batched = await crossed(renderer, "batched");
+        assert.deepInclude(batched.element.graph.rowCounts, { pulledEdges: 12, objectEdges: 0 });
+        // a curve's pieces past its first take their draw slots when it is first placed, as the object path's do: a
+        // curve drawn whole in its first piece's place lies under or over the other the wrong way where two cross
+        assert.equal(overBar(objects.picture, batched.picture), 0, "the objects path's picture");
     });
 });

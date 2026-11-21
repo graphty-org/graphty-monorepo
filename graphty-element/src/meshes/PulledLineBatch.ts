@@ -35,11 +35,13 @@ import { CURVE_STRIDE, curveShape, type CurveSpan } from "./pulledCurve";
  *
  * A CURVE batch (stage 21, `EDGE_PULLED_CURVE`) draws curves (`line.bezier`), lone or fanned out of a
  * bundle: an edge takes a run of entries, each its rows, its look, its part of the run and its span, two texels more
- * than a straight piece's: (samples, first, pieces, startAt), then (endAt and the shape, `curveShape`). The draw gives
- * every entry `CURVE_STRIDE` (16) pieces, and the shader works out piece j's place along the cut path from the two
- * rows' places and the span (`meshes/pulledCurve.ts`); a piece past its own curve's draws nothing. An entry per 16
- * pieces, not per piece, keeps a million long curves (64 pieces each) to a 4096 x 4096 table (#9160), and a short
- * curve's spare slots are its own, fewer than 16, whatever else the batch holds.
+ * than a straight piece's: (samples, first, pieces, startAt), then (endAt and the shape, `curveShape`). An entry
+ * holds `CURVE_STRIDE` (16) pieces of its edge's path. Each piece the edge's longest cut has needed takes a draw SLOT
+ * of its own, handed out and freed exactly as the object path's line batch hands out its slots, so the pieces draw
+ * in the object path's order; the SLOT TABLE (`edgeSlots`, a name a slot) says which entry and which of its 16
+ * pieces a slot draws. The shader works out piece j's place along the cut path from the two rows' places and the span
+ * (`meshes/pulledCurve.ts`); a piece past its own curve's draws nothing. An entry per 16 pieces and four bytes a
+ * piece, not four texels, keep a million long curves (64 pieces each) to 4096 x 4096 tables (#9160).
  *
  * A curve batch also keeps a ROUTE TABLE (`edgeRoutes`) for lines through bends (`line.bends`): an edge's
  * cut path, its ends and the bends between, one (x, y, z) to a texel, in a block of its own that its span names
@@ -82,11 +84,18 @@ export type LeanLines = boolean | "smooth";
 const TABLE_WIDTH = 1024;
 
 /**
- * The most entries a table may name: the draw order table names entries as floats, which count every whole number
- * only up to 2^24. A curve's span names its route block in two floats ({@link ROUTE_SPLIT}), so the route table
- * has no such limit.
+ * The most entries a table may name: the draw order and slot tables name them in a float's bits ({@link NAME_BASE}),
+ * a curve's piece as its entry times 16 plus the piece, below 2^30. A curve's span names its route block in two
+ * floats ({@link ROUTE_SPLIT}), so the route table has no such limit.
  */
-const MOST_ENTRIES = 2 ** 24;
+const MOST_ENTRIES = 2 ** 26;
+
+/**
+ * What the draw order and slot tables add to a name before writing its bits as a float: the float is then a normal
+ * number, never zero, a denormal a card may flush, or a NaN it may rewrite, and the shader reads the bits back
+ * (`floatBitsToUint`). A slot table's 0 names nothing.
+ */
+const NAME_BASE = 2 ** 23;
 
 /** The most vertices one draw may ask for: `drawArrays` takes a signed 32-bit count. */
 const MOST_VERTICES = 2 ** 31 - 1;
@@ -255,7 +264,7 @@ export class PulledLineBatch {
     /** Whether the pieces draw the lean program in place of the template; see {@link PulledLineBatch.drawLean}. */
     private lean = false;
 
-    /** Pieces handed out so far; the draw covers these. */
+    /** Pieces handed out so far (a curve batch's draw slots); the draw covers these. */
     private highWater = 0;
 
     private readonly free: number[] = [];
@@ -313,8 +322,28 @@ export class PulledLineBatch {
     /** Floats a piece takes in the table. */
     private readonly pieceFloats: number;
 
-    /** Pieces the draw gives each entry: `CURVE_STRIDE` in a curve batch, 1 in a straight one. */
-    private readonly piecesEach: number;
+    /**
+     * A curve batch's slot table ({@link PulledLineBatch.setCurve}): each draw slot's entry times `CURVE_STRIDE` plus
+     * its piece, in a float's bits past {@link NAME_BASE}, 0 for none. Null in a straight batch, where a slot draws
+     * the entry of its own number.
+     */
+    private slots: Float32Array<ArrayBuffer> | null = null;
+
+    private slotNames: Uint32Array<ArrayBuffer> | null = null;
+    private slotTable: RawTexture | null = null;
+    private slotWidth = TABLE_WIDTH;
+
+    /** The first and last slot table line written since the last upload, or -1. */
+    private slotsFirst = -1;
+    private slotsLast = -1;
+
+    /** A curve batch's entries handed out so far, the freed ones, and each one's width (which its slots are keyed by). */
+    private entryHighWater = 0;
+    private readonly freeEntries: number[] = [];
+    private readonly entryWidths: number[] = [];
+
+    /** Each entry's slots, `CURVE_STRIDE` an entry, -1 for none yet: taken as its pieces are first needed. */
+    private entrySlots: Int32Array<ArrayBuffer> = new Int32Array(0);
 
     /**
      * Whether a write past what the card can hold has been reported (`Edge.refuseTooLarge`): once a batch is enough.
@@ -354,7 +383,6 @@ export class PulledLineBatch {
         this.mesh = mesh;
         const texels = curve ? TEXELS_PER_CURVE_PIECE : TEXELS_PER_PIECE;
         this.pieceFloats = texels * TEXEL_FLOATS;
-        this.piecesEach = curve ? CURVE_STRIDE : 1;
         markEdgeLineBatchMesh(mesh);
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;
@@ -373,6 +401,8 @@ export class PulledLineBatch {
         this.orderTable = this.buildOrder(new Float32Array(order.flags));
         this.sort();
         if (curve) {
+            this.entrySlots = new Int32Array((first.texels / texels) * CURVE_STRIDE).fill(-1);
+            this.growSlots(first.texels / texels);
             const routes = this.shape(TABLE_WIDTH);
             this.routeWidth = routes.width;
             this.routes = new Float32Array(routes.texels * TEXEL_FLOATS);
@@ -404,8 +434,9 @@ export class PulledLineBatch {
      * The piece each draw slot draws, or null while each draws the piece of its own number.
      * @returns The draw order table's CPU copy.
      */
-    get drawOrder(): Readonly<Float32Array> | null {
-        return this.order;
+    get drawOrder(): readonly number[] | null {
+        const { order } = this;
+        return order === null ? null : Array.from(new Uint32Array(order.buffer), (bits) => bits - NAME_BASE);
     }
 
     /**
@@ -418,7 +449,8 @@ export class PulledLineBatch {
     }
 
     /**
-     * Pieces the draw covers: every piece handed out, live or free (a free one draws nothing).
+     * Pieces the draw covers: every piece handed out, live or free (a free one draws nothing). In a curve batch, every
+     * draw slot: a piece of a curve.
      * @returns The count.
      */
     get drawnCount(): number {
@@ -426,24 +458,108 @@ export class PulledLineBatch {
     }
 
     /**
-     * Pieces the draw gives each entry: `CURVE_STRIDE` in a curve batch, 1 in a straight batch.
+     * Pieces an entry holds: `CURVE_STRIDE` in a curve batch, 1 in a straight batch.
      * @returns The count.
      */
     get stride(): number {
-        return this.piecesEach;
+        return this.slots === null ? 1 : CURVE_STRIDE;
     }
 
     /**
-     * Hand out a piece, drawing nothing until {@link PulledLineBatch.setRows}.
+     * Hand out a piece (a curve batch's entry, with a slot for its first piece), drawing nothing until
+     * {@link PulledLineBatch.setRows}.
      * @param width - The width {@link PulledLineBatch.setLook} will give it, which places it in draw order as the
      *     object path's batch of that width would draw it.
      * @returns The piece.
      */
     acquire(width = 0): number {
+        if (this.slots === null) {
+            return this.takeSlot(width);
+        }
+
+        let entry = this.freeEntries.pop();
+        if (entry === undefined) {
+            if (this.entryHighWater === this.rows.length / this.pieceFloats) {
+                this.grow();
+            }
+
+            entry = this.entryHighWater++;
+        }
+
+        this.entryWidths[entry] = width;
+        this.slotsFor(entry, 1);
+        return entry;
+    }
+
+    /**
+     * Give an entry's first `count` pieces a draw slot each, in piece order, those it has kept: a curve keeps the
+     * slots its longest cut took, as the object path's curve keeps its batch slots.
+     * @param entry - The entry.
+     * @param count - Pieces, at most `CURVE_STRIDE`.
+     */
+    private slotsFor(entry: number, count: number): void {
+        const { slotNames } = this;
+        if (slotNames === null) {
+            return;
+        }
+
+        for (let j = 0; j < count; j++) {
+            if ((this.entrySlots[entry * CURVE_STRIDE + j] ?? -1) >= 0) {
+                continue;
+            }
+
+            const slot = this.takeSlot(this.entryWidths[entry] ?? 0);
+            this.entrySlots[entry * CURVE_STRIDE + j] = slot;
+            this.nameSlot(slot, NAME_BASE + entry * CURVE_STRIDE + j);
+        }
+    }
+
+    /**
+     * Write a slot's name in the slot table.
+     * @param slot - The slot.
+     * @param bits - Its name's bits, 0 for none.
+     */
+    private nameSlot(slot: number, bits: number): void {
+        if (this.slotNames === null) {
+            return;
+        }
+
+        this.slotNames[slot] = bits;
+        const line = Math.floor(slot / (this.slotWidth * FLAGS_PER_TEXEL));
+        this.slotsFirst = this.slotsFirst < 0 ? line : Math.min(this.slotsFirst, line);
+        this.slotsLast = Math.max(this.slotsLast, line);
+    }
+
+    /**
+     * Entries handed out so far: a curve batch's own count, else one a draw slot.
+     * @returns The count.
+     */
+    private get entryCount(): number {
+        return this.slots === null ? this.highWater : this.entryHighWater;
+    }
+
+    /**
+     * The draw slots a piece of the batch may take: a curve batch's slot table, else the edge table's pieces.
+     * @returns The count.
+     */
+    private get slotCapacity(): number {
+        return this.slotNames?.length ?? this.rows.length / this.pieceFloats;
+    }
+
+    /**
+     * Hand out a draw slot, keyed into draw order by its width.
+     * @param width - Its width.
+     * @returns The slot.
+     */
+    private takeSlot(width: number): number {
         let piece = this.free.pop();
         if (piece === undefined) {
-            if (this.highWater === this.rows.length / this.pieceFloats) {
-                this.grow();
+            if (this.highWater === this.slotCapacity) {
+                if (this.slots === null) {
+                    this.grow();
+                } else {
+                    this.growSlots(this.slotCapacity * 2);
+                }
             }
 
             piece = this.highWater++;
@@ -462,7 +578,7 @@ export class PulledLineBatch {
         // are kept only from the second width on, starting from that identity.
         let { keys } = this;
         if (keys === null && this.ranked.length > 1) {
-            keys = this.keys = identityKeys(this.rows.length / this.pieceFloats);
+            keys = this.keys = identityKeys(this.slotCapacity);
         }
 
         if (keys !== null) {
@@ -480,8 +596,31 @@ export class PulledLineBatch {
     release(piece: number): void {
         this.setRows(piece, NO_ROW, NO_ROW);
         this.setHidden(piece, false);
-        this.free.push(piece);
-        const key = this.keys === null ? piece : (this.keys[piece] ?? 0);
+        if (this.slots === null) {
+            this.freeSlot(piece);
+            return;
+        }
+
+        // its slots go back in piece order, as the object path's curve gives its batch slots back
+        for (let j = 0; j < CURVE_STRIDE; j++) {
+            const slot = this.entrySlots[piece * CURVE_STRIDE + j] ?? -1;
+            if (slot >= 0) {
+                this.nameSlot(slot, 0);
+                this.freeSlot(slot);
+                this.entrySlots[piece * CURVE_STRIDE + j] = -1;
+            }
+        }
+
+        this.freeEntries.push(piece);
+    }
+
+    /**
+     * Hand a draw slot back.
+     * @param slot - The slot.
+     */
+    private freeSlot(slot: number): void {
+        this.free.push(slot);
+        const key = this.keys === null ? slot : (this.keys[slot] ?? 0);
         this.ranked[Math.floor(key / SLOTS_PER_RANK)]?.free.push(key % SLOTS_PER_RANK);
     }
 
@@ -549,7 +688,8 @@ export class PulledLineBatch {
 
     /**
      * Give a curve batch's entry its edge's span: written when the edge is placed, which its nodes moving does. An
-     * entry draws {@link PulledLineBatch.stride} pieces of the path, so a curve of more takes a run of entries.
+     * entry holds {@link PulledLineBatch.stride} pieces of the path, so a curve of more takes a run of entries; each
+     * piece the span needs is given a draw slot the first time it is needed.
      * @param piece - The entry.
      * @param part - Which of its edge's run it is: it draws pieces from `part * stride` on.
      * @param span - The span (`curveSpan`), or null to draw nothing.
@@ -565,6 +705,7 @@ export class PulledLineBatch {
         this.rows[at + 12] = span?.endAt ?? 0;
         [this.rows[at + 13], this.rows[at + 14], this.rows[at + 15]] = curveShape(span, route);
         this.touch(piece);
+        this.slotsFor(piece, Math.min(CURVE_STRIDE, (span?.pieces ?? 0) - part * CURVE_STRIDE));
     }
 
     /**
@@ -686,6 +827,7 @@ export class PulledLineBatch {
         }
         this.flushRoutes();
         this.flushHidden();
+        this.flushSlots();
         if (this.reorder) {
             this.sort();
         }
@@ -694,7 +836,7 @@ export class PulledLineBatch {
             return;
         }
 
-        const runs = this.dirty.take(true) ?? [0, this.highWater];
+        const runs = this.dirty.take(true) ?? [0, this.entryCount];
         const texels = this.pieceFloats / TEXEL_FLOATS;
         for (let i = 0; i < runs.length; i += 2) {
             this.sendTexels(runs[i] * texels, runs[i + 1] * texels);
@@ -760,6 +902,71 @@ export class PulledLineBatch {
         this.hiddenLast = -1;
     }
 
+    /** Send the slot table lines written since the last frame: one call, the lines between the first and last. */
+    private flushSlots(): void {
+        const internal = this.slotTable?.getInternalTexture();
+        if (this.slotsFirst < 0 || this.slots === null || !internal) {
+            return;
+        }
+
+        const lines = this.slotsLast - this.slotsFirst + 1;
+        const perLine = this.slotWidth * FLAGS_PER_TEXEL;
+        const bytes = new Float32Array(this.slots.buffer, this.slotsFirst * perLine * 4, lines * perLine);
+        const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
+        engine.updateTextureData(internal, bytes, 0, this.slotsFirst, this.slotWidth, lines);
+        this.uploadedBytes += bytes.byteLength;
+        this.slotsFirst = -1;
+        this.slotsLast = -1;
+    }
+
+    /**
+     * Make the slot table hold at least `wanted` slots, keeping every name, or no more than the card and one draw
+     * allow: past them, E_TOO_LARGE.
+     * @param wanted - Slots it must hold.
+     */
+    private growSlots(wanted: number): void {
+        const corners = Math.max(this.template.indices.length, LEAN_TEMPLATE.indices.length);
+        const most = Math.min(
+            this.mostTexture() ** 2 * FLAGS_PER_TEXEL,
+            MOST_ENTRIES * CURVE_STRIDE,
+            Math.floor(MOST_VERTICES / corners),
+        );
+        if (this.highWater >= most) {
+            throw tooLargeError(
+                Math.ceil(this.highWater / FLAGS_PER_TEXEL),
+                this.mostTexture(),
+                this.highWater + 1,
+                most,
+            );
+        }
+
+        const shape = this.shape(Math.ceil(Math.min(wanted, most) / FLAGS_PER_TEXEL), 0);
+        this.slotWidth = shape.width;
+        const slots = new Float32Array(shape.texels * FLAGS_PER_TEXEL);
+        if (this.slots !== null) {
+            slots.set(this.slots);
+        }
+
+        this.slots = slots;
+        this.slotNames = new Uint32Array(slots.buffer);
+        this.slotTable?.dispose();
+        this.slotTable = RawTexture.CreateRGBATexture(
+            slots,
+            this.slotWidth,
+            slots.length / (this.slotWidth * FLAGS_PER_TEXEL),
+            this.scene,
+            false,
+            false,
+            Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+            Constants.TEXTURETYPE_FLOAT,
+        );
+        (this.mesh.material as ShaderMaterial | null)?.setTexture("edgeSlots", this.slotTable);
+        this.uploadedBytes += slots.byteLength;
+        this.slotsFirst = -1;
+        this.slotsLast = -1;
+        this.sort();
+    }
+
     /** Stop following the frames and free the mesh and the table. */
     dispose(): void {
         SWITCHING.get(this.scene)?.delete(this);
@@ -768,6 +975,7 @@ export class PulledLineBatch {
         this.table.dispose();
         this.hiddenTable.dispose();
         this.orderTable.dispose();
+        this.slotTable?.dispose();
         this.routeTable?.dispose();
         // Not its textures: `rowPosition` is the row table's, which outlives this batch.
         this.mesh.material?.dispose(true, false);
@@ -880,15 +1088,17 @@ export class PulledLineBatch {
      */
     private grow(): void {
         const doubled = (this.rows.length / this.pieceFloats) * 2;
-        const reserved = this.highWater + takePoolReserve(this.scene, "lines");
+        const reserved = this.entryCount + takePoolReserve(this.scene, "lines");
         const texels = this.pieceFloats / TEXEL_FLOATS;
         // the most entries the card's largest texture holds, the draw order names and one draw reaches: past them, a
         // table of the most, and E_TOO_LARGE once full
         const corners = Math.max(this.template.indices.length, LEAN_TEMPLATE.indices.length);
-        const reach = Math.floor(MOST_VERTICES / (corners * this.piecesEach));
+        // a curve batch's draw reaches its slots, not its entries (`growSlots`)
+        const reach = this.slots === null ? Math.floor(MOST_VERTICES / corners) : MOST_ENTRIES;
         const most = Math.min(Math.floor(this.mostTexture() ** 2 / texels), MOST_ENTRIES, reach);
-        if (this.highWater >= most) {
-            throw tooLargeError(this.highWater * texels, this.mostTexture(), this.highWater + 1, most);
+        const handed = this.entryCount;
+        if (handed >= most) {
+            throw tooLargeError(handed * texels, this.mostTexture(), handed + 1, most);
         }
 
         const wanted = Math.min(Math.max(doubled, reserved), most);
@@ -914,6 +1124,13 @@ export class PulledLineBatch {
             this.hiddenLast = -1;
         }
 
+        if (this.slots !== null) {
+            const entrySlots = new Int32Array(pieces * CURVE_STRIDE).fill(-1);
+            entrySlots.set(this.entrySlots);
+            this.entrySlots = entrySlots;
+            return;
+        }
+
         this.sort();
     }
 
@@ -922,7 +1139,7 @@ export class PulledLineBatch {
      * interleave, else in plain piece order with no table read.
      */
     private sort(): void {
-        const capacity = this.rows.length / this.pieceFloats;
+        const capacity = this.slotCapacity;
         if (this.keys !== null && this.keys.length !== capacity) {
             const keys = identityKeys(capacity);
             keys.set(this.keys);
@@ -941,10 +1158,16 @@ export class PulledLineBatch {
             this.orderWidth = shape.width;
             const size = shape.flags;
             const order = this.order?.length === size ? this.order : new Float32Array(size);
-            order.set(drawn);
+            // each name in a float's bits (NAME_BASE)
+            const names = new Uint32Array(order.buffer);
+            names.set(drawn);
             // a piece handed out later whose key is its own number asks for no sort, so its slot must already name it
             for (let slot = highWater; slot < size; slot++) {
-                order[slot] = slot;
+                names[slot] = slot;
+            }
+
+            for (let slot = 0; slot < size; slot++) {
+                names[slot] = (names[slot] ?? 0) + NAME_BASE;
             }
 
             if (order === this.order) {
@@ -998,7 +1221,7 @@ export class PulledLineBatch {
         const [subMesh] = this.mesh.subMeshes;
         subMesh.verticesStart = 0;
         const corners = this.lean ? LEAN_TEMPLATE.indices.length : this.template.indices.length;
-        subMesh.verticesCount = this.highWater * this.piecesEach * corners;
+        subMesh.verticesCount = this.highWater * corners;
         subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
     }
 }

@@ -3232,18 +3232,22 @@ export class Edge {
             pulled.route = { at: batch.writeRoute(kept?.at ?? -1, points), points };
         }
         const at = pulled.route?.at ?? 0;
-        // an entry a CURVE_STRIDE pieces, taken as the cut grows and kept while the edge is pulled
+        // an entry a CURVE_STRIDE pieces, taken as the cut grows and kept while the edge is pulled; each entry is
+        // written before the next is taken, so its pieces take their draw slots in piece order, as the object path's
+        // curve takes its batch slots
         const { look, run } = pulled;
-        while (run.length + 1 < Math.ceil((span?.pieces ?? 0) / CURVE_STRIDE)) {
-            const piece = batch.acquire(look.width);
-            batch.setLook(piece, look.color, look.opacity, look.width);
-            batch.setRows(piece, pulled.source, pulled.target);
-            run.push(piece);
-        }
+        const parts = Math.ceil((span?.pieces ?? 0) / CURVE_STRIDE);
         batch.setCurve(pulled.piece, 0, span, at);
-        run.forEach((piece, i) => {
-            batch.setCurve(piece, i + 1, span, at);
-        });
+        for (let part = 1; part < parts || part <= run.length; part++) {
+            if (part > run.length) {
+                const piece = batch.acquire(look.width);
+                batch.setLook(piece, look.color, look.opacity, look.width);
+                batch.setRows(piece, pulled.source, pulled.target);
+                run.push(piece);
+            }
+
+            batch.setCurve(run[part - 1], part, span, at);
+        }
     }
 
     /**

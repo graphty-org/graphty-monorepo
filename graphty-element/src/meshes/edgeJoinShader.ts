@@ -161,12 +161,16 @@ export const PULLED_ORDER_GLSL = `
 uniform float edgeOrdered;
 uniform highp sampler2D edgeOrder;
 ${pulledTexelGlsl("edgeOrder", "pulledOrderTexel")}
+// a name in a draw order or slot table: a float whose bits are the name plus 2^23 (PulledLineBatch's NAME_BASE)
+int pulledName(vec4 names, int at) {
+    return int(floatBitsToUint(names[at & 3]) - 8388608u);
+}
+
 int pulledPiece(int slot) {
     if (edgeOrdered < 0.5) {
         return slot;
     }
-    vec4 order = pulledOrderTexel(slot >> 2);
-    return int(dot(order, vec4(equal(ivec4(0, 1, 2, 3), ivec4(slot & 3)))) + 0.5);
+    return pulledName(pulledOrderTexel(slot >> 2), slot);
 }
 `;
 
@@ -204,8 +208,9 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
  * multisampling and no discard. Its ends stay square at the node centers, under the nodes.
  *
  * A CURVE's entry (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its part of its edge's run of
- * entries, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). The draw gives each entry
- * `CURVE_STRIDE` slots in a row, and slot j of part k draws the path's piece k * CURVE_STRIDE + j. Its six points are points of that path, picked as `EdgeLineBatch.writeFlat`
+ * entries, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). Each draw slot names an entry
+ * and j, one of its `CURVE_STRIDE` pieces (`edgeSlots`): it draws the path's piece k * CURVE_STRIDE + j of part k.
+ * Its six points are points of that path, picked as `EdgeLineBatch.writeFlat`
  * picks a run's neighbors (they stop at the run's ends), and its run is zero: a solid line that does not taper
  * never reads it (its `perTotal` is 0 and the pattern branch is off). A piece at or past the span's last point
  * draws nothing.
@@ -333,8 +338,11 @@ const int CORNER_OF[PIECE_CORNERS] = int[PIECE_CORNERS](${JOIN_TEMPLATE_INDICES.
 #ifdef EDGE_PULLED_CURVE
 ${PULLED_CURVE_GLSL}
 
-// pieces the draw gives each entry (PulledLineBatch's CURVE_STRIDE); a longer curve takes a run of entries
+// pieces an entry holds (PulledLineBatch's CURVE_STRIDE); a longer curve takes a run of entries
 const int CURVE_STRIDE = ${String(CURVE_STRIDE)};
+// each draw slot's entry times CURVE_STRIDE plus its piece, a name a slot (PulledLineBatch's slot table)
+uniform highp sampler2D edgeSlots;
+${pulledTexelGlsl("edgeSlots", "pulledSlotsTexel")}
 // set by pullEdge for a slot past its own curve's pieces: the vertex is put outside the clip volume
 bool pulledSkip = false;
 const int PIECE_TEXELS = 4;
@@ -346,17 +354,21 @@ ${PULLED_TRIM_GLSL}
 void pullEdge() {
     int slot = gl_VertexID / PIECE_CORNERS;
     position = JOIN_TEMPLATE[CORNER_OF[gl_VertexID - slot * PIECE_CORNERS]];
-#ifdef EDGE_PULLED_CURVE
-    // a curve's entry draws CURVE_STRIDE pieces in a row, and is part tint.a of its edge's run of entries
-    int j = slot % CURVE_STRIDE;
-    slot /= CURVE_STRIDE;
-#endif
     int piece = pulledPiece(slot);
+#ifdef EDGE_PULLED_CURVE
+    // the slot names its entry and the entry's piece; a free slot (name -2^23) draws nothing
+    int name = pulledName(pulledSlotsTexel(piece >> 2), piece);
+    if (name < 0) {
+        pulledSkip = true;
+        return;
+    }
+    piece = name / CURVE_STRIDE;
+    int j = name - piece * CURVE_STRIDE;
+#endif
     int texel = piece * PIECE_TEXELS;
     vec4 tint = pulledRowsTexel(texel + 1);
 #ifdef EDGE_PULLED_CURVE
-    // a slot past its own curve's pieces draws nothing, read from two texels: a curve's spare slots are fewer than
-    // CURVE_STRIDE, whatever the other curves in the batch ask for
+    // the entry is part tint.a of its edge's run; a piece past its curve's current cut (it shrank) draws nothing
     j += int(tint.a + 0.5) * CURVE_STRIDE;
     vec4 span = pulledRowsTexel(texel + 2);
     int pieces = int(span.z + 0.5);

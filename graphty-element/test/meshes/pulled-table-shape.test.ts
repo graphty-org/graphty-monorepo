@@ -49,9 +49,9 @@ describe("tableShape", () => {
         );
     });
 
-    it("refuses with E_TOO_LARGE past what a float names exactly", () => {
+    it("refuses with E_TOO_LARGE past what a float's bits name", () => {
         assert.strictEqual(
-            codeOf(() => tableShape(1024, 16384, 2 ** 24 + 1)),
+            codeOf(() => tableShape(1024, 16384, 2 ** 26 + 1)),
             "E_TOO_LARGE",
         );
     });
@@ -61,6 +61,9 @@ describe("tableShape", () => {
         const { width, texels } = tableShape(entries * 4, 4096, entries);
         assert.isAtMost(texels / width, 4096);
         assert.isAtMost(width, 4096);
+        // and their draw slots, a name a piece and four to a texel
+        const slots = tableShape((1_000_000 * MAX_PIECES) / 4, 4096, 0);
+        assert.isAtMost(slots.texels / slots.width, 4096);
     });
 
     it("holds a million 65-point routes on an 8192 card, past what a float names", () => {

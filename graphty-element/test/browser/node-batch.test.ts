@@ -118,7 +118,9 @@ async function layer(element: Graphty, ids: number[], set: Record<string, unknow
  */
 async function loaded(element: Graphty, view: "2d" | "3d", sized = true): Promise<void> {
     await element.session.data.addNodes(NODES);
-    await element.graph.setLayout("fixed", { dim: 3 });
+    // spacing 0 keeps the nodes as given, some intersecting: a test that adds edges would
+    // otherwise spread them apart once the edges arrive (#9257).
+    await element.graph.setLayout("fixed", { dim: 3, spacing: 0 });
     await element.setViewMode(view);
     if (sized) {
         await layer(

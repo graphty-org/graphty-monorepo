@@ -30,6 +30,7 @@ import {
     measuredOf,
     outsideOf,
     packBins,
+    pinCanary,
     binCost,
     BIN_LIMIT_MS,
     FILE_OVERHEAD_MS,
@@ -2147,6 +2148,45 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
         // a trusted answer whose command only cannot be narrowed keeps its files
         const trusted = { ...sel("graphty-1", "all"), measured: { mode: "none", files: [] } };
         assert.deepEqual(lightPlan(ROOT, [byName("graphty-1")], [trusted]).unknown, []);
+    });
+
+    it("runs the canary configuration's tests on every change to the element's source, even in a twin a pull request never runs whole (#9234)", () => {
+        const { canary } = loadRules(ROOT);
+        const inv = "graphty-element/test/browser/drawn-invariants.test.ts";
+        const frame = "graphty/src/workspace/frame/__tests__/CanaryDrawing.real-element.test.tsx";
+        const tracked = () => [inv, frame, "graphty/src/workspace/frame/__tests__/Workspace.test.tsx"];
+        const selection = [
+            sel("graphty-element-browser-1", "files", ["graphty-element/test/browser/a.test.ts"]),
+            sel("graphty-element-browser-2", "none"),
+            { ...sel("graphty-features-on-1", "all"), specs: [frame, "graphty/src/x.real-element.test.tsx"] },
+            sel("layout", "none"),
+        ];
+        assert.equal(pinCanary(["graphty-element/test/browser/a.test.ts"], canary, selection, tracked), selection);
+        assert.equal(pinCanary(["graphty-element/README.md"], canary, selection, tracked), selection);
+        const out = pinCanary(["graphty-element/src/Graph.ts"], canary, selection, tracked);
+        assert.deepEqual(
+            out[0].files.map((f) => f.file),
+            ["graphty-element/test/browser/a.test.ts", inv],
+        );
+        assert.deepEqual(out[1].mode, "files");
+        assert.deepEqual(out[2].pinned, [frame], "the On twin keeps the frame's real-element tests, not unit tests");
+        assert.equal(out[3], selection[3]);
+        const shards = ["graphty-features-on-1", "graphty-features-on-2"].map(byName);
+        if (shards.some((s) => !s)) {
+            return; // no experiment declared: no On twin exists
+        }
+        const plan = lightPlan(ROOT, shards, [out[2], { ...out[2], shard: "graphty-features-on-2" }]);
+        const pinned = plan.bins.filter((b) => !b.whole);
+        assert.deepEqual(
+            pinned.map((b) => [b.name, b.files]),
+            [[`graphty-features-on-${Math.max(2, plan.bins.length - 1) + 1}`, [frame]]],
+        );
+        const include = matrixPlan(["graphty"], undefined, plan, true);
+        assert.deepEqual(
+            include.filter((e) => e.flags === "on").map((e) => e.shard),
+            pinned.map((b) => b.name),
+            "a pull request runs the pinned bin and none of the twin's whole bins",
+        );
     });
 
     it("says in the job summary what each bin runs and why, what runs whole and why, and what runs nothing", () => {

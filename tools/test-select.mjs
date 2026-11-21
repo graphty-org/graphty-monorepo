@@ -75,7 +75,7 @@ export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.te
 /**
  * The rules file, with nx.json's sharedGlobals added to "everything".
  * @param root the checkout
- * @returns `{ everything, smoke, storySetup, noBuild, noTests, standalone, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel,
+ * @returns `{ everything, smoke, storySetup, noBuild, noTests, standalone, wholePackage, canary, alsoRun, opaque, readAtRunTime, fileLevel,
  *   fileLevelBrowser, stories }`
  */
 export function loadRules(root) {
@@ -96,6 +96,12 @@ export function loadRules(root) {
         noTests: raw.noTests.patterns.map(toRe),
         standalone: (raw.standaloneTools?.patterns ?? []).map(toRe),
         wholePackage: raw.wholePackage.patterns.map(toRe),
+        canary: {
+            patterns: (raw.canary?.patterns ?? []).map((p) => toRe(p)),
+            files: Object.fromEntries(
+                Object.entries(raw.canary?.files ?? {}).map(([f, ps]) => [f, ps.map((p) => toRe(p))]),
+            ),
+        },
         alsoRun: raw.alsoRun.entries.map((e) => ({ re: toRe(e.pattern), packages: e.packages, why: e.why })),
         opaque: toRe(raw.opaqueTest.pattern),
         readAtRunTime: toRe(raw.readAtRunTime.pattern),
@@ -1490,6 +1496,7 @@ export function lightPlan(root, shards, selection, durations = {}) {
             if (runs[0].shard["pack-whole"] === false || !packWhole(root, family, runs, fileMs, out)) {
                 runWhole(family, runs, out);
             }
+            pinnedBins(root, family, runs, selection, fileMs, out);
             continue;
         }
         let n = 0;
@@ -1522,6 +1529,41 @@ export function lightPlan(root, shards, selection, durations = {}) {
         }
     }
     return out;
+}
+
+/**
+ * The canary files pinned to a features-on family that runs whole (pinCanary()): a pull request never runs such a
+ * family whole (tools/ci-test-matrix.mjs plan()), so they run as bins of their own, numbered after its shards and
+ * packed bins, with no `whole` field.
+ * @param root the checkout
+ * @param family the family name
+ * @param runs its planRuns() entries
+ * @param selection lightPlan()'s selection
+ * @param fileMs Map(file -> recorded ms) of the family
+ * @param out lightPlan()'s output, which gets the bins
+ */
+function pinnedBins(root, family, runs, selection, fileMs, out) {
+    const shard = runs[0].shard;
+    const ours = selection.filter((s) => familyOf(s.shard) === family);
+    const files = [...new Set(ours.flatMap((s) => s.pinned ?? []))].sort();
+    if (shard["pull-request"] !== "selected" || files.length === 0) {
+        return;
+    }
+    let n = Math.max(ours.length, out.bins.filter((b) => b.family === family).length);
+    const { overheadMs, scale } = binCost(family);
+    const why = "the canary configuration's tests run on every change to what it draws with";
+    for (const bin of packBins(files, fileMs, BIN_LIMIT_MS, overheadMs, scale)) {
+        n += 1;
+        out.bins.push({
+            name: `${family}-${n}`,
+            family,
+            shard: shard.shard,
+            covers: [shard.shard],
+            ...bin,
+            command: selectedCommand(root, shard, bin.files),
+            why: Object.fromEntries(bin.files.map((f) => [f, why])),
+        });
+    }
 }
 
 /**
@@ -3187,6 +3229,39 @@ async function graphChild(root, dir, config, on = false, base = null) {
 }
 
 /**
+ * The canary configuration's tests added to a selection (test-select-rules.json "canary", #9234): when a changed
+ * build file matches a pattern, each named family's shards get the tracked test files its patterns match. A shard
+ * that selected files or none gets them as selected files; one that runs whole keeps them as `pinned`, which
+ * lightPlan() runs as a bin of their own for a features-on family (a pull request never runs one whole).
+ * @param changed repo-relative changed paths
+ * @param canary loadRules().canary
+ * @param selection selectShards() output
+ * @param tracked returns the checkout's tracked paths (called only when a pattern matches)
+ * @returns the selection, with the canary files added
+ */
+export function pinCanary(changed, canary, selection, tracked) {
+    const hit = changed.find((f) => canary.patterns.some((re) => re.test(f)) && buildInput(f.replace(/^[^/]+\//u, "")));
+    if (!hit) {
+        return selection;
+    }
+    const paths = tracked();
+    const why = `the canary configuration's tests run on every change to what it draws with (${hit} changed)`;
+    return selection.map((s) => {
+        const res = canary.files[familyOf(s.shard)] ?? [];
+        const files = paths.filter((f) => res.some((re) => re.test(f)));
+        if (files.length === 0) {
+            return s;
+        }
+        if (s.mode === "all") {
+            return { ...s, pinned: files };
+        }
+        const have = new Set((s.files ?? []).map((f) => f.file));
+        const added = files.filter((f) => !have.has(f)).map((file) => ({ file, why }));
+        return { ...s, mode: "files", files: [...(s.files ?? []), ...added] };
+    });
+}
+
+/**
  * The selection for a change, with everything it needs read from the checkout.
  * @param root the checkout
  * @param changed repo-relative changed paths
@@ -3218,9 +3293,12 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
         deferDownstream,
         lockfile: lockRefs && changed.includes(LOCK) ? lockfileImporters(root, lockRefs.base, lockRefs.head) : null,
     });
+    const picked = selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke);
     return {
         ...sel,
-        shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
+        shards: pinCanary(changed, rules.canary, picked, () =>
+            execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 }).split("\n"),
+        ),
         graphs: all,
         // by directory: nx names remote-logger, which has no project.json, @graphty/remote-logger
         deps: new Map(

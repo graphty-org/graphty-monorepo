@@ -265,6 +265,8 @@ export type GraphtyErrorCode =
      * A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
      * incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
      * `details.column` and `details.rule` name them. The caller picks another rule for that column.
+     * Under the source-steps experiment a step's merge refuses the same way, and `details.step`
+     * also names the step.
      */
     | "E_CLASH_RULE_TYPE"
     /**
@@ -811,6 +813,40 @@ export type GraphtyErrorCode =
      */
     | "E_NOT_SETTLED"
     /**
+     * A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+     * the space. The caller names another space. Experimental: the source-steps experiment.
+     */
+    | "E_SPACE_RESERVED"
+    /**
+     * A key names nodes in more than one id space, so it names no one node. `details.key` is the
+     * key, `details.spaces` the spaces holding it. The caller names the space, or the
+     * `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+     */
+    | "E_AMBIGUOUS_ID"
+    /**
+     * Make an edge would add a staged source in the id space of the nodes it connects to, so its
+     * nodes would meet them instead of being joined by edges. `details.source` and `details.space`
+     * name them. The caller stages the source in another space. Experimental: the source-steps
+     * experiment.
+     */
+    | "E_JOIN_SPACE_SAME"
+    /**
+     * A merge or Make an edge reads node rows the source does not hold. `details.source` is the
+     * source. Experimental: the source-steps experiment.
+     */
+    | "E_STEP_NEEDS_NODES"
+    /**
+     * An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
+     * `details.column` is the column. Experimental: the source-steps experiment.
+     */
+    | "E_EDIT_ROLE_COLUMN"
+    /**
+     * A role setter that names no source could mean several built sources: each carries the
+     * column and can carry the role. `details.sources` lists them; the caller names one with the
+     * setter's `source` option. Experimental: the source-steps experiment.
+     */
+    | "E_ROLE_TARGET_AMBIGUOUS"
+    /**
      * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
      * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
      * an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
@@ -835,6 +871,40 @@ export type GraphtyWarningCode =
     | "W_UNKNOWN_KIND"
     /** No longer reported: a project open computes each saved run again over the data it holds, so no saved result can disagree with it. */
     | "W_DATA_DIFFERS"
+    /**
+     * A source's keys meet nodes already in the id space it would join (`params.space`,
+     * `params.count` of `params.of` keys; `params.other` names the other source for an untyped
+     * one). Kept in the source's own space unless the load asked `overlap: "merge"`.
+     * Experimental: the source-steps experiment.
+     */
+    | "W_SPACE_OVERLAP"
+    /**
+     * A step went with a removed source (`params.step`, `params.reason` `"source-removed"`,
+     * `params.source`). Experimental: the source-steps experiment.
+     */
+    | "W_STEP_REMOVED"
+    /**
+     * Values from different sources differ in one column of one step (`params.step`,
+     * `params.column`, `params.count` cells, `params.rule` the step's rule for the column,
+     * `params.decided` cells a reader decision settles). Experimental: the source-steps experiment.
+     */
+    | "W_VALUES_DIFFER"
+    /**
+     * A refresh or replace brought a column the source's old rows did not hold (`params.source`,
+     * `params.column`). Experimental: the source-steps experiment.
+     */
+    | "W_COLUMN_UNUSED"
+    /**
+     * The value under a reader edit moved since it was made (`params.edit`, `params.was`,
+     * `params.now`, and `params.picked` for a pick). Experimental: the source-steps experiment.
+     */
+    | "W_EDIT_SOURCE_CHANGED"
+    /**
+     * A note, a pin or a reader edit names an element a rebuild left out (`params.ref`): the
+     * reference is kept and binds again when Undo brings the element back. Experimental: the
+     * source-steps experiment.
+     */
+    | "W_REFERENCE_UNBOUND"
     /** A run was still computing when the project was saved, so the file does not hold it. */
     | "W_RUN_PENDING"
     /**
@@ -1038,12 +1108,50 @@ export type GraphtyWarningCode =
      */
     | "W_WEIGHT_MEANING_MISMATCH"
     /**
+     * Under the `source-steps` experiment, a layout that reads edge weights left them unread because
+     * the edges' weights do not share one meaning, or some edges' sources read no weight (design
+     * 8.6): every edge counts the same. Emitted as a `layout-warning` event. `params.sources` lists
+     * the sources of the edges.
+     */
+    | "W_WEIGHT_MEANING_MIXED"
+    /**
+     * Under the `source-steps` experiment, a Source scope on a source's edges named sources that
+     * supplied no edges, so it holds their nodes and the edges between them instead (design 8.6).
+     * Reported in `scope.count(...).issues`. `params.nodes` is how many nodes it holds.
+     */
+    | "W_SCOPE_NO_EDGES"
+    /**
+     * Under the `source-steps` experiment, a filter condition reads a column no element carries, so
+     * it is held off and judges nothing rather than hiding every node (design 8.4). Reported in
+     * `visibility.held`. `params.filter` is the condition's id and `params.column` its column.
+     */
+    | "W_FILTER_HELD"
+    /**
      * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
      * the `graphty-sources` member: query parameters of a URL load's address, or of a network
      * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
      * names left out. See the project file guide, "What a save leaves out".
      */
     | "W_SOURCE_URL_REDACTED"
+    /**
+     * A load cannot be saved as a reference: there is nothing to read it from again. It stays a
+     * copy. `params.source` is the load's key and `params.reason` why (`file`, `inline`, `join`,
+     * `secret-url`, `relative-url`, `no-seed`; OPEN UNION).
+     */
+    | "W_SOURCE_NO_PATH"
+    /**
+     * A load saved as a reference could not be read again: the project opened with its rows held
+     * bare in their places (node ids and edge ends, with no values; a save writes them and the
+     * reference back as they were), or a save kept it as a copy. `params.source` is the load's key
+     * and `params.reason` is `not-found`, `denied` or `unreadable`. On an open, `params.name` (its
+     * name, when it has one) and `params.url` (its address, for a URL load) say which it was.
+     */
+    | "W_SOURCE_UNAVAILABLE"
+    /**
+     * A load saved as a reference was read again and is no longer what the project was saved
+     * with: its rows hold the new values. `params.source` is the load's key.
+     */
+    | "W_SOURCE_CHANGED"
     /**
      * A `graphty-sources` entry of an opened project names a network source this release has not
      * registered: its elements are there and the entry is written back, but it is not offered to
@@ -1052,7 +1160,9 @@ export type GraphtyWarningCode =
     | "W_SOURCE_UNREGISTERED"
     /**
      * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
-     * data applied. `params.graph` names the graph, null for the file's one graph.
+     * data applied. `params.graph` names the graph, null for the file's one graph. Under the
+     * `source-steps` experiment, also when the member's sources and steps build a graph other than
+     * the one the file embeds: the embedded graph applied and the sources and steps were left out.
      */
     | "W_SOURCE_STEPS_IGNORED"
     /**
@@ -1120,6 +1230,13 @@ const CODE_TABLE = {
     E_UNKNOWN_SHADER_PARAM: "E_UNKNOWN_SHADER_PARAM",
     E_UNKNOWN_CAMERA: "E_UNKNOWN_CAMERA",
     E_UNKNOWN_GENERATOR: "E_UNKNOWN_GENERATOR",
+    E_SPACE_RESERVED: "E_SPACE_RESERVED",
+    E_AMBIGUOUS_ID: "E_AMBIGUOUS_ID",
+    E_JOIN_SPACE_SAME: "E_JOIN_SPACE_SAME",
+    E_STEP_NEEDS_NODES: "E_STEP_NEEDS_NODES",
+    E_EDIT_ROLE_COLUMN: "E_EDIT_ROLE_COLUMN",
+    E_CLASH_RULE_TYPE: "E_CLASH_RULE_TYPE",
+    E_ROLE_TARGET_AMBIGUOUS: "E_ROLE_TARGET_AMBIGUOUS",
     E_UNKNOWN_DATASET: "E_UNKNOWN_DATASET",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
@@ -1134,7 +1251,6 @@ const CODE_TABLE = {
     E_AUTOSAVE_STALLED: "E_AUTOSAVE_STALLED",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
-    E_CLASH_RULE_TYPE: "E_CLASH_RULE_TYPE",
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",
     E_DUPLICATE_PLUGIN: "E_DUPLICATE_PLUGIN",
     E_PROTECTED: "E_PROTECTED",

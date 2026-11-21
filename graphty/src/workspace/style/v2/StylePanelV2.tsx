@@ -13,6 +13,7 @@ import React, { useRef, useState } from "react";
 
 import { cosmographOn, nodeModelsOn } from "../../features";
 import { useWorkspace } from "../../state/WorkspaceContext";
+import type { FoundHome } from "../parts/find";
 import { FindSettingBox, FindSettingResults } from "../parts/FindSetting";
 import { ChannelLine } from "../parts/PartPage";
 import { itemChannels, partsFor, type PartSpec } from "../parts/parts";
@@ -155,6 +156,53 @@ function foundLine(ctx: RowContext, channel: Channel): React.ReactNode {
     ) : (
         <RubricLine ctx={ctx} line={found.line} />
     );
+}
+
+/**
+ * A setting's heading in Find a setting's results: see `findHomes`.
+ * @param side - nodes or edges.
+ * @param title - its section's heading.
+ * @param thing - its thing.
+ * @param channel - the setting.
+ * @returns the heading.
+ */
+function homeHeading(side: "node" | "edge", title: string, thing: ThingSpec, channel: Channel): string {
+    const named = thing.unnamed === true || thing.name === title ? title : `${title} - ${thing.name}`;
+    const kind = kindGroupOf(side, thing.id)?.members.find((member) => member.owns(channel));
+    const sub = lineFor(side, channel)?.group;
+    const own = kind === undefined ? named : `${named} (${kind.plainName})`;
+    return sub === undefined ? own : `${own} - ${sub}`;
+}
+
+/**
+ * Where this panel holds each setting, for Find a setting's headings: its section, its thing when the section
+ * does not already name it, the kind of a kind group ("Arrows - Arrow (Target)") and the pop-over sub-group
+ * ("Shape - Custom shape"), ranked in the panel's order (E675).
+ * @param ctx - the row and kind.
+ * @param sections - the kind's sections the element offers, with their parts.
+ * @returns each setting's home.
+ */
+function findHomes(
+    ctx: RowContext,
+    sections: readonly { part: PartSpec; section: SectionThings }[],
+): ReadonlyMap<Channel, FoundHome> {
+    const homes = new Map<Channel, FoundHome>();
+    const offered = kindChannels(ctx);
+    const ranks = new Map<string, number>();
+    for (const { part, section } of sections) {
+        const title = section.title ?? part.title;
+        for (const thing of section.groups.flat()) {
+            for (const channel of thing.shader === true ? [] : thingChannels(ctx, part, section, thing, offered)) {
+                const heading = homeHeading(ctx.side, title, thing, channel);
+                const rank = ranks.get(heading) ?? ranks.size;
+                ranks.set(heading, rank);
+                if (!homes.has(channel)) {
+                    homes.set(channel, { heading, rank });
+                }
+            }
+        }
+    }
+    return homes;
 }
 
 /**
@@ -457,6 +505,7 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
         const part = parts.find((each) => each.id === section.part);
         return part === undefined ? [] : [{ part, section }];
     });
+    const homes = query.trim() === "" ? new Map<Channel, FoundHome>() : findHomes(ctx, sections);
     const body =
         query.trim() === "" ? (
             // Every section is shown, an empty one as its header with its "+" (there is no reader switch for it); a
@@ -473,6 +522,7 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
                 query={query}
                 parts={parts}
                 line={(channel) => foundLine(ctx, channel)}
+                home={(channel) => homes.get(channel)}
                 words={(channel) => {
                     const found = lineFor(ctx.side, channel);
                     return [found?.line.name ?? "", found?.group ?? "", ...(FIND_WORDS[channel] ?? [])].filter(

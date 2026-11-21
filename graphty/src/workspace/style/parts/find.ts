@@ -76,6 +76,12 @@ export interface FoundGroup {
     readonly channels: readonly Channel[];
 }
 
+/** Where a panel other than the panel by part draws a setting: its heading there, and that heading's place. */
+export interface FoundHome {
+    readonly heading: string;
+    readonly rank: number;
+}
+
 /**
  * Every setting of one kind that matches the words: by its name in the panel, its item's name or
  * its other words. Shaders are their section's own list, never a setting here.
@@ -83,12 +89,48 @@ export interface FoundGroup {
  * @param query - the words typed.
  * @param parts - the kind's parts, as the panel draws them (without an experiment's that is off).
  * @param words - more words a setting is found by.
+ * @param home - where the panel drawing the results holds a setting (Style panel v2's sections and things); its
+ * groups then follow those headings, in that panel's order.
  * @returns the groups that match, in the panel's order.
  */
 export function findSettings(
     side: "node" | "edge",
     query: string,
     parts: readonly PartSpec[] = PARTS[side],
+    words?: (channel: Channel) => readonly string[],
+    home?: (channel: Channel) => FoundHome | undefined,
+): readonly FoundGroup[] {
+    const groups = byPart(query, parts, words);
+    if (home === undefined) {
+        return groups;
+    }
+    const rehomed = new Map<string, { group: FoundGroup; rank: number; channels: Channel[] }>();
+    for (const [at, group] of groups.entries()) {
+        for (const channel of group.channels) {
+            const found = home(channel) ?? {
+                heading: group.heading,
+                rank: Number.MAX_SAFE_INTEGER - groups.length + at,
+            };
+            const entry = rehomed.get(found.heading) ?? { group, rank: found.rank, channels: [] };
+            entry.channels.push(channel);
+            rehomed.set(found.heading, entry);
+        }
+    }
+    return [...rehomed.entries()]
+        .sort(([, a], [, b]) => a.rank - b.rank)
+        .map(([heading, { group, channels }]) => ({ heading, item: group.item, channels }));
+}
+
+/**
+ * The matching settings grouped by the panel by part's parts and items.
+ * @param query - the words typed.
+ * @param parts - the kind's parts.
+ * @param words - more words a setting is found by.
+ * @returns the groups, in the parts' order.
+ */
+function byPart(
+    query: string,
+    parts: readonly PartSpec[],
     words?: (channel: Channel) => readonly string[],
 ): readonly FoundGroup[] {
     return parts

@@ -16,7 +16,7 @@ import { rowName } from "../../graph-place/rows";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { ControlLabel } from "../ControlLabel";
 import type { RowContext } from "../PropertyRow";
-import { findSettings, itemWord } from "./find";
+import { findSettings, type FoundHome, itemWord } from "./find";
 import { ChannelLine } from "./PartPage";
 import type { PartSpec } from "./parts";
 
@@ -112,6 +112,7 @@ function AlsoSetBy({
  * @param props.parts - the kind's parts, as the panel draws them
  * @param props.line - draws a found setting as this panel's own line, with no other layers named (Style panel v2)
  * @param props.words - more words a setting is found by (Style panel v2's line and sub-group names)
+ * @param props.home - where this panel holds a setting, heading its results (Style panel v2's sections and things)
  * @returns The results
  */
 export function FindSettingResults({
@@ -120,18 +121,20 @@ export function FindSettingResults({
     parts,
     line,
     words,
+    home,
 }: Readonly<{
     ctx: RowContext;
     query: string;
     parts: readonly PartSpec[];
     line?: (channel: Channel) => React.ReactNode;
     words?: (channel: Channel) => readonly string[];
+    home?: (channel: Channel) => FoundHome | undefined;
 }>): React.JSX.Element {
     const { session } = ctx;
     const own = new Set(ctx.layers.map((layer) => layer.row ?? layer.id));
     const rows = layerRows(session.styles.tree()).filter((id) => !own.has(id));
     const reaches = rows.length === 0 ? [] : session.styles.layersUnder(rows);
-    const groups = findSettings(ctx.side, query, parts, words);
+    const groups = findSettings(ctx.side, query, parts, words, home);
     return (
         <div data-find-results="">
             {groups.map((group) => (

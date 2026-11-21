@@ -301,12 +301,13 @@ export class RowTable {
      */
     moves = 0;
     /**
-     * Counts every write to a row's extent (its scale, radius, border or shape): unchanged, no row is drawn any
-     * larger, smaller or of another shape, so what was placed from the extents at rest still stands (`restPlacement.ts`).
+     * Counts every write that can change where or how a row is drawn: a move ({@link RowTable.moves}), a row's place
+     * or w written (a hide, a shrink), or its extent (its scale, radius, border or shape). Unchanged, what was placed
+     * from the rows at rest still stands (`restPlacement.ts`).
      * @returns The count.
      */
-    get extentWrites(): number {
-        return this.extents.writes;
+    get drawnWrites(): number {
+        return this.moves + this.positions.writes + this.extents.writes;
     }
 
     /** Calls that sent the `rowPosition` texture to the card. */
@@ -604,25 +605,45 @@ export class RowTable {
     }
 
     /**
-     * Where a row is drawn while the rows rest: the CPU copy as the card last had it, with no catch-up from the lane,
-     * which a frame that moved nothing has nothing to bring up to date (`restPlacement.ts`).
+     * Whether a row's outline is round, as {@link RowTable.extentOf} reads it, with nothing allocated.
      * @param row - The row.
-     * @returns Its place.
+     * @returns True when it is.
      */
-    restingCenterOf(row: number): Xyz {
-        const { floats } = this.positions;
-        const base = row * POSITION_FLOATS;
-        return { x: floats[base] ?? 0, y: floats[base + 1] ?? 0, z: floats[base + 2] ?? 0 };
+    isRound(row: number): boolean {
+        return ((this.extents.floats[row * EXTENT_FLOATS + 3] ?? 0) & ROW_EXTENT_ROUND) !== 0;
     }
 
     /**
-     * How much of a row is drawn, as its `rowPosition` w holds it: 0 for a hidden row, which a pulled line or cap
-     * between it and another draws nothing for. Read at rest, as {@link RowTable.restingCenterOf} is.
+     * {@link RowTable.extentOf}'s scale, round radius and border, written into `out`, with nothing allocated: what a
+     * rest placement reads of every row (`restPlacement.ts`).
      * @param row - The row.
-     * @returns Its w.
+     * @param out - Written with its scale, its radius and its border, in that order.
+     * @returns False for a row that is not round, `out` then unwritten.
      */
-    drawnPart(row: number): number {
-        return this.positions.floats[row * POSITION_FLOATS + 3] ?? 0;
+    roundExtentOf(row: number, out: Float64Array): boolean {
+        const { floats } = this.extents;
+        const base = row * EXTENT_FLOATS;
+        const code = floats[base + 3] ?? 0;
+        if ((code & ROW_EXTENT_ROUND) === 0) {
+            return false;
+        }
+
+        const flags = this.flags[row] ?? 0;
+        const part =
+            (flags & SHRUNK) !== 0 && (flags & HIDDEN) === 0 ? this.positions.floats[row * POSITION_FLOATS + 3] : 1;
+        out[0] = (floats[base] ?? 0) * (part ?? 1);
+        out[1] = (floats[base + 1] ?? 0) * (part ?? 1);
+        out[2] = (code & ROW_EXTENT_SCREEN_BORDER) === 0 ? (floats[base + 2] ?? 0) * (part ?? 1) : 0;
+        return true;
+    }
+
+    /**
+     * Where every row is drawn while the rows rest: x, y, z and w a row, the CPU copy as the card last had it, with no
+     * catch-up from the lane, which a frame that moved nothing has nothing to bring up to date (`restPlacement.ts`).
+     * @returns The floats; read them, never write them.
+     */
+    get restingPositions(): Float32Array<ArrayBuffer> {
+        return this.positions.floats;
     }
 
     /**

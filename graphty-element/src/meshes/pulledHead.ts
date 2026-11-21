@@ -1,3 +1,4 @@
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { EdgeStyleConfig } from "../config";
@@ -23,8 +24,8 @@ export interface PulledHead {
     /** The options its shape is made from (`EdgeMesh.billboardShape`). */
     readonly shape: Parameters<typeof EdgeMesh.billboardShape>[0];
     readonly opacity: number;
-    /** Its color, as a hex string. */
-    readonly colour: string;
+    /** Its color. */
+    readonly colour: Color3;
     /** What the cap stands back by. */
     readonly place: PulledCapPlace;
     /** How far before the target's outline the line stops, at node scale 1 (`Edge.capBack`). */
@@ -104,12 +105,16 @@ function judge(style: EdgeStyleConfig): PulledHead | null {
         key,
         shape,
         opacity,
-        colour: arrow.color ?? style.line?.color ?? "#FFFFFF",
+        colour: Color3.FromHexString(arrow.color ?? style.line?.color ?? "#FFFFFF"),
         place: { capGap: 0, centreBack, size: length },
         lineStop: EdgeMesh.lineStopOf(length, geometry),
         look: {
             size: length,
-            centreAt: (tip, direction, at) => EdgeMesh.calculateArrowPosition(tip, direction, at, geometry),
+            // EdgeMesh.calculateArrowPosition's stand-back, step for step
+            centreBackAt: (at) =>
+                geometry.positioningMode === "center"
+                    ? (at * (geometry.scaleFactor ?? 1)) / 2
+                    : at * geometry.positionOffset,
             lineStopAt: (at) => EdgeMesh.lineStopOf(at, geometry),
         },
     };
@@ -145,5 +150,5 @@ export function pulledHeadBatch(head: PulledHead, scene: Scene): ArrowCapBatch {
  * @returns True when it is.
  */
 export function roundRow(rows: RowTable, row: number): boolean {
-    return row >= 0 && rows.extentOf(row).round !== null;
+    return row >= 0 && rows.isRound(row);
 }

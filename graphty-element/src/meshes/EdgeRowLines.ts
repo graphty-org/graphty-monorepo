@@ -117,6 +117,8 @@ interface RowLook {
     readonly head: PulledHead | null;
     /** Whether its line has a pattern (`EdgeMesh.pulledPattern`). */
     readonly patterned: boolean;
+    /** Its head's cap batch, found once for every row the look paints. */
+    headBatch?: ArrowCapBatch;
 }
 
 /** What {@link EdgeRowLines} reads from the graph. */
@@ -376,7 +378,7 @@ export class EdgeRowLines {
         const { width, color } = look;
         // a head's batch is made before its line's, as an object edge makes its cap first: a head and the line under
         // it are coplanar, and two opaque meshes draw in the order they were made
-        const headBatch = head === null ? null : pulledHeadBatch(head, scene);
+        const headBatch = head === null ? null : this.headBatchOf(look, head);
         const batch = EdgeMesh.pulledBatch(cache, { styleId: meshKey, width, color }, style, scene, () => rows, {
             route: "straight",
             lean: this.host.lean(),
@@ -532,6 +534,23 @@ export class EdgeRowLines {
             shown ? lines.source[row] : -1,
             shown ? lines.target[row] : -1,
         );
+    }
+
+    /**
+     * The cap batch a look's head is drawn in, found once for every row the look paints: a paint run of a million rows
+     * looks it up once, not once a row.
+     * @param look - The look.
+     * @param head - Its head.
+     * @returns The batch.
+     */
+    private headBatchOf(look: RowLook, head: PulledHead): ArrowCapBatch {
+        let batch = look.headBatch;
+        if (batch === undefined || batch.disposed) {
+            batch = pulledHeadBatch(head, this.host.scene);
+            look.headBatch = batch;
+        }
+
+        return batch;
     }
 
     /**

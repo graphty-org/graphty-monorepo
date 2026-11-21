@@ -10,11 +10,10 @@ import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
-import { trimEnds } from "./edgeTrim";
 import { batchUploadFrames, type RangedUploads } from "./FrameRoster";
 import { ParkedSlots } from "./ParkedSlots";
 import { takePoolReserve } from "./poolReserve";
-import { type PulledCapLook, type RestSource, RestWatch, roundRowEnd, rowCapScale } from "./restPlacement";
+import { type PulledCapLook, type RestSource, RestWatch, roundRowsEnds } from "./restPlacement";
 
 /** Floats in one 4x4 world matrix, which is what every slot holds. */
 const FLOATS_PER_MATRIX = 16;
@@ -118,6 +117,11 @@ function opaqueRows(count: number, from: number): Float32Array {
 
     return rows;
 }
+
+/** Scratch for placing a pulled cap at rest: its ends, direction and center. */
+const scratchPlace = new Float64Array(9);
+const pulledDirection = new Vector3();
+const pulledCentre = new Vector3();
 
 /** The identity matrix, copied into a slot that only ever carries a translation. */
 const IDENTITY = Matrix.Identity();
@@ -467,6 +471,18 @@ export class ArrowCapBatch {
      * @param opacity - The cap's own opacity, multiplying the batch's.
      */
     setAppearance(index: number, size: number, colour: string, opacity = 1): void {
+        this.writeAppearance(index, size, Color3.FromHexString(colour), opacity);
+    }
+
+    /**
+     * {@link ArrowCapBatch.setAppearance} with the color parsed already: a paint run gives every cap of one look the
+     * same color.
+     * @param index - The slot.
+     * @param size - The cap's length in world units.
+     * @param rgb - The cap's color.
+     * @param opacity - The cap's own opacity, multiplying the batch's.
+     */
+    private writeAppearance(index: number, size: number, rgb: Color3, opacity: number): void {
         const { billboard } = this;
         if (this.gone || !billboard) {
             return;
@@ -478,7 +494,6 @@ export class ArrowCapBatch {
             this.written("arrowSize", index);
         }
 
-        const rgb = Color3.FromHexString(colour);
         const at = index * BILLBOARD_BUFFERS.arrowColor;
         const colours = billboard.arrowColor;
         scratchRow[0] = rgb.r;
@@ -993,7 +1008,7 @@ export class ArrowCapBatch {
      * @param rows.head - The head end's row.
      * @param place - What it stands back by, at node scale 1.
      * @param look - What it is placed by at rest, shared by every cap of its style.
-     * @param colour - Its color, as a hex string.
+     * @param colour - Its color.
      * @param opacity - Its opacity.
      */
     setPulled(
@@ -1001,7 +1016,7 @@ export class ArrowCapBatch {
         rows: { from: number; head: number },
         place: PulledCapPlace,
         look: PulledCapLook,
-        colour: string,
+        colour: Color3,
         opacity: number,
     ): void {
         const { pulled } = this;
@@ -1010,9 +1025,14 @@ export class ArrowCapBatch {
         }
 
         pulled.looks[index] = look;
-        pulled.floats.capPlace.set([place.capGap, place.centreBack, place.size, 0], index * PULLED_BUFFERS.capPlace);
+        const at = index * PULLED_BUFFERS.capPlace;
+        const { capPlace } = pulled.floats;
+        capPlace[at] = place.capGap;
+        capPlace[at + 1] = place.centreBack;
+        capPlace[at + 2] = place.size;
+        capPlace[at + 3] = 0;
         this.written("capPlace", index);
-        this.setAppearance(index, place.size, colour, opacity);
+        this.writeAppearance(index, place.size, colour, opacity);
         this.setPulledRows(index, rows.from, rows.head);
     }
 
@@ -1037,7 +1057,8 @@ export class ArrowCapBatch {
             this.written("matrix", index);
         }
 
-        pulled.floats.capRows.set(drawn ? [from + 1, head + 1] : [0, 0], index * PULLED_BUFFERS.capRows);
+        pulled.floats.capRows[index * PULLED_BUFFERS.capRows] = drawn ? from + 1 : 0;
+        pulled.floats.capRows[index * PULLED_BUFFERS.capRows + 1] = drawn ? head + 1 : 0;
         this.written("capRows", index);
         // the shader stands it from its rows until the next rest places it
         pulled.floats.capPlace[index * PULLED_BUFFERS.capPlace + 3] = 0;
@@ -1087,7 +1108,10 @@ export class ArrowCapBatch {
      */
     private placePulled(pulled: NonNullable<ArrowCapBatch["pulled"]>): void {
         const { rows } = pulled.host;
+        const positions = rows.restingPositions;
         const { capRows, capPlace } = pulled.floats;
+        const at = scratchPlace;
+        const placedBefore = this.placedCaps;
         for (let index = 0; index < this.highWater; index++) {
             const look = pulled.looks[index];
             const [from, head] = [capRows[index * 2] - 1, capRows[index * 2 + 1] - 1];
@@ -1095,40 +1119,54 @@ export class ArrowCapBatch {
                 continue;
             }
 
-            const source = roundRowEnd(rows, from, 0);
-            const target = roundRowEnd(rows, head, 0);
-            if (source === null || target === null) {
-                continue;
-            }
-
-            // Edge.placeArrowCaps over Edge.interceptPointsFromColumns, then Edge.placeArrowHead
-            const [fromAt, headAt] = [rows.restingCenterOf(from), rows.restingCenterOf(head)];
             // a hidden row draws no cap: the shader stands it, and draws nothing
-            if (rows.drawnPart(from) * rows.drawnPart(head) === 0) {
+            const scale =
+                positions[from * 4 + 3] * positions[head * 4 + 3] === 0 ? 0 : roundRowsEnds(rows, from, head, null, at);
+            if (scale === 0) {
                 continue;
             }
 
-            const { src, dst } = trimEnds({ src: fromAt, dst: headAt, source, target, capBack: 0 });
-            if (src === null || dst === null) {
-                continue;
+            // Edge.placeArrowCaps over Edge.interceptPointsFromColumns, then Edge.placeArrowHead: the direction as
+            // Babylon's normalize gives it (no scaling at a length of 1), the tip its own gap back, the center behind
+            pulledDirection.set(at[3] - at[0], at[4] - at[1], at[5] - at[2]);
+            const span = pulledDirection.length();
+            if (span !== 0 && span !== 1) {
+                pulledDirection.scaleInPlace(1 / span);
             }
 
-            const srcPoint = new Vector3(src.x, src.y, src.z);
-            const dstPoint = new Vector3(dst.x, dst.y, dst.z);
-            const direction = dstPoint.subtract(srcPoint).normalize();
-            const tip = dstPoint.subtract(direction.scale(capPlace[index * 4]));
-            const length = look.size * rowCapScale(rows, head);
-            const hidden = this.billboard?.arrowHidden[index] === 1;
-            this.placeAt(index, look.centreAt(tip, direction, length), direction);
-            if (hidden) {
-                // placing forgets a parked cap: the visibility mask still hides it
-                this.park(index);
+            const capGap = capPlace[index * 4];
+            const [tx, ty, tz] = [
+                at[3] - pulledDirection.x * capGap,
+                at[4] - pulledDirection.y * capGap,
+                at[5] - pulledDirection.z * capGap,
+            ];
+            const length = look.size * scale;
+            const centreBack = look.centreBackAt(length);
+            pulledCentre.set(
+                tx - pulledDirection.x * centreBack,
+                ty - pulledDirection.y * centreBack,
+                tz - pulledDirection.z * centreBack,
+            );
+            // as `placeAt` writes it, into a slot whose matrix is the identity already (a hidden one was passed over), and
+            // its length as `setBillboardSize`; a parked cap keeps its flag
+            const matrix = index * FLOATS_PER_MATRIX;
+            this.matrices[matrix + 12] = pulledCentre.x;
+            this.matrices[matrix + 13] = pulledCentre.y;
+            this.matrices[matrix + 14] = pulledCentre.z;
+            if (this.billboard !== null) {
+                pulledDirection.toArray(this.billboard.arrowDirection, index * BILLBOARD_BUFFERS.arrowDirection);
+                this.billboard.arrowSize[index] = length;
             }
 
-            this.setBillboardSize(index, length);
             capPlace[index * 4 + 3] = 1;
-            this.written("capPlace", index);
             this.placedCaps++;
+        }
+
+        // a rest places every cap: the buffers go up whole, not by a run a cap
+        if (this.placedCaps !== placedBefore) {
+            for (const kind of ["matrix", "arrowDirection", "arrowSize", "capPlace"] as const) {
+                this.runs[kind].whole();
+            }
         }
     }
 }

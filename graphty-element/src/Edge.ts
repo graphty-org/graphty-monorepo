@@ -1360,8 +1360,15 @@ export class Edge {
         pattern: JoinedPatternKind | null;
     } | null {
         if (this.pulled) {
-            const src = this.endPosition("source");
-            const dst = this.endPosition("target");
+            let src = this.endPosition("source");
+            let dst = this.endPosition("target");
+            // a line under a head runs from its source's outline to the head's back, as an object edge's
+            if (this.pulled.head !== null) {
+                const { srcPoint, newEndPoint } = this.getInterceptPoints();
+                src = srcPoint ?? src;
+                dst = newEndPoint ?? dst;
+            }
+
             const center = Vector3.Center(src, dst);
             return {
                 name: this.pulled.name,
@@ -1370,7 +1377,7 @@ export class Edge {
                 visibility: this.pulled.visibility,
                 center,
                 centre: center,
-                pattern: null,
+                pattern: (this.pulled.batch.mesh.metadata as EdgeLineMeta | null)?.pattern?.kind ?? null,
             };
         }
 

@@ -6,7 +6,7 @@
  * `design/rendering/row-renderer.md`, section 4.3, stage 17.
  */
 
-import { Color4, Constants, Engine, FreeCamera, Logger, RawTexture, Scene, Vector3 } from "@babylonjs/core";
+import { Color3, Color4, Constants, Engine, FreeCamera, Logger, RawTexture, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
 import { ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
@@ -179,19 +179,15 @@ describe("pulled arrow caps", () => {
             get extentTexture() {
                 return extentTexture;
             },
-            get moves() {
+            get drawnWrites() {
                 return moves;
             },
-            extentWrites: 0,
-            restingCenterOf: at,
-            extentOf: (row: number) => ({
-                scale: rows[row].scale,
-                round: rows[row].radius,
-                half: end(row, 0).half,
-                border: rows[row].border,
-            }),
+            restingPositions: places,
+            roundExtentOf: (row: number, out: Float64Array) => {
+                out.set([rows[row].scale, rows[row].radius, rows[row].border]);
+                return true;
+            },
             seenThrough: () => false,
-            drawnPart: (row: number) => places[row * 4 + 3],
         };
         const pulled = new ArrowCapBatch(
             FilledArrowRenderer.applyInstancedShader(
@@ -211,10 +207,10 @@ describe("pulled arrow caps", () => {
             const { scale } = rows[cap.head];
             const look = {
                 size: cap.size,
-                centreAt: (tip: Vector3, direction: Vector3) => tip.subtract(direction.scale(cap.centreBack * scale)),
+                centreBackAt: () => cap.centreBack * scale,
                 lineStopAt: () => 0,
             };
-            pulled.setPulled(slot, cap, cap, look, cap.colour, 1);
+            pulled.setPulled(slot, cap, cap, look, Color3.FromHexString(cap.colour), 1);
             return slot;
         });
 

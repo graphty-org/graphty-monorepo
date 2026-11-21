@@ -14,11 +14,10 @@ import {
     LEAN_TEMPLATE_OF,
 } from "./edgeJoinShader";
 import { type EdgeLineMeta, markEdgeLineBatchMesh, patternSpacing } from "./EdgeLineBatch";
-import { trimEnds } from "./edgeTrim";
 import { batchUploadFrames } from "./FrameRoster";
 import { takePoolReserve } from "./poolReserve";
 import { CURVE_STRIDE, curveShape, type CurveSpan } from "./pulledCurve";
-import { type PulledCapLook, type RestSource, RestWatch, roundRowEnd, rowCapScale } from "./restPlacement";
+import { placedEnds, type PulledCapLook, type RestSource, RestWatch, roundRowsEnds } from "./restPlacement";
 
 /**
  * @file Straight edges drawn from the row table: a piece is two row numbers, not twenty floats.
@@ -229,12 +228,6 @@ export interface PulledRowTextures {
  */
 function identityKeys(capacity: number): Float64Array {
     return Float64Array.from({ length: capacity }, (_, piece) => piece);
-}
-
-/** A piece's ends placed at rest: where its line starts and ends. */
-interface PlacedEnds {
-    readonly src: { readonly x: number; readonly y: number; readonly z: number };
-    readonly lineEnd: { readonly x: number; readonly y: number; readonly z: number };
 }
 
 /** Straight edges between row centers, drawn in one non-instanced draw; see the file comment. */
@@ -968,77 +961,42 @@ export class PulledLineBatch {
         }
 
         const { ends } = this;
+        const positions = rows.restingPositions;
+        const at = placedEnds;
         ends.fill(0);
         for (let piece = 0; piece < this.highWater; piece++) {
             const look = this.endLooks[piece];
-            const at = piece * this.pieceFloats;
-            const [from, head] = [this.rows[at] ?? NO_ROW, this.rows[at + 1] ?? NO_ROW];
+            const base = piece * this.pieceFloats;
+            const [from, head] = [this.rows[base] ?? NO_ROW, this.rows[base + 1] ?? NO_ROW];
             if (
                 (look === undefined && this.pattern === undefined) ||
                 from < 0 ||
                 head < 0 ||
-                this.hidden[piece] !== 0
+                this.hidden[piece] !== 0 ||
+                // a hidden row draws no line: the shader trims it, and draws nothing
+                positions[from * 4 + 3] * positions[head * 4 + 3] === 0 ||
+                !(look === undefined
+                    ? bareEnds(rows, from, head, at)
+                    : roundRowsEnds(rows, from, head, (scale) => look.lineStopAt(look.size * scale), at) > 0)
             ) {
                 continue;
             }
 
-            const placed =
-                look === undefined ? this.bareEnds(rows, from, head) : this.cappedEnds(rows, from, head, look);
-            // a hidden row draws no line: the shader trims it, and draws nothing
-            if (placed === null || rows.drawnPart(from) * rows.drawnPart(head) === 0) {
-                continue;
-            }
-
-            const { src, lineEnd } = placed;
-
             // EdgeLineBatch.place: a straight line's spacing for its length (Vector3.Distance)
-            const [dx, dy, dz] = [lineEnd.x - src.x, lineEnd.y - src.y, lineEnd.z - src.z];
+            const [dx, dy, dz] = [at[6] - at[0], at[7] - at[1], at[8] - at[2]];
             const spacing = patternSpacing(this.pattern, Math.sqrt(dx * dx + dy * dy + dz * dz)); // eslint-disable-line unicorn/prefer-modern-math-apis -- Vector3.Distance's own arithmetic, which the object path's spacing reads
-            ends.set([src.x, src.y, src.z, 1, lineEnd.x, lineEnd.y, lineEnd.z, spacing], piece * 2 * TEXEL_FLOATS);
+            const to = piece * 2 * TEXEL_FLOATS;
+            ends[to] = at[0];
+            ends[to + 1] = at[1];
+            ends[to + 2] = at[2];
+            ends[to + 3] = 1;
+            ends[to + 4] = at[6];
+            ends[to + 5] = at[7];
+            ends[to + 6] = at[8];
+            ends[to + 7] = spacing;
         }
 
         this.endsDirty = true;
-    }
-
-    /**
-     * A piece's ends under a head, as `Edge.placeArrowCaps` ends an object edge's line over the row table
-     * (`Edge.interceptPointsFromColumns`): the source's outline, and the line's end before its head.
-     * @param rows - The row table.
-     * @param from - The source row.
-     * @param head - The target row.
-     * @param look - The head.
-     * @returns The ends, or null for none the CPU places (the shader trims it).
-     */
-    private cappedEnds(rows: RestSource["rows"], from: number, head: number, look: PulledCapLook): PlacedEnds | null {
-        const source = roundRowEnd(rows, from, 0);
-        const target = roundRowEnd(rows, head, 0);
-        if (source === null || target === null) {
-            return null;
-        }
-
-        const capBack = look.lineStopAt(look.size * rowCapScale(rows, head));
-        const { src, lineEnd } = trimEnds({
-            src: rows.restingCenterOf(from),
-            dst: rows.restingCenterOf(head),
-            source,
-            target,
-            capBack,
-        });
-        return src === null || lineEnd === null ? null : { src, lineEnd };
-    }
-
-    /**
-     * A headless piece's ends, as `Edge.bareEnd` ends an object edge's line with no cap: its nodes' centers, which an
-     * opaque node hides; a translucent end is left to the shader (`pulledTrim`).
-     * @param rows - The row table.
-     * @param from - The source row.
-     * @param to - The target row.
-     * @returns The ends, or null.
-     */
-    private bareEnds(rows: RestSource["rows"], from: number, to: number): PlacedEnds | null {
-        return rows.seenThrough(from) || rows.seenThrough(to)
-            ? null
-            : { src: rows.restingCenterOf(from), lineEnd: rows.restingCenterOf(to) };
     }
 
     /**
@@ -1443,4 +1401,27 @@ export class PulledLineBatch {
         subMesh.verticesCount = this.highWater * corners;
         subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
     }
+}
+
+/**
+ * A headless piece's ends, as `Edge.bareEnd` ends an object edge's line with no cap: its nodes' centers, which an
+ * opaque node hides; a translucent end is left to the shader (`pulledTrim`).
+ * @param rows - The row table.
+ * @param from - The source row.
+ * @param to - The target row.
+ * @param out - Written with the ends, as `roundEnds` writes them.
+ * @returns False for ends the CPU does not place.
+ */
+function bareEnds(rows: RestSource["rows"], from: number, to: number, out: Float64Array): boolean {
+    if (rows.seenThrough(from) || rows.seenThrough(to)) {
+        return false;
+    }
+
+    const positions = rows.restingPositions;
+    for (let i = 0; i < 3; i++) {
+        out[i] = positions[from * 4 + i];
+        out[6 + i] = positions[to * 4 + i];
+    }
+
+    return true;
 }

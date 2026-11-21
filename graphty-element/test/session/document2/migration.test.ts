@@ -197,13 +197,13 @@ describe("a version 1 project file, migrated", () => {
         const keyOf = new Map(graph.nodes.map((node) => [node.id, node["graphty.key"]]));
         const ends = new Map(
             graph.links.map((link) => [
-                `${String(link["graphty.load"])}#${String(link["graphty.key"])}`,
+                `${String(link["graphty.load"])} ${String(link["graphty.key"])}`,
                 `${String(keyOf.get(link.source))}>${String(keyOf.get(link.target))}`,
             ]),
         );
         const endsOf = (ref: unknown): string | undefined => {
             const { load, key } = ref as { load: string; key: string };
-            return ends.get(`${load}#${key}`);
+            return ends.get(`${load} ${key}`);
         };
 
         // The selection named the edge at position 1 of `links`: b to c.
@@ -211,6 +211,8 @@ describe("a version 1 project file, migrated", () => {
         assert.lengthOf(selected, 1);
         assert.isTrue(isEdgeRef(selected[0]));
         assert.strictEqual(endsOf(selected[0]), "b>c");
+        // A link with no id is keyed by its ends, numbered over the links between them in order.
+        assert.strictEqual((selected[0] as { key: string }).key, "b|c#1");
 
         // Each run's edge values, by position in version 1, are now by reference, each an edge the data holds.
         const run = (results.runs as Record<string, { edges: { refs: unknown[] }; bindsTo: JsonObject }>).reader__links;
@@ -307,7 +309,7 @@ describe("a version 1 project file, migrated", () => {
         session.dispose();
     });
 
-    it("keys a file's loads, keeps their records, and keys its keyless rows by copy id and row", async () => {
+    it("keys a file's loads, keeps their records, and keys its keyless rows by their ends", async () => {
         const session = sessionWithRuns();
         await session.data.import({ type: "gml", config: { data: GML } });
         const { v1, sections } = await migrated(session);
@@ -316,9 +318,8 @@ describe("a version 1 project file, migrated", () => {
         const metadata = source.metadata as { "version-1": { loads: JsonObject } };
         const v1Sources = (v1.members as JsonObject[]).find((member) => member.kind === "graphty-sources");
         assert.deepStrictEqual(metadata["version-1"].loads, v1Sources);
-        const copy = String((source.origin as JsonObject).copy);
 
-        // Two parallel b-c edges, told apart by their rows. The graph is undirected and a multigraph.
+        // Two parallel 2-3 edges, told apart by their number. The graph is undirected and a multigraph.
         const graph = sections.data.graph as JsonObject;
         assert.isFalse(graph.directed);
         assert.isTrue(graph.multigraph);
@@ -328,7 +329,7 @@ describe("a version 1 project file, migrated", () => {
         );
         assert.deepStrictEqual(
             (graph.links as JsonObject[]).map((link) => link["graphty.key"]),
-            [`${copy}#0`, `${copy}#1`, `${copy}#2`],
+            ["1|2#1", "2|3#1", "2|3#2"],
         );
         session.dispose();
     });

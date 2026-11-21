@@ -511,10 +511,11 @@ then row order.
    or deleting another step never re-keys an existing edge: `<part>/<key>` from the row's edge-id
    cell; `<part>/<from key>|<to key>` when the step reduces its rows to one edge per end pair (by
    `repeated` or `aggregate`), each key with `\` written `\\` and `|` written `\|`, so removing or
-   re-sorting rows never re-keys it; else `<part>/<copy id>#<row>`. Every row a reduced edge was
+   re-sorting rows never re-keys it; else `<part>/<from>|<to>#<n>`, the keyless form of 6.1
+   counted over the step's rows. Every row a reduced edge was
    built from keeps its own `{ load, key }` as an alias of that edge (6.1). Conformance cases: two `join.edges` steps
    (parts 1 and 2); delete the first, add another: part 3; save, reopen, and part 2's edge keys
-   are unchanged.
+   are unchanged; a `join.edges` step with no edge id whose rows are re-sorted keeps `1/a|b#1`.
 4. **Which columns and which rows.** `columns` lists the working columns a step brings besides its
    role columns; absent means every column, and on `join.add` every column no other step of the
    same source moves onto nodes, so moving a column never rewrites the add. `[]` brings none (an
@@ -1104,17 +1105,33 @@ source whose row made it.
 - A **key** is always a JSON string (11). An edge's key is its `edgeId` value; repeated ids within
   one source follow `duplicateIds`. A writer whose data holds two edges with one edge id in a
   source that does not `merge` leaves the later row's edge-id cell unset, so that row is keyless,
-  and reports it (`W_MEMBER_LEFT_OUT`). A keyless row's key, node or edge, is
-  `"<copy id>#<row from 0>"`: every node row of a source whose mapping names no key column, and an
-  edge row whose edge-id cell is null or empty, so the form applies per row. A `join.edges` step
-  puts its `part` in front (4.1.8 rule 3). A reader-added node is keyed by its id exactly as a source row is (its
-  typed id in the `add`'s `columns.id`), so its id is the same after a save and a reopen; when
-  another reader node's id has the same text (`1` and `"1"`), the later is keyed by a ULID minted
-  once and kept, its typed id still in `columns.id`; a
-  reader-added edge is keyed by its edge-id value when it has one no other reader edge repeats,
-  else by a ULID minted once and kept, and its `load` is `reader`. A row whose node-key or
-  edge-end cell is null or empty names no node: it is left out of the build and counted
-  (`W_KEY_EMPTY`), as a load leaves it out.
+  and reports it (`W_MEMBER_LEFT_OUT`). A keyless row is keyed by its content, never by a copy id
+  or its position, and the form applies per row:
+    - An edge row whose edge-id cell is null or empty is keyed `<from>|<to>#<n>`. `<from>` and
+      `<to>` are the key texts (11), after NFC, of its source and target cells as read, before any
+      `via` or lookup, each with `\` written `\\` and `|` written `\|`. `n` counts from 1, in row
+      order, over the rows of that source's table that have no edge id and the same ordered pair (on
+      an undirected graph too), skipping any number whose key some row's edge id already holds. A
+      `join.edges` step puts `<part>/` in front and counts over its `read.table` by its own read
+      roles, every row whether or not the step reads it (4.1.8 rule 3).
+    - A node row of a source whose mapping names no key column is keyed `<digest>#<n>`. `<digest>`
+      is the first 32 lowercase hex digits of the SHA-256 of the RFC 8785 canonical JSON of the
+      row's non-null cells, by working column name; `n` counts rows with the same digest, from 1, in
+      row order. A writer MAY then write these keys as a key column; graphty-element does, writing
+      every node table with key column `id`, so the key holds after the first save.
+    - Conformance cases: re-sorting or appending rows leaves every key unchanged; two rows from `a`
+      to `b` are `a|b#1` and `a|b#2`; a row from `a|x` to `b` is `a\|x|b#1`; a re-sorted keyless
+      node table keeps its keys.
+
+    A reader-added node is keyed by its id exactly as a source row is (its
+    typed id in the `add`'s `columns.id`), so its id is the same after a save and a reopen; when
+    another reader node's id has the same text (`1` and `"1"`), the later is keyed by a ULID minted
+    once and kept, its typed id still in `columns.id`; a
+    reader-added edge is keyed by its edge-id value when it has one no other reader edge repeats,
+    else by a ULID minted once and kept, and its `load` is `reader`. A row whose node-key or
+    edge-end cell is null or empty names no node: it is left out of the build and counted
+    (`W_KEY_EMPTY`), as a load leaves it out.
+
 - **Repeated edges.** `repeatedEdges` (`keep` when absent, whatever the session that opens the
   file held before) decides what becomes of edges between
   one pair of nodes (an unordered pair on an undirected graph), within one step or across sources:
@@ -1134,8 +1151,7 @@ source whose row made it.
 ```jsonc
 { "space": "account", "key": "acct-1002" }                         // a node
 { "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y", "key": "pay-889" }     // an edge
-{ "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
-  "key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3" }                          // a keyless edge row
+{ "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y", "key": "acct-1002|dev-9f3#1" } // a keyless edge row: the first from acct-1002 to dev-9f3
 { "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y", "key": "2/acct-7|m\\|3" } // part 2's edge from acct-7 to m|3
 ```
 
@@ -1168,12 +1184,13 @@ data, a reader binds a node by (space, key) and an edge by (load, key).
    and the pins keep their unbound members through edits; one leaves only when the reader removes
    it. The selection is the exception: selecting again replaces it whole.
 3. A re-key rewrites the references in every open section at once; a section file not open during
-   it keeps those references unbound and reports them. During a live refresh, keyless rows may be
-   matched in memory and the open sections' references rewritten; that matching is never saved.
+   it keeps those references unbound and reports them. A keyless row whose content a refresh
+   keeps keeps its key (6.1). These get a new key, and their references stay unbound: a keyless
+   edge whose end texts changed; a later keyless edge between the same ends after an earlier one
+   is removed (its number moves down); a keyless node row any of whose cells changed.
 4. A source id survives refresh and same-shape replace, so renaming a file or moving a URL unbinds
-   nothing. A referenced network source gets a new copy id on every open, so its keyless rows get
-   new keys; when a saved reference or reader operation names one, the save report says it will
-   not bind after reopening.
+   nothing. No key depends on a copy id, so a new copy that holds the same rows binds every
+   reference as before.
 
 ### 6.4 `bindsTo` and staleness
 
@@ -1416,7 +1433,8 @@ kind) is opened through a migration into the sections above:
   ignored issues unchanged, kept pairs into `issues.kept`;
 - the `label` role becomes a style layer reading that column;
 - each positional edge reference becomes `{ load, key }` with the key of the edge at that
-  position: its id when it has one, else `"<copy id>#<position>"`;
+  position: its id when it has one, else its row's keyless key (6.1), counted over the version 1
+  links in order;
 - element-naming layers go into view's `layers`, and every layer's `kind` is dropped;
 - the session's visibility goes into view and its playback into settings; each saved run becomes a
   view run record and its outputs results; pinned nodes become `pinned`, other coordinates the
@@ -1434,8 +1452,7 @@ kind) is opened through a migration into the sections above:
   references; base64 positions and results become plain numbers.
 
 A migrated project cannot refresh one of its original sources separately. A version 1 section
-document migrated without its project file keeps its edge targets unbound, since the copy id is
-minted at migration.
+document migrated without its project file keeps its edge targets unbound, since it does not hold the edges its positions name.
 
 ## 10. Open vocabularies and closed objects
 

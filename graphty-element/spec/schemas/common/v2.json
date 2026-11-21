@@ -335,7 +335,7 @@
         },
         "nodeRef": {
             "type": "object",
-            "description": "A node by record key. Closed: a reference with any other shape is kept and reported unbound.",
+            "description": "A node by record key. Closed: a reference with any other shape is kept and reported unbound. A node row of a source with no key column has the key <digest>#<n> (spec 6.1).",
             "required": ["space", "key"],
             "properties": {
                 "space": {
@@ -349,7 +349,7 @@
         },
         "edgeRef": {
             "type": "object",
-            "description": "An edge by record key: load names the source whose row made it, key its edge-id value, a reader-added edge's edge-id value or, with none, a minted ULID, or <copy id>#<row from 0> for a keyless row. Closed.",
+            "description": "An edge by record key: load names the source whose row made it, key its edge-id value, a reader-added edge's edge-id value or, with none, a minted ULID, or <from>|<to>#<n> for a keyless row (spec 6.1), with <part>/ in front for a join.edges step. Closed.",
             "required": ["load", "key"],
             "properties": {
                 "load": {

@@ -508,7 +508,7 @@
                         "source": 1,
                         "target": 4,
                         "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
-                        "graphty.key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3",
+                        "graphty.key": "acct-1002|dev-9f3#1",
                         "graphty.types": ["used-device"],
                         "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
                         "account_id": "acct-1002",
@@ -520,7 +520,7 @@
                         "source": 2,
                         "target": 4,
                         "graphty.load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
-                        "graphty.key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#4",
+                        "graphty.key": "acct-1003|dev-9f3#1",
                         "graphty.types": ["used-device"],
                         "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
                         "account_id": "acct-1003",
@@ -1293,7 +1293,7 @@
                 "edges": [
                     {
                         "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
-                        "key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3"
+                        "key": "acct-1002|dev-9f3#1"
                     }
                 ]
             },

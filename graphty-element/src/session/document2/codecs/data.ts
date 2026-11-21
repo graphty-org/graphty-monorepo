@@ -56,6 +56,7 @@ import type { SessionData } from "../../data";
 import type { TransactionOptions } from "../../project/Dispatcher";
 import { SOURCE_ATTR } from "../../sources/ids";
 import { causeParams, type ReadCause } from "../../sources/references";
+import { keylessEdgeKeys, keylessNodeKeys } from "../../sources/rowKeys";
 import type { SourceLoadRecord, SourceRefreshReport } from "../../sources/types";
 import type { GraphSession, LoadedSource, TransactionScope } from "../../types";
 import { ignorableOf, isExtensions, token } from "../framing";
@@ -1407,7 +1408,7 @@ function reportEmpty(into: Building, source: string, empty: ReadonlyMap<string, 
 
 /**
  * Build a source's node rows by key in its space. With no key column every row is keyless (spec
- * 4.1.3 rule 2): it keeps its row, in the space `source:<source id>`. A row whose key cell is null
+ * 4.1.3 rule 2): it is keyed by its content (spec 6.1), in the space `source:<source id>`. A row whose key cell is null
  * or empty is left out and counted (spec 6.1).
  * @param source - The source.
  * @param into - The build so far.
@@ -1416,13 +1417,14 @@ function reportEmpty(into: Building, source: string, empty: ReadonlyMap<string, 
  * @param clash - The step's clash rules.
  */
 function buildNodes(source: ReadSource, into: Building, nodeMap: JsonObject, duplicates: string, clash: Clash): void {
-    const { id, copyId, nodes } = source;
+    const { id, nodes } = source;
     const keyColumn = typeof nodeMap.key === "string" ? nodeMap.key : undefined;
+    const rows = Array.from({ length: nodes?.length ?? 0 }, (_, row) => rowOf(nodes as Table, row));
+    const keyless = keyColumn === undefined ? keylessNodeKeys(rows) : [];
     const keyedSpace = keyColumn === undefined ? undefined : String(nodeMap.space).normalize("NFC");
     const seen = new Set<BuiltNode>();
     const empty = new Map<string, number>();
-    for (let row = 0; nodes !== undefined && row < nodes.length; row++) {
-        const values = rowOf(nodes, row);
+    for (const [row, values] of rows.entries()) {
         const cell = keyColumn === undefined ? undefined : values[keyColumn];
         const keyed = keyText(cell);
         if (keyColumn !== undefined && keyed === undefined) {
@@ -1430,7 +1432,7 @@ function buildNodes(source: ReadSource, into: Building, nodeMap: JsonObject, dup
             continue;
         }
 
-        const ref = keyedRef(keyedSpace, keyed) ?? { space: `source:${id}`, key: `${copyId}#${String(row)}` };
+        const ref = keyedRef(keyedSpace, keyed) ?? { space: `source:${id}`, key: keyless[row] };
         supplyNode(nodeAt(into, ref, keyed === undefined ? ref.key : cell), values, id, {
             seen,
             duplicates,
@@ -1487,16 +1489,17 @@ function supplyNode(
  * @param choices - Its `duplicateIds` and `unmatched`.
  */
 function buildEdges(source: ReadSource, into: Building, edgeMap: JsonObject, choices: Choices): void {
-    const { id, copyId, edges } = source;
+    const { id, edges } = source;
     const edgeId = typeof edgeMap.edgeId === "string" ? edgeMap.edgeId : undefined;
     const [from, to] = [String(edgeMap.source), String(edgeMap.target)];
+    const rows = Array.from({ length: edges?.length ?? 0 }, (_, row) => rowOf(edges as Table, row));
+    const keyless = keylessEdgeKeys(rows, { source: from, target: to, edgeId });
     const [fromSpace, toSpace] = [String(edgeMap.sourceSpace), String(edgeMap.targetSpace)].map((each) =>
         each.normalize("NFC"),
     );
     const own = new Set<BuiltEdge>();
     const empty = new Map<string, number>();
-    for (let row = 0; edges !== undefined && row < edges.length; row++) {
-        const values = rowOf(edges, row);
+    for (const [row, values] of rows.entries()) {
         const [a, b] = [keyText(values[from]), keyText(values[to])];
         if (a === undefined || b === undefined) {
             // An empty end never becomes a node: the row is left out and counted (spec 6.1).
@@ -1505,7 +1508,7 @@ function buildEdges(source: ReadSource, into: Building, edgeMap: JsonObject, cho
             continue;
         }
 
-        const key = (edgeId === undefined ? undefined : keyText(values[edgeId])) ?? `${copyId}#${String(row)}`;
+        const key = (edgeId === undefined ? undefined : keyText(values[edgeId])) ?? String(keyless[row]);
         const ref: EdgeRef = { load: id, key };
         // Every working column is the edge's, its end columns included (spec 4.1.9).
         const columns: JsonObject = { ...values };

@@ -12,6 +12,7 @@
 import { reduce } from "../../join";
 import { readTimeValue, type TimeUnit } from "../../time/parse";
 import type { JoinReduce, SourceRefreshIssue, SourceRoleName } from "../../types";
+import { escapeKey, keylessEdgeKeys, keylessNodeKeys } from "../rowKeys";
 import {
     type AddStep,
     type BuildInput,
@@ -83,7 +84,6 @@ export const copyKey = (src: Source): string => src.origin.rows ?? src.origin.co
  */
 export const nodeSpace = (src: Source): string => src.mapping.nodes?.space ?? ownSpace(src.id);
 
-const escapeKey = (k: string): string => k.replaceAll(/[\\|]/g, String.raw`\$&`);
 export const isEmpty = (v: Value | undefined): v is null | undefined | "" => v === undefined || v === null || v === "";
 const text = (v: CellValue | undefined): string => (v === undefined || v === null ? "" : String(v));
 
@@ -1291,8 +1291,10 @@ class Builder {
         const empties = new Map<string, number>();
         const nodeRows = src.mapping.nodes ? this.rows(src, "nodes") : null;
         const seen = new Set<string>();
+        // a source with no key column keys its node rows by their content (spec 6.1)
+        const keyless = nodeRows && src.mapping.nodes?.key === undefined ? keylessNodeKeys(nodeRows) : [];
         nodeRows?.forEach((r, i) => {
-            this.addNodeRow(s, src, { si, st, seen, empties }, r, i);
+            this.addNodeRow(s, src, { si, st, seen, empties, keyless }, r, i);
         });
         const key = src.mapping.nodes?.key;
         if (nodeRows && key !== undefined) {
@@ -1317,13 +1319,19 @@ class Builder {
     private addNodeRow(
         s: AddStep,
         src: Source,
-        at: { si: number; st: StepStats; seen: Set<string>; empties: Map<string, number> },
+        at: {
+            si: number;
+            st: StepStats;
+            seen: Set<string>;
+            empties: Map<string, number>;
+            keyless: readonly string[];
+        },
         r: Row,
         i: number,
     ): void {
         const m = src.mapping.nodes ?? {};
         const { st, si } = at;
-        const key = m.key === undefined ? `${src.origin.copy}#${i}` : r[m.key];
+        const key = m.key === undefined ? at.keyless[i] : r[m.key];
         if (isEmpty(key)) {
             st.emptyKey++;
             this.mark(st, "emptyKey", { table: "nodes", row: i });
@@ -1375,6 +1383,7 @@ class Builder {
         const how = src.settings?.unmatched ?? "add";
         const own = src.mapping.nodes === undefined ? null : nodeSpace(src);
         const named = new Set<BuiltNode>();
+        const keyless = keylessEdgeKeys(rows, m);
         rows.forEach((r, i) => {
             const a = r[m.source];
             const b = r[m.target];
@@ -1405,7 +1414,7 @@ class Builder {
             reach(na, s.source);
             reach(nb, s.source);
             const id = m.edgeId === undefined ? undefined : r[m.edgeId];
-            const key = isEmpty(id) ? `${src.origin.copy}#${i}` : text(id);
+            const key = isEmpty(id) ? (keyless[i] as string) : text(id);
             const values = Object.entries(r).filter(([c]) => !moved.has(c) && (!s.columns || s.columns.includes(c)));
             this.addEdge(s, si, st, {
                 load: s.source,
@@ -1514,6 +1523,8 @@ class Builder {
         const tr = this.translator(s);
         const empties = new Map<string, number>();
         const loose = s.ignoreCase === true || s.ignoreSpaces === true ? new Map<string, Map<string, string>>() : null;
+        // keyless rows count over every row of the table, read by this step or not (spec 4.1.8 rule 3)
+        const keyless = keylessEdgeKeys(this.rows(src, table) ?? [], rd);
         for (const [r, i] of rows) {
             const here = { table, row: i };
             const a = this.edgeEnd(s, st, tr, r, "source", loose, here);
@@ -1533,7 +1544,7 @@ class Builder {
             const cols = s.columns ?? Object.keys(r).filter((c) => !skip.has(c));
             const made = this.addEdge(s, si, st, {
                 load: s.source,
-                key: edgeStepKey(s, src, r, i, a.n, b.n),
+                key: edgeStepKey(s, r, keyless[i], a.n, b.n),
                 from: a.n,
                 to: b.n,
                 row: r,
@@ -1993,9 +2004,9 @@ function hubs(rows: [Row, number][], column: string): { value: string; rows: num
     return [...counts].filter(([, c]) => c > HUB_SHARE * rows.length).map(([value, c]) => ({ value, rows: c }));
 }
 
-// A join.edges row's key: <part>/<key>, <part>/<from>|<to> escaped when reduced, else <part>/<copy id>#<row> (section 10 item 4).
-function edgeStepKey(s: EdgesStep, src: Source, r: Row, i: number, from: BuiltNode, to: BuiltNode): string {
-    const keyless = `${s.part}/${src.origin.copy}#${i}`;
+// A join.edges row's key: <part>/<key>, <part>/<from>|<to> escaped when reduced, else <part>/<from>|<to>#<n> (spec 4.1.8 rule 3).
+function edgeStepKey(s: EdgesStep, r: Row, rowKey: string | undefined, from: BuiltNode, to: BuiltNode): string {
+    const keyless = `${s.part}/${rowKey ?? ""}`;
     if (s.read.edgeId !== undefined) {
         const v = r[s.read.edgeId];
         return isEmpty(v) ? keyless : `${s.part}/${text(v)}`;

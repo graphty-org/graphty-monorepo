@@ -6,6 +6,7 @@
  * that cannot be built whole applying nothing.
  */
 
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -332,12 +333,11 @@ describe("data section version 2", () => {
         assert.strictEqual(ben?.score, "Infinity");
         assert.notInclude(ben?.["_source.loads"] as string[], "reader", "an edit never lists the reader");
 
-        // A keyless edge row's key is "<copy id>#<row>"; the types come from the kind column.
+        // A keyless edge row's key is "<from>|<to>#<n>"; the types come from the kind column.
         const links = graph.links as JsonObject[];
-        const copy = String((friends.origin as JsonObject).copy);
         assert.deepStrictEqual(
             links.filter((link) => link["graphty.load"] === friends.id).map((link) => link["graphty.key"]),
-            [`${copy}#0`, `${copy}#1`, `${copy}#2`],
+            ["Ava|Ben#1", "Ben|Cara#1", "Ava|Ben#2"],
         );
         assert.isTrue(graph.multigraph);
         const owns = links.find((link) => link["graphty.load"] === pets.id);
@@ -747,11 +747,75 @@ describe("data section version 2", () => {
         await readBody(session, body);
         const byEnds = new Map(session.data.edges().map((edge) => [`${edge.source}>${edge.target}`, edge.id]));
         const refs = elementRefsOf(session);
-        const copy = "A".repeat(26);
-        assert.strictEqual(refs.edge({ load: SRC_A, key: `${copy}#0` }), byEnds.get("p:a>p:b"));
-        assert.strictEqual(refs.edge({ load: SRC_A, key: `${copy}#1` }), byEnds.get("p:a>p:b"));
-        assert.strictEqual(refs.edge({ load: SRC_A, key: `${copy}#2` }), byEnds.get("p:b>p:c"));
+        assert.strictEqual(refs.edge({ load: SRC_A, key: "a|b#1" }), byEnds.get("p:a>p:b"));
+        assert.strictEqual(refs.edge({ load: SRC_A, key: "a|b#2" }), byEnds.get("p:a>p:b"));
+        assert.strictEqual(refs.edge({ load: SRC_A, key: "b|c#1" }), byEnds.get("p:b>p:c"));
         session.dispose();
+    });
+
+    it("binds a view selection and a note on keyless edges after the rows are re-sorted, appended to and re-copied", async () => {
+        const LOAD = "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y";
+        const opened = async (change: (edges: Record<string, unknown[]>) => void): Promise<string[]> => {
+            const file = readJson("examples/card-fraud.graphty.json");
+            const sections = file.sections as Record<string, JsonObject>;
+            const source = (sections.data.sources as JsonObject[]).find((each) => each.id === LOAD) as JsonObject;
+            change((source.copy as JsonObject).edges as Record<string, unknown[]>);
+            (source.origin as JsonObject).copy = "01JCBQ2F5H7K9M1P3R5T7W9Y2B";
+            // The view already selects the first keyless row; a note names the other.
+            const notes = sections.notes.notes as JsonObject[];
+            notes.push({
+                id: "note_01JCBQ9H2C7YB4F0S6NWEX1KPE",
+                time: "2026-11-14T17:59:00.000Z",
+                targets: [{ edge: { load: LOAD, key: "acct-1003|dev-9f3#1" } }],
+                text: "the second device login",
+                mediaType: "text/markdown",
+            });
+            const session = createGraphSession(ON);
+            const report = await session.project.open(JSON.stringify(file), { rerun: false });
+            session.dispose();
+            return report.problems.filter((problem) => problem.code === "W_REFERENCE_UNBOUND").map((p) => p.code);
+        };
+        const appended: Record<string, unknown> = Object.fromEntries([
+            ["event_id", null],
+            ["account_id", "acct-1001"],
+            ["counterparty_id", "dev-9f3"],
+            ["event", "device-login"],
+            ["amount", null],
+            ["time", null],
+            ["first_seen", "2026-11-09T02:00:00Z"],
+        ]);
+        assert.deepStrictEqual(
+            await opened((edges) => {
+                for (const [name, cells] of Object.entries(edges)) {
+                    cells.reverse();
+                    cells.push(appended[name]);
+                }
+            }),
+            [],
+            "re-sorted and appended rows keep their keys under a new copy id",
+        );
+        // The same file with an end changed: that row's key changes, so its references stay unbound.
+        assert.include(
+            await opened((edges) => {
+                edges.counterparty_id[4] = "dev-a00";
+            }),
+            "W_REFERENCE_UNBOUND",
+        );
+    });
+
+    it("keeps keyless edge references bound when a reader edit gives the copy a new ULID", async () => {
+        const session = await sampleSession();
+        const { body } = await writeBody(session);
+        const friends = (body.sources as JsonObject[])[1];
+        // The reader's edit means the copy is no longer the file's bytes: a minted ULID, not a digest.
+        assert.match(String((friends.origin as JsonObject).copy), ULID);
+        const reopened = createGraphSession(ON);
+        await readBody(reopened, body);
+        const bound = elementRefsOf(reopened).edge({ load: friends.id, key: "Ben|Cara#1" });
+        const edge = reopened.data.edges().find((each) => each.id === bound);
+        assert.deepStrictEqual([edge?.source, edge?.target], ["Ben", "Cara"]);
+        session.dispose();
+        reopened.dispose();
     });
 
     it("writes a reduced edge's rows back as read, so a reduction survives save and reopen", async () => {
@@ -1353,20 +1417,38 @@ describe("data section version 2", () => {
         );
         assert.isDefined(elementRefsOf(session).node({ space: "people", key: "ava" }));
 
-        // With no key column every row is keyless, keyed by its row in the source's own space.
+        // With no key column every row is keyless, keyed by its content in the source's own space:
+        // the digest of the canonical JSON of its non-null cells.
         const unkeyed = structuredClone(body);
         const [record] = unkeyed.sources as JsonObject[];
         record.mapping = {};
         const keyless = createGraphSession(ON);
         assert.deepStrictEqual(await readBody(keyless, unkeyed), []);
-        const refs = elementRefsOf(keyless);
-        for (const row of [0, 1, 2]) {
-            assert.isDefined(
-                refs.node({ space: `source:${id}`, key: `${copy}#${String(row)}` }),
-                `row ${String(row)} is keyless, in the source's own space`,
-            );
+        const digest = (json: string): string => createHash("sha256").update(json).digest("hex").slice(0, 32);
+        const keys = [
+            ["Ava", `${digest('{"id":"ava","name":"Ava"}')}#1`],
+            ["Blank", `${digest('{"id":"","name":"Blank"}')}#1`],
+            ["Null", `${digest('{"name":"Null"}')}#1`],
+        ];
+        const nameOf = (open: GraphSession, key: string): unknown => {
+            const node = elementRefsOf(open).node({ space: `source:${id}`, key });
+            return open.data.nodes().find((each) => each.id === node)?.name;
+        };
+        for (const [name, key] of keys) {
+            assert.strictEqual(nameOf(keyless, key), name, `${name} is keyless, in the source's own space`);
         }
 
+        // Re-sorted rows keep their keys, so a saved reference binds the same node.
+        const cells = (record.copy as JsonObject).nodes as Record<string, unknown[]>;
+        cells.id.reverse();
+        cells.name.reverse();
+        const resorted = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(resorted, unkeyed), []);
+        for (const [name, key] of keys) {
+            assert.strictEqual(nameOf(resorted, key), name, `${name} keeps its key when the rows are re-sorted`);
+        }
+
+        resorted.dispose();
         keyless.dispose();
         session.dispose();
     });

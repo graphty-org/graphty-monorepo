@@ -202,7 +202,8 @@ export interface NodeRef {
 
 /**
  * An edge reference (spec 6.2): `load` the source whose row made the edge, `key` its edge-id value,
- * a reader-added edge's edge-id value or, with none, a minted ULID, or `<copy id>#<row from 0>` for a keyless row.
+ * a reader-added edge's edge-id value or, with none, a minted ULID, or `<from>|<to>#<n>` for a keyless row
+ * (spec 6.1), with `<part>/` in front for a `join.edges` step.
  */
 export interface EdgeRef {
     readonly load: string;

@@ -59,7 +59,7 @@ interface WeightRoles {
 
 /** What a source's node rows are for. */
 interface NodeMapping extends TimeRoles, WeightRoles {
-    /** The key column; absent makes every row its own node keyed `<copy id>#<row>`. */
+    /** The key column; absent makes every row its own node keyed by its content, `<digest>#<n>` (spec 6.1). */
     readonly key?: string;
     /** The id space the keys live in; absent means the source's own space `source:<id>`. */
     readonly space?: string;
@@ -81,7 +81,7 @@ export interface EdgeMapping extends TimeRoles, WeightRoles {
     readonly sourceSpace?: string;
     /** The space the target end's keys live in; absent means `source:<id>`. */
     readonly targetSpace?: string;
-    /** The column holding the edge's own key; absent keys each row `<copy id>#<row>`. */
+    /** The column holding the edge's own key; absent keys each row `<from>|<to>#<n>` (spec 6.1). */
     readonly edgeId?: string;
 }
 

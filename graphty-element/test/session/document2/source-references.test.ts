@@ -8,6 +8,7 @@
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, credentials, type GraphSession } from "../../../session";
+import { elementRefsOf } from "../../../src/session/document2/codecs/dataRefs";
 import type { JsonObject } from "../../../src/session/document2/types";
 
 const ON = { features: ["save-files-v2", "source-references"] };
@@ -141,6 +142,45 @@ describe("a load the session keeps as a reference, in a version 2 file", () => {
         );
         assert.strictEqual(opened.data.copies()[0]?.copy, "reference");
         assert.notProperty(loadedRecord((await opened.project.save({ format: 2 })).text), "copy");
+        session.dispose();
+        opened.dispose();
+    });
+});
+
+describe("a referenced edge list with no edge-id column", () => {
+    it("binds a note on one of its edges after the file is rewritten with its rows re-sorted", async () => {
+        stubSite({ [FRIENDS]: FRIENDS_CSV });
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { url: FRIENDS } });
+        const [{ key }] = session.data.sources();
+        const edge = session.data.edges().find((each) => each.source === "Ben");
+        session.notes.add({ text: "the second row", targets: [{ edge: String(edge?.id) }] });
+        const { text } = await session.project.save({ format: 2, embed: { [key]: "referenced" } });
+        const id = String(loadedRecord(text).id);
+        const { notes } = (JSON.parse(text) as { sections: { notes: { notes: JsonObject[] } } }).sections.notes;
+        assert.deepEqual(notes[0].targets, [{ edge: { load: id, key: "Ben|Cara#1" } }]);
+
+        // The file at the URL is rewritten with the same rows in another order: new bytes, a new copy id.
+        stubSite({ [FRIENDS]: "source,target,w\nBen,Cara,2\nAva,Ben,1\n" });
+        const opened = createGraphSession(ON);
+        const report = await opened.project.open(text, { fetchSources: true });
+        // The open holds the changed source until a refresh reads it.
+        assert.deepInclude(report.problems, {
+            code: "W_SOURCE_UNAVAILABLE",
+            params: { source: id, reason: "copy-changed", size: 37 },
+        });
+        await opened.data.refresh(id);
+        const bound = opened.data.edges().find((each) => each.source === "Ben");
+        assert.strictEqual(elementRefsOf(opened).edge({ load: id, key: "Ben|Cara#1" }), bound?.id);
+
+        // Saved after the refresh and opened again, the note binds: its key did not move with the rows.
+        const refreshed = await opened.project.save({ format: 2 });
+        const again = createGraphSession(ON);
+        const reopened = await again.project.open(refreshed.text, { fetchSources: true });
+        const codes = reopened.problems.map((problem) => problem.code);
+        assert.notInclude(codes, "W_SOURCE_UNAVAILABLE");
+        assert.notInclude(codes, "W_REFERENCE_UNBOUND");
+        again.dispose();
         session.dispose();
         opened.dispose();
     });

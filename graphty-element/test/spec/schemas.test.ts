@@ -255,13 +255,12 @@ describe("the examples", () => {
         }
     });
 
-    it("key a keyless edge row <copy id>#<row from 0>, and write every space", () => {
+    it("key a keyless edge row <from>|<to>#<n>, and write every space", () => {
         const { data } = sectionsOf(cardFraud());
         const links = (data.graph as JsonObject).links as JsonObject[];
         const nodes = (data.graph as JsonObject).nodes as JsonObject[];
         for (const source of (data.sources as JsonObject[]).filter((each) => each.kind !== "reader")) {
             const id = text(source.id);
-            const copyId = text((source.origin as JsonObject).copy);
             const mapping = source.mapping as Record<string, Record<string, Json>>;
             const tables = source.copy as Record<string, Record<string, Json[]>>;
             if (mapping.nodes !== undefined) {
@@ -277,7 +276,17 @@ describe("the examples", () => {
                 continue;
             }
             const cells = tables.edges[text(mapping.edges.edgeId)];
-            const expected = cells.map((cell, row) => (cell === null || cell === "" ? `${copyId}#${row}` : text(cell)));
+            const [from, to] = [tables.edges[text(mapping.edges.source)], tables.edges[text(mapping.edges.target)]];
+            // A keyless row is keyed by its ends as read, numbered over the keyless rows between them.
+            const counts = new Map<string, number>();
+            const expected = cells.map((cell, row) => {
+                if (cell !== null && cell !== "") {
+                    return text(cell);
+                }
+                const pair = `${text(from[row])}|${text(to[row])}`;
+                counts.set(pair, (counts.get(pair) ?? 0) + 1);
+                return `${pair}#${String(counts.get(pair))}`;
+            });
             const actual = links.filter((link) => link["graphty.load"] === id).map((link) => text(link["graphty.key"]));
             assert.sameMembers(actual, expected, id);
         }

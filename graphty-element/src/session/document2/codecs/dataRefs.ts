@@ -21,6 +21,7 @@ import { ISSUES_VALUE, type IssueState } from "../../issues";
 import { type LoadFacts, redactedParams } from "../../sources/member";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex } from "../../sources/provenance";
 import { refusalOf } from "../../sources/references";
+import { canonicalJson, jsonSafe, keylessEdgeKeys, keyText } from "../../sources/rowKeys";
 import type { EdgeRecord, GraphSession, LoadedSource, NodeRecord } from "../../types";
 import { projectMemory } from "../memory";
 import type {
@@ -37,65 +38,11 @@ import { keepHandle, keptHandle, type ProjectFileHandle } from "./fileHandles";
 import { ROLE_FIELDS, rolesOf, sourceRoles, type TableRoles } from "./roles";
 import { mintUlid } from "./viewParts";
 
+export { canonicalJson, jsonSafe, keyText } from "../../sources/rowKeys";
+
 // ---------------------------------------------------------------------------------------------
 // Plain JSON, key text and ids
 // ---------------------------------------------------------------------------------------------
-
-/**
- * A value as a document writes it (spec 11): a non-finite number as its string form, an integer
- * beyond +/-(2^53 - 1) as its decimal string, `undefined` members left out.
- * @param value - The value.
- * @returns The value JSON can carry.
- */
-export function jsonSafe(value: unknown): unknown {
-    if (typeof value === "number") {
-        if (!Number.isFinite(value)) {
-            return String(value);
-        }
-
-        return Number.isInteger(value) && !Number.isSafeInteger(value) ? BigInt(value).toString() : value;
-    }
-
-    if (Array.isArray(value)) {
-        return value.map((each) => (each === undefined ? null : jsonSafe(each)));
-    }
-
-    if (typeof value === "object" && value !== null) {
-        const out: JsonObject = {};
-        for (const [name, each] of Object.entries(value)) {
-            if (each !== undefined) {
-                out[name] = jsonSafe(each);
-            }
-        }
-
-        return out;
-    }
-
-    return value;
-}
-
-/**
- * RFC 8785 canonical JSON: members sorted by UTF-16 code units, numbers as ECMAScript writes them.
- * Used to compare values, never written into a file and never a build input.
- * @param value - A JSON value; non-finite numbers are written as their string forms first.
- * @returns The canonical text.
- */
-export function canonicalJson(value: unknown): string {
-    const safe = jsonSafe(value);
-    if (safe === null || typeof safe !== "object") {
-        return JSON.stringify(safe ?? null);
-    }
-
-    if (Array.isArray(safe)) {
-        return `[${safe.map((each) => canonicalJson(each)).join(",")}]`;
-    }
-
-    const record = safe as JsonObject;
-    // The default sort compares UTF-16 code units, as RFC 8785 asks.
-    const names = Object.keys(record).sort((a, b) => (a < b ? -1 : Number(a > b))); // code-unit order is the rule
-    const members = names.map((name) => `${JSON.stringify(name)}:${canonicalJson(record[name])}`);
-    return `{${members.join(",")}}`;
-}
 
 /**
  * `sha256:` plus the hex SHA-256 of a value's canonical JSON: what tells this writer a copy or a
@@ -112,25 +59,6 @@ export const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 /** A source id: `src_` plus a ULID. */
 export const SOURCE_ID = /^src_[0-9A-HJKMNP-TV-Z]{26}$/;
-
-/**
- * A value as key text (spec 11): a string as it is (NFC), a number as ECMAScript writes it, a
- * boolean as `true` or `false`.
- * @param value - The cell.
- * @returns The key text, or undefined for a value that cannot be a key (null, the empty string).
- */
-export function keyText(value: unknown): string | undefined {
-    if (typeof value === "string") {
-        return value === "" ? undefined : value.normalize("NFC");
-    }
-
-    if (typeof value === "number" && Number.isFinite(value)) {
-        // An integer too big to hold exactly is its exact decimal string, never "1e+21" (spec 11).
-        return Number.isInteger(value) && !Number.isSafeInteger(value) ? BigInt(value).toString() : String(value);
-    }
-
-    return typeof value === "boolean" ? String(value) : undefined;
-}
 
 /** The strings spec 11 writes for the non-finite numbers. */
 const NON_FINITE = new Set(["Infinity", "-Infinity", "NaN"]);
@@ -686,6 +614,8 @@ interface Copy {
     readonly embedOnly: boolean;
     /** The edge rows whose edge id an earlier row of the source already gave: written keyless. */
     readonly repeated: ReadonlySet<number>;
+    /** Each written edge row's keyless key (spec 6.1), or undefined for a row with an edge id. */
+    readonly keyless: readonly (string | undefined)[];
 }
 
 /** The reader source: its operations and copy id. */
@@ -926,19 +856,22 @@ function copyOf(
     edgeIdColumn: string | undefined,
 ): Copy {
     const repeated = repeatedEdgeRows(source.edges, edgeIdColumn, source.load.choices?.duplicateIds === "merge");
+    const edgeRows = source.edges.map(({ id: _id, ...edge }, row) => ({
+        ...edge,
+        ...(repeated.has(row) && edgeIdColumn !== undefined ? { [edgeIdColumn]: undefined } : {}),
+        source: keyCellOf(refs.get(edge.source), edge.source),
+        target: keyCellOf(refs.get(edge.target), edge.target),
+    }));
     const { tables, columns } = copyTables(
         source.nodes.map((node) => ({ ...node, id: keyCellOf(refs.get(node.id), node.id) })),
-        source.edges.map(({ id: _id, ...edge }, row) => ({
-            ...edge,
-            ...(repeated.has(row) && edgeIdColumn !== undefined ? { [edgeIdColumn]: undefined } : {}),
-            source: keyCellOf(refs.get(edge.source), edge.source),
-            target: keyCellOf(refs.get(edge.target), edge.target),
-        })),
+        edgeRows,
     );
+    // Keyed as a reader keys the rows written: by their ends, which are the end texts as read.
+    const keyless = keylessEdgeKeys(edgeRows, { source: "source", target: "target", edgeId: edgeIdColumn });
     const digest = digestOf(tables);
     const { copy, embedOnly } = copyIdOf(source, memory, { digest, facts, folded });
     memory.copies.set(source.id, { digest, copy });
-    return { tables, columns, digest, copy, embedOnly, repeated };
+    return { tables, columns, digest, copy, embedOnly, repeated, keyless };
 }
 
 /**
@@ -978,7 +911,7 @@ function copyIdOf(
 
 /**
  * The rows of a source's edges whose edge id an earlier row already gave. Unless the source merges
- * repeats, each is written keyless (`<copy id>#<row>`), so no two edges share a key (spec 6.1).
+ * repeats, each is written keyless (`<from>|<to>#<n>`), so no two edges share a key (spec 6.1).
  * @param edges - The source's edge rows, in order.
  * @param edgeIdColumn - The edge-id column, if any.
  * @param merges - Whether the source merges repeats (`duplicateIds: "merge"`).
@@ -1430,7 +1363,7 @@ function dataModelOf(session: GraphSession): DataModel {
 
             const id = edgeIdColumn === undefined || copy.repeated.has(row) ? undefined : edge[edgeIdColumn];
             const key = keyText(id);
-            edgeRefs.set(edge.id, { load: source.id, key: key ?? `${copy.copy}#${String(row)}` });
+            edgeRefs.set(edge.id, { load: source.id, key: key ?? (copy.keyless[row] as string) });
         });
     }
 

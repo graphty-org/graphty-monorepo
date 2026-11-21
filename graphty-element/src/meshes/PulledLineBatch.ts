@@ -40,7 +40,8 @@ import { CURVE_STRIDE, curveShape, type CurveSpan } from "./pulledCurve";
  * of its own, handed out and freed exactly as the object path's line batch hands out its slots, so the pieces draw
  * in the object path's order; the SLOT TABLE (`edgeSlots`, a name a slot) says which entry and which of its 16
  * pieces a slot draws. The shader works out piece j's place along the cut path from the two rows' places and the span
- * (`meshes/pulledCurve.ts`); a piece past its own curve's draws nothing. An entry per 16 pieces and four bytes a
+ * (`meshes/pulledCurve.ts`); a piece past its own curve's draws nothing. A curve batch draws the join template indexed,
+ * an instance a slot, as the object path's batch draws it: 14 vertex shader runs a piece, not 30 (#9486). An entry per 16 pieces and four bytes a
  * piece, not four texels, keep a million long curves (64 pieces each) to 4096 x 4096 tables (#9160).
  *
  * A curve batch also keeps a ROUTE TABLE (`edgeRoutes`) for lines through bends (`line.bends`): an edge's

@@ -24,6 +24,7 @@ export type {
     LabelDeclutterOrder,
     LabelEntry,
     LabelFieldCondition,
+    LabelFieldNeed,
     LabelFieldValueKind,
     LabelGradientDirection,
     LabelGradientType,

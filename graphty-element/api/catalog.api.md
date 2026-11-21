@@ -1922,6 +1922,12 @@ export function labelFieldDrawn(field: keyof LabelStyle, read: (other: keyof Lab
 export type LabelFieldName = "background" | "backgroundOpacity" | "backgroundShape" | "borderAlign" | "borderColor" | "borderOpacity" | "borderWidth" | "box" | "boxPadding" | "color" | "cornerRadius" | "declutter" | "font" | "gapOf" | "italic" | "letterSize" | "lineBox" | "lineHeight" | "location" | "maxLines" | "maxLinesEllipsis" | "minNodeScreenSize" | "minScreenSize" | "offsetX" | "offsetY" | "onTop" | "opacity" | "outline" | "outlineOpacity" | "outlineWidth" | "rotation" | "runAlign" | "shiftOf" | "shiftX" | "shiftY" | "sizePx" | "textAlign" | "weight" | "wrapAnywhere" | "wrapEllipsis" | "wrapSkipEndSpace" | "wrapSpaceCount" | "wrapTrailingSpace" | "wrapWidth";
 
 // @public
+export interface LabelFieldNeed {
+    readonly field: keyof LabelStyle;
+    readonly value: string | number | boolean;
+}
+
+// @public
 export function labelFieldOf(channel: Channel): {
     readonly into: Channel;
     readonly field: LabelFieldName;
@@ -2085,6 +2091,7 @@ export interface LabelStyleFieldDescriptor {
     readonly integer?: boolean;
     readonly max?: number;
     readonly min?: number;
+    readonly needs?: readonly LabelFieldNeed[];
     readonly plainName: string;
     readonly start?: string | number | boolean;
     readonly values?: readonly string[];

@@ -329,7 +329,11 @@ export interface LabelStyle {
      * the node's size never hides its label. Node labels only.
      */
     minNodeScreenSize?: number;
-    /** How the lines are lined up against each other. */
+    /**
+     * How the lines are lined up inside the label's box: against each other, and a one-line label against the box's
+     * sides when the box is wider than its words (`box: "target-width"`, as wide as its node, or as an edge's line is
+     * long). Unset, `"center"`.
+     */
     textAlign?: LabelTextAlign;
 
     /**
@@ -411,8 +415,10 @@ export interface LabelStyle {
      * its words, and an `inside-*` label too large for its target is centered on that axis. `"words-at-side"`: the box
      * is round its words, and an `inside-*` label stays against the side it names however large it is, its far end
      * reaching past the target. `"target-width"`: as `"words-at-side"`, and the box is at least as wide as its target,
-     * a band across it, with `textAlign` lining the words up inside it. A label with no box of a target to measure (on
-     * an edge, or at a point) keeps the box round its words. Unset, `"words"`.
+     * a band across it, with `textAlign` lining the words up inside it. An edge's text (its label, external label,
+     * tooltip or end caption) takes its line as its target: a `"target-width"` box is at least as long as the line,
+     * end to end, laid across the screen as the text is. A label at a bare point keeps the box round its words. Unset,
+     * `"words"`.
      */
     box?: "words" | "words-at-side" | "target-width";
     /**
@@ -817,6 +823,27 @@ export interface LabelStyleFieldDescriptor {
      * @since 3.62.0
      */
     readonly start?: string | number | boolean;
+    /**
+     * Other fields of the same label style a style editor writes beside this one, each with its value, so what it
+     * sets visibly draws: `textAlign` lines words up inside the label's box, and a one-line label's box is its words
+     * unless `box` is `"target-width"` (as wide as its node, or as an edge's line is long), so an editor setting the
+     * alignment writes that box too. Write a partner only where the style does not set it. Absent on a field that
+     * draws on its own.
+     * @since 3.63.0
+     */
+    readonly needs?: readonly LabelFieldNeed[];
+}
+
+/**
+ * Another field of the same label style, and the value to write to it, that a field needs to draw: see
+ * {@link LabelStyleFieldDescriptor.needs}.
+ * @since 3.63.0
+ */
+export interface LabelFieldNeed {
+    /** The partner field. */
+    readonly field: keyof LabelStyle;
+    /** The value to write to it. */
+    readonly value: string | number | boolean;
 }
 
 /**
@@ -832,7 +859,7 @@ export type LabelFieldCondition =
     | { readonly field: keyof LabelStyle; readonly unset: true }
     | { readonly dimension: "2d" | "3d" };
 
-type FieldRow = Omit<LabelStyleFieldDescriptor, "field" | "default" | "drawnWhen" | "drawnOn" | "start">;
+type FieldRow = Omit<LabelStyleFieldDescriptor, "field" | "default" | "drawnWhen" | "drawnOn" | "start" | "needs">;
 
 const NODE_TEXTS: readonly Channel[] = ["node.labelStyle", "node.xlabelStyle", "node.tooltipStyle"];
 
@@ -840,9 +867,8 @@ const NODE_TEXTS: readonly Channel[] = ["node.labelStyle", "node.xlabelStyle", "
 const FIELD_DRAWN_ON: Partial<Record<keyof LabelStyle, readonly Channel[]>> = {
     // thins overlapping node labels
     declutter: ["node.labelStyle"],
-    // an edge has no node size to measure, nor a node's box to fill
+    // an edge has no node size to measure
     minNodeScreenSize: NODE_TEXTS,
-    box: NODE_TEXTS,
     // a tooltip is always drawn on top
     onTop: [
         "node.labelStyle",
@@ -858,6 +884,12 @@ const FIELD_DRAWN_ON: Partial<Record<keyof LabelStyle, readonly Channel[]>> = {
 // None today: a new label starts at the default size, one node size tall (fontSize / 48), so a style
 // editor's "+" writes no size over it (owner, 2026-11-20: "the default label text size should be 1").
 const FIELD_START: Partial<Record<keyof LabelStyle, number>> = {};
+
+/** What each field needs written beside it to draw: see {@link LabelStyleFieldDescriptor.needs}. */
+const FIELD_NEEDS: Partial<Record<keyof LabelStyle, readonly LabelFieldNeed[]>> = {
+    // A one-line label's box is its words: only a box wider than them gives the alignment room to move it.
+    textAlign: [{ field: "box", value: "target-width" }],
+};
 
 const isSet = (field: keyof LabelStyle): LabelFieldCondition => ({ field, set: true });
 const isOn = (field: keyof LabelStyle): LabelFieldCondition => ({ field, values: ["true"] });
@@ -1084,6 +1116,7 @@ export const LABEL_STYLE_DESCRIPTORS: readonly LabelStyleFieldDescriptor[] = Obj
             ...(drawnWhen === undefined ? {} : { drawnWhen }),
             ...(drawnOn === undefined ? {} : { drawnOn }),
             ...(FIELD_START[field] === undefined ? {} : { start: FIELD_START[field] }),
+            ...(FIELD_NEEDS[field] === undefined ? {} : { needs: FIELD_NEEDS[field] }),
         });
     }),
 );

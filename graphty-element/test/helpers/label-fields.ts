@@ -109,7 +109,14 @@ export const FIELD_CASES: Readonly<Record<keyof LabelStyle, FieldCase>> = {
     // the box is the words and their margins: margins make the two differ
     shiftOf: { value: "words", base: { shiftX: 0.3, marginLeft: 40, marginRight: 40 } },
     gapOf: { value: "words", base: { location: "top" } },
-    box: { value: "target-width", base: { location: "inside-top", ...BACKGROUND } },
+    // a node's box against its node's side, an edge text's as long as its line: words smaller than the line show it
+    box: {
+        value: "target-width",
+        bases: [
+            { location: "inside-top", ...BACKGROUND },
+            { size: 0.5, ...BACKGROUND },
+        ],
+    },
     // pushed off the canvas, it is brought back
     keepInView: { value: true, base: { offsetX: 60 } },
     marginTop: { value: 30, base: BACKGROUND },

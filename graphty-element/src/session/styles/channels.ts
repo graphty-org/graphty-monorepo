@@ -5833,6 +5833,8 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
     ["node.wireframe", [{ channel: "node.meshDetail", value: "low" }]],
     ...labelNeeds("node.label"),
     ...labelNeeds("edge.label"),
+    // A one-line label's box is its words: alignment moves it only in a box as wide as its node.
+    ["node.labelTextAlign", [{ channel: "node.labelBox", value: "target-width" }]],
     // Half the width each side of the line, in the line's width units: 2 is a line's width each side.
     ["edge.outlineColor", [{ channel: "edge.outlineWidth", value: 2 }]],
     ["edge.outlineOpacity", [{ channel: "edge.outlineWidth", value: 2 }]],

@@ -1750,6 +1750,8 @@ export class Edge {
             edgeDrawChanges.count++;
         }
 
+        // A text's "target-width" box is as long as the line, end to end (`LabelStyle.box`).
+        this.spanTexts(Vector3.Distance(src, dst));
         // the layout's place (Graphviz's `lp` and `xlp`) is the label's center
         const laidLabel = lnk.labelAt !== undefined && !this.lifted;
         this.label?.attachTo(
@@ -3579,6 +3581,7 @@ export class Edge {
         this._tooltipOffset = placement.attachOffset;
         // Drawn on a pointer's arrival, when the graph is already at rest: placed now, and its animation starts now.
         if (this._lastSrcPos !== null && this._lastDstPos !== null) {
+            this.tooltip.spanAcross(Vector3.Distance(this._lastSrcPos, this._lastDstPos));
             this.tooltip.attachTo(
                 this.labelPoint(this._lastSrcPos, this._lastDstPos, true, undefined),
                 placement.attachPosition,
@@ -3586,6 +3589,23 @@ export class Edge {
             );
         }
         this.tooltip.startAnimation();
+    }
+
+    /**
+     * Tell every text of this edge how long its line is, the width a `"target-width"` box spans (`LabelStyle.box`).
+     * @param length - The line's length, end to end, in world units.
+     */
+    private spanTexts(length: number): void {
+        for (const text of [
+            this.label,
+            this.xlabelLabel,
+            this.tooltip,
+            this.arrowHeadText,
+            this.arrowTailText,
+            ...this.extraLabels.values(),
+        ]) {
+            text?.spanAcross(length);
+        }
     }
 
     /** Take this edge's tooltip off the screen: the pointer left the line, or the edge went. */

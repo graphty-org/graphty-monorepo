@@ -526,6 +526,8 @@ export class RichTextLabel {
     private borderReach = 0;
     /** The width in canvas pixels a `box` of `"target-width"` holds the label's panel to, at the least. */
     private spanWidth = 0;
+    /** How wide, in world units, a `"target-width"` box is at a point target (an edge's text: its line's length). */
+    private spanWorld: number | undefined;
     /** The room around the panel, on every side, its drop shadow and the outline past its padding are drawn in. */
     private shadowMargin = 0;
     private pointerInfo: PointerInfo | null = null;
@@ -1410,13 +1412,18 @@ export class RichTextLabel {
     private spanTarget(target: RichTextLabelOptions["attachTo"], bounds: { min: Vector3; max: Vector3 }): void {
         const { mesh } = this;
         const planeHeight = this.lineHeightInWorld() * this.heightInLines;
-        const spans = this.options.box === "target-width" && target instanceof AbstractMesh;
-        if (!spans || mesh === null || planeHeight <= 0) {
+        let across: number | undefined;
+        if (target instanceof AbstractMesh) {
+            across = (bounds.max.x - bounds.min.x) * (target.scaling.x || 1);
+        } else if (target instanceof Vector3) {
+            across = this.spanWorld;
+        }
+        if (this.options.box !== "target-width" || across === undefined || mesh === null || planeHeight <= 0) {
             return;
         }
 
         const canvasPerWorld = this.actualDimensions.height / planeHeight;
-        const width = (bounds.max.x - bounds.min.x) * (target.scaling.x || 1) * canvasPerWorld;
+        const width = across * canvasPerWorld;
         if (Math.abs(width - this.spanWidth) < 0.5) {
             return;
         }
@@ -2751,6 +2758,21 @@ export class RichTextLabel {
      * @param target - The mesh or position to attach to
      * @param position - The attachment position relative to the target
      * @param offset - Distance offset from the target
+     */
+    /**
+     * Say how wide a `"target-width"` box is when the label hangs from a point, in world units: an edge's text takes
+     * its line's length. Read on the next {@link attachTo}; undefined keeps the box round the words.
+     * @param width - The width, or undefined.
+     */
+    public spanAcross(width: number | undefined): void {
+        this.spanWorld = width;
+    }
+
+    /**
+     * Hang the label from a mesh or a point, on one side of it and this far off.
+     * @param target - The mesh or point.
+     * @param position - Which side.
+     * @param offset - How far off, in world units.
      */
     public attachTo(target: AbstractMesh | Vector3, position: AttachPosition = "top", offset = 0.5): void {
         this.options.attachTo = target;

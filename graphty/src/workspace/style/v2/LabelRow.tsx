@@ -21,7 +21,15 @@ import { ValueField } from "../ValueField";
 import { failureWords } from "../words";
 import { LabelFieldLine, type LabelLineContext, type LabelPatch } from "./LabelFieldLine";
 import { LabelPopover } from "./LabelPopover";
-import { flatOf, LABEL_COVERED, LABEL_RUBRIC, type LabelField, labelLineFields, type TextThing } from "./labelRubric";
+import {
+    flatOf,
+    LABEL_COVERED,
+    LABEL_RUBRIC,
+    type LabelField,
+    labelFieldDescriptor,
+    labelLineFields,
+    type TextThing,
+} from "./labelRubric";
 import { unsetIn } from "./lineWrites";
 import { LineFrame } from "./RubricLine";
 import { RowSettings, ThingLine } from "./ThingLine";
@@ -155,6 +163,24 @@ interface LabelRowProps {
 }
 
 /**
+ * The fields graphty-element says a written field needs beside it to draw (`LabelStyleFieldDescriptor.needs`: an
+ * alignment moves a one-line label only in a box wider than its words), for the partners the style does not set.
+ * @param style - the layer's label style as written.
+ * @param patch - the fields being written.
+ * @returns the partners' values.
+ */
+function partnersOf(style: Readonly<LabelStyle>, patch: LabelPatch): LabelPatch {
+    const set = (field: string): boolean => (style as Readonly<Record<string, unknown>>)[field] !== undefined;
+    return Object.fromEntries(
+        Object.entries(patch)
+            .filter(([, value]) => value !== undefined)
+            .flatMap(([field]) => labelFieldDescriptor(field as LabelField)?.needs ?? [])
+            .filter((need) => !set(need.field) && !(need.field in patch))
+            .map((need) => [need.field, need.value]),
+    );
+}
+
+/**
  * One text thing's row: see the file header.
  * @param props - Component props
  * @param props.ctx - see LabelRowProps
@@ -184,7 +210,9 @@ export function LabelRow({
     const style = styleOf(styleLine);
     const write = (patch: LabelPatch, drop: readonly Channel[] = []): void => {
         const next = Object.fromEntries(
-            Object.entries({ ...style, ...patch }).filter(([, value]) => value !== undefined),
+            Object.entries({ ...partnersOf(style, patch), ...style, ...patch }).filter(
+                ([, value]) => value !== undefined,
+            ),
         ) as LabelStyle;
         const held = drop.filter((channel) => setOn(ctx, channel));
         let done: Promise<unknown>;

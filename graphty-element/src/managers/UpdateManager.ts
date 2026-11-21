@@ -823,7 +823,8 @@ export class UpdateManager implements Manager {
 
         const painted: [Node, NodePaint][] = [];
         for (const node of nodes) {
-            const paint = node.isDisposed() ? null : painter.nodePaint(node.index);
+            // Mid-pass, queued for the frame after it (`StylePainter.settledNodePaint`).
+            const paint = node.isDisposed() ? null : painter.settledNodePaint(node.index);
             if (paint !== null) {
                 painted.push([node, paint]);
             }

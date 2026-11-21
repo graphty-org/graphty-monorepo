@@ -4,7 +4,7 @@
  * An algorithm needs four things from the graph it runs on -- the store's snapshot and its
  * undirected view, a node's record, the weight the graph was loaded with, and the acceleration
  * controller -- plus the session its option columns are read from. {@link AlgorithmHost} names
- * exactly those. The element's `Graph` is one; {@link algorithmHostOf} makes one from a session
+ * exactly those. The element's `Graph` is one; `algorithmHostOf` makes one from a session
  * with no element behind it, so an algorithm runs on a headless session too.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM: every import is a type or a session module.
@@ -15,7 +15,7 @@ import type { DerivedGraph, GraphSnapshot } from "@graphty/graph-format";
 import { AccelerationController } from "../acceleration/AccelerationController";
 import type { NodeId } from "../catalog/types";
 import { GraphtyError } from "../errors";
-import { accelerationOfSession, storeOfSession } from "../session/GraphSession";
+import { accelerationOfSession, storeOfSession } from "../session/dispatchers";
 import type { GraphSession } from "../session/types";
 import type { WeightReads } from "./input/weight";
 
@@ -50,7 +50,7 @@ interface AlgorithmKnownFields {
 
 /**
  * What an algorithm runs on: the element's `Graph`, or a headless session through
- * {@link algorithmHostOf}.
+ * `algorithmHostOf`.
  */
 export interface AlgorithmHost {
     /**

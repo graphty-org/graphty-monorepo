@@ -82,7 +82,13 @@ import {
     type MachineCalibration,
 } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
-import { dispatcherOf, registerDispatcher, registerSessionData, registerSessionRuns } from "./dispatchers";
+import {
+    dispatcherOf,
+    registerDispatcher,
+    registerSessionData,
+    registerSessionPlacement,
+    registerSessionRuns,
+} from "./dispatchers";
 import { FILES_API, type FilesApi } from "./files/kindOf";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
@@ -842,7 +848,7 @@ class Session implements ElementSession {
         };
         registerDispatcher(this, this.dispatcher);
         LANES.set(this, this.store);
-        CONTROLLERS.set(this, this.controller);
+        registerSessionPlacement(this, this.store, this.controller);
         registerSessionRuns(this, this.sessionRuns);
         registerSessionData(this, parts.data);
         this.history = historyOf(this.dispatcher, () => version);
@@ -1833,39 +1839,6 @@ export function laneOf(session: GraphSession): ElementPositions {
     }
 
     return store.positions;
-}
-
-/**
- * The store behind a session, with its lane writable: what an algorithm reads its snapshot
- * through. Not published.
- * @param session - A session this module built.
- * @returns Its store.
- */
-export function storeOfSession(session: GraphSession): LaneStore {
-    const store = LANES.get(session);
-    if (store === undefined) {
-        throw new GraphtyError({ code: "E_INTERNAL", message: "That session was not built here.", source: "history" });
-    }
-
-    return store;
-}
-
-/** Each session's acceleration controller; see {@link accelerationOfSession}. */
-const CONTROLLERS = new WeakMap<GraphSession, AccelerationControllerLike>();
-
-/**
- * The acceleration controller a session places work through: its own, or the one handed in.
- * Not published.
- * @param session - A session this module built.
- * @returns Its controller.
- */
-export function accelerationOfSession(session: GraphSession): AccelerationControllerLike {
-    const controller = CONTROLLERS.get(session);
-    if (controller === undefined) {
-        throw new GraphtyError({ code: "E_INTERNAL", message: "That session was not built here.", source: "history" });
-    }
-
-    return controller;
 }
 
 /**

@@ -566,7 +566,7 @@ export const CombinedOpacity: Story = {
 
         await holds(
             opacities.length === 1 && Math.abs(opacities[0] - 0.3) < 0.01,
-            `Styles/Edge CombinedOpacity: the cap is asked for at three-tenths opacity and the scene draws ` +
+            `Styles/Edge CombinedOpacity: the cap takes its line's three-tenths opacity and the scene draws ` +
                 `[${opacities.map((value) => value.toFixed(2)).join(", ")}]`,
         );
 
@@ -618,7 +618,8 @@ export const CombinedOpacity: Story = {
                 "edge.color": "darkgrey",
                 "edge.opacity": 0.3,
                 "edge.arrowHead": "normal",
-                "edge.arrowHeadOpacity": 0.3,
+                // the cap is drawn at its line's opacity times its own, so 1 leaves it at the line's 0.3 (#9294)
+                "edge.arrowHeadOpacity": 1,
             },
         }),
     },

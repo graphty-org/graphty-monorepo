@@ -1,7 +1,9 @@
 /**
- * @file An arrowhead does NOT follow the line it caps: its size comes from `arrowHead.size` over
- * the fixed default arrow width and length, and its opacity from `arrowHead.opacity` (default 1).
- * Changing `edge.width` or `edge.opacity` must leave the arrowhead exactly as it was.
+ * @file An arrowhead's size does NOT follow the line it caps: it comes from `arrowHead.size` over
+ * the fixed default arrow width and length, so changing `edge.width` leaves the arrowhead as it was.
+ * Its opacity does follow the line: it is drawn at `edge.opacity` times its own `arrowHead.opacity`
+ * (default 1), so a faded edge's head fades with it (#9294; on a large directed graph the full-strength
+ * heads covered the network the reader had faded).
  *
  * Checked on the meshes the element builds (in 2D the arrow's scaling is its length, in 3D the
  * billboard shader's bounding sphere is), by comparing two edges that differ only in the line.
@@ -94,17 +96,17 @@ describe("an arrowhead is independent of the line it caps", () => {
             assert.closeTo(arrowLength(thick.arrowCap), arrowLength(thin.arrowCap), 1e-6);
         });
 
-        test(`${mode}: a half-opacity line keeps a fully opaque arrowhead`, async () => {
+        test(`${mode}: a half-opacity line draws its arrowhead at half opacity`, async () => {
             const [faded, plain] = await build(mode, [{ "edge.opacity": 0.5 }, {}]);
             assert(faded.arrowCap && plain.arrowCap, "both edges have arrowheads");
-            assert.closeTo(faded.arrowCap.visibility, 1, 1e-6);
-            assert.closeTo(faded.arrowCap.visibility, plain.arrowCap.visibility, 1e-6);
+            assert.closeTo(faded.arrowCap.visibility, 0.5, 1e-6);
+            assert.closeTo(plain.arrowCap.visibility, 1, 1e-6);
         });
 
-        test(`${mode}: an explicit arrowhead opacity is the arrowhead's opacity`, async () => {
+        test(`${mode}: an explicit arrowhead opacity multiplies the line's`, async () => {
             const [edge] = await build(mode, [{ "edge.opacity": 0.5, "edge.arrowHeadOpacity": 0.8 }]);
             assert(edge.arrowCap, "the edge has an arrowhead");
-            assert.closeTo(edge.arrowCap.visibility, 0.8, 1e-6);
+            assert.closeTo(edge.arrowCap.visibility, 0.4, 1e-6);
         });
     }
 });

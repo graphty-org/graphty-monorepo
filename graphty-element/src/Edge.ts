@@ -3190,7 +3190,8 @@ export class Edge {
      */
     redrawPulledOffEnds(): boolean {
         const rows = this.context.getRowTable?.() ?? null;
-        if (this.pulled === null || rows === null) {
+        // an edge its own style hides draws nothing either way, and is judged again when a paint shows it
+        if (this.pulled === null || rows === null || this.styleHidden) {
             return false;
         }
 

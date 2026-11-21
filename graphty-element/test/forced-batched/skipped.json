@@ -1,6 +1,10 @@
 [
     { "file": "test/browser/drawn-invariants.test.ts", "reason": "Sets each case's render path by hand" },
     {
+        "file": "test/browser/edge-arrowhead-position.test.ts",
+        "reason": "Reads each edge's placed ArrowCap object, which a batched head pulled from the row table no longer has"
+    },
+    {
         "file": "test/browser/edge-trim-mirror.test.ts",
         "reason": "Holds the row trim against the mesh path's, which a batched row no longer has a mesh for"
     },

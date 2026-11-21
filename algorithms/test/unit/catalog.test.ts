@@ -50,7 +50,12 @@ function graph(directed: boolean, weighted: boolean): GraphSnapshot {
     });
 }
 
-const REQUIRED_OPTIONS: Readonly<Record<string, unknown>> = { k: 2, numClusters: 2 };
+// `times` is per arc: every arc at time 0 (an undirected snapshot has two arcs per edge, so 2 * edges covers both kinds).
+const REQUIRED_OPTIONS: Readonly<Record<string, unknown>> = {
+    k: 2,
+    numClusters: 2,
+    times: new Float64Array(2 * src.length),
+};
 
 /** Options an algorithm needs to answer on the weighted fixture: Katz diverges at its default alpha there. */
 const FIXTURE_OPTIONS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
@@ -125,9 +130,11 @@ const NOT_ALGORITHMS = new Set([
     "accelerated",
     "walkPredArcs",
     "walkPredEdges",
+    "countShortestPaths",
     "bipartiteFlowNetwork",
     "arcSourceIn",
     "groupsById",
+    "partitionAgreement",
     "pathIds",
     "scoresById",
     "mulberry32",

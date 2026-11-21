@@ -309,7 +309,7 @@ function IncomingTable({
         const key = keyOf(column);
         const isKey = key >= 0;
         const keyEnd = key === 0 ? "source" : "target";
-        const rule = choices.clash?.[column] ?? "both";
+        const rule = choices.clash?.[column] ?? "keep";
         return {
             id: `c:${column}`,
             header: column,

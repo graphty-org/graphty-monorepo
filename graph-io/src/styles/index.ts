@@ -64,7 +64,7 @@ export {
     styleFingerprint,
     type StyleValues,
 } from "./plan/index.js";
-export { type SettleOptions, settleStyles } from "./settle.js";
+export { type SettleOptions, settleStyles, statesStyles } from "./settle.js";
 export { isStyleSlotColumn } from "./slots.js";
 export type * from "./types.js";
 export { isStyleValue, STYLE_ENUMS, STYLE_PROPERTIES, type StyleValueKind } from "./vocabulary.js";

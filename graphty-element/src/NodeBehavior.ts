@@ -17,7 +17,7 @@ import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
-import { MIN_RADIUS_PX } from "./render/NodeIdTarget";
+import { HOVER_RADIUS_PX } from "./render/NodeIdTarget";
 import { filterPointerPicks, hoverNodeId, type HoverPick, pickNodeId } from "./render/PickService";
 import { dispatcherOf } from "./session/GraphSession";
 import {
@@ -1041,7 +1041,7 @@ export class NodeDragHandler {
 
     /**
      * Where this node is drawn now, with the radius hover picks it within: on a batch, never under
-     * the node ID target's least radius.
+     * the radius the node ID target keeps a small row at its own depth within.
      * @returns The place, or undefined when the graph cannot say.
      */
     private drawnNow(): HoverDrawn | undefined {
@@ -1050,7 +1050,7 @@ export class NodeDragHandler {
             return undefined;
         }
 
-        const least = drawnByBatch(this.node) ? MIN_RADIUS_PX * this.scene.getEngine().getHardwareScalingLevel() : 0;
+        const least = drawnByBatch(this.node) ? HOVER_RADIUS_PX * this.scene.getEngine().getHardwareScalingLevel() : 0;
         return { x: screen.x, y: screen.y, radius: Math.max(screen.radius, least) };
     }
 
@@ -1119,11 +1119,13 @@ export class NodeDragHandler {
         // the selection stays whole; on any other node it selects that node, as a click does.
         const secondary = this.clickState?.pointerEvent?.button === 2;
         if (selectionManager && !(secondary && selectionManager.isSelected(this.node))) {
-            if (this.clickState?.pointerEvent?.shiftKey === true && !secondary) {
-                selectionManager.toggle(this.node);
-            } else {
-                selectionManager.select(this.node);
-            }
+            selectionManager.byInput("click", () => {
+                if (this.clickState?.pointerEvent?.shiftKey === true && !secondary) {
+                    selectionManager.toggle(this.node);
+                } else {
+                    selectionManager.select(this.node);
+                }
+            });
         }
 
         // A click does NOT pin. `pinOnDrag` means what it says: a node is fixed because the user

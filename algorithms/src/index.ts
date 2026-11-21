@@ -16,6 +16,9 @@ export { katzAlpha } from "./indexed/katz.js";
 // Id-keyed views of results, for a caller holding its own node ids.
 export { groupsById, type Partition, pathIds, scoresById } from "./indexed/by-id.js";
 
+// How far two groupings of the same elements agree (adjusted Rand index, adjusted mutual information).
+export { type PartitionAgreement, partitionAgreement } from "./indexed/partition-agreement.js";
+
 /**
  * The algorithms under their 2.x namespace, types included (`indexed.PageRankResult`).
  * @deprecated Every algorithm is a top-level export since 3.0.0: `indexed.pageRank` is `pageRank`. Removed in 4.0.0.

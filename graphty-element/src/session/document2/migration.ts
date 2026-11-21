@@ -12,8 +12,9 @@
  *   `source:<id>` space, rows in version 1 order, beside an empty reader source; its edits are
  *   already in its rows. The source id, copy id and build stamp are ULIDs derived from the copy,
  *   so migrating one file twice writes the same ids. `kindIds`, `idPrefix` and `kind:` respellings
- *   stay in the key. The `edgeIdPath`, `edgeWeightPath` and `timePath` known fields become mapping
- *   roles where the copy holds the column; every other `data.` config key is reported. A `label`
+ *   stay in the key. The `edgeIdPath` known field and the weight, time and location known fields
+ *   (codecs/roles.ts) become mapping roles where the copy holds the column; every other `data.`
+ *   config key is reported. A `label`
  *   role is not written as a style layer. Issue fixes and declarations of a column no type carries
  *   are reported.
  * - Runs. Every run becomes a view run record under the namespace `session` (element-minted) or
@@ -37,10 +38,12 @@
  *   keeps only its style. A session member gives no recipe: opening restores the view.
  */
 
+import { withParentIds } from "../parentIds";
 import { ENGINE_VERSIONS } from "../runs/engine";
 import { rewriteOldPaths } from "../styles/fileStyles/oldLooks";
 import { addedColumns, canonicalJson, READER } from "./codecs/dataRefs";
 import { asName } from "./codecs/recipeCommands";
+import { ROLE_FIELDS } from "./codecs/roles";
 import { cameraJson } from "./codecs/viewParts";
 import {
     decodeColumn,
@@ -891,11 +894,9 @@ function migrateNotes(notes: JsonObject, context: Context, data: MigratedData): 
 const NOT_SETTINGS = new Set(["author", "name", "startingRows", "editableBase", "viewRotation", "framing"]);
 
 /** The `data` config keys the data section's mapping carries (migrationParts.ts `mappingOf`). */
-const MAPPED_FIELDS = new Set([
-    "data.knownFields.edgeIdPath",
-    "data.knownFields.edgeWeightPath",
-    "data.knownFields.timePath",
-]);
+const MAPPED_FIELDS = new Set(
+    ["edgeIdPath", ...ROLE_FIELDS.map(({ field }) => field)].map((field) => `data.knownFields.${field}`),
+);
 
 /**
  * What a migration could not carry over, for a caller to tell the reader before the version 2
@@ -1473,7 +1474,13 @@ function sectionsOf(
     const data =
         dataMember === undefined
             ? undefined
-            : migrateData({ data: dataMember, session, sources: members.get("graphty-sources"), generator, problems });
+            : migrateData({
+                  data: withParentIds(dataMember),
+                  session,
+                  sources: members.get("graphty-sources"),
+                  generator,
+                  problems,
+              });
     const runs = objectsOf(members.get("graphty-results")?.runs);
     const context = contextOf(members, generator, data, runs, problems);
 

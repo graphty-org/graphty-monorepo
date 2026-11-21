@@ -113,6 +113,7 @@ export type GraphEvent =
     | ViewsChangedEvent
     | XRSessionStartedEvent
     | XRSessionEndedEvent
+    | XRMenuSelectEvent
     | InputPointerEvent
     | InputWheelEvent
     | InputTouchEvent
@@ -842,6 +843,14 @@ export interface XRSessionEndedEvent {
     cause: "exit" | "device";
 }
 
+/** Emitted when the reader presses an item of the in-headset menu (`xr.menu`). */
+export interface XRMenuSelectEvent {
+    /** The event's name. */
+    type: "xr-menu-select";
+    /** The pressed item's `id`. */
+    id: string;
+}
+
 // Selection events
 /**
  * Emitted for each pointer press, move and release on the canvas while input is enabled.
@@ -1226,6 +1235,8 @@ export interface AiCommandErrorEvent {
     type: "ai-command-error";
     /** The failure. */
     error: Error;
+    /** Why it failed, as the result the command resolves with carries it (`ExecutionResult.code`). */
+    code: AiResultCode;
     /** The command's text. */
     input: string;
     /** Whether running it again unchanged could succeed. */

@@ -355,7 +355,8 @@ describe("a reload while this tab's work is being reopened", () => {
             setItem: (name: string, value: string) => items.set(name, value),
             removeItem: (name: string) => items.delete(name),
         };
-        const pageWithSession = (): AutosaveEnvironment => ({ ...page().env, sessionStorage: () => storage });
+        const tab = { name: "" };
+        const pageWithSession = (): AutosaveEnvironment => ({ ...page().env, sessionStorage: () => storage, tab });
         const key = "test.reload-while-reopening";
         const store = memoryAutosaveStore();
         // Starts autosave on a page; `setUp` is the page's own setup, made while autosave starts.
@@ -402,6 +403,8 @@ describe("a reload while this tab's work is being reopened", () => {
         assert.notStrictEqual(setup, entry);
         assert.isFalse(reopening.api.status.unexported, "the page's setup is not the reader's work");
         assert.strictEqual(items.get(`graphty-autosave:own:${key}`), setup);
+        // The tab's record keeps the work newest too, so a tab that lost session storage finds it.
+        assert.strictEqual(tab.name.split(",").at(-1)?.replace("graphty-autosave:", ""), entry);
 
         // A second reload here still finds the reader's work as this tab's own.
         const listed = await listAutosaves(key, { store });

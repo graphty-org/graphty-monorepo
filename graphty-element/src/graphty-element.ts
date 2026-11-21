@@ -55,6 +55,7 @@ import {
 import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/resolve";
 import {
     featuresFrom,
+    type FileLoadOptions,
     Graph,
     loadSourcePair,
     type NodeScreenPosition,
@@ -102,14 +103,15 @@ import { type RenderQuality, shadersControllerOf, type ShaderSettings } from "./
 import type { CodedFact, ProgressChange } from "./session/shared";
 import { attachCredentials } from "./session/sources/credentialLookup";
 import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
+import { compileRecords } from "./session/sources/steps/compile";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
-import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type {
     ModelChange,
     ProjectConfigPatch,
     SessionCapabilities,
     SessionEventMap,
+    SourceLoaded,
     TransactionScope,
 } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
@@ -298,6 +300,7 @@ export class Graphty extends LitElement {
     #unwatchProjectStatus: (() => void) | null = null;
     /** Unsubscribes the three network-source expansion mirrors. */
     #unwatchSource: (() => void) | null = null;
+    #unwatchSourceLoaded: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
     #unwatchModels: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
@@ -480,7 +483,8 @@ export class Graphty extends LitElement {
 
     /**
      * Save the project (`session.project.save`) and hand it to the reader as a download named
-     * `<project name>.graphty.json`. Lives on the element, not the session, because the session
+     * `<project name>.graphty.json`, or `<project name>.graphty-<section>.json` for a version 2
+     * section file (`form: "section"`). Lives on the element, not the session, because the session
      * also runs in Node, where there is nothing to download to.
      * @param options - What to leave out, your own extensions, how to keep models named by URL,
      *     the file's name, and `markSaved: false` for a copy that leaves `project.dirty` as it was.
@@ -500,9 +504,13 @@ export class Graphty extends LitElement {
             ...saveOptions,
             markSaved: options.markSaved !== false,
         });
+        // A version 2 section file is named and typed by its section (spec 2.4).
+        const section = options.form === "section" ? options.sections?.[0] : undefined;
         downloadBlob(
-            new Blob([text], { type: PROJECT_FILE.mediaType }),
-            fileName ?? projectFileName(this.session.project.name),
+            new Blob([text], {
+                type: section === undefined ? PROJECT_FILE.mediaType : `application/vnd.graphty.${section}+json`,
+            }),
+            fileName ?? projectFileName(this.session.project.name, section === undefined ? {} : { section }),
         );
         return report;
     }
@@ -643,6 +651,19 @@ export class Graphty extends LitElement {
                 off();
             }
         };
+    }
+
+    /**
+     * Mirror the session's `source:loaded` onto the DOM as `graphty-source-loaded`: which source a
+     * load a caller asked for added, never what it holds.
+     * @param session - The session to watch.
+     * @param session.on - Its event subscription.
+     * @returns Unsubscribes.
+     */
+    #mirrorSourceLoaded(session: { on: GraphSession["on"] }): () => void {
+        return session.on("source:loaded", (detail) => {
+            this.dispatchEvent(new CustomEvent("graphty-source-loaded", { detail, bubbles: true, composed: true }));
+        });
     }
 
     /**
@@ -939,6 +960,13 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility ??= session.on("visibility:changed", (change) => {
             this.#mirrorVisibilityChange(change);
         });
+        // A saved view keeps the legend switch and brings it back.
+        dispatcherOf(session).services.legend = {
+            shown: () => this.#legendOn,
+            show: (on) => {
+                this.legend = on;
+            },
+        };
         this.#screenReader.connect(this.renderRoot);
         if (this.#legendOn) {
             this.#legendView.connect(this.renderRoot);
@@ -975,6 +1003,8 @@ export class Graphty extends LitElement {
         });
         // Click-to-expand from a network source (experimental): plain codes and values, as the other mirrors.
         this.#unwatchSource ??= this.#mirrorSourceEvents(session);
+        // Which source a load a caller asked for added: kind, format and ids, never contents.
+        this.#unwatchSourceLoaded ??= this.#mirrorSourceLoaded(session);
         // A project shader's status, held shaders after a load, and approvals an application may remember.
         this.#unwatchShaders ??= this.#mirrorShaderEvents(session);
         // A shader nobody approved is compiled only once the work it could take down is saved.
@@ -1517,6 +1547,8 @@ export class Graphty extends LitElement {
         this.#unwatchProjectStatus = null;
         this.#unwatchSource?.();
         this.#unwatchSource = null;
+        this.#unwatchSourceLoaded?.();
+        this.#unwatchSourceLoaded = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
         this.#unwatchModels?.();
@@ -2591,6 +2623,11 @@ export class Graphty extends LitElement {
             }
 
             const { nodes, nodeIdPath = "id", edges } = write.rows;
+            const derived = this.#derivedRecords({ nodes, edges }, state, asSetup);
+            if (derived !== null) {
+                return derived;
+            }
+
             if (nodes !== undefined && edges !== undefined) {
                 return replaceGraphCommand(state.nodes, [...state.edges.keys()], nodes, edges, nodeIdPath, asSetup);
             }
@@ -2613,6 +2650,40 @@ export class Graphty extends LitElement {
      * @param setup - Whether the page declared it before the first update, so it is baseline.
      * @returns Settles once the step is recorded, or failed and was reported.
      */
+    /**
+     * Under the source-steps experiment, `nodeData` or `edgeData` as the one derived source the
+     * pair owns (design 9.1); with it off, null, and the records replace the graph's as before.
+     * @param records - The records assigned: the nodes, the edges or both.
+     * @param records.nodes - The nodes.
+     * @param records.edges - The edges.
+     * @param state - The graph slice now.
+     * @param setup - Whether this is part of the element's setup.
+     * @returns The step, or null with the experiment off.
+     */
+    #derivedRecords(
+        records: {
+            readonly nodes?: readonly Record<string, unknown>[];
+            readonly edges?: readonly Record<string, unknown>[];
+        },
+        state: GraphSlice,
+        setup: boolean,
+    ): BatchCommand | null {
+        if (!this.session.features.has("source-steps")) {
+            return null;
+        }
+        const known = this.#graph.getStyles().config.data.knownFields;
+        return compileRecords(
+            records,
+            state.values,
+            {
+                nodeIdPath: known.nodeIdPath,
+                ...(known.edgeSrcIdPath === null ? {} : { source: known.edgeSrcIdPath }),
+                ...(known.edgeDstIdPath === null ? {} : { target: known.edgeDstIdPath }),
+            },
+            setup,
+        );
+    }
+
     #replaceData(build: (state: GraphSlice, setup: boolean) => BatchCommand, setup = this.#settingUp): Promise<void> {
         const dispatcher = dispatcherOf(this.#graph.getSession());
         const dispatch = (): Promise<unknown> => dispatcher.dispatch(build(dispatcher.state.graph, setup));
@@ -5458,25 +5529,6 @@ export class Graphty extends LitElement {
      * Load graph data from a URL.
      * @param url - URL to fetch graph data from
      * @param options - Loading options
-     * @param options.format - Data format (e.g., "json", "csv", "graphml")
-     * @param options.nodeIdPath - JMESPath for node ID field
-     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
-     *     unset, the element reads `source`, then `src`, then `from`
-     * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
-     *     a malformed or empty file rejects and leaves the current graph untouched
-     * @param options.signal - Cancels the load, its read included: it rejects with the signal's
-     *     reason (an `AbortError` by default) and adds nothing, leaving the graph as it was
-     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
-     *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
-     * @param options.graphName - Which graph to read, by name, from a file that holds several
-     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
-     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
-     *     `"none"` (the default) loads the data alone
-     * @param options.styleOptions - How the file's styles are turned into layers
-     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
-     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
-     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -5484,22 +5536,7 @@ export class Graphty extends LitElement {
      * await element.loadFromUrl('https://example.com/graph.json');
      * ```
      */
-    async loadFromUrl(
-        url: string,
-        options?: {
-            format?: string;
-            nodeIdPath?: string;
-            edgeSource?: string;
-            edgeTarget?: string;
-            replace?: boolean;
-            graphIndex?: number;
-            graphName?: string;
-            styles?: "file" | "none";
-            styleOptions?: FileStyleOptions;
-            layout?: "recommended" | "keep";
-            signal?: AbortSignal;
-        },
-    ): Promise<{ loadId: number }> {
+    async loadFromUrl(url: string, options?: FileLoadOptions): Promise<{ loadId: number }> {
         const held = this.#afterRestore();
         if (held !== undefined) {
             await held;
@@ -5512,25 +5549,6 @@ export class Graphty extends LitElement {
      * Load graph data from a File object.
      * @param file - File object from file input
      * @param options - Loading options
-     * @param options.format - Data format (e.g., "json", "csv", "graphml")
-     * @param options.nodeIdPath - JMESPath for node ID field
-     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
-     *     unset, the element reads `source`, then `src`, then `from`
-     * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
-     *     a malformed or empty file rejects and leaves the current graph untouched
-     * @param options.signal - Cancels the load, its read included: it rejects with the signal's
-     *     reason (an `AbortError` by default) and adds nothing, leaving the graph as it was
-     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
-     *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
-     * @param options.graphName - Which graph to read, by name, from a file that holds several
-     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
-     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
-     *     `"none"` (the default) loads the data alone
-     * @param options.styleOptions - How the file's styles are turned into layers
-     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
-     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
-     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -5540,22 +5558,7 @@ export class Graphty extends LitElement {
      * await element.loadFromFile(file);
      * ```
      */
-    async loadFromFile(
-        file: File,
-        options?: {
-            format?: string;
-            nodeIdPath?: string;
-            edgeSource?: string;
-            edgeTarget?: string;
-            replace?: boolean;
-            graphIndex?: number;
-            graphName?: string;
-            styles?: "file" | "none";
-            styleOptions?: FileStyleOptions;
-            layout?: "recommended" | "keep";
-            signal?: AbortSignal;
-        },
-    ): Promise<{ loadId: number }> {
+    async loadFromFile(file: File, options?: FileLoadOptions): Promise<{ loadId: number }> {
         const held = this.#afterRestore();
         if (held !== undefined) {
             await held;
@@ -5988,8 +5991,9 @@ export class Graphty extends LitElement {
      * Wait for every queued operation to finish.
      *
      * The QUEUE only -- data loading, layout changes, algorithm runs. The layout may still be
-     * running and the camera may still be moving when this resolves. For a picture that will not
-     * change again, wait for {@link Graphty.waitForStableFrame}.
+     * running, the camera may still be moving, and a picture (a background image, a node's image
+     * or 3D model) may still be loading when this resolves. For a picture that will not change
+     * again, wait for {@link Graphty.waitForStableFrame}.
      *
      * It does not wait for a frame either, and only a frame moves a new node's mesh to its layout
      * position: {@link Graphty.nodeScreenPosition} read right after this can still report a new
@@ -7868,6 +7872,7 @@ declare global {
         "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
         "graphty-source-expanded": CustomEvent<SourceExpanded>;
         "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;
+        "graphty-source-loaded": CustomEvent<SourceLoaded>;
         "graphty-autosave-status": CustomEvent<AutosaveStatus>;
         "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
@@ -7877,34 +7882,10 @@ declare global {
         "graphty-skybox-failed": CustomEvent<CodedFact<"E_IMAGE_LOAD">>;
     }
 
-    // Every one bubbles and is composed, so a listener on the document is typed the same way.
-    interface DocumentEventMap {
-        "graphty-run-change": CustomEvent<GraphtyRunChangeDetail>;
-        "graphty-progress-change": CustomEvent<ProgressChange>;
-        "graphty-selection-change": CustomEvent<SelectionDelta>;
-        "graphty-visibility-change": CustomEvent<VisibilityChange>;
-        "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
-        "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
-        "graphty-model-change": CustomEvent<GraphtyModelChangeDetail>;
-        "graphty-project-status": CustomEvent<ProjectStatus>;
-        "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
-        "graphty-node-click": CustomEvent<NodeEventDetail>;
-        "graphty-node-hover": CustomEvent<NodeEventDetail>;
-        "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
-        "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
-        "graphty-label-change": CustomEvent<NodeLabelCounts>;
-        "graphty-features": CustomEvent<EnabledFeatures>;
-        "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
-        "graphty-source-expanded": CustomEvent<SourceExpanded>;
-        "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;
-        "graphty-autosave-status": CustomEvent<AutosaveStatus>;
-        "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
-        "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
-        "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
-        "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
-        "graphty-skybox-loaded": CustomEvent<GraphtySkyboxLoadedDetail>;
-        "graphty-skybox-failed": CustomEvent<CodedFact<"E_IMAGE_LOAD">>;
-    }
+    // Every one bubbles and is composed, so a listener on the document is typed the same way: the
+    // document's map takes every graphty- entry of the element's map above.
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- merging into the global map needs an interface; its members are the supertype's
+    interface DocumentEventMap extends GraphtyElementEventMap {}
 }
 
 /**

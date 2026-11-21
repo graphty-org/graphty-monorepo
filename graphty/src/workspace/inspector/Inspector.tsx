@@ -1,5 +1,5 @@
 import { PopoutManager, TargetTooltip } from "@graphty/compact-mantine";
-import type { GraphSession, LoadedSource, Run } from "@graphty/graphty-element/session";
+import type { GraphSession, LoadedSource, NodeId, Run } from "@graphty/graphty-element/session";
 import { ActionIcon, Anchor, ColorSwatch, Group, Menu, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
@@ -46,7 +46,7 @@ import { AttributeValues, Overview } from "./GraphValues";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
 import { MENUS } from "./kindMenus";
 import { EverythingRowValues, FolderValues, LayerValues } from "./LayerValues";
-import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValues";
+import { EdgeValues, NeighborList, NodeHeaderActions, NodeValues, SeveralValues } from "./NodeValues";
 import { type Draft, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
@@ -329,6 +329,21 @@ function dataActionsOf(
 }
 
 /**
+ * A node's header carries Pin and Copy id, which then sit before its "..." as Select what it
+ * paints does on a style tree row.
+ * @param resolved - what is inspected.
+ * @param selectsPaints - whether it is a style tree row.
+ * @returns the node, if one is inspected, and whether header buttons sit before the "...".
+ */
+function nodeHeaderOf(
+    resolved: Resolved,
+    selectsPaints: boolean,
+): { nodeId: NodeId | undefined; buttonsLead: boolean } {
+    const nodeId = resolved.kind === "node" ? resolved.node : undefined;
+    return { nodeId, buttonsLead: selectsPaints || nodeId !== undefined };
+}
+
+/**
  * A result's Run again, Pin to report and Copy items, the same as its Data place row's.
  * @param session - the session.
  * @param store - the workspace store.
@@ -469,7 +484,7 @@ function HeaderFrom({ from }: Readonly<{ from: Header["from"] }>): React.ReactNo
  * commands, then a result's Run again and Copy items, then the Data place's verbs.
  * @param props - Component props
  * @param props.kindWord - the kind in words.
- * @param props.selectsPaints - whether Select what it paints sits before it.
+ * @param props.selectsPaints - whether a header button (Select what it paints, Pin) sits before it.
  * @param props.tree - the style tree.
  * @param props.treeRow - the style tree row, if it is one.
  * @param props.menu - the kind's commands.
@@ -630,6 +645,7 @@ export function Inspector(): React.JSX.Element {
     const resultActions = resultActionsOf(session, store, run, resolved, pins);
     // A style tree row's header carries Select what it paints (Figma's Select matching layers).
     const selectsPaints = kindId === "layer-row" || kindId === "folder-row";
+    const { nodeId, buttonsLead } = nodeHeaderOf(resolved, selectsPaints);
     // ... and draws the tree's own glyph and menu for the row.
     const { tree, treeRow } = headerTreeOf(session, resolved, selectsPaints);
     const moveTo = (row: { id: string; name: string }, folderId: string | null): void => {
@@ -710,10 +726,11 @@ export function Inspector(): React.JSX.Element {
                                 </ActionIcon>
                             </Tooltip>
                         )}
+                        <NodeHeaderActions id={nodeId} />
                         {menu.length + resultActions.length + attributeActions.length > 0 && (
                             <HeaderMenu
                                 kindWord={kindWord}
-                                selectsPaints={selectsPaints}
+                                selectsPaints={buttonsLead}
                                 tree={tree}
                                 treeRow={treeRow}
                                 menu={menu}

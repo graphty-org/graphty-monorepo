@@ -112,10 +112,11 @@ No options of its own.
 
 ### `graphty-spiral` (static)
 
-| Option        | Type      | Default | Meaning                                                                                                                                                                                                                                     |
-| ------------- | --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolution`  | `number`  | `0.35`  | The angle between consecutive nodes, in radians. With `equidistant: true` it is instead the angle the spiral starts at, and since the spiral's radius grows with its angle, it changes the shape of the inner turns, not only the rotation. |
-| `equidistant` | `boolean` | `false` | Space consecutive nodes the same distance apart along the spiral, instead of by equal angles.                                                                                                                                               |
+| Option        | Type      | Default | Meaning                                                                                                                                                                                                                                        |
+| ------------- | --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolution`  | `number`  | `0.35`  | The angle between consecutive nodes, in radians. With `equidistant: true` it is instead the angle the spiral starts at, and since the spiral's radius grows with its angle, it changes the shape of the inner turns, not only the rotation.    |
+| `equidistant` | `boolean` | `false` | Space consecutive nodes the same distance apart along the spiral, instead of by equal angles.                                                                                                                                                  |
+| `height`      | `number`  | `1`     | Read only with `dim: 3`: how far the spiral rises per unit of radius, so the nodes lie on a cone. A 3D run is projected onto the x-y plane, so the rise itself is not drawn; with `equidistant: true` it changes the spacing along the spiral. |
 
 ### `graphty-grid` (static)
 
@@ -161,10 +162,11 @@ No options of its own.
 
 ### `graphty-multipartite` (static)
 
-| Option    | Type                                 | Default      | Meaning                                                                                                                                                                                                                                                                                                  |
-| --------- | ------------------------------------ | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `subsets` | `string \| readonly NodeSelection[]` | `"subset"`   | A node data field whose value names the layer, or the layers in order. Layers named by a field are ordered by value, numbers ascending and other values alphabetically. A node with no value in the field is not placed and keeps its position, so on a graph where no node has the field nothing moves. |
-| `align`   | `"vertical" \| "horizontal"`         | `"vertical"` | `"vertical"`: each layer is a column whose nodes share one x, and the layers run left to right. `"horizontal"`: each layer is a row whose nodes share one y, and the layers run top to bottom.                                                                                                           |
+| Option        | Type                                 | Default      | Meaning                                                                                                                                                                                                                                                                                                                                           |
+| ------------- | ------------------------------------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `subsets`     | `string \| readonly NodeSelection[]` | `"subset"`   | A node data field whose value names the layer, or the layers in order. Layers named by a field are ordered by value, numbers ascending and other values alphabetically. A node with no value in the field is not placed and keeps its position, so on a graph where no node has the field nothing moves.                                          |
+| `align`       | `"vertical" \| "horizontal"`         | `"vertical"` | `"vertical"`: each layer is a column whose nodes share one x, and the layers run left to right. `"horizontal"`: each layer is a row whose nodes share one y, and the layers run top to bottom.                                                                                                                                                    |
+| `aspectRatio` | `number`                             |              | Width over height of the drawing, as drawn (after `align`). The layers, or the nodes within them, are spread apart until the drawing has this shape, so many short layers or a few tall ones still fill a wide view; the spacing is never pulled below one unit. Unset (the default) keeps NetworkX's spacing: layers one apart, nodes one apart. |
 
 ### `graphty-bipartite` (static)
 

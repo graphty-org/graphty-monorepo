@@ -116,6 +116,35 @@ all of them, the session runs in the `viewer` space, lowered to standing height.
 | `immersive-ar` | AR with environment pass-through |
 | `inline`       | Non-immersive (in-page preview)  |
 
+## An In-Headset Menu
+
+Inside a headset the page around the graph is out of sight, so the element can draw a menu in the
+scene for you. Give it items; each has an `id` and the `label` drawn on it. When a session starts,
+the menu floats to the reader's left; pointing a controller at an item and pulling the trigger (or
+pinching) fires `xr-menu-select` with that item's `id`. What an item does is up to you:
+
+```javascript
+const element = document.querySelector("graphty-element");
+
+element.xr = {
+    enabled: true,
+    menu: [
+        { id: "circle", label: "Circle layout" },
+        { id: "rank", label: "Rank nodes" },
+        { id: "exit", label: "Leave VR" },
+    ],
+};
+
+element.addEventListener("xr-menu-select", (event) => {
+    if (event.detail.id === "circle") element.layout = "circular";
+    if (event.detail.id === "rank") element.run("degree");
+    if (event.detail.id === "exit") element.setViewMode("3d");
+});
+```
+
+Setting `menu` again during a session redraws it where the reader is now; an empty list, or no
+`menu` at all, draws nothing.
+
 ## Exiting XR
 
 Return to normal 3D view:

@@ -70,6 +70,8 @@ export const slideCounters = {
     filterReads: 0,
     /** Spans a jump over a kind of spans read from its duration buckets. */
     spans: 0,
+    /** Times the held condition's ghosts had their inputs compared: once a turn, never once per element. */
+    ghostChecks: 0,
 };
 
 /** What one kind's index holds for a slide: the instants per row, and their sorted order. */

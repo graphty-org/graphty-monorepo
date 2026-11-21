@@ -30,7 +30,7 @@ const stopSentry = vi.fn();
 setUsageSenderForTests({ start: initSentry, stop: stopSentry });
 
 describe("the usage data gate", () => {
-    withFeatures(["usage-analytics"]);
+    withFeatures([]);
     withPostHogSite();
     beforeEach(() => {
         forgetUsageAnswer();
@@ -160,7 +160,7 @@ describe("the live sender", () => {
             privacySignals: () => signals,
         });
         recordAnonymous();
-        const file = { site: "production", features: ["usage-analytics"], analytics };
+        const file = { site: "production", analytics };
         startPageCounts(await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(file))}`));
         sends.length = 0;
     });
@@ -229,7 +229,7 @@ describe("the live sender", () => {
     });
 });
 
-describe("the usage data gate with the usage-analytics experiment off", () => {
+describe("the usage data gate on a site with no PostHog ids", () => {
     withFeatures([]);
     beforeEach(() => {
         forgetUsageAnswer();
@@ -250,11 +250,11 @@ describe("the usage data gate with the usage-analytics experiment off", () => {
     });
 
     it("asks again, and starts no PostHog, for a Share clicked before site.json switched PostHog on", async () => {
-        // The page painted with the experiment off, so the card's words never named PostHog.
+        // The page painted before site.json gave it PostHog's ids, so the card's words never named PostHog.
         answerUsageData("share");
         assert.equal(initSentry.mock.calls.length, 1);
         resetSiteConfig();
-        const site = { site: "production", features: ["usage-analytics"], analytics: TEST_ANALYTICS };
+        const site = { site: "production", analytics: TEST_ANALYTICS };
         // On the site's own host, as the page is when its site.json arrives.
         setAnalyticsCallsForTests({ hostname: () => "graphty.app", importPostHog: () => new Promise(() => undefined) });
         try {

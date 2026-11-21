@@ -194,7 +194,12 @@ to look down the line between two nodes wherever the layout puts them. `lockRing
 dark) that two intros end on.
 
 Under load the screencast films fewer frames: shoot a fast move k times slower (layout seconds and
-`ms` times k, shader speeds divided by k) and give the cut item `speed: k` or a `ramp`.
+`ms` times k, shader speeds divided by k) and give the cut item `speed: k` or a `ramp`. The page
+itself also stops drawing while a script updates style layers every frame (each update costs tens
+of milliseconds): step such tweens (`tweenShader`'s `stepMs`). After every take, run
+`node tools/demo-video/frame-gate.mjs <clip>`: it fails when any 2 s of the raw take holds fewer
+than 20 frames that differ from the one before (`--min`, `--window`, `--from`, `--to`), which is
+judder however the ramp speeds it up.
 
 ## Conventions
 

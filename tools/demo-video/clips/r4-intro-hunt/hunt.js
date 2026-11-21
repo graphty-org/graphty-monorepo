@@ -6,6 +6,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { OUT } from "../../lib/env.mjs";
+import { add, cross, len, mul, sub, unit } from "../../lib/vec.mjs";
 import {
     addLayer,
     dimAll,
@@ -178,12 +179,6 @@ export async function lockRing(h, ring) {
 
 // ---------------------------------------------------------------- round 5: camera geometry
 
-const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
-const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
-const mul = (a, k) => ({ x: a.x * k, y: a.y * k, z: a.z * k });
-const len = (a) => Math.hypot(a.x, a.y, a.z);
-const unit = (a) => mul(a, 1 / len(a));
-const cross = (a, b) => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
 const UP = { x: 0, y: 1, z: 0 };
 /**
  * A direction as rig's orbit angles.

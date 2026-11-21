@@ -15,7 +15,9 @@
  * A clip item's `seconds` trims it to its last `seconds` (the result and its hold), or from `from`.
  *
  * Cut file (JSON):
- *   { "name": "tour", "crossfadeMs": 400,
+ *   { "name": "tour", "crossfadeMs": 400, "title"?: "<heading on the review page>",
+ *     "note"?: "<a line under it on the review page, such as which music is a placeholder>",
+ *     "top"?: true (listed first on the review page),
  *     "music": null | "<audio file>" | { "file", "from"?, "gain"?, "fadeIn"?, "fadeOut"?,
  *                                         "duck"?: [ { "at" | "onBeat", "seconds", "gain"? } ] },
  *     "bpm"?, "offset"?, "sfx"?: [ { "file", "at" | "onBeat", "gain"? } ],
@@ -867,6 +869,9 @@ writeFileSync(
     JSON.stringify(
         {
             seconds: total,
+            title: cut.title,
+            note: cut.note,
+            top: cut.top,
             chapters,
             parts: segments.map((s, i) => ({
                 start: offsets[i],
@@ -947,7 +952,12 @@ await run([
 ]);
 
 // index.html: every finished video in out/, with its chapters as links
-const order = (f) => (f === "tour.mp4" ? "0" : "1") + f; // the tour first
+// the cuts marked `top` first (the one under review), then the tour, then the rest
+const topOf = (f) => {
+    const j = join(outDir, `${basename(f, ".mp4")}.json`);
+    return existsSync(j) && JSON.parse(readFileSync(j, "utf8")).top === true;
+};
+const order = (f) => (topOf(f) ? "0" : "") + (f === "tour.mp4" ? "1" : "2") + f;
 const videos = readdirSync(outDir)
     .filter((f) => f.endsWith(".mp4"))
     .sort((a, b) => order(a).localeCompare(order(b)));
@@ -959,7 +969,8 @@ const blocks = videos.map((v) => {
         : { chapters: [] };
     const link = (c) => `<a href="#" data-v="${name}" data-t="${c.start}">` + clock(c.start) + "</a>";
     const items = info.chapters.map((c) => "<li>" + link(c) + " " + esc(c.title) + "</li>").join("");
-    return `<section><h2>${esc(name)} <small>${clock(info.seconds ?? 0)}</small></h2><video id="${name}" src="${v}" controls preload="metadata"></video><ol>${items}</ol></section>`;
+    const note = info.note ? `<p class="note">${esc(info.note)}</p>` : "";
+    return `<section><h2>${esc(info.title ?? name)} <small>${clock(info.seconds ?? 0)}</small></h2>${note}<video id="${name}" src="${v}" controls preload="metadata"></video><ol>${items}</ol></section>`;
 });
 writeFileSync(
     join(outDir, "index.html"),
@@ -969,6 +980,7 @@ writeFileSync(
 @media (prefers-color-scheme: dark) { :root { --bg: #12171f; --fg: #eef1f5; --mute: #9aa4b2; } }
 body { margin: 0; padding: 24px 16px 60px; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
 main { max-width: 1100px; margin: 0 auto; } h1 { font-size: 26px; } h2 small { color: var(--mute); font-weight: 400; }
+.note { margin: -8px 0 12px; padding: 8px 12px; border-left: 4px solid #d08a00; color: var(--fg); }
 video { width: 100%; border-radius: 10px; background: #000; } ol { padding-left: 20px; columns: 2 260px; } a { color: #5b8a00; }
 </style></head><body><main><h1>graphty demo video</h1>${blocks.join("")}</main>
 <script>for (const a of document.querySelectorAll("a[data-v]")) a.onclick = (e) => { e.preventDefault(); const v = document.getElementById(a.dataset.v); v.currentTime = Number(a.dataset.t); v.play(); };</script>

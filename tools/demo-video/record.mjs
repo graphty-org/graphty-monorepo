@@ -106,6 +106,9 @@ async function recordReal(clip, origin) {
     const { page } = b;
     const problems = [];
     page.on("pageerror", (e) => problems.push(`page error: ${e.message.split("\n")[0]}`));
+    // a crashed tab only shows as "Target page closed" in the clip's next call: say so at once
+    page.on("crash", () => console.log(`  ${clip.id}: the page crashed`));
+    b.context.on("close", () => console.log(`  ${clip.id}: the browser closed (${new Date().toISOString()})`));
     page.on("console", (m) => {
         if (m.type() === "error" && !/site\.json|Failed to load resource/.test(m.text()))
             problems.push(`console error: ${m.text().slice(0, 200)}`);

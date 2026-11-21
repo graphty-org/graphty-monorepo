@@ -1,0 +1,84 @@
+{
+    "name": "intro-growth",
+    "title": "Growth (new)",
+    "note": "Music is a PLACEHOLDER (audio/trailer.wav, slowed): the owner's pick, \"Bright Positive Energy\" by Universfield on Pixabay, could not be downloaded automatically (Pixabay answers 403). Fetch it by hand and swap it into the cut's music.file.",
+    "top": true,
+    "crossfadeMs": 400,
+    "music": {
+        "file": "~/intros/growth/music-placeholder.wav",
+        "gain": 0,
+        "fadeOut": 1.5
+    },
+    "bpm": 60.51,
+    "offset": 0.937,
+    "sections": [
+        {
+            "marker": "Intro",
+            "items": [
+                {
+                    "clip": "growth-world",
+                    "bleed": true,
+                    "zoom": false,
+                    "caption": "",
+                    "from": 0,
+                    "seconds": 43.48,
+                    "ramp": [
+                        [0, 2.6],
+                        [32.84, 2],
+                        [38.36, 3.6],
+                        [56.5, 2.6],
+                        [60.97, 2.2],
+                        [69.86, 3],
+                        [80.88, 2],
+                        [83.42, 2.6],
+                        [111.2, 3]
+                    ],
+                    "sfx": [
+                        {
+                            "file": "~/audio/lock-on.wav",
+                            "at": 29.86,
+                            "gain": -6
+                        }
+                    ]
+                },
+                {
+                    "clip": "growth-world",
+                    "bleed": true,
+                    "zoom": false,
+                    "caption": "",
+                    "from": 116.5,
+                    "seconds": 4.9,
+                    "ramp": [
+                        [116.5, 3],
+                        [117.28, 2]
+                    ]
+                },
+                {
+                    "card": "title",
+                    "over": {
+                        "clip": "growth-world",
+                        "at": ["turn", 4.0]
+                    },
+                    "zoom": false,
+                    "lines": ["See what your connected data is hiding"],
+                    "hold": 2.6,
+                    "veil": 0.3,
+                    "strong": true,
+                    "onBeat": 47
+                }
+            ]
+        }
+    ],
+    "sfx": [
+        {
+            "file": "~/audio/riser.wav",
+            "at": 44.55,
+            "gain": -8
+        },
+        {
+            "file": "~/audio/impact.wav",
+            "onBeat": 47,
+            "gain": -6
+        }
+    ]
+}

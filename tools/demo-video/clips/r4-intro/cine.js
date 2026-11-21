@@ -263,15 +263,17 @@ export const dimAll = async (h) => ({
 
 /**
  * Animate a layer's numeric channels from one set of values to another, in the page, about 15
- * steps a second (session.styles.update with the whole `set` each step, so tween only layers whose
+ * steps a second by default (session.styles.update with the whole `set` each step, so tween only layers whose
  * every channel it names, such as addLayer's). Resolves when the last value is written.
  * @param h - the hand
  * @param id - the layer
  * @param from - { channel: value } at the start ({ "node.opacity": 0 })
  * @param to - { channel: value } at the end
  * @param ms - how long
+ * @param [stepMs] - the time between two steps; each costs the page tens of milliseconds on a
+ *     large graph, so a take with several tweens at once steps them less often
  */
-export async function tween(h, id, from, to, ms) {
+export async function tween(h, id, from, to, ms, stepMs = 66) {
     await onElement(
         h,
         async (el, o) => {
@@ -283,10 +285,10 @@ export async function tween(h, id, from, to, ms) {
                 for (const c of Object.keys(o.to)) set[c] = o.from[c] + (o.to[c] - o.from[c]) * e;
                 await el.session.styles.update(o.id, { set });
                 if (k >= 1) return;
-                await new Promise((r) => setTimeout(r, 66));
+                await new Promise((r) => setTimeout(r, o.stepMs));
             }
         },
-        { id, from, to, ms },
+        { id, from, to, ms, stepMs },
     );
 }
 
@@ -377,9 +379,12 @@ export function orbit({ node, distance, from, to, ms, elevation = 0.3, steps = 6
  * @param from - its value at the start
  * @param to - its value at the end
  * @param ms - how long
- * @param [ease] - true to ease in and out (smoothstep); default linear, as a clock runs
+ * @param [ease] - true to ease in and out (smoothstep); default linear, as a clock runs; or
+ *     { ease, stepMs }, stepMs the least time between two updates (default 0: every frame) -- a
+ *     style update costs the page tens of milliseconds on a large graph, so a long take steps it
  */
 export async function tweenShader(h, id, param, from, to, ms, ease = false) {
+    const { ease: smooth = false, stepMs = 0 } = typeof ease === "object" ? ease : { ease };
     await onElement(
         h,
         async (el, o) => {
@@ -391,11 +396,13 @@ export async function tweenShader(h, id, param, from, to, ms, ease = false) {
                 const k = Math.min(1, (performance.now() - t0) / o.ms);
                 const e = o.ease ? k * k * (3 - 2 * k) : k;
                 const params = { ...first.params, [o.param]: o.from + (o.to - o.from) * e };
+                const t = performance.now();
                 await el.session.styles.update(o.id, { set: { ...layer.set, [key]: [{ ...first, params }, ...rest] } });
                 if (k >= 1) return;
                 await new Promise((r) => globalThis.requestAnimationFrame(r));
+                if (o.stepMs) await new Promise((r) => setTimeout(r, Math.max(0, o.stepMs - (performance.now() - t))));
             }
         },
-        { id, param, from, to, ms, ease },
+        { id, param, from, to, ms, ease: smooth, stepMs },
     );
 }

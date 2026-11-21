@@ -7,6 +7,7 @@
 import { assert, describe, it } from "vitest";
 
 import { DISCARD_DIALOG, KEEP_ASSETS_DIALOG, SAVE_AS_DIALOG } from "../../project/actions";
+import { OPEN_V2_DIALOG, REPORT_V2_DIALOG } from "../../project/saveV2";
 import { EXPAND_DIALOG, SERVER_DIALOG } from "../../server/commands";
 import { NETWORK_DIALOG } from "../../start/NetworkDataDialog";
 import { TOOLBAR_POPOVERS } from "../../toolbar/popover";
@@ -48,11 +49,23 @@ describe("panel ids", () => {
             SAVE_AS_DIALOG,
             DISCARD_DIALOG,
             KEEP_ASSETS_DIALOG,
+            OPEN_V2_DIALOG,
+            REPORT_V2_DIALOG,
         ];
         for (const id of dialogs) {
             assert.equal(panelId(id), id.split(":")[0], id);
         }
-        for (const id of ["graph", "data", "assistant", "notes", "panels", "data-page"]) {
+        for (const id of [
+            "graph",
+            "data",
+            "views",
+            "assistant",
+            "notes",
+            "panels",
+            "data-page",
+            "open-v2",
+            "report-v2",
+        ]) {
             assert.equal(panelId(id), id);
         }
         assert.equal(panelId("SECRET project"), "other");

@@ -7,11 +7,11 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { count, resetAnalyticsForTests, setPostHogClientForTests, SURVEYS_KEY } from "../../../lib/analytics";
-import { withFeatures, withoutFeatures, withPostHogSite } from "../../../test/features";
+import { withFeatures, withPostHogSite } from "../../../test/features";
 import { sampleTile } from "../../../test/samples-dialog";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { USE_CASE_SURVEY } from "../../privacy/__tests__/surveyFixtures";
-import { forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
+import { ANONYMOUS_COUNTS, forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
@@ -21,10 +21,6 @@ import { Workspace } from "../../Workspace";
 const initSentry = vi.fn();
 const stopSentry = vi.fn();
 setUsageSenderForTests({ start: initSentry, stop: stopSentry });
-
-// The words without the usage-analytics experiment, in the On configuration too; the describe that
-// is about the experiment switches it on.
-withoutFeatures(["usage-analytics"]);
 
 const OWNER_WORDS =
     "We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions.";
@@ -170,7 +166,7 @@ describe("the start screen", () => {
         assert.equal(getComputedStyle(card).position, "fixed");
         assert.isTrue(card.checkVisibility());
         assert.isNotNull(within(card).getByText("Nothing is collected until you answer."));
-        // The privacy page belongs to the usage-analytics experiment, off here.
+        // The privacy page is linked only where the page sends PostHog: no PostHog ids here.
         assert.isNull(screen.queryByRole("link", { name: "Privacy" }));
         assert.isNotNull(within(card).getByText("Your data is yours, but please help us."));
         assert.isNotNull(within(card).getByText(OWNER_WORDS));
@@ -337,9 +333,8 @@ describe("the start screen", () => {
     });
 });
 
-describe("the start screen with the usage-analytics experiment on and nothing to send PostHog", () => {
-    // canary's site.json: the experiment on, no PostHog ids.
-    withFeatures(["usage-analytics"]);
+describe("the start screen on a site with no PostHog ids", () => {
+    withFeatures([]);
 
     it("says nothing is sent, as it is, and links no privacy page", async () => {
         renderStart();
@@ -356,8 +351,8 @@ describe("the start screen with the usage-analytics experiment on and nothing to
     });
 });
 
-describe("the start screen with the usage-analytics experiment on", () => {
-    withFeatures(["usage-analytics"]);
+describe("the start screen on a site that sends PostHog", () => {
+    withFeatures([]);
     withPostHogSite();
 
     it("says anonymous counts are sent, links the privacy page, and stacks the card in its corner", async () => {
@@ -382,9 +377,7 @@ describe("the start screen with the usage-analytics experiment on", () => {
         await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(
-            within(dialog).getByText(
-                "Usage data: off. Anonymous counts are still sent: visits, the site that sent you, and which sample, file format, layout, measure and export you use.",
-            ),
+            within(dialog).getByText(`Usage data: off. Anonymous counts are still sent: ${ANONYMOUS_COUNTS}.`),
         );
         assert.isNotNull(within(dialog).getByRole("link", { name: "Privacy details" }));
     });

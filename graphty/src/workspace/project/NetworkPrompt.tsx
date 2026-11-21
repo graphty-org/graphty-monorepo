@@ -17,6 +17,7 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
     model: "a 3D model",
     texture: "a picture",
     source: "a data source",
+    data: "a data source",
 };
 
 /**

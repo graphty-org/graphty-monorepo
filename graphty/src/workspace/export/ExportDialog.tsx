@@ -25,9 +25,10 @@ import { TourVideoOutput } from "./TourVideoOutput";
 /** The Report's own chunk: its table and notes words are loaded when Report is chosen, not with the start page. */
 const ReportOutput = lazy(() => import("./ReportOutput").then((module) => ({ default: module.ReportOutput })));
 
-/** The outputs Export... lists, in the list's order. Image and Video are a camera's and a tour's own Export. */
+/** The outputs Export... lists, in the list's order. Video is a tour's own Export. */
 const OUTPUTS: readonly { id: OutputId; name: string }[] = [
     { id: "data", name: "Data" },
+    { id: "image", name: "Image" },
     { id: "report", name: "Report" },
     { id: "styles", name: "Styles" },
     { id: "recipe", name: "Recipe" },
@@ -47,8 +48,8 @@ const RECENT_MAX = 5;
  * the tour `exportTour` names, for a tour's Record...), or on Data with CSV and the table the store's
  * `exportOn` names (whenever a table is showing), scoped to the whole graph, or to the source `exportSource`
  * names for a Sources row's Export... (that opening only), and keeps each output's choices while the workspace is mounted.
- * Image and Video are not listed: a camera's Export image... (`exportView`) and a tour's Export
- * video... open the dialog on that output alone.
+ * Video is not listed: a tour's Export video... opens the dialog on it alone, and a camera's
+ * Export image... (`exportView`) on Image alone.
  * @returns The dialog
  */
 export function ExportDialog(): React.JSX.Element {
@@ -153,12 +154,12 @@ export function ExportDialog(): React.JSX.Element {
         }
     };
 
-    // Image and Video are a camera's and a tour's own Export: opened on one, the dialog is that
-    // output alone; the generic Export lists the rest.
-    const single = output === "image" || output === "video";
+    // A camera's Export image... and a tour's Export video... open the dialog on that output
+    // alone; the generic Export lists the rest, Image among them.
+    const single = exportOn === "image" || exportOn === "video";
     const recentShown = recent
         .map((entry, index) => ({ entry, index }))
-        .filter(({ entry }) => entry.output !== "image" && entry.output !== "video");
+        .filter(({ entry }) => entry.output !== "video");
     let title = "Export";
     if (single) {
         title = output === "image" ? "Export image" : "Export video";
@@ -168,7 +169,13 @@ export function ExportDialog(): React.JSX.Element {
         switch (output) {
             case "image":
                 return (
-                    <CameraImageOutput choices={cameraImage} onChange={setCameraImage} onCancel={close} onDone={done} />
+                    <CameraImageOutput
+                        choices={cameraImage}
+                        onChange={setCameraImage}
+                        onCancel={close}
+                        onDone={done}
+                        heading={!single}
+                    />
                 );
             case "video":
                 return (

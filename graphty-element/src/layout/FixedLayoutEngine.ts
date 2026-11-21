@@ -1,4 +1,4 @@
-import { type F32, maskTest } from "@graphty/graph-format";
+import { type F32, type GraphSnapshot, maskTest } from "@graphty/graph-format";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -103,6 +103,14 @@ export class FixedLayout extends SnapshotLayoutEngine {
      * when it spread nothing. An export divides it out to write the data's own coordinates.
      */
     spread = 1;
+    /**
+     * Whether the spread was read from a graph with no edge to measure, so the first edges to
+     * arrive set it: data whose nodes and edges arrive in two writes is drawn as data that arrives
+     * in one (#9257).
+     */
+    #spreadOpen = false;
+    /** Whether the next run places every node from its data again, as the first run did. */
+    #reseed = false;
     /** Always three: a node's data carries a z, and a 2D view draws it flat. */
     protected readonly dimensions = 3;
 
@@ -139,6 +147,18 @@ export class FixedLayout extends SnapshotLayoutEngine {
      * The options the layout reads: the parsed configuration.
      * @returns the configuration
      */
+    /**
+     * Re-run from the data when the first edges arrive at a graph whose spread no edge measured.
+     * ponytail: a node dragged before then is put back at its data position, once.
+     * @param next - the graph as frozen now
+     * @param previous - the graph as frozen before
+     * @returns whether every node is placed again
+     */
+    protected override rearrangesAfter(next: GraphSnapshot, previous: GraphSnapshot | null): boolean {
+        this.#reseed ||= this.#spreadOpen && next.edgeCount > 0 && (previous?.edgeCount ?? 0) === 0;
+        return this.#reseed;
+    }
+
     protected get options(): Readonly<Record<string, unknown>> {
         return this.config;
     }
@@ -212,7 +232,8 @@ export class FixedLayout extends SnapshotLayoutEngine {
      * @returns the coordinates
      */
     private place(input: SnapshotLayoutInput): F32 {
-        const seeds = input.firstRun ? this.seeds(input) : null;
+        const seeds = input.firstRun || this.#reseed ? this.seeds(input) : null;
+        this.#reseed = false;
 
         const { initial } = input;
         const positions = new Float32Array(initial.length);
@@ -293,6 +314,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
      * @returns the factor, at least 1
      */
     private spreadFor(input: SnapshotLayoutInput, seeds: F32): number {
+        this.#spreadOpen = false;
         if (this.config.spacing === 0 || this.config.scale !== 1 || this.positionScale() !== 1) {
             return 1;
         }
@@ -312,6 +334,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
         }
 
         const edge = median(lengths);
+        this.#spreadOpen = edge === undefined;
         const want = this.config.spacing;
         return edge === undefined || edge >= want ? 1 : want / edge;
     }

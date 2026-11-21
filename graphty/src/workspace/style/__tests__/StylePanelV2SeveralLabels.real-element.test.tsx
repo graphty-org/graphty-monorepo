@@ -77,6 +77,38 @@ function changedRows(a: ImageData, b: ImageData): { count: number; meanY: number
 describe("several labels per node", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
+    it("a Card and a Label of one source keep their names and sources uncut at the default width", async () => {
+        await openGraph();
+        const tab = await openStyle("Key people");
+        await addLabel(tab, "Node label");
+        await userEvent.click(within(sectionOf(tab, "node-text")).getByRole("button", { name: /^Add to node text/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Card" }));
+        const options = await screen.findByRole("group", { name: /^Node card/ });
+        await userEvent.click(await within(options).findByRole("option", { name: /^Node id(,|$)/ }));
+        const inspector = screen.getByRole("complementary", { name: "Inspector" });
+        assert.equal(Math.round(inspector.getBoundingClientRect().width), 240, "the inspector's default width");
+        // The reported "L..." / "C..." rows with "Node ..." beside them (E206, E265).
+        const rows = await waitFor(() => {
+            const found = [...sectionOf(tab, "node-text").querySelectorAll<HTMLElement>('[data-thing="label"]')];
+            assert.deepEqual(
+                found.map((each) => each.querySelector(".ws-field-name")?.textContent),
+                ["Label", "Card 2"],
+            );
+            for (const each of found) {
+                assert.match(each.querySelector(".mantine-Button-label")?.textContent ?? "", /^Node id, (above|below)/);
+            }
+            return found;
+        });
+        for (const each of rows) {
+            const name = each.querySelector<HTMLElement>(".ws-field-name");
+            const shown = each.querySelector<HTMLElement>(".mantine-Button-label");
+            assert.instanceOf(name, HTMLElement);
+            assert.instanceOf(shown, HTMLElement);
+            assert.isAtMost(name.scrollWidth, name.clientWidth, `the row name "${name.textContent}" is uncut`);
+            assert.isAtMost(shown.scrollWidth, shown.clientWidth, `"${shown.textContent}" fits its field`);
+        }
+    });
+
     it("adds a second label, puts it below the first, draws both, and a Hubs layer restyles it by id", async () => {
         const { session, element, nodes } = await openGraph();
         const tab = await openStyle("Key people");

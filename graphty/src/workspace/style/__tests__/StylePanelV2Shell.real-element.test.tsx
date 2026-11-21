@@ -11,6 +11,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
+import { LABEL_CAP } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -228,27 +229,25 @@ describe("Style panel v2 on", () => {
     });
 
     it("Escape closes a '+' menu whose first item is disabled, with focus still on its '+'", async () => {
-        await openGraph();
-        const tab = await openStyle("Links");
-        await showKind("edge");
-        const text = sectionOf(tab, "edge-text");
-        // A Label waiting for its source leaves the Label item disabled, first in the menu.
-        await userEvent.click(within(text).getByRole("button", { name: "Add to edge text" }));
-        await userEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Label" }));
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.isNull(document.querySelector('[role="dialog"]'), "the label's source list closed");
+        const { session, nodes } = await openGraph();
+        // A row at graphty-element's label cap lists Label, first in its Text menu, but not pickable.
+        const labels = Array.from({ length: LABEL_CAP }, (_, at) => ({ id: `l${String(at)}`, text: "x" }));
+        await session.styles.update(nodes, {
+            set: { ...session.styles.get(nodes)?.set, "node.label": "x", "node.labels": labels },
         });
-        await userEvent.click(within(text).getByRole("button", { name: "Add to edge text" }));
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        const add = within(sectionOf(tab, "node-text")).getByRole("button", { name: "Add to node text" });
+        await userEvent.click(add);
         const menu = await screen.findByRole("menu");
-        assert.isTrue(
-            within(menu).getByRole("menuitem", { name: "Label" }).hasAttribute("data-disabled"),
-            "the first item is disabled",
-        );
+        const items = within(menu).getAllByRole("menuitem");
+        assert.equal(items[0]?.textContent, "Label", "Label is the first item");
+        assert.equal(items[0]?.getAttribute("data-disabled"), "true", "the first item is disabled");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("menu"), "Escape closed the menu");
         });
+        assert.strictEqual(document.activeElement, add, "focus is still on its '+'");
     });
 
     it("Border's '+' adds the one Border, a stroke with its color and width", async () => {

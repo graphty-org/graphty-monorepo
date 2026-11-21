@@ -17,7 +17,8 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,6 +30,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 /** The test extension that discards tabs. */
 export const DISCARD_EXTENSION = path.join(here, "discard-extension");
+
+/** Its id, which Chrome derives from the path of an unpacked extension: a SHA-256, hex digits as a-p. */
+const DISCARD_EXTENSION_ID = createHash("sha256")
+    .update(realpathSync(DISCARD_EXTENSION))
+    .digest("hex")
+    .slice(0, 32)
+    .replace(/[0-9a-f]/g, (digit) => String.fromCodePoint(97 + Number.parseInt(digit, 16)));
 
 /** A DevTools protocol message from the browser. */
 interface Message {
@@ -359,15 +367,45 @@ export async function launchChrome(userDataDir: string, args: readonly string[] 
         async extension<T>(expression: string): Promise<T> {
             // Attached once and kept attached: a worker DevTools is attached to is not stopped as idle.
             workerSession ??= (async () => {
-                const worker = (await waitIn(browserEvents, "Target.targetCreated", (p) => {
-                    // Chrome ships component extensions with workers of their own; ours is worker.js.
-                    const info = p.targetInfo as { type: string; url: string };
-                    return info.type === "service_worker" && info.url.endsWith("/worker.js");
-                })) as { targetInfo: { targetId: string } };
-                const reply = (await send("Target.attachToTarget", {
-                    targetId: worker.targetInfo.targetId,
-                    flatten: true,
-                })) as { sessionId: string };
+                // Chrome ships component extensions with workers of their own; ours is worker.js.
+                const isOurs = (info: { type: string; url: string }): boolean =>
+                    info.type === "service_worker" &&
+                    info.url === `chrome-extension://${DISCARD_EXTENSION_ID}/worker.js`;
+                // A service worker runs only while Chrome has an event for it, and a relaunch on a
+                // profile that already has the extension may never start it (issue #9484): start it,
+                // as an event would. Starting a running worker does nothing.
+                const mark = browserEvents.length;
+                const page = (await pages())[0];
+                if (page !== undefined) {
+                    const { sessionId } = (await send("Target.attachToTarget", {
+                        targetId: page.targetId,
+                        flatten: true,
+                    })) as { sessionId: string };
+                    await send("ServiceWorker.enable", {}, sessionId);
+                    await send(
+                        "ServiceWorker.startWorker",
+                        { scopeURL: `chrome-extension://${DISCARD_EXTENSION_ID}/` },
+                        sessionId,
+                    );
+                    await send("Target.detachFromTarget", { sessionId });
+                }
+
+                const { targetInfos } = (await send("Target.getTargets")) as {
+                    targetInfos: { targetId: string; type: string; url: string }[];
+                };
+                const targetId =
+                    targetInfos.find(isOurs)?.targetId ??
+                    (
+                        (await waitIn(
+                            browserEvents,
+                            "Target.targetCreated",
+                            (p) => isOurs(p.targetInfo as { type: string; url: string }),
+                            mark,
+                        )) as { targetInfo: { targetId: string } }
+                    ).targetInfo.targetId;
+                const reply = (await send("Target.attachToTarget", { targetId, flatten: true })) as {
+                    sessionId: string;
+                };
                 return reply.sessionId;
             })();
             const reply = (await send(

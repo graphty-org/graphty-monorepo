@@ -1149,6 +1149,8 @@ export class Edge {
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     // @internal
+    batchEndRow(end: "source" | "target"): number;
+    // @internal
     columnEnd(end: "source" | "target"): ColumnRow | undefined;
     get data(): AdHocData;
     dispose(): void;
@@ -1184,6 +1186,8 @@ export class Edge {
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
     set dstNode(node: Node_2);
+    // @internal
+    endDrawnAsGroup(end: "source" | "target"): boolean;
     // @internal
     endRow(end: "source" | "target"): number;
     // @internal
@@ -2720,7 +2724,7 @@ export class EventManager implements Manager {
     emitGraphDataLoaded(graph: Graph | GraphContext, chunksLoaded: number, dataSourceType: string, report: ImportReport, loadId?: number): void;
     emitGraphError(graph: Graph | GraphContext | null, error: Error, context: GraphErrorEvent["context"], details?: Record<string, unknown>): void;
     // @deprecated
-    emitGraphEvent(type: string, data: Record<string, unknown>): void;
+    emitGraphEvent(type: EmittableEventType, data: Record<string, unknown>): void;
     emitGraphSettled(graph: Graph): void;
     emitLayoutInitialized(layoutType: string, shouldZoomToFit: boolean): void;
     emitNodeEvent(type: NodeEvent["type"], eventData: object): void;
@@ -3484,7 +3488,7 @@ export interface GraphErrorEvent {
 }
 
 // @public
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public
 export type GraphEventType = GraphEvent["type"];
@@ -5407,13 +5411,9 @@ export const GREENS_COLORS: readonly ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b"
 
 // @public
 export interface GroupOutlineAtResult {
-    // (undocumented)
     readonly group: string | number | boolean | null;
-    // (undocumented)
     readonly kind: "group-outline";
-    // (undocumented)
     readonly layer: LayerId;
-    // (undocumented)
     readonly shader: string;
 }
 
@@ -5438,6 +5438,12 @@ export { ImageData_2 as ImageData }
 
 // @public
 export const INFERNO_COLORS: readonly ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d"];
+
+// @public
+export interface InputBookkeepingEvent {
+    [key: string]: unknown;
+    type: "input-initialized" | "input-config-updated" | "input-pointer-lock-changed" | "input-recording-started" | "input-recording-stopped" | "input-playback-completed";
+}
 
 // @public
 export interface InputEnabledChangedEvent {
@@ -5613,6 +5619,8 @@ export abstract class LayoutEngine {
     protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     // @internal
     publishedBounds(): Readonly<Float64Array> | null;
+    // @internal
+    protected publishLeavesRow(lane: ElementPositions, row: number, x: number, y: number, z: number): boolean;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -5629,7 +5637,7 @@ export abstract class LayoutEngine {
         x: number;
         y: number;
         z: number;
-    }): boolean;
+    }, lane?: ElementPositions): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
     // @internal
     protected releasePublishScratch(): void;
@@ -5730,6 +5738,8 @@ export class LayoutManager implements Manager {
     stepBatch(): void;
     // @internal
     steppedPublishes: number;
+    // @internal
+    takeFrameHold(): boolean;
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
     // @internal
@@ -5738,6 +5748,12 @@ export class LayoutManager implements Manager {
 
 // @public
 export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
+
+// @public
+export interface LayoutUpdatedEvent {
+    nodeCount: number;
+    type: "layout-updated";
+}
 
 // @public
 export interface LayoutWarningEvent {
@@ -5928,6 +5944,8 @@ class Node_2 implements ModelUser {
     get borderReach(): number;
     // @internal
     borderReachAlong(dir: Xyz): number;
+    // @internal
+    static closedForm(shape: string | undefined, rotation: number | undefined): boolean;
     get data(): AdHocData<string | number>;
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];
@@ -9327,6 +9345,8 @@ export class UpdateManager implements Manager {
     markViewSized(node: Node_2, on: boolean): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    // @internal
+    nodeRowSelected(row: number): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;

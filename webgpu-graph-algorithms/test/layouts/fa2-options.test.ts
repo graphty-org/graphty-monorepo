@@ -10,7 +10,7 @@
  * Every GPU test acquires a FRESH context (spec 11.2) and releases its snapshots; a wrong result is never a skip.
  */
 
-import { type F32, type GraphSnapshot } from "@graphty/graph-format";
+import { type F32, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 
 import { EXACT_MAX_NODES, MAX_ITERATIONS_PER_STEP, TRACE_RECORD_BYTES } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
@@ -152,6 +152,7 @@ const DEFAULT_RESOLVED = {
     nodeSize: null,
     weight: null,
     dissuadeHubs: false,
+    fixed: null,
     dim: 2,
     scale: 1,
     center: [0, 0, 0],
@@ -336,6 +337,7 @@ describe("resolveForceAtlas2Options (contract 3.13; spec 7.14)", () => {
             nodeSize: null,
             weight: "w",
             dissuadeHubs: true,
+            fixed: null,
             dim: 3,
             scale: 100,
             center: [1, 2, 0],
@@ -791,6 +793,33 @@ describe("ForceAtlas2Model (no device; contract 3.13)", () => {
         expectCode(() => modelFor({}).recordIteration({} as CommandBatch, 0, "grid"), "E_NOT_LOADED", {
             state: "created",
         });
+    });
+
+    it("inputs(): fixed takes a mask, a bool column by name or the role-fixed column, as Fruchterman-Reingold does", () => {
+        const s = snapshotOf(KARATE_EDGES);
+        const mask = makeMask(s.nodeCount);
+        maskSet(mask, 4, true);
+        const columned = s.withColumns({
+            pinned: { data: mask, decl: { dtype: "bool", role: "fixed" } },
+            score: new Float32Array(s.nodeCount),
+        });
+        const model = new ForceAtlas2Model(resolveLayoutTuning(undefined), resolveForceAtlas2Options(undefined));
+        const inputs = (g: GraphSnapshot, fixed: ForceAtlas2Options["fixed"]) =>
+            model.inputs(g, resolveForceAtlas2Options({ fixed })).fixed;
+        expectCode(() => inputs(columned, "score"), "E_INVALID_ARGUMENT", { argument: "fixed" });
+        expectCode(() => inputs(s, "absent"), "E_INVALID_ARGUMENT", { argument: "fixed" });
+        expectCode(() => inputs(s, makeMask(3)), "E_INVALID_ARGUMENT", { argument: "fixed" });
+        for (const words of [inputs(columned, "pinned"), inputs(columned, null), inputs(s, mask)]) {
+            expect(Array.from(words ?? [])).toEqual(Array.from(mask));
+        }
+        expect(inputs(s, null)).toBeNull();
+        expectCode(
+            () => resolveForceAtlas2Options({ fixed: 7 } as unknown as ForceAtlas2Options),
+            "E_INVALID_ARGUMENT",
+            {
+                argument: "fixed",
+            },
+        );
     });
 });
 

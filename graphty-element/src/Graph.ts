@@ -5615,6 +5615,7 @@ export class Graph implements GraphContext {
             this.#nodeIds = target;
             useNodeIdTarget(this.scene, {
                 target,
+                // Builds the hovered row's Node on purpose: hover is delivered to its pointer handler.
                 nodeIdAt: (row) => this.dataManager.nodeAtRow(row)?.id,
                 hiddenRows: () => batches.hiddenRows(),
             });
@@ -5671,6 +5672,7 @@ export class Graph implements GraphContext {
                 this.#rowTable,
                 (row) => this.dataManager.nodeAtRow(row),
                 this.renderManager.graphRoot,
+                (row) => this.#nodeBatches?.columnRowOf(row) ?? this.dataManager.nodeAtRow(row),
             );
         }
 

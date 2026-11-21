@@ -1,7 +1,7 @@
 import { InlineRename, TooltipShortcut } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useCallback, useSyncExternalStore } from "react";
+import React, { useMemo, useSyncExternalStore } from "react";
 
 import { BrandLogo } from "../../components/BrandLogo";
 import { FilterChip } from "../data-place/Filters";
@@ -13,15 +13,57 @@ import { CommandButton } from "./CommandButton";
 import { MainMenu } from "./menus";
 
 /**
- * Re-renders on every change of the element's undo history, so Undo and Redo follow it.
+ * How many history steps in one task re-render the header at once; the rest of a burst re-render
+ * it once, on the next task.
+ * ponytail: a fixed budget, well under React's 50 nested updates (a step costs about two); make it
+ * adaptive only if a burst of other events joins in.
+ */
+const SYNC_STEPS_PER_TASK = 8;
+
+/**
+ * Re-renders the header when the element's undo history changes, so Undo and Redo follow it.
+ * Each step re-renders it at once, as the step is reported, so Undo names a step before the call
+ * that made it returns. A burst of steps in one task (thirty styles.add calls) re-renders it at
+ * once only for the first few and once more on the next task: a sync render per step, beside the
+ * other panels' pending ones, made React report "Maximum update depth exceeded" (#8851).
  * @param session - the element's session, or null.
  */
 function useHistoryVersion(session: GraphSession | null): void {
-    const subscribe = useCallback(
-        (changed: () => void) => session?.on("history:changed", changed) ?? (() => undefined),
-        [session],
-    );
-    useSyncExternalStore(subscribe, () => session?.history.version ?? -1);
+    const store = useMemo(() => {
+        let seen = -1;
+        return {
+            read: (): number => seen,
+            subscribe: (changed: () => void): (() => void) => {
+                if (session === null) {
+                    return () => undefined;
+                }
+                let budget = SYNC_STEPS_PER_TASK;
+                let later: ReturnType<typeof setTimeout> | undefined;
+                const notify = (): void => {
+                    seen = session.history.version;
+                    changed();
+                };
+                // A step taken between the render and this subscription (the load's clear) is read here.
+                seen = session.history.version;
+                const off = session.on("history:changed", () => {
+                    if (budget > 0) {
+                        budget--;
+                        notify();
+                    }
+                    later ??= setTimeout(() => {
+                        later = undefined;
+                        budget = SYNC_STEPS_PER_TASK;
+                        notify();
+                    }, 0);
+                });
+                return () => {
+                    off();
+                    clearTimeout(later);
+                };
+            },
+        };
+    }, [session]);
+    useSyncExternalStore(store.subscribe, store.read);
 }
 
 /**

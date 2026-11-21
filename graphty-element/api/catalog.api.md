@@ -829,7 +829,7 @@ export const EDGE_LINE_DESCRIPTORS: readonly GlyphDescriptor<EdgeLinePattern>[];
 export type EdgeArrowKind = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
 
 // @public
-export function edgeBandWidthAs(to: "outline" | "overlay", values: Readonly<Record<string, unknown>>): Readonly<Record<string, number>> | undefined;
+export function edgeBandWidthAs(to: "outline" | "overlay", values: Readonly<Record<string, unknown>>, lineWidth?: number): Readonly<Record<string, number>> | undefined;
 
 // @public
 export type EdgeId = string;

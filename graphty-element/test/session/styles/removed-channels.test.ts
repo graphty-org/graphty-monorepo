@@ -164,6 +164,13 @@ describe("edgeBandWidthAs", () => {
         });
     });
 
+    it("reads an outline that follows the line as an overlay given the line's width", () => {
+        // unset scale (1): the line's 16 plus 2 is 18 across, 9 either side of its middle
+        assert.deepEqual(edgeBandWidthAs("overlay", { "edge.outlineWidth": 2 }, 16), { "edge.overlayPadding": 9 });
+        assert.deepEqual(edgeBandWidthAs("overlay", { "edge.outlineScale": 5 }, 4), { "edge.overlayPadding": 10 });
+        assert.isUndefined(edgeBandWidthAs("overlay", {}, 16));
+    });
+
     it("has no reading for an outline that follows the line, or an overlay with no padding", () => {
         assert.isUndefined(edgeBandWidthAs("overlay", { "edge.outlineScale": 1, "edge.outlineWidth": 8 }));
         assert.isUndefined(edgeBandWidthAs("overlay", { "edge.outlineWidth": 8 }));

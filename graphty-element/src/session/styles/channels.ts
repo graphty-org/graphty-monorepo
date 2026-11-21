@@ -5789,10 +5789,9 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
     [
         "edge.overlayColor",
         [
-            // Translucent enough to read as a wash over the line, never as its color, and as wide as an outline's
-            // start (`edge.outlineWidth` 2 past the default line's 8, so 5 either side of its middle): it reaches
-            // past the line's sides.
-            { channel: "edge.overlayOpacity", value: 0.3 },
+            // Half strength, and as wide as an outline's start (`edge.outlineWidth` 2 past the default line's 8, so 5
+            // either side of its middle): it reaches past the default line's sides.
+            { channel: "edge.overlayOpacity", value: 0.5 },
             { channel: "edge.overlayPadding", value: (EDGE_CONSTANTS.DEFAULT_LINE_WIDTH + 2) / 2 },
         ],
     ],
@@ -6221,24 +6220,35 @@ function readRemovedCasing(set: Readonly<Record<string, unknown>>): Record<strin
 /**
  * An edge band's width written as the other band kind, so a style editor that turns an outline into an overlay
  * (or back) keeps the band it draws. An overlay of `edge.overlayPadding` p is 2p across whatever the line's width,
- * as an outline of `edge.outlineScale` 0 and `edge.outlineWidth` 2p is.
+ * as an outline of `edge.outlineScale` 0 and `edge.outlineWidth` 2p is. An outline of any other scale is
+ * `edge.outlineScale` line widths plus `edge.outlineWidth` across, so it reads as an overlay only given the line's width.
  * @param to - The kind to write: `"outline"` (`edge.outline*`) or `"overlay"` (`edge.overlay*`).
  * @param values - The band's current values, of the other kind.
- * @returns The width channels of `to` that draw the same band, or undefined when there is no exact reading without
- * the line's width (no overlay padding set, or an outline whose scale is not 0).
+ * @param lineWidth - The width of the line the band is drawn along (`edge.width`), when known.
+ * @returns The width channels of `to` that draw the same band, or undefined when there is no exact reading (no
+ * overlay padding set, no outline width or scale set, or an outline whose scale is not 0 and no line width).
  */
 export function edgeBandWidthAs(
     to: "outline" | "overlay",
     values: Readonly<Record<string, unknown>>,
+    lineWidth?: number,
 ): Readonly<Record<string, number>> | undefined {
     if (to === "outline") {
         const padding = values["edge.overlayPadding"];
         return typeof padding === "number" ? { "edge.outlineScale": 0, "edge.outlineWidth": 2 * padding } : undefined;
     }
     const width = values["edge.outlineWidth"];
-    return values["edge.outlineScale"] === 0 && typeof width === "number"
-        ? { "edge.overlayPadding": width / 2 }
-        : undefined;
+    const scale = values["edge.outlineScale"];
+    if (typeof width !== "number" && typeof scale !== "number") {
+        return undefined;
+    }
+    const extra = typeof width === "number" ? width : 0;
+    if (scale === 0) {
+        return { "edge.overlayPadding": extra / 2 };
+    }
+    return lineWidth === undefined
+        ? undefined
+        : { "edge.overlayPadding": (lineWidth * (typeof scale === "number" ? scale : 1) + extra) / 2 };
 }
 
 /**

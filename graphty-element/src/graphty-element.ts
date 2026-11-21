@@ -55,6 +55,7 @@ import {
 import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/resolve";
 import {
     featuresFrom,
+    type FileLoadOptions,
     Graph,
     loadSourcePair,
     type NodeScreenPosition,
@@ -105,7 +106,6 @@ import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
 import { compileRecords } from "./session/sources/steps/compile";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
-import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type {
     ModelChange,
     ProjectConfigPatch,
@@ -5529,26 +5529,6 @@ export class Graphty extends LitElement {
      * Load graph data from a URL.
      * @param url - URL to fetch graph data from
      * @param options - Loading options
-     * @param options.format - Data format (e.g., "json", "csv", "graphml")
-     * @param options.nodeIdPath - JMESPath for node ID field
-     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
-     *     unset, the element reads `source`, then `src`, then `from`
-     * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
-     *     a malformed or empty file rejects and leaves the current graph untouched
-     * @param options.signal - Cancels the load, its read included: it rejects with the signal's
-     *     reason (an `AbortError` by default) and adds nothing, leaving the graph as it was
-     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
-     *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
-     * @param options.graphName - Which graph to read, by name, from a file that holds several
-     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
-     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
-     *     `"none"` (the default) loads the data alone
-     * @param options.styleOptions - How the file's styles are turned into layers
-     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
-     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
-     *     and a computed one otherwise. `"placed"` chooses `fixed` in the same case and otherwise leaves the
-     *     layout as it is. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -5556,22 +5536,7 @@ export class Graphty extends LitElement {
      * await element.loadFromUrl('https://example.com/graph.json');
      * ```
      */
-    async loadFromUrl(
-        url: string,
-        options?: {
-            format?: string;
-            nodeIdPath?: string;
-            edgeSource?: string;
-            edgeTarget?: string;
-            replace?: boolean;
-            graphIndex?: number;
-            graphName?: string;
-            styles?: "file" | "none";
-            styleOptions?: FileStyleOptions;
-            layout?: "recommended" | "placed" | "keep";
-            signal?: AbortSignal;
-        },
-    ): Promise<{ loadId: number }> {
+    async loadFromUrl(url: string, options?: FileLoadOptions): Promise<{ loadId: number }> {
         const held = this.#afterRestore();
         if (held !== undefined) {
             await held;
@@ -5584,26 +5549,6 @@ export class Graphty extends LitElement {
      * Load graph data from a File object.
      * @param file - File object from file input
      * @param options - Loading options
-     * @param options.format - Data format (e.g., "json", "csv", "graphml")
-     * @param options.nodeIdPath - JMESPath for node ID field
-     * @param options.edgeSource - Where the node an edge starts at is named in the record. Left
-     *     unset, the element reads `source`, then `src`, then `from`
-     * @param options.edgeTarget - Where the node an edge ends at is named in the record
-     * @param options.replace - Replace the graph with this data, but only once it has all parsed:
-     *     a malformed or empty file rejects and leaves the current graph untouched
-     * @param options.signal - Cancels the load, its read included: it rejects with the signal's
-     *     reason (an `AbortError` by default) and adds nothing, leaving the graph as it was
-     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
-     *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
-     * @param options.graphName - Which graph to read, by name, from a file that holds several
-     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
-     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
-     *     `"none"` (the default) loads the data alone
-     * @param options.styleOptions - How the file's styles are turned into layers
-     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
-     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
-     *     and a computed one otherwise. `"placed"` chooses `fixed` in the same case and otherwise leaves the
-     *     layout as it is. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -5613,22 +5558,7 @@ export class Graphty extends LitElement {
      * await element.loadFromFile(file);
      * ```
      */
-    async loadFromFile(
-        file: File,
-        options?: {
-            format?: string;
-            nodeIdPath?: string;
-            edgeSource?: string;
-            edgeTarget?: string;
-            replace?: boolean;
-            graphIndex?: number;
-            graphName?: string;
-            styles?: "file" | "none";
-            styleOptions?: FileStyleOptions;
-            layout?: "recommended" | "placed" | "keep";
-            signal?: AbortSignal;
-        },
-    ): Promise<{ loadId: number }> {
+    async loadFromFile(file: File, options?: FileLoadOptions): Promise<{ loadId: number }> {
         const held = this.#afterRestore();
         if (held !== undefined) {
             await held;

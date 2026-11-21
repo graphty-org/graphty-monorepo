@@ -9,7 +9,8 @@
 //       GITHUB_OUTPUT
 //   node tools/full-run.mjs verdict   the verdict on the tested commit: posted to the store, the red issue filed or
 //                                     closed, one bisect dispatched, the outcome announced
-//       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
+//       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, LLM_FAILED_FILES (the
+//           llm job's failing test files, JSON, for its bisect), VERSION_HELD
 //           (the version dry run's held projects), CAPTURES (a directory of results.json),
 //           GITHUB_RUN_ID and GITHUB_RUN_ATTEMPT (a failed T4 job's steps: a refused runner is an owner item),
 //           RUN_ID, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY, FORWARD (the held commit, when SHA is a held head past
@@ -19,6 +20,8 @@
 //       env LANE (a LANES key), RESULT, SHA, RUN_URL, OWNER_ITEM (the lane's owner item: the verdict decides those),
 //           GH_TOKEN, GITHUB_REPOSITORY, RUN_ATTEMPT, MODE, GITHUB_ACTOR (attempt 1 of a re-runnable mode
 //           files nothing, unless the run was dispatched with a workflow's GITHUB_TOKEN)
+//   node tools/full-run.mjs llm-failed <log>
+//                                     the failing files of an llm-regression vitest log, as JSON (release.yml's llm job)
 //   node tools/full-run.mjs file-deferred <file>
 //                                     files the red issue and dispatches the bisect an attempt-1 verdict deferred
 //                                     (its verdict-1 record), when release-rerun.yml does not re-run the run after all;
@@ -510,6 +513,25 @@ export function redIssue({ sha, red, lanes, run, bisect }) {
  */
 export const bisectRunName = (lane, good) => `Bisect (${lane} lane) from ${good}`;
 
+/** The bisect shard (tools/bisect-ci.mjs LANES.llm) that runs graphty-element's llm-regression project. */
+const LLM_SHARD = "llm-regression";
+
+/**
+ * The test files an llm-regression vitest log reports failed, from its ` FAIL ` lines.
+ * @param log the log's text (colored or not)
+ * @returns repo-relative paths, each once
+ */
+export function llmFailedFiles(log) {
+    // eslint-disable-next-line no-control-regex -- vitest colors its output with ANSI escapes
+    const plain = log.replaceAll(/\x1b\[[0-9;]*m/g, "");
+    const files = plain
+        .split("\n")
+        .filter((line) => / FAIL /.test(line))
+        .map((line) => /\b(test\/[\w./-]+\.test\.ts)\b/.exec(line)?.[1])
+        .filter(Boolean);
+    return [...new Set(files)].map((f) => `graphty-element/${f}`);
+}
+
 /**
  * The bisect.yml dispatch for a red run, or why there is none.
  * @param o the facts
@@ -519,9 +541,10 @@ export const bisectRunName = (lane, good) => `Bisect (${lane} lane) from ${good}
  * @param o.run the run id
  * @param o.failures `GET /v1/failures`'s answer, or null
  * @param [o.bisected] the run names of recent bisect.yml runs ("Bisect (llm lane) from <good>")
+ * @param [o.llmFiles] the llm lane's failing test files (llmFailedFiles), repo-relative
  * @returns `{ inputs }` for bisect.yml, or `{ why }`
  */
-export function bisectPlan({ red, sha, good, run, failures, bisected = [] }) {
+export function bisectPlan({ red, sha, good, run, failures, bisected = [], llmFiles = [] }) {
     const lane = red.find((l) => LANES[l].bisect);
     if (!lane) return { why: `${red.map((l) => LANES[l].name).join(", ")}: no bisect; the pipeline round looks` };
     if (!good) return { why: "no green full run is recorded before this one, so there is no range to bisect" };
@@ -533,7 +556,11 @@ export function bisectPlan({ red, sha, good, run, failures, bisected = [] }) {
         };
     // ponytail: the first MAX_TARGETS failing tests; a dispatch input holds at most 65,535 characters, and a
     // broken setup fails a thousand tests that all bisect to the same merge
-    const tests = lane === "ci" ? (failures?.tests ?? []).slice(0, MAX_TARGETS) : [];
+    let tests = lane === "ci" ? (failures?.tests ?? []).slice(0, MAX_TARGETS) : [];
+    // every run of an llm bisect is paid: its points run only the files that failed (about $0.10 against $0.81 for
+    // the whole lane, #8314); none named (a crash before any file failed) runs the whole lane
+    if (lane === "llm")
+        tests = llmFiles.slice(0, MAX_TARGETS).map((file) => ({ shard: LLM_SHARD, file, name: "the whole file" }));
     return {
         inputs: {
             lane: LANES[lane].bisect,
@@ -1206,7 +1233,7 @@ export function fileFlakies(env, lanes, stories, run = sh) {
 }
 
 // The red path: bisect once, file or update the red issue
-async function fileRedVerdict(cfg, { sha, good, runId, runUrl, red, lanes, refused = [] }) {
+async function fileRedVerdict(cfg, { sha, good, runId, runUrl, red, lanes, refused = [], llmFiles = [] }) {
     const failures = cfg ? await read(cfg, `/v1/failures?run=${runId}&good=${good}`) : null;
     const coded = red.filter((l) => !refused.includes(l));
     // a listing GitHub fails leaves the bisect to dispatch: a missed duplicate costs one bisect, a missed red more
@@ -1227,7 +1254,7 @@ async function fileRedVerdict(cfg, { sha, good, runId, runUrl, red, lanes, refus
         "listing the recent bisects",
         () => [],
     );
-    const bisect = tryBisect(bisectPlan({ red: coded, sha, good, run: runId, failures, bisected }));
+    const bisect = tryBisect(bisectPlan({ red: coded, sha, good, run: runId, failures, bisected, llmFiles }));
     const body = redIssue({ sha, red, lanes, run: runUrl, bisect });
     const issue = bestEffort(
         () => fileRed(body),
@@ -1242,6 +1269,16 @@ const readJson = (file) => {
         return JSON.parse(readFileSync(file, "utf8"));
     } catch {
         return null;
+    }
+};
+
+// A JSON list of strings from the environment; anything else (unset, empty, torn) is none.
+export const listOf = (text) => {
+    try {
+        const v = JSON.parse(text || "[]");
+        return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+    } catch {
+        return [];
     }
 };
 
@@ -1319,6 +1356,7 @@ async function verdictMain(env) {
         lanes,
         forward,
         refused: refusedLanes(env, t4Item),
+        llmFiles: listOf(env.LLM_FAILED_FILES),
     };
     console.log("::endgroup::");
     console.log("::group::verdict: red issue, bisect or close");
@@ -1443,9 +1481,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     else if (cmd === "verdict") await verdictMain(process.env);
     else if (cmd === "lane-red") laneRedMain(process.env);
     else if (cmd === "file-deferred") await fileDeferredMain(process.argv[3], process.env);
+    else if (cmd === "llm-failed") console.log(JSON.stringify(llmFailedFiles(readFileSync(process.argv[3], "utf8"))));
     else {
         console.error(
-            "usage: node tools/full-run.mjs pick | verdict | lane-red | file-deferred <file> (see the head of the file)",
+            "usage: node tools/full-run.mjs pick | verdict | lane-red | file-deferred <file> | llm-failed <log> (see the head of the file)",
         );
         process.exit(2);
     }

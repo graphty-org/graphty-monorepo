@@ -38,16 +38,16 @@ import {
     isNamespace,
     isObject,
     isRunName,
+    membersOf,
     namespaceFromId,
     renameRuns,
     ruleNamesElements,
     runsRead,
+    scopeMembersOf,
     scopeNamesElements,
     sourcesRead,
     splitRunId,
     STYLE_PARTS,
-    unknownMember,
-    unknownScopeMember,
 } from "./recipeCommands";
 import { markRecipeRun, restoredPositions } from "./results";
 import { fileIdsOf, fileSetId } from "./viewParts";
@@ -525,7 +525,8 @@ class Replay {
     }
 
     /**
-     * Report a command whose op this release does not know (recipe.md, rule 7).
+     * Report a command whose op this release does not know (spec 4.3 rule 7): the replay stops,
+     * unless the command says `narrows: false`.
      * @param at - Its position.
      * @param command - The command.
      * @param as - Its `as`, if any.
@@ -569,12 +570,17 @@ class Replay {
             return this.unknownCommand(at, command, as);
         }
 
-        const unknown = unknownMember(command, members);
-        const scopeUnknown = isObject(command.scope) ? unknownScopeMember(command.scope) : undefined;
-        const unknownAt = unknown ?? (scopeUnknown === undefined ? undefined : `scope/${scopeUnknown}`);
+        // A member this reader does not know is must-understand unless `ignorable` names it (spec 10).
+        const own = membersOf(command, members);
+        const scope = isObject(command.scope) ? scopeMembersOf(command.scope) : { ignored: [] };
+        const unknownAt = own.unknown ?? (scope.unknown === undefined ? undefined : `scope/${scope.unknown}`);
         if (unknownAt !== undefined) {
             this.report("E_UNKNOWN_OPTION", `${at}/${unknownAt}`);
             return false;
+        }
+
+        for (const member of [...own.ignored, ...scope.ignored.map((name) => `scope/${name}`)]) {
+            this.report("W_UNKNOWN_MEMBER", `${at}/${member}`);
         }
 
         const reads = runsRead(command).filter((name) => name !== as);

@@ -462,7 +462,8 @@ describe("the version 2 recipe codec", () => {
                 },
                 "/commands/0/scope/of",
             ],
-            [{ op: "graph.filter", where: "data.score > `1`", narrows: false }, "/commands/0/narrows"],
+            [{ op: "graph.filter", where: "data.score > `1`", ignorable: "dropIsolated" }, "/commands/0/ignorable"],
+            [{ op: "graph.filter", where: "data.score > `1`", extensions: [] }, "/commands/0/extensions"],
         ] as const) {
             const target = lab();
             await addGraph(target.session);
@@ -481,6 +482,80 @@ describe("the version 2 recipe codec", () => {
             );
             assert.deepEqual(target.computed, []);
         }
+    });
+
+    it("runs a command whose unknown member ignorable names, and stops at one it does not", async () => {
+        const run = { op: "algo.run", algorithm: "degree", as: "one", style: false, accelerator: "any" };
+        const ignored = lab();
+        await addGraph(ignored.session);
+        const problems = await read(ignored, {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "x",
+            commands: [{ ...run, ignorable: ["accelerator"] }],
+        });
+        assert.deepEqual(problems, [
+            { code: "W_UNKNOWN_MEMBER", params: { section: "recipe", pointer: "/commands/0/accelerator" } },
+        ]);
+        assert.deepEqual(ignored.computed, ["x__one"]);
+
+        const stopped = lab();
+        await addGraph(stopped.session);
+        const refused = await read(stopped, {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "x",
+            commands: [run, { op: "algo.run", algorithm: "degree", as: "later", style: false }],
+        });
+        assert.deepEqual(refused, [
+            { code: "E_UNKNOWN_OPTION", params: { section: "recipe", pointer: "/commands/0/accelerator" } },
+            { code: "W_RUN_NOT_RUN", params: { run: "x__one" } },
+            { code: "W_RUN_NOT_RUN", params: { run: "x__later" } },
+        ]);
+        assert.deepEqual(stopped.computed, []);
+    });
+
+    it("runs a command and a scope carrying extensions, and a known op saying narrows: false, silently", async () => {
+        const target = lab();
+        await addGraph(target.session);
+        const extensions = { "org.example.audit": { ticket: 42 } };
+        const recipe = {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "x",
+            commands: [
+                {
+                    op: "algo.run",
+                    algorithm: "degree",
+                    as: "one",
+                    scope: { where: "data.score > `1`", extensions },
+                    style: false,
+                    extensions,
+                },
+                { op: "graph.filter", where: "data.score > `1`", narrows: false },
+            ],
+        };
+        assert.isTrue(validateRecipe(asSection({ body: recipe })), "the schema accepts it");
+        assert.deepEqual(await read(target, recipe), []);
+        assert.deepEqual(target.computed, ["x__one"]);
+    });
+
+    it("keeps an unknown op saying narrows: false byte for byte when the recipe is written back as read", async () => {
+        const command = { op: "org.example.motif-census", as: "motifs", narrows: false, params: { size: 3 } };
+        const target = lab();
+        await addGraph(target.session);
+        await read(
+            target,
+            {
+                kind: "graphty-recipe",
+                version: 2,
+                namespace: "x",
+                commands: [command, { op: "algo.run", algorithm: "degree", as: "one", style: false }],
+            },
+            { apply: false },
+        );
+        const written = (await write(target.session)).written.body.commands as JsonObject[];
+        assert.strictEqual(JSON.stringify(written[0]), JSON.stringify(command));
     });
 
     it("with rerun off, restores runs from waiting outcomes and lists the rest as not run", async () => {

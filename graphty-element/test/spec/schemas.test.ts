@@ -482,6 +482,55 @@ describe("readable paths, map bindings and several graphs", () => {
             assert.notStrictEqual(errorsOf(copy), "", what);
         }
     });
+
+    it("take a graph entry's unknown member and a later graph's unknown section key", () => {
+        const two = readJson(new URL("examples/minimal/minimal-graphs.graphty.json", SPEC));
+        const graphs = two.graphs as JsonObject[];
+        graphs[1] = {
+            ...graphs[1],
+            color: "teal",
+            sections: { ...(graphs[1].sections as JsonObject), "org.example.timeline": { kind: "x", version: 1 } },
+        };
+        assert.strictEqual(errorsOf(two), "");
+    });
+});
+
+describe("must-understand members of closed objects", () => {
+    /**
+     * The worked example's data section with a change to its first file source.
+     * @param change - What to change on the source.
+     * @returns The errors.
+     */
+    const sourceErrors = (change: (source: JsonObject) => void): string => {
+        const { data } = sectionsOf(cardFraud());
+        change((data.sources as JsonObject[]).find((source) => source.kind === "file") as JsonObject);
+        return errorsOf(data);
+    };
+
+    it("take a member a closed object lists in ignorable, and refuse it unlisted", () => {
+        assert.strictEqual(
+            sourceErrors((source) => Object.assign(source, { future: 1, ignorable: ["future"] })),
+            "",
+        );
+        assert.notStrictEqual(
+            sourceErrors((source) => Object.assign(source, { future: 1 })),
+            "",
+        );
+        assert.notStrictEqual(
+            sourceErrors((source) => Object.assign(source, { extensions: { "Not.Reverse.Domain": 1 } })),
+            "",
+        );
+    });
+
+    it("take narrows: false on a command, known op or not", () => {
+        const { recipe } = sectionsOf(cardFraud());
+        const commands = recipe.commands as JsonObject[];
+        commands[0] = { ...commands[0], narrows: false };
+        commands.push({ op: "org.example.motif-census", as: "motifs", narrows: false });
+        assert.strictEqual(errorsOf(recipe), "");
+        commands[0] = { ...commands[0], narrows: true };
+        assert.notStrictEqual(errorsOf(recipe), "");
+    });
 });
 
 describe("the schemas refuse what the design removed", () => {

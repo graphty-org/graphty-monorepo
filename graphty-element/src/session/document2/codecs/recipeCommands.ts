@@ -9,10 +9,17 @@
 
 import type { Measurement, RuleTree, Scope } from "../../../catalog/types";
 import { renamePaths } from "../../styles/predicate";
+import { ignorableOf, isExtensions } from "../framing";
 import type { JsonObject } from "../types";
 
+/**
+ * What every command may carry besides its own members (spec 4.3, 10): `narrows` (only `false`;
+ * a reader that knows the op ignores it), and the must-understand slots `extensions` and `ignorable`.
+ */
+const COMMON_COMMAND_MEMBERS = ["narrows", "extensions", "ignorable"] as const;
+
 /** The members each command graphty-element knows (spec 4.3); a command's members are closed. */
-export const COMMAND_MEMBERS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+const OWN_COMMAND_MEMBERS: Readonly<Record<string, readonly string[]>> = {
     "graph.filter": ["op", "where", "on", "dropIsolated", "description"],
     "algo.run": [
         "op",
@@ -30,7 +37,14 @@ export const COMMAND_MEMBERS: Readonly<Record<string, readonly string[]>> = Obje
     ],
     "layout.set": ["op", "id", "algorithm", "dimension", "options", "description"],
     "set.define": ["op", "id", "name", "where", "reading", "description"],
-});
+};
+
+/** Every member each command graphty-element knows may carry, its own and the common ones. */
+export const COMMAND_MEMBERS: Readonly<Record<string, readonly string[]>> = Object.freeze(
+    Object.fromEntries(
+        Object.entries(OWN_COMMAND_MEMBERS).map(([op, members]) => [op, [...members, ...COMMON_COMMAND_MEMBERS]]),
+    ),
+);
 
 /** The members of each object form of an `algo.run` scope; the scope is closed. */
 const SCOPE_FORMS: readonly (readonly string[])[] = [["where", "on"], ["types"], ["set"]];
@@ -51,25 +65,54 @@ export function isObject(value: unknown): value is JsonObject {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * The first member of an object outside a known list.
- * @param value - The object.
- * @param known - The members it may hold.
- * @returns The unknown member, or undefined.
- */
-export function unknownMember(value: JsonObject, known: readonly string[]): string | undefined {
-    return Object.keys(value).find((member) => !known.includes(member));
+/** A closed object's members this reader does not know (spec 10, "Must-understand members"). */
+export interface UnknownMembers {
+    /** The first must-understand one: not named by `ignorable`, or a malformed slot. */
+    readonly unknown?: string;
+    /** The ones `ignorable` names, ignored and kept. */
+    readonly ignored: readonly string[];
 }
 
 /**
- * The first unknown member of an `algo.run` scope object, read against the form its first member
- * picks.
- * @param scope - The scope object.
- * @returns The unknown member, or undefined.
+ * The members of a closed object outside a known list. The object may also carry `extensions`
+ * and `ignorable`; a malformed one is itself an unknown member.
+ * @param value - The object.
+ * @param known - The members it may hold besides the two slots.
+ * @returns The first must-understand member, if any, and the ignored ones.
  */
-export function unknownScopeMember(scope: JsonObject): string | undefined {
+export function membersOf(value: JsonObject, known: readonly string[]): UnknownMembers {
+    const listed = ignorableOf(value.ignorable);
+    const ignored: string[] = [];
+    let unknown: string | undefined;
+    for (const member of Object.keys(value)) {
+        if (member === "extensions" || member === "ignorable") {
+            const wellFormed = member === "extensions" ? isExtensions(value.extensions) : listed !== undefined;
+            unknown ??= wellFormed ? undefined : member;
+            continue;
+        }
+
+        if (known.includes(member)) {
+            continue;
+        }
+
+        if (listed?.has(member) === true) {
+            ignored.push(member);
+        } else {
+            unknown ??= member;
+        }
+    }
+
+    return { ...(unknown === undefined ? {} : { unknown }), ignored };
+}
+
+/**
+ * The members of an `algo.run` scope object outside the form its first member picks.
+ * @param scope - The scope object.
+ * @returns The first must-understand member, if any, and the ignored ones.
+ */
+export function scopeMembersOf(scope: JsonObject): UnknownMembers {
     const form = SCOPE_FORMS.find((members) => members.some((member) => member in scope)) ?? [];
-    return unknownMember(scope, form);
+    return membersOf(scope, form);
 }
 
 /**

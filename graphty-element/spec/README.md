@@ -95,16 +95,22 @@ SHOULD be `<name>.graphty.json`.
 4. **Several graphs.** A file holding two or more graphs writes `graphs`, an ordered list of
    `{ "id", "name", "sections" }`; a file of one graph MUST NOT write it. The first graph stays
    where a file of one graph puts it, in the top-level `sections`, and its entry has no
-   `sections`: it only names that graph. Each later entry's `sections` holds that graph's own
-   `data`, `view`, `notes` and `results` and nothing else, each exactly as a top-level section of
-   that key; style, recipe and settings belong to the whole file. `id` is `graph_` plus a ULID
+   `sections`: it only names that graph. A graph entry is open: a reader keeps a member it does
+   not know and writes it back. Each later entry's `sections` holds that graph's own `data`,
+   `view`, `notes` and `results`, each exactly as a top-level section of that key, and, like the
+   top-level `sections`, is open: a key the reader does not know is skipped, reported
+   `W_UNKNOWN_KIND` (params `{ section, graph }`) and written back. Style, recipe and settings
+   belong to the whole file. `id` is `graph_` plus a ULID
    (3.3), unique in the file; `name` is the reader's words. A one-graph project has no graph name:
    its name is the project's. Every graph saves its own sources by their own embed or reference
    choice, so no graph depends on another's. graphty-element opens the first graph and writes the
    later ones back exactly as read, but for their file paths (8.1 rule 4), reporting each of their
-   sections `W_SECTION_KEPT` with `reason` `graphs` and `graph` its graph id. A reader that cannot
-   read `graphs` (not such a list) MUST hold every graph section, the top-level ones included
-   (8.4), and write them back with `graphs`, reporting `W_SECTION_KEPT` with `reason` `graphs`.
+   sections `W_SECTION_KEPT` with `reason` `graphs` and `graph` its graph id. A reader cannot read
+   `graphs` when it is not a list of two or more objects, when an entry has no string `id` of the
+   form `graph_` plus a ULID or no string `name`, when an id repeats, when the first entry has
+   `sections`, or when a later entry's `sections` is not an object. It then MUST hold every graph
+   section, the top-level ones included (8.4), and write them back with `graphs`, reporting
+   `W_SECTION_KEPT` with `reason` `graphs`.
    A writer keeps the graphs a save includes, autosave included.
 
     ```json
@@ -138,23 +144,23 @@ The extensions and media types are published contracts and are never renamed.
 
 Every section begins with the same members, in both file forms:
 
-| Member                | Required                              | Meaning                                                                                           |
-| --------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `$schema`             | no                                    | `https://graphty.app/schema/documents/<kind>/v<version>.json`; advisory (3.2)                     |
-| `kind`                | yes                                   | `graphty-<section>`                                                                               |
-| `version`             | yes                                   | the section's own major version, an integer (section 9)                                           |
-| `id`                  | data: yes; others: no                 | a string naming this section across copies (3.3)                                                  |
-| `name`, `description` | no                                    | plain text: a human name, and a sentence of what it is for                                        |
-| `created`, `modified` | no                                    | when this section first existed, and when its content last changed (3.5)                          |
-| `generator`           | yes                                   | `{ "name", "version" }`: the software that wrote it; for diagnosis only, no reader branches on it |
-| `authors`             | no                                    | a list of `{ "name", "uri" }`                                                                     |
-| `license`             | no                                    | an SPDX license expression when one applies, else text                                            |
-| `keywords`            | no                                    | a list of strings                                                                                 |
-| `language`            | no                                    | a BCP 47 tag for the section's human text                                                         |
-| `dependencies`        | see 3.6                               | what the section needs from the data and from software                                            |
-| `bindsTo`             | results, notes, view: yes; others: no | `{ "data": <data section id> }`: which data the section was written on (6.4)                      |
-| `origin`              | no                                    | `{ "from" }`: the URL or file name a copied-in section was taken from, for display only           |
-| `extensions`          | no                                    | keyed by reverse-domain names; `graphty` and `graphty.*` are reserved; kept unread on re-save     |
+| Member                | Required                              | Meaning                                                                                                                                                                                        |
+| --------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$schema`             | no                                    | `https://graphty.app/schema/documents/<kind>/v<version>.json`; advisory (3.2)                                                                                                                  |
+| `kind`                | yes                                   | `graphty-<section>`                                                                                                                                                                            |
+| `version`             | yes                                   | the section's own major version, an integer (section 9)                                                                                                                                        |
+| `id`                  | data: yes; others: no                 | a string naming this section across copies (3.3)                                                                                                                                               |
+| `name`, `description` | no                                    | plain text: a human name, and a sentence of what it is for                                                                                                                                     |
+| `created`, `modified` | no                                    | when this section first existed, and when its content last changed (3.5)                                                                                                                       |
+| `generator`           | yes                                   | `{ "name", "version" }`: the software that wrote it; for diagnosis only, no reader branches on it                                                                                              |
+| `authors`             | no                                    | a list of `{ "name", "uri" }`                                                                                                                                                                  |
+| `license`             | no                                    | an SPDX license expression when one applies, else text                                                                                                                                         |
+| `keywords`            | no                                    | a list of strings                                                                                                                                                                              |
+| `language`            | no                                    | a BCP 47 tag for the section's human text                                                                                                                                                      |
+| `dependencies`        | see 3.6                               | what the section needs from the data and from software                                                                                                                                         |
+| `bindsTo`             | results, notes, view: yes; others: no | `{ "data": <data section id> }`: which data the section was written on (6.4)                                                                                                                   |
+| `origin`              | no                                    | `{ "from" }`: the URL or file name a copied-in section was taken from, for display only                                                                                                        |
+| `extensions`          | no                                    | keyed by reverse-domain names; `graphty` and `graphty.*` are reserved; kept unread on re-save; the same member, with the same rules, may also sit on any closed object of data and recipe (10) |
 
 `name`, `description`, `created`, `modified`, `license`, `$schema`, `authors`, `keywords` and
 `language` are optional text with no rules attached: no reader acts on them beyond showing them.
@@ -232,7 +238,9 @@ instead of failing.
    not know a listed extension, or knows it only at a lower version, MUST skip the section whole
    and hold it (8.4), reporting `W_EXTENSION_REQUIRED` (params `{ section, extension }`). An
    extension a section can do without is written only under its `extensions` member and not
-   listed.
+   listed. The same holds for an extension's data under the `extensions` member of an object
+   inside the section (10, "Must-understand members"): a reader ignores it unless the extension
+   is listed here, and the listed name is what makes it must-understand.
 
 ## 4. The sections
 
@@ -276,13 +284,13 @@ source that disagrees is read under `directed` and reported.
 
 A source record has exactly these fields: `id`, `label`, `kind`, `format`, `options`, `origin`,
 `mapping`, `settings`, `annotations`, `metadata`, `license`, `citation`, `copy`, `columns`,
-`loaded`.
+`loaded`, and the two must-understand slots `extensions` and `ignorable` (10).
 
 | Field                             | Holds                                                                                                                                                                                                                                                                                                                          |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `id`                              | `src_` plus a ULID (3.3)                                                                                                                                                                                                                                                                                                       |
 | `label`                           | display text, including any name the caller gives; also the default role match (3.6 rule 3)                                                                                                                                                                                                                                    |
-| `kind`                            | `file`, `url`, `network`, `sample`, `derived` or `reader`                                                                                                                                                                                                                                                                      |
+| `kind`                            | an open vocabulary: `file`, `url`, `network`, `sample`, `derived`, `reader`, or a reverse-domain kind such as `org.example.cypher` (10)                                                                                                                                                                                        |
 | `format`, `options`               | the parser and its parse options only; never identity or join choices                                                                                                                                                                                                                                                          |
 | `origin`                          | `copy`, the copy id (always); plus per kind: file `name`, `size`, `mediaType`, `path`; url `url`, `size`, `mediaType`, `etag`, `lastModified`; network exactly `url`, `credentials` (`{ slot }`), `etag`, `lastModified` and `ledger` (rule 7); sample `dataset` and version, or a generated sample's `generator` and `params` |
 | `mapping`                         | per table, graphty-element's `TableMapping` names (4.1.3)                                                                                                                                                                                                                                                                      |
@@ -302,7 +310,8 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    checked against it. Until a writer keeps a log of the reader's edits, removes and merges, a
    source whose rows the reader edited, removed or merged is always embedded, whatever the saver
    asked, and its copy id is a ULID minted for that copy whatever its kind, since its rows are no
-   longer the bytes read (the operations it folds in are reported, 8.1 rule 2).
+   longer the bytes read (the operations it folds in are reported, 8.1 rule 2). A source of a kind
+   the reader does not know may have either form, `sha256:` or a ULID.
 2. **Working column names everywhere.** Every column name in a document is a working name, after
    renames. A column's source name appears only in `mapping.<table>.renamed` and in its
    `ColumnDecl.origin.title`.
@@ -310,7 +319,8 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    object of equal-length value arrays keyed by working column name, rows in the order read. An
    unset cell is `null`; a `json` column lists its unset rows as `unset` in its `columns` entry, so
    its `null` is literal. A node-link source is copied as tables, its graph attributes in
-   `metadata`. Any other object is an unknown copy form (4.1.10). `columns` is rebuild and
+   `metadata`. Any other `copy` object is an unknown copy form, and that source is held (10).
+   `columns` is rebuild and
    re-export input only, never read for meaning.
 4. Embedding or referencing is the saver's choice per source, whatever its size; the default is
    embedded. A `derived` source and the reader source are always embedded, and so is a `file`
@@ -528,7 +538,8 @@ then row order.
 8. **Off (`off: true`).** Written only by graphty-element, when a refresh or replace leaves a step
    without a column it reads and the reader chooses Off: the step is kept, listed and written
    back, and is not built until it is turned on again (the member removed). `off` is never
-   `false`.
+   `false`. An `off` step is kept and written back whatever its `op`, one the reader does not know
+   included, and is checked only for `op`, `source` and `off`.
 9. **`join.merge` folds.** It no longer adds node 2's rows as nodes of their own: rows that should
    become new nodes are a `join.node-values` with `unmatchedRows: "add"`. With `unmatchedFrom:
 "keep"` and the field being node 1's key, a kept node 2 moves into node 1's space, keyed by its
@@ -641,10 +652,16 @@ is output, never input to the build):
 
 #### 4.1.10 Built whole or not at all
 
-A reader MUST build the data section completely or not at all. A value it does not know in a
-vocabulary that shapes the build (a join `op`, a source `kind`, a `copy` form, a reader operation
-`op`), or an unknown member of a closed data object (10), MUST make it skip the whole data section
-and hold it (8.4), reporting `W_SECTION_KEPT`.
+A reader MUST build the data section completely or not at all. It MUST skip the whole data
+section and hold it (8.4), reporting `W_SECTION_KEPT`, on any of:
+
+- a join `op` it does not know, on a step that is not `off`;
+- a reader operation `op` it does not know;
+- an unknown member of a closed data object (10) that is neither `extensions` nor named in that
+  object's `ignorable`.
+
+A source `kind` or `copy` form it does not know is a state of that source alone (10), not a reason
+to hold the section.
 
 ### 4.2 style
 
@@ -710,6 +727,9 @@ A recipe section holds `commands` (REQUIRED) and `namespace`. The commands, in o
 | `set.define`   | `id` (`set_` plus a ULID, bare), `name`, `where` (an expression or a rule tree naming no element), `reading`, `description`                   |
 | `join.<shape>` | a join step (4.1.8), naming sources by role                                                                                                   |
 
+Every command MAY also carry `narrows` (only `false` is ever written), `extensions` and
+`ignorable` (10). A reader that knows the command's `op` ignores `narrows`.
+
 1. `as` is unique within the recipe. A run's id is `<namespace>__<as>`.
 2. `scope` is `graph`, `largest-component`, `{ "where", "on" }`, `{ "types": [...] }` or
    `{ "set": <set id> }`.
@@ -723,7 +743,12 @@ A recipe section holds `commands` (REQUIRED) and `namespace`. The commands, in o
 6. **Applying under a namespace** writes each `set.define` id as `set_<namespace>.<ULID>` and
    rewrites every reference to it in the applied sections, as run ids are rewritten;
    `onRepeat: "replace"` replaces the earlier application's sets.
-7. An unknown `op` (`E_UNKNOWN_COMMAND`) stops the replay at that command.
+7. An unknown `op` (`E_UNKNOWN_COMMAND`) stops the replay at that command, unless the command
+   carries `narrows: false`. A reader then skips that command and every command that reads its
+   `as` (each `algo.run` among them reported `W_RUN_NOT_RUN`) and goes on. A writer writes
+   `narrows: false` only on an op that adds without filtering, never on `graph.filter` or
+   `set.define`. A third party's op is its reverse-domain name plus a word
+   (`org.example.motif-census`). A recipe written back as read (8.1 rule 5) keeps the command as read.
 
 ### 4.4 settings
 
@@ -1103,7 +1128,9 @@ source is read no further than the open's size limit.
    `needs-file` when nothing says where it is, `read` when its bytes could not be parsed,
    `too-large` when they pass the open's size limit, `needs-permission` when the caller did not let
    the open fetch it, `copy-changed`, with the new byte count `size`, when a fetched or picked copy
-   has another copy id than saved, `kind` for a kind this reader does not fetch). A referenced
+   has another copy id than saved, `kind` for a kind this reader does not fetch, a referenced
+   source of a kind it does not know among them, `copy-form` for an embedded copy whose form this
+   reader cannot read, whose record and copy are written back verbatim). A referenced
    `network` source gets a new copy on every read, so it is always held as `copy-changed`. A held
    source's join steps are not built and it supplies no elements; the graph is built without it.
    It keeps the edge ids its `edgeIds` names, and its record is written back exactly as read on the
@@ -1149,7 +1176,12 @@ While a section is held:
    (`graphty-settings`, `graphty-view`).
 3. Within a major version every change is additive. A reader MUST ignore members and sections it
    does not know and MUST keep them when it writes the file back, except in the closed objects
-   (section 10). There are no minor versions.
+   (section 10), where only `extensions` and the members listed in `ignorable` are ignored. A
+   writer adding a member to a closed object lists it in `ignorable` exactly when a reader that
+   ignores it builds the same graph from the same sources (data) or runs the same command with the
+   same result (recipe); otherwise the member is must-understand. graphty-element writes
+   experimental content only under `extensions["graphty.experimental.<name>"]`; promoting it to a
+   core member is an ordinary additive change. There are no minor versions.
 4. A change of meaning bumps the major version and ships, in one change, a migration from the
    previous version, its JSON Schema and a sample file.
 5. **A change to a named built-in is a change of meaning.** Changing what a name in `builtins.md`
@@ -1212,27 +1244,29 @@ minted at migration.
 An **open vocabulary** may gain values within a major version. A **closed object** MUST NOT be read
 by ignoring a member it does not know.
 
-| Section       | Open vocabulary                                                               | A reader meeting an unknown value                      |
-| ------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------ |
-| wrapper       | `sections` keys                                                               | skips it with `W_UNKNOWN_KIND`, keeps it on re-save    |
-| every section | `dependencies.extensions` names                                               | skips and holds the section (3.6 rule 4)               |
-| data          | join step `op`, source `kind`, `copy` form, reader operation `op`             | skips and holds the whole data section (4.1.10)        |
-| data          | `measurement` values                                                          | draws as with no measurement                           |
-| style         | channel names, selector kinds, scales, enumerated channel values, palette ids | fails that channel entry or layer alone, keeps it      |
-| recipe        | command `op`, algorithm keys, layout ids, the parts of a run's `style`        | an unknown `op` stops the replay (4.3 rule 7)          |
-| notes         | target kinds, item key forms                                                  | the target reads unsupported and is kept               |
-| view          | camera controllers                                                            | 4.7 rule 2                                             |
-| view          | run `scope` forms                                                             | that run's replay stops; the record is kept on re-save |
+| Section       | Open vocabulary                                                               | A reader meeting an unknown value                                                                                                                                      |
+| ------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| wrapper       | `sections` keys                                                               | skips it with `W_UNKNOWN_KIND`, keeps it on re-save                                                                                                                    |
+| every section | `dependencies.extensions` names                                               | skips and holds the section (3.6 rule 4)                                                                                                                               |
+| data          | source `kind`                                                                 | an embedded source is built from its copy and is not refreshable; a referenced one is held (`W_SOURCE_UNAVAILABLE`, reason `kind`); its record is written back as read |
+| data          | `copy` form                                                                   | that source alone is held (reason `copy-form`)                                                                                                                         |
+| data          | join step `op`, reader operation `op`                                         | skips and holds the whole data section (4.1.10); an `off` join step is kept and not built                                                                              |
+| data          | `measurement` values                                                          | draws as with no measurement                                                                                                                                           |
+| style         | channel names, selector kinds, scales, enumerated channel values, palette ids | fails that channel entry or layer alone, keeps it                                                                                                                      |
+| recipe        | command `op`, algorithm keys, layout ids, the parts of a run's `style`        | an unknown `op` stops the replay unless the command says `narrows: false` (4.3 rule 7)                                                                                 |
+| notes         | target kinds, item key forms                                                  | the target reads unsupported and is kept                                                                                                                               |
+| view          | camera controllers                                                            | 4.7 rule 2                                                                                                                                                             |
+| view          | run `scope` forms                                                             | that run's replay stops; the record is kept on re-save                                                                                                                 |
 
 Closed objects:
 
 - In data: a source's `mapping` and `settings`, a type entry and its rules, a join step and its
   `read`, `rows` and `except`, a reader
-  operation, the reader source itself, and a key in a source's `options` its parser does not read.
-  An unknown member holds the whole data section (4.1.10): ignoring one would build another graph
-  under the same build stamp.
-- A recipe command and its `scope`: an unknown member skips the command and every later one
-  (`E_UNKNOWN_OPTION`).
+  operation, the reader source itself, a source record, and a key in a source's `options` its
+  parser does not read. An unknown member that `ignorable` does not name holds the whole data
+  section (4.1.10): ignoring one would build another graph under the same build stamp.
+- A recipe command and its `scope`: an unknown member that `ignorable` does not name skips the
+  command and every later one (`E_UNKNOWN_OPTION`).
 - A style's selectors, bindings and carried palettes: an unknown member fails that channel entry
   or layer alone, reported (`W_UNKNOWN_MEMBER`) and written back.
 - The parts of a run's `style`.
@@ -1250,6 +1284,45 @@ operation `merge`.
 The schemas mark closed objects with `unevaluatedProperties: false` and leave open ones open. A
 schema is normative for what a writer produces; a reader MUST NOT reject a whole document because
 it fails a schema, and acts by the rules above instead.
+
+### Must-understand members
+
+These closed objects may carry two optional slots: a join step and its `read`, `rows` and
+`except`; a source record and its `mapping`, `mapping.nodes`, `mapping.edges` and `settings`; a
+network source's `origin`; a type entry and its rules; the reader source and each reader
+operation; a recipe command and the object forms of its `scope`. Neither slot is allowed on a
+`copy` or on `credentials`.
+
+```json
+{
+    "op": "algo.run",
+    "algorithm": "pagerank",
+    "as": "rank",
+    "style": true,
+    "accelerator": "any",
+    "ignorable": ["accelerator"],
+    "extensions": { "org.example.audit": { "ticket": 42 } }
+}
+```
+
+1. `extensions` works as in the section header (3): keyed by reverse-domain name, `graphty` and
+   `graphty.*` reserved. A reader that does not know a name never reads it and never reports it.
+   One a reader cannot do without is listed in the section's `dependencies.extensions` (3.6 rule
+   4).
+2. `ignorable` is a list of distinct member names of this object. A member the reader does not
+   know that it names is ignored, reported `W_UNKNOWN_MEMBER` (params `{ section, pointer }`) and
+   kept. A name the reader knows is read as usual. A member the reader does not know that it does
+   not name is must-understand: in data it holds the section (4.1.10), and in a recipe it is
+   `E_UNKNOWN_OPTION` and skips this command and every later one.
+3. A malformed `extensions` (not an object keyed by reverse-domain names) or `ignorable` (not a
+   list of distinct non-empty strings) counts as an unknown must-understand member.
+4. Neither slot, nor any member `ignorable` names, is a build input (4.1.1): a change to them alone
+   mints no new build.
+5. On re-save the writer writes both slots, and every member it ignored, back on the object they
+   were read on, while that object is still written: a source by its id, its `mapping` and
+   `settings` by source and table, join steps and type entries as read, a recipe command kept as
+   read. An object no longer written takes them with it. One the writer cannot place is reported
+   `W_MEMBER_LEFT_OUT`.
 
 ## 11. Numbers and keys
 
@@ -1281,36 +1354,36 @@ it fails a schema, and acts by the rules above instead.
 graphty-element reports what happened while reading or writing as `{ code, params }`. An
 application words them.
 
-| Code                          | When                                                                          | Params                                    |
-| ----------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------- |
-| `E_BAD_DOCUMENT`              | the file is not I-JSON, or has no known `kind`                                | `section`                                 |
-| `E_UNKNOWN_OPTION`            | a recipe command or scope has a member the reader does not know               | `section`, `pointer`                      |
-| `E_UNKNOWN_COMMAND`           | a recipe command's `op` the reader does not know                              | `section`, `pointer`                      |
-| `W_UNKNOWN_KIND`              | an unknown `sections` key                                                     | `section`                                 |
-| `W_UNKNOWN_MEMBER`            | an unknown member of an open object, selector, binding, palette or run style  | `section`, `pointer`                      |
-| `W_SCHEMA_MISMATCH`           | `$schema` disagrees with `kind` and `version`                                 | `section`, `schema`                       |
-| `W_SECTION_KEPT`              | a section is held, or a local change to a held kind was not saved             | `section`, `version`, `reason`, `graph`   |
-| `W_EXTENSION_REQUIRED`        | a section lists an extension the reader lacks                                 | `section`, `extension`                    |
-| `W_SECTION_UPGRADED`          | an older version was migrated on read                                         | `section`, `from`, `to`                   |
-| `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section                | `section`, `pointer`, `layer`, `movedTo`  |
-| `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over              | `kind` or `section`, `field` or `pointer` |
-| `W_SOURCE_NO_PATH`            | a source has nothing to read it again by: embedded, or written with no `path` | `source`, `reason`                        |
-| `W_SOURCE_UNAVAILABLE`        | a referenced source is held: not read, or its copy changed (8.3)              | `source`, `reason`, `size`                |
-| `W_SOURCE_EMBEDDED`           | a source asked to be referenced was embedded: its rows are not its bytes      | `source`, `reason`                        |
-| `W_SPACE_OVERLAP`             | a node key would add keys to a space another source already holds             | `source`, `space`, `count`                |
-| `W_REFERENCE_UNBOUND`         | an element reference binds nowhere                                            | `section`, `pointer`, `ref`               |
-| `W_DATA_CHANGED`              | same data id, but a run's build or copy ids differ                            | `section`, `sources`                      |
-| `W_DATA_MISMATCH`             | a bound section was written on other data, or no data is open                 | `section`, `data`                         |
-| `W_CAMERA_CONTROLLER_UNKNOWN` | a camera names a controller the reader does not know                          | `section`, `controller`                   |
-| `W_RUN_NOT_RUN`               | a run was neither rerun nor restored                                          | `run`                                     |
-| `W_RESULTS_DIFFER`            | a rerun disagrees with the saved results                                      | `run`                                     |
-| `W_SOURCE_UNKEYED`            | a source has no key column                                                    | `source`                                  |
-| `W_NODE_NAMED_ONLY`           | nodes only edges name, kept, supplied by those edges' sources                 | `source`, `count`                         |
-| `W_KEY_EMPTY`                 | rows whose key or end cell is null or empty were left out                     | `source`, `column`, `rows`                |
-| `W_EDGE_END_MISSING`          | edges naming missing nodes were left out                                      | `source`, `count`                         |
-| `W_COLUMN_WIDENED`            | two types declare one column with different dtypes                            | `column`                                  |
-| `W_ROLES_DIFFER`              | built sources name a weight, time or location role differently                | `table`, `role`, `sources`                |
-| `W_CLASH_RULE_TYPE`           | a number clash rule met a cell it cannot read; the held value stays           | `step`, `column`, `rule`, `cells`         |
+| Code                          | When                                                                                                                      | Params                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `E_BAD_DOCUMENT`              | the file is not I-JSON, or has no known `kind`                                                                            | `section`                                 |
+| `E_UNKNOWN_OPTION`            | a recipe command or scope has a member the reader does not know                                                           | `section`, `pointer`                      |
+| `E_UNKNOWN_COMMAND`           | a recipe command's `op` the reader does not know                                                                          | `section`, `pointer`                      |
+| `W_UNKNOWN_KIND`              | an unknown `sections` key, top level or in a later graph                                                                  | `section`, `graph`                        |
+| `W_UNKNOWN_MEMBER`            | an unknown member of an open object, selector, binding, palette or run style, or one a closed object lists in `ignorable` | `section`, `pointer`                      |
+| `W_SCHEMA_MISMATCH`           | `$schema` disagrees with `kind` and `version`                                                                             | `section`, `schema`                       |
+| `W_SECTION_KEPT`              | a section is held, or a local change to a held kind was not saved                                                         | `section`, `version`, `reason`, `graph`   |
+| `W_EXTENSION_REQUIRED`        | a section lists an extension the reader lacks                                                                             | `section`, `extension`                    |
+| `W_SECTION_UPGRADED`          | an older version was migrated on read                                                                                     | `section`, `from`, `to`                   |
+| `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section                                                            | `section`, `pointer`, `layer`, `movedTo`  |
+| `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over                                                          | `kind` or `section`, `field` or `pointer` |
+| `W_SOURCE_NO_PATH`            | a source has nothing to read it again by: embedded, or written with no `path`                                             | `source`, `reason`                        |
+| `W_SOURCE_UNAVAILABLE`        | a referenced source is held: not read, or its copy changed (8.3)                                                          | `source`, `reason`, `size`                |
+| `W_SOURCE_EMBEDDED`           | a source asked to be referenced was embedded: its rows are not its bytes                                                  | `source`, `reason`                        |
+| `W_SPACE_OVERLAP`             | a node key would add keys to a space another source already holds                                                         | `source`, `space`, `count`                |
+| `W_REFERENCE_UNBOUND`         | an element reference binds nowhere                                                                                        | `section`, `pointer`, `ref`               |
+| `W_DATA_CHANGED`              | same data id, but a run's build or copy ids differ                                                                        | `section`, `sources`                      |
+| `W_DATA_MISMATCH`             | a bound section was written on other data, or no data is open                                                             | `section`, `data`                         |
+| `W_CAMERA_CONTROLLER_UNKNOWN` | a camera names a controller the reader does not know                                                                      | `section`, `controller`                   |
+| `W_RUN_NOT_RUN`               | a run was neither rerun nor restored                                                                                      | `run`                                     |
+| `W_RESULTS_DIFFER`            | a rerun disagrees with the saved results                                                                                  | `run`                                     |
+| `W_SOURCE_UNKEYED`            | a source has no key column                                                                                                | `source`                                  |
+| `W_NODE_NAMED_ONLY`           | nodes only edges name, kept, supplied by those edges' sources                                                             | `source`, `count`                         |
+| `W_KEY_EMPTY`                 | rows whose key or end cell is null or empty were left out                                                                 | `source`, `column`, `rows`                |
+| `W_EDGE_END_MISSING`          | edges naming missing nodes were left out                                                                                  | `source`, `count`                         |
+| `W_COLUMN_WIDENED`            | two types declare one column with different dtypes                                                                        | `column`                                  |
+| `W_ROLES_DIFFER`              | built sources name a weight, time or location role differently                                                            | `table`, `role`, `sources`                |
+| `W_CLASH_RULE_TYPE`           | a number clash rule met a cell it cannot read; the held value stays                                                       | `step`, `column`, `rule`, `cells`         |
 
 ## 14. Files in this directory
 

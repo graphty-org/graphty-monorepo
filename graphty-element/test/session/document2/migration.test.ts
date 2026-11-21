@@ -508,6 +508,33 @@ describe("a version 1 document of one kind, migrated", () => {
         assert.deepStrictEqual((recipe.commands as JsonObject[])[0].style, true);
     });
 
+    it("keeps a version 1 recipe's unknown op that says narrows: false, and the replay goes on past it", async () => {
+        const v1 = {
+            kind: "graphty-recipe",
+            version: 1,
+            commands: [
+                { op: "org.example.motif-census", as: "motifs", narrows: false },
+                { op: "algo.run", algorithm: "degree", as: "hubs" },
+            ],
+        };
+        const v2 = migrateDocument1(structuredClone(v1), []);
+        const { recipe } = v2?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(recipe), []);
+        assert.deepStrictEqual((recipe.commands as JsonObject[])[0], v1.commands[0]);
+
+        const session = await baseSession(["save-files-v2"]);
+        const report = await session.recipes.apply(JSON.stringify(v1));
+        assert.deepInclude(
+            report.problems.map((problem) => problem.code),
+            "E_UNKNOWN_COMMAND",
+        );
+        assert.isTrue(
+            session.runs.list().some((run) => run.id.endsWith("__hubs")),
+            "the algo.run after it ran",
+        );
+        session.dispose();
+    });
+
     it("leaves alone what it does not migrate: a data file, an unknown kind, a version 2 file, notes with no data", () => {
         assert.isUndefined(migrateDocument1({ nodes: [], links: [] }, []));
         assert.isUndefined(migrateDocument1({ kind: "com.example.thing", version: 1 }, []));

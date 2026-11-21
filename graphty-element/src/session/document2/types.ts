@@ -73,12 +73,14 @@ export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "ki
  * source is held until `data.refresh`. `not-found` (its fetch failed), `needs-file` (no location to
  * read it from), `read` (unreadable), `too-large` (over the open's size limit), `needs-permission`
  * (a fetch the caller did not allow), `copy-changed` (its bytes changed since the save, `params.size`
- * the new byte count; a network source always), `kind` (no open reads its kind again). OPEN UNION.
+ * the new byte count; a network source always), `kind` (no open reads its kind again, or this
+ * release does not know it), `copy-form` (an embedded copy in a form this release cannot read; its
+ * record and copy are written back as read). OPEN UNION.
  * @experimental save-files-v2
  * @beta
  */
 export type SourceUnavailableReason =
-    "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind";
+    "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind" | "copy-form";
 
 /** A JSON object as read from or written to a document. */
 export type JsonObject = Record<string, unknown>;

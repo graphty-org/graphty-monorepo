@@ -231,7 +231,12 @@
                     }
                 }
             },
-            "loaded": "2026-11-14T17:42:00.000Z"
+            "loaded": "2026-11-14T17:42:00.000Z",
+            "extensions": {
+                "org.example.refresh": {
+                    "every": "P1D"
+                }
+            }
         }
     ],
     "types": [

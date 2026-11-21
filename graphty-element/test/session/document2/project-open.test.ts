@@ -970,6 +970,48 @@ describe("a file holding several graphs", () => {
         session.dispose();
         held.dispose();
     });
+
+    it("keeps a graph entry's unknown member and a later graph's unknown section key, and writes both back", async () => {
+        const file = JSON.parse(TWO) as JsonObject;
+        const graphs = file.graphs as JsonObject[];
+        graphs[1] = { ...graphs[1], color: "teal" };
+        const extra = { kind: "org.example.timeline", version: 1, ticks: [1, 2] };
+        (graphs[1].sections as JsonObject)["org.example.timeline"] = extra;
+        const session = createGraphSession(ON);
+        const report = await session.project.open(JSON.stringify(file), { rerun: false, location: PROJECT_AT });
+        assert.notDeepInclude(report.problems, {
+            code: "W_SECTION_KEPT",
+            params: { section: "data", version: 2, reason: "graphs" },
+        });
+        assert.deepInclude(report.problems, {
+            code: "W_UNKNOWN_KIND",
+            params: { section: "org.example.timeline", graph: SECOND },
+        });
+        const saved = JSON.parse((await session.project.save({ format: 2, location: PROJECT_AT })).text) as JsonObject;
+        assert.deepEqual(saved.graphs, file.graphs);
+        session.dispose();
+    });
+
+    it("holds every graph section for a first entry with sections, or a repeated id", async () => {
+        for (const change of [
+            (graphs: JsonObject[]): void => {
+                graphs[0] = { ...graphs[0], sections: {} };
+            },
+            (graphs: JsonObject[]): void => {
+                graphs[1] = { ...graphs[1], id: graphs[0].id };
+            },
+        ]) {
+            const file = JSON.parse(TWO) as JsonObject;
+            change(file.graphs as JsonObject[]);
+            const session = createGraphSession(ON);
+            const report = await session.project.open(JSON.stringify(file), { rerun: false });
+            assert.deepInclude(report.problems, {
+                code: "W_SECTION_KEPT",
+                params: { section: "data", version: 2, reason: "graphs" },
+            });
+            session.dispose();
+        }
+    });
 });
 
 describe("a later graph's file the save cannot name", () => {

@@ -36,9 +36,35 @@
         },
         "extensions": {
             "type": "object",
-            "description": "Data for other software, keyed by reverse-domain name. graphty and graphty.* are reserved. Kept unread on re-save.",
+            "description": "Data for other software, keyed by reverse-domain name. graphty and graphty.* are reserved. Kept unread on re-save. Allowed on a section header and on the closed objects of data and recipe (closedSlots).",
             "propertyNames": {
                 "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)(\\.[a-z0-9]+(-[a-z0-9]+)*)+$|^graphty$"
+            }
+        },
+        "ignorable": {
+            "type": "array",
+            "description": "The members of this closed object that a reader that does not know them may ignore: it reports each W_UNKNOWN_MEMBER and keeps it. An unknown member not listed is must-understand.",
+            "items": {
+                "type": "string",
+                "minLength": 1
+            },
+            "uniqueItems": true
+        },
+        "closedSlots": {
+            "description": "The two optional slots of a closed data or recipe object: extensions, and ignorable. An object that carries ignorable validates with members besides its own, since this schema cannot tell an ignorable member from a must-understand one; one without it stays strictly closed (in draft 2020-12 the then branch marks every property evaluated).",
+            "properties": {
+                "extensions": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/extensions"
+                },
+                "ignorable": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/ignorable"
+                }
+            },
+            "if": {
+                "required": ["ignorable"]
+            },
+            "then": {
+                "additionalProperties": true
             }
         },
         "author": {
@@ -1237,7 +1263,7 @@
             "properties": {
                 "op": {
                     "type": "string",
-                    "pattern": "^join\\.[a-z][a-z0-9-]*$"
+                    "pattern": "^join\\.[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
                 },
                 "source": {
                     "type": "string",
@@ -1477,6 +1503,9 @@
                             ]
                         }
                     }
+                },
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
                 }
             ],
             "unevaluatedProperties": false
@@ -1525,7 +1554,12 @@
                     }
                 }
             },
-            "unevaluatedProperties": false
+            "unevaluatedProperties": false,
+            "allOf": [
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                }
+            ]
         },
         "joinRead": {
             "type": "object",
@@ -1582,7 +1616,12 @@
                 "target": ["targetSpace"],
                 "targetSpace": ["target"]
             },
-            "unevaluatedProperties": false
+            "unevaluatedProperties": false,
+            "allOf": [
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                }
+            ]
         },
         "graphId": {
             "type": "string",

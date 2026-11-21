@@ -215,6 +215,29 @@ export function edgeRefOf(value: unknown): EdgeRef | undefined {
 /** The reader source's id. */
 export const READER = "reader";
 
+/**
+ * What a source's closed objects carry besides their own members (spec 10, "Must-understand
+ * members"): `extensions`, `ignorable` and the members it names, kept as read for the next save.
+ */
+export interface SourceExtras {
+    readonly record?: JsonObject;
+    readonly origin?: JsonObject;
+    readonly mapping?: JsonObject;
+    readonly nodes?: JsonObject;
+    readonly edges?: JsonObject;
+    readonly settings?: JsonObject;
+}
+
+/**
+ * The key a reader `add`'s kept members are remembered by: the element it adds.
+ * @param node - Its `node`, if it adds a node.
+ * @param edge - Its `edge`, if it adds an edge.
+ * @returns The key.
+ */
+export function readerAddKey(node: unknown, edge: unknown): string {
+    return node === undefined ? `e:${canonicalJson(edge)}` : `n:${canonicalJson(node)}`;
+}
+
 /** The ids this writer minted or read for a session, so a save that changes nothing changes no id. */
 interface DataMemory {
     /** Each load key's source id, when the key is not one already. */
@@ -277,6 +300,10 @@ interface DataMemory {
     edits: readonly ReadEdit[];
     /** Each node the last read's sources shared: its columns then and each source's own row. */
     shared: ReadonlyMap<NodeId, SharedNode>;
+    /** What each source's closed objects carried besides their members, by source id (spec 10). */
+    extras: ReadonlyMap<string, SourceExtras>;
+    /** What the reader source (`reader`) and each of its `add`s (`readerAddKey`) carried besides their members. */
+    readerAdds: ReadonlyMap<string, JsonObject>;
 }
 
 /** A reader `edit` an open applied: written back as read while its cell holds the value it set. */
@@ -326,6 +353,8 @@ function memoryOf(session: GraphSession): DataMemory {
             roles: { patch: {}, sources: new Map() },
             edits: [],
             shared: new Map(),
+            extras: new Map(),
+            readerAdds: new Map(),
         };
         MEMORY.set(session, memory);
     }
@@ -410,6 +439,10 @@ export interface DataRead {
     readonly edits?: readonly ReadEdit[];
     /** Each node several sources supply, by its id. */
     readonly shared?: Iterable<readonly [NodeId, SharedNode]>;
+    /** What each source's closed objects carried besides their members, by source id. */
+    readonly extras?: readonly (readonly [string, SourceExtras])[];
+    /** What the reader source and its `add`s carried besides their members. */
+    readonly readerAdds?: ReadonlyMap<string, JsonObject>;
 }
 
 /**
@@ -459,6 +492,8 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
     }
 
     memory.shared = new Map(read.shared);
+    memory.extras = new Map(read.extras);
+    memory.readerAdds = new Map(read.readerAdds);
     memory.roles = { patch: read.roles?.patch ?? {}, sources: new Map(read.roles?.sources ?? []) };
     memory.edits = read.edits ?? [];
     memory.staged = read.staged ?? [];
@@ -1486,13 +1521,20 @@ function readerCopyOf(
 
     const operations: JsonObject[] = [
         // The id is kept as the `id` column, typed, so a numeric id reads back as a number.
-        ...nodes.map((node) => ({ op: "add", node: nodeRefs.get(node.id), ...addedColumns(node) })),
+        // What an add an open read carried besides its members goes back on it (spec 10, rule 5).
+        ...nodes.map((node) => ({
+            op: "add",
+            node: nodeRefs.get(node.id),
+            ...addedColumns(node),
+            ...memory.readerAdds.get(readerAddKey(nodeRefs.get(node.id), undefined)),
+        })),
         ...edges.map(({ id, source, target, ...columns }) => ({
             op: "add",
             edge: edgeRefs.get(id),
             from: nodeRefs.get(source),
             to: nodeRefs.get(target),
             ...addedColumns(columns),
+            ...memory.readerAdds.get(readerAddKey(undefined, edgeRefs.get(id))),
         })),
         ...edits,
         // What a held source supplies is not in the session: the operations on it as read.
@@ -1723,28 +1765,72 @@ function originOf(source: ModelSource, model: DataModel, kind: string, copy: str
 }
 
 /**
- * One source record (spec 4.1.2), from its load.
+ * A source's `mapping` as written, with what its objects carried besides their members when it was
+ * read (spec 10, rule 5); a table read with them that is no longer written is reported.
+ * @param mapping - The mapping as written.
+ * @param extras - What the source's objects carried.
+ * @param pointer - The record's pointer.
+ * @param problems - Collects `W_MEMBER_LEFT_OUT`.
+ * @returns The mapping.
+ */
+function mappingWithExtras(
+    mapping: JsonObject,
+    extras: SourceExtras | undefined,
+    pointer: string,
+    problems: DocumentProblem[],
+): JsonObject {
+    const out: JsonObject = { ...mapping, ...extras?.mapping };
+    for (const table of ["nodes", "edges"] as const) {
+        const kept = extras?.[table];
+        if (kept === undefined) {
+            continue;
+        }
+
+        if (isPlainObject(mapping[table])) {
+            out[table] = { ...mapping[table], ...kept };
+        } else {
+            problems.push({
+                code: "W_MEMBER_LEFT_OUT",
+                params: { section: "data", pointer: `${pointer}/mapping/${table}` },
+            });
+        }
+    }
+
+    return out;
+}
+
+/**
+ * One source record (spec 4.1.2), from its load, with what its objects carried besides their
+ * members when it was read.
  * @param source - The source.
  * @param model - The model.
- * @param storage - Embedded or referenced.
- * @param path - A file source's path, if it has one: the saver's, else the one read, rebased.
+ * @param where - How it is stored, and where it is written.
+ * @param where.storage - Embedded or referenced.
+ * @param where.path - A file source's path, if it has one: the saver's, else the one read, rebased.
+ * @param where.at - Its index in the section's `sources`.
+ * @param problems - Collects what the save reports.
  * @returns The record.
  */
 function sourceRecordOf(
     source: ModelSource,
     model: DataModel,
-    storage: SourceStorage,
-    path: string | undefined,
+    where: { readonly storage: SourceStorage; readonly path: string | undefined; readonly at: number },
+    problems: DocumentProblem[],
 ): JsonObject {
+    const { storage, path } = where;
     const { load } = source;
     const copy = model.copies.get(source.id) as Copy;
     const kind = kindOfSource(source, memoryOf(model.session));
+    const extras = memoryOf(model.session).extras.get(source.id);
     // The style choices decide which columns a read makes, so they are options the file is read
     // again with (spec 4.1.2 rule 5).
     const options = { ...redactedParams(load.config ?? {}), ...drawnOf(model.session, load.key) };
     delete options.url;
+    // Any other kind's origin starts from the one read, so its kept members are in it already.
     const origin: JsonObject =
-        kind === "network" ? networkOrigin(source, model, copy.copy) : originOf(source, model, kind, copy.copy);
+        kind === "network"
+            ? { ...networkOrigin(source, model, copy.copy), ...extras?.origin }
+            : originOf(source, model, kind, copy.copy);
     if (kind === "file") {
         delete origin.path;
         if (path !== undefined) {
@@ -1760,16 +1846,26 @@ function sourceRecordOf(
         ...(load.type === undefined ? {} : { format: load.type }),
         ...(Object.keys(options).length === 0 ? {} : { options: jsonSafe(options) }),
         origin,
-        mapping: withRoles(
-            storage === "embedded" ? mappingOf(source, model, copy) : readMappingOf(source, model, copy),
-            source,
-            model,
+        mapping: mappingWithExtras(
+            withRoles(
+                storage === "embedded" ? mappingOf(source, model, copy) : readMappingOf(source, model, copy),
+                source,
+                model,
+            ),
+            extras,
+            `/sources/${String(where.at)}`,
+            problems,
         ),
-        settings: { duplicateIds: choices?.duplicateIds ?? "first", unmatched: choices?.unmatched ?? "add" },
+        settings: {
+            duplicateIds: choices?.duplicateIds ?? "first",
+            unmatched: choices?.unmatched ?? "add",
+            ...extras?.settings,
+        },
         // A referenced source keeps its columns too: what an open checks the rows it reads against.
         ...(storage === "embedded" ? { copy: copy.tables } : {}),
         columns: copy.columns,
         ...(load.loadedAt !== undefined && TIMESTAMP.test(load.loadedAt) ? { loaded: load.loadedAt } : {}),
+        ...extras?.record,
     };
 }
 
@@ -2457,6 +2553,7 @@ function sourceRecordsOf(
             kind: "reader",
             origin: { copy: model.reader.copy },
             copy: { operations: model.reader.operations },
+            ...memoryOf(model.session).readerAdds.get(READER),
         });
     }
 
@@ -2481,7 +2578,7 @@ function sourceRecordsOf(
             keepHandle(source.id, copyId, handle);
         }
 
-        records.push(sourceRecordOf(source, model, storage, path));
+        records.push(sourceRecordOf(source, model, { storage, path, at: records.length }, problems));
     }
 
     return { records, embedded };
@@ -2592,6 +2689,50 @@ function joinsOf(model: DataModel): JsonObject[] {
 }
 
 /**
+ * What the reader source carried besides its members, as a source's extras.
+ * @param memory - The memory.
+ * @param record - A source record.
+ * @returns Its extras, when it is the reader source.
+ */
+function readerExtras(memory: DataMemory, record: Readonly<JsonObject>): SourceExtras | undefined {
+    const kept = record.id === READER ? memory.readerAdds.get(READER) : undefined;
+    return kept === undefined ? undefined : { record: kept };
+}
+
+/**
+ * A source record without what its objects carried besides their members: neither slot, nor a
+ * member `ignorable` names, is a build input (spec 10, rule 4).
+ * @param record - The record as written.
+ * @param extras - What its objects carried.
+ * @returns The record, for the build digest.
+ */
+function withoutExtras(record: Readonly<JsonObject>, extras: SourceExtras | undefined): JsonObject {
+    const strip = (value: unknown, kept: JsonObject | undefined): unknown =>
+        kept === undefined || !isPlainObject(value)
+            ? value
+            : Object.fromEntries(Object.entries(value).filter(([name]) => !(name in kept)));
+    if (extras === undefined) {
+        return { ...record };
+    }
+
+    const mapping = strip(record.mapping, extras.mapping);
+    return {
+        ...(strip(record, extras.record) as JsonObject),
+        origin: strip(record.origin, extras.origin),
+        ...(isPlainObject(mapping)
+            ? {
+                  mapping: {
+                      ...mapping,
+                      ...(mapping.nodes === undefined ? {} : { nodes: strip(mapping.nodes, extras.nodes) }),
+                      ...(mapping.edges === undefined ? {} : { edges: strip(mapping.edges, extras.edges) }),
+                  },
+              }
+            : {}),
+        ...(record.settings === undefined ? {} : { settings: strip(record.settings, extras.settings) }),
+    };
+}
+
+/**
  * The data section's body (spec 4.1) from a model, with its build stamp: the one remembered while
  * the build inputs are unchanged, else a newly minted one.
  * @param model - The model.
@@ -2611,11 +2752,12 @@ function bodyOf(model: DataModel, choices: SourceChoices, problems: DocumentProb
     const edgeIds = edgeIdsOf(model);
     const { repeatedEdges } = model.session.config.data.knownFields;
     const repeated = repeatedEdges === "keep" ? {} : { repeatedEdges };
+    const memory = memoryOf(model.session);
     const digest = digestOf({
         directed: model.directed,
         ...repeated,
         sources: records.map(({ label: _label, loaded: _loaded, ...record }) => ({
-            ...record,
+            ...withoutExtras(record, memory.extras.get(String(record.id)) ?? readerExtras(memory, record)),
             copy: (record.origin as JsonObject).copy,
             columns: undefined,
         })),
@@ -2624,7 +2766,6 @@ function bodyOf(model: DataModel, choices: SourceChoices, problems: DocumentProb
         kept: issues?.kept,
         joins,
     });
-    const memory = memoryOf(model.session);
     if (memory.build?.digest !== digest) {
         memory.build = { digest, build: mintUlid() };
     }

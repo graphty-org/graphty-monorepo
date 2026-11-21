@@ -130,7 +130,12 @@
                                                             }
                                                         }
                                                     ],
-                                                    "unevaluatedProperties": false
+                                                    "unevaluatedProperties": false,
+                                                    "allOf": [
+                                                        {
+                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                                        }
+                                                    ]
                                                 }
                                             },
                                             {
@@ -218,7 +223,12 @@
                                                             }
                                                         }
                                                     ],
-                                                    "unevaluatedProperties": false
+                                                    "unevaluatedProperties": false,
+                                                    "allOf": [
+                                                        {
+                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                                        }
+                                                    ]
                                                 }
                                             },
                                             {
@@ -268,7 +278,12 @@
                                                             }
                                                         }
                                                     ],
-                                                    "unevaluatedProperties": false
+                                                    "unevaluatedProperties": false,
+                                                    "allOf": [
+                                                        {
+                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                                        }
+                                                    ]
                                                 }
                                             }
                                         ],
@@ -285,7 +300,12 @@
                     },
                     "required": ["id", "kind", "origin", "copy"],
                     "description": "The reader's own changes, as operations in the order made, applied after the join steps and the conversions. Always embedded, at most one. Any other member holds the data section.",
-                    "unevaluatedProperties": false
+                    "unevaluatedProperties": false,
+                    "allOf": [
+                        {
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                        }
+                    ]
                 },
                 "else": {
                     "type": "object",
@@ -302,7 +322,7 @@
                             "not": {
                                 "const": "reader"
                             },
-                            "description": "file, url, network, sample, derived (an open vocabulary: an unknown kind holds the data section)."
+                            "description": "An open vocabulary: file, url, network, sample, derived, or a reverse-domain kind such as org.example.cypher. A source of a kind the reader does not know is built from its copy when embedded, and held when referenced."
                         },
                         "format": {
                             "type": "string",
@@ -460,7 +480,12 @@
                                         "space": ["key"]
                                     },
                                     "description": "graphty-element's TableMapping for the node table. An absent role means none; without key every node row is keyless, in the space source:<source id>.",
-                                    "unevaluatedProperties": false
+                                    "unevaluatedProperties": false,
+                                    "allOf": [
+                                        {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                        }
+                                    ]
                                 },
                                 "edges": {
                                     "type": "object",
@@ -525,11 +550,21 @@
                                     },
                                     "required": ["source", "sourceSpace", "target", "targetSpace"],
                                     "description": "graphty-element's TableMapping for the edge table. sourceSpace and targetSpace are always written. Without edgeId, or for a row whose edge-id cell is null or empty, the edge is keyless.",
-                                    "unevaluatedProperties": false
+                                    "unevaluatedProperties": false,
+                                    "allOf": [
+                                        {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                        }
+                                    ]
                                 }
                             },
                             "description": "Closed. Every role is a working column name.",
-                            "unevaluatedProperties": false
+                            "unevaluatedProperties": false,
+                            "allOf": [
+                                {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                }
+                            ]
                         },
                         "settings": {
                             "type": "object",
@@ -544,7 +579,12 @@
                                 }
                             },
                             "description": "Closed: the per-load choices only. An absent member means its default.",
-                            "unevaluatedProperties": false
+                            "unevaluatedProperties": false,
+                            "allOf": [
+                                {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                }
+                            ]
                         },
                         "annotations": {
                             "type": "object"
@@ -655,12 +695,35 @@
                             "then": {
                                 "properties": {
                                     "origin": {
-                                        "propertyNames": {
-                                            "enum": ["copy", "url", "credentials", "etag", "lastModified", "ledger"]
+                                        "allOf": [
+                                            {
+                                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                            }
+                                        ],
+                                        "if": {
+                                            "not": {
+                                                "required": ["ignorable"]
+                                            }
+                                        },
+                                        "then": {
+                                            "propertyNames": {
+                                                "enum": [
+                                                    "copy",
+                                                    "url",
+                                                    "credentials",
+                                                    "etag",
+                                                    "lastModified",
+                                                    "ledger",
+                                                    "extensions"
+                                                ]
+                                            }
                                         }
                                     }
                                 }
                             }
+                        },
+                        {
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
                         }
                     ],
                     "unevaluatedProperties": false
@@ -714,7 +777,12 @@
                                 "column": ["values"],
                                 "values": ["column"]
                             },
-                            "unevaluatedProperties": false
+                            "unevaluatedProperties": false,
+                            "allOf": [
+                                {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                }
+                            ]
                         },
                         "minItems": 1
                     },
@@ -753,6 +821,9 @@
                                 }
                             }
                         }
+                    },
+                    {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
                     }
                 ],
                 "unevaluatedProperties": false

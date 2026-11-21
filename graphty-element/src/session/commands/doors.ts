@@ -2496,6 +2496,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             steppedPublishes: READ,
             reducedMotion: VIEW_SETTING,
             drawingHeld: READ,
+            // Asked by the frame loop once a frame: the frame after a switch to 2D flattened the arrangement takes no step.
+            takeFrameHold: TRANSPORT,
             placeGroups: TRANSPORT,
             groupBox: READ,
             getNodePosition: READ,

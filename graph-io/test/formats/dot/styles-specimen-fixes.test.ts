@@ -142,6 +142,16 @@ describe("DOT styles: outlines and shapes", () => {
         expect(count.d ?? 1).toBe(1);
     });
 
+    it("stops an edge at a node's outermost outline, 4 points past the first for each further one", async () => {
+        const doc = `digraph {
+            a [shape=box, peripheries=3]; b [shape=doublecircle]; c [shape=box]; d [shape=plaintext, peripheries=2];
+            a -> b; b -> c; c -> d; a -> a;
+        }`;
+        const [source, target] = [await edges(doc, "sourceNodeGap"), await edges(doc, "targetNodeGap")];
+        expect(source.map((v) => v ?? 0)).toEqual([8, 4, 0, 0]);
+        expect(target.map((v) => v ?? 0)).toEqual([4, 0, 0, 0]);
+    });
+
     it("draws a striped cluster's color list as stripes left to right, as on a box", async () => {
         const doc = `digraph { subgraph cluster_s { style=striped; fillcolor="red:green:blue"; a } }`;
         expect((await nodes(doc, "stripeColors")).cluster_s).toBe("#ff0000 #008000 #0000ff");

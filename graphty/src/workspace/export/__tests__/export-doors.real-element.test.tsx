@@ -213,10 +213,10 @@ describe("the Data output's format list and losses (R14)", () => {
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         await userEvent.click(within(dialog).getByRole("combobox", { name: "Format" }));
         await userEvent.click(await screen.findByRole("option", { name: "GEXF" }));
-        const note = await within(dialog).findByRole("note", {});
+        const note = await within(dialog).findByRole("status", {});
         const details = within(note).getByRole("button", { name: "Details" });
         assert.strictEqual(details.getAttribute("aria-expanded"), "false");
-        assert.match(note.textContent, /^Lost in GEXF: node label color not writtenDetails$/);
+        assert.match(note.textContent, /^Not in GEXF: node label color not writtenDetails$/);
         assert.isNull(within(note).queryByRole("list"));
 
         await userEvent.click(details);

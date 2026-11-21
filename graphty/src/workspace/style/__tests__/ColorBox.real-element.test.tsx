@@ -171,9 +171,12 @@ describe("a style line's color box", () => {
             const color = paint?.set?.["node.color"];
             assert.strictEqual(typeof color === "string" ? color.toUpperCase() : color, "#0000FF");
         });
-        assert.isNull(
-            document.querySelector('[data-testid="style-tab"] .ws-row[data-line="node.opacity"]'),
-            "no Opacity line of its own",
-        );
+        // The box beside the hex is not drawn at this width, so the opacity keeps a line of its own (#9295).
+        await waitFor(() => {
+            assert.isNotNull(
+                document.querySelector('[data-testid="style-tab"] .ws-row[data-line="node.opacity"]'),
+                "an Opacity line of its own",
+            );
+        });
     });
 });

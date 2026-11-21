@@ -16,6 +16,7 @@ import { GraphBuilder } from "@graphty/graph-format";
 import type { ForceAtlas2Options, FruchtermanReingoldOptions, SpringElectricalOptions } from "@graphty/layout";
 import { assert, describe, it } from "vitest";
 
+import { forceAtlas2MaxIterFor } from "../../src/layout/forceAtlas2Iterations";
 import { ForceAtlas2Layout } from "../../src/layout/ForceAtlas2LayoutEngine";
 import { iterationsPerStepFor, packedRadius, resolveNodeMass } from "../../src/layout/SimulationLayoutEngine";
 import { resolveSimulationOptions } from "../../src/managers/LayoutManager";
@@ -51,6 +52,18 @@ describe("the force layouts' option mapping", () => {
         // tuned one gets the arrangement they had.
         assert.strictEqual(forceAtlas2({ scalingFactor: 250 }).scale, 250);
         assert.strictEqual(forceAtlas2().scale, 100, "and its default travels with it");
+    });
+
+    it("leaves ForceAtlas2's iteration cap to the graph's size unless the reader sets one", () => {
+        // A fixed 100 left a 10,000-node graph as a ball (issue #9293).
+        assert.isUndefined(forceAtlas2().maxIter, "no cap of the reader's: the bridge scales one");
+        assert.strictEqual(forceAtlas2({ maxIter: 40 }).maxIter, 40);
+        assert.strictEqual(forceAtlas2({ maxIter: null }).maxIter, undefined);
+        assert.strictEqual(forceAtlas2MaxIterFor(0), 100);
+        assert.strictEqual(forceAtlas2MaxIterFor(224), 100, "a small graph keeps the 100 it always had");
+        assert.strictEqual(forceAtlas2MaxIterFor(1000), 300);
+        assert.strictEqual(forceAtlas2MaxIterFor(10_000), 1000);
+        assert.strictEqual(forceAtlas2MaxIterFor(10_100), 1000, "a few more nodes keep the same cap");
     });
 
     it("accepts a gravity of zero and refuses a gravity below it", () => {

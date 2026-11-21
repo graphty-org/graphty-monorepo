@@ -15,7 +15,16 @@ const EVENTS = "layoutstart layoutready layoutstop";
 function gridElements(): ElementDefinition[] {
     const els: ElementDefinition[] = [];
     for (let i = 0; i < 12; i++) {
-        els.push({ data: { id: `n${i}`, subset: i % 3, side: (Math.floor(i / 4) + (i % 4)) % 2 } });
+        els.push({
+            data: {
+                id: `n${i}`,
+                subset: i % 3,
+                side: (Math.floor(i / 4) + (i % 4)) % 2,
+                // for graphty-geographic
+                latitude: 10 * Math.floor(i / 4),
+                longitude: 10 * (i % 4),
+            },
+        });
     }
     for (let i = 0; i < 12; i++) {
         if (i % 4 < 3) {
@@ -82,8 +91,8 @@ beforeAll(() => {
 const runnable = LAYOUT_NAMES.filter((n) => n !== "spring-electrical");
 
 describe("every graphty layout", () => {
-    it("registers thirteen static layouts and three simulations", () => {
-        expect(LAYOUT_NAMES).toHaveLength(16);
+    it("registers fourteen static layouts and three simulations", () => {
+        expect(LAYOUT_NAMES).toHaveLength(17);
     });
 
     for (const name of runnable) {

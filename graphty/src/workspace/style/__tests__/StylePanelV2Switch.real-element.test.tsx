@@ -128,7 +128,10 @@ describe("Style panel v2's Switch to", () => {
         const tab = await openStyle("Key people");
         const shape = sectionOf(tab, "node-shape");
         const row = await rowOf(shape, "shape");
-        assert.isNotNull(row.querySelector('[data-line="node.size"]'), "Size is the row's common line");
+        // Size is its own row beside Shape (ia-design 2), so a switch of shape never touches it.
+        const size = (): Element | null => shape.querySelector('[data-thing="size"] [data-line="node.size"]');
+        assert.isNotNull(size(), "Size is its own row");
+        assert.isNull(row.querySelector('[data-line="node.size"]'), "not a line of the Shape row");
         assert.equal(await checkedMember(row, "Node shape"), "Basic shape");
 
         await pickMember(row, "Node shape", "Sticker");
@@ -144,8 +147,8 @@ describe("Style panel v2's Switch to", () => {
         assert.equal(written(session, id, "node.size"), 2, "the size stays");
         assert.equal(written(session, id, "node.color"), "#E8590C", "and the color");
         const after = await rowOf(shape, "shape");
-        assert.isNotNull(after.querySelector('[data-line="node.size"]'), "the Size line stays");
-        assert.lengthOf(shape.querySelectorAll("[data-thing]"), 1, "still one row, in the same section");
+        assert.isNotNull(size(), "the Size row stays");
+        assert.lengthOf(shape.querySelectorAll('[data-thing="shape"]'), 1, "still one Shape row, in the same section");
 
         // The Sticker's row has the same Switch to.
         assert.equal(await checkedMember(after, "Node shape"), "Sticker");
@@ -271,12 +274,13 @@ describe("Style panel v2's keys inside a thing's pop-over", () => {
         await session.styles.settled();
         const tab = await openStyle("Key people");
         const row = await rowOf(sectionOf(tab, "node-shape"), "shape");
-        const popover = await openSettings(row, "Node shape settings");
+        // W is the Size row's (ia-design 2).
+        const popover = await openSettings(await rowOf(sectionOf(tab, "node-shape"), "size"), "Node size settings");
 
         const width = [...screen.queryAllByRole("textbox"), ...screen.queryAllByRole("spinbutton")].find(
             (each) => popover.contains(each) && /width/i.test(each.getAttribute("aria-label") ?? ""),
         );
-        assert.isDefined(width, "the Size sub-group's W field");
+        assert.isDefined(width, "the Size pop-over's W field");
         await userEvent.clear(width);
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {

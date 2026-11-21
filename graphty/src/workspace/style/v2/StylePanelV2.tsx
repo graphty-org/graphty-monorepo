@@ -30,7 +30,7 @@ import { replaceUse } from "./families";
 import { kindGroupOf, type KindMember, kindsShown, kindStarts, ownsOf } from "./kindGroups";
 import { drawnItems, firstColors, ITEM_LISTS, LISTS } from "./lists";
 import { PlusList, PlusListKind } from "./PlusList";
-import { FIT_TO_LABEL, lineFor, V2_LABELS } from "./rubric";
+import { lineFor, V2_LABELS } from "./rubric";
 import { RubricLine } from "./RubricLine";
 import { ShaderUseRow } from "./ShaderUseRow";
 import { ThingRow } from "./ThingRow";
@@ -81,10 +81,9 @@ function thingChannels(
     );
     const offered = new Set(part.items.flatMap((item) => itemChannels(item)));
     const items = part.items.filter((item) => thing.items.includes(item.id)).flatMap((item) => itemChannels(item));
-    // Fit to label sizes the shape: it is the Shape thing's, not the Label's (design 4).
-    const moved = new Set<Channel>(thing.id === "shape" ? [] : FIT_TO_LABEL);
+    // A channel another thing owns (Fit to label is the Size row's, not the Label's) is that thing's alone.
     const own = (thing.own ?? []).filter((c) => kindChannels.has(c));
-    return [...new Set([...items.filter((c) => offered.has(c)), ...own])].filter((c) => !taken.has(c) && !moved.has(c));
+    return [...new Set([...items.filter((c) => offered.has(c)), ...own])].filter((c) => !taken.has(c));
 }
 
 /**

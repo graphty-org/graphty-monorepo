@@ -770,6 +770,8 @@ vec4 shade(NodeInput n) {
         const tab = await openStyle("Key people");
         const shape = sectionOf(tab, "node-shape");
         await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        // Shape's "+" lists Size and Shape (ia-design 2).
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const picker = await waitFor(() => {
             const found = shape.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
             assert.isNotNull(found);

@@ -118,6 +118,8 @@ describe("Style panel v2 on", () => {
         const tab = await openStyle("Key people");
         const shape = sectionOf(tab, "node-shape");
         await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        // Shape's "+" lists Size and Shape (ia-design 2).
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         await waitFor(() => {
             assert.isString(written(session, id, "node.shape"), "Shape's start is written");
         });
@@ -218,8 +220,10 @@ describe("Style panel v2's '+' lists", () => {
             await onlyPlusAdds(session, section, section.textContent ?? "a section");
         }
 
-        // A pop-over's group: the Shape the section loop added has sub-groups to add.
+        // A pop-over's group: a Shape, added from its section's menu (Size and Shape, ia-design 2), has sub-groups.
         const shape = sectionOf(tab, "node-shape");
+        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         await waitFor(() => {
             assert.isNotNull(shape.querySelector('[data-thing="shape"]'));
         });

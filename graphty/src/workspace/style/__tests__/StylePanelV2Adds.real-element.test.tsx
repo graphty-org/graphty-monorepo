@@ -132,6 +132,8 @@ describe('Style panel v2\'s "+" writes what a style needs to draw', () => {
         const tab = await openStyle("Key people");
         const shape = sectionOf(tab, "node-shape");
         await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        // Shape's "+" lists Size and Shape (ia-design 2).
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const row = await waitFor(() => {
             const found = shape.querySelector<HTMLElement>('[data-thing="shape"]');
             assert.isNotNull(found);

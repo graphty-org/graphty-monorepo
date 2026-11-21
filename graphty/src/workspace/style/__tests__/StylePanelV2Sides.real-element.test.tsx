@@ -113,18 +113,20 @@ describe("Style panel v2 splits a padding into its sides", () => {
         });
     });
 
-    it("a shape's Fit to label padding writes X and Y from one number, and the pair once Sides is on", async () => {
+    it("a node's Fit to label padding (the Size row's) writes X and Y from one number, and the pair once Sides is on", async () => {
         const { session, nodes } = await openGraph();
         const tab = await openStyle("Key people");
         const shape = sectionOf(tab, "node-shape");
         await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        // Shape's "+" lists Size and Shape; Fit to label sizes the node, so it is Size's (ia-design 2).
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
         const row = await waitFor(() => {
-            const found = shape.querySelector<HTMLElement>('[data-thing="shape"]');
+            const found = shape.querySelector<HTMLElement>('[data-thing="size"]');
             assert.isNotNull(found);
             return found;
         });
-        const pop = await popoverOf(row, /^Node shape settings/);
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to node shape settings" }));
+        const pop = await popoverOf(row, /^Node size settings/);
+        await userEvent.click(within(pop).getByRole("button", { name: "Add to node size settings" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Fit to label" }));
         const padding = await lineOf(pop, "node.labelPaddingX");
         assert.lengthOf(inputsOf(padding), 1, "one number while X and Y are joined");

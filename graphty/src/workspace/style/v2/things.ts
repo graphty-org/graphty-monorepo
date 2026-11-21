@@ -10,6 +10,7 @@ import type { Channel, ChannelDescriptor } from "@graphty/graphty-element/catalo
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
 import { lineIn, partlySet } from "../row";
+import { PATTERN_CHANNELS, SIZE_CHANNELS } from "./rubric";
 
 /** One thing a section's "+" adds and a row draws. */
 export interface ThingSpec {
@@ -100,9 +101,10 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                     },
                 ],
                 [{ id: "image", name: "Image", items: ["image"], main: ["node.image"] }],
+                // ia-design 2's order: stripes are set in more files than pies.
                 [
-                    { id: "pie", name: "Pie", items: ["pie"], main: ["node.pieColors"] },
                     { id: "stripes", name: "Stripes", items: ["stripes"], main: ["node.stripeColors"] },
+                    { id: "pie", name: "Pie", items: ["pie"], main: ["node.pieColors"] },
                     { id: "chart", name: "Chart", items: ["chart"], main: ["node.chartKind"] },
                 ],
             ],
@@ -137,6 +139,8 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
             part: "shape",
             groups: [
                 [
+                    // Size is its own row, first: "size by degree" needs no Shape row (ia-design 2, E189).
+                    { id: "size", name: "Size", items: [], main: ["node.size"], own: SIZE_CHANNELS },
                     {
                         id: "shape",
                         name: "Shape",
@@ -209,6 +213,8 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         main: ["edge.color", "edge.gradientColors"],
                         unnamed: true,
                     },
+                    // Pattern is its own item, so "dashed" is in "+" (ia-design 2).
+                    { id: "pattern", name: "Pattern", items: [], main: ["edge.style"], own: PATTERN_CHANNELS },
                 ],
                 [{ id: "band", name: "Band", items: ["band"], main: ["edge.bandColor"] }],
                 [{ id: "outline", name: "Outline", items: ["outline"], main: ["edge.outlineColor"] }],
@@ -234,7 +240,7 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
         {
             part: "route",
             groups: [
-                [{ id: "route", name: "Route", items: ["route"], main: ["edge.route"], unnamed: true }],
+                [{ id: "route", name: "Route", items: ["route"], main: ["edge.route"] }],
                 [
                     {
                         id: "bundling",

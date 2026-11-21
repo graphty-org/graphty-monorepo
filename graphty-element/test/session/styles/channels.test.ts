@@ -1450,6 +1450,7 @@ describe("ChannelDescriptor.needs and start", () => {
         }
 
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.patternCount"].start, 10);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.style"].start, "dash", "a pattern starts as one that shows");
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.animationSpeed"].start, 1);
         assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.wireframe"].needs, [
             { channel: "node.meshDetail", value: "low" },

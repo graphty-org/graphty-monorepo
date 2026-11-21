@@ -4814,6 +4814,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "line",
         accepts: "enum",
         values: EDGE_LINE_VALUES,
+        // A solid line is what an edge draws with nothing set: a pattern starts as one that shows.
+        start: "dash",
         stylePath: "line.type",
         renderable: true,
     },

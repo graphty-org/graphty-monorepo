@@ -140,6 +140,8 @@ describe("Style panel v2's node things", () => {
         const tab = await openStyle("Key people");
         const shape = sectionOf(tab, "node-shape");
         await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        // Shape's "+" lists Size and Shape (ia-design 2).
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const row = await rowOf(shape, "shape");
         assert.isNull(row.querySelector('.ws-row[data-line="node.size"]'), "an unset Size is not under the row");
 
@@ -149,7 +151,10 @@ describe("Style panel v2's node things", () => {
             assert.isNotNull(found);
             return found;
         });
-        assert.isNotNull(await lineOf(pop, "node.size"), "Size leads the pop-over's Main");
+        assert.isNull(
+            pop.querySelector('[data-line="node.size"]'),
+            "Size is its own row, not the Shape's (ia-design 2)",
+        );
         assert.isNull(within(pop).queryByRole("group", { name: "Corners" }), "Corners waits for its '+'");
         await userEvent.click(within(pop).getByRole("button", { name: "Add to node shape settings" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Corners" }));
@@ -172,6 +177,8 @@ describe("Style panel v2's node things", () => {
         const tab = await openStyle("Key people");
         const shape = sectionOf(tab, "node-shape");
         await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        // Shape's "+" lists Size and Shape (ia-design 2).
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const row = await rowOf(shape, "shape");
         const picker = await waitFor(() => {
             const found = row.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
@@ -247,6 +254,8 @@ describe("Style panel v2's node things", () => {
         // Inner lines are the custom shape's: the Shape pop-over's Custom shape sub-group (ia-design 2).
         const shape = sectionOf(tab, "node-shape");
         await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        // Shape's "+" lists Size and Shape (ia-design 2).
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const row = await rowOf(shape, "shape");
         await userEvent.click(within(row).getByRole("button", { name: /^Node shape settings/ }));
         const pop = await waitFor(() => {

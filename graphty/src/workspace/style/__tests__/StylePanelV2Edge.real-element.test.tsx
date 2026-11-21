@@ -3,7 +3,7 @@
  * (design/ui/style-panel-v2/design.md, sections 4.2, 7.2 and 8): Arrows adds a Target arrow whose
  * arrow comes from a list shown one section at a time, with a Size line under it; the Line's Width
  * line, its Pattern sub-group and the dash length | gap pair; a caption's distance from its end in
- * its Position sub-group; the Route row's icon segments. Each write is undone in one step (edits of
+ * its Position sub-group; the Route row's value list. Each write is undone in one step (edits of
  * one layer within the element's coalescing window may share that step, so an Undo is checked only
  * for the write it must take back).
  */
@@ -136,6 +136,17 @@ async function settingsLine(row: HTMLElement, title: string, selector: string): 
     return found(pop, selector);
 }
 
+/**
+ * Picks a route from the Route row's value list (ia-design 2: the route is a list, each route with its icon).
+ * @param row - the Route row.
+ * @param name - the route's name.
+ */
+async function pickRoute(row: HTMLElement, name: RegExp): Promise<void> {
+    await userEvent.click(await found(row, '[data-value-listbox="edge.route"]'));
+    const list = await screen.findByRole("group", { name: /values$/ });
+    await userEvent.click(within(list).getByRole("option", { name }));
+}
+
 describe("Style panel v2's edge things", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
@@ -198,18 +209,25 @@ describe("Style panel v2's edge things", () => {
             assert.isUndefined(written(session, id, "edge.width"), "one Undo takes the width off");
         });
 
-        await userEvent.click(within(row).getByRole("button", { name: /^Edge line settings/ }));
-        const pop = await found(document, "[data-thing-popover]");
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to edge line settings" }));
+        // Pattern is the Line section's own item (ia-design 2): its "+" starts a dashed line.
+        await userEvent.click(within(line).getByRole("button", { name: /^Add to edge line/ }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Pattern" }));
-        const pattern = await within(pop).findByRole("group", { name: "Pattern" });
-        await userEvent.click(await found(pattern, '[data-value-listbox="edge.style"]'));
-        const list = await screen.findByRole("group", { name: /values$/ });
-        await userEvent.click(within(list).getByRole("option", { name: /^Dashed/ }));
         await waitFor(() => {
-            assert.equal(written(session, id, "edge.style"), "dash");
+            assert.equal(written(session, id, "edge.style"), "dash", "'+' Pattern starts a pattern that shows");
+        });
+        const patternRow = await found(line, '[data-thing="pattern"]');
+        await userEvent.click(await found(patternRow, '[data-value-listbox="edge.style"]'));
+        const list = await screen.findByRole("group", { name: /values$/ });
+        await userEvent.click(within(list).getByRole("option", { name: /^Dot/ }));
+        await waitFor(() => {
+            assert.equal(written(session, id, "edge.style"), "dot", "the row's list picks the pattern");
         });
 
+        await userEvent.click(within(patternRow).getByRole("button", { name: /^Edge pattern settings/ }));
+        const pop = await found(document, "[data-thing-popover]");
+        await userEvent.click(within(pop).getByRole("button", { name: "Add to edge pattern settings" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Dashes" }));
+        const pattern = await within(pop).findByRole("group", { name: "Dashes" });
         const dash = await found(pattern, '.ws-row[data-line="edge.dashLength"]');
         await typeInto(dash, "0.4");
         await waitFor(() => {
@@ -257,7 +275,7 @@ describe("Style panel v2's edge things", () => {
         });
     });
 
-    it("the Route row switches to Arc by its icon segment, and one Undo switches back", async () => {
+    it("the Route row switches to Arc from its value list, and one Undo switches back", async () => {
         const { session, id, tab } = await openEdges();
         const row = await addFromTitle(tab, "edge-route", "Route", "route");
         const start = await waitFor(() => {
@@ -266,10 +284,7 @@ describe("Style panel v2's edge things", () => {
             return value;
         });
         assert.notEqual(start, "arc");
-        const radio = within(row).getByRole("radio", { name: "Arc" });
-        const label = document.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
-        assert.isNotNull(label);
-        await userEvent.click(label);
+        await pickRoute(row, /^Arc/);
         await waitFor(() => {
             assert.equal(written(session, id, "edge.route"), "arc");
         });
@@ -304,10 +319,7 @@ describe("Style panel v2's edge things", () => {
         });
         await session.styles.settled();
         const before = await picture(element);
-        const radio = within(row).getByRole("radio", { name: "Bundling" });
-        const label = document.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
-        assert.isNotNull(label);
-        await userEvent.click(label);
+        await pickRoute(row, /^Bundl/);
         await waitFor(() => {
             assert.equal(written(session, id, "edge.route"), "bundled");
         });

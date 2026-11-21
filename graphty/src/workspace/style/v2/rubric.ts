@@ -107,12 +107,6 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
     "node.modelDoubleSided": { file: { name: "File" }, true: { name: "On" }, false: { name: "Off" } },
     "node.labelFit": { inside: { name: "Inside" }, bounds: { name: "Bounds" } },
     "node.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
-    "edge.route": {
-        straight: { name: "Straight", glyph: "routeStraight" },
-        arc: { name: "Arc", glyph: "routeArc" },
-        "great-circle": { name: "Great circle", glyph: "routeGreatCircle" },
-        bundled: { name: "Bundling", glyph: "routeBundled" },
-    },
     "edge.gradientKind": {
         linear: { name: "Linear", glyph: "gradientLinear" },
         radial: { name: "Radial", glyph: "gradientRadial" },
@@ -133,6 +127,12 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
  * lucide"), by channel and value id.
  */
 export const VALUE_GLYPHS: Partial<Readonly<Record<Channel, Readonly<Record<string, keyof typeof GLYPHS>>>>> = {
+    "edge.route": {
+        straight: "routeStraight",
+        arc: "routeArc",
+        "great-circle": "routeGreatCircle",
+        bundled: "routeBundled",
+    },
     "edge.bendCurve": { corners: "bendCorners", midpoints: "bendMidpoints", bezier: "bendBezier", arc: "routeArc" },
     "node.chartKind": {
         bar: "chartBar",
@@ -149,7 +149,7 @@ const BORDER_UNIT: readonly (readonly [string, Channel])[] = [
     ["Screen", "node.borderScreenWidth"],
 ];
 
-/** Fit to label: sizes the shape to its label, so it sits in the Shape pop-over (design 4). */
+/** Fit to label: sizes the node to its label, so it sits in the Size pop-over (ia-design 2). */
 export const FIT_TO_LABEL: readonly Channel[] = [
     "node.labelFit",
     "node.labelPaddingX",
@@ -160,39 +160,55 @@ export const FIT_TO_LABEL: readonly Channel[] = [
     "node.labelFitImagePadding",
 ];
 
+/** Every channel of the Size row (ia-design 2: Size is its own row, so "size by degree" needs no Shape, E189). */
+export const SIZE_CHANNELS: readonly Channel[] = [
+    "node.size",
+    "node.sizeSpace",
+    "node.sizeMode",
+    "node.width",
+    "node.height",
+    "node.depth",
+    "node.relativeExtents",
+    "node.planar",
+    ...FIT_TO_LABEL,
+];
+
+/** The Size row: its settings are the size's unit, mode and extents, and Fit to label (ia-design 2). */
+const SIZE_RUBRIC: ThingRubric = {
+    main: [
+        { channel: "node.sizeSpace", name: "Unit", rule: "R8f" },
+        { channel: "node.sizeMode", rule: "R8f" },
+        { channel: "node.width", name: "Size", pair: "node.height", letters: ["W", "H"] },
+        { channel: "node.depth" },
+        { channel: "node.relativeExtents" },
+        { channel: "node.planar" },
+    ],
+    groups: [
+        {
+            name: "Fit to label",
+            lines: [
+                { channel: "node.labelFit", name: "Fit", rule: "R8" },
+                {
+                    channel: "node.labelPaddingX",
+                    name: "Padding",
+                    pair: "node.labelPaddingY",
+                    letters: ["X", "Y"],
+                    sides: true,
+                },
+                { channel: "node.labelFitSquare" },
+                { channel: "node.labelFitQuantum" },
+                { channel: "node.labelFitImage" },
+                { channel: "node.labelFitImagePadding" },
+            ],
+        },
+    ],
+};
+
 /** Every Shape member's sub-groups: thing-wide (design 5). */
 const SHAPE_GROUPS: readonly SubGroup[] = [
     {
-        name: "Size",
-        lines: [
-            { channel: "node.sizeSpace", name: "Unit", rule: "R8f" },
-            { channel: "node.sizeMode", rule: "R8f" },
-            { channel: "node.width", name: "Size", pair: "node.height", letters: ["W", "H"] },
-            { channel: "node.depth" },
-            { channel: "node.relativeExtents" },
-            { channel: "node.planar" },
-        ],
-    },
-    {
         name: "Finish",
         lines: [{ channel: "node.wireframe" }, { channel: "node.flat" }, { channel: "node.unlit" }],
-    },
-    {
-        name: "Fit to label",
-        lines: [
-            { channel: "node.labelFit", name: "Fit", rule: "R8" },
-            {
-                channel: "node.labelPaddingX",
-                name: "Padding",
-                pair: "node.labelPaddingY",
-                letters: ["X", "Y"],
-                sides: true,
-            },
-            { channel: "node.labelFitSquare" },
-            { channel: "node.labelFitQuantum" },
-            { channel: "node.labelFitImage" },
-            { channel: "node.labelFitImagePadding" },
-        ],
     },
 ];
 
@@ -201,7 +217,6 @@ const SHAPE_GROUPS: readonly SubGroup[] = [
  * parameters stay the Shaders section's row's; the pop-over holds every Shape member's sub-groups.
  */
 export const SHAPE_REPLACE_RUBRIC: ThingRubric = {
-    common: [{ channel: "node.size" }],
     main: [{ channel: "node.shapeRotation", name: "Rotation" }],
     groups: SHAPE_GROUPS,
 };
@@ -228,8 +243,8 @@ function backdrop(of: "underlay" | "overlay"): ThingRubric {
  * label, external label and tooltip edit their label style field by field (`labelRubric.ts`).
  */
 export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
+    size: SIZE_RUBRIC,
     shape: {
-        common: [{ channel: "node.size" }],
         main: [
             { channel: "node.shapeRotation", name: "Rotation" },
             { channel: "node.meshDetail", name: "Detail", rule: "R5b" },
@@ -260,7 +275,6 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     "shape:node.model": {
-        common: [{ channel: "node.size" }],
         main: [
             { channel: "node.shape", name: "Fallback shape", rule: "R10" },
             { channel: "node.modelTint", name: "Tint", rule: "R9" },
@@ -496,15 +510,16 @@ const LINE_GROUPS: readonly SubGroup[] = [
             { channel: "edge.fadeOpacity", name: "Opacity" },
         ],
     },
-    {
-        name: "Pattern",
-        lines: [
-            { channel: "edge.style", name: "Pattern", rule: "R10" },
-            { channel: "edge.patternCount", name: "Count" },
-            { channel: "edge.dashLength", name: "Dash", pair: "edge.dashGap" },
-            { channel: "edge.waveAmplitude", name: "Wave", pair: "edge.wavePeriod" },
-        ],
-    },
+];
+
+/** Every channel of an edge's Pattern row (ia-design 2: it leaves the Line pop-over, so "dashed" shows in "+"). */
+export const PATTERN_CHANNELS: readonly Channel[] = [
+    "edge.style",
+    "edge.patternCount",
+    "edge.dashLength",
+    "edge.dashGap",
+    "edge.waveAmplitude",
+    "edge.wavePeriod",
 ];
 
 /** An edge end's channels' stem. */
@@ -577,6 +592,15 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
         groups: LINE_GROUPS,
     },
+    // The row is the sectioned pattern list; its settings the count, and dashes and waves (ia-design 2).
+    pattern: {
+        row: { channel: "edge.style", name: "Pattern", rule: "R10" },
+        main: [{ channel: "edge.patternCount", name: "Count" }],
+        groups: [
+            { name: "Dashes", lines: [{ channel: "edge.dashLength", name: "Dash", pair: "edge.dashGap" }] },
+            { name: "Wave", lines: [{ channel: "edge.waveAmplitude", name: "Wave", pair: "edge.wavePeriod" }] },
+        ],
+    },
     band: {
         main: [
             { channel: "edge.bandWidth", name: "Width" },
@@ -595,10 +619,14 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     "arrow:edge.arrowTail": edgeEnd("arrowTail"),
     "arrow:edge.arrowMiddleHead": edgeEnd("arrowMiddleHead"),
     "arrow:edge.arrowMiddleTail": edgeEnd("arrowMiddleTail"),
+    // The route is a value list like Shape's and Pattern's, each route with its icon, and Curve its line (ia-design 2).
     route: {
-        // No name: its section is Route, and four routes, Bundling among them, need the full width.
-        row: { channel: "edge.route", name: null, rule: "R8" },
-        main: [],
+        row: { channel: "edge.route", name: "Route", rule: "R10" },
+        common: [{ channel: "edge.curvature", name: "Curve" }],
+        main: [
+            { channel: "edge.arcRadius", name: "Radius" },
+            { channel: "edge.arcHeight", name: "Height" },
+        ],
         groups: [
             {
                 name: "Bundling",
@@ -608,15 +636,7 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                 ],
             },
             {
-                name: "Curve",
-                lines: [
-                    { channel: "edge.curvature", name: "Curved" },
-                    { channel: "edge.arcRadius", name: "Radius" },
-                    { channel: "edge.arcHeight", name: "Height" },
-                ],
-            },
-            {
-                name: "Fan",
+                name: "Parallel edges",
                 lines: [
                     { channel: "edge.fanned", name: "Fanned" },
                     { channel: "edge.fanSpacing", name: "Spacing" },

@@ -92,9 +92,10 @@ describe("Style panel v2 on several layers", () => {
         await waitFor(() => {
             assert.deepEqual(
                 ids.map((id) => [valueOf(session, id, "node.shape"), valueOf(session, id, "node.size")]),
+                // Size is its own row (ia-design 2): the Shape's minus leaves it.
                 [
-                    [undefined, undefined],
-                    [undefined, undefined],
+                    [undefined, 2],
+                    [undefined, 3],
                 ],
             );
         });
@@ -129,6 +130,8 @@ describe("Style panel v2 on several layers", () => {
         const tab = await screen.findByTestId("style-tab");
         const shape = await waitFor(() => sectionOf(tab, "node-shape"));
         await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        // Shape's "+" lists Size and Shape (ia-design 2).
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         await waitFor(() => {
             const shapes = [id, other].map((each) => valueOf(session, each, "node.shape"));
             assert.isString(shapes[0]);

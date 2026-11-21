@@ -37,7 +37,9 @@ async function custom(
     const text = shaderTemplate({ target, place: place as "paint" })
         .replace(/"id": "[^"]*"/, `"id": "${id}"`)
         .replace(/"name": "[^"]*"/, `"name": "Test ${target} ${places?.join(" ") ?? place}"`)
-        .replace(/"place": "[^"]*"/, (found) => (places === undefined ? found : `${found}, "places": ${JSON.stringify(places)}`));
+        .replace(/"place": "[^"]*"/, (found) =>
+            places === undefined ? found : `${found}, "places": ${JSON.stringify(places)}`,
+        );
     const added = await session.shaders.add(text);
     assert.isTrue(added.ok, JSON.stringify(added));
     return id;
@@ -71,6 +73,8 @@ async function openShapeList(): Promise<void> {
     await showKind("node");
     const shape = sectionOf(tab, "node-shape");
     await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+    // Shape's "+" lists Size and Shape (ia-design 2).
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
     const picker = await waitFor(() => {
         const found = shape.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
         assert.isNotNull(found);

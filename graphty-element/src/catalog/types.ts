@@ -982,6 +982,7 @@ export type Channel =
     | "edge.colorFrom"
     | "edge.width"
     | "edge.minScreenWidth"
+    | "edge.drawOrder"
     | "edge.fadeStart"
     | "edge.fadeEnd"
     | "edge.fadeOpacity"

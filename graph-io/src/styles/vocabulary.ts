@@ -244,6 +244,7 @@ export const STYLE_PROPERTIES: {
         ["opacity", "opacity"],
         ["width", "number"],
         ["minScreenWidth", "number"],
+        ["drawOrder", "number"],
         ["outlineWidth", "number"],
         ["outlineColor", "color"],
         ["outlineOpacity", "opacity"],

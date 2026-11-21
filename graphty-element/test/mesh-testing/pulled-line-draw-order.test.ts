@@ -89,6 +89,38 @@ describe("pulled line batch draw order", () => {
         assert.deepEqual(drawn(), [0, 5, 3, 4, 1, 2]);
     });
 
+    it("draws a piece of a higher draw order after every piece of a lower one, whatever its width", () => {
+        const pieces = [
+            [2, 50],
+            [1, 0],
+            [2, 0],
+            [1, 10],
+        ].map(([width, order]) => batch.acquire(width, order));
+
+        assert.deepEqual(pieces, [0, 1, 2, 3]);
+        assert.deepEqual(drawn(), [2, 1, 3, 0]);
+        // a piece with none draws after every piece with one, as the object path's batches are drawn
+        assert.equal(batch.acquire(2), 4);
+        assert.deepEqual(drawn(), [2, 1, 3, 0, 4]);
+    });
+
+    it("orders one width's pieces by draw order alone", () => {
+        [30, 0, 20].forEach((order) => batch.acquire(3, order));
+
+        assert.deepEqual(drawn(), [1, 2, 0]);
+    });
+
+    it("draws a curve's pieces in its entry's draw order", () => {
+        const curve = new PulledLineBatch(MeshBuilder.CreateBox("curve", {}, scene), scene, () => rows, true);
+        const high = curve.acquire(1, 40);
+        const low = curve.acquire(1, 0);
+        curve.flush();
+        const order = curve.drawOrder ?? [];
+
+        assert.isAbove(order.indexOf(high), order.indexOf(low));
+        curve.dispose();
+    });
+
     it("keeps plain piece order for one width, freed pieces included, with no order table", () => {
         [3, 3, 3, 3].forEach((width) => batch.acquire(width));
         batch.release(1);

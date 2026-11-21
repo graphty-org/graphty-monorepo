@@ -439,9 +439,18 @@ export function installFocusGuard(): () => void {
         attributes: true,
         attributeFilter: ["hidden", "style", "class", "disabled", "inert", "aria-selected"],
     });
+    // How the reader last pressed, for the inspector title's ring (frame.css, #9290).
+    const onPress = (event: Event): void => {
+        document.documentElement.dataset.wsLastPress = event.type === "keydown" ? "key" : "pointer";
+    };
     document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onPress, true);
+    document.addEventListener("pointerdown", onPress, true);
     return () => {
+        document.removeEventListener("keydown", onPress, true);
+        document.removeEventListener("pointerdown", onPress, true);
+        delete document.documentElement.dataset.wsLastPress;
         observer.disconnect();
         cancelAnimationFrame(pending);
         // The frame may have run already and queued the rescue: a stopped guard moves no focus.

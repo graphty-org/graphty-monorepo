@@ -999,6 +999,26 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Whether a {@link LayoutEngine.publishColumn} that may place a row for the first time leaves this
+     * row as the lane holds it, judged without writing a publish the lane owes.
+     * @param lane - The lane.
+     * @param row - The row, inside the lane's live count.
+     * @param x - The x the publish carries for it.
+     * @param y - The y.
+     * @param z - The z.
+     * @returns True when the publish would not write the row.
+     * @internal
+     */
+    protected publishLeavesRow(lane: ElementPositions, row: number, x: number, y: number, z: number): boolean {
+        if (!isPublishable(row, x, y, z)) {
+            return true;
+        }
+
+        const placed = isStorableCoordinate(lane.unsettledView()[POSITION_COMPONENTS * row]);
+        return placed && this.keptInPlace(row, placed, lane.isPinned(row), this.holdsAny) !== null;
+    }
+
+    /**
      * Whether a publish leaves a row where it is: one the working graph hides keeps its place
      * undrawn, and a pinned or held row keeps its place drawn.
      * @param row - The row.

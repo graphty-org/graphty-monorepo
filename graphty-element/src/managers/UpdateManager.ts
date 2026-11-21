@@ -3289,6 +3289,7 @@ export class UpdateManager implements Manager {
         const framing = this.willZoomToFit();
 
         // Update nodes and edges
+        this.readsAhead();
         this.updateNodes(published);
         this.updateEdges();
         this.frameTransition();
@@ -3957,6 +3958,18 @@ export class UpdateManager implements Manager {
 
         for (const edge of this.placedEdges()) {
             edge.update();
+        }
+    }
+
+    /**
+     * Under "batched", tell the row table how many rows this frame reads one at a time: each built `Node` its own,
+     * each placed edge both its ends'. When that is more than a GPU landing the lane owes answers by row (every
+     * edge arrowed builds every node), the landing is written before the first read, not after a quarter of them.
+     */
+    private readsAhead(): void {
+        const table = this.graphContext.getRowTable?.() ?? null;
+        if (table !== null && this.dataManager.renderLimits?.batched() === true) {
+            table.willRead(dataManagerInternals.nodesLive(this.dataManager) + 2 * this.placedEdges().length);
         }
     }
 

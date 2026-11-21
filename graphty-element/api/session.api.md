@@ -7441,7 +7441,7 @@ export interface StylesApi {
     mark(spec: MarkSpec, options?: RunOptions): Run<readonly Layer[]>;
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
     moveRow(id: StyleRowId, to: StyleRowPlace, options?: RunOptions): Run<StyleRow>;
-    newLabelId(id: LayerId): string;
+    newLabelId(id: LayerId, taken?: readonly string[]): string;
     parts(id: LayerId): RowParts | undefined;
     pinRow(id: StyleRowId, pin: StyleRowPin, options?: RunOptions): Run<StyleRow>;
     preview(binding: RuleBinding, options: {

@@ -233,6 +233,12 @@ describe("a label list", () => {
             },
         });
         assert.notStrictEqual(session.styles.newLabelId(layer.id), id, "and never the same one twice once it is used");
+        const next = session.styles.newLabelId(layer.id);
+        assert.notStrictEqual(
+            session.styles.newLabelId(layer.id, [next]),
+            next,
+            "and skips the ids it is told are taken",
+        );
 
         let refused: unknown;
         try {

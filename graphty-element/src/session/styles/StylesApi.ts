@@ -1003,6 +1003,7 @@ export interface StylesApi {
      * An id for a new label of a label list (`node.labels`, `edge.labels`) that no label on the
      * layer's stack uses yet, so a label added to that layer never merges into another one.
      * @param id - The layer the label is added to; its target picks the list.
+     * @param taken - Ids to skip as well, such as ones already handed to labels not yet written.
      * @returns The id, such as `"label-2"`.
      * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
      * @example
@@ -1012,7 +1013,7 @@ export interface StylesApi {
      * ```
      * @since 3.63.0
      */
-    newLabelId(id: LayerId): string;
+    newLabelId(id: LayerId, taken?: readonly string[]): string;
     /**
      * Resolve once the element has finished painting everything it started for itself.
      *
@@ -6011,7 +6012,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return buildLegend(legendSources);
         },
 
-        newLabelId(id: LayerId): string {
+        newLabelId(id: LayerId, taken: readonly string[] = []): string {
             const layers = listLayers();
             const layer = layers.find((each) => each.id === id);
             if (layer === undefined) {
@@ -6022,7 +6023,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             const list = `${layer.target}.labels`;
-            const used = new Set<string>([MAIN_LABEL_ID]);
+            const used = new Set<string>([MAIN_LABEL_ID, ...taken]);
             for (const each of layers) {
                 const set = each.set?.[list as Channel];
                 for (const entry of Array.isArray(set) ? (set as readonly LabelEntry[]) : []) {

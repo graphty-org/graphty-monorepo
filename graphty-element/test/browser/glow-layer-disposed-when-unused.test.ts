@@ -13,6 +13,7 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 
 const WIDTH = 320;
 const HEIGHT = 240;
@@ -97,7 +98,10 @@ describe("glow layer when no node glows", () => {
             0,
             "With no node glowing, the glow layer must be disposed rather than rendering nothing every frame",
         );
-        assert.isUndefined(graph.scene.metadata?.glowLayer, "the cached layer is forgotten with it");
+        assert.isUndefined(
+            (graph.scene.metadata as GraphSceneMetadata | null)?.glowLayer,
+            "the cached layer is forgotten with it",
+        );
 
         await addGlow();
         const glowing = await frame();

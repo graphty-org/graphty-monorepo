@@ -18,7 +18,6 @@ import type { CaptureResult, PostHog, PostHogConfig } from "posthog-js";
 // The file's URL, not the module: a failed load is retried at a URL the browser has not seen.
 import posthogUrl from "posthog-js/full/no-external?url";
 
-import { appFeatureOn } from "../features";
 import { type SiteConfig, siteConfig } from "../siteConfig";
 import { startUsageDataIfShared } from "../workspace/privacy/usageData";
 import { sentryConfigured } from "./sentry";
@@ -651,8 +650,8 @@ function forgetVisits(): void {
 }
 
 /**
- * Removes the app's own visit and survey records, for a No with the usage-analytics experiment off:
- * an earlier visit with it on may have written them, and nothing else removes them while it is off.
+ * Removes the app's own visit and survey records, for a No where the page sends PostHog nothing:
+ * an earlier visit that sent PostHog may have written them, and nothing else removes them here.
  */
 export function forgetAnalyticsRecords(): void {
     forgetVisits();
@@ -726,14 +725,14 @@ function postHogTarget(config: SiteConfig): { key: string; host: string } | unde
 }
 
 /**
- * Whether this page sends PostHog anything: the usage-analytics experiment on, a PostHog key and
- * host in site.json, and the site's own host. The words that say what is sent follow this, so a
- * site with the experiment on and nothing to send to (no PostHog ids) says what it does: nothing.
+ * Whether this page sends PostHog anything: a PostHog key and host in site.json, and the site's own
+ * host. The words that say what is sent follow this, so a site with nothing to send to (no PostHog
+ * ids) says what it does: nothing.
  * @param config - the site's configuration; the loaded one by default.
  * @returns true when PostHog may run on this page.
  */
 export function analyticsSends(config: SiteConfig = siteConfig()): boolean {
-    return appFeatureOn("usage-analytics", config.features) && postHogTarget(config) !== undefined;
+    return postHogTarget(config) !== undefined;
 }
 
 /**
@@ -770,17 +769,15 @@ export function startPageCounts(config: SiteConfig): void {
 }
 
 /**
- * Everything analytics does at boot (section 3), in order. Where the page sends PostHog nothing (the
- * usage-analytics experiment off, a site with no PostHog ids, or off the site's own
- * host; section 11) only error reporting starts, for a reader who said Share on an earlier visit: no
- * PostHog, no visit record, and the address bar left as it is.
+ * Everything analytics does at boot (section 3), in order. Where the page sends PostHog nothing (a
+ * site with no PostHog ids, or off the site's own host; section 11) only error reporting starts,
+ * for a reader who said Share on an earlier visit: no PostHog, no visit record, and the address bar
+ * left as it is.
  * @param config - the site's configuration.
  */
 export function startAnalyticsAtBoot(config: SiteConfig): void {
     if (!analyticsSends(config)) {
-        if (appFeatureOn("usage-analytics", config.features)) {
-            warnOffHost(config);
-        }
+        warnOffHost(config);
         startUsageDataIfShared();
         return;
     }

@@ -267,26 +267,24 @@ function listed(
 }
 
 /**
- * Add the new edges, grouped by the columns their ends and weight are read from, and give back
- * the session edge id of each by its built id.
+ * The writes that add a diff's new edges: one `add-edges` per set of columns their ends and weight
+ * are read from, each with the built ids of its records in order.
  * @param edges - The edges to add, by built id, in build order.
- * @param ctx - The command's context.
- * @returns The ids.
+ * @returns The writes.
  */
-function addEdges(edges: readonly (readonly [string, ProjectedEdge])[], ctx: UndoableContext): Record<string, EdgeId> {
-    const out: Record<string, EdgeId> = {};
-    const service = serviceOf(ctx.services.data);
+export function edgeAddsOf(
+    edges: readonly (readonly [string, ProjectedEdge])[],
+): { readonly mutation: DataMutation; readonly built: readonly string[] }[] {
     const groups = new Map<string, (readonly [string, ProjectedEdge])[]>();
     for (const each of edges) {
         const { ends, weight } = each[1];
         const k = JSON.stringify([ends.source, ends.target, weight ?? null]);
         groups.set(k, [...(groups.get(k) ?? []), each]);
     }
-    for (const group of groups.values()) {
+    return [...groups.values()].map((group) => {
         const { ends, weight } = group[0][1];
-        const before = new Set(ctx.state.graph.edges.keys());
-        service.apply(
-            {
+        return {
+            mutation: {
                 kind: "add-edges",
                 records: group.map(([, e]) => e.record),
                 source: ends.source,
@@ -294,18 +292,46 @@ function addEdges(edges: readonly (readonly [string, ProjectedEdge])[], ctx: Und
                 repeated: "keep",
                 ...(weight === undefined ? {} : { weight }),
             },
-            ctx.draft,
-            ctx.after,
-        );
-        // Fresh ids are counters handed out in record order.
-        const fresh = [...ctx.state.graph.edges.keys()]
-            .filter((id) => !before.has(id))
-            .sort((a, b) => Number(a) - Number(b));
-        group.forEach(([key], at) => {
-            if (fresh[at] !== undefined) {
-                out[key] = fresh[at];
-            }
-        });
+            built: group.map(([key]) => key),
+        };
+    });
+}
+
+/**
+ * The session edge id one `add-edges` gave each of its records: fresh ids are counters handed out
+ * in record order.
+ * @param before - The edge ids the graph held before the write.
+ * @param after - The edge ids it holds after.
+ * @param built - The built id of each record, in order.
+ * @param out - Where each built id's session id is written.
+ */
+export function freshEdgeIds(
+    before: ReadonlySet<EdgeId>,
+    after: Iterable<EdgeId>,
+    built: readonly string[],
+    out: Record<string, EdgeId>,
+): void {
+    const fresh = [...after].filter((id) => !before.has(id)).sort((a, b) => Number(a) - Number(b));
+    built.forEach((key, at) => {
+        if (fresh[at] !== undefined) {
+            out[key] = fresh[at];
+        }
+    });
+}
+
+/**
+ * Add the new edges and give back the session edge id of each by its built id.
+ * @param edges - The edges to add, by built id, in build order.
+ * @param ctx - The command's context.
+ * @returns The ids.
+ */
+function addEdges(edges: readonly (readonly [string, ProjectedEdge])[], ctx: UndoableContext): Record<string, EdgeId> {
+    const out: Record<string, EdgeId> = {};
+    const service = serviceOf(ctx.services.data);
+    for (const { mutation, built } of edgeAddsOf(edges)) {
+        const before = new Set(ctx.state.graph.edges.keys());
+        service.apply(mutation, ctx.draft, ctx.after);
+        freshEdgeIds(before, ctx.state.graph.edges.keys(), built, out);
     }
     return out;
 }
@@ -366,7 +392,7 @@ function newestLoaded(value: SourceSteps): StepsSource | undefined {
  * @param graph - The build.
  * @returns The report to write, or null when it already says so or there is nothing to say.
  */
-function reportOfBuild(report: LoadReport | undefined, graph: ProjectedGraph): LoadReport | null {
+export function reportOfBuild(report: LoadReport | undefined, graph: ProjectedGraph): LoadReport | null {
     // addEdges groups the new edges by ends and weight, in the order each group first appears.
     const first = new Map<string, ProjectedEdge["ends"]>();
     for (const { ends, weight } of graph.edges.values()) {
@@ -394,7 +420,7 @@ function reportOfBuild(report: LoadReport | undefined, graph: ProjectedGraph): L
  * @param diff - The diff.
  * @param apply - Applies one mutation.
  */
-function removeAndPatch(diff: GraphDiff, apply: (mutation: DataMutation) => void): void {
+export function removeAndPatch(diff: GraphDiff, apply: (mutation: DataMutation) => void): void {
     if (diff.removeEdges.length > 0) {
         apply({ kind: "remove-edges", ids: diff.removeEdges });
     }
@@ -456,7 +482,8 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
     ],
     keys: () => ["graph"],
     lane: { kind: "queued", category: "data-add" },
-    byReference: ["copies"],
+    // A draft commit's base is compared by identity with the value it lands on.
+    byReference: ["copies", "draftBase"],
     execute: (command, ctx) => {
         if (ctx.services.sourceSteps?.() === false) {
             throw featureOff("source-steps", "data");
@@ -488,9 +515,11 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
             removeStrays(ctx, before, edgeIds);
         }
         removeAndPatch(diff, apply);
-        const declared = adds?.source.declared;
+        const declared = edit.kind === "restore" ? undefined : newlyDeclared(prior, edited);
         if (declared !== undefined) {
-            // As an import of the file does: taken only while no edge is drawn yet.
+            // As an import of the file does: taken only while no edge is drawn yet. A source a
+            // step reads for the first time (an add, a staged source added, a draft's commit)
+            // brings the direction its file declares.
             service.direct(declared.directed, declared.statedBy, ctx.draft);
         }
         if (diff.addNodes.length > 0) {
@@ -517,6 +546,25 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         refreshDerivedAfter(ctx);
     },
 };
+
+/**
+ * The direction declared by the first source a step reads now that none read before.
+ * @param prior - The value before the edit.
+ * @param edited - The value after it.
+ * @returns The direction, or undefined when no newly read source declares one.
+ */
+function newlyDeclared(prior: SourceSteps, edited: SourceSteps): StepsSource["declared"] {
+    const unread = (value: SourceSteps, id: string): boolean => {
+        if (value.sources[id] === undefined) {
+            return true;
+        }
+        const state = sourceState(value, id);
+        return state === "staged" || state === "held";
+    };
+    return Object.values(edited.sources).find(
+        (src) => src.declared !== undefined && !unread(edited, src.id) && unread(prior, src.id),
+    )?.declared;
+}
 
 /** The source-steps ops' definitions. */
 export const SOURCE_STEPS_DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [dataStepsSet];

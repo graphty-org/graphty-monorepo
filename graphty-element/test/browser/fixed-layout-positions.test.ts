@@ -83,6 +83,26 @@ describe("the fixed layout", () => {
         assert.closeTo(at("c").y - at("b").y, gap, 1e-4, "the same factor on every axis");
     });
 
+    it("spreads the same when the edges arrive after the layout has placed the nodes (issue #9257)", async () => {
+        await placeFixed([
+            { id: "a", position: { x: 0, y: 0, z: 0 } },
+            { id: "b", position: { x: 1, y: 0, z: 0 } },
+            { id: "c", position: { x: 1, y: 1, z: 0 } },
+        ]);
+        assert.closeTo(at("b").x - at("a").x, 1, 1e-4, "no edge to measure yet: drawn as given");
+
+        await graph.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
+        await operationQueueOf(graph).waitForCompletion();
+        graph.update();
+
+        const gap = at("b").x - at("a").x;
+        assert.closeTo(gap, 3, 1e-4, "spread as when nodes and edges arrive together");
+        assert.closeTo(at("c").y - at("b").y, gap, 1e-4, "the same factor on every axis");
+    });
+
     it("reports W_NO_POSITION with how many nodes had no data position", async () => {
         // Top-level coordinates are not a position: the shape the guide used to show.
         await placeFixed([{ id: "a", position: { x: 10, y: 0, z: 0 } }, { id: "b", x: 100, y: 0, z: 0 }, { id: "c" }]);

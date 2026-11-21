@@ -380,6 +380,8 @@ export interface BuiltElement {
     rule?: Record<string, ClashRule>;
     /** The step whose rule settled each such column. */
     ruleStep?: Record<string, number>;
+    /** The steps whose value for each column differed from the one shown before it, in order. */
+    differAt?: Record<string, number[]>;
     /** The reader edit that sets each edited column. */
     edited?: Record<string, ReaderEdit>;
     clashColumns?: Record<string, ClashColumn>;
@@ -452,6 +454,24 @@ export interface StepStats {
     emptyKey: number;
     repeatedKept: number;
     hub: { value: string; rows: number }[];
+    /** Rows of one repeated key whose values differ, by column (the cells `rowsDiffer` counts). */
+    rowsDifferIn: Record<string, number>;
+    /** End pairs this step joined with an edge when an earlier edge already joined them. */
+    parallelPairs: number;
+    /** Edge ends that found a node already built, by the space they look in. */
+    endsMeet: Record<string, number>;
+    /** Edge ends that found no node, so made one or left the row out, by space. */
+    endsMissing: Record<string, number>;
+    /** For `join.add`: nodes of the source's own space its edges name but its node rows lack. */
+    namedOnly: number;
+    /** Key values reaching more than one node (the keys behind `fanOut`). */
+    repeated1: number;
+    /** Key values the step's own rows hold more than once. */
+    repeated2: number;
+    /** Nodes this step made that the graph holds, by type; untyped ones are left out. */
+    newNodeTypes: Record<string, number>;
+    /** Edges this step made that the graph holds, by type; untyped ones are left out. */
+    newEdgeTypes: Record<string, number>;
 }
 
 /** A build outcome, as a code and its parameters. */
@@ -460,6 +480,25 @@ export type BuildIssue =
     | { readonly code: "W_VALUE_HUB"; readonly params: { source: string; column: string; value: string; rows: number } }
     | { readonly code: "E_EDGE_KEY_COLLISION"; readonly params: { load: string; key: string; steps: number[] } }
     | { readonly code: "W_REFERENCE_UNBOUND"; readonly params: { ref: ElementRef; edit: string } };
+
+/**
+ * One thing a step's count counted, kept so a draft's preview can list what is behind each count:
+ * a row of a source, an element, a key, or a cell (an element and a column).
+ */
+export interface DrillUnit {
+    /** The source whose row it is; absent, the step's own source. */
+    readonly source?: string;
+    /** The row's table, when known without its element. */
+    readonly table?: TableName;
+    /** The row's place in its table. */
+    readonly row?: number;
+    /** The element's internal id when it was counted; later merges and moves reach it through the aliases. */
+    readonly element?: string;
+    /** The key it was counted by, for a count of keys or of node 2s. */
+    readonly key?: string;
+    /** The column, space or type of a count kept by name. */
+    readonly name?: string;
+}
 
 /** Whether one reader operation found its element. */
 export interface ReaderResult {
@@ -481,4 +520,6 @@ export interface BuildResult {
     readonly fates: Map<string, Map<string, RowFate>>;
     /** Each reader operation, in order, and whether it applied. */
     readonly readerResults: ReaderResult[];
+    /** What each count of each built step counted: by step place, then by count name. */
+    readonly drill: ReadonlyMap<number, ReadonlyMap<string, readonly DrillUnit[]>>;
 }

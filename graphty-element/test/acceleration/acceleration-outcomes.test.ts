@@ -3,7 +3,7 @@
  * `capabilities.acceleration`, and at most one console line per page per code.
  */
 
-import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, type MockInstance, vi } from "vitest";
 
 import { AccelerationController } from "../../src/acceleration/AccelerationController";
 import { resetUnavailableReports } from "../../src/acceleration/consoleReport";
@@ -59,8 +59,8 @@ function incompatible(): unknown {
     return null;
 }
 
-let warn: ReturnType<typeof vi.spyOn>;
-let error: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<typeof console.warn>;
+let error: MockInstance<typeof console.error>;
 
 beforeEach(() => {
     resetUnavailableReports();

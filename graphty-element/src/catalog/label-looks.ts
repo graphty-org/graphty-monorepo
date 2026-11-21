@@ -167,6 +167,8 @@ export function leavingLook(held: Readonly<Record<string, unknown>>, look: unkno
     }
 
     const left: Record<string, unknown> = { ...held };
+    // ponytail: matched by value, so a field the style beneath wrote itself at exactly its look's value goes too;
+    // keep the look's expansion apart from the layer's own fields if a reader ever needs that value kept.
     for (const [field, value] of Object.entries(from.style)) {
         if (left[field] === value) {
             Reflect.deleteProperty(left, field);

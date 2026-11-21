@@ -610,6 +610,7 @@ function ownUnder(
     }
 
     const left: Record<string, unknown> = { ...own };
+    // ponytail: matched by value, as leavingLook is: a field a layer set at exactly the look's value goes too.
     for (const [field, value] of Object.entries(richTextOf(from.style))) {
         if (left[field] === value) {
             Reflect.deleteProperty(left, field);

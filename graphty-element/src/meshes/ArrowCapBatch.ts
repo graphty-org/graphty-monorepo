@@ -3,15 +3,18 @@
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import { BoundingBox } from "@babylonjs/core/Culling/boundingBox.js";
+import type { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
 import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
+import { trimEnds } from "./edgeTrim";
 import { batchUploadFrames, type RangedUploads } from "./FrameRoster";
 import { ParkedSlots } from "./ParkedSlots";
 import { takePoolReserve } from "./poolReserve";
+import { type PulledCapLook, type RestSource, RestWatch, roundRowEnd, rowCapScale } from "./restPlacement";
 
 /** Floats in one 4x4 world matrix, which is what every slot holds. */
 const FLOATS_PER_MATRIX = 16;
@@ -40,6 +43,43 @@ const TRANSPARENT_PASS = 0.5;
 
 /** One of the {@link BILLBOARD_BUFFERS}. */
 type BillboardBuffer = keyof typeof BILLBOARD_BUFFERS;
+
+/**
+ * The per-instance values a batch on renderPath "batched" adds for its caps pulled from the row table
+ * ({@link ArrowCapBatch.setPulled}): a slot's two rows plus one (0 for a placed cap), and its own gap, how far its
+ * center sits behind its tip and its length at node scale 1, and 1 once placed at rest.
+ */
+const PULLED_BUFFERS = { capRows: 2, capPlace: 4 } as const;
+
+/** One of the {@link PULLED_BUFFERS}. */
+type PulledBuffer = keyof typeof PULLED_BUFFERS;
+
+/** Any buffer a batch writes per slot. */
+type SlotBuffer = "matrix" | BillboardBuffer | PulledBuffer;
+
+/** The buffers of a batch that also draws caps pulled from the row table. */
+const PULLED_EVERY_BUFFER: readonly SlotBuffer[] = [
+    "matrix",
+    ...(Object.keys(BILLBOARD_BUFFERS) as BillboardBuffer[]),
+    "capRows",
+    "capPlace",
+];
+
+/** What a pulled cap stands back by, at node scale 1. */
+export interface PulledCapPlace {
+    /** The cap's own gap back from the head end (`Edge.capGap`). */
+    readonly capGap: number;
+    /** How far its center sits behind its tip (`EdgeMesh.calculateArrowPosition`). */
+    readonly centreBack: number;
+    /** Its length. */
+    readonly size: number;
+}
+
+/**
+ * The row table and layout of each scene drawn on renderPath "batched", set by its graph: a cap batch made there also
+ * draws caps pulled from the row table (`FilledArrowRenderer.capBatchOf`).
+ */
+export const pulledCapHosts = new WeakMap<Scene, RestSource>();
 
 /** The buffers of a batch with no per-slot billboard values, and of one with them. */
 const MATRIX_ONLY = ["matrix"] as const;
@@ -164,14 +204,27 @@ export class ArrowCapBatch {
     private live = 0;
 
     /** Which slots of each buffer have been written since the last upload. */
-    private readonly runs: Record<"matrix" | BillboardBuffer, DirtyRuns> = {
+    private readonly runs: Record<SlotBuffer, DirtyRuns> = {
         matrix: new DirtyRuns(),
         arrowDirection: new DirtyRuns(),
         arrowSize: new DirtyRuns(),
         arrowColor: new DirtyRuns(),
         arrowClip: new DirtyRuns(),
         arrowHidden: new DirtyRuns(),
+        capRows: new DirtyRuns(),
+        capPlace: new DirtyRuns(),
     };
+
+    /** A batch's caps pulled from the row table, on renderPath "batched": their buffers, and what places them. */
+    private readonly pulled: {
+        floats: Record<PulledBuffer, Float32Array>;
+        readonly host: RestSource;
+        readonly looks: (PulledCapLook | undefined)[];
+        readonly watch: RestWatch;
+    } | null = null;
+
+    /** Caps pulled from the row table placed on the CPU at rest, counted for tests. */
+    placedCaps = 0;
 
     /** The scene's switch for uploading only what was written; see {@link batchUploadFrames}. */
     private readonly uploads: RangedUploads;
@@ -190,8 +243,10 @@ export class ArrowCapBatch {
      * @param key - What the caps in this batch have in common.
      * @param scene - The scene that renders it.
      * @param billboard - Whether the caps read direction, size and color per instance.
+     * @param host - The row table and layout a billboarded batch on renderPath "batched" pulls caps from
+     *     ({@link ArrowCapBatch.setPulled}); null for none.
      */
-    constructor(mesh: Mesh, key: string, scene: Scene, billboard: boolean) {
+    constructor(mesh: Mesh, key: string, scene: Scene, billboard: boolean, host: RestSource | null = null) {
         this.mesh = mesh;
         this.key = key;
         this.shape = mesh.name;
@@ -256,6 +311,18 @@ export class ArrowCapBatch {
 
             for (const [kind, stride] of Object.entries(BILLBOARD_BUFFERS)) {
                 mesh.thinInstanceSetBuffer(kind, this.billboard[kind as BillboardBuffer], stride, false);
+            }
+
+            if (host !== null) {
+                const floats = {
+                    capRows: new Float32Array(INITIAL_SLOTS * PULLED_BUFFERS.capRows),
+                    capPlace: new Float32Array(INITIAL_SLOTS * PULLED_BUFFERS.capPlace),
+                };
+                for (const [kind, stride] of Object.entries(PULLED_BUFFERS)) {
+                    mesh.thinInstanceSetBuffer(kind, floats[kind as PulledBuffer], stride, false);
+                }
+
+                this.pulled = { floats, host, looks: [], watch: new RestWatch() };
             }
         }
 
@@ -355,6 +422,7 @@ export class ArrowCapBatch {
         }
 
         this.hide(index);
+        this.unpull(index);
         this.free.push(index);
         this.live--;
         // A free slot draws nothing and counts for no pass. It keeps its opacity, as the GPU does,
@@ -769,7 +837,15 @@ export class ArrowCapBatch {
 
     /** Upload everything written since the last upload: per buffer, whole or by runs of slots. */
     flush(): void {
-        const kinds = this.billboard ? EVERY_BUFFER : MATRIX_ONLY;
+        const { pulled } = this;
+        let kinds: readonly SlotBuffer[] = this.billboard ? EVERY_BUFFER : MATRIX_ONLY;
+        if (pulled !== null) {
+            kinds = PULLED_EVERY_BUFFER;
+        }
+        if (pulled !== null && !this.gone) {
+            this.followRest(pulled);
+        }
+
         // Babylon rebuilds a thin-instance buffer empty after a lost GL context (it keeps no copy
         // of data uploaded in part), so the first frame after one uploads every buffer again.
         if (batchUploadFrames.isRestoring(this.mesh.getScene())) {
@@ -813,7 +889,7 @@ export class ArrowCapBatch {
      * @param kind - The buffer.
      * @param index - The slot.
      */
-    private written(kind: "matrix" | BillboardBuffer, index: number): void {
+    private written(kind: SlotBuffer, index: number): void {
         this.runs[kind].mark(index, this.uploads.on, this.highWater);
     }
 
@@ -823,8 +899,8 @@ export class ArrowCapBatch {
      * @param kind - The buffer.
      * @param runs - The runs to send, or null for every slot up to the high-water mark.
      */
-    private sendBillboard(kind: BillboardBuffer, runs: readonly number[] | null): void {
-        const data = this.billboard?.[kind];
+    private sendBillboard(kind: BillboardBuffer | PulledBuffer, runs: readonly number[] | null): void {
+        const data = kind === "capRows" || kind === "capPlace" ? this.pulled?.floats[kind] : this.billboard?.[kind];
         const buffer = this.mesh.getVertexBuffer(kind)?.getWrapperBuffer();
         if (data === undefined || buffer === undefined) {
             return;
@@ -835,7 +911,7 @@ export class ArrowCapBatch {
             return;
         }
 
-        const width = BILLBOARD_BUFFERS[kind];
+        const width = kind === "capRows" || kind === "capPlace" ? PULLED_BUFFERS[kind] : BILLBOARD_BUFFERS[kind];
         for (let i = 0; i < runs.length; i += 2) {
             const [at, end] = [runs[i], runs[i + 1]];
             buffer.updateDirectly(data.subarray(at * width, end * width), at * width, end - at);
@@ -886,6 +962,166 @@ export class ArrowCapBatch {
             widened.set(this.billboard[name]);
             this.billboard[name] = widened;
             this.mesh.thinInstanceSetBuffer(kind, widened, stride, false);
+        }
+
+        const { pulled } = this;
+        if (pulled !== null) {
+            for (const [kind, stride] of Object.entries(PULLED_BUFFERS)) {
+                const name = kind as PulledBuffer;
+                const widened = new Float32Array(capacity * stride);
+                widened.set(pulled.floats[name]);
+                pulled.floats[name] = widened;
+                this.mesh.thinInstanceSetBuffer(kind, widened, stride, false);
+            }
+        }
+    }
+
+    /**
+     * Draw a slot's cap pulled from the row table at the head end of the straight line between two rows, as
+     * `Edge.placeArrowHead` stands an object edge's head (renderPath "batched" only): written when an edge joins or
+     * changes its look, never because a node moved. Its color and opacity are its own, as a placed cap's are.
+     * @param index - The slot, taken with {@link ArrowCapBatch.acquire}.
+     * @param rows - The other end's row and the head end's; a row of -1 draws nothing.
+     * @param rows.from - The other end's row.
+     * @param rows.head - The head end's row.
+     * @param place - What it stands back by, at node scale 1.
+     * @param look - What it is placed by at rest, shared by every cap of its style.
+     * @param colour - Its color, as a hex string.
+     * @param opacity - Its opacity.
+     */
+    setPulled(
+        index: number,
+        rows: { from: number; head: number },
+        place: PulledCapPlace,
+        look: PulledCapLook,
+        colour: string,
+        opacity: number,
+    ): void {
+        const { pulled } = this;
+        if (this.gone || pulled === null) {
+            return;
+        }
+
+        pulled.looks[index] = look;
+        pulled.floats.capPlace.set([place.capGap, place.centreBack, place.size, 0], index * PULLED_BUFFERS.capPlace);
+        this.written("capPlace", index);
+        this.setAppearance(index, place.size, colour, opacity);
+        this.setPulledRows(index, rows.from, rows.head);
+    }
+
+    /**
+     * Draw a pulled cap between two rows, or nothing with a row of -1, keeping what it stands back by.
+     * @param index - The slot.
+     * @param from - The other end's row.
+     * @param head - The head end's row.
+     */
+    setPulledRows(index: number, from: number, head: number): void {
+        const { pulled } = this;
+        if (this.gone || pulled === null) {
+            return;
+        }
+
+        const drawn = from >= 0 && head >= 0;
+        if (!drawn) {
+            this.hide(index);
+        } else if (this.matrices[index * FLOATS_PER_MATRIX + 15] === 0) {
+            // shown again: the identity back, which the shader reads as drawn
+            IDENTITY.copyToArray(this.matrices, index * FLOATS_PER_MATRIX);
+            this.written("matrix", index);
+        }
+
+        pulled.floats.capRows.set(drawn ? [from + 1, head + 1] : [0, 0], index * PULLED_BUFFERS.capRows);
+        this.written("capRows", index);
+        // the shader stands it from its rows until the next rest places it
+        pulled.floats.capPlace[index * PULLED_BUFFERS.capPlace + 3] = 0;
+        this.written("capPlace", index);
+        pulled.watch.touch();
+    }
+
+    /**
+     * Make a slot a placed cap again, as it was taken: no rows, no look.
+     * @param index - The slot.
+     */
+    private unpull(index: number): void {
+        const { pulled } = this;
+        if (pulled?.looks[index] === undefined) {
+            return;
+        }
+
+        pulled.looks[index] = undefined;
+        pulled.floats.capRows.fill(0, index * PULLED_BUFFERS.capRows, (index + 1) * PULLED_BUFFERS.capRows);
+        pulled.floats.capPlace.fill(0, index * PULLED_BUFFERS.capPlace, (index + 1) * PULLED_BUFFERS.capPlace);
+        this.written("capRows", index);
+        this.written("capPlace", index);
+    }
+
+    /**
+     * Bind the row table, and place the pulled caps on the CPU once the rows are at rest (`restPlacement.ts`), by the
+     * same float64 arithmetic as `Edge.placeArrowHead` over the row table (`Edge.interceptPointsFromColumns`), so a
+     * still graph draws the objects picture; a frame that moves a row hands them back to the shader.
+     * @param pulled - The pulled caps.
+     */
+    private followRest(pulled: NonNullable<ArrowCapBatch["pulled"]>): void {
+        const material = this.mesh.material as ShaderMaterial | null;
+        const { rows } = pulled.host;
+        material?.setTexture("rowPosition", rows.positionTexture);
+        material?.setTexture("rowExtent", rows.extentTexture);
+        if (pulled.watch.due(pulled.host)) {
+            this.placePulled(pulled);
+            pulled.watch.done(rows);
+        }
+
+        material?.setFloat("capPlaced", pulled.watch.placed ? 1 : 0);
+    }
+
+    /**
+     * Place every drawn pulled cap with two rows, as {@link ArrowCapBatch.followRest} says.
+     * @param pulled - The pulled caps.
+     */
+    private placePulled(pulled: NonNullable<ArrowCapBatch["pulled"]>): void {
+        const { rows } = pulled.host;
+        const { capRows, capPlace } = pulled.floats;
+        for (let index = 0; index < this.highWater; index++) {
+            const look = pulled.looks[index];
+            const [from, head] = [capRows[index * 2] - 1, capRows[index * 2 + 1] - 1];
+            if (look === undefined || from < 0 || head < 0 || this.matrices[index * FLOATS_PER_MATRIX + 15] === 0) {
+                continue;
+            }
+
+            const source = roundRowEnd(rows, from, 0);
+            const target = roundRowEnd(rows, head, 0);
+            if (source === null || target === null) {
+                continue;
+            }
+
+            // Edge.placeArrowCaps over Edge.interceptPointsFromColumns, then Edge.placeArrowHead
+            const [fromAt, headAt] = [rows.centerOf(from), rows.centerOf(head)];
+            // a hidden row draws no cap: the shader stands it, and draws nothing
+            if (rows.drawnPart(from) * rows.drawnPart(head) === 0) {
+                continue;
+            }
+
+            const { src, dst } = trimEnds({ src: fromAt, dst: headAt, source, target, capBack: 0 });
+            if (src === null || dst === null) {
+                continue;
+            }
+
+            const srcPoint = new Vector3(src.x, src.y, src.z);
+            const dstPoint = new Vector3(dst.x, dst.y, dst.z);
+            const direction = dstPoint.subtract(srcPoint).normalize();
+            const tip = dstPoint.subtract(direction.scale(capPlace[index * 4]));
+            const length = look.size * rowCapScale(rows, head);
+            const hidden = this.billboard?.arrowHidden[index] === 1;
+            this.placeAt(index, look.centreAt(tip, direction, length), direction);
+            if (hidden) {
+                // placing forgets a parked cap: the visibility mask still hides it
+                this.park(index);
+            }
+
+            this.setBillboardSize(index, length);
+            capPlace[index * 4 + 3] = 1;
+            this.written("capPlace", index);
+            this.placedCaps++;
         }
     }
 }
@@ -1189,9 +1425,16 @@ export function arrowCapMeshes(scene: Scene): Mesh[] {
  *     the shared material rather than in a per-instance buffer.
  * @param build - Builds the batch's mesh, with its material, for a key the scene has not drawn.
  * @param billboard - Whether these caps read direction, size and color per instance.
+ * @param host - The row table a batch on renderPath "batched" pulls caps from; null for none.
  * @returns The batch to take a slot in.
  */
-export function arrowCapBatch(scene: Scene, key: string, build: () => Mesh, billboard: boolean): ArrowCapBatch {
+export function arrowCapBatch(
+    scene: Scene,
+    key: string,
+    build: () => Mesh,
+    billboard: boolean,
+    host: RestSource | null = null,
+): ArrowCapBatch {
     let byKey = batchesByScene.get(scene);
 
     if (!byKey) {
@@ -1205,7 +1448,7 @@ export function arrowCapBatch(scene: Scene, key: string, build: () => Mesh, bill
         return existing;
     }
 
-    const batch = new ArrowCapBatch(build(), key, scene, billboard);
+    const batch = new ArrowCapBatch(build(), key, scene, billboard, host);
     byKey.set(key, batch);
 
     return batch;

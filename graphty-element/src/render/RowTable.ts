@@ -591,6 +591,16 @@ export class RowTable {
     }
 
     /**
+     * How much of a row is drawn, as its `rowPosition` w holds it: 0 for a hidden row, which a pulled line or cap
+     * between it and another draws nothing for. Read after {@link RowTable.centerOf}, which brings the row up to date.
+     * @param row - The row.
+     * @returns Its w.
+     */
+    drawnPart(row: number): number {
+        return this.positions.floats[row * POSITION_FLOATS + 3] ?? 0;
+    }
+
+    /**
      * Whether a row's body is drawn translucent, so a line leaves it at its outline (`ROW_EXTENT_SEEN_THROUGH`).
      * @param row - The row.
      * @returns True when it is.

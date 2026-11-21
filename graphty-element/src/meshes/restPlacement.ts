@@ -1,13 +1,28 @@
+import type { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+
 import type { RowTable } from "../render/RowTable";
 import { TRIM_CLOSED, type TrimEnd } from "./edgeTrim";
 
 /**
  * @file Placing what the row table pulls on the CPU once the rows are at rest (renderPath "batched"). A pulled
- * arrowhead (`PulledCapBatch`) and the line under it (`PulledLineBatch.setCapBack`) are stood by the shader in float32,
+ * arrowhead (`ArrowCapBatch.setPulled`) and the line under it (`PulledLineBatch.setCapBack`) are stood by the shader in float32,
  * which differs from the objects path's float64 placement by an anti-aliasing sample where a head meets its node. At
  * rest they are placed by the objects path's own arithmetic over the row table, so a still graph draws the objects
  * picture; a frame that moves a row hands them back to the shader, so a moving graph writes no byte for them.
  */
+
+/**
+ * How a pulled head is drawn, shared by every head of one style: what `ArrowCapBatch` places one by at rest, and
+ * `PulledLineBatch` the line under it.
+ */
+export interface PulledCapLook {
+    /** Its length at node scale 1. */
+    readonly size: number;
+    /** Where its center stands for a tip, a direction and a length (`EdgeMesh.calculateArrowPosition`). */
+    readonly centreAt: (tip: Vector3, direction: Vector3, length: number) => Vector3;
+    /** How far before the tip the line stops for a length (`EdgeMesh.lineStopOf`). */
+    readonly lineStopAt: (length: number) => number;
+}
 
 /** What a batch reads to place its pieces at rest. */
 export interface RestSource {

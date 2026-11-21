@@ -9,9 +9,9 @@
 import { Color4, Constants, Engine, FreeCamera, Logger, RawTexture, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
+import { ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import { trimEnds } from "../../src/meshes/edgeTrim";
 import { FilledArrowRenderer } from "../../src/meshes/FilledArrowRenderer";
-import { PulledCapBatch } from "../../src/meshes/PulledCapBatch";
 
 const SIZE = 240;
 const ROWS = 60;
@@ -99,8 +99,6 @@ describe("pulled arrow caps", () => {
             return {
                 from: Math.floor(random() * CAPS),
                 head: CAPS + e,
-                fromGap: e % 5 === 0 ? 0.08 : 0,
-                headGap: e % 7 === 0 ? 0.06 : 0,
                 capGap: e % 3 === 0 ? 0.05 : 0,
                 centreBack: e % 2 === 0 ? 0 : 0.1,
                 size: 0.5 * (1 + (e % 4) * 0.25),
@@ -171,14 +169,51 @@ describe("pulled arrow caps", () => {
         );
         const placedMesh = placed[0].batchMesh;
         assert(placedMesh, "the placed caps' batch");
-        const pulled = new PulledCapBatch(
-            FilledArrowRenderer.applyPulledShader(FilledArrowRenderer.createTriangle(false, scene), 1, scene),
+        // The row table as the batch reads it: its textures, and on the CPU what a rest placement reads.
+        let settled = false;
+        let moves = 0;
+        const table = {
+            get positionTexture() {
+                return positionTexture;
+            },
+            get extentTexture() {
+                return extentTexture;
+            },
+            get moves() {
+                return moves;
+            },
+            centerOf: at,
+            extentOf: (row: number) => ({
+                scale: rows[row].scale,
+                round: rows[row].radius,
+                half: end(row, 0).half,
+                border: rows[row].border,
+            }),
+            seenThrough: () => false,
+            drawnPart: (row: number) => places[row * 4 + 3],
+        };
+        const pulled = new ArrowCapBatch(
+            FilledArrowRenderer.applyInstancedShader(
+                FilledArrowRenderer.createTriangle(false, scene),
+                1,
+                scene,
+                undefined,
+                true,
+            ),
+            "pulled",
             scene,
-            () => ({ position: positionTexture, extent: extentTexture }),
+            true,
+            { rows: table as never, settled: () => settled },
         );
         const slots = caps.map((cap) => {
             const slot = pulled.acquire();
-            pulled.setCap(slot, cap);
+            const { scale } = rows[cap.head];
+            const look = {
+                size: cap.size,
+                centreAt: (tip: Vector3, direction: Vector3) => tip.subtract(direction.scale(cap.centreBack * scale)),
+                lineStopAt: () => 0,
+            };
+            pulled.setPulled(slot, cap, cap, look, cap.colour, 1);
             return slot;
         });
 
@@ -189,8 +224,8 @@ describe("pulled arrow caps", () => {
                 const ends = trimEnds({
                     src: at(cap.from),
                     dst: at(cap.head),
-                    source: end(cap.from, cap.fromGap),
-                    target: end(cap.head, cap.headGap),
+                    source: end(cap.from, 0),
+                    target: end(cap.head, 0),
                     capBack: 0,
                 });
                 const { scale } = rows[cap.head];
@@ -225,8 +260,17 @@ describe("pulled arrow caps", () => {
         assert.strictEqual(differing(still, stillPulled), KNOWN.still, "pixels differ at rest");
         assert.isAtMost(farthest(still, stillPulled), ONE_SAMPLE, "at rest, by one sample at most");
 
+        // At rest the batch places its caps on the CPU, by the placed caps' own arithmetic: the same picture.
+        settled = true;
+        await both();
+        const [, stillPlaced] = await both();
+        assert.strictEqual(pulled.placedCaps, CAPS - overlapping, "caps placed at rest");
+        assert.strictEqual(differing(still, stillPlaced), 0, "pixels differ once placed at rest");
+        const placedAtRest = pulled.placedCaps;
+
         // Move every row: the placed caps are placed again, the pulled ones only read.
-        const uploaded = pulled.uploadedBytes;
+        settled = false;
+        moves++;
         for (let r = 0; r < ROWS; r++) {
             places[r * 4] += 0.37;
             places[r * 4 + 1] -= 0.21;
@@ -234,7 +278,7 @@ describe("pulled arrow caps", () => {
         positionTexture.update(places);
         placeAll();
         const [moved, movedPulled] = await both();
-        assert.strictEqual(pulled.uploadedBytes, uploaded, "cap bytes uploaded on a move");
+        assert.strictEqual(pulled.placedCaps, placedAtRest, "caps placed on the CPU on a move");
         assert.strictEqual(differing(moved, movedPulled), KNOWN.moved, "pixels differ after a move");
         assert.isAtMost(farthest(moved, movedPulled), ONE_SAMPLE, "after a move, by one sample at most");
 

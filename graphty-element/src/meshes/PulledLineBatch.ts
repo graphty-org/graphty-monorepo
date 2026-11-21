@@ -17,9 +17,8 @@ import { type EdgeLineMeta, markEdgeLineBatchMesh, patternSpacing } from "./Edge
 import { trimEnds } from "./edgeTrim";
 import { batchUploadFrames } from "./FrameRoster";
 import { takePoolReserve } from "./poolReserve";
-import type { PulledCapLook } from "./PulledCapBatch";
 import { CURVE_STRIDE, curveShape, type CurveSpan } from "./pulledCurve";
-import { type RestSource, RestWatch, roundRowEnd, rowCapScale } from "./restPlacement";
+import { type PulledCapLook, type RestSource, RestWatch, roundRowEnd, rowCapScale } from "./restPlacement";
 
 /**
  * @file Straight edges drawn from the row table: a piece is two row numbers, not twenty floats.
@@ -747,7 +746,7 @@ export class PulledLineBatch {
 
     /**
      * Stop a straight piece short of its target's outline for an arrowhead drawn from the row table
-     * (`PulledCapBatch`), in the slot a plain piece leaves unused: the piece then runs from its source's outline to
+     * (`ArrowCapBatch.setPulled`), in the slot a plain piece leaves unused: the piece then runs from its source's outline to
      * the head's back, as `Edge.transformArrowCap` ends an object edge's line (`PULLED_TRIM_GLSL`'s `pulledCapTrim`).
      * @param piece - The piece.
      * @param back - How far before the target's outline the line stops, at node scale 1 (`EdgeMesh.lineStopOf`);
@@ -985,7 +984,8 @@ export class PulledLineBatch {
 
             const placed =
                 look === undefined ? this.bareEnds(rows, from, head) : this.cappedEnds(rows, from, head, look);
-            if (placed === null) {
+            // a hidden row draws no line: the shader trims it, and draws nothing
+            if (placed === null || rows.drawnPart(from) * rows.drawnPart(head) === 0) {
                 continue;
             }
 

@@ -4,14 +4,13 @@ import type { EdgeStyleConfig } from "../config";
 import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import type { RowTable } from "../render/RowTable";
+import type { ArrowCapBatch, PulledCapPlace } from "./ArrowCapBatch";
 import { EdgeMesh } from "./EdgeMesh";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
-import type { MeshCache } from "./MeshCache";
-import { PulledCapBatch, type PulledCapLook, type PulledCapPlace } from "./PulledCapBatch";
-import type { RestSource } from "./restPlacement";
+import type { PulledCapLook } from "./restPlacement";
 
 /**
- * @file An arrowhead drawn from the row table (`PulledCapBatch`) at the target end of a straight pulled line, on
+ * @file An arrowhead drawn from the row table (`ArrowCapBatch.setPulled`) at the target end of a straight pulled line, on
  * renderPath "batched": the head a row line (`EdgeRowLines`) or an `Edge`'s pulled line (`Edge.pullLine`) draws, so
  * neither a directed graph's default look nor an arrowhead restyle needs an object edge. The line stops at the head's
  * back (`PulledLineBatch.setCapBack`, `PULLED_TRIM_GLSL`'s `pulledCapTrim`), as `Edge.transformArrowCap` ends it.
@@ -19,16 +18,18 @@ import type { RestSource } from "./restPlacement";
 
 /** What a pulled head is drawn with, decided once for every edge painted with one style. */
 export interface PulledHead {
-    /** The cap batch's key: its shape and opacity. */
+    /** Its shape's key, as `EdgeMesh.createArrowHead` keys an object edge's cap of that shape. */
     readonly key: string;
     /** The options its shape is made from (`EdgeMesh.billboardShape`). */
     readonly shape: Parameters<typeof EdgeMesh.billboardShape>[0];
     readonly opacity: number;
-    /** What the cap stands back by, but for its rows. */
-    readonly place: Omit<PulledCapPlace, "head" | "from">;
+    /** Its color, as a hex string. */
+    readonly colour: string;
+    /** What the cap stands back by. */
+    readonly place: PulledCapPlace;
     /** How far before the target's outline the line stops, at node scale 1 (`Edge.capBack`). */
     readonly lineStop: number;
-    /** What the batch places the head by at rest (`PulledCapBatch.setCap`). */
+    /** What the batch places the head by at rest (`ArrowCapBatch.setPulled`). */
     readonly look: PulledCapLook;
 }
 
@@ -100,17 +101,11 @@ function judge(style: EdgeStyleConfig): PulledHead | null {
             ? (length * (geometry.scaleFactor ?? 1)) / 2
             : length * geometry.positionOffset;
     return {
-        key: `edge-pulled-cap|${key}|${String(opacity)}`,
+        key,
         shape,
         opacity,
-        place: {
-            fromGap: 0,
-            headGap: 0,
-            capGap: 0,
-            centreBack,
-            size: length,
-            colour: arrow.color ?? style.line?.color ?? "#FFFFFF",
-        },
+        colour: arrow.color ?? style.line?.color ?? "#FFFFFF",
+        place: { capGap: 0, centreBack, size: length },
         lineStop: EdgeMesh.lineStopOf(length, geometry),
         look: {
             size: length,
@@ -121,35 +116,26 @@ function judge(style: EdgeStyleConfig): PulledHead | null {
 }
 
 /**
- * The cap batch a head is drawn in, one per shape and opacity, kept by the graph's mesh cache.
+ * The cap batch a head is drawn in: the one an object edge's cap of its shape and pass is drawn in, so the two draw in
+ * the order their slots were taken, as the object path draws every cap (`FilledArrowRenderer.capBatchOf`).
  * @param head - The head.
- * @param cache - The mesh cache.
- * @param scene - The scene.
- * @param rows - The row table.
- * @param rest - What the batch places its heads by at rest; see `PulledCapBatch.flush`.
+ * @param scene - The scene, drawn on renderPath "batched" (`pulledCapHosts`).
  * @returns The batch.
  */
-export function pulledHeadBatch(
-    head: PulledHead,
-    cache: MeshCache,
-    scene: Scene,
-    rows: RowTable,
-    rest: Omit<RestSource, "rows">,
-): PulledCapBatch {
-    return cache.getPulledCapBatch(head.key, () => {
-        const shape = EdgeMesh.billboardShape(head.shape, scene);
-        if (shape === null) {
-            throw new Error(`no billboarded cap for ${head.key}`);
-        }
+export function pulledHeadBatch(head: PulledHead, scene: Scene): ArrowCapBatch {
+    return FilledArrowRenderer.capBatchOf(
+        head.key,
+        () => {
+            const shape = EdgeMesh.billboardShape(head.shape, scene);
+            if (shape === null) {
+                throw new Error(`no billboarded cap for ${head.key}`);
+            }
 
-        const mesh = FilledArrowRenderer.applyPulledShader(shape.create(), head.opacity, scene);
-        // The rows are in graph-root's space, as a pulled line's are (`EdgeMesh.pulledBatch`).
-        mesh.parent = scene.getTransformNodeByName("graph-root");
-        return new PulledCapBatch(mesh, scene, () => ({ position: rows.positionTexture, extent: rows.extentTexture }), {
-            ...rest,
-            rows,
-        });
-    });
+            return shape.create();
+        },
+        head.opacity,
+        scene,
+    );
 }
 
 /**

@@ -233,7 +233,7 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
-import { arrowCapMeshes } from "./meshes/ArrowCapBatch";
+import { arrowCapMeshes, pulledCapHosts } from "./meshes/ArrowCapBatch";
 import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
@@ -5548,6 +5548,11 @@ export class Graph implements GraphContext {
 
         if (batched && this.#nodeBatches === null) {
             const places = this.openRowTable();
+            // the scene's cap batches draw arrowheads pulled from the row table too (`ArrowCapBatch.setPulled`)
+            pulledCapHosts.set(this.scene, {
+                rows: places,
+                settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
+            });
             this.#nodeBatches = new NodeBatches(
                 {
                     cache: this.dataManager.meshCache,
@@ -5634,6 +5639,7 @@ export class Graph implements GraphContext {
             });
             useEdgeIdTarget(this.scene, this.#edgeIds);
         } else if (!batched && this.#nodeBatches !== null) {
+            pulledCapHosts.delete(this.scene);
             useEdgeIdTarget(this.scene, null);
             this.#edgeIds?.dispose();
             this.#edgeIds = null;

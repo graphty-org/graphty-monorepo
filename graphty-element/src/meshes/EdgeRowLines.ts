@@ -8,10 +8,10 @@ import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { GraphtyError } from "../errors/GraphtyError";
 import { type EdgePaint, isPlainPaint } from "../managers/StylePainter";
 import type { RowTable } from "../render/RowTable";
+import type { ArrowCapBatch } from "./ArrowCapBatch";
 import { EdgeMesh } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
-import type { PulledCapBatch } from "./PulledCapBatch";
 import { type PulledHead, pulledHeadBatch, pulledHeadOf, roundRow } from "./pulledHead";
 import type { LeanLines, PulledLineBatch } from "./PulledLineBatch";
 
@@ -152,7 +152,7 @@ export class EdgeRowLines {
     /** The batches the row lines are drawn in, one per look: a row names its batch by its place here. */
     private readonly batches: PulledLineBatch[] = [];
     /** The batches the row lines' heads are drawn in, one per shape and opacity: a row names its batch by its place. */
-    private readonly capBatches: PulledCapBatch[] = [];
+    private readonly capBatches: ArrowCapBatch[] = [];
     private drawn = 0;
     /** The batches, by their place in {@link batches}, that draw plain paints (`plainEdgePaint`). */
     private readonly plainBatches = new Set<number>();
@@ -381,7 +381,7 @@ export class EdgeRowLines {
         const { width, color } = look;
         // a head's batch is made before its line's, as an object edge makes its cap first: a head and the line under
         // it are coplanar, and two opaque meshes draw in the order they were made
-        const headBatch = head === null ? null : pulledHeadBatch(head, cache, scene, rows, this.host);
+        const headBatch = head === null ? null : pulledHeadBatch(head, scene);
         const batch = EdgeMesh.pulledBatch(cache, { styleId: meshKey, width, color }, style, scene, () => rows, {
             route: "straight",
             lean: this.host.lean(),
@@ -508,14 +508,14 @@ export class EdgeRowLines {
      * @param source - Its source node's row.
      * @param target - Its target node's row.
      */
-    private paintHead(row: number, head: PulledHead, batch: PulledCapBatch, source: number, target: number): void {
+    private paintHead(row: number, head: PulledHead, batch: ArrowCapBatch, source: number, target: number): void {
         let at = this.capBatches.indexOf(batch);
         if (at === -1) {
             at = this.capBatches.push(batch) - 1;
         }
 
         const slot = batch.acquire();
-        batch.setCap(slot, { ...head.place, from: source, head: target }, head.look);
+        batch.setPulled(slot, { from: source, head: target }, head.place, head.look, head.colour, head.opacity);
         this.lines.capBatchOf[row] = at;
         this.lines.capSlot[row] = slot;
     }
@@ -532,7 +532,11 @@ export class EdgeRowLines {
         }
 
         const shown = lines.hidden[row] === 0;
-        this.capBatches[at].setRows(lines.capSlot[row], shown ? lines.source[row] : -1, shown ? lines.target[row] : -1);
+        this.capBatches[at].setPulledRows(
+            lines.capSlot[row],
+            shown ? lines.source[row] : -1,
+            shown ? lines.target[row] : -1,
+        );
     }
 
     /**

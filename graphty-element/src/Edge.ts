@@ -26,7 +26,7 @@ import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
-import type { ArrowCap } from "./meshes/ArrowCapBatch";
+import { type ArrowCap, type ArrowCapBatch, pulledCapHosts } from "./meshes/ArrowCapBatch";
 import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
 import type { JoinedPatternKind } from "./meshes/CustomLineRenderer";
 import type { EdgeEffectBatch, ShadedEdgeBatch } from "./meshes/EdgeEffectBatch";
@@ -69,7 +69,6 @@ import { batchUploadFrames } from "./meshes/FrameRoster";
 import type { ColumnRow } from "./meshes/NodeBatch";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { movingTexel } from "./meshes/pulledAnimatedLine";
-import type { PulledCapBatch } from "./meshes/PulledCapBatch";
 import {
     CURVE_STRIDE,
     curvePathPoint,
@@ -1048,7 +1047,7 @@ export class Edge {
         /** A line through bends' block in the batch's route table and the cut path it holds ({@link Edge.pullSpan}). */
         route?: { at: number; points: readonly number[] } | null;
         /** Its head drawn from the row table (`meshes/pulledHead.ts`), in place of {@link Edge.arrowCap}; null for none. */
-        head: { batch: PulledCapBatch; slot: number; size: number } | null;
+        head: { batch: ArrowCapBatch; slot: number; size: number } | null;
     } | null = null;
 
     /**
@@ -1538,8 +1537,8 @@ export class Edge {
                       {
                           end: "arrowHead" as const,
                           name: head.batch.shape,
-                          span: head.batch.unitSpan * head.size * this.capScaleAt("target"),
-                          visibility: head.batch.mesh.visibility,
+                          span: head.batch.spanOf(head.slot, head.size * this.capScaleAt("target")),
+                          visibility: head.batch.visibilityOf(head.slot),
                       },
                   ];
         return [
@@ -3159,6 +3158,8 @@ export class Edge {
         const rows = this.context.getRowTable?.() ?? null;
         return (
             rows !== null &&
+            // a scene drawn on renderPath "batched", whose cap batches draw pulled caps
+            pulledCapHosts.has(this.context.getScene()) &&
             !EdgeMesh.drawsFlat(this.context.getScene()) &&
             !this.pullsCurve(style) &&
             !style.line?.animationSpeed &&
@@ -3296,7 +3297,7 @@ export class Edge {
         if (head !== null) {
             // made before the line's batch, as an object edge makes its cap before its line: a head and the line
             // under it are coplanar, and two opaque meshes draw in the order they were made
-            this.headBatchOf(head, rows);
+            this.headBatchOf(head);
         }
 
         const batch = this.pulledBatchOf(options, style, rows);
@@ -3368,11 +3369,10 @@ export class Edge {
     /**
      * The batch a pulled head is drawn in.
      * @param head - The head.
-     * @param rows - The row table.
      * @returns The batch.
      */
-    private headBatchOf(head: PulledHead, rows: RowTable): PulledCapBatch {
-        return pulledHeadBatch(head, this.context.getMeshCache(), this.context.getScene(), rows, this.restOf(rows));
+    private headBatchOf(head: PulledHead): ArrowCapBatch {
+        return pulledHeadBatch(head, this.context.getScene());
     }
 
     private pullHead(
@@ -3386,10 +3386,10 @@ export class Edge {
             return null;
         }
 
-        const caps = this.headBatchOf(head, rows);
+        const caps = this.headBatchOf(head);
         batch.setCapBack(piece, head.lineStop, head.look, this.restOf(rows));
         const slot = caps.acquire();
-        caps.setCap(slot, { ...head.place, from: -1, head: -1 }, head.look);
+        caps.setPulled(slot, { from: -1, head: -1 }, head.place, head.look, head.colour, head.opacity);
         return { batch: caps, slot, size: head.place.size };
     }
 
@@ -3583,7 +3583,7 @@ export class Edge {
                 pulled.batch.setRows(piece, source, target);
             }
 
-            pulled.head?.batch.setRows(pulled.head.slot, source, target);
+            pulled.head?.batch.setPulledRows(pulled.head.slot, source, target);
             pulled.source = source;
             pulled.target = target;
         }

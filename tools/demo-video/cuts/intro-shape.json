@@ -1,0 +1,100 @@
+{
+    "name": "intro-shape",
+    "crossfadeMs": 0,
+    "music": {
+        "file": "~/audio/trailer.wav",
+        "from": 6,
+        "fadeOut": 1.5
+    },
+    "bpm": 71.2,
+    "offset": 0.78,
+    "sfx": [
+        {
+            "file": "~/audio/whoosh.wav",
+            "onBeat": 16.41,
+            "gain": -6
+        },
+        {
+            "file": "~/audio/whoosh.wav",
+            "onBeat": 22.41,
+            "gain": -4
+        },
+        {
+            "file": "~/audio/impact.wav",
+            "onBeat": 23,
+            "gain": -3
+        },
+        {
+            "file": "~/audio/riser.wav",
+            "onBeat": 27.44,
+            "gain": -8
+        },
+        {
+            "file": "~/audio/impact.wav",
+            "onBeat": 31
+        }
+    ],
+    "sections": [
+        {
+            "marker": "Intro",
+            "items": [
+                {
+                    "clip": "shape-tangle",
+                    "caption": "",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "ramp": [
+                        [0.121, 2],
+                        [1.529, 30],
+                        [2.279, 2.131],
+                        [7.559, 2]
+                    ]
+                },
+                {
+                    "clip": "shape-morph",
+                    "caption": "",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "ramp": [
+                        [0.089, 3],
+                        [1.289, 1.464],
+                        [1.937, 3],
+                        [3.137, 1.62],
+                        [3.854, 3],
+                        [5.054, 2.0]
+                    ],
+                    "onBeat": 17
+                },
+                {
+                    "clip": "shape-models",
+                    "caption": "",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "ramp": [[1.024, 1.6]],
+                    "onBeat": 21
+                },
+                {
+                    "clip": "shape-globe",
+                    "caption": "",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "ramp": [[0.008, 2]],
+                    "onBeat": 23
+                },
+                {
+                    "card": "title",
+                    "onBeat": 31,
+                    "cut": true,
+                    "short": true,
+                    "strong": true,
+                    "zoom": false,
+                    "lines": ["See what your connected data is hiding"]
+                }
+            ]
+        }
+    ]
+}

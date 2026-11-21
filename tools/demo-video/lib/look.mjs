@@ -86,11 +86,22 @@ export const html = {
      * @param data.laterLines - smaller lines under those, shown only with `reveal` (laid out either way)
      * @param data.reveal - true to show `laterLines`
      * @param data.over - true to lay it over a frame (transparent PNG)
+     * @param data.smash - true for a pure black card (a smash cut to the title on a hit)
+     * @param [data.veil] - how dark the frame under it is made, 0-1 (default 0.62)
+     * @param [data.strong] - the first line larger, bolder and white, with a shadow (over bright footage)
      * @returns the page
      */
-    title: ({ lines = [], laterLines = [], reveal = false, over = false }) =>
+    title: ({
+        lines = [],
+        laterLines = [],
+        reveal = false,
+        over = false,
+        veil = 0.62,
+        strong = false,
+        smash = false,
+    }) =>
         page(
-            (over ? div("frame", "", "background:rgba(18,23,31,0.62)") : "") +
+            (over ? div("frame", "", `background:rgba(18,23,31,${veil})`) : "") +
                 div(
                     (over ? "card center over" : "card center") + (reveal ? " reveal" : ""),
                     div("logo", BIG_LOGO) +
@@ -99,7 +110,12 @@ export const html = {
                                 div(
                                     "sub",
                                     esc(l),
-                                    i ? "font-size:40px;margin-top:16px" : "font-size:54px;margin-top:44px",
+                                    i
+                                        ? "font-size:40px;margin-top:16px"
+                                        : "font-size:54px;margin-top:44px" +
+                                              (strong
+                                                  ? ";font-size:70px;font-weight:600;color:#fff;text-shadow:0 2px 24px rgba(0,0,0,0.9)"
+                                                  : ""),
                                 ),
                             )
                             .join("") +
@@ -108,6 +124,7 @@ export const html = {
                                 div("sub later", esc(l), "font-size:40px;font-weight:500;margin-top:28px;color:#fff"),
                             )
                             .join(""),
+                    smash ? "background:#000" : "",
                 ),
             over,
         ),

@@ -1,0 +1,139 @@
+{
+    "name": "intro-shapehunt",
+    "crossfadeMs": 400,
+    "music": {
+        "file": "~/audio/trailer.wav",
+        "from": 8.02,
+        "fadeIn": 0.3,
+        "fadeOut": 1.5
+    },
+    "bpm": 71.2,
+    "offset": 0.78,
+    "sfx": [
+        {
+            "file": "~/audio/whoosh.wav",
+            "onBeat": 14.41,
+            "gain": -6
+        },
+        {
+            "file": "~/audio/whoosh.wav",
+            "onBeat": 22.41,
+            "gain": -4
+        },
+        {
+            "file": "~/audio/impact.wav",
+            "onBeat": 23,
+            "gain": -3
+        },
+        {
+            "file": "~/audio/impact.wav",
+            "onBeat": 24.5,
+            "gain": -9
+        },
+        {
+            "file": "~/audio/whoosh.wav",
+            "onBeat": 27.91,
+            "gain": -5
+        },
+        {
+            "file": "~/audio/riser.wav",
+            "onBeat": 27.44,
+            "gain": -8
+        },
+        {
+            "file": "~/audio/impact.wav",
+            "onBeat": 31
+        },
+        {
+            "file": "~/audio/lock-on.wav",
+            "onBeat": 31,
+            "gain": -2
+        },
+        {
+            "file": "~/audio/impact.wav",
+            "onBeat": 32.5,
+            "gain": -6
+        }
+    ],
+    "sections": [
+        {
+            "marker": "Intro",
+            "items": [
+                {
+                    "clip": "shapehunt-tangle",
+                    "caption": "",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "ramp": [
+                        [1.8, 1.2],
+                        [4.9, 1.15]
+                    ]
+                },
+                {
+                    "clip": "shape-morph",
+                    "caption": "",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "onBeat": 15,
+                    "ramp": [
+                        [0.11, 3],
+                        [0.9, 1.5],
+                        [1.9, 1.75],
+                        [3.6, 3],
+                        [4.8, 1.75],
+                        [7.05, 3],
+                        [8.25, 1.9]
+                    ]
+                },
+                {
+                    "clip": "shape-models",
+                    "caption": "",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "onBeat": 21,
+                    "ramp": [[0.38, 1.6]]
+                },
+                {
+                    "clip": "shape-globe",
+                    "caption": "",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "onBeat": 23,
+                    "ramp": [
+                        [2.5, 2.5],
+                        [7.75, 4],
+                        [15.89, 5]
+                    ]
+                },
+                {
+                    "clip": "shapehunt-dive",
+                    "caption": "",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "onBeat": 28.5,
+                    "ramp": [
+                        [1.2, 1.9],
+                        [3.233, 2],
+                        [5.0, 1]
+                    ]
+                },
+                {
+                    "card": "title",
+                    "onBeat": 32.5,
+                    "zoom": false,
+                    "over": {
+                        "clip": "shapehunt-dive",
+                        "at": ["hit", 1.3]
+                    },
+                    "lines": ["See what your connected data is hiding"]
+                }
+            ]
+        }
+    ],
+    "openOnPicture": true
+}

@@ -48,7 +48,15 @@ function walk(d) {
 export async function allClips(only = null) {
     const out = [];
     for (const f of walk(join(TOOL, "clips"))) {
-        const m = (await import(pathToFileURL(f).href)).default;
+        let m;
+        try {
+            m = (await import(pathToFileURL(f).href)).default;
+        } catch (err) {
+            // another author's clip half-written is no reason to refuse to record the ones picked
+            if (!only) throw err;
+            console.warn(`skipped ${f}: ${err.message.split("\n")[0]}`);
+            continue;
+        }
         if (!m?.id) continue; // a chapter's shared helpers, not a clip
         out.push({ ...m, file: f });
     }

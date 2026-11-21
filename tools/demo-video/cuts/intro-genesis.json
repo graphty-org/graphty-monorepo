@@ -1,0 +1,85 @@
+{
+    "name": "intro-genesis",
+    "crossfadeMs": 400,
+    "music": {
+        "file": "~/audio/trailer.wav",
+        "from": 6.9,
+        "fadeIn": 0.3,
+        "fadeOut": 1.5,
+        "gain": -2
+    },
+    "bpm": 71.2,
+    "offset": 0.78,
+    "sections": [
+        {
+            "marker": "Intro",
+            "items": [
+                {
+                    "clip": "genesis-storm",
+                    "bleed": true,
+                    "zoom": false,
+                    "caption": ""
+                },
+                {
+                    "clip": "genesis-globe",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "caption": "",
+                    "onBeat": 25.5,
+                    "ramp": [
+                        [0, 3],
+                        [2.4, 2]
+                    ]
+                },
+                {
+                    "card": "title",
+                    "over": {
+                        "clip": "genesis-globe",
+                        "at": ["globe:end", 3.1]
+                    },
+                    "cut": true,
+                    "zoom": false,
+                    "lines": ["See what your connected data is hiding"],
+                    "hold": 1.7,
+                    "veil": 0.3,
+                    "strong": true,
+                    "onBeat": 31,
+                    "sfx": [
+                        {
+                            "file": "~/audio/impact.wav",
+                            "gain": -2
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "sfx": [
+        {
+            "file": "~/audio/whoosh.wav",
+            "onBeat": 14.41,
+            "gain": -4
+        },
+        {
+            "file": "~/audio/impact.wav",
+            "onBeat": 23,
+            "gain": -3
+        },
+        {
+            "file": "~/audio/lock-on.wav",
+            "onBeat": 23,
+            "gain": -8
+        },
+        {
+            "file": "~/audio/whoosh.wav",
+            "onBeat": 24.91,
+            "gain": -5
+        },
+        {
+            "file": "~/audio/riser.wav",
+            "onBeat": 27.44,
+            "gain": -6
+        }
+    ]
+}

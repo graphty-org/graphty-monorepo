@@ -3,6 +3,7 @@
 // for that crop: a dark canvas, larger nodes, no legend, and the hand resting on the layer panel,
 // outside the crop, whenever it is not working. Setup only, through the app's own UI.
 import { analyze, BANK, eye } from "../r2-1-fraud-ring/bank.js";
+import { onMap } from "../ch6/map.js";
 import { hideLegend, inspector } from "../r2-5b-and-more/more.js";
 
 /**
@@ -80,4 +81,20 @@ export async function bankIntro(h, { colors = true, flat = true } = {}) {
     await everythingSize(page, "1.2");
     if (!colors) await eye(h, "Louvain", false);
     await h.app.settled();
+}
+
+/**
+ * The airline network (the OpenFlights sample, already open) on the satellite globe, on the dark
+ * canvas, its airports large and bright yellow (setup only).
+ * @param h - the hand
+ */
+export async function airportsGlobe(h) {
+    const { page } = h;
+    await onMap(h);
+    await canvasColor(page);
+    await everythingSize(page, "2.5");
+    const color = inspector(page).getByRole("textbox", { name: /^Node color, set here/ });
+    await color.fill("FFD23F");
+    await color.press("Enter");
+    await color.blur();
 }

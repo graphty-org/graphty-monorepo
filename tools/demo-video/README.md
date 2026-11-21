@@ -152,9 +152,49 @@ The Open dialog starts from a button the viewer can find in the app, shows the f
 names large enough to read, and the click on Open is the moment the file arrives. A drag is kept only
 for the clip whose point is drag and drop, and it starts from a visible folder window.
 
-Rules: `run` drives the app only with the hand: no `page.evaluate`, no private element state, no
+Rules: `run` drives the app only with the hand (the intro's cinematic shots excepted, below): no `page.evaluate`, no private element state, no
 synthetic events. `setup` may click straight through Playwright, still only through the app's UI.
 Wait on conditions (`h.waitFor`, `h.app.settled`), never on a clock; pauses are only for pacing.
+
+## Cinematic shots
+
+The intro is shot like a film, not a screen recording, so its clips (clips/r4-intro) break the rule
+above on purpose: `run` drives graphty-element's public API with `page.evaluate`, as any page that
+embeds the element would, and the cursor is never on screen. Their helpers are in
+`clips/r4-intro/cine.js` (`cine-check.mjs` there is the worked example):
+
+| Helper                                                               | Does                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CINE_CLIP`                                                          | spread into the clip: chapter 0, cosmograph and file-styles off, no still lead-in                                                                                                                                                                                                                                                       |
+| `noCursor(h)`                                                        | cursor off screen, the app's notices closed (end of `setup`)                                                                                                                                                                                                                                                                            |
+| `fly(h, keys)`                                                       | eased camera keyframes, flown in the page one after another (`setCameraState` with `animate`, `duration`, `easing`); a key is a camera state (`position`+`target`, `alpha`/`beta`/`radius`, 2D `zoom`/`pan`) or `{ node, distance, azimuth, elevation }`, plus `ms`, `easing`, `mark` (logged at its start, `<mark>:end` when it lands) |
+| `camera(h)`, `nodePosition(h, id)`                                   | the camera state now; a node's drawn position                                                                                                                                                                                                                                                                                           |
+| `slowMotion(h, { layoutSeconds, transition, params, cameraMs })`     | in-app slow motion: the project's `layoutTransition` (how long nodes travel to a new layout, and how) and the element's `cameraTransitionDuration`                                                                                                                                                                                      |
+| `layout(h, type, opts)`                                              | `element.setLayout`                                                                                                                                                                                                                                                                                                                     |
+| `shade(h, { shader, params, nodes, edges, name })`, `unshade(h, id)` | a style layer adding a shader preset to every node or edge (or the ids given), through `session.styles`, as the Style panel's Shaders section writes them; returns the layer id                                                                                                                                                         |
+| `backdrop(h, { color, shader, params })`                             | the project `background`: a color and a background shader such as `nebula`                                                                                                                                                                                                                                                              |
+| `addLayer(h, spec)`, `tween(h, id, from, to, ms)`                    | a plain style layer (`session.styles.add`, such as a dim over everything), and its numeric channels eased from one value to another in the page                                                                                                                                                                                         |
+| `showRow(h, name, shown)`, `edgesAmong(h, ids)`                      | a style row shown or hidden by name, as its eye does (an algorithm folder: "Louvain"); the ids of the edges among some nodes                                                                                                                                                                                                            |
+| `tweenShader(h, id, param, from, to, ms, ease)`                      | one numeric parameter of a shade layer's shader animated in the page, once a frame: plays a one-shot effect by hand (a shockwave's `ringAge`, a reticle's `lockTime`), since the `since.*` clocks do not advance in the recording build                                                                                                 |
+| `orbit({ node, distance, from, to, ms, ... })`                       | `fly` keys that circle a node in linear steps (an arc, not a chord); `distance` and `elevation` may be `[start, end]`                                                                                                                                                                                                                   |
+| `element(h)`, `onElement(h, fn, arg)`                                | the workspace's graphty-element, and a function run on it in the page                                                                                                                                                                                                                                                                   |
+
+A looping shader (neon, comets, the nebula) keeps the drawing changing, so `h.app.settled()` never
+returns once one is on: settle and frame first, then add shaders and wait with `h.app.frames(n)`. A
+style layer's `node.opacity` or `edge.opacity` does not dim a shader's glow. A clip that fails to
+load is skipped (with a warning) when `--only` picks others, so another author's file half-written
+does not stop a recording.
+
+When a layout or style change runs during a camera move, fly the camera with `rig` in
+`clips/r4-intro-shape/shape.js` instead of `fly`: it sets the camera itself every frame, so the
+element's queue cannot hold the move up. A `rig` key may give `node: "<id>"` instead of a target, to
+ride along with a node while a layout moves it, and `along: ["<a>", "<b>"]` (with `dAlpha`, `dBeta`)
+to look down the line between two nodes wherever the layout puts them. `lockRing(h, ring)` in
+`clips/r4-intro-hunt/hunt.js` is the lock-on payoff (reticle, shockwave round the ring, the rest
+dark) that two intros end on.
+
+Under load the screencast films fewer frames: shoot a fast move k times slower (layout seconds and
+`ms` times k, shader speeds divided by k) and give the cut item `speed: k` or a `ramp`.
 
 ## Conventions
 
@@ -202,14 +242,19 @@ Cards hold `1.0 s + 0.33 s a word + 0.8 s` at full opacity (a web address counts
 the two crossfades on top: a chapter card at least 4 s, the title 3-3.4 s (it follows the cold open),
 the end card 6 s; a chapter's `short: true` makes a 2 s mini card (the highlight's change of
 domain); a card's `seconds` can only lengthen that. A `title` card's `laterLines` fade in `laterSec`
-(1.5) after it appears. A clip's `seconds` trims it to its last `seconds` (the result and its whole hold); `from` starts it that many seconds in (with `seconds`, that long from there). A
+(1.5) after it appears; a card's `hold` sets its seconds at full opacity outright (a title cut to the music), and a `title` over footage takes `veil` (how dark the footage is made, 0-1, default 0.62) and `strong: true` (its first line larger, bold and white). A clip's `seconds` trims it to its last `seconds` (the result and its whole hold); `from` starts it that many seconds in (with `seconds`, that long from there). A
 clip shows its own caption unless the cut's item sets `caption` (`""` for none). `at: ["settled", 0.5]`
 starts the clip that long after one of its marks (counted after any drops), so a re-take needs no new
 numbers. `cut: true` is a hard cut into the item, with no crossfade; `speed: N` plays it N times
 faster, tagged "Nx speed".
+A `title` card with `smash: true` is a smash cut to the title: pure black, its own length (`seconds`,
+default 2.8, no reading floor), fading to black over its last `fadeOut` (0.8) s; `strong: true` makes
+the tagline large and white.
 `bleed: true` shows the app's canvas alone, full-bleed (a 16:9 crop of the canvas, x 297, y 110,
 1383 wide, scaled to fill the frame), with no stage and no caption band; its caption becomes a short
-label at the top left. `bleed: { x, y, w }` picks another 16:9 box. The intro uses it; its takes
+label at the top left. `bleed: { x, y, w }` picks another 16:9 box; `fadeIn: s` fades a full-bleed
+item up from black (the opening shot). The video always fades up from black over its first crossfade, unless the cut sets
+`"openOnPicture": true` (a cold open already moving on its first frame). The intro uses it; its takes
 (clips/r3-intro) are made for the crop: dark canvas, larger nodes, the hand resting on the layer
 panel outside it. A `title` card's `over: { clip, at: [mark, s] }` plays that clip full-bleed behind
 the title, instead of a blurred still.
@@ -227,7 +272,30 @@ Item kinds besides `clip`:
   from each clip (`sec` before its end), at most four, 2.5 s each (`each`), joined by 500 ms
   crossfades, framed with one caption; never a push-in or a hard cut.
 
-`music`: a path to an audio file, laid under the video and faded out at the end.
+An item's `ramp: [[t, speed], ...]` is a speed ramp: from source second `t` (of the take, after its
+drops) to the next entry's `t` (the last runs to the take's end) it plays at `speed`, and the take
+before the first `t` is cut: `"ramp": [[2.0, 4], [3.1, 1], [4.0, 0.5]]` races in at 4x, lands at
+normal speed, and lingers at half speed. Frames are dropped or repeated, never blended (trim, setpts,
+concat), so shoot slow motion slowed down in the app (clips/r4-intro/cine.js `slowMotion`) and ramp
+it up, rather than ramping real-time footage below 1x. Marks and `from`/`at` follow the ramp; `seconds`
+is the ramped length. A ramp adds no tag (unlike `speed`) and cannot be combined with `speed`.
+
+Sound, all mixed under the video as one AAC track:
+
+- `music`: a path to an audio file (laid under the video, faded out over the last 2 s), or
+  `{ "file", "from", "gain", "fadeIn", "fadeOut" }`: the file from `from` s, `gain` in dB, fades in
+  seconds (none unless given). `~/` is tmp/demo-video: `"~/audio/trailer.wav"`.
+- `sfx` on the cut: `[{ "file", "at", "gain" }]`, `at` in seconds of the finished video; on an item:
+  the same, `at` counted from the item's start (default 0: on the cut into it). Either may give
+  `onBeat: n` instead of `at`.
+- `music.duck`: `[{ "at" | "onBeat", "seconds", "gain" }]` lowers the music by `gain` dB (default -40)
+  for the `seconds` before that time: a held breath before a hit.
+- `bpm` and `offset` on the cut (beat 0's time in the music file) define a beat grid: beat n is at
+  `offset - music.from + n * 60 / bpm` s of the video. An item's `onBeat: n` makes it start on beat n
+  by making the part before it in its section again, longer or shorter (its start kept), and warns
+  when that part's take is too short to reach the beat. Fractions work (`24.5`, the off-beat).
+  `node tools/demo-video/data/audio/fetch-audio.mjs` fetches the intro's music and sound effects into
+  `~/audio/`; their sources, licenses and the music's measured beat grid are in data/audio/LICENSES.md.
 
 Each clip is framed at 80% (1536x864 at x 192, y 132) on the ink background, its caption in a band
 above it (y 24-120, Inter 600 at 46 px, left-aligned with the stage, an optional `tag` at the right):

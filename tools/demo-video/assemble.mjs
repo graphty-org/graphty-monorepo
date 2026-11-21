@@ -15,9 +15,13 @@
  * A clip item's `seconds` trims it to its last `seconds` (the result and its hold), or from `from`.
  *
  * Cut file (JSON):
- *   { "name": "tour", "crossfadeMs": 400, "music": null | "<path to an audio file>",
+ *   { "name": "tour", "crossfadeMs": 400,
+ *     "music": null | "<audio file>" | { "file", "from"?, "gain"?, "fadeIn"?, "fadeOut"?,
+ *                                         "duck"?: [ { "at" | "onBeat", "seconds", "gain"? } ] },
+ *     "bpm"?, "offset"?, "sfx"?: [ { "file", "at" | "onBeat", "gain"? } ],
  *     "sections": [ { "marker": "Intro" | null, "chapter": { "number": 1, "title": "...", "seconds": 2 }?,
- *                     "items": [ { "clip": "<id>", "seconds": 5?, "caption": "<used if not recorded>"? }
+ *                     "items": [ { "clip": "<id>", "seconds": 5?, "caption": "<used if not recorded>"?,
+ *                                  "ramp": [[t, speed], ...]?, "onBeat": n?, "sfx": [ { "file", "at"?, "gain"? } ]? }
  *                              | { "card": "title" | "end" | "placeholder", "seconds": 3, ...card fields } ] } ] }
  */
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -66,9 +70,10 @@ const stageCorners = await png("corners", {}, join(work, "corners.png"));
  * A still PNG held for `seconds`.
  * @param pngFile - the picture
  * @param seconds - how long
+ * @param [fadeOut] - seconds at its end to fade to black (0: none)
  * @returns the mp4
  */
-async function still(pngFile, seconds) {
+async function still(pngFile, seconds, fadeOut = 0) {
     const mp4 = next("mp4");
     await run([
         "-loop",
@@ -80,7 +85,7 @@ async function still(pngFile, seconds) {
         "-frames:v",
         String(toFrames(seconds)),
         "-vf",
-        "format=yuv420p",
+        (fadeOut ? `fade=out:st=${(seconds - fadeOut).toFixed(3)}:d=${fadeOut},` : "") + "format=yuv420p",
         ...ENC,
         "-tune",
         "stillimage",
@@ -105,6 +110,8 @@ const CARD_CAP = { title: 3.4 };
  */
 function cardSeconds(kind, item) {
     if (!(kind in CARD_FLOOR)) return snap(item.seconds ?? 3);
+    // a smash cut to the title on a hit: its own length, the end of the video
+    if (item.smash) return snap(item.seconds ?? 2.8);
     const text = [
         kind === "chapter" && item.number != null ? `Chapter ${item.number}` : "",
         item.title,
@@ -117,7 +124,8 @@ function cardSeconds(kind, item) {
     const count = words.length + 2 * words.filter((w) => /\w\.\w{2,}/.test(w)).length;
     const later = item.laterLines?.length ? (item.laterSec ?? 1.5) : 0;
     const read = item.short ? 2 : Math.max(1 + 0.33 * count + 0.8 + later, CARD_FLOOR[kind]);
-    const full = Math.min(read, CARD_CAP[kind] ?? Infinity);
+    // `hold`: seconds at full opacity, set by the cut (a title cut to the music), instead of the reading time
+    const full = item.hold ?? Math.min(read, CARD_CAP[kind] ?? Infinity);
     return snap(Math.max(full + 2 * XF, item.seconds ?? 0));
 }
 
@@ -152,6 +160,7 @@ async function cardSegment(item) {
     const later = item.laterLines?.length
         ? { card: await png(item.card, { ...item, over: true, reveal: true }, next("png")), at: item.laterSec ?? 1.5 }
         : null;
+    if (item.smash) return { file: await still(card, seconds, item.fadeOut ?? 0.8), seconds };
     if (!frame && !later) return { file: await still(card, seconds), seconds };
     return { file: await overFrame(frame, card, seconds, later), seconds };
 }
@@ -215,14 +224,16 @@ function bleedFilter(bleed) {
  * @param want - how long, s
  * @param label - the label, or none
  * @param bleed - as for bleedFilter
+ * @param [fadeIn] - seconds to fade up from black at its start (an item's `fadeIn`; 0 for none)
  * @returns the mp4
  */
-async function bleedFramed(src, start, want, label, bleed) {
+async function bleedFramed(src, start, want, label, bleed, fadeIn = 0) {
     const mp4 = next("mp4");
     const lab = label ? await png("label", { text: label }, next("png")) : null;
     const out = Math.max(0.5, want - 0.4);
+    const fade = fadeIn ? ",fade=in:st=0:d=" + fadeIn : "";
     const graph =
-        `[0]fps=${FPS},${bleedFilter(bleed)},setpts=PTS-STARTPTS[v]` +
+        `[0]fps=${FPS},${bleedFilter(bleed)},setpts=PTS-STARTPTS${fade}[v]` +
         (lab
             ? `;[1]format=rgba,fade=in:st=0.1:d=0.3:alpha=1,fade=out:st=${out.toFixed(3)}:d=0.3:alpha=1[l];[v][l]overlay=format=auto,format=yuv420p`
             : ";[v]format=yuv420p");
@@ -426,6 +437,13 @@ function markSpan(meta, spec) {
     return span;
 }
 
+/**
+ * A file a cut names: `~/` is tmp/demo-video ("~/audio/trailer.wav"), anything else is from the working directory.
+ * @param p - the path as the cut gives it
+ * @returns the absolute path
+ */
+const inOut = (p) => resolve(p.replace(/^~\//, OUT + "/"));
+
 const clipMeta = (id) => {
     const json = join(CLIPS, `${id}.json`);
     return existsSync(json) && existsSync(join(CLIPS, `${id}.mp4`)) ? JSON.parse(readFileSync(json, "utf8")) : null;
@@ -447,6 +465,38 @@ async function faster(src, meta, item) {
     meta.events = (meta.events ?? []).map((e) => ({ ...e, t: e.t / item.speed }));
     const from = item.from === undefined ? undefined : item.from / item.speed;
     return { src: fast, item: { ...item, from, tag: item.tag ?? `${item.speed}x speed` } };
+}
+
+/**
+ * `ramp: [[t, speed], ...]`: a speed ramp. From source time `t` (s of the take, after its drops) to
+ * the next entry's `t` (the last runs to the take's end) the take plays at `speed`; footage before the
+ * first `t` is cut. Each stretch is trimmed and re-timed (setpts) and the stretches are concatenated,
+ * so frames are only dropped or repeated, never blended. Its marks and `from` move with it. No tag:
+ * a ramp is a look, not a time-lapse.
+ * @param src - the take
+ * @param meta - its meta (events are re-timed in place)
+ * @param item - the cut's item
+ * @returns the ramped take (src) and the item with `from` in its time
+ */
+async function ramped(src, meta, item) {
+    if (!item.ramp?.length) return { src, item };
+    if (item.speed && item.speed !== 1) throw new Error(`${item.clip}: give "speed" or "ramp", not both`);
+    const total = await duration(src);
+    const segs = item.ramp.map(([t, s], i) => ({ a: snap(t), b: snap(item.ramp[i + 1]?.[0] ?? total), s }));
+    for (const g of segs)
+        if (g.s <= 0 || g.b <= g.a || Number.isNaN(g.s))
+            throw new Error(`${item.clip}: ramp needs rising times and speeds above 0`);
+    // where source time t lands in the ramped take
+    const map = (t) => segs.reduce((out, g) => out + Math.max(0, Math.min(t, g.b) - g.a) / g.s, 0);
+    const graph =
+        segs.map((g, i) => `[0:v]trim=start=${g.a}:end=${g.b},setpts=(PTS-STARTPTS)/${g.s}[r${i}]`).join(";") +
+        ";" +
+        segs.map((_, i) => `[r${i}]`).join("") +
+        `concat=n=${segs.length}:v=1[v]`;
+    const out = next("mp4");
+    await run(["-i", src, "-filter_complex", graph, "-map", "[v]", "-an", ...ENC, out]);
+    meta.events = (meta.events ?? []).map((e) => ({ ...e, t: map(e.t / 1000) * 1000 }));
+    return { src: out, item: { ...item, from: item.from === undefined ? undefined : map(item.from) } };
 }
 
 /**
@@ -492,10 +542,11 @@ async function dropSpans(src, meta, item) {
  * A clip, trimmed to `seconds` if asked, framed on the stage with its caption under it.
  * The caption is the cut's when the item sets one ("" for none), else the clip's own.
  * `cut: true` on any item is a hard cut into it, with no crossfade.
- * @param item - the cut's item: { clip, seconds?, from?, drop?: [s, s] | [[s, s], ...], dropMarks?: [mark, s, mark, s], zoom?, zoomAfter?, caption?, tag?, placeholder? }
+ * @param item - the cut's item: { clip, seconds?, from?, drop?: [s, s] | [[s, s], ...], dropMarks?: [mark, s, mark, s], speed?, ramp?, zoom?, zoomAfter?, caption?, tag?, placeholder? }
+ * @param extra - seconds added to (or, negative, taken off) the end, its start kept: a later item's `onBeat`
  * @returns the part: { file, seconds, clip, start }
  */
-async function clipSegment(item) {
+async function clipSegment(item, extra = 0) {
     const meta = clipMeta(item.clip);
     if (!meta || meta.placeholder) noPlaceholder(`clip ${item.clip}`);
     if (!meta) {
@@ -509,17 +560,20 @@ async function clipSegment(item) {
     // `at: [mark, s]`: start that many seconds after one of the take's marks (after the drops)
     if (item.at) item = { ...item, from: markTime(meta, item.at[0]) + item.at[1] };
     ({ src, item } = await faster(src, meta, item));
+    ({ src, item } = await ramped(src, meta, item));
     const total = await duration(src);
     // `from` alone drops the start (dead lead-in); `seconds` alone keeps the end (the result and its hold)
-    const want = snap(Math.min(item.seconds ?? total - (item.from ?? 0), total));
-    const start = snap(Math.max(0, Math.min(item.from ?? total - want, total - want)));
+    const asked = snap(Math.min(item.seconds ?? total - (item.from ?? 0), total));
+    const start = snap(Math.max(0, Math.min(item.from ?? total - asked, total - asked)));
+    const want = snap(Math.max(1 / FPS, Math.min(asked + extra, total - start)));
     if (meta.placeholder) {
         const mp4 = next("mp4");
         await run([...seek(src, start), "-frames:v", String(toFrames(want)), "-an", ...ENC, mp4]);
         return { file: mp4, seconds: want, clip: item.clip, start };
     }
     if (item.bleed) {
-        const file = await bleedFramed(src, start, want, "caption" in item ? item.caption : meta.caption, item.bleed);
+        const label = "caption" in item ? item.caption : meta.caption;
+        const file = await bleedFramed(src, start, want, label, item.bleed, item.fadeIn);
         return { file, seconds: want, clip: item.clip, start };
     }
     const z =
@@ -553,7 +607,7 @@ async function clipSegment(item) {
  * @returns the part
  */
 async function videoSegment(item) {
-    const src = resolve(item.video.replace(/^~\//, OUT + "/"));
+    const src = inOut(item.video);
     if (!existsSync(src))
         return cardSegment({
             card: "placeholder",
@@ -658,20 +712,72 @@ const marks = [];
 // the 6 s of wide shot between push-ins is counted across clips and cards
 let playhead = 0;
 let lastOut = -Infinity;
+
+// The music: a path (faded out over the last 2 s), or { file, from, gain, fadeIn, fadeOut, duck }:
+// each `duck` lowers it by `gain` dB (-40) for the `seconds` before `at` (s of the video) or
+// `onBeat`, a held breath before a hit.
+const music = typeof cut.music === "string" ? { file: cut.music, fadeOut: 2 } : cut.music;
+/**
+ * When beat `n` of the cut's music falls in the finished video: the cut's `bpm` and `offset` (s into
+ * the music file of beat 0), shifted by where the music starts (`music.from`).
+ * @param n - the beat (fractions allowed: 0.5 is the off-beat)
+ * @returns s into the video
+ */
+function beatTime(n) {
+    if (!cut.bpm) throw new Error(`onBeat needs the cut's "bpm" (and "offset")`);
+    return (cut.offset ?? 0) - (music?.from ?? 0) + (n * 60) / cut.bpm;
+}
+
+/**
+ * One item made into a part.
+ * @param item - the cut's item
+ * @param extra - seconds added to its end (clips and cards; a later item's `onBeat`)
+ * @returns the part
+ */
+async function makePart(item, extra = 0) {
+    let part;
+    if (item.clip) part = await clipSegment(item, extra);
+    else if (item.montage) part = await montageSegment(item);
+    else if (item.video) part = await videoSegment(item);
+    else part = await cardSegment(extra ? { ...item, seconds: cardSeconds(item.card, item) + extra } : item);
+    return { ...part, cut: Boolean(item.cut), sfx: item.sfx ?? [] };
+}
+
 for (const section of cut.sections) {
     const items = [];
+    // the last part made in this section, lengthened or shortened when the next item asks to start on a beat
+    let prev = null;
     if (section.chapter) playhead += cardSeconds("chapter", section.chapter) - XF;
     for (const item of section.items) {
         if (item.skip) {
             console.log(`skipped ${item.clip ?? item.card}: ${item.skip}`);
             continue;
         }
-        if (item.cut) playhead += XF;
-        if (item.clip) items.push(await clipSegment(item));
-        else if (item.montage) items.push(await montageSegment(item));
-        else if (item.video) items.push(await videoSegment(item));
-        else items.push(await cardSegment(item));
-        items.at(-1).cut = Boolean(item.cut);
+        // a hard cut has no crossfade to overlap; the video's very first part has nothing before it at all
+        if (item.cut && (segments.length || items.length || section.chapter)) playhead += XF;
+        // `onBeat: n`: the part before is made again, longer or shorter, so this one starts on beat n
+        if (item.onBeat !== undefined && !prev)
+            console.warn(
+                `onBeat ${item.onBeat}: ${item.clip ?? item.card} is first in its section; nothing before it to fit`,
+            );
+        if (item.onBeat !== undefined && prev) {
+            const old = prev.list[prev.at];
+            const delta = snap(beatTime(item.onBeat) - playhead);
+            if (delta) {
+                lastOut = prev.lastOut;
+                const redo = await makePart(prev.item, delta);
+                prev.list[prev.at] = redo;
+                playhead += redo.seconds - old.seconds;
+                const miss = beatTime(item.onBeat) - playhead;
+                if (Math.abs(miss) > 0.5 / FPS)
+                    console.warn(
+                        `onBeat ${item.onBeat}: ${item.clip ?? item.card} starts ${miss.toFixed(2)} s off the beat (the part before is too short)`,
+                    );
+            }
+        }
+        const before = lastOut;
+        items.push(await makePart(item));
+        prev = { list: items, at: items.length - 1, item, lastOut: before };
         playhead += items.at(-1).seconds - XF;
     }
     const head = section.chapter ? [await chapterSegment(section.chapter, items[0])] : [];
@@ -702,8 +808,14 @@ const piece = async (args) => {
 const cutOf = (s, from) => seek(s.file, from);
 const count = (sec) => ["-frames:v", String(toFrames(sec))];
 console.log(`${cut.name}: ${segments.length} parts, ${total.toFixed(1)} s; joining...`);
-// the first part fades in from black
-await piece([...cutOf(segments[0], 0), ...count(XF), "-vf", `fade=in:st=0:d=${XF}`]);
+// the first part fades in from black; a cut's `"openOnPicture": true` opens on its first frame instead
+// (with no crossfades, `crossfadeMs: 0`, there is no fade piece at all: the first part starts the video)
+if (XF > 0)
+    await piece([
+        ...cutOf(segments[0], 0),
+        ...count(XF),
+        ...(cut.openOnPicture ? [] : ["-vf", `fade=in:st=0:d=${XF}`]),
+    ]);
 for (let i = 0; i < segments.length; i++) {
     const s = segments[i];
     const last = i === segments.length - 1;
@@ -769,28 +881,60 @@ writeFileSync(
 );
 
 const final = join(outDir, `${cut.name}.mp4`);
-const music = cut.music && existsSync(cut.music) ? cut.music : null;
+// The sound: the music from `music.from` s, `gain` (dB), faded in and out, and each sound effect at
+// its time ({ file, at, gain } on the cut: `at` s into the video; on an item: `at` s after the
+// item starts, default 0; either may give `onBeat: n` instead of `at`), mixed under the video as AAC.
+const sounds = [
+    ...(cut.sfx ?? []).map((x) => ({ ...x, base: 0 })),
+    ...segments.flatMap((s, i) => (s.sfx ?? []).map((x) => ({ ...x, base: offsets[i] }))),
+].map((x) => ({ ...x, t: x.onBeat === undefined ? x.base + (x.at ?? 0) : beatTime(x.onBeat) }));
+const tracks = [...(music ? [{ file: music.file, music: true }] : []), ...sounds];
+for (const x of tracks) if (!existsSync(inOut(x.file))) throw new Error(`no audio file ${x.file}`);
+const dB = (g) => `volume=${g ?? 0}dB`;
+const audioGraph = tracks.map((x, k) => {
+    const chain = x.music
+        ? [
+              `atrim=start=${music.from ?? 0}`,
+              "asetpts=PTS-STARTPTS",
+              dB(music.gain),
+              ...(music.duck ?? []).map((d) => {
+                  const end = d.onBeat === undefined ? d.at : beatTime(d.onBeat);
+                  return `volume=volume=${d.gain ?? -40}dB:enable='between(t,${(end - d.seconds).toFixed(3)},${end.toFixed(3)})'`;
+              }),
+              ...(music.fadeIn ? [`afade=in:st=0:d=${music.fadeIn}`] : []),
+              ...(music.fadeOut ? [`afade=out:st=${(total - music.fadeOut).toFixed(3)}:d=${music.fadeOut}`] : []),
+          ]
+        : [dB(x.gain), `adelay=${Math.max(0, Math.round(x.t * 1000))}|${Math.max(0, Math.round(x.t * 1000))}`];
+    // every track runs the whole video, so amix's 1/n is constant (it re-scales as inputs end) and undone after
+    return `[${k + 2}:a]aformat=sample_rates=48000:channel_layouts=stereo,${chain.join(",")},apad,atrim=end=${total.toFixed(3)}[a${k}]`;
+});
+const mix = tracks.length
+    ? [
+          "-filter_complex",
+          audioGraph.join(";") +
+              ";" +
+              tracks.map((_, k) => `[a${k}]`).join("") +
+              `amix=inputs=${tracks.length}:duration=longest,volume=${tracks.length}[aout]`,
+          "-map",
+          "[aout]",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "192k",
+          "-t",
+          total.toFixed(3),
+      ]
+    : [];
+for (const x of sounds) console.log(`sound ${x.file} at ${x.t.toFixed(2)} s`);
 await run([
     "-i",
     silent,
     "-i",
     meta,
-    ...(music ? ["-i", music] : []),
+    ...tracks.flatMap((x) => ["-i", inOut(x.file)]),
     "-map",
     "0:v",
-    ...(music
-        ? [
-              "-map",
-              "2:a",
-              "-af",
-              `afade=out:st=${(total - 2).toFixed(3)}:d=2`,
-              "-c:a",
-              "aac",
-              "-b:a",
-              "192k",
-              "-shortest",
-          ]
-        : []),
+    ...mix,
     "-map_metadata",
     "1",
     "-map_chapters",

@@ -1440,6 +1440,31 @@ describe("ChannelDescriptor.needs and start", () => {
         });
     });
 
+    it("starts a plate behind the node as a rounded card, beside what it needs, with values its partners take", () => {
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.underlayColor"].startsWith, [
+            { channel: "node.underlayShape", value: "round-rectangle" },
+        ]);
+        assert.deepInclude(CHANNEL_DESCRIPTORS["node.underlayColor"].needs ?? [], {
+            channel: "node.underlayPadding",
+            value: 0.2,
+        });
+        assert.deepInclude(CHANNEL_DESCRIPTORS["node.overlayColor"].needs ?? [], {
+            channel: "node.overlayPadding",
+            value: 0.1,
+        });
+        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
+            for (const partner of descriptor.startsWith ?? []) {
+                assert.strictEqual(CHANNEL_DESCRIPTORS[partner.channel].target, descriptor.target, descriptor.channel);
+                assert.isTrue(valid(partner.channel, partner.value), `${descriptor.channel}: ${partner.channel}`);
+                assert.notInclude(
+                    (descriptor.needs ?? []).map((need) => need.channel),
+                    partner.channel,
+                    "a start is not also a need",
+                );
+            }
+        }
+    });
+
     it("starts a new label at the default size, one node size tall, with no start value over it", () => {
         const size = LABEL_STYLE_DESCRIPTORS.find((descriptor) => descriptor.field === "size");
         assert.isUndefined(size?.start);

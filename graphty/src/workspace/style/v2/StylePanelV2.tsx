@@ -20,7 +20,7 @@ import { itemChannels, partsFor, type PartSpec } from "../parts/parts";
 import { useFindKey } from "../parts/useFindKey";
 import { PickerNamesOnly } from "../pickerNames";
 import type { RowContext } from "../PropertyRow";
-import { needsFor, startForOrNone, writeIn, writeLine } from "../row";
+import { needsFor, startForOrNone, startsWithFor, writeIn, writeLine } from "../row";
 import { ScrubSlots } from "../scrubSlots";
 import { AddButton, type AddOption } from "../Section";
 import { useShaderList } from "../shaderList";
@@ -389,13 +389,14 @@ function ThingSection({
             return;
         }
         const value = start;
-        // What "+" adds draws at once (design 5.1): with it, what graphty-element says it needs to draw, over a
-        // list's first item (a chart's values and colors).
+        // What "+" adds draws at once (design 5.1): with it, what graphty-element says it needs to draw and starts
+        // with (a plate's card shape), over a list's first item (a chart's values and colors).
         const starts = Object.fromEntries(
             Object.entries({
                 ...sizeStarts(ctx, thing, main.channel),
                 ...first,
                 ...needsFor(ctx, main.channel, value),
+                ...startsWithFor(ctx, main.channel),
                 ...free?.plusStarts?.(lineWidthOf(ctx)),
             }).filter(([c]) => c !== main.channel),
         );

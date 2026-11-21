@@ -1047,6 +1047,14 @@ export interface ChannelDescriptor {
      * @since 3.62.0
      */
     readonly start?: ChannelScalar;
+    /**
+     * Other channels a style editor writes beside this one when it adds it, each with the value to write, for a first
+     * look worth seeing that the channel does not need in order to draw: a plate behind the node starts as a rounded
+     * card (`node.underlayShape` "round-rectangle"). Write them after {@link ChannelDescriptor.needs}, and only for a
+     * partner the layer does not set. Absent on a channel whose needs are its whole first look.
+     * @since 3.63.0
+     */
+    readonly startsWith?: readonly ChannelNeed[];
 }
 
 /**
@@ -5881,6 +5889,12 @@ const START: ReadonlyMap<string, ChannelScalar> = new Map<Channel, ChannelScalar
     ["edge.arrowMiddleTail", "normal"],
 ]);
 
+/** What a style editor writes beside each channel when it adds it, beyond its needs: see {@link ChannelDescriptor.startsWith}. */
+const STARTS_WITH: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, readonly ChannelNeed[]>([
+    // A plate behind the node starts as a card, never as a ring the node's own shape (ia-design 2).
+    ["node.underlayColor", [{ channel: "node.underlayShape", value: "round-rectangle" }]],
+]);
+
 /**
  * How far one step moves a number channel: see {@link ChannelDescriptor.step}.
  * @param descriptor - The declared descriptor.
@@ -5914,6 +5928,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         const appliesWhen = APPLIES_WHEN.get(descriptor.channel);
         const needs = NEEDS.get(descriptor.channel);
         const start = START.get(descriptor.channel);
+        const startsWith = STARTS_WITH.get(descriptor.channel);
         const drawnWhen = [
             ...(appliesWhen === undefined ? [] : [appliesWhen]),
             ...(DRAWN_WHEN.get(descriptor.channel) ?? []),
@@ -5932,6 +5947,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(drawnWhen.length === 0 ? {} : { drawnWhen: Object.freeze(drawnWhen) }),
                 ...(needs === undefined ? {} : { needs }),
                 ...(start === undefined ? {} : { start }),
+                ...(startsWith === undefined ? {} : { startsWith }),
                 // @experimental file-styles
                 ...(FILE_STYLE_CHANNELS.has(descriptor.channel) ? { feature: "file-styles" as const } : {}),
             },

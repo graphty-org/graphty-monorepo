@@ -16,7 +16,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { findValuePicker, screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openGraph, openStyle, sectionOf, written } from "./v2Harness";
+import { openGraph, openStyle, picture, pixelsApart, sectionOf, switchView, written } from "./v2Harness";
 
 /** One collapse: its section, its thing, two kinds' channels as graph-io writes them, and a free kind. */
 interface Collapse {
@@ -78,15 +78,20 @@ const COLLAPSES: readonly Collapse[] = [
         kinds: [
             {
                 row: "Behind",
-                set: { "node.underlayColor": "#ff0000", "node.underlayOpacity": 1, "node.underlayPadding": 0.4 },
+                set: {
+                    "node.underlayColor": "#ff0000",
+                    "node.underlayOpacity": 1,
+                    "node.underlayPadding": 0.4,
+                    "node.underlayShape": "hexagon",
+                },
                 shows: "ff0000",
             },
             { row: "Over", set: { "node.overlayColor": "#0000ff", "node.overlayOpacity": 0.3 }, shows: "0000ff" },
         ],
         free: { row: "Over", head: "node.overlayColor" },
         head: "node.underlayColor",
-        // The padding is carried; the opacity is not: a plate laid over the node starts translucent (ia-design 2).
-        carries: { to: "node.overlayPadding", value: 0.4 },
+        // The shape is carried; the opacity and padding start as graphty-element starts a plate over the node.
+        carries: { to: "node.overlayShape", value: "hexagon" },
     },
     {
         name: "Outline (C7)",
@@ -223,22 +228,58 @@ describe("Style panel v2's collapsed kinds", () => {
         });
     });
 
-    it("Plate: '+' starts a plate behind the node larger than it, '+' again a translucent plate over it", async () => {
+    it("Plate: '+' starts a card behind the node larger than it, '+' again a translucent plate over it", async () => {
+        const { session, element, nodes } = await openGraph();
+        // A plate draws in the 2D view only (E669).
+        await switchView("2D");
+        const tab = await openStyle("Key people");
+        await showKind("node");
+        const section = sectionOf(tab, "node-effects");
+        const bare = await picture(element);
+        await plus(section, /^Add to node effects/, "Plate");
+        await waitFor(() => {
+            assert.isDefined(written(session, nodes, "node.underlayColor"), "the first '+' is Behind");
+            assert.equal(written(session, nodes, "node.underlayShape"), "round-rectangle", "a card's shape");
+            assert.isAbove(Number(written(session, nodes, "node.underlayPadding")), 0, "larger than the node");
+            assert.lengthOf(rowsOf(section, "plate"), 1);
+        });
+        await session.styles.settled();
+        const card = await picture(element);
+        assert.isAbove(pixelsApart(bare, card), 0, "the plate draws behind the node");
+        // The card's corners reach past the round node: without the shape the plate is a ring the node's own shape.
+        const { "node.underlayShape": _shape, ...rest } = session.styles.get(nodes)?.set ?? {};
+        await session.styles.update(nodes, { set: rest });
+        await session.styles.settled();
+        assert.isAbove(pixelsApart(card, await picture(element)), 0, "a card, not the node's own shape");
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await waitFor(() => {
+            assert.equal(written(session, nodes, "node.underlayShape"), "round-rectangle");
+        });
+        await plus(section, /^Add to node effects/, "Plate");
+        await waitFor(() => {
+            assert.isDefined(written(session, nodes, "node.overlayColor"), "the second is Over");
+            assert.equal(written(session, nodes, "node.overlayOpacity"), 0.3, "translucent");
+            assert.equal(written(session, nodes, "node.overlayPadding"), 0.1, "a tenth of the node past it");
+            assert.lengthOf(rowsOf(section, "plate"), 2);
+        });
+    });
+
+    it("Plate: Switch to Over starts at Opacity 30% and a padding of a tenth of the node (ia-design 2)", async () => {
         const { session, nodes } = await openGraph();
         const tab = await openStyle("Key people");
         await showKind("node");
         const section = sectionOf(tab, "node-effects");
         await plus(section, /^Add to node effects/, "Plate");
         await waitFor(() => {
-            assert.isDefined(written(session, nodes, "node.underlayColor"), "the first '+' is Behind");
-            assert.isAbove(Number(written(session, nodes, "node.underlayPadding")), 0, "larger than the node");
             assert.lengthOf(rowsOf(section, "plate"), 1);
         });
-        await plus(section, /^Add to node effects/, "Plate");
+        const [row] = rowsOf(section, "plate");
+        await userEvent.click(within(row).getByRole("button", { name: /^Switch .* to/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Over" }));
         await waitFor(() => {
-            assert.isDefined(written(session, nodes, "node.overlayColor"), "the second is Over");
-            assert.equal(written(session, nodes, "node.overlayOpacity"), 0.3, "translucent");
-            assert.lengthOf(rowsOf(section, "plate"), 2);
+            assert.isUndefined(written(session, nodes, "node.underlayColor"));
+            assert.equal(written(session, nodes, "node.overlayOpacity"), 0.3);
+            assert.equal(written(session, nodes, "node.overlayPadding"), 0.1);
         });
     });
 

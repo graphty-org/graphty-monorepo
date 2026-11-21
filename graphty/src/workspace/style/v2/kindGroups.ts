@@ -127,6 +127,16 @@ function startsOf(channel: Channel): Readonly<Record<string, unknown>> {
 }
 
 /**
+ * Everything graphty-element writes beside a channel when a style editor adds it: its `needs`, then its `startsWith`.
+ * @param channel - the kind's head.
+ * @returns the writes.
+ */
+function elementStarts(channel: Channel): Readonly<Record<string, unknown>> {
+    const startsWith = channelDescriptor(channel)?.startsWith ?? [];
+    return { ...startsOf(channel), ...Object.fromEntries(startsWith.map((each) => [each.channel, each.value])) };
+}
+
+/**
  * An Over line's start (ia-design 2): translucent at 30%, as wide as graphty-element starts an Under line beside the
  * row's line, so it reaches past the line's sides on any width.
  * @param lineWidth - the row's line width, or undefined for graphty-element's default line.
@@ -211,9 +221,16 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         items: ["underlay", "overlay"],
         members: [
             prefixKind("behind", "Behind", "node.underlayColor", { color: "node.underlayColor" }, "node.underlay"),
-            prefixKind("over", "Over", "node.overlayColor", { color: "node.overlayColor" }, "node.overlay", {
-                "node.overlayOpacity": 0.3,
-            }),
+            // A switch carries the shape and corners; the opacity and padding start as graphty-element starts a
+            // plate over the node (translucent, a tenth of the node past it; ia-design 2).
+            prefixKind(
+                "over",
+                "Over",
+                "node.overlayColor",
+                { color: "node.overlayColor" },
+                "node.overlay",
+                elementStarts("node.overlayColor"),
+            ),
         ],
     },
     // C7: every band along an edge's line is one Outline item, Under line (the casing) or Over line (a wash).

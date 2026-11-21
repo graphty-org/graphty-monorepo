@@ -966,6 +966,24 @@ export function startForOrNone(
 }
 
 /**
+ * The values graphty-element says a style editor writes beside a channel when it adds it, beyond its needs
+ * (`startsWith`: a plate behind the node starts as a card), for the partners the row does not set.
+ * @param ctx - the row.
+ * @param channel - the channel added.
+ * @returns the partners' values.
+ */
+export function startsWithFor(
+    ctx: Pick<RowContext, "many" | "layers">,
+    channel: Channel,
+): Partial<Record<Channel, ChannelValue>> {
+    return Object.fromEntries(
+        (channelDescriptor(channel)?.startsWith ?? [])
+            .filter((partner) => lineIn(ctx, partner.channel) === undefined)
+            .map((partner) => [partner.channel, partner.value]),
+    );
+}
+
+/**
  * The values graphty-element says a channel needs written beside it to draw (`needs`, else its part's),
  * for the partners the row does not set and the layers beneath draw nothing for (an element default is
  * not a layer beneath: a border's default color draws nothing without a width). Nothing for a value that

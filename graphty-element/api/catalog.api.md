@@ -665,6 +665,7 @@ export interface ChannelDescriptor {
     readonly shaderTarget?: "node" | "edge";
     readonly shortName: string;
     readonly start?: ChannelScalar;
+    readonly startsWith?: readonly ChannelNeed[];
     readonly step?: number;
     readonly stylePath: string;
     readonly suggestedMax?: number;

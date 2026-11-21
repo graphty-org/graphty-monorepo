@@ -1166,15 +1166,15 @@ export class Ingest<K extends KnownEdge> {
         const facts = this.sealedTally === null ? null : loadFactsOf(this.sealedTally, this.leaveOutUnmatched);
         const prior = same < 0 ? undefined : earlier[same];
         const had = prior === undefined ? undefined : earlierProvenance?.[key];
-        const nodes = new Set([...(had?.nodes ?? []), ...supplied.nodes]);
-        const edges = new Set([...(had?.edges ?? []), ...supplied.edges]);
+        // What it supplied, joined to what the load it continues supplied; no copy when it continues none.
+        const nodes = had === undefined ? supplied.nodes : new Set([...had.nodes, ...supplied.nodes]);
+        const edges = had === undefined ? supplied.edges : new Set([...had.edges, ...supplied.edges]);
         // The nodes it named that were in the graph before it and that no load supplied (a node
-        // `addNodes` made): taking it out leaves them (issue #7708).
-        const earlierNodes = provenanceIndex(earlierProvenance).nodes;
-        const held = [
-            ...(had?.held ?? []),
-            ...[...supplied.nodes].filter((id) => !supplied.made.has(id) && !earlierNodes.has(id)),
-        ];
+        // `addNodes` made): taking it out leaves them (issue #7708). Only the nodes it did not make
+        // are looked up, in the earlier loads' node index alone.
+        const notMade = [...supplied.nodes].filter((id) => !supplied.made.has(id));
+        const earlierNodes = notMade.length === 0 ? null : provenanceIndex(earlierProvenance).nodes;
+        const held = [...(had?.held ?? []), ...notMade.filter((id) => earlierNodes?.has(id) !== true)];
         // The nodes only its edges named, in this run and the runs it adds to (design 3.1). A CSV
         // edge table with no node table names every node by its ends, though its reader hands
         // the ends over as node records.
@@ -1199,12 +1199,7 @@ export class Ingest<K extends KnownEdge> {
             [SOURCES_VALUE]: Object.freeze(
                 prior === undefined ? [...earlier, entry] : earlier.map((each, at) => (at === same ? entry : each)),
             ),
-            [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, {
-                nodes: [...nodes],
-                edges: [...edges],
-                held,
-                named,
-            }),
+            [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, { nodes, edges, held, named }),
             ...(facts === null
                 ? {}
                 : {

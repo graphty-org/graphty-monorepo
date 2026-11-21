@@ -37,6 +37,11 @@ export interface ReadableInput {
     readonly directed: boolean;
     /** `data.attributes()`, declarations already applied. */
     readonly attributes: readonly AttributeDescriptor[];
+    /**
+     * Under the source-steps experiment, the element's readable paths (`graphty.type`,
+     * `graphty.load`, ...) as described columns, each `path` the readable path itself.
+     */
+    readonly element?: readonly AttributeDescriptor[];
     /** A column's declaration, read for an ordinal column's order. */
     readonly declarationOf: (column: AttributeDescriptor) => MeasurementDeclaration | undefined;
     /** The session's runs, in order; only finished ones are read. */
@@ -76,7 +81,7 @@ const EDGE_KINDS = kindsOn("edge");
  */
 function entryOf(
     column: AttributeDescriptor,
-    from: "data" | "run",
+    from: ReadableValue["from"],
     declaration: MeasurementDeclaration | undefined,
     usedBy: readonly AttributeUse[] | undefined,
     field?: FieldDescriptor,
@@ -251,6 +256,10 @@ export function readableValues(input: ReadableInput): readonly ReadableValue[] {
             tests: Object.freeze(["text"] as const),
         }),
     ];
+
+    for (const column of input.element ?? []) {
+        values.push(entryOf(column, "element", undefined, input.layersReading?.(column.path, column.kind)));
+    }
 
     const nodeColumns: [AttributeDescriptor, "data" | "run", MeasurementDeclaration | undefined][] = [];
     for (const column of input.attributes) {

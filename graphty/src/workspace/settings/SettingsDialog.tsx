@@ -21,7 +21,7 @@ import { AI_PROVIDER_SECTION, assistantOn } from "../assistant-door/commands";
 import { providerDisclosure } from "../assistant-door/provider";
 import { fileStylesOn } from "../features";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
-import { answerUsageData, useAnalyticsSends, useUsageAnswer } from "../privacy/usageData";
+import { ANONYMOUS_COUNTS, answerUsageData, useAnalyticsSends, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
 import { useAssistantSendsTo } from "../privacy/useAssistantSendsTo";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -193,7 +193,7 @@ function Privacy(): React.JSX.Element {
     if (analytics) {
         usageOff =
             sendsTo === null
-                ? "Usage data: off. Anonymous counts are still sent: visits, the site that sent you, and which sample, file format, layout, measure and export you use."
+                ? `Usage data: off. Anonymous counts are still sent: ${ANONYMOUS_COUNTS}.`
                 : "Usage data: off. Anonymous counts are still sent.";
     }
     return (

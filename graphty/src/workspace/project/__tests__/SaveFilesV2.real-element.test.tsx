@@ -162,6 +162,36 @@ describe("version 2 save files, experiment on", () => {
         });
     });
 
+    it("keeps an Enter pressed before graphty-element answers, and saves once it does", async () => {
+        const { store, session } = await openSample();
+        // Hold the element's answers until the Enter is in, as a slow network would.
+        let release = (): void => undefined;
+        const held = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const describe = session.project.describe.bind(session.project);
+        vi.spyOn(session.project, "describe").mockImplementation(async (options) => {
+            await held;
+            return describe(options);
+        });
+        await userEvent.keyboard("{Shift>}{Control>}s{/Control}{/Shift}");
+        const dialog = await screen.findByRole("dialog", { name: `Save ${SAMPLE} as` });
+        const name = within(dialog).getByRole("textbox", { name: "Name" });
+        await userEvent.clear(name);
+        await userEvent.type(name, "Early enter{Enter}");
+        // Waiting, and saying so: the dialog stays, its Save shows it is busy.
+        await waitFor(() => {
+            assert.isNotNull(within(dialog).getByRole("button", { name: "Save" }).closest("[data-loading]"));
+        });
+        assert.isNotNull(screen.queryByRole("dialog"));
+        release();
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "Saved Early enter in this browser.");
+            assert.isNull(screen.queryByRole("dialog"));
+        });
+        assert.isFalse(session.project.dirty);
+    });
+
     it("downloads a version 2 local copy, and reopens the project kept in this browser whole", async () => {
         const downloads = watchDownloads();
         const { store } = await openSample();

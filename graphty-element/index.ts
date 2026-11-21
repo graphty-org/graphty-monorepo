@@ -184,7 +184,7 @@ export type {
 export type { WeightMeaning } from "./src/session/runs";
 export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./src/session/types";
 // `session.views`: a saved view (a fixed camera or a camera view it follows) and a starting camera
-export type { SavedView, StartingCamera } from "./src/session/types";
+export type { SavedView, SavedViewInput, SavedViewPart, StartingCamera } from "./src/session/types";
 // The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
 export type { NodeId } from "./src/catalog/types";
 // What `element.elementAt({ x, y })` finds under a point

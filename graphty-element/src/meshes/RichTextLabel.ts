@@ -1334,8 +1334,12 @@ export class RichTextLabel {
      * @returns The plane's height in lines.
      */
     private measureHeightInLines(ctx: CanvasRenderingContext2D, totalHeight: number): number {
-        // The first line WITH WORDS: a blank line has no height of its own to measure.
-        const firstLine = this.parsedContent.find(hasWords);
+        // The first line WITH WORDS: a blank line has no height of its own to measure. A label that is only its
+        // picture (yEd's wordless label icon) measures a blank line of its font, so its canvas is drawn at the scale
+        // of a label with words, not stretched to one line's height (#7792).
+        const firstLine =
+            this.parsedContent.find(hasWords) ??
+            (this.options.image === undefined ? undefined : this.parser.blankLine());
         if (firstLine === undefined) {
             return 1;
         }

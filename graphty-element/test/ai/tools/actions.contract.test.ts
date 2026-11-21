@@ -364,8 +364,8 @@ const ROWS: Record<string, Row> = {
     "view.save": { args: { action: "save", name: "overview" } },
     "view.restore": {
         args: { action: "restore", name: "kept" },
-        setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 } }]),
-        code: "AI_NOT_AVAILABLE",
+        // Brings back what the view keeps; a session that draws nothing has no camera to move.
+        setup: (s) => s.views.save([{ name: "kept", camera: { zoom: 2 }, hidden: ["a"] }]),
     },
     "view.remove_saved": {
         args: { action: "remove_saved", name: "kept" },

@@ -90,7 +90,10 @@ interface NetworkLoad extends EntryCommon {
 
 interface SampleLoad extends EntryCommon {
     kind: "sample";
-    sample: { generator: string; params: Record<string, unknown> } | { dataset: string; baseUrl?: string };
+    sample:
+        | { generator: string; params: Record<string, unknown> }
+        | { dataset: string; baseUrl?: string }
+        | { url: string }; // experimental: an application's own sample file kept as a reference
 }
 
 interface Join {
@@ -362,6 +365,24 @@ supplied lists both; an element no load supplied (added by hand, by an AI comman
    member applies, and the report carries `W_SOURCE_STEPS_IGNORED` with `{ graph }`, the data
    member's id (`null` for the file's one graph).
 4. Autosave always embeds: a recovered session must never depend on the network.
+5. **References (experimental).** `data: "references"` means some entries carry `copy:
+"reference"` and `rowsSha256`, and the data member holds a placeholder in place of each row
+   only such a load supplied and that the load reads unchanged: `{ id, "_source.ref": <entry> }`
+   for a node, `{ source, target, "_source.ref": <entry> }` for an edge, so every position stays.
+   An open reads each such entry again (after the page allows its host; the page's own origin is
+   never asked about), puts the records it gives
+   in the placeholders' places, reports `W_SOURCE_CHANGED { source }` when the rows' digest
+   differs (a placeholder the changed load no longer gives opens as nothing, and a selection, run
+   or provenance that named its position names nothing, never the next row), adds after the
+   file's rows every row the load gives that the file holds no place for and the entry's
+   `removedRows` (`{ nodes: [id], edges: [[source, target]] }`, the rows the reader removed) does not
+   list, so a source's new rows appear, and reports
+   `W_SOURCE_UNAVAILABLE { source, reason }` when it cannot read them; then the entry
+   and its placeholders are written back unchanged by the next save. An element that does not read
+   references refuses the member (`E_BAD_DOCUMENT` at `/data`). An element with the experiment
+   off still opens such a file whole, and its next save writes every load as a copy, with no
+   `copy`, placeholder or `data: "references"`, as a file that never held a reference; only a
+   reference the open could not read is written back as it was, so nothing is lost.
 
 ## Reopening
 

@@ -35,9 +35,14 @@ const EDGES = [
 
 /**
  * Renders the workspace with a project open and loads the graph.
+ * @param nodes - the nodes to load.
+ * @param edges - the edges to load.
  * @returns the element's session.
  */
-async function openWithGraph(): Promise<GraphSession> {
+async function openWithGraph(
+    nodes: readonly Record<string, unknown>[] = NODES,
+    edges: readonly Record<string, unknown>[] = EDGES,
+): Promise<GraphSession> {
     const store = createWorkspaceStore({ project: { name: "Givers", id: 1 }, inspected: { kind: "everything-row" } });
     render(<Workspace store={store} />);
     let element: HTMLElementTagNameMap["graphty-element"] | null = null;
@@ -50,8 +55,8 @@ async function openWithGraph(): Promise<GraphSession> {
     }
     const { session } = element as HTMLElementTagNameMap["graphty-element"];
     await session.layout.set("fixed");
-    await session.data.addNodes(NODES);
-    await session.data.addEdges(EDGES);
+    await session.data.addNodes(nodes);
+    await session.data.addEdges(edges);
     return session;
 }
 
@@ -181,5 +186,44 @@ describe("the find box", () => {
         const said = which.getAttribute("aria-label") ?? "";
         assert.include(said, "donations 10000 or more");
         assert.notInclude(said, "A rule set elsewhere");
+    });
+
+    it("keeps every node a Select where row picks on the canvas (#9287)", async () => {
+        // A row of eleven nodes; the picks lean left, so their center is far from the middle, and
+        // a glide to that center at the fitted zoom would push the rightmost pick off the canvas.
+        const picked = new Set([0, 1, 2, 10]);
+        const row = Array.from({ length: 11 }, (_, i) => ({
+            id: `n${String(i)}`,
+            stage: picked.has(i) ? "Approved" : "Trial",
+            position: { x: (i - 5) * 6, y: 0, z: 0 },
+        }));
+        const chain = row.slice(1).map((node, i) => ({ source: `n${String(i)}`, target: node.id }));
+        const session = await openWithGraph(row, chain);
+        const element = document.querySelector("graphty-element");
+        if (element === null) {
+            throw new Error("the element never came up");
+        }
+        await session.layout.setDimension("2d");
+        await element.waitForSettled();
+        await element.applyCameraView("fitToGraph");
+        await element.waitForStableFrame();
+
+        await focusFind();
+        await userEvent.keyboard("Approved");
+        await userEvent.click(await screen.findByRole("option", { name: "Select where stage is Approved (4)" }));
+        await waitFor(() => {
+            assert.sameMembers([...session.selection.nodes], ["n0", "n1", "n2", "n10"]);
+        });
+        await element.waitForStableFrame();
+
+        const box = element.getBoundingClientRect();
+        for (const id of session.selection.nodes) {
+            const at = element.nodeScreenPosition(id);
+            assert.isTrue(at?.visible, `${id} is drawn on the canvas`);
+            assert.isTrue(
+                (at?.x ?? -1) >= 0 && (at?.x ?? -1) <= box.width && (at?.y ?? -1) >= 0 && (at?.y ?? -1) <= box.height,
+                `${id} is inside the view`,
+            );
+        }
     });
 });

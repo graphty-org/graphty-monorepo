@@ -17,6 +17,7 @@ import { type GraphSession, isGraphtyError, listAutosaves } from "@graphty/graph
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { onUsageEvent } from "../../../lib/analytics";
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { openBy } from "../../../test/open";
 import { pickSample, sampleTile } from "../../../test/samples-dialog";
@@ -734,7 +735,19 @@ describe("Workspace autosave with the real graphty-element", () => {
         assert.include(region.textContent, FLORENTINE.name);
         assert.include(region.textContent, `${String(FLORENTINE.nodes)} nodes`);
 
+        const counted: Readonly<Record<string, unknown>>[] = [];
+        const offUsage = onUsageEvent((name, props) => {
+            if (name === "project_reopened") {
+                counted.push(props);
+            }
+        });
         await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
+        offUsage();
+        // Counted as a reopen of work kept from an earlier visit, never by its name.
+        assert.deepEqual(
+            counted.map((props) => ({ ...props })),
+            [{ from: "kept" }],
+        );
         const reopened = openedElement();
         assert.equal(reopened.session.data.statistics().nodeCount, FLORENTINE.nodes);
         assert.equal(reopened.session.project.name, FLORENTINE.name);

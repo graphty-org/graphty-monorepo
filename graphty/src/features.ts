@@ -11,26 +11,25 @@ import { siteConfig } from "./siteConfig";
 
 /** An experiment of the app alone. */
 interface AppFeature {
-    /** The id a site file or `?features=` names. */
-    readonly id: AppFeatureId;
+    /** The id a site file or `?features=` names: `never` while none is declared; the next one makes it a string union. */
+    readonly id: never;
     /** Its tracking issue. */
     readonly issue: number;
     /** The day it was declared. */
     readonly since: string;
 }
 
-/** The ids of the app's own experiments. */
-export type AppFeatureId = "usage-analytics";
-
 /**
  * The app's own experiments, with their tracking issues. Exported for tools/check-features.mjs, which reads it as text.
  * @public
  */
-export const APP_FEATURES: readonly AppFeature[] = Object.freeze([
-    // PostHog's anonymous counts and shared mode, surveys, and the words and links that describe
-    // them (design/graphty/usage-analytics.md); off, the app sends PostHog nothing and loads none of it.
-    { id: "usage-analytics", issue: 8818, since: "2026-11-18" },
-]);
+export const APP_FEATURES: readonly AppFeature[] = Object.freeze([]);
+
+/**
+ * Ids of the app's experiments that have shipped: a site file or `?features=` naming one is accepted
+ * and changes nothing. tools/check-features.mjs fails where code still names one.
+ */
+export const GRADUATED_FEATURES: readonly string[] = Object.freeze(["usage-analytics"]);
 
 /**
  * Whether one of the app's own experiments is on. Off until `loadSiteConfig` settles.
@@ -38,6 +37,6 @@ export const APP_FEATURES: readonly AppFeature[] = Object.freeze([
  * @param features - the combined raw list; the loaded site configuration's by default.
  * @returns true when the list names it, or names "all".
  */
-export function appFeatureOn(id: AppFeatureId, features: readonly string[] = siteConfig().features): boolean {
+export function appFeatureOn(id: AppFeature["id"], features: readonly string[] = siteConfig().features): boolean {
     return features.includes(id) || features.includes("all");
 }

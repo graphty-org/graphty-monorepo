@@ -1,6 +1,6 @@
 /**
- * What leaves the page with the usage-analytics experiment off (nothing, for any reader), and for a
- * reader who never shares usage data with it on, with the REAL graphty-element and
+ * What leaves the page on a site with no PostHog ids (nothing, for any reader), and for a
+ * reader who never shares usage data on a site with them, with the REAL graphty-element and
  * the app's own analytics wiring (design/graphty/usage-analytics.md, section 11): PostHog's real code
  * loads once after first paint and sends only its anonymous, cookieless counts, none carrying the
  * address bar's secret, a file's name or a label; Sentry never starts. PostHog's ingest host is a
@@ -104,17 +104,13 @@ async function secretFile(): Promise<File> {
 const SECRET_QUERY = "?url=https://SECRET_URL.example/SECRET_URL.csv&ref=hn";
 
 /**
- * Boots analytics as main.tsx does, for a site with PostHog configured, from an address that
- * carries a secret, then shows the workspace's start page.
- * @param features - the site's experiments: usage-analytics on, unless a case says otherwise.
+ * Boots analytics as main.tsx does, for the production site, from an address that carries a
+ * secret, then shows the workspace's start page.
+ * @param withIds - whether the site's configuration has PostHog's ids: it does, unless a case says otherwise.
  */
-async function boot(features: readonly string[] = ["usage-analytics"]): Promise<void> {
+async function boot(withIds = true): Promise<void> {
     globalThis.history.replaceState(null, "", SECRET_QUERY);
-    const site = {
-        site: "production",
-        features,
-        analytics: TEST_ANALYTICS,
-    };
+    const site = withIds ? { site: "production", analytics: TEST_ANALYTICS } : { site: "production" };
     startAnalyticsAtBoot(await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`));
     render(<Workspace store={createWorkspaceStore()} />);
 }
@@ -253,14 +249,14 @@ function analyticsKeys(): string[] {
 }
 
 // First in the file, so nothing earlier on this page has loaded PostHog's code.
-describe("with the usage-analytics experiment off", () => {
+describe("on a site with no PostHog ids", () => {
     beforeEach(startRecording);
     afterEach(stopRecording);
 
     it("sends PostHog nothing, loads none of it and stores nothing for it, while the reader shares", async () => {
-        // A reader who shared on an earlier visit, booting with PostHog's ids configured...
+        // A reader who shared on an earlier visit, booting on its own host...
         localStorage.setItem("graphty.usageData.v1", "share");
-        await boot([]);
+        await boot(false);
         assert.strictEqual(sentryStarts, 1, "the earlier Share starts error reporting, as before");
         // ...then uses the app.
         assert.isNull(screen.queryByRole("complementary", { name: "Usage data" }), "the question was answered");
@@ -276,35 +272,14 @@ describe("with the usage-analytics experiment off", () => {
         assert.strictEqual(globalThis.location.search, SECRET_QUERY, "the address bar is left as it was");
     });
 
-    it("starts error reporting alone on a first visit's Share", async () => {
-        await boot([]);
-        const card = screen.getByRole("complementary", { name: "Usage data" });
-        await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
-        assert.strictEqual(sentryStarts, 1, "Share starts error reporting, as before");
-        await useTheApp();
-
-        assert.strictEqual(imports, 0, "PostHog's code was never asked for");
-        assert.isEmpty(network.urls, "no request reached PostHog");
-        assert.isEmpty(analyticsKeys(), "nothing was stored for analytics");
-        assert.isNull(screen.queryByRole("complementary", { name: "Survey" }));
-        assert.isNull(document.querySelector(".ws-usage-corner"), "no survey corner: the card is laid out as before");
-    });
-
-    it("writes an opened project's name and starting settings as plain settings, as before", async () => {
-        await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify({ features: [] }))}`);
-        const steps = await configStepsOfASample();
-        assert.strictEqual(steps.app, 0, "no step is marked as the app's own");
-        assert.isAtLeast(steps.other, 2, "the name and the starting settings were written");
-    });
-
-    it("deletes what an earlier visit with the experiment on stored, when the reader turns sharing off", async () => {
-        // A reader who shared on a visit with the experiment on, back on a site with it off.
+    it("deletes what an earlier visit that sent PostHog stored, when the reader turns sharing off", async () => {
+        // A reader who shared on a visit that sent PostHog, back on a site with no PostHog ids.
         localStorage.setItem("graphty.usageData.v1", "share-analytics");
         localStorage.setItem("ph_phc_test_posthog", '{"distinct_id":"someone"}');
         localStorage.setItem("seenSurvey_x", "true");
         localStorage.setItem("graphty.visits.v1", '{"first":"2026-01-01","last":"2026-01-02"}');
         localStorage.setItem("graphty.surveys.v1", '{"seen":[],"use_case":"SECRET_PROJECT"}');
-        await boot([]);
+        await boot(false);
         // The privacy chip in an open project's status bar leads to Settings > Privacy.
         await useTheApp();
         const [chip] = await screen.findAllByRole("button", { name: "Usage data on, content masked" });
@@ -321,9 +296,9 @@ describe("with the usage-analytics experiment off", () => {
     });
 });
 
-// Canary: the experiment on, and no PostHog ids to send with. The page shows the words for sending
-// PostHog nothing, so it behaves as with the experiment off.
-describe("with the usage-analytics experiment on and no PostHog ids", () => {
+// On another site's own host with no PostHog ids to send with: the page shows the words for sending
+// PostHog nothing.
+describe("on canary's host with no PostHog ids", () => {
     beforeEach(startRecording);
     afterEach(stopRecording);
 
@@ -331,7 +306,7 @@ describe("with the usage-analytics experiment on and no PostHog ids", () => {
         // On canary's own host, so only the missing PostHog ids keep the page from sending.
         setAnalyticsCallsForTests({ ...recordingCalls(), hostname: () => "canary.graphty.app" });
         globalThis.history.replaceState(null, "", SECRET_QUERY);
-        const site = { site: "canary", features: ["usage-analytics"] };
+        const site = { site: "canary" };
         startAnalyticsAtBoot(await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`));
         render(<Workspace store={createWorkspaceStore()} />);
         assert.strictEqual(globalThis.location.search, SECRET_QUERY, "boot keeps the channel parameters");
@@ -351,7 +326,7 @@ describe("a reader who never shares usage data", () => {
     afterEach(stopRecording);
 
     it("marks an opened project's name and starting settings as the app's own steps", async () => {
-        const site = { site: "production", features: ["usage-analytics"], analytics: TEST_ANALYTICS };
+        const site = { site: "production", analytics: TEST_ANALYTICS };
         await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
         const steps = await configStepsOfASample();
         assert.strictEqual(steps.other, 0, "no settings step is counted as the reader's");
@@ -452,8 +427,8 @@ describe("the usage card while site.json loads", () => {
     beforeEach(startRecording);
     afterEach(stopRecording);
 
-    it("keeps the answer line and its focus when site.json switches the experiment on after an answer", async () => {
-        // The page paints before site.json settles, with every experiment off.
+    it("keeps the answer line and its focus when site.json switches PostHog on after an answer", async () => {
+        // The page paints before site.json settles, on no known site.
         render(<Workspace store={createWorkspaceStore()} />);
         const card = screen.getByRole("complementary", { name: "Usage data" });
         await userEvent.click(within(card).getByRole("button", { name: "No thanks" }));
@@ -465,33 +440,34 @@ describe("the usage card while site.json loads", () => {
             return focused;
         });
 
-        const site = { site: "production", features: ["usage-analytics"], analytics: TEST_ANALYTICS };
+        const site = { site: "production", analytics: TEST_ANALYTICS };
         await act(async () => {
             await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
         });
 
-        assert.isNotNull(document.querySelector(".ws-usage-corner"), "the experiment is on");
+        assert.isNotNull(document.querySelector(".ws-usage-corner"), "the page sends PostHog now");
         assert.strictEqual(document.querySelector(".ws-start-answer"), line, "the same answer line is still shown");
         assert.strictEqual(document.activeElement, close, "focus stayed on its Close");
     });
 
-    it("stops what a Share started, and asks again with focus on the question, when site.json switches PostHog on after it", async () => {
+    it("starts nothing for a Share, and asks again with focus on the question, when site.json switches PostHog on after it", async () => {
         // The page paints before site.json settles: the card's words never name PostHog.
         render(<Workspace store={createWorkspaceStore()} />);
         const card = screen.getByRole("complementary", { name: "Usage data" });
         await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
-        // Not vacuous: the Share started error reporting, and focus moved to the answer line's Close.
-        assert.isTrue(isSentryEnabled(), "Share started error reporting");
+        // Before site.json the page is on no site's own host, so the Share starts nothing; focus moved
+        // to the answer line's Close.
+        assert.isFalse(isSentryEnabled(), "a Share before site.json starts no error reporting");
         await vi.waitFor(() => {
             assert.strictEqual(document.activeElement?.getAttribute("aria-label"), "Close");
         });
 
-        const site = { site: "production", features: ["usage-analytics"], analytics: TEST_ANALYTICS };
+        const site = { site: "production", analytics: TEST_ANALYTICS };
         await act(async () => {
             await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
         });
 
-        assert.isFalse(isSentryEnabled(), "error reporting stopped with the Share it came from");
+        assert.isFalse(isSentryEnabled(), "nor does site.json arriving start any");
         const asked = screen.getByRole("complementary", { name: "Usage data" });
         await vi.waitFor(() => {
             assert.strictEqual(

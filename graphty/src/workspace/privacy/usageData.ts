@@ -4,18 +4,16 @@
  * cookieless mode, lib/analytics.ts) are sent whatever the answer, and Share switches the counts to
  * PostHog's shared mode; Share itself is one anonymous count, `usage_data_shared`. The answer is
  * the reader's own preference, kept in this browser. Where the page sends PostHog nothing
- * (analyticsSends: the usage-analytics experiment off, a site with no PostHog ids, or
- * off the site's own host), Share and No start and stop error reporting alone (nothing at all off
- * the site's own host with the experiment on), in this tab alone,
+ * (analyticsSends: a site with no PostHog ids, or off the site's own host), Share and No start and
+ * stop error reporting alone (nothing at all off the site's own host), in this tab alone,
  * with the address bar left as it is, and No still deletes what an earlier visit that sent PostHog
- * stored for analytics. A Share given with it off
- * never starts PostHog once it is on: the card asks again (SHARE_WITH_ANALYTICS), and the error
+ * stored for analytics. A Share given where the page sent PostHog nothing
+ * never starts PostHog once it sends: the card asks again (SHARE_WITH_ANALYTICS), and the error
  * reporting it started in this page view stops.
  */
 
 import { useSyncExternalStore } from "react";
 
-import { appFeatureOn } from "../../features";
 import {
     analyticsSends,
     count,
@@ -67,11 +65,11 @@ const live = {
      * @param fresh - false when another tab's Share started this one (see startPostHog).
      */
     start: (fresh = true): void => {
-        // Where the page sends PostHog nothing (the experiment off, or a site with no PostHog ids such
-        // as canary): Share starts error reporting alone, as it did before. With the experiment on and
-        // off the site's own host (a local build serving a real site's site.json) nothing starts.
+        // Where the page sends PostHog nothing (a site with no PostHog ids): Share starts error
+        // reporting alone. Off the site's own host (a local build serving a real site's site.json)
+        // nothing starts.
         if (!analyticsSends()) {
-            if (!appFeatureOn("usage-analytics") || onOwnHost()) {
+            if (onOwnHost()) {
                 initSentry();
             }
             return;
@@ -82,9 +80,9 @@ const live = {
     },
     stop: (): void => {
         stopSentry();
-        // Whatever the experiment says: a reader who shared on a visit with it on (canary,
-        // ?features=usage-analytics, or production before a rollback) has PostHog's id, survey keys
-        // and a visit record stored, and No deletes them. stopPostHog loads and sends nothing.
+        // Wherever this page is: a reader who shared on a visit that sent PostHog (another host, or
+        // this site before its PostHog ids were removed) has PostHog's id, survey keys and a visit
+        // record stored, and No deletes them. stopPostHog loads and sends nothing.
         stopPostHog();
         if (!analyticsSends()) {
             // Where the page sends PostHog these stay: anonymous counts and their survey record go on after No.
@@ -253,7 +251,7 @@ export function forgetUsageAnswer(): void {
  */
 function subscribe(listener: () => void): () => void {
     listeners.add(listener);
-    // The experiment decides what a stored Share means (parse), and is known once site.json loads.
+    // Whether the page sends PostHog decides what a stored Share means (parse), and is known once site.json loads.
     const stopSite = onSiteConfig(listener);
     return () => {
         listeners.delete(listener);

@@ -336,6 +336,8 @@ function layersJson(w: Writer): JsonObject[] {
                 // The eye: the style tree names only the style section's layers (#9307).
                 ...(layer.hidden === true ? { hidden: true } : {}),
                 ...(layer.userData === undefined ? {} : { userData: layer.userData }),
+                // The part of a row it is, so the row's parts open as one row (#9307).
+                ...(layer.row === undefined ? {} : { row: fileLayerId(w.session, layer.row) }),
             };
         });
 }
@@ -1292,59 +1294,125 @@ function keptLayer(r: Reader, layers: readonly unknown[], n: number, pointer: st
     return true;
 }
 
+/** A view layer read and ready to add. */
+interface ReadLayer {
+    /** Its place in the file's `layers`. */
+    readonly n: number;
+    /** Its file id. */
+    readonly id: unknown;
+    /** Whether its row is hidden. */
+    readonly hidden: boolean;
+    /** The row it is a part of, as the file names it. */
+    readonly row: string | undefined;
+    /** The layer, its references bound. */
+    readonly spec: LayerSpec;
+}
+
 /**
- * Add the view layers on top of the stack, remembering their file ids.
+ * Add the view layers on top of the stack, remembering their file ids. The parts of one row (a
+ * layer that paints nodes and edges) come back as one row (#9307).
  * @param r - The reader.
  * @param layers - The layers, bottom first.
  * @returns The session ids of the layers added.
  */
 async function readLayers(r: Reader, layers: readonly unknown[]): Promise<string[]> {
-    const { tx } = r.context;
+    const read = layers.flatMap((entry, n) => readLayer(r, layers, n));
     const added: string[] = [];
-    for (const [n, entry] of layers.entries()) {
-        if (!isObject(entry)) {
+    const done = new Set<string>();
+    for (const one of read) {
+        if (one.row !== undefined && done.has(one.row)) {
             continue;
         }
 
-        const pointer = `${r.section.pointer}/layers/${n}`;
-        if (keptLayer(r, layers, n, pointer)) {
-            continue;
+        const parts = one.row === undefined ? [one] : read.filter((each) => each.row === one.row);
+        if (one.row !== undefined) {
+            done.add(one.row);
         }
 
-        const { id, source, hidden, ...rest } = entry;
-        const spec = mapRefs(rest, r.mapper, pointer) as LayerSpec;
-        const readSource =
-            isObject(source) && source.by === "run" && typeof source.algorithm === "string"
-                ? {
-                      ...source,
-                      params: mapParams(
-                          tx,
-                          source.algorithm,
-                          isObject(source.params) ? source.params : {},
-                          r.mapper,
-                          `${pointer}/source/params`,
-                      ).params,
-                  }
-                : source;
-        await attempt(r, `layers/${n}`, async () => {
-            const layer = await tx.styles.add({
-                ...spec,
-                ...(readSource === undefined ? {} : { source: readSource as never }),
-            });
-            if (typeof id === "string") {
-                fileIdsOf(r.context.session).layers.set(layer.id, id);
-            }
-
-            if (hidden === true) {
-                await tx.styles.hideRow(layer.id, true);
-            }
-
-            added.push(layer.id);
+        await attempt(r, `layers/${String(one.n)}`, async () => {
+            added.push(...(await addParts(r, parts)));
             r.context.restored.add("styles");
         });
     }
 
     return added;
+}
+
+/**
+ * One view layer as read, or none when it is not an object or is kept as read.
+ * @param r - The reader.
+ * @param layers - The layers, bottom first.
+ * @param n - The layer's place.
+ * @returns The layer, or nothing.
+ */
+function readLayer(r: Reader, layers: readonly unknown[], n: number): ReadLayer[] {
+    const entry = layers[n];
+    const pointer = `${r.section.pointer}/layers/${String(n)}`;
+    if (!isObject(entry) || keptLayer(r, layers, n, pointer)) {
+        return [];
+    }
+
+    const { id, source, hidden, row, ...rest } = entry;
+    const spec = mapRefs(rest, r.mapper, pointer) as LayerSpec;
+    const readSource =
+        isObject(source) && source.by === "run" && typeof source.algorithm === "string"
+            ? {
+                  ...source,
+                  params: mapParams(
+                      r.context.tx,
+                      source.algorithm,
+                      isObject(source.params) ? source.params : {},
+                      r.mapper,
+                      `${pointer}/source/params`,
+                  ).params,
+              }
+            : source;
+    return [
+        {
+            n,
+            id,
+            hidden: hidden === true,
+            row: typeof row === "string" ? row : undefined,
+            spec: { ...spec, ...(readSource === undefined ? {} : { source: readSource as never }) },
+        },
+    ];
+}
+
+/**
+ * Add one row's layers: a layer of its own, or the parts of a row, which join it again through
+ * the style document's `row`, as a style section's do.
+ * @param r - The reader.
+ * @param parts - The row's layers, bottom first.
+ * @returns The session ids of the layers added, bottom first.
+ */
+async function addParts(r: Reader, parts: readonly ReadLayer[]): Promise<string[]> {
+    const { tx, session } = r.context;
+    let ids: string[];
+    if (parts.length === 1 && parts[0].row === undefined) {
+        ids = [(await tx.styles.add(parts[0].spec)).id];
+    } else {
+        const before = new Set(tx.styles.list().map((layer) => layer.id));
+        await tx.styles.applyTemplate({
+            version: 1,
+            layers: parts.map((part) => ({ ...part.spec, row: part.row })),
+        });
+        ids = tx.styles
+            .list()
+            .filter((layer) => !before.has(layer.id))
+            .map((layer) => layer.id);
+    }
+
+    ids.forEach((layerId, at) => {
+        const fileId = parts[at]?.id;
+        if (typeof fileId === "string") {
+            fileIdsOf(session).layers.set(layerId, fileId);
+        }
+    });
+    if (parts.some((part) => part.hidden)) {
+        await tx.styles.hideRow(ids[0], true);
+    }
+
+    return ids;
 }
 
 /**

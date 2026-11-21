@@ -4,6 +4,7 @@ import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
 import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
 import { Matrix } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
@@ -548,8 +549,6 @@ interface RowFamily {
     readonly canonical: Mesh;
     readonly groups: Set<RowGroup>;
     batch: NodeBatch | null;
-    /** The lowest row its batch draws, the row the objects path meets its first instance at. */
-    firstRow: number;
 }
 
 /**
@@ -902,6 +901,11 @@ export class NodeBatches {
     private readonly held = new Set<Node>();
     private readonly stopFlush: () => void;
     private readonly stopMirror: () => void;
+    /**
+     * Where each source's first instance was listed in `scene.meshes` when the batches took over
+     * from the objects path: the order the objects path blended translucent sources in.
+     */
+    private readonly listedAt = new WeakMap<Mesh, number>();
     private view: BatchView;
 
     /**
@@ -914,6 +918,11 @@ export class NodeBatches {
         scene: Parameters<typeof batchUploadFrames.join>[0],
     ) {
         this.view = host.view();
+        scene.meshes.forEach((mesh, at) => {
+            if (mesh instanceof InstancedMesh && !this.listedAt.has(mesh.sourceMesh)) {
+                this.listedAt.set(mesh.sourceMesh, at);
+            }
+        });
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
         });
@@ -1600,7 +1609,7 @@ export class NodeBatches {
         const key = alone ? `${look}#${String(source.uniqueId)}` : look;
         let family = this.families.get(key);
         if (family === undefined) {
-            family = { key, canonical: source, groups: new Set(), batch: null, firstRow: Infinity };
+            family = { key, canonical: source, groups: new Set(), batch: null };
             this.families.set(key, family);
         }
 
@@ -1660,7 +1669,6 @@ export class NodeBatches {
             }
         });
 
-        family.firstRow = Math.min(...rows.map(({ node }) => node.index));
         if (rows.length > 0) {
             const made = family.batch === null;
             family.batch ??= this.host.cache.batchFor(family.canonical, this.host.places, this.host.root());
@@ -1680,12 +1688,13 @@ export class NodeBatches {
 
     /**
      * Put a new translucent batch among the other translucent batches in `scene.meshes` in the
-     * order the objects path meets their looks' first instances, which it lists in row order (as it
-     * builds them, and as `Graph.setRenderPath` lists them on the way back): by each one's lowest
-     * row. Every source sits at one place and every batch at another, so Babylon's back-to-front
-     * sort ties them all and draws them in the order they reach it. Not by source creation: a
-     * source a held instance kept outlives the others' through a trip to the objects path.
-     * ponytail: a repaint on the objects path can list a row's instance out of row order.
+     * order the objects path blends their sources in. Every source sits at one place and every batch
+     * at another, so Babylon's back-to-front sort ties them all and draws them in the order they
+     * reach it: a source's when its first instance is met in `scene.meshes`, a batch's when it is.
+     * Sources the objects path had instances of when the batches took over keep that order; the
+     * others, made later, come after them in the order they were made.
+     * ponytail: creation order stands in for a source made under batches, which repaint history
+     * can reorder on the objects path; a translucent row's order would need tracking per instance.
      * @param family - The family of the new batch.
      */
     private orderTranslucent(family: RowFamily): void {
@@ -1698,7 +1707,7 @@ export class NodeBatches {
         const earlier = new Set<AbstractMesh>();
         for (const other of this.families.values()) {
             if (other.batch !== null && other !== family && other.batch.mesh.visibility < 1) {
-                (other.firstRow > family.firstRow ? later : earlier).add(other.batch.mesh);
+                (this.blendsBefore(family.canonical, other.canonical) ? later : earlier).add(other.batch.mesh);
             }
         }
 
@@ -1711,6 +1720,18 @@ export class NodeBatches {
             after = earlier.has(candidate) ? at + 1 : after;
         });
         meshes.splice(before !== -1 ? before : Math.max(after, from), 0, mesh);
+    }
+
+    /**
+     * Whether the objects path blends one translucent source before another ({@link NodeBatches.orderTranslucent}).
+     * @param a - One source.
+     * @param b - The other.
+     * @returns True when a comes first.
+     */
+    private blendsBefore(a: Mesh, b: Mesh): boolean {
+        const at = this.listedAt.get(a) ?? Infinity;
+        const bt = this.listedAt.get(b) ?? Infinity;
+        return at === bt ? a.uniqueId < b.uniqueId : at < bt;
     }
 
     /**

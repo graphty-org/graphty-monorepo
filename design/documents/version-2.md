@@ -833,7 +833,9 @@ frame later would be a view major version.
   copy id so a refetch that returns different data is reported. Default: embedded, so a file stands
   alone. There is no size-based automatic switch. A file is referenced by its `path` or by a
   browser file handle; a file source with neither cannot be referenced: it is saved embedded even
-  when a reference was asked for, and the save report names it (`W_SOURCE_NO_PATH`). Every path,
+  when a reference was asked for, and the save report names it (`W_SOURCE_NO_PATH`, with the
+  reason the session's own source references give: `file`, `inline`, `join`, `secret-url`,
+  `relative-url` or `no-seed`). Every path,
   also one written back as read (a held source, a later graph, a data section held whole), is resolved against the file the
   project was opened from and written relative to the file being saved (the `location` save
   option); with no location, or a file outside that folder, it loses its path: a built source is
@@ -920,7 +922,10 @@ frame later would be a view major version.
   so one that needs permission is held (`needs-permission`) until a refresh asks during the
   reader's click. Otherwise the load plan lists the source as needing a file, with its saved name, so the app can ask the reader to pick it; a picked file whose copy id differs is
   treated as a refresh. Only a source still not found reports `{ code: "W_SOURCE_UNAVAILABLE",
-params: { source } }`, supplies no elements and leaves references to them unbound.
+params: { source, reason } }`, supplies no elements and leaves references to them unbound. It stays in
+  the session as a held load kept as a reference (`data.copies()`), written back as read, until a
+  refresh builds it; the file has no `held` member. A network source's `origin.ledger` is restored as
+  the session's record of its load, so a refresh replays its request.
 
 ## Versions
 

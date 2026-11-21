@@ -198,6 +198,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.declare": (p) => `changing the column ${text(p, "column", "")}`.trimEnd(),
     "data.set-source": () => "renaming the source",
     "data.import-source": (p) => `importing ${text(p, "name", "data from a network source")}`,
+    "data.steps-set": (p) => (p.kind === "add" ? `adding ${text(p, "name", "a source")}` : "changing the sources"),
     "data.source-expand": (p) => `expanding ${counted(p, "node", "nodes")} from a network source`,
     "data.collapse": (p) => `collapsing ${text(p, "node", "a node")}`,
     "groups.collapse": (p) => `collapsing group ${String(p.group)}`,

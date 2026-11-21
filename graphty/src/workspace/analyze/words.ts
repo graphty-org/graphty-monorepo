@@ -725,7 +725,8 @@ export function pathWords(session: GraphSession, run: Run): { from: string; to: 
 
 /**
  * The status line for a finished path search: "Shortest path added: Ava to Lee, 2 hops" (or
- * "..., minutes 14" by a distance weight), or
+ * "..., minutes 14" by a distance weight), "Shortest path updated, layer style kept: ..." for a
+ * re-run the element drew with its existing layer (the `layers.kept` caveat fact), or
  * "No path from Ava to Lee.".
  * @param session - the element's session.
  * @param run - the run.
@@ -736,9 +737,11 @@ export function pathAnnouncement(session: GraphSession, run: Run): string | null
     if (words === null) {
         return null;
     }
+    const kept = run.caveats.facts.some((fact) => fact.code === "layers.kept");
+    const found = kept ? "Shortest path updated, layer style kept" : "Shortest path added";
     return words.length === null
         ? `No path from ${words.from} to ${words.to}.`
-        : `Shortest path added: ${words.from} to ${words.to}, ${words.length}`;
+        : `${found}: ${words.from} to ${words.to}, ${words.length}`;
 }
 
 /**

@@ -82,6 +82,7 @@ import {
 } from "./sources/member";
 import { isProvenance, type Provenance } from "./sources/provenance";
 import { fillReferences, type LeaveOut, planLeaveOut, REF_KEY, unreadLoads } from "./sources/references";
+import { EMPTY_STEPS } from "./sources/steps/project";
 import { computeFingerprint } from "./statistics";
 import { oldLookColumns, rewriteOldPaths } from "./styles/fileStyles/oldLooks";
 import type {
@@ -1074,14 +1075,23 @@ export function dataMember(
         new Set(derived.filter((column) => column.kind === kind).map((column) => column.name));
     const nodeKeys = computed("node");
     const edgeKeys = computed("edge");
+    // Under the source-steps experiment each record carries its type, at most one (design 3.7).
+    const typed = <T extends Readonly<Record<string, unknown>>>(
+        record: T,
+        kind: "node" | "edge",
+        id: NodeId | EdgeId,
+    ): T => {
+        const type = file?.typeOf?.(kind, id);
+        return type === undefined ? record : { ...record, "graphty.types": type === null ? [] : [type] };
+    };
     const nodes = (expanded?.nodes ?? session.data.nodes({ scope: "graph" })).map((node) =>
-        withLoads(withoutKeys(node, nodeKeys), session.data.sourcesOf(node.id)),
+        typed(withLoads(withoutKeys(node, nodeKeys), session.data.sourcesOf(node.id)), "node", node.id),
     );
     // The whole graph, as the nodes are: the file is the original, not what a filter shows.
     const edges = (
         expanded?.edges ?? session.data.edges({ scope: "graph" }).map((edge) => ({ id: edge.id, record: edge }))
     ).map(({ id, record }) => ({
-        ...withLoads(withoutKeys(record, edgeKeys), session.data.sourcesOf(id, { kind: "edge" })),
+        ...typed(withLoads(withoutKeys(record, edgeKeys), session.data.sourcesOf(id, { kind: "edge" })), "edge", id),
         id,
     }));
     // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
@@ -1931,6 +1941,24 @@ function stepsOnly(): GraphtyError {
 }
 
 /**
+ * A graph a source-steps save wrote, without the `graphty.types` its records carry: the type is
+ * the build's to give again on open, never a column (design 3.7). A file with no steps keeps it.
+ * @param graph - The graph as read.
+ * @param member - The `graphty-sources` member, when the file has one.
+ * @returns The graph.
+ */
+function withoutTypes(graph: NodeLink, member: Record<string, unknown> | undefined): NodeLink {
+    if (member?.joins === undefined) {
+        return graph;
+    }
+    const strip = (record: Record<string, unknown>): Record<string, unknown> => {
+        const { "graphty.types": _types, ...rest } = record;
+        return rest;
+    };
+    return { ...graph, nodes: graph.nodes.map((n) => strip(n)), links: graph.links.map((l) => strip(l)) };
+}
+
+/**
  * Check a data member before anything is changed.
  * @param member - The member.
  * @returns Its graph.
@@ -2689,7 +2717,11 @@ async function readProject(
     loads: SourcesRead,
 ): Promise<void> {
     // A sources member that was read says where the data came from; else the data member's own fields do.
-    const { source, sources, provenance } = openedLoads(loads, doc.members.get("graphty-data")?.[0] ?? {});
+    const legacy = doc.members.get("graphty-data")?.[0] ?? {};
+    const opened = openedLoads(loads, legacy);
+    const { sources, provenance } = opened;
+    // Sources and steps name every source, so the graph's own source is the one the file saved.
+    const source = loads.steps === undefined ? opened.source : legacy.source;
     const { tx, problems } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
@@ -2698,7 +2730,9 @@ async function readProject(
     await readSettings(opening, doc, state.config, name);
     const records =
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
-    const edgeIds = await importInto(tx, records, source, sources, provenance, opening.linkAt);
+    const edgeIds = await importWithSteps(opening, loads.steps, () =>
+        importInto(tx, records, source, sources, provenance, opening.linkAt),
+    );
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes({ scope: "graph" }).map((node) => node.id));
     const lookPaths = await readOldLooks(opening, state, nodeIds, edgeIds);
@@ -2867,6 +2901,73 @@ async function readTours(opening: Opening, tours: unknown): Promise<void> {
     if (list.length > 0) {
         await attempt(opening, "tours", () => opening.tx.tours.save(list));
     }
+}
+
+/**
+ * The graph as a reader reads it, to compare: each node and edge record, without `_source.loads`,
+ * its keys sorted.
+ * @param tx - The transaction.
+ * @returns The text.
+ */
+function readGraphText(tx: TransactionScope): string {
+    const sorted = (record: Readonly<Record<string, unknown>>): Record<string, unknown> =>
+        Object.fromEntries(
+            Object.entries(record)
+                .filter(([key]) => key !== SOURCE_LOADS)
+                .sort(([a], [b]) => a.localeCompare(b)),
+        );
+    return JSON.stringify([
+        tx.data.nodes({ scope: "graph" }).map((node) => sorted(node)),
+        tx.data.edges({ scope: "graph" }).map((edge) => sorted(edge)),
+    ]);
+}
+
+/** The column a record's loads are saved in. */
+const SOURCE_LOADS = "_source.loads";
+
+/**
+ * Put the embedded graph in, then the sources and steps the file saved (the `source-steps`
+ * experiment) over it.
+ * @param opening - The open.
+ * @param steps - The sources and steps the file saved, if any were read.
+ * @param importGraph - Puts the embedded graph in and gives its edge ids by position.
+ * @returns The edge ids this session gave the file's edges, by position.
+ */
+async function importWithSteps(
+    opening: Opening,
+    steps: SourcesRead["steps"],
+    importGraph: () => Promise<(EdgeId | undefined)[]>,
+): Promise<(EdgeId | undefined)[]> {
+    const edgeIds = await importGraph();
+    if (steps === undefined || (await restoreSteps(opening.tx, steps))) {
+        return edgeIds;
+    }
+    // The embedded graph is newer than the steps (a release without the experiment edited it and
+    // wrote the member back as read): it applies, and the steps are left out.
+    await opening.tx.execute({ op: "data.steps-set", edit: { kind: "set", value: EMPTY_STEPS } });
+    opening.problems.push({
+        code: "W_SOURCE_STEPS_IGNORED",
+        params: { kind: SOURCE_RECORD_MEMBER, pointer: "/members", graph: null },
+    });
+    return importGraph();
+}
+
+/**
+ * Put back the sources and steps a project file saved (the `source-steps` experiment) over the
+ * graph it embeds, and check that their build is the part of that graph they own. The records no
+ * step builds (those an older file brought in before the experiment was on) stay as they were.
+ * @param tx - The transaction, the embedded graph already in.
+ * @param steps - The sources and steps, and their rows as read.
+ * @returns True when the build is the graph as embedded; false when it differs, the build applied.
+ */
+async function restoreSteps(tx: TransactionScope, steps: NonNullable<SourcesRead["steps"]>): Promise<boolean> {
+    const embedded = readGraphText(tx);
+    await tx.execute({
+        op: "data.steps-set",
+        edit: { kind: "restore", value: steps.value },
+        copies: steps.copies,
+    });
+    return readGraphText(tx) === embedded;
 }
 
 /**
@@ -3580,7 +3681,7 @@ export function projectOf(
             throw member?.data === "steps" ? stepsOnly() : badDocument({ member: "graphty-data" });
         }
 
-        const graph = nodeLinkOf(data);
+        const graph = withoutTypes(nodeLinkOf(data), member);
         const state = doc.members.get("graphty-session")?.[0];
         // A file cannot approve its own fetches: an older one's saved network policy is ignored.
         if (state?.network !== undefined) {
@@ -3625,6 +3726,7 @@ export function projectOf(
             isRegistered: (id) => sourceDescriptors().some((entry) => entry.id === id),
             isGenerator: (generator) => GENERATOR_CATALOG.some((entry) => entry.name === generator),
             now: new Date().toISOString(),
+            steps: session.features.has("source-steps"),
         });
         problems.push(...read.problems);
         // A reference that could not be read is written back as the file held it.

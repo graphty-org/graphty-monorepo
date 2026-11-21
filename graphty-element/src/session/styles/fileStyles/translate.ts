@@ -1786,7 +1786,12 @@ class KindTranslation {
         // Stable by bucket: a later pass's layer of rule i still sits below every layer of rule i+1.
         ordered.sort((a, b) => a.bucket - b.bucket);
 
-        const { layers, folded } = foldToCap(mergeLikeLayers(ordered, this.#n), this.#n, (run, paint) =>
+        const held = new Set(
+            this.#rules.flatMap((rule) =>
+                rule.origin === "declared" && (rule.role === "group" || rule.role === "mapping") ? [rule.id] : [],
+            ),
+        );
+        const { layers, folded } = foldToCap(mergeLikeLayers(ordered, this.#n, held), this.#n, (run, paint) =>
             this.#folded(run, paint),
         );
         if (folded > 0) {
@@ -3579,13 +3584,17 @@ type MergeSort = "set" | "copies" | null;
 
 /**
  * The sort of layer `mergeLikeLayers` may merge: one that sets constants only, or one that only copies a file's
- * values per element (kind `custom`). A mapping or group, an end label's face and a layer rebuilt from one graphty
+ * values per element (kind `custom`). A mapping or group the file declares, an end label's face and a layer rebuilt from one graphty
  * wrote are never merged.
  * @param layer - The layer.
+ * @param held - The ids of the rules whose layers keep their own (the file's declared groups and mappings).
  * @returns The sort, or null.
  */
-function mergeSortOf(layer: Building): MergeSort {
+function mergeSortOf(layer: Building, held: ReadonlySet<string>): MergeSort {
     if (layer.fallback !== undefined || layer.ends === true || (layer.drawn ?? layer.paint) === null) {
+        return null;
+    }
+    if (layer.ruleId !== undefined && held.has(layer.ruleId)) {
         return null;
     }
     const sets = Object.keys(layer.spec.set).length > 0;
@@ -3660,10 +3669,11 @@ function placeOf(layer: Building): string {
  * none of its channels, when the two merge.
  * @param out - The layers kept so far, bottom first.
  * @param layer - The layer.
+ * @param held - The ids of the rules whose layers keep their own.
  * @returns Its index in `out`, or -1.
  */
-function mergeTarget(out: readonly Building[], layer: Building): number {
-    const sort = mergeSortOf(layer);
+function mergeTarget(out: readonly Building[], layer: Building, held: ReadonlySet<string>): number {
+    const sort = mergeSortOf(layer, held);
     if (sort === null) {
         return -1;
     }
@@ -3671,7 +3681,7 @@ function mergeTarget(out: readonly Building[], layer: Building): number {
     for (let at = out.length - 1; at >= 0; at--) {
         const below = out[at];
         const belowWrites = writesOf(below);
-        if (mergeSortOf(below) === sort && placeOf(below) === placeOf(layer)) {
+        if (mergeSortOf(below, held) === sort && placeOf(below) === placeOf(layer)) {
             return mergesOver(belowWrites, writes, sort) ? at : -1;
         }
         if (clashes(belowWrites, writes, false)) {
@@ -3688,12 +3698,14 @@ function mergeTarget(out: readonly Building[], layer: Building): number {
  * (issue #9297). A layer is moved down only past layers that write none of its channels, so the picture is unchanged.
  * @param layers - The layers of one kind, bottom first.
  * @param count - How many elements of the kind the load has.
+ * @param held - The ids of the rules whose layers keep their own: a group or mapping the file declares is a style the
+ * reader named, so it stays a layer of its own.
  * @returns The layers, bottom first.
  */
-function mergeLikeLayers(layers: readonly Building[], count: number): Building[] {
+function mergeLikeLayers(layers: readonly Building[], count: number, held: ReadonlySet<string>): Building[] {
     const out: Building[] = [];
     for (const layer of layers) {
-        const into = mergeTarget(out, layer);
+        const into = mergeTarget(out, layer, held);
         if (into < 0) {
             out.push(layer);
             continue;

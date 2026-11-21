@@ -903,14 +903,16 @@ export class Edge {
             return (this.context.getNodeBatches?.()?.columnOpacityOf(row) ?? 1) <= 0;
         }
 
-        const unbuilt = this.unbuiltEnd(end);
-        if (unbuilt !== INVALID_INDEX) {
-            // a row its style hides is drawn at w = 0, which a pulled line reads as no end (`UpdateManager.endInvisible`)
-            return this.context.getUpdateManager?.()?.rowHiddenByStyle(unbuilt) === true;
+        // a row its style hides is drawn at w = 0, which a pulled line reads as no end (`UpdateManager.endInvisible`)
+        if (this.endHiddenByStyle(end)) {
+            return true;
         }
 
-        const node = end === "source" ? this.srcNode : this.dstNode;
-        return node.drawnOpacity <= 0 || node.hiddenByStyle;
+        if (this.unbuiltEnd(end) !== INVALID_INDEX) {
+            return false;
+        }
+
+        return (end === "source" ? this.srcNode : this.dstNode).drawnOpacity <= 0;
     }
 
     /**
@@ -3186,12 +3188,35 @@ export class Edge {
      * @internal
      */
     redrawPulledOffEnds(): boolean {
-        if (this.pulled === null || this.pullsLine(this.currentStyle)) {
+        const rows = this.context.getRowTable?.() ?? null;
+        if (this.pulled === null || rows === null) {
+            return false;
+        }
+
+        const headGone = this.pulled.head !== null && !(this.headEnd("source", rows) && this.headEnd("target", rows));
+        if (!headGone && !this.endHiddenByStyle("source") && !this.endHiddenByStyle("target")) {
             return false;
         }
 
         this.updateStyle();
         return true;
+    }
+
+    /**
+     * Whether one end's own style hides it (`node.visible` false), not a filter: drawn at w = 0, which a pulled line
+     * reads as no end, while the object path still draws the edge.
+     * @param end - Which end.
+     * @returns True when it does.
+     */
+    private endHiddenByStyle(end: "source" | "target"): boolean {
+        if (this.columnEnd(end) !== undefined) {
+            return false;
+        }
+
+        const unbuilt = this.unbuiltEnd(end);
+        return unbuilt === INVALID_INDEX
+            ? (end === "source" ? this.srcNode : this.dstNode).hiddenByStyle
+            : this.context.getUpdateManager?.()?.rowHiddenByStyle(unbuilt) === true;
     }
 
     /**

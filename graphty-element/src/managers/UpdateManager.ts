@@ -1551,6 +1551,13 @@ export class UpdateManager implements Manager {
     /** `RowTable.roundWrites` when the pulled edges' ends were last checked ({@link UpdateManager.repaintPulledOffEnds}). */
     private roundWritesSeen = 0;
 
+    /**
+     * The rows stored with no `Node` that their style hides (`node.visible` false), as opposed to a filter or a time
+     * window: drawn at w = 0, while the object path still draws their edges ({@link UpdateManager.rowHiddenByStyle}).
+     * ponytail: kept across a renumbering freeze as it was; the rows are painted again after one.
+     */
+    private readonly styleHiddenRows = new Set<number>();
+
     /** Whether a node's style hid or showed it since the pulled edges' ends were last checked. */
     private endsChanged = false;
 
@@ -1571,8 +1578,16 @@ export class UpdateManager implements Manager {
      * @internal
      */
     rowHiddenByStyle(row: number): boolean {
-        const table = this.graphContext.getRowTable?.() ?? null;
-        return table?.isHidden(row) === true && this.viewMasks?.visibility?.nodes()?.has(row) !== false;
+        return this.styleHiddenRows.has(row);
+    }
+
+    /**
+     * Whether a node row's own style hides it, whether or not a `Node` draws it ({@link UpdateManager.rowHiddenByStyle}).
+     * @param row - The node row.
+     * @returns True when it does.
+     */
+    private endHiddenByStyle(row: number): boolean {
+        return this.dataManager.nodesByIndex[row]?.hiddenByStyle ?? this.styleHiddenRows.has(row);
     }
 
     /**
@@ -1796,7 +1811,7 @@ export class UpdateManager implements Manager {
 
         this.roundWritesSeen = table.roundWrites;
         this.endsChanged = false;
-        for (const row of lines.rowsOffEnds((end) => this.endInvisible(end))) {
+        for (const row of lines.rowsOffEnds((end) => this.endHiddenByStyle(end))) {
             painter.queue("edge", row);
         }
 
@@ -2012,14 +2027,14 @@ export class UpdateManager implements Manager {
      * @returns True when it is.
      */
     private endInvisible(row: number): boolean {
-        const node = this.dataManager.nodesByIndex[row];
-        if (node !== undefined) {
-            return node.drawnOpacity <= 0 || node.hiddenByStyle;
+        // a row its style hides is drawn at w = 0, which a row line reads as no end; the object path draws the edge
+        if (this.endHiddenByStyle(row)) {
+            return true;
         }
 
-        // a row its style hides is drawn at w = 0, which a row line reads as no end; the object path draws the edge
-        if (this.rowHiddenByStyle(row)) {
-            return true;
+        const node = this.dataManager.nodesByIndex[row];
+        if (node !== undefined) {
+            return node.drawnOpacity <= 0;
         }
 
         const batches = this.graphContext.getNodeBatches?.() ?? null;
@@ -2058,6 +2073,25 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * The `Node` a filtered row drawn in context needs, as `applyColumnRows` builds one: a row painted after the masks
+     * were applied (a load under a filter) drew no context point. None while hidden nodes are not drawn in context.
+     * @param id - The row's node.
+     * @returns The `Node` to paint, or undefined.
+     */
+    private contextNodeOf(id: NodeIdType): Node | undefined {
+        if (this.viewMasks?.showContext?.() !== true) {
+            return undefined;
+        }
+
+        const node = dataManagerInternals.buildRow(this.dataManager, id);
+        if (node?.setRenderState("context") === true) {
+            this.sceneChanged = true;
+        }
+
+        return node;
+    }
+
+    /**
      * Draw a row stored with no `Node` from its paint, and build its `Node` only for a paint the
      * batches cannot draw (`NodeBatches.paintRow`).
      * @param painter - Where the paint is read from.
@@ -2076,8 +2110,16 @@ export class UpdateManager implements Manager {
         if (paint?.style.visible === false) {
             batches?.unpaintRow(index);
             table?.hide(index, true);
-            this.noteEndsChanged();
+            if (!this.styleHiddenRows.has(index)) {
+                this.styleHiddenRows.add(index);
+                this.noteEndsChanged();
+            }
+
             return undefined;
+        }
+
+        if (this.styleHiddenRows.delete(index)) {
+            this.noteEndsChanged();
         }
 
         if (id === undefined || paint === null) {
@@ -2086,8 +2128,9 @@ export class UpdateManager implements Manager {
 
         if (batches?.paintRow(index, paint) === true) {
             // shown again: hidden now only if a filter hides it, as `applyColumnRows` writes
-            table?.hide(index, filtered());
-            return undefined;
+            const hidden = filtered();
+            table?.hide(index, hidden);
+            return hidden ? this.contextNodeOf(id) : undefined;
         }
 
         // Past `limits.objectRows`, a row whose look no batch draws is drawn as a plain body, and
@@ -3827,14 +3870,25 @@ export class UpdateManager implements Manager {
             }
         }
 
+        const built: Node[] = [];
         dataManagerInternals.buildRowsTogether(this.dataManager, () => {
             for (const row of faint) {
                 const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
-                if (id !== undefined) {
-                    dataManagerInternals.buildRow(this.dataManager, id);
+                const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
+                if (node !== undefined) {
+                    built.push(node);
                 }
             }
         });
+
+        // Built after the walk that set every built `Node`'s state, so each is told it is drawn in context here: a
+        // graph whose edges built no `Node` (pulled lines on "batched") drew no context point at all.
+        for (const node of built) {
+            const ownMeshes = node.togglesOwnMeshes();
+            if (node.setRenderState("context")) {
+                this.sceneChanged ||= ownMeshes || node.togglesOwnMeshes();
+            }
+        }
     }
 
     /**

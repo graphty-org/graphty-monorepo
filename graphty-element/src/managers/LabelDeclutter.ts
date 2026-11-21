@@ -226,8 +226,9 @@ const NODE_STRIDE = 5;
  * configuration asks for it (`labels.declutter`, off by default).
  *
  * Every node label is its own billboarded plane, so two labeled nodes that land near each other
- * on screen draw their words over one another. The pass projects each drawn label's WORDS -- not
- * its padded plane -- to a screen rectangle, orders the labels by priority -- a selected node
+ * on screen draw their words over one another. The pass projects what each label DRAWS -- its words
+ * with their outline, and the panel behind them when it has one, not its padded plane -- to a
+ * screen rectangle, orders the labels by priority -- a selected node
  * first, then the node with more edges, then the node id so the answer is stable -- and keeps a
  * label only if its rectangle meets no label already kept. Kept rectangles are bucketed in a
  * screen grid, so each label is tested against its neighbors rather than against every label.
@@ -964,7 +965,7 @@ export class LabelDeclutter {
         const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
         const across = Math.abs(k.x - c.x);
         const down = Math.abs(k.y - c.y);
-        const words = text.textBounds;
+        const words = text.drawnBounds;
         const { box, viewport } = this;
         box.left = c.x + (2 * words.left - 1) * across;
         box.right = c.x + (2 * words.right - 1) * across;
@@ -1118,7 +1119,7 @@ export class LabelDeclutter {
 
         if (mesh !== entry.mesh && node.label) {
             entry.mesh = mesh;
-            entry.text = node.label.textBounds;
+            entry.text = node.label.drawnBounds;
             entry.home.copyFrom(mesh.position);
             entry.placed = null;
         }

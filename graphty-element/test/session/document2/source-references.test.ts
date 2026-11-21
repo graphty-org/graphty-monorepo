@@ -191,19 +191,37 @@ describe("a network source in a version 2 file", () => {
         stubSite({ [NETWORK]: FRIENDS_CSV });
         const session = createGraphSession(ON);
         await session.data.import({ source: "url", config: { url: NETWORK } });
+        const [made] = session.data.loads();
         const { text } = await session.project.save({ format: 2 });
         const record = loadedRecord(text);
-        const ledger = (record.origin as JsonObject).ledger as JsonObject;
-        assert.strictEqual(ledger.key, record.id);
+        // The request is the ledger: no format or parse options, no HTTP validators beside it.
+        assert.notProperty(record, "format");
+        assert.notProperty(record, "options");
+        const origin = record.origin as JsonObject;
+        assert.notProperty(origin, "etag");
+        assert.notProperty(origin, "lastModified");
+        const ledger = origin.ledger as JsonObject;
+        assert.sameMembers(Object.keys(ledger), [
+            "source",
+            "sourceVersion",
+            "endpoint",
+            "params",
+            "pages",
+            "next",
+            "validators",
+            "expansions",
+        ]);
         assert.strictEqual(ledger.source, "url");
-        assert.deepEqual(ledger.config, { url: NETWORK });
+        assert.deepEqual(ledger.params, { url: NETWORK });
 
         const opened = createGraphSession(ON);
         await opened.project.open(text);
-        assert.deepEqual(
-            opened.data.loads().map((each) => each.key),
-            [record.id],
-        );
+        const [restored] = opened.data.loads();
+        assert.strictEqual(restored.key, record.id);
+        assert.deepEqual(restored.config, made.config);
+        assert.strictEqual(restored.endpoint, made.endpoint);
+        assert.strictEqual(restored.pages, made.pages);
+        assert.deepEqual(restored.validators, made.validators);
         stubSite({ [NETWORK]: `${FRIENDS_CSV}Cara,Dee,3\n` });
         const refreshed = await opened.data.refresh(String(record.id));
         assert.deepEqual(refreshed.added, { nodes: 1, edges: 1 });
@@ -212,7 +230,47 @@ describe("a network source in a version 2 file", () => {
             ["Ava", "Ben", "Cara", "Dee"],
         );
         const again = loadedRecord((await opened.project.save({ format: 2 })).text);
-        assert.strictEqual(((again.origin as JsonObject).ledger as JsonObject).key, record.id);
+        assert.strictEqual(((again.origin as JsonObject).ledger as JsonObject).source, "url");
+        session.dispose();
+        opened.dispose();
+    });
+
+    it("writes an expansion's seeds as node references, leaving out a seed no node holds", async () => {
+        stubSite({ [NETWORK]: FRIENDS_CSV });
+        const session = createGraphSession(ON);
+        await session.data.import({ source: "url", config: { url: NETWORK } });
+        const file = JSON.parse((await session.project.save({ format: 2 })).text) as {
+            sections: { data: { sources: JsonObject[] } };
+        };
+        const record = file.sections.data.sources.find((each) => each.kind === "network") as JsonObject;
+        const edges = (record.mapping as JsonObject).edges as JsonObject;
+        const space = String(edges.sourceSpace);
+        const expansion = {
+            seeds: [
+                { space, key: "Ava" },
+                { space, key: "Nobody" },
+            ],
+            depth: 1,
+            direction: "both",
+            at: "2026-11-14T17:45:00.000Z",
+            next: null,
+            validators: {},
+        };
+        const gone = { ...expansion, seeds: [{ space, key: "Nobody" }] };
+        ((record.origin as JsonObject).ledger as JsonObject).expansions = [expansion, gone];
+
+        const opened = createGraphSession(ON);
+        await opened.project.open(JSON.stringify(file));
+        assert.deepEqual(
+            opened.data.loads()[0]?.expansions.map((each) => each.ids),
+            [["Ava"], []],
+        );
+        // A changed graph is written fresh, not as read.
+        await opened.data.addNodes([{ id: "Eve" }]);
+        const saved = JSON.parse((await opened.project.save({ format: 2 })).text) as typeof file;
+        const again = saved.sections.data.sources.find((each) => each.kind === "network") as JsonObject;
+        const ledger = (again.origin as JsonObject).ledger as JsonObject;
+        assert.deepEqual(ledger.expansions, [{ ...expansion, seeds: [{ space, key: "Ava" }] }]);
         session.dispose();
         opened.dispose();
     });

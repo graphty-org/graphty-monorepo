@@ -28,6 +28,7 @@ import {
     NodeShapes,
     NodeSizeModes,
 } from "../../src/config/NodeStyle";
+import { PARSE_OPTIONS } from "../../src/session/document2/codecs/parseOptions";
 import { OVERFLOW_PATTERNS, OVERFLOW_SHAPES } from "../../src/session/styles/encoding";
 import { TRANSITION_PRESETS } from "../../src/transitions/presets";
 
@@ -688,6 +689,7 @@ describe("the built-ins registry", () => {
         nodeModelUpAxes: NodeModelUpAxes.options,
         nodeModelFits: NodeModelFits.options,
         nodeModelCenters: NodeModelCenters.options,
+        parseOptions: Object.keys(PARSE_OPTIONS),
     };
 
     it("lists exactly the names the source accepts, list for list", () => {
@@ -695,6 +697,14 @@ describe("the built-ins registry", () => {
         assert.sameMembers([...lists.keys()], Object.keys(CODE));
         for (const [list, names] of lists) {
             assert.deepEqual(names, [...CODE[list]], list);
+        }
+    });
+
+    it("gives each parse option the formats graphty-element reads it for", () => {
+        for (const row of registryRows().get("parseOptions") ?? []) {
+            const { formats } = PARSE_OPTIONS[row.name];
+            const cell = row.definition.replaceAll("`", "");
+            assert.strictEqual(cell, formats === "*" ? "*" : formats.join(", "), row.name);
         }
     });
 

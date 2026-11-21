@@ -18,7 +18,7 @@ import { COLUMNS_VALUE, type ColumnSettings, SOURCES_VALUE } from "../../command
 import { dispatcherOf } from "../../dispatchers";
 import { expandedGraph } from "../../groups";
 import { ISSUES_VALUE, type IssueState } from "../../issues";
-import { type LoadFacts, redactedParams } from "../../sources/member";
+import { ledgerOf, type LoadFacts, redactedParams } from "../../sources/member";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex } from "../../sources/provenance";
 import { refusalOf } from "../../sources/references";
 import { canonicalJson, jsonSafe, keylessEdgeKeys, keyText } from "../../sources/rowKeys";
@@ -35,6 +35,7 @@ import type {
     SourceStorage,
 } from "../types";
 import { keepHandle, keptHandle, type ProjectFileHandle } from "./fileHandles";
+import { optionsOf } from "./parseOptions";
 import { ROLE_FIELDS, rolesOf, sourceRoles, type TableRoles } from "./roles";
 import { mintUlid } from "./viewParts";
 
@@ -154,6 +155,10 @@ export interface SourceExtras {
     readonly nodes?: JsonObject;
     readonly edges?: JsonObject;
     readonly settings?: JsonObject;
+    /** The parse options this release could not read, written back as read. */
+    readonly options?: JsonObject;
+    /** What the network ledger's top level carries besides its members. */
+    readonly ledger?: JsonObject;
 }
 
 /**
@@ -1484,7 +1489,7 @@ function readerCopyOf(
 // ---------------------------------------------------------------------------------------------
 
 /** A timestamp as `toISOString` writes it (spec 3.5). */
-const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
+export const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
 
 /**
  * The space most of a list of references name, or undefined for none.
@@ -1626,40 +1631,50 @@ function drawnOf(session: GraphSession, key: string): JsonObject {
 }
 
 /**
- * A network source's closed `origin` (spec 4.1.2 rule 7): its address, credential slot, HTTP
- * validators and `ledger`, the session's record of the load (its request history) keyed by the
- * source id; the origin an open read while the session records no load of its own.
+ * A network source's closed `origin` (spec 4.1.2 rule 7): its address (shown only), credential
+ * slot and `ledger`, the request history a refresh replays, with what its top level carried
+ * besides its members when it was read. While the session records no load of its own (its ledger
+ * was missing or could not be read), the origin as read.
  * @param source - The source.
  * @param model - The model.
  * @param copy - Its copy id.
+ * @param extras - What its objects carried besides their members when it was read.
  * @returns The origin.
  */
-function networkOrigin(source: ModelSource, model: DataModel, copy: string): JsonObject {
+function networkOrigin(source: ModelSource, model: DataModel, copy: string, extras?: SourceExtras): JsonObject {
     // A load the session made is recorded under its own key; one an open restored, under its key.
     const key = source.load.loadKey ?? source.load.key;
     const live = model.session.data.loads().find((record) => record.key === key);
     const read = memoryOf(model.session).origins.get(source.id);
-    // The origin as read, while the session holds no record of its own or the one the open
-    // restored from its ledger, unchanged.
-    const restored =
-        live !== undefined && isPlainObject(read?.ledger) && canonicalJson(read.ledger) === canonicalJson({ ...live });
-    if (read !== undefined && (live === undefined || restored)) {
+    if (live === undefined) {
         return { ...read, copy };
     }
 
-    const slot = live?.credential?.slot;
-    const { etag, lastModified } = live?.validators ?? {};
+    const readSlot = isPlainObject(read?.credentials) ? read.credentials.slot : undefined;
+    const slot = live.credential === null ? readSlot : (live.credential.slot ?? "default");
+    const url = source.load.url ?? read?.url;
     return {
         copy,
-        ...(source.load.url === undefined ? {} : { url: source.load.url }),
+        ...(url === undefined ? {} : { url }),
         ...(slot === undefined ? {} : { credentials: { slot } }),
-        ...(etag === undefined ? {} : { etag }),
-        ...(lastModified === undefined ? {} : { lastModified }),
-        // Its params as a file keeps them, without what marks a credential.
-        ...(live === undefined
-            ? {}
-            : { ledger: jsonSafe({ ...live, config: redactedParams(live.config), key: source.id }) }),
+        ledger: { ...(jsonSafe(ledgerOf(live, (id) => model.nodeRefs.get(id))) as JsonObject), ...extras?.ledger },
     };
+}
+
+/**
+ * The parse options a source is saved with (spec 4.1.2 rule 9), from its load's config and the
+ * style choices it was given, and the config keys left out; a network source has none.
+ * @param source - The source.
+ * @param model - The model.
+ * @returns The options and the keys left out.
+ */
+function savedOptionsOf(source: ModelSource, model: DataModel): { options: JsonObject; dropped: string[] } {
+    if (kindOfSource(source, memoryOf(model.session)) === "network") {
+        return { options: {}, dropped: [] };
+    }
+
+    const { load } = source;
+    return optionsOf(load.type, { ...redactedParams(load.config ?? {}), ...drawnOf(model.session, load.key) });
 }
 
 /**
@@ -1756,13 +1771,12 @@ function sourceRecordOf(
     const kind = kindOfSource(source, memoryOf(model.session));
     const extras = memoryOf(model.session).extras.get(source.id);
     // The style choices decide which columns a read makes, so they are options the file is read
-    // again with (spec 4.1.2 rule 5).
-    const options = { ...redactedParams(load.config ?? {}), ...drawnOf(model.session, load.key) };
-    delete options.url;
+    // again with (spec 4.1.2 rule 5); an option this release could not read is written back.
+    const options = { ...savedOptionsOf(source, model).options, ...extras?.options };
     // Any other kind's origin starts from the one read, so its kept members are in it already.
     const origin: JsonObject =
         kind === "network"
-            ? { ...networkOrigin(source, model, copy.copy), ...extras?.origin }
+            ? { ...networkOrigin(source, model, copy.copy, extras), ...extras?.origin }
             : originOf(source, model, kind, copy.copy);
     if (kind === "file") {
         delete origin.path;
@@ -1776,7 +1790,7 @@ function sourceRecordOf(
         id: source.id,
         label: load.name ?? load.fileName ?? source.id,
         kind,
-        ...(load.type === undefined ? {} : { format: load.type }),
+        ...(load.type === undefined || kind === "network" ? {} : { format: load.type }),
         ...(Object.keys(options).length === 0 ? {} : { options: jsonSafe(options) }),
         origin,
         mapping: mappingWithExtras(
@@ -2212,6 +2226,11 @@ function embedReason(source: ModelSource, model: DataModel): SourceEmbeddedReaso
         return "rows";
     }
 
+    // A load option the save leaves out: its bytes alone would not read as they were read.
+    if (savedOptionsOf(source, model).dropped.length > 0) {
+        return "options";
+    }
+
     const tables = Object.keys(source.load.mapping?.tables ?? {}).length;
     // A table this session read whose roles were neither named nor read by its header columns has no
     // spelling. ponytail: one opened from an embedded copy keeps the copy's role names, right only
@@ -2511,6 +2530,10 @@ function sourceRecordsOf(
             keepHandle(source.id, copyId, handle);
         }
 
+        for (const option of savedOptionsOf(source, model).dropped) {
+            problems.push({ code: "W_OPTION_NOT_SAVED", params: { source: source.id, option } });
+        }
+
         records.push(sourceRecordOf(source, model, { storage, path, at: records.length }, problems));
     }
 
@@ -2806,7 +2829,7 @@ export function sourceChoicesOf(
             key: load.key,
             name: load.name ?? load.fileName ?? source.id,
             kind,
-            ...(load.type === undefined ? {} : { format: load.type }),
+            ...(load.type === undefined || kind === "network" ? {} : { format: load.type }),
             storage:
                 memory.referenced.has(source.id) || neverFetched || referencedInSession(session, load.key)
                     ? "referenced"

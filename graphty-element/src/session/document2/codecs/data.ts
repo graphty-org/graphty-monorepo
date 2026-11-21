@@ -55,6 +55,7 @@ import type { ColumnSettings } from "../../commands/data";
 import type { SessionData } from "../../data";
 import type { TransactionOptions } from "../../project/Dispatcher";
 import { SOURCE_ATTR } from "../../sources/ids";
+import { recordOfLedger } from "../../sources/member";
 import { causeParams, type ReadCause } from "../../sources/references";
 import { keylessEdgeKeys, keylessNodeKeys } from "../../sources/rowKeys";
 import type { SourceLoadRecord, SourceRefreshReport } from "../../sources/types";
@@ -92,9 +93,11 @@ import {
     rowTypeOf,
     SOURCE_ID,
     type SourceExtras,
+    TIMESTAMP,
     ULID,
 } from "./dataRefs";
 import { flushHandles } from "./fileHandles";
+import { configOf, readsOption } from "./parseOptions";
 import { knownOf, rolesAsRead, type TableRoles } from "./roles";
 import { mintUlid } from "./viewParts";
 
@@ -109,7 +112,7 @@ const HASHED_KINDS = new Set(["file", "url", "sample"]);
 /** A hashed copy id: `sha256:` and lowercase hex. */
 const SHA256 = /^sha256:[0-9a-f]{64}$/;
 /** A network source's closed `origin` (spec 4.1.2). */
-const NETWORK_ORIGIN = new Set(["copy", "url", "credentials", "etag", "lastModified", "ledger"]);
+const NETWORK_ORIGIN = new Set(["copy", "url", "credentials", "ledger"]);
 /** The join shapes of version 2; only `join.add` is built by this reader (spec 4.1.8). */
 const JOIN_OPS = new Set(["join.add", "join.merge", "join.node-values", "join.edge-values", "join.edges"]);
 const JOIN_MEMBERS = new Set([
@@ -162,21 +165,26 @@ const READ_SPACES = [
     ["target", "targetSpace"],
 ] as const;
 const DUPLICATE_IDS = new Set(["first", "merge", "refuse"]);
-/**
- * The parse options of spec 4.1.2 rule 9, the formats whose parser reads each, and the values it
- * takes: a source parsed again with one its format does not read, or a malformed value, is held.
- */
-const PARSE_OPTIONS: Readonly<Record<string, { formats: readonly string[]; valid: (value: unknown) => boolean }>> = {
-    pointer: {
-        formats: ["json"],
-        valid: (value) => typeof value === "string" && /^(?:\/(?:[^~/]|~[01])*)*$/.test(value),
-    },
-    sheet: { formats: ["xlsx"], valid: (value) => typeof value === "string" },
-    missing: {
-        formats: ["csv", "json", "xlsx"],
-        valid: (value) => Array.isArray(value) && value.every((text) => typeof text === "string"),
-    },
-};
+/** A network ledger's members (spec 4.1.2 rule 7), and those of its closed sub-objects. */
+const LEDGER = new Set([
+    "source",
+    "sourceVersion",
+    "endpoint",
+    "params",
+    "limits",
+    "pages",
+    "next",
+    "validators",
+    "expand",
+    "expansions",
+]);
+const LEDGER_LIMITS = new Set(["maxNodes", "maxEdges", "maxBytes", "maxRequests", "timeoutMs"]);
+const VALIDATORS = new Set(["etag", "lastModified", "modified", "serverVersion", "contentHash"]);
+const LEDGER_EXPAND = new Set(["depth", "direction", "limit", "relationshipTypes", "layout"]);
+const EXPANSION = new Set(["seeds", "depth", "direction", "limit", "at", "next", "validators"]);
+const DIRECTIONS = new Set(["out", "in", "both"]);
+const isDirection = (value: unknown): boolean => typeof value === "string" && DIRECTIONS.has(value);
+const CONTENT_HASH = /^[0-9a-f]{64}$/;
 const SOURCE_MEMBERS = new Set([
     "id",
     "label",
@@ -557,6 +565,8 @@ function sourceExtrasOf(pointer: string, extras: Extras): SourceExtras {
         nodes: `${pointer}/mapping/nodes`,
         edges: `${pointer}/mapping/edges`,
         settings: `${pointer}/settings`,
+        options: `${pointer}/options`,
+        ledger: `${pointer}/origin/ledger`,
     } as const;
     return Object.fromEntries(
         Object.entries(parts).flatMap(([part, at]) => {
@@ -575,6 +585,197 @@ function sourceExtrasOf(pointer: string, extras: Extras): SourceExtras {
 function isTables(copy: unknown): copy is JsonObject {
     const names = isPlainObject(copy) ? Object.keys(copy) : [];
     return names.length > 0 && names.every((name) => name === "nodes" || name === "edges");
+}
+
+/**
+ * Check `validators` (spec 4.1.2 rule 7): closed, each a string, `contentHash` lower-case hex.
+ * @param value - The validators.
+ * @param pointer - Their pointer.
+ */
+function checkValidators(value: unknown, pointer: string): void {
+    closed(value, VALIDATORS, pointer);
+    for (const [name, text] of Object.entries(value)) {
+        need(typeof text === "string" && (name !== "contentHash" || CONTENT_HASH.test(text)), `${pointer}/${name}`);
+    }
+}
+
+/**
+ * Whether a value is an integer in a range.
+ * @param value - The value.
+ * @param min - The least.
+ * @param max - The most.
+ * @returns True for one.
+ */
+function isInt(value: unknown, min: number, max = Number.MAX_SAFE_INTEGER): boolean {
+    return Number.isInteger(value) && (value as number) >= min && (value as number) <= max;
+}
+
+/**
+ * Check one expansion of a ledger (spec 4.1.2 rule 7): closed, its seeds node references.
+ * @param value - The expansion.
+ * @param pointer - Its pointer.
+ */
+function checkExpansion(value: unknown, pointer: string): void {
+    closed(value, EXPANSION, pointer);
+    const { seeds } = value;
+    need(
+        Array.isArray(seeds) && seeds.length > 0 && seeds.every((seed) => nodeRefOf(seed) !== undefined),
+        `${pointer}/seeds`,
+    );
+    need(isInt(value.depth, 1, 10), `${pointer}/depth`);
+    need(isDirection(value.direction), `${pointer}/direction`);
+    need(value.limit === undefined || isInt(value.limit, 1), `${pointer}/limit`);
+    need(typeof value.at === "string" && TIMESTAMP.test(value.at), `${pointer}/at`);
+    need(value.next === null || isPlainObject(value.next), `${pointer}/next`);
+    checkValidators(value.validators, `${pointer}/validators`);
+}
+
+/**
+ * Check a ledger's `expand` (spec 4.1.2 rule 7): closed, with no trigger.
+ * @param expand - The expand behavior.
+ * @param pointer - Its pointer.
+ */
+function checkExpand(expand: unknown, pointer: string): void {
+    closed(expand, LEDGER_EXPAND, pointer);
+    need(expand.depth === undefined || isInt(expand.depth, 1, 10), `${pointer}/depth`);
+    need(expand.direction === undefined || isDirection(expand.direction), `${pointer}/direction`);
+    need(expand.limit === undefined || isInt(expand.limit, 1), `${pointer}/limit`);
+    need(
+        expand.relationshipTypes === undefined ||
+            (Array.isArray(expand.relationshipTypes) &&
+                expand.relationshipTypes.every((name) => typeof name === "string")),
+        `${pointer}/relationshipTypes`,
+    );
+    need(expand.layout === undefined || expand.layout === "continue" || expand.layout === "none", `${pointer}/layout`);
+}
+
+/**
+ * Check a network source's `origin.ledger` (spec 4.1.2 rule 7): closed, with the closed-object
+ * slots at its top level only.
+ * @param ledger - The ledger.
+ * @param pointer - Its pointer.
+ * @param extras - Collects what its top level carries besides its members.
+ */
+function checkLedger(ledger: unknown, pointer: string, extras: Extras): void {
+    closed(ledger, LEDGER, pointer, extras);
+    const { source, limits, expand, expansions } = ledger;
+    need(typeof source === "string" && source.length > 0 && source.length <= 128, `${pointer}/source`);
+    need(isInt(ledger.sourceVersion, 1), `${pointer}/sourceVersion`);
+    need(ledger.endpoint === null || typeof ledger.endpoint === "string", `${pointer}/endpoint`);
+    need(isPlainObject(ledger.params), `${pointer}/params`);
+    if (limits !== undefined) {
+        closed(limits, LEDGER_LIMITS, `${pointer}/limits`);
+        for (const [name, value] of Object.entries(limits)) {
+            need(isInt(value, 1), `${pointer}/limits/${name}`);
+        }
+    }
+
+    need(isInt(ledger.pages, 1), `${pointer}/pages`);
+    need(ledger.next === null || isPlainObject(ledger.next), `${pointer}/next`);
+    checkValidators(ledger.validators, `${pointer}/validators`);
+    if (expand !== undefined) {
+        checkExpand(expand, `${pointer}/expand`);
+    }
+
+    need(Array.isArray(expansions), `${pointer}/expansions`);
+    expansions.forEach((expansion: unknown, at: number) => {
+        checkExpansion(expansion, `${pointer}/expansions/${String(at)}`);
+    });
+}
+
+/**
+ * What a source's parse options or network ledger hold that this reader cannot read (spec 4.1.2
+ * rules 7 and 9). They are read only to read the source again, so they fail that source alone
+ * (spec 4.1.10): never the section.
+ * @param record - The source record.
+ * @param pointer - Its pointer.
+ * @param extras - Collects what a readable ledger's top level carries besides its members.
+ * @returns Why, and the pointer of each member that cannot be read; undefined when all can.
+ */
+function unreadOf(
+    record: JsonObject,
+    pointer: string,
+    extras: Extras,
+): { readonly reason: "options" | "ledger"; readonly pointers: string[] } | undefined {
+    if (record.kind === "network") {
+        const ledger = isPlainObject(record.origin) ? record.origin.ledger : undefined;
+        if (ledger === undefined) {
+            return undefined;
+        }
+
+        // Kept only when the whole ledger reads.
+        const scratch: Extras = { kept: new Map(), ignored: [] };
+        try {
+            checkLedger(ledger, `${pointer}/origin/ledger`, scratch);
+        } catch (error) {
+            if (!(error instanceof Unbuildable)) {
+                throw error;
+            }
+
+            return { reason: "ledger", pointers: [error.pointer] };
+        }
+
+        for (const [at, kept] of scratch.kept) {
+            extras.kept.set(at, kept);
+        }
+
+        extras.ignored.push(...scratch.ignored);
+        return undefined;
+    }
+
+    const options = record.options ?? {};
+    if (!isPlainObject(options)) {
+        return { reason: "options", pointers: [`${pointer}/options`] };
+    }
+
+    const format = typeof record.format === "string" ? record.format : undefined;
+    const pointers = Object.entries(options)
+        .filter(([name, value]) => !readsOption(format, name, value))
+        .map(([name]) => `${pointer}/options/${token(name)}`);
+    return pointers.length === 0 ? undefined : { reason: "options", pointers };
+}
+
+/**
+ * Keep what an embedded source's options or ledger hold that this reader cannot read: reported
+ * `W_UNKNOWN_MEMBER`, and its options written back as read. The source is built from its copy and
+ * is not refreshable.
+ * @param record - The source record.
+ * @param pointer - Its pointer.
+ * @param unread - What cannot be read, as `unreadOf` gave it.
+ * @param unread.reason - Options or ledger.
+ * @param unread.pointers - Each member's pointer.
+ * @param extras - Collects them.
+ */
+function keepUnread(
+    record: JsonObject,
+    pointer: string,
+    unread: { readonly reason: "options" | "ledger"; readonly pointers: string[] },
+    extras: Extras,
+): void {
+    extras.ignored.push(...unread.pointers);
+    if (unread.reason === "options" && isPlainObject(record.options)) {
+        const format = typeof record.format === "string" ? record.format : undefined;
+        extras.kept.set(
+            `${pointer}/options`,
+            Object.fromEntries(
+                Object.entries(record.options).filter(([name, value]) => !readsOption(format, name, value)),
+            ),
+        );
+    }
+}
+
+/**
+ * Check what a network source record holds besides what every source does (spec 4.1.2 rule 7):
+ * no format or parse options, since its request is its ledger, and a closed origin.
+ * @param record - The record.
+ * @param pointer - Its pointer.
+ * @param extras - Collects what its origin carries besides its members.
+ */
+function checkNetwork(record: JsonObject, pointer: string, extras: Extras): void {
+    need(record.format === undefined && record.options === undefined, pointer);
+    const { origin } = record;
+    closed(origin, NETWORK_ORIGIN, `${pointer}/origin`, extras);
+    closed(origin.credentials ?? {}, new Set(["slot"]), `${pointer}/origin/credentials`);
 }
 
 /**
@@ -600,17 +801,27 @@ function checkSource(record: JsonObject, pointer: string, extras: Extras): ReadS
         `${pointer}/origin/copy`,
     );
     if (kind === "network") {
-        closed(origin, NETWORK_ORIGIN, `${pointer}/origin`, extras);
-        closed(origin.credentials ?? {}, new Set(["slot"]), `${pointer}/origin/credentials`);
+        checkNetwork(record, pointer, extras);
     }
 
     checkMapping(record.mapping ?? {}, `${pointer}/mapping`, extras);
     closed(record.settings ?? {}, SETTINGS, `${pointer}/settings`, extras);
-    const kept = sourceExtrasOf(pointer, extras);
+    const unread = unreadOf(record, pointer, extras);
     if (copy === undefined) {
         need(kind !== "derived", pointer);
-        return referencedSource(record, pointer, kept);
+        const held = sourceExtrasOf(pointer, extras);
+        // Options or a ledger it cannot read: its bytes alone would not read as they were read, so
+        // it is held and its record written back as read.
+        return unread === undefined
+            ? referencedSource(record, pointer, held)
+            : { record, id, pointer, copyId: origin.copy, embedded: false, reason: unread.reason, extras: held };
     }
+
+    if (unread !== undefined) {
+        keepUnread(record, pointer, unread, extras);
+    }
+
+    const kept = sourceExtrasOf(pointer, extras);
 
     need(isPlainObject(copy), `${pointer}/copy`);
     if (!isTables(copy)) {
@@ -1028,20 +1239,6 @@ function checked(body: Readonly<JsonObject>): Checked {
         );
     });
     const adds = checkJoins(body.joins, sources, extras);
-    for (const id of adds.keys()) {
-        const { record, pointer } = sources.get(id) as ReadSource;
-        const options = isPlainObject(record.options) ? record.options : {};
-        // Parsed again with an option its parser does not read, it would build another graph.
-        if (record.copy === undefined) {
-            for (const [name, { formats, valid }] of Object.entries(PARSE_OPTIONS)) {
-                need(
-                    !(name in options) || (formats.includes(String(record.format)) && valid(options[name])),
-                    `${pointer}/options/${name}`,
-                );
-            }
-        }
-    }
-
     return {
         sources,
         ...(reader === undefined ? {} : { reader }),
@@ -1963,12 +2160,13 @@ function loadOf(record: JsonObject, key: string, added: { nodes: number; edges: 
     const origin = isPlainObject(record.origin) ? record.origin : {};
     const settings = isPlainObject(record.settings) ? record.settings : {};
     const label = typeof record.label === "string" ? record.label : key;
-    const options = isPlainObject(record.options) ? record.options : {};
+    const format = typeof record.format === "string" ? record.format : undefined;
+    const options = configOf(format, isPlainObject(record.options) ? record.options : {});
     return {
         key,
         kind: LOAD_KINDS[String(record.kind)] ?? "file",
         name: label,
-        ...(typeof record.format === "string" ? { type: record.format } : {}),
+        ...(format === undefined ? {} : { type: format }),
         config: typeof origin.url === "string" ? { ...options, url: origin.url } : options,
         ...(typeof origin.name === "string" ? { fileName: origin.name } : {}),
         ...(typeof origin.size === "number" ? { size: origin.size } : {}),
@@ -2370,15 +2568,26 @@ async function restoreSettings(built: Built, tx: TransactionScope): Promise<void
  */
 function ledgersOf(built: Built): Map<string, SourceLoadRecord> {
     const kinds = new Map(built.kinds);
+    const ids = new Map(built.nodes.map((node) => [recordKey(node.ref.space, node.ref.key), node.id]));
+    const loaded = new Map(built.loads.map((load) => [load.key, load.loadedAt]));
+    const now = new Date().toISOString();
     return new Map(
         built.origins.flatMap(([id, origin]) => {
-            const { ledger } = origin;
-            return kinds.get(id) === "network" &&
-                isPlainObject(ledger) &&
-                typeof ledger.source === "string" &&
-                Array.isArray(ledger.expansions)
-                ? [[id, { ...(ledger as unknown as SourceLoadRecord), key: id }] as const]
-                : [];
+            const record = { kind: "network", origin };
+            // A ledger this reader cannot read leaves its source not refreshable (spec 4.1.10).
+            if (
+                kinds.get(id) !== "network" ||
+                !isPlainObject(origin.ledger) ||
+                unreadOf(record, "", { kept: new Map(), ignored: [] }) !== undefined
+            ) {
+                return [];
+            }
+
+            const idOf = (seed: unknown): NodeId | undefined => {
+                const ref = nodeRefOf(seed);
+                return ref === undefined ? undefined : ids.get(recordKey(ref.space, ref.key));
+            };
+            return [[id, recordOfLedger(id, origin.ledger, loaded.get(id) ?? now, idOf)] as const];
         }),
     );
 }
@@ -2416,8 +2625,13 @@ async function apply(
     // A network source's nodes name its load, as a load the session made does, so `data.refresh`
     // replays the request history its record keeps (spec 4.1.2 rule 7).
     const ledgers = ledgersOf(built);
+    // The file does not say which nodes an expansion brought, so each of the source's nodes names
+    // its expansions too: the record keeps them while any of its nodes is in the graph.
     const named = (element: { readonly loads: readonly string[] }): JsonObject => {
-        const keys = element.loads.filter((load) => ledgers.has(load));
+        const keys = element.loads.flatMap((load) => {
+            const ledger = ledgers.get(load);
+            return ledger === undefined ? [] : [load, ...ledger.expansions.map((expansion) => expansion.key)];
+        });
         return keys.length === 0 ? {} : { [SOURCE_ATTR.loads]: keys };
     };
     await tx.execute({
@@ -2741,6 +2955,7 @@ async function rebuildKeepingPlaces(tx: TransactionScope, rebuild: () => Promise
 const REFRESH_REFUSED: Readonly<Record<string, "E_TOO_LARGE" | "E_PARSE_FAILED" | "E_FETCH_FAILED">> = {
     "too-large": "E_TOO_LARGE",
     read: "E_PARSE_FAILED",
+    options: "E_PARSE_FAILED",
 };
 
 /**
@@ -2756,8 +2971,9 @@ const REFRESH_REFUSED: Readonly<Record<string, "E_TOO_LARGE" | "E_PARSE_FAILED" 
  * @param how.signal - Aborts the fetch.
  * @returns What the refresh added, or undefined when the source is not held.
  * @throws A `GraphtyError`: `E_FETCH_FAILED` (`details.source`, `details.reason`) when it still
- *     cannot be fetched, `E_TOO_LARGE` past the open's size limit, `E_PARSE_FAILED` when its bytes
- *     do not parse; the source stays held.
+ *     cannot be fetched or its ledger cannot be read, `E_TOO_LARGE` past the open's size limit,
+ *     `E_PARSE_FAILED` when its bytes do not parse or its parse options cannot be read; the
+ *     source stays held.
  */
 export async function refreshHeldSource(
     session: GraphSession,
@@ -2767,6 +2983,17 @@ export async function refreshHeldSource(
     const held = heldRecordOf(session, source);
     if (held === undefined) {
         return undefined;
+    }
+
+    // Parse options or a ledger this reader cannot read: no read of it would read it as saved.
+    const unread = unreadOf(held, "", { kept: new Map(), ignored: [] });
+    if (unread !== undefined) {
+        throw new GraphtyError({
+            code: REFRESH_REFUSED[unread.reason] ?? "E_FETCH_FAILED",
+            message: `The source ${source} could not be read again (${unread.reason}).`,
+            source: "data",
+            details: { source, reason: unread.reason },
+        });
     }
 
     // Every other source read by reference is built from its rows as the session holds them now.

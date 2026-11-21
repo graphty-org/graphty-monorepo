@@ -66,7 +66,7 @@ export type SourceStorage = "embedded" | "referenced";
  * @experimental save-files-v2
  * @beta
  */
-export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind";
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind" | "options";
 
 /**
  * Why a referenced source supplied nothing on open (`W_SOURCE_UNAVAILABLE` `params.reason`): the
@@ -75,12 +75,22 @@ export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "ki
  * (a fetch the caller did not allow), `copy-changed` (its bytes changed since the save, `params.size`
  * the new byte count; a network source always), `kind` (no open reads its kind again, or this
  * release does not know it), `copy-form` (an embedded copy in a form this release cannot read; its
- * record and copy are written back as read). OPEN UNION.
+ * record and copy are written back as read), `options` (a parse option this release does not
+ * read), `ledger` (a network request history this release cannot read). OPEN UNION.
  * @experimental save-files-v2
  * @beta
  */
 export type SourceUnavailableReason =
-    "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind" | "copy-form";
+    | "not-found"
+    | "needs-file"
+    | "read"
+    | "too-large"
+    | "needs-permission"
+    | "copy-changed"
+    | "kind"
+    | "copy-form"
+    | "options"
+    | "ledger";
 
 /** A JSON object as read from or written to a document. */
 export type JsonObject = Record<string, unknown>;
@@ -103,6 +113,7 @@ export type DocumentCode =
     | "W_SOURCE_NO_PATH"
     | "W_SOURCE_UNAVAILABLE"
     | "W_SOURCE_EMBEDDED"
+    | "W_OPTION_NOT_SAVED"
     | "W_REFERENCE_UNBOUND"
     | "W_DATA_CHANGED"
     | "W_DATA_MISMATCH"

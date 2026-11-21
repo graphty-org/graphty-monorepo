@@ -287,20 +287,20 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 `mapping`, `settings`, `annotations`, `metadata`, `license`, `citation`, `copy`, `columns`,
 `loaded`, and the two must-understand slots `extensions` and `ignorable` (10).
 
-| Field                             | Holds                                                                                                                                                                                                                                                                                                                          |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`                              | `src_` plus a ULID (3.3)                                                                                                                                                                                                                                                                                                       |
-| `label`                           | display text, including any name the caller gives; also the default role match (3.6 rule 3)                                                                                                                                                                                                                                    |
-| `kind`                            | an open vocabulary: `file`, `url`, `network`, `sample`, `derived`, `reader`, or a reverse-domain kind such as `org.example.cypher` (10)                                                                                                                                                                                        |
-| `format`, `options`               | the parser and its parse options only; never identity or join choices                                                                                                                                                                                                                                                          |
-| `origin`                          | `copy`, the copy id (always); plus per kind: file `name`, `size`, `mediaType`, `path`; url `url`, `size`, `mediaType`, `etag`, `lastModified`; network exactly `url`, `credentials` (`{ slot }`), `etag`, `lastModified` and `ledger` (rule 7); sample `dataset` and version, or a generated sample's `generator` and `params` |
-| `mapping`                         | per table, graphty-element's `TableMapping` names (4.1.3)                                                                                                                                                                                                                                                                      |
-| `settings`                        | closed: `duplicateIds` (`first` default, `merge`, `refuse`) and `unmatched` (`add` default, `leave-out`)                                                                                                                                                                                                                       |
-| `annotations`                     | the shapes and text a source draws beside its graph, in the source's frame (y up, its own units), with their scale                                                                                                                                                                                                             |
-| `metadata`, `license`, `citation` | the file's own header (its own direction among it), license and citation                                                                                                                                                                                                                                                       |
-| `copy`                            | the rows (embedded), or absent (referenced)                                                                                                                                                                                                                                                                                    |
-| `columns`                         | graph-format `ColumnDecl`s grouped by table, `{ nodes: { <working name>: decl }, edges: {...} }`; always with `copy`, and on a referenced source as what an open checks the rows it reads again against                                                                                                                        |
-| `loaded`                          | when the current copy was read                                                                                                                                                                                                                                                                                                 |
+| Field                             | Holds                                                                                                                                                                                                                                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`                              | `src_` plus a ULID (3.3)                                                                                                                                                                                                                                                                               |
+| `label`                           | display text, including any name the caller gives; also the default role match (3.6 rule 3)                                                                                                                                                                                                            |
+| `kind`                            | an open vocabulary: `file`, `url`, `network`, `sample`, `derived`, `reader`, or a reverse-domain kind such as `org.example.cypher` (10)                                                                                                                                                                |
+| `format`, `options`               | `format` is the id of the format that parses the bytes; `options` holds only the names builtins.md "Parse options" lists for that format (rule 9), never identity, join or direction choices. A network source has neither: its request is in `origin.ledger`                                          |
+| `origin`                          | `copy`, the copy id (always); plus per kind: file `name`, `size`, `mediaType`, `path`; url `url`, `size`, `mediaType`, `etag`, `lastModified`; network exactly `url`, `credentials` (`{ slot }`) and `ledger` (rule 7); sample `dataset` and version, or a generated sample's `generator` and `params` |
+| `mapping`                         | per table, graphty-element's `TableMapping` names (4.1.3)                                                                                                                                                                                                                                              |
+| `settings`                        | closed: `duplicateIds` (`first` default, `merge`, `refuse`) and `unmatched` (`add` default, `leave-out`)                                                                                                                                                                                               |
+| `annotations`                     | the shapes and text a source draws beside its graph, in the source's frame (y up, its own units), with their scale                                                                                                                                                                                     |
+| `metadata`, `license`, `citation` | the file's own header (its own direction among it), license and citation                                                                                                                                                                                                                               |
+| `copy`                            | the rows (embedded), or absent (referenced)                                                                                                                                                                                                                                                            |
+| `columns`                         | graph-format `ColumnDecl`s grouped by table, `{ nodes: { <working name>: decl }, edges: {...} }`; always with `copy`, and on a referenced source as what an open checks the rows it reads again against                                                                                                |
+| `loaded`                          | when the current copy was read                                                                                                                                                                                                                                                                         |
 
 1. **The copy id.** `origin.copy` is `sha256:` plus lower-case hex of the bytes as read for file,
    url and downloaded sample sources, and a ULID minted whenever that copy changes for network,
@@ -326,8 +326,9 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 4. Embedding or referencing is the saver's choice per source, whatever its size; the default is
    embedded. A `derived` source and the reader source are always embedded, and so is a `file`
    source whose `path` the writer does not know, since no reference can stand for it (8.1 rule 4).
-5. A referenced or refreshed source MUST be parsed again with exactly its `format` and `options`,
-   never a guessed one. `options` includes `styles` and `styleOptions` when the load drew the
+5. A referenced or refreshed `file`, `url` or `sample` source MUST be parsed again with exactly
+   its `format` and `options`, never a guessed one; an absent option takes the absent value
+   builtins.md lists for it. `options` includes `styles` and `styleOptions` when the load drew the
    file's styles: they decide which columns the read makes, and every format's reader reads them.
 6. A `file` source's `origin.path` is a POSIX path relative to the folder of the file being saved,
    never absolute and never above that folder, written only when the writer knows both locations.
@@ -337,29 +338,57 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    referenced source with no `path`. A referenced `file` source with no `path` is read through the
    handle the opening browser keeps for it, else it needs a file (8.3). A source with nothing to
    name, neither path nor handle, is embedded (`W_SOURCE_NO_PATH`, 8.1 rule 4).
-7. **A network source's `origin`** is closed: `copy`, `url`, `credentials` (`{ "slot" }`, the
-   credential slot's name, never a secret), `etag`, `lastModified` and `ledger`, the request
-   history a refresh replays, written as graphty-element's `SourceLoadRecord` with its `key` set to
-   the source id and its params without what marks a credential. An open restores it as the
-   session's record of that load, so a refresh of an embedded network source replays the request as
-   a refresh of a load the session made does.
+7. **A network source's `origin`** is closed. It holds `copy`; `url`, shown only and never read
+   by a refresh; `credentials` (`{ "slot" }`, the credential slot's name, never a secret); and
+   `ledger`, the request history, the only member a refresh reads. The ledger is closed (with the
+   two slots of 10, "Must-understand members", at its top level only) and holds:
+    - `source`: the driver id (`url`, `rest`, `openalex`, ...);
+    - `sourceVersion`: an integer, at least 1;
+    - `endpoint`: the origin and path, or `null` for the source's default;
+    - `params`: the source's params, a REST mapping included, without what marks a credential;
+    - `limits` (optional, closed): `maxNodes`, `maxEdges`, `maxBytes`, `maxRequests` and
+      `timeoutMs`, each an integer of at least 1;
+    - `pages`: at least 1;
+    - `next`: an opaque cursor that never holds a credential, or `null`;
+    - `validators` (closed): `etag`, `lastModified`, `modified`, `serverVersion` and
+      `contentHash`;
+    - `expand` (optional, closed): `depth`, `direction`, `limit`, `relationshipTypes` and
+      `layout`; never a trigger, so a received file cannot make a click fetch;
+    - `expansions`, in order: each `{ seeds, depth, direction, limit?, at, next, validators }`,
+      closed, its `seeds` node references `{ space, key }` (6.2). An expansion's position is its
+      identity.
+
+    The ledger holds no time of its own (the record's `loaded` is the time), no counts and no
+    credential identity. On write, a seed no node holds is left out, and so is an expansion with no
+    seed left. An open restores the ledger as the session's record of that load, keyed by the
+    source id, so a refresh of an embedded network source replays the request as a refresh of a
+    load the session made does.
+
 8. **A source is referenced only when its rows are its bytes alone.** Otherwise it is embedded,
    whatever the saver asked, and the save reports why (`W_SOURCE_EMBEDDED`, params
    `{ source, reason }`): `edited` (the reader edited, removed or merged its rows), `bytes` (the
    writer kept no digest of the bytes it read), `rows` (another source also supplied one of its
    nodes or edges), `mapping` (its read has no spelling in 4.1.3: several tables read as one, ids
-   scoped by kind, or table columns the writer does not know it was read by) or `kind` (a kind an
-   open does not read again: only `file` and `url` sources are).
-9. **Parse options for one part of a file.** Three `options` keys are spelled here, each a parser
-   conformance case rather than a change to any other member: `pointer`, a JSON Pointer (RFC 6901)
-   to the collection a JSON source reads (several sources may read one file's bytes, one
-   collection each, and are refreshed together); `sheet`, the name of the workbook sheet a
-   spreadsheet source reads; and `missing`, a list of cell texts read as unset (`["null", "N/A"]`),
-   compared as exact strings after NFC, never trimmed. A reader whose parser does not read one of
-   them MUST hold the data section (10) when it would parse such a source again, rather than
-   parse it another way. Conformance cases: a JSON file with `nodes` under `/graph/people`, read
-   with `pointer: "/graph/people"`; a workbook's second sheet read by its name; a CSV whose cells
-   `N/A` read as unset with `missing: ["N/A"]` and as text without it.
+   scoped by kind, or table columns the writer does not know it was read by), `kind` (a kind an
+   open does not read again: only `file` and `url` sources are) or `options` (a load option
+   builtins.md does not list was left out, so its bytes alone would not read as they were read).
+9. **Parse options.** `options` is closed per format: each key is a name builtins.md "Parse
+   options" lists for the record's `format`, with a value of the listed type. `options` is read
+   only to read the source again, never to build it, so a key that is not listed for the format,
+   or a value of another type, fails that source alone (4.1.10): an embedded source is built from
+   its copy, is not refreshable and reports `W_UNKNOWN_MEMBER` (pointer
+   `/sources/<i>/options/<name>`), and a referenced one is held (`W_SOURCE_UNAVAILABLE`, reason
+   `options`).
+    - A writer writes only listed options. A load given any other option (graph-io import options,
+      an explicit CSV variant, OBO id choices, a Gephi preview choice, a JSON node path, ...) is
+      saved without it and reported `W_OPTION_NOT_SAVED` (params `{ source, option }`). A source
+      asked to be referenced is then embedded (`W_SOURCE_EMBEDDED`, reason `options`).
+    - The load inputs (`data`, `file`, `url` and the node and edge file, URL and data pairs),
+      `chunkSize`, `layout`, and the endpoint and id choices the mapping carries are written
+      nowhere in `options` and never reported.
+    - Conformance cases: a JSON file with `nodes` under `/graph/people`, read with
+      `pointer: "/graph/people"`; a workbook's second sheet read by its name; a CSV whose cells
+      `N/A` read as unset with `missing: ["N/A"]` and as text without it.
 
 #### 4.1.3 The mapping
 
@@ -663,7 +692,11 @@ section and hold it (8.4), reporting `W_SECTION_KEPT`, on any of:
   object's `ignorable`.
 
 A source `kind` or `copy` form it does not know is a state of that source alone (10), not a reason
-to hold the section.
+to hold the section. So is a source's `options` or a network `origin.ledger` it cannot read
+(4.1.2 rules 7 and 9): they are read only to read the source again, so an unknown or ill-typed
+member in them fails only that source's refresh. An embedded source is built from its copy and is
+not refreshable (`W_UNKNOWN_MEMBER`); a referenced one is held (`W_SOURCE_UNAVAILABLE`, reason
+`options` or `ledger`).
 
 ### 4.2 style
 
@@ -1322,7 +1355,9 @@ source is read no further than the open's size limit.
    the open fetch it, `copy-changed`, with the new byte count `size`, when a fetched or picked copy
    has another copy id than saved, `kind` for a kind this reader does not fetch, a referenced
    source of a kind it does not know among them, `copy-form` for an embedded copy whose form this
-   reader cannot read, whose record and copy are written back verbatim). A referenced
+   reader cannot read, whose record and copy are written back verbatim, `options` for parse
+   options this reader cannot read, and `ledger` for a network `origin.ledger` it cannot read,
+   4.1.2 rules 7 and 9). A referenced
    `network` source gets a new copy on every read, so it is always held as `copy-changed`. A held
    source's join steps are not built and it supplies no elements; the graph is built without it.
    It keeps the edge ids its `edgeIds` names, and its record is written back exactly as read on the
@@ -1391,13 +1426,15 @@ While a section is held:
 9. **Who owns a default.**
     - A **format default** is one this specification states for a member it defines, in text or as
       a schema `default` keyword: `repeatedEdges`, a source's settings, the join step members of
-      4.1.8, `graph.filter`'s `on`, a note's `mediaType`, a view run's `replayable`. It is frozen
+      4.1.8, `graph.filter`'s `on`, a note's `mediaType`, a view run's `replayable`, and a parse
+      option's absent value where builtins.md states one. It is frozen
       for the section's major version. Changing it is a change of meaning (rule 4), and that
       version's migration writes the old default into older files. An absent mapping role means
       none.
     - Every **other default** belongs to code the format does not version: algorithm and layout
       option defaults (the algorithms and layout packages, or a plugin), the settings defaults
-      (graphty-element's `CONFIG_KEYS`), parser defaults, and the renderer's look for unset
+      (graphty-element's `CONFIG_KEYS`), parser defaults (the `errorLimit` parse option's "the
+      reader's default" among them), and the renderer's look for unset
       channels. Changing one never bumps a version and needs no migration.
 10. **Writers save resolved values.** A writer MUST write the value used for every option that a
     run's algorithm or a layout's engine declares with a default: `algo.run` `params`, `layout.set`
@@ -1478,9 +1515,11 @@ Closed objects:
 
 - In data: a source's `mapping` and `settings`, a type entry and its rules, a join step and its
   `read`, `rows` and `except`, a reader
-  operation, the reader source itself, a source record, and a key in a source's `options` its
-  parser does not read. An unknown member that `ignorable` does not name holds the whole data
-  section (4.1.10): ignoring one would build another graph under the same build stamp.
+  operation, the reader source itself and a source record. An unknown member that `ignorable`
+  does not name holds the whole data section (4.1.10): ignoring one would build another graph
+  under the same build stamp. Also closed, but failing only their source (4.1.10): a source's
+  `options` (closed per format, builtins.md "Parse options") and a network `origin.ledger` with
+  its `limits`, `validators`, `expand` and each expansion.
 - A recipe command and its `scope`: an unknown member that `ignorable` does not name skips the
   command and every later one (`E_UNKNOWN_OPTION`).
 - A style's selectors, bindings and carried palettes: an unknown member fails that channel entry
@@ -1506,9 +1545,10 @@ it fails a schema, and acts by the rules above instead.
 
 These closed objects may carry two optional slots: a join step and its `read`, `rows` and
 `except`; a source record and its `mapping`, `mapping.nodes`, `mapping.edges` and `settings`; a
-network source's `origin`; a type entry and its rules; the reader source and each reader
-operation; a recipe command and the object forms of its `scope`. Neither slot is allowed on a
-`copy` or on `credentials`.
+network source's `origin` and the top level of its `ledger`; a type entry and its rules; the
+reader source and each reader operation; a recipe command and the object forms of its `scope`.
+Neither slot is allowed on a `copy`, on `credentials`, on `options` or on the ledger's
+sub-objects.
 
 ```json
 {
@@ -1587,6 +1627,7 @@ application words them.
 | `W_SOURCE_NO_PATH`            | a source has nothing to read it again by: embedded, or written with no `path`                                             | `source`, `reason`                        |
 | `W_SOURCE_UNAVAILABLE`        | a referenced source is held: not read, or its copy changed (8.3)                                                          | `source`, `reason`, `size`                |
 | `W_SOURCE_EMBEDDED`           | a source asked to be referenced was embedded: its rows are not its bytes                                                  | `source`, `reason`                        |
+| `W_OPTION_NOT_SAVED`          | a load option builtins.md does not list was left out of the saved record                                                  | `source`, `option`                        |
 | `W_SPACE_OVERLAP`             | a node key would add keys to a space another source already holds                                                         | `source`, `space`, `count`                |
 | `W_REFERENCE_UNBOUND`         | an element reference binds nowhere                                                                                        | `section`, `pointer`, `ref`               |
 | `W_DATA_CHANGED`              | same data id, but a run's build or copy ids differ                                                                        | `section`, `sources`                      |

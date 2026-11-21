@@ -1323,15 +1323,72 @@ describe("data section version 2", () => {
     it("writes a network source's origin as its closed object, the ledger an open read kept", async () => {
         const example = structuredClone(readJson("examples/card-fraud.graphty-data.json"));
         const network = (example.sources as JsonObject[]).find((source) => source.kind === "network") as JsonObject;
-        const ledger = { key: network.id, source: "org.example.bank", version: 1, config: {}, expansions: [] };
+        const ledger = {
+            source: "org.example.bank",
+            sourceVersion: 2,
+            endpoint: null,
+            params: { week: 46 },
+            limits: { maxNodes: 500 },
+            pages: 2,
+            next: { page: 3 },
+            validators: { etag: "abc" },
+            expand: { depth: 2, direction: "out" },
+            expansions: [
+                {
+                    seeds: [{ space: "account", key: "acct-1001" }],
+                    depth: 1,
+                    direction: "both",
+                    at: "2026-11-14T17:45:00.000Z",
+                    next: null,
+                    validators: {},
+                },
+            ],
+            extensions: { "org.example.audit": { by: "batch" } },
+        };
         Object.assign(network.origin as JsonObject, { ledger });
         const session = createGraphSession(ON);
-        await readBody(session, example);
+        assert.notInclude(
+            (await readBody(session, example)).map((problem) => problem.code),
+            "W_UNKNOWN_MEMBER",
+        );
+        assert.deepEqual(
+            session.data.loads().map((record) => record.key),
+            [network.id],
+            "restored as the session's record of the load",
+        );
         const { body } = await writeBody(session);
         assert.deepStrictEqual(invalid(asSection(body)), []);
         const written = (body.sources as JsonObject[]).find((source) => source.id === network.id);
         assert.deepStrictEqual((written?.origin as JsonObject).ledger, ledger);
-        assert.deepStrictEqual(written?.origin, network.origin, "url, credential slot and validators kept as read");
+        assert.deepStrictEqual(written?.origin, network.origin, "url and credential slot kept as read");
+        session.dispose();
+    });
+
+    it("builds an embedded network source whose ledger holds an unknown member, and leaves it not refreshable", async () => {
+        const example = structuredClone(readJson("examples/card-fraud.graphty-data.json"));
+        const network = (example.sources as JsonObject[]).find((source) => source.kind === "network") as JsonObject;
+        const ledger = (network.origin as JsonObject).ledger as JsonObject;
+        ledger.retries = 3;
+        const session = createGraphSession(ON);
+        const problems = await readBody(session, example);
+        assert.deepInclude(problems, {
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: "data", pointer: "/sources/2/origin/ledger/retries" },
+        });
+        assert.notInclude(
+            problems.map((problem) => problem.code),
+            "W_SECTION_KEPT",
+        );
+        assert.isAbove(session.data.nodes().length, 0, "the section is built");
+        assert.deepEqual(session.data.loads(), []);
+        let refused = false;
+        await session.data.refresh(String(network.id)).catch(() => {
+            refused = true;
+        });
+        assert.isTrue(refused, "a refresh is refused");
+        const { body } = await writeBody(session);
+        const written = (body.sources as JsonObject[]).find((source) => source.id === network.id);
+        assert.deepStrictEqual(written?.origin, network.origin, "its origin written back as read");
         session.dispose();
     });
 
@@ -1942,7 +1999,7 @@ describe("the join history: steps that read sources (spec 4.1.8)", () => {
         }
     });
 
-    it("holds the section for a referenced source whose parse options its parser does not read", async () => {
+    it("holds a referenced source whose parse options its parser does not read, never the section", async () => {
         const { body, first } = await stagedBody();
         // A CSV source: the CSV parser reads no sheet and no pointer, and missing takes a list.
         assert.strictEqual(recordOf(body, first)?.format, "csv");
@@ -1950,13 +2007,20 @@ describe("the join history: steps that read sources (spec 4.1.8)", () => {
             const copy = structuredClone(body);
             const record = recordOf(copy, first) as JsonObject;
             delete record.copy;
+            // Referenced, its copy id is the digest of its bytes.
+            (record.origin as JsonObject).copy = `sha256:${"0".repeat(64)}`;
             record.options = { ...(record.options as JsonObject | undefined), [name]: "x" };
             const target = createGraphSession(ON);
-            assert.include(
-                (await readBody(target, copy)).map((problem) => problem.code),
+            const problems = await readBody(target, copy);
+            assert.notInclude(
+                problems.map((problem) => problem.code),
                 "W_SECTION_KEPT",
                 name,
             );
+            assert.deepInclude(problems, {
+                code: "W_SOURCE_UNAVAILABLE",
+                params: { source: first, reason: "options" },
+            });
             target.dispose();
         }
     });

@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormatsModule from "ajv-formats";
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import type { RunId } from "../../../src/catalog/types";
@@ -332,6 +332,28 @@ describe("a version 1 project file, migrated", () => {
             ["1|2#1", "2|3#1", "2|3#2"],
         );
         session.dispose();
+    });
+
+    it("migrates a network load to one derived source with no format, options or ledger", async () => {
+        const url = "https://files.example.com/data/graph.csv";
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response("source,target\nAva,Ben\n", { status: 200 })));
+        try {
+            const session = createGraphSession(ON);
+            await session.data.import({ source: "url", config: { url } });
+            const { v1, sections } = await migrated(session);
+            assert.isDefined((v1.members as JsonObject[]).find((member) => member.kind === "graphty-sources"));
+            assert.deepStrictEqual(invalid(sections.data), []);
+            const loaded = (sections.data.sources as JsonObject[]).filter((source) => source.kind !== "reader");
+            assert.lengthOf(loaded, 1);
+            const [source] = loaded;
+            assert.strictEqual(source.kind, "derived");
+            assert.notProperty(source, "format");
+            assert.notProperty(source, "options");
+            assert.notProperty(source.origin as JsonObject, "ledger");
+            session.dispose();
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 
     it("writes the same file every time, so its ids and references are stable", async () => {

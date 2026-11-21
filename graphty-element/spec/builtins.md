@@ -2,9 +2,9 @@
 
 This registry names and defines every code-backed built-in a graphty document may name: node
 shapes, arrowheads, line patterns, transitions, the fixed sequences an overflow policy steps
-through, label looks, and the closed choices of the style channels. A document that names one of
-these depends on its definition here; the specification (README.md, "Versions" rule 5) says that
-a definition never changes.
+through, label looks, the closed choices of the style channels, and the parse options a source
+record may carry. A document that names one of these depends on its definition here; the
+specification (README.md, "Versions" rule 5) says that a definition never changes.
 
 Rules:
 
@@ -357,3 +357,24 @@ registry cannot check them yet; each needs an exported list before version 2 is 
 (`src/config/NodeStyle.ts`); arrow `side`, gradient `kind`, `bendCurve`, `supportModel`,
 `supportScale` and `route` (`src/config/EdgeStyle.ts`); and `runPlacement`
 (`src/session/configKeys.ts`).
+
+## Parse options
+
+Source: `src/session/document2/codecs/parseOptions.ts` (`PARSE_OPTIONS`). A source record's
+`options` holds only names listed here for its `format` (README.md 4.1.2 rule 9). `*` means every
+format. Adding a name, or a format to a name, is additive. Changing a name's type, meaning or
+absent value is a change of meaning.
+
+<!-- registry: parseOptions -->
+
+| Name           | Formats                    | Type                                                                                                                                                   | Absent                                                         | Meaning                                                                                                                |
+| -------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `delimiter`    | csv                        | one character                                                                                                                                          | worked out from the first rows (comma, tab, semicolon or pipe) | the column separator                                                                                                   |
+| `missing`      | csv, json, xlsx            | list of strings                                                                                                                                        | none                                                           | cell texts read as unset, compared exactly after NFC, never trimmed (json: the top-level string values of each record) |
+| `pointer`      | json                       | JSON Pointer (RFC 6901)                                                                                                                                | the whole document                                             | the part read: an array is one collection of rows; an object is read whole as a graph document                         |
+| `sheet`        | xlsx                       | string                                                                                                                                                 | the first sheet in tab order                                   | the sheet read, matched after NFC                                                                                      |
+| `graphIndex`   | cx, cys, json, xgmml, xlsx | integer, at least 0                                                                                                                                    | the first graph                                                | which of the file's graphs is read, by position                                                                        |
+| `graphName`    | cx, cys, json, xgmml, xlsx | string                                                                                                                                                 | the first graph                                                | which of the file's graphs is read, by name                                                                            |
+| `errorLimit`   | `*`                        | integer, at least 0                                                                                                                                    | the reader's default                                           | how many bad rows are read past before the read stops                                                                  |
+| `styles`       | `*`                        | `file` or `none`                                                                                                                                       | `none`                                                         | whether the load drew the file's own styles                                                                            |
+| `styleOptions` | `*`                        | closed object: `lengths` (`median`, `file`, `spacing`), `labelSizes` (`proportional`, `file`), `toolDefaults` (boolean), `imageBaseUrl` (absolute URL) | each member's default                                          | how the file's styles became columns and layers; `framing` and the deprecated `labelLayers` are never written          |

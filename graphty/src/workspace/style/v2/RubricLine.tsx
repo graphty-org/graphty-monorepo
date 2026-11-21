@@ -628,7 +628,8 @@ export function SeparateSidesLine({
         <LineFrame
             line={`${line}:sides`}
             name={null}
-            set={split}
+            // View state, never a written value: nothing to remove, so no "-" (E674).
+            set={false}
             rule="R7"
             control={
                 <Checkbox

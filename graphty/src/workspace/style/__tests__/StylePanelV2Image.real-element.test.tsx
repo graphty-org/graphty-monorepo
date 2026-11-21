@@ -3,6 +3,8 @@
  * clicks: Image's settings hold "Wrap around shape"; off, the picture is placed on the node (`node.image`), on, it
  * wraps over the 3D surface (`node.texture`) and the placing settings are dimmed, from graphty-element's own
  * `drawnWhen`; the picture on the canvas changes each way. Fill's Switch to lists no Picture.
+ * Wrap around shape needs the node-models experiment (`node.texture` is its channel): review it at
+ * ?features=file-styles,style-panel-v2,node-models.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -93,7 +95,7 @@ describe("Style panel v2's Image wraps around the shape", () => {
         await waitFor(() => {
             const fit = pop.querySelector('.ws-row[data-line="node.imageFit"]');
             assert.isNotNull(fit);
-            assert.equal(dimmed(fit), "Only when Image is set", "placing settings dim while wrapped");
+            assert.equal(dimmed(fit), "Only when Wrap around shape is off", "placing settings dim while wrapped");
         });
 
         await userEvent.click(within(pop).getByRole("checkbox", { name: "Wrap around shape" }));

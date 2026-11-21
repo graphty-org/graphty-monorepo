@@ -362,7 +362,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                         letters: ["W", "H"],
                     },
                     // A modifier is a checkbox line of its own (design 2.6, E674), never a toggle beside a line.
-                    { channel: "node.imageAspect", name: "Keep ratio" },
+                    { channel: "node.imageAspect", name: "Node takes picture shape" },
                     { channel: "node.imagePixelSize", name: "Pixel size" },
                     { channel: "node.imageAutoSize", name: null, rule: "R8f" },
                 ],
@@ -756,19 +756,27 @@ export function lineChannels(line: LineSpec): readonly Channel[] {
 }
 
 /**
- * Every channel a rubric's lines edit.
+ * Every line of a rubric: its row's, its common, main and grouped lines.
  * @param rubric - the rubric.
- * @returns the channels, once each.
+ * @returns the lines.
  */
-export function rubricChannels(rubric: ThingRubric): readonly Channel[] {
-    const lines: LineSpec[] = [
+export function rubricLines(rubric: ThingRubric): readonly LineSpec[] {
+    return [
         ...(rubric.rowOwns ?? []).map((channel): LineSpec => ({ channel })),
         ...(rubric.row === undefined ? [] : [rubric.row]),
         ...(rubric.common ?? []),
         ...rubric.main,
         ...(rubric.groups ?? []).flatMap((group) => group.lines),
     ];
-    return [...new Set(lines.flatMap((line) => lineChannels(line)))];
+}
+
+/**
+ * Every channel a rubric's lines edit.
+ * @param rubric - the rubric.
+ * @returns the channels, once each.
+ */
+export function rubricChannels(rubric: ThingRubric): readonly Channel[] {
+    return [...new Set(rubricLines(rubric).flatMap((line) => lineChannels(line)))];
 }
 
 /** The width of a line's control slot, by where it sits (design 2.2). */

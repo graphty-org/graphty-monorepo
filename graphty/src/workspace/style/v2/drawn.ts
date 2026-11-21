@@ -21,6 +21,7 @@ import type { RowContext } from "../PropertyRow";
 import { lineIn } from "../row";
 import { channelWord, enumWords } from "../words";
 import { labelFieldDescriptor } from "./labelRubric";
+import { EDGE_RUBRIC, NODE_RUBRIC, rubricLines } from "./rubric";
 
 /**
  * The view shown now.
@@ -64,9 +65,36 @@ export function dimOf(ctx: RowContext, channel: Channel): string | undefined {
     }
     const read = (other: Channel): unknown => lineIn(ctx, other)?.value ?? ctx.beneath(other).value;
     const found = channelDrawn(channel, read, viewOf(ctx.session));
-    return found.drawn
-        ? undefined
-        : unmetWords(found.unmet, "channel" in found.unmet ? channelWord(found.unmet.channel) : "");
+    if (found.drawn) {
+        return undefined;
+    }
+    if ("set" in found.unmet) {
+        const moved = unitWords(ctx.side, found.unmet.channel, read);
+        if (moved !== undefined) {
+            return moved;
+        }
+    }
+    return unmetWords(found.unmet, "channel" in found.unmet ? channelWord(found.unmet.channel) : "");
+}
+
+/**
+ * The words for a channel left unset because its value moved to another unit of the same Unit line (Wrap around
+ * shape on moves `node.image` to `node.texture`): "Only when Wrap around shape is off", or undefined.
+ * @param side - nodes or edges.
+ * @param channel - the unset channel the condition needs.
+ * @param read - reads what the row holds.
+ * @returns the words, or undefined.
+ */
+function unitWords(side: string, channel: Channel, read: (other: Channel) => unknown): string | undefined {
+    const rubrics = side === "edge" ? EDGE_RUBRIC : NODE_RUBRIC;
+    for (const line of Object.values(rubrics).flatMap((rubric) => rubricLines(rubric))) {
+        const own = line.unit?.find(([, unit]) => unit === channel);
+        const moved = line.unit?.some(([, unit]) => unit !== channel && read(unit) !== undefined) === true;
+        if (own !== undefined && moved && typeof line.name === "string") {
+            return `Only when ${line.name} is ${own[0].toLowerCase()}`;
+        }
+    }
+    return undefined;
 }
 
 /**

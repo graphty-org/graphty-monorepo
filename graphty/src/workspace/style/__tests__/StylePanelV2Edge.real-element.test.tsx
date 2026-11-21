@@ -178,7 +178,8 @@ describe("Style panel v2's edge things", () => {
         await userEvent.keyboard("{Escape}");
         await undo();
         await waitFor(() => {
-            assert.isUndefined(written(session, id, "edge.arrowHeadSize"), "one Undo takes the size off");
+            // "+" Arrow started the size at graphty-element's 1, so its Size line shows (ia-design 2).
+            assert.equal(written(session, id, "edge.arrowHeadSize"), 1, "one Undo takes the size back to its start");
         });
     });
 

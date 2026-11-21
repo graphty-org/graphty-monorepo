@@ -27,11 +27,17 @@ import { openGraph, openShaderList, openStyle, picture, pixelsApart, sectionOf }
  * @param place - its place.
  * @returns its id.
  */
-async function custom(session: GraphSession, target: "node" | "edge", place: string): Promise<string> {
-    const id = `user/test-${target}-${place}`;
+async function custom(
+    session: GraphSession,
+    target: "node" | "edge",
+    place: string,
+    places?: readonly string[],
+): Promise<string> {
+    const id = `user/test-${target}-${places?.join("-") ?? place}`;
     const text = shaderTemplate({ target, place: place as "paint" })
         .replace(/"id": "[^"]*"/, `"id": "${id}"`)
-        .replace(/"name": "[^"]*"/, `"name": "Test ${target} ${place}"`);
+        .replace(/"name": "[^"]*"/, `"name": "Test ${target} ${places?.join(" ") ?? place}"`)
+        .replace(/"place": "[^"]*"/, (found) => (places === undefined ? found : `${found}, "places": ${JSON.stringify(places)}`));
     const added = await session.shaders.add(text);
     assert.isTrue(added.ok, JSON.stringify(added));
     return id;
@@ -173,6 +179,28 @@ describe("custom and built-in shaders are one list", () => {
             typeof shapeValue === "string" && shapeValue.includes(replacing?.id ?? "-"),
             "node.shape holds no shader pick",
         );
+    });
+
+    it("a custom shader declaring two places, neither replace, is in the node's one Shaders list once and not a shape", async () => {
+        const { session } = await openGraph();
+        const id = await custom(session, "node", "over", ["over", "around"]);
+        await openStyle("Key people");
+        const list = await openList("node");
+        const tiles = [...list.querySelectorAll<HTMLElement>(".ws-gallery-tile")].map(
+            (tile) => tile.getAttribute("data-shader") ?? "",
+        );
+        assert.lengthOf(
+            tiles.filter((tile) => tile === id),
+            1,
+            "once in the one list, with no place split (E368)",
+        );
+        await userEvent.keyboard("{Escape}");
+        await openShapeList();
+        const menu = await screen.findByRole("group", { name: /values$/ });
+        await userEvent.type(within(menu).getByRole("combobox", { name: "Search" }), "Test node over around");
+        await waitFor(() => {
+            assert.deepEqual(within(menu).queryAllByRole("option"), [], "no Shape menu option for it");
+        });
     });
 
     it("the Shape menu has a Shaders section, New shader... first, whose New shader... opens the code dialog", async () => {

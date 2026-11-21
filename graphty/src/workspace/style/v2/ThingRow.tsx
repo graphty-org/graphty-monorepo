@@ -302,6 +302,28 @@ function MainControl({
 }
 
 /**
+ * The text thing a row edits the label style of: its thing's, or for a kind's row the one whose words are its main
+ * channel (an End caption's Target is the target end's caption, kindGroups.ts).
+ * @param ctx - the row.
+ * @param thing - the thing.
+ * @param kind - the kind the row draws, if any.
+ * @param main - the row's main channel.
+ * @returns the text thing, or undefined.
+ */
+function textThingOf(
+    ctx: RowContext,
+    thing: ThingSpec,
+    kind: KindMember | undefined,
+    main: Channel,
+): TextThing | undefined {
+    const own = TEXT_THINGS[ctx.side][thing.id] as TextThing | undefined;
+    if (own !== undefined || kind === undefined) {
+        return own;
+    }
+    return Object.values(TEXT_THINGS[ctx.side]).find((each) => each.words === main);
+}
+
+/**
  * A row's Switch to: its graphty-element family's members, or its kind group's kinds.
  * @param ctx - the row.
  * @param thing - the thing.
@@ -373,9 +395,10 @@ export function ThingRow({
     if (main === undefined) {
         return null;
     }
-    const text = TEXT_THINGS[ctx.side][thing.id] as TextThing | undefined;
-    // A kind's row is named by its kind ("Glyph") everywhere, its buttons too; a text kind's row keeps the thing's.
-    const name = kind === undefined || text?.words === main.channel ? thing.name : kind.plainName;
+    const text = textThingOf(ctx, thing, kind, main.channel);
+    // A kind's row is named by its kind ("Glyph", "Target") everywhere, its buttons too; a Label's Text kind keeps
+    // the thing's name.
+    const name = kind === undefined || kind.id === "text" ? thing.name : kind.plainName;
     const kindWord = ctx.side === "node" ? "Node" : "Edge";
     const title = `${kindWord} ${name.toLowerCase()}`;
     const member = switchTo(ctx, thing, title, kind);
@@ -441,7 +464,7 @@ export function ThingRow({
                 <LabelRow
                     ctx={ctx}
                     kind={text}
-                    name={thing.name}
+                    name={name}
                     title={title}
                     channels={channels}
                     pending={pending}

@@ -14,7 +14,7 @@ import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
-import { screen, waitFor, within } from "../../../test/test-utils";
+import { findValuePicker, screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
 import { openGraph, openStyle, sectionOf, written } from "./v2Harness";
 
@@ -25,11 +25,18 @@ interface Collapse {
     readonly section: string;
     readonly thing: string;
     /** The two kinds the layer starts with: their row names and what they write. */
-    readonly kinds: readonly { readonly row: string; readonly set: Readonly<Record<string, unknown>> }[];
+    readonly kinds: readonly {
+        readonly row: string;
+        readonly set: Readonly<Record<string, unknown>>;
+        /** What its row shows as its main value (an arrowhead's name, a caption's words, a plate's color). */
+        readonly shows: string;
+    }[];
     /** The kind the first row switches to when it is alone on the layer: its name and main channel. */
     readonly free: { readonly row: string; readonly head: string };
     /** The first kind's main channel. */
     readonly head: string;
+    /** A further value of the first kind a switch carries, and what the free kind then holds there. */
+    readonly carries: { readonly to: string; readonly value: unknown };
 }
 
 const COLLAPSES: readonly Collapse[] = [
@@ -39,11 +46,12 @@ const COLLAPSES: readonly Collapse[] = [
         section: "edge-arrows",
         thing: "arrow",
         kinds: [
-            { row: "Target", set: { "edge.arrowHead": "vee", "edge.arrowHeadSize": 1.5 } },
-            { row: "Source", set: { "edge.arrowTail": "tee" } },
+            { row: "Target", set: { "edge.arrowHead": "vee", "edge.arrowHeadSize": 1.5 }, shows: "vee" },
+            { row: "Source", set: { "edge.arrowTail": "tee" }, shows: "tee" },
         ],
         free: { row: "Middle to target", head: "edge.arrowMiddleHead" },
         head: "edge.arrowHead",
+        carries: { to: "edge.arrowMiddleHeadSize", value: 1.5 },
     },
     {
         name: "End caption (C1)",
@@ -51,11 +59,16 @@ const COLLAPSES: readonly Collapse[] = [
         section: "edge-text",
         thing: "endCaption",
         kinds: [
-            { row: "Target", set: { "edge.arrowHeadText": "in" } },
-            { row: "Source", set: { "edge.arrowTailText": "out" } },
+            {
+                row: "Target",
+                set: { "edge.arrowHeadText": "inbound", "edge.arrowHeadTextColor": "#00ff00" },
+                shows: "inbound",
+            },
+            { row: "Source", set: { "edge.arrowTailText": "outbound" }, shows: "outbound" },
         ],
         free: { row: "Source", head: "edge.arrowTailText" },
         head: "edge.arrowHeadText",
+        carries: { to: "edge.arrowTailTextColor", value: "#00ff00" },
     },
     {
         name: "Plate (C2)",
@@ -63,11 +76,17 @@ const COLLAPSES: readonly Collapse[] = [
         section: "node-effects",
         thing: "plate",
         kinds: [
-            { row: "Behind", set: { "node.underlayColor": "#ff0000", "node.underlayOpacity": 1 } },
-            { row: "Over", set: { "node.overlayColor": "#0000ff", "node.overlayOpacity": 0.3 } },
+            {
+                row: "Behind",
+                set: { "node.underlayColor": "#ff0000", "node.underlayOpacity": 1, "node.underlayPadding": 0.4 },
+                shows: "ff0000",
+            },
+            { row: "Over", set: { "node.overlayColor": "#0000ff", "node.overlayOpacity": 0.3 }, shows: "0000ff" },
         ],
         free: { row: "Over", head: "node.overlayColor" },
         head: "node.underlayColor",
+        // The padding is carried; the opacity is not: a plate laid over the node starts translucent (ia-design 2).
+        carries: { to: "node.overlayPadding", value: 0.4 },
     },
 ];
 
@@ -79,6 +98,27 @@ const COLLAPSES: readonly Collapse[] = [
  */
 function rowsOf(section: HTMLElement, thing: string): HTMLElement[] {
     return [...section.querySelectorAll<HTMLElement>(`[data-thing="${thing}"]`)];
+}
+
+/**
+ * Everything a row shows a reader as its value: its text and its fields' values, lower case.
+ * @param row - the row.
+ * @returns the words.
+ */
+function shownIn(row: HTMLElement): string {
+    const values = [...row.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value);
+    return [row.textContent, ...values].join(" ").toLowerCase();
+}
+
+/**
+ * Opens a section's "+" and picks an item from its menu.
+ * @param section - the section.
+ * @param add - the "+" button's name.
+ * @param item - the menu item.
+ */
+async function plus(section: HTMLElement, add: RegExp, item: string): Promise<void> {
+    await userEvent.click(within(section).getByRole("button", { name: add }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: new RegExp(`^${item}`) }));
 }
 
 describe("Style panel v2's collapsed kinds", () => {
@@ -94,7 +134,12 @@ describe("Style panel v2's collapsed kinds", () => {
             await showKind(collapse.side);
             const section = sectionOf(tab, collapse.section);
             await waitFor(() => {
-                assert.lengthOf(rowsOf(section, collapse.thing), collapse.kinds.length, "one row per kind");
+                const rows = rowsOf(section, collapse.thing);
+                assert.lengthOf(rows, collapse.kinds.length, "one row per kind");
+                collapse.kinds.forEach((kind, at) => {
+                    const row = rows[at];
+                    assert.include(shownIn(row), kind.shows, `the ${kind.row} row shows its value`);
+                });
             });
             // With only the first kind on the layer, its row's Switch to moves it to a free kind; Undo takes it back.
             const [first] = collapse.kinds;
@@ -110,6 +155,7 @@ describe("Style panel v2's collapsed kinds", () => {
             await waitFor(() => {
                 assert.isUndefined(written(session, layer, collapse.head), "the old kind's value comes off");
                 assert.equal(written(session, layer, collapse.free.head), before, "and moves to the new kind");
+                assert.equal(written(session, layer, collapse.carries.to), collapse.carries.value, "with its settings");
             });
             await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
             await waitFor(() => {
@@ -119,6 +165,65 @@ describe("Style panel v2's collapsed kinds", () => {
         });
     }
 
+    it("a kind holding only a setting, not its main value, still has its row (a file colors an arrow it gives no shape)", async () => {
+        const { session, edges } = await openGraph();
+        await session.styles.update(edges, { set: { "edge.arrowHeadColor": "#ff0000", "edge.arrowTail": "tee" } });
+        await session.styles.settled();
+        const tab = await openStyle("Links");
+        await showKind("edge");
+        const section = sectionOf(tab, "edge-arrows");
+        await waitFor(() => {
+            const rows = rowsOf(section, "arrow");
+            assert.lengthOf(rows, 2, "a Target row for the color and a Source row");
+            assert.isNotNull(rows[0].querySelector('[data-line="edge.arrowHeadColor"]'), "the color line is reachable");
+        });
+    });
+
+    it("End caption: '+' gives a Target caption, '+' again a Source caption waiting for its words", async () => {
+        const { session, edges } = await openGraph();
+        const tab = await openStyle("Links");
+        await showKind("edge");
+        const section = sectionOf(tab, "edge-text");
+        await plus(section, /^Add to edge text/, "End caption");
+        // A caption's words come from its source list, open at once; Fixed text opens the words' own field.
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: "Fixed text" }));
+        await userEvent.click(await screen.findByRole("textbox", { name: "Edge target text" }));
+        await userEvent.keyboard("hi{Enter}");
+        await waitFor(() => {
+            assert.equal(written(session, edges, "edge.arrowHeadText"), "hi", "the first is the target end");
+            assert.lengthOf(rowsOf(section, "endCaption"), 1);
+        });
+        await plus(section, /^Add to edge text/, "End caption");
+        await findValuePicker();
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            const rows = rowsOf(section, "endCaption");
+            assert.lengthOf(rows, 2, "the second '+' adds a Source row");
+            const source = within(rows[1]).getByRole("button", { name: /^Edge source source/ });
+            assert.equal(source.textContent.trim(), "", "waiting for its words");
+            assert.isUndefined(written(session, edges, "edge.arrowTailText"), "nothing written yet");
+        });
+    });
+
+    it("Plate: '+' starts a plate behind the node larger than it, '+' again a translucent plate over it", async () => {
+        const { session, nodes } = await openGraph();
+        const tab = await openStyle("Key people");
+        await showKind("node");
+        const section = sectionOf(tab, "node-effects");
+        await plus(section, /^Add to node effects/, "Plate");
+        await waitFor(() => {
+            assert.isDefined(written(session, nodes, "node.underlayColor"), "the first '+' is Behind");
+            assert.isAbove(Number(written(session, nodes, "node.underlayPadding")), 0, "larger than the node");
+            assert.lengthOf(rowsOf(section, "plate"), 1);
+        });
+        await plus(section, /^Add to node effects/, "Plate");
+        await waitFor(() => {
+            assert.isDefined(written(session, nodes, "node.overlayColor"), "the second is Over");
+            assert.equal(written(session, nodes, "node.overlayOpacity"), 0.3, "translucent");
+            assert.lengthOf(rowsOf(section, "plate"), 2);
+        });
+    });
+
     it("Arrow: '+' gives a Target arrow, '+' again a Source arrow, each its own row", async () => {
         const { session, edges } = await openGraph();
         const tab = await openStyle("Links");
@@ -127,6 +232,9 @@ describe("Style panel v2's collapsed kinds", () => {
         await userEvent.click(within(section).getByRole("button", { name: /^Add to edge arrows/ }));
         await waitFor(() => {
             assert.isDefined(written(session, edges, "edge.arrowHead"), "the first '+' adds the target arrow");
+            assert.equal(written(session, edges, "edge.arrowHeadSize"), 1, "with its size, so its Size line shows");
+            const [row] = rowsOf(section, "arrow");
+            assert.isNotNull(row.querySelector('[data-line="edge.arrowHeadSize"]'), "a Size line under the row");
             assert.lengthOf(rowsOf(section, "arrow"), 1);
         });
         await userEvent.click(within(section).getByRole("button", { name: /^Add to edge arrows/ }));

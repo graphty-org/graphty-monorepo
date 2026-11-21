@@ -82,7 +82,9 @@ export function useShaderList(
     const entries = all.filter(
         (entry) => (spec.shapeOwnsReplace !== true || placeOf(entry) !== "replace") && (spec.listed?.(entry) ?? true),
     );
-    const options: OptionTile[] = OPTION_CHANNELS[tab].map((channel) => ({
+    // v2 lists its styles in their own sections' "+" (Glow beside Shader in Effects), and no v2 section answers a
+    // picked option tile, so its gallery offers shaders only (E668).
+    const options: OptionTile[] = (spec.shapeOwnsReplace === true ? [] : OPTION_CHANNELS[tab]).map((channel) => ({
         key: channel,
         label: channelWord(channel),
     }));

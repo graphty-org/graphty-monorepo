@@ -5793,10 +5793,12 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
     ["node.borderPosition", [THIN_BORDER]],
     [
         "node.outerBorderColor",
-        // A ring draws on its own, outside whatever border there is or is not: it needs no border width.
+        // A ring draws on its own, outside whatever border there is or is not: it needs no border width. A thin
+        // stroke (the starting Selected row's width is about as thin) with a small gap off the rim, so it reads as
+        // a ring and not as a donut the node's width.
         [
-            { channel: "node.outerBorderWidth", value: 1 },
-            { channel: "node.outerBorderOffset", value: 1 },
+            { channel: "node.outerBorderWidth", value: 0.2 },
+            { channel: "node.outerBorderOffset", value: 0.1 },
         ],
     ],
     ["node.raisedBorderLightColor", [{ channel: "node.raisedBorderWidth", value: 0.1 }]],
@@ -5820,7 +5822,8 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
     [
         "node.overlayColor",
         [
-            { channel: "node.overlayOpacity", value: 0.5 },
+            // Translucent enough to read as a plate laid over the node, never as its fill color.
+            { channel: "node.overlayOpacity", value: 0.3 },
             { channel: "node.overlayPadding", value: 0.1 },
         ],
     ],

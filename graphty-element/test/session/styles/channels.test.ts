@@ -1456,6 +1456,17 @@ describe("ChannelDescriptor.needs and start", () => {
         ]);
     });
 
+    it("starts a ring thin and off the rim and a plate over the node translucent (ia-design 2)", () => {
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.outerBorderColor"].needs, [
+            { channel: "node.outerBorderWidth", value: 0.2 },
+            { channel: "node.outerBorderOffset", value: 0.1 },
+        ]);
+        assert.deepInclude(CHANNEL_DESCRIPTORS["node.overlayColor"].needs ?? [], {
+            channel: "node.overlayOpacity",
+            value: 0.3,
+        });
+    });
+
     it("starts a new label at the default size, one node size tall, with no start value over it", () => {
         const size = LABEL_STYLE_DESCRIPTORS.find((descriptor) => descriptor.field === "size");
         assert.isUndefined(size?.start);

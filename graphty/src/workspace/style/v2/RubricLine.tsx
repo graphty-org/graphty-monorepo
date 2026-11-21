@@ -789,7 +789,7 @@ export function RubricLine({ ctx, line, row, named: alwaysNamed = false }: Rubri
             line={channel}
             name={lineName(line, descriptor, rule, alwaysNamed)}
             set={set}
-            rule={rule}
+            rule={frameRule(line, rule)}
             control={control}
             modifier={
                 row?.slot ??
@@ -842,6 +842,16 @@ export function RemoveButton({ label, onClick }: Readonly<{ label: string; onCli
             </ActionIcon>
         </Tooltip>
     );
+}
+
+/**
+ * The rule a line's frame names: its own, but a Unit line's is a strip of units (R8), whatever its channel holds.
+ * @param line - the line.
+ * @param rule - the rule its control follows.
+ * @returns the rule.
+ */
+function frameRule(line: LineSpec, rule: string): string {
+    return line.unit === undefined ? rule : "R8";
 }
 
 /**

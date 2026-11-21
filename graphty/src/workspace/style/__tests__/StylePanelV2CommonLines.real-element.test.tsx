@@ -9,7 +9,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { channelDescriptor } from "@graphty/graphty-element/catalog";
+import { channelDescriptor, LABEL_STYLE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -22,37 +22,69 @@ import { openGraph, openStyle } from "./v2Harness";
 const WIDGETS = 'svg, button, [role="switch"], [role="radio"], [role="combobox"], input[type="checkbox"]';
 
 /**
- * A line's widgets, as words, its scrub slot left out.
+ * A line's widgets, as words: everything on the line but its name, its number's scrub slot, its "-", a row's
+ * settings "..." (the parts every line shares) and a value list's picture of its value, so a glyph beside the
+ * name or after the control counts too.
  * @param line - the line.
  * @returns the sorted words.
  */
 function widgetsOf(line: Element): string[] {
-    const control = line.querySelector(".ws-field-control");
-    return [...(control?.querySelectorAll(WIDGETS) ?? [])]
-        .filter((each) => each.closest(".cm-scrub-slot") === null)
+    return [...line.querySelectorAll(WIDGETS)]
+        .filter(
+            (each) =>
+                each.closest(".cm-scrub-slot") === null &&
+                // a value list shows its value's own picture (a shape, an arrowhead, a route) with its name, on
+                // every list alike: that is the value, not a glyph beside the line
+                !(each.tagName.toLowerCase() === "svg" && each.closest("[data-value-listbox]") !== null) &&
+                each.closest('button[aria-label^="Remove "]') === null &&
+                each.closest('button[aria-label$=" settings"]') === null,
+        )
         .map((each) => each.getAttribute("role") ?? each.tagName.toLowerCase())
         .sort();
 }
 
 /**
- * The kind of value a line edits: its channel's, or for a label field a field's.
+ * The kind of value a line edits: its channel's, or for a label field (`node.labelStyle.weight`) the field's, as
+ * graphty-element's label style catalog says.
  * @param line - the line's channel or field address.
  * @returns the kind.
  */
 function kindOf(line: string): string {
-    return channelDescriptor(line)?.accepts ?? "field";
+    const channel = channelDescriptor(line);
+    if (channel !== undefined) {
+        return channel.accepts;
+    }
+    const field = line.split(".").at(-1);
+    const descriptor = LABEL_STYLE_DESCRIPTORS.find((each) => each.field === field);
+    return descriptor === undefined ? "label unit" : `label ${descriptor.accepts}`;
+}
+
+/** One line read: its control kind and its widgets. */
+interface Line {
+    readonly kind: string;
+    readonly widgets: readonly string[];
 }
 
 /**
  * Every line shown: the sidebar's, and each row's settings pop-over's, opened by a real click one at a time.
  * @param tab - the Style tab.
- * @param seen - the lines read so far, by address, with their widgets.
+ * @param seen - the lines read so far, by address, with their kind and widgets.
  */
-async function readLines(tab: HTMLElement, seen: Map<string, string[]>): Promise<void> {
+async function readLines(tab: HTMLElement, seen: Map<string, Line>): Promise<void> {
     const take = (root: ParentNode): void => {
         for (const line of root.querySelectorAll<HTMLElement>(".ws-row[data-line]")) {
-            seen.set(line.dataset.line ?? "", widgetsOf(line));
+            // A Unit line shares its channel's address with the number line it picks the unit of.
+            const address = `${line.dataset.line ?? ""}${/^R8/.test(line.dataset.rule ?? "") ? " (strip)" : ""}`;
+            // A line's control kind is its value's kind and its rubric rule (a choice drawn as a strip or a list).
+            seen.set(address, {
+                kind: `${kindOf(line.dataset.line ?? "")} ${line.dataset.rule ?? ""}`.trim(),
+                widgets: widgetsOf(line),
+            });
             const slot = line.querySelector(".cm-scrub-slot");
+            // A number's field has its scrub slot; a Unit line (R8) picks a unit, it is no number field.
+            if (/number$/.test(kindOf(line.dataset.line ?? "")) && !/^R8/.test(line.dataset.rule ?? "")) {
+                assert.isNotNull(slot, `${String(line.dataset.line)}: a number field has its scrub slot`);
+            }
             if (slot !== null) {
                 assert.isNull(slot.querySelector("svg"), `${String(line.dataset.line)}: the scrub slot is no icon`);
                 assert.match(slot.textContent.trim(), /^[A-Z]$/i, `${String(line.dataset.line)}: one letter`);
@@ -90,7 +122,8 @@ describe("Style panel v2's lines are one common pattern (E674)", () => {
                 "node.borderColor": "#111111",
                 "node.borderWidth": 0.1,
                 "node.label": "{id}",
-                "node.labelStyle": { weight: "bold", italic: true, size: 1 },
+                // a label field of every kind: a choice, a switch, a number, a color, words
+                "node.labelStyle": { weight: "bold", italic: true, size: 1, color: "#ff0000", font: "serif" },
                 "node.glow": "#FFC800",
                 "node.outerBorderColor": "#2266ff",
                 "node.shadowColor": "#000000",
@@ -100,25 +133,30 @@ describe("Style panel v2's lines are one common pattern (E674)", () => {
             set: { "edge.color": "#336699", "edge.width": 2, "edge.arrowHead": "vee", "edge.route": "arc" },
         });
         await session.styles.settled();
-        const seen = new Map<string, string[]>();
+        const seen = new Map<string, Line>();
         const tab = await openStyle("Key people");
         await readLines(tab, seen);
         await openStyle("Links");
         await showKind("edge");
         await readLines(await screen.findByTestId("style-tab"), seen);
         assert.isAbove(seen.size, 20, "the walk reached the lines");
+        // Every kind of line is walked, a channel's and a label field's.
+        const kinds = new Set([...seen.keys()].map((line) => kindOf(line.replace(/ \(strip\)$/, ""))));
+        for (const kind of ["color", "number", "enum", "label color", "label number", "label enum", "label boolean"]) {
+            assert.isTrue(kinds.has(kind), `the walk met a ${kind} line (met: ${[...kinds].join(", ")})`);
+        }
 
         // The widgets the most lines of a kind have are that kind's pattern; any other word on a line is a special case.
         const byKind = new Map<string, Map<string, number>>();
-        for (const [line, widgets] of seen) {
-            const counts = byKind.get(kindOf(line)) ?? new Map<string, number>();
+        for (const { kind, widgets } of seen.values()) {
+            const counts = byKind.get(kind) ?? new Map<string, number>();
             const key = widgets.join(",");
             counts.set(key, (counts.get(key) ?? 0) + 1);
-            byKind.set(kindOf(line), counts);
+            byKind.set(kind, counts);
         }
         const special: string[] = [];
-        for (const [line, widgets] of seen) {
-            const counts = [...(byKind.get(kindOf(line)) ?? new Map<string, number>())];
+        for (const [line, { kind, widgets }] of seen) {
+            const counts = [...(byKind.get(kind) ?? new Map<string, number>())];
             const common = new Set(
                 counts
                     .sort((a, b) => b[1] - a[1])[0]?.[0]
@@ -127,7 +165,7 @@ describe("Style panel v2's lines are one common pattern (E674)", () => {
             );
             const extra = widgets.filter((widget) => !common.has(widget));
             if (extra.length > 0) {
-                special.push(`${line} (${kindOf(line)}): ${extra.join(", ")}`);
+                special.push(`${line} (${kind}): ${extra.join(", ")}`);
             }
         }
         assert.deepEqual(special, [], "lines with a widget their kind's other lines lack");

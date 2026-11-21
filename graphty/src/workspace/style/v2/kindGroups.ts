@@ -31,6 +31,10 @@ export interface KindMember {
     readonly start: () => Readonly<Record<string, unknown>>;
     /** What its main control takes, as the row's tooltip (E269: a box says what to type in it). */
     readonly hint?: string;
+    /** What all its channels start with: a switch moves each value to the same-named channel of the kind switched to. */
+    readonly prefix?: string;
+    /** Values a switch to it writes over what moved (a plate laid over the node starts translucent, ia-design 2). */
+    readonly onSwitch?: Readonly<Record<string, unknown>>;
 }
 
 /** One group: the thing it is drawn as, and its kinds, the first the one "+" adds. */
@@ -44,6 +48,13 @@ export interface KindGroup {
     readonly items?: readonly string[];
     /** A switch carries the main value over too (an arrowhead's shape, a caption's words). */
     readonly moveHead?: true;
+    /**
+     * Only a set main value gives a kind its row while some kind's main value is set: a Label's Text kind owns the
+     * label settings a Glyph is drawn with too, so a glyph file's label settings are no second row.
+     */
+    readonly rowsByHead?: true;
+    /** "+" writes a kind's size slot at graphty-element's start too, so its Size line shows (an arrow, E305). */
+    readonly startsSize?: true;
     readonly members: readonly KindMember[];
 }
 
@@ -57,6 +68,7 @@ export interface KindGroup {
  * @param slots.color - the channel its color moves to and from.
  * @param slots.size - the channel its size moves to and from.
  * @param prefix - what its channels start with, when not its head's name (a plate's `node.underlay`).
+ * @param onSwitch - what a switch to it writes over what moved.
  * @returns the kind.
  */
 function prefixKind(
@@ -65,6 +77,7 @@ function prefixKind(
     head: Channel,
     slots: { readonly color?: Channel; readonly size?: Channel },
     prefix: string = head,
+    onSwitch?: Readonly<Record<string, unknown>>,
 ): KindMember {
     const others = KIND_HEADS.filter((other) => other !== prefix && other.startsWith(prefix));
     return {
@@ -77,6 +90,8 @@ function prefixKind(
             size: slots.size === undefined ? undefined : [slots.size],
         },
         start: () => ({ [head]: channelDescriptor(head)?.start ?? channelDescriptor(head)?.default }),
+        prefix,
+        onSwitch,
     };
 }
 
@@ -93,6 +108,7 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         thing: "arrow",
         items: ["target", "source", "middleTarget", "middleSource"],
         moveHead: true,
+        startsSize: true,
         members: [
             prefixKind("target", "Target", "edge.arrowHead", {
                 color: "edge.arrowHeadColor",
@@ -140,7 +156,9 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         items: ["underlay", "overlay"],
         members: [
             prefixKind("behind", "Behind", "node.underlayColor", { color: "node.underlayColor" }, "node.underlay"),
-            prefixKind("over", "Over", "node.overlayColor", { color: "node.overlayColor" }, "node.overlay"),
+            prefixKind("over", "Over", "node.overlayColor", { color: "node.overlayColor" }, "node.overlay", {
+                "node.overlayOpacity": 0.3,
+            }),
         ],
     },
     {
@@ -148,6 +166,7 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         plainName: "Label",
         side: "node",
         thing: "label",
+        rowsByHead: true,
         members: [
             {
                 id: "text",
@@ -172,6 +191,22 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         ],
     },
 ];
+
+/**
+ * What "+" writes beside a kind's main value: its size at graphty-element's start, for a group that starts it.
+ * @param group - the group.
+ * @param member - the kind "+" adds.
+ * @returns the writes.
+ */
+export function kindStarts(group: KindGroup | undefined, member: KindMember | undefined): Record<string, unknown> {
+    const [size] = member?.slots.size ?? [];
+    if (group?.startsSize !== true || typeof size !== "string") {
+        return {};
+    }
+    const descriptor = channelDescriptor(size);
+    const value = descriptor?.start ?? descriptor?.default;
+    return value === undefined ? {} : { [size]: value };
+}
 
 /**
  * The kind group a thing's row draws.
@@ -200,20 +235,47 @@ export function ownsOf(group: KindGroup, member: KindMember): readonly Channel[]
 }
 
 /**
- * The kinds a row's layers draw, each a row of its own: every kind whose main channel is set (a node may draw
- * its text and a glyph at once), else the first kind something of which is set (a style waiting for its
- * words), else the first kind.
+ * The kinds a row's layers draw, each a row of its own: every kind any channel of which is set (a node may draw
+ * its text and a glyph at once; a file may color a target arrow it gives no shape), else the first kind; for a
+ * group whose rows go by their main value, the kinds whose main value is set, when any is.
  * @param ctx - the row.
  * @param group - the group.
  * @returns the kinds, in the group's order.
  */
 export function kindsShown(ctx: RowContext, group: KindGroup): readonly KindMember[] {
     const headed = group.members.filter((member) => setOn(ctx, member.head));
-    if (headed.length > 0) {
+    if (group.rowsByHead === true && headed.length > 0) {
         return headed;
     }
-    const [first] = group.members;
-    return [group.members.find((member) => ownsOf(group, member).some((channel) => setOn(ctx, channel))) ?? first];
+    const held = group.members.filter((member) => ownsOf(group, member).some((channel) => setOn(ctx, channel)));
+    return held.length > 0 ? held : [group.members[0]];
+}
+
+/**
+ * A kind's values carried to another kind's same-named channels (`edge.arrowHeadColor` to `edge.arrowTailColor`).
+ * @param values - the leaving kind's values.
+ * @param from - the leaving kind.
+ * @param to - the kind switched to.
+ * @param toOwns - the channels the kind switched to owns.
+ * @returns the carried values.
+ */
+function carried(
+    values: Readonly<Record<string, unknown>>,
+    from: KindMember,
+    to: KindMember,
+    toOwns: readonly Channel[],
+): Record<string, unknown> {
+    const { prefix: fromPrefix } = from;
+    const { prefix: toPrefix } = to;
+    if (fromPrefix === undefined || toPrefix === undefined) {
+        return {};
+    }
+    return Object.fromEntries(
+        Object.entries(values).flatMap(([channel, value]) => {
+            const moved = `${toPrefix}${channel.slice(fromPrefix.length)}`;
+            return channel.startsWith(fromPrefix) && toOwns.includes(moved as Channel) ? [[moved, value]] : [];
+        }),
+    );
 }
 
 /**
@@ -316,13 +378,18 @@ export async function switchKind(ctx: RowContext, group: KindGroup, from: KindMe
     if (holdsAny(back)) {
         next = back;
     } else {
-        const set: Record<string, unknown> = {};
+        // Kinds of one channel family carry every value across by name (an arrow's opacity and image, a plate's
+        // padding and shape); others move their color and size slots.
+        const set: Record<string, unknown> = carried(left.set, from, to, toOwns);
         if (group.moveHead === true) {
             writeSlot(set, [to.head], left.set[from.head]);
         }
         writeSlot(set, to.slots.color, readSlot(left.set, from.slots.color));
         writeSlot(set, to.slots.size, readSlot(left.set, from.slots.size));
-        next = { set: Object.keys(set).length > 0 ? set : { ...to.start() }, encode: {} };
+        next = {
+            set: Object.keys(set).length > 0 ? { ...set, ...to.onSwitch } : { ...to.start(), ...to.onSwitch },
+            encode: carried(left.encode, from, to, toOwns),
+        };
     }
     const off = [...fromOwns, ...toOwns];
     await ctx.session.transaction(`switching ${group.plainName.toLowerCase()} to ${to.plainName.toLowerCase()}`, (tx) =>

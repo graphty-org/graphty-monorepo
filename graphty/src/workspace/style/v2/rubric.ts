@@ -446,8 +446,9 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     glow: { main: [{ channel: "node.glowStrength", name: "Strength" }] },
-    underlay: backdrop("underlay"),
-    overlay: backdrop("overlay"),
+    // The Plate item's rows (kindGroups.ts, C2), by the kind's color.
+    "plate:node.underlayColor": backdrop("underlay"),
+    "plate:node.overlayColor": backdrop("overlay"),
     visibility: { row: { channel: "node.visible", name: null, rule: "R8" }, main: [] },
     // The Label row's Glyph kind (kindGroups.ts).
     "label:node.glyph": {
@@ -519,10 +520,13 @@ function edgeEnd(end: EdgeEnd): ThingRubric {
     const at = (suffix: string): Channel => `edge.${end}${suffix}` as Channel;
     const middle = end === "arrowMiddleHead" || end === "arrowMiddleTail";
     return {
-        common: [{ channel: at("Size"), name: "Size" }],
+        // Arrow color varies in more files than arrow size, so both are lines under the row (ia-design 2).
+        common: [
+            { channel: at("Size"), name: "Size" },
+            { channel: at("Color"), name: "Color" },
+        ],
         main: [
             { channel: at("Width"), name: "Width" },
-            { channel: at("Color"), name: null },
             { channel: at("Opacity"), name: "Opacity" },
             { channel: at("Side"), name: "Side", rule: "R8" },
         ],
@@ -586,10 +590,11 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { channel: "edge.outlineStyle", name: "Style", rule: "R10" },
         ],
     },
-    target: edgeEnd("arrowHead"),
-    source: edgeEnd("arrowTail"),
-    middleTarget: edgeEnd("arrowMiddleHead"),
-    middleSource: edgeEnd("arrowMiddleTail"),
+    // The Arrow item's rows (kindGroups.ts, C6), by the kind's arrowhead.
+    "arrow:edge.arrowHead": edgeEnd("arrowHead"),
+    "arrow:edge.arrowTail": edgeEnd("arrowTail"),
+    "arrow:edge.arrowMiddleHead": edgeEnd("arrowMiddleHead"),
+    "arrow:edge.arrowMiddleTail": edgeEnd("arrowMiddleTail"),
     route: {
         // No name: its section is Route, and four routes, Bundling among them, need the full width.
         row: { channel: "edge.route", name: null, rule: "R8" },

@@ -107,7 +107,14 @@ describe("Style panel v2's budget", () => {
             );
             const edge = (last?.getBoundingClientRect().right ?? 0) + 1;
             const beyond = [...line.querySelectorAll("*")]
-                .filter((each) => each.closest(".ws-vary") === null && each.getBoundingClientRect().right > edge)
+                // a box holding the minus (the field around the whole line) is not right of it
+                .filter(
+                    (each) =>
+                        each.closest(".ws-vary") === null &&
+                        last?.contains(each) !== true &&
+                        !each.contains(last ?? null) &&
+                        each.getBoundingClientRect().right > edge,
+                )
                 .map((each) => `${each.tagName.toLowerCase()}.${each.getAttribute("class") ?? ""}`);
             assert.deepEqual(beyond, [], `${String(line.dataset.line)}: nothing sits right of the minus`);
         }

@@ -134,6 +134,19 @@ describe("Style panel v2 dims what draws nothing in this view", () => {
         });
     }
 
+    it("node Plate: with a Behind plate on the layer, the '+' item adding Over is still dimmed '2D only' in 3D (E669)", async () => {
+        const { session, nodes } = await openGraph();
+        await session.styles.update(nodes, { set: { "node.underlayColor": "#ff0000" } });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        await showKind("node");
+        await switchView("3D");
+        const effects = sectionOf(tab, "node-effects");
+        await userEvent.click(within(effects).getByRole("button", { name: /^Add to node effects/ }));
+        assert.equal(dimmed(await screen.findByRole("menuitem", { name: "Plate" })), "2D only");
+        await userEvent.keyboard("{Escape}");
+    });
+
     it("a custom shader declaring 3D only is dimmed in 2D in the Shaders gallery, as a built-in one is", async () => {
         const { session } = await openGraph();
         const added = await session.shaders.add(`/* graphty-shader 1

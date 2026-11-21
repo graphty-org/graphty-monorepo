@@ -27,7 +27,7 @@ import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { viewDim } from "./drawn";
 import { replaceUse } from "./families";
-import { kindGroupOf, type KindMember, kindsShown, ownsOf } from "./kindGroups";
+import { kindGroupOf, type KindMember, kindsShown, kindStarts, ownsOf } from "./kindGroups";
 import { drawnItems, firstColors, ITEM_LISTS, LISTS } from "./lists";
 import { PlusList, PlusListKind } from "./PlusList";
 import { FIT_TO_LABEL, lineFor, V2_LABELS } from "./rubric";
@@ -115,7 +115,7 @@ function thingsOf(
     );
     const shown = things.flat().filter(
         ({ thing, channels }) =>
-            waiting.includes(thing.id) ||
+            waitsFor(waiting, thing.id) ||
             channels.some((c) => setOn(ctx, c)) ||
             // A shader drawn in the shapes' place keeps the Shape row (design 5).
             (thing.id === "shape" && replaceUse(ctx) !== undefined),
@@ -159,22 +159,39 @@ function foundLine(ctx: RowContext, channel: Channel): React.ReactNode {
 }
 
 /**
- * A thing's rows: one, or for a kind group one per kind its layers draw, each with that kind's channels.
+ * Whether "+" added a thing, or one of its kinds (`endCaption:source`), that waits for its first value.
+ * @param waiting - the waiting things.
+ * @param id - the thing's id.
+ * @returns true when it waits.
+ */
+function waitsFor(waiting: readonly string[], id: string): boolean {
+    return waiting.some((each) => each === id || each.startsWith(`${id}:`));
+}
+
+/**
+ * A thing's rows: one, or for a kind group one per kind its layers draw or "+" added and waits on, each with
+ * that kind's channels.
  * @param ctx - the row.
  * @param thing - the thing.
  * @param channels - its channels.
+ * @param waiting - the things and kinds "+" added that wait for their first value.
  * @returns the rows.
  */
 function rowsOf(
     ctx: RowContext,
     thing: ThingSpec,
     channels: readonly Channel[],
+    waiting: readonly string[],
 ): readonly { thing: ThingSpec; channels: readonly Channel[]; kind?: KindMember }[] {
     const group = kindGroupOf(ctx.side, thing.id);
     if (group === undefined) {
         return [{ thing, channels }];
     }
-    return kindsShown(ctx, group).map((kind) => {
+    const shownKinds = new Set(kindsShown(ctx, group).map((member) => member.id));
+    const kinds = group.members.filter(
+        (member) => shownKinds.has(member.id) || waiting.includes(`${thing.id}:${member.id}`),
+    );
+    return kinds.map((kind) => {
         const owns = ownsOf(group, kind);
         return { thing, channels: channels.filter((channel) => owns.includes(channel)), kind };
     });
@@ -185,15 +202,30 @@ function rowsOf(
  * End caption, Plate); never for Label, whose further rows are further labels.
  * @param ctx - the row.
  * @param thing - the thing.
+ * @param waiting - the kinds "+" added that wait for their first value (taken too).
  * @returns the kind, or undefined.
  */
-function freeKind(ctx: RowContext, thing: ThingSpec): KindMember | undefined {
+function freeKind(ctx: RowContext, thing: ThingSpec, waiting: readonly string[]): KindMember | undefined {
     const group = kindGroupOf(ctx.side, thing.id);
     if (group === undefined || thing.id === "label") {
         return undefined;
     }
     const drawn = new Set(kindsShown(ctx, group).map((member) => member.id));
-    return group.members.find((member) => !drawn.has(member.id) && !setOn(ctx, member.head));
+    return group.members.find((member) => !drawn.has(member.id) && !waiting.includes(`${thing.id}:${member.id}`));
+}
+
+/**
+ * What "+" writes beside a kind group's kind: its size at graphty-element's start where the layer sets none (an
+ * arrow, so its Size line shows; ia-design 2).
+ * @param ctx - the row.
+ * @param thing - the thing "+" adds.
+ * @param main - the kind's main channel.
+ * @returns the writes.
+ */
+function sizeStarts(ctx: RowContext, thing: ThingSpec, main: Channel): Record<string, unknown> {
+    const group = kindGroupOf(ctx.side, thing.id);
+    const kind = group?.members.find((member) => member.head === main);
+    return Object.fromEntries(Object.entries(kindStarts(group, kind)).filter(([c]) => !setOn(ctx, c as Channel)));
 }
 
 /**
@@ -255,9 +287,11 @@ function ThingSection({
                         },
                     ];
                 }
-                // A kind group with a kind still free adds it (a second Arrow is the source end, ia-design 2).
-                if (freeKind(ctx, thing) !== undefined) {
-                    return [{ key: thing.id, label: thing.name, hint: thing.hint }];
+                // A kind group with a kind still free adds it (a second Arrow is the source end, ia-design 2),
+                // dimmed as that kind is in this view (a plate in 3D, E669).
+                const free = freeKind(ctx, thing, waiting);
+                if (free !== undefined) {
+                    return [{ key: thing.id, label: thing.name, hint: thing.hint, dimmed: viewDim(ctx, free.head) }];
                 }
                 return thing.id === "label" ? [{ key: thing.id, label: thing.name, disabled: true }] : [];
             }),
@@ -276,7 +310,7 @@ function ThingSection({
         const free =
             found === undefined || !shown.some((each) => each.thing === found.thing)
                 ? undefined
-                : freeKind(ctx, found.thing);
+                : freeKind(ctx, found.thing, waiting);
         const main =
             found === undefined
                 ? undefined
@@ -301,14 +335,20 @@ function ThingSection({
         const start = first?.[main.channel] ?? (main.accepts === "text" ? undefined : startForOrNone(ctx, main));
         // A thing with no plain starting value (a text source, a list) waits for the reader's first pick.
         if (typeof start !== "number" && typeof start !== "boolean" && (typeof start !== "string" || start === "")) {
-            setWaiting((now) => (now.includes(id) ? now : [...now, id]));
+            // A further kind of a drawn thing waits as a row of its own (a second End caption is the source end).
+            const key = free === undefined ? id : `${id}:${free.id}`;
+            setWaiting((now) => (now.includes(key) ? now : [...now, key]));
             return;
         }
         const value = start;
         // What "+" adds draws at once (design 5.1): with it, what graphty-element says it needs to draw, over a
         // list's first item (a chart's values and colors).
         const starts = Object.fromEntries(
-            Object.entries({ ...first, ...needsFor(ctx, main.channel, value) }).filter(([c]) => c !== main.channel),
+            Object.entries({
+                ...sizeStarts(ctx, thing, main.channel),
+                ...first,
+                ...needsFor(ctx, main.channel, value),
+            }).filter(([c]) => c !== main.channel),
         );
         // Its own undo step, never merged with the first edit after it (design 12.13).
         const written =
@@ -355,7 +395,7 @@ function ThingSection({
                     )
                 }
             >
-                {byKind(shown.flatMap(({ thing, channels }) => rowsOf(ctx, thing, channels))).map((run) => {
+                {byKind(shown.flatMap(({ thing, channels }) => rowsOf(ctx, thing, channels, waiting))).map((run) => {
                     const drawn = run.rows.map(({ thing, channels, kind }) => (
                         <ThingRow
                             key={kind === undefined ? thing.id : `${thing.id}:${kind.id}`}
@@ -363,13 +403,22 @@ function ThingSection({
                             thing={thing}
                             channels={channels}
                             kind={kind}
-                            pending={waiting.includes(thing.id)}
+                            pending={
+                                waiting.includes(thing.id) ||
+                                (kind !== undefined && waiting.includes(`${thing.id}:${kind.id}`))
+                            }
                             opening={opening === thing.id}
                             onOpened={() => {
                                 setOpening(undefined);
                             }}
                             onCancel={() => {
-                                setWaiting((now) => now.filter((each) => each !== thing.id));
+                                setWaiting((now) =>
+                                    now.filter(
+                                        (each) =>
+                                            each !== thing.id &&
+                                            (kind === undefined || each !== `${thing.id}:${kind.id}`),
+                                    ),
+                                );
                             }}
                         />
                     ));

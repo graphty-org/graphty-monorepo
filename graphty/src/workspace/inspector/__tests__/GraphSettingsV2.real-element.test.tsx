@@ -69,14 +69,15 @@ async function typeNumber(input: HTMLElement, text: string): Promise<void> {
 }
 
 /**
- * Picks a named value from a line's value list, as a reader opens it and clicks the value.
+ * Clicks a segment by its name, as a reader clicks its label.
  * @param root - where it is.
- * @param field - the list's name.
- * @param name - the value's name.
+ * @param name - the segment's name.
  */
-async function pickValue(root: HTMLElement, field: string, name: string): Promise<void> {
-    await userEvent.click(within(root).getByRole("combobox", { name: field }));
-    await userEvent.click(await screen.findByRole("option", { name }));
+async function clickSegment(root: HTMLElement, name: string): Promise<void> {
+    const radio = within(root).getByRole("radio", { name });
+    const label = document.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
+    assert.isNotNull(label);
+    await userEvent.click(label);
 }
 
 describe("Graph settings v2", () => {
@@ -107,7 +108,7 @@ describe("Graph settings v2", () => {
         });
 
         const framing = within(panel).getByRole("group", { name: "Framing" });
-        await pickValue(framing, "Framing extent", "Centers");
+        await clickSegment(framing, "Centers");
         await waitFor(() => {
             assert.strictEqual(element.session.config.framing?.extent, "centers");
         });
@@ -137,7 +138,7 @@ describe("Graph settings v2", () => {
         assert.isNull(panel.querySelector(".lucide-sliders-horizontal"), "a row's settings open from its '...'");
         await userEvent.click(within(panel).getByRole("button", { name: "Background settings" }));
         const settings = await screen.findByRole("dialog", { name: "Background" });
-        await pickValue(settings, "Switch to", "Sky");
+        await clickSegment(settings, "Sky");
         await screen.findByRole("dialog", { name: "Sky" });
         assert.strictEqual(element.session.config.background.backgroundType, "color", "Sky waits for its picture");
         assert.isNotNull(within(panel).queryByRole("textbox", { name: /^Background color(,|$)/ }), "Color stays");
@@ -165,14 +166,14 @@ describe("Graph settings v2", () => {
             return id;
         };
 
-        await pickValue(panel, "Label text", "Atlas");
+        await clickSegment(panel, "Atlas");
         await waitFor(() => {
             assert.strictEqual(labels().labelText, "glyphs");
         });
         const glyphLayer = await named();
         const glyphs = await picture(element);
         await element.session.styles.remove(glyphLayer);
-        await pickValue(panel, "Label text", "Canvas");
+        await clickSegment(panel, "Canvas");
         await waitFor(() => {
             assert.strictEqual(labels().labelText, "canvas");
         });

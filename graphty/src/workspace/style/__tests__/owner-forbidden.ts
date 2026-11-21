@@ -140,4 +140,10 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         ledger: "E495, E675",
         plusItem: /^(Target|Source|Middle target|Middle source) (end|caption)$/,
     },
+    {
+        what: "a Rings kind under Border: the ring is Effects' Ring item, and Border is the stroke on the node's own edge",
+        ledger: "E675, E676",
+        nodePlusItem: /^Rings$/,
+        selector: '[data-section="node-border"] [data-thing="rings"]',
+    },
 ];

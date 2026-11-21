@@ -1,7 +1,7 @@
 /**
  * Style panel v2's node things on the REAL graphty-element, driven by real clicks and typing
  * (design/ui/style-panel-v2/design.md, sections 2.5, 2.6, 5.2, 6 and 8): Border's row is its color
- * with a Width common line under it; its settings pop-over sets the position from a value list
+ * with a Width common line under it; its settings pop-over sets the position with an icon segment
  * and moves the width between units in one undo step; Shape's pop-over adds Corners from its "+"
  * and its legend's minus unsets them; the shape list shows one section at a time and its search
  * reaches every section.
@@ -60,13 +60,14 @@ async function typeInto(line: HTMLElement, text: string, which = 0): Promise<voi
 }
 
 /**
- * Picks a named value from a line's value list, as a reader opens it and clicks the value.
- * @param field - the list's name.
- * @param name - the value's name.
+ * Clicks a segment of a segmented control by its name, as a reader clicks its label.
+ * @param name - the segment's name.
  */
-async function pickValue(field: string, name: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("combobox", { name: field }));
-    await userEvent.click(await screen.findByRole("option", { name }));
+async function clickSegment(name: string): Promise<void> {
+    const radio = await screen.findByRole("radio", { name });
+    const label = document.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
+    assert.isNotNull(label);
+    await userEvent.click(label);
 }
 
 /**
@@ -109,7 +110,7 @@ describe("Style panel v2's node things", () => {
         });
     });
 
-    it("the Border pop-over picks the position from a value list, and moves the width Graph -> Screen in one Undo", async () => {
+    it("the Border pop-over sets the position by icon, and moves the width Graph -> Screen in one Undo", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const row = await addBorder(tab);
@@ -119,12 +120,12 @@ describe("Style panel v2's node things", () => {
         });
 
         await userEvent.click(within(row).getByRole("button", { name: /^Node border settings/ }));
-        await pickValue("Node border position", "Inside");
+        await clickSegment("Inside");
         await waitFor(() => {
             assert.equal(written(session, id, "node.borderPosition"), "inside");
         });
 
-        await pickValue("Node border width unit", "Screen");
+        await clickSegment("Screen");
         await waitFor(() => {
             assert.equal(written(session, id, "node.borderScreenWidth"), 2, "the value moves to Screen");
             assert.isUndefined(written(session, id, "node.borderWidth"), "and leaves Graph");

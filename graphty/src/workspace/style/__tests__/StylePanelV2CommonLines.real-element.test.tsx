@@ -80,11 +80,6 @@ async function readLines(tab: HTMLElement, seen: Map<string, Line>): Promise<voi
                 kind: `${kindOf(line.dataset.line ?? "")} ${line.dataset.rule ?? ""}`.trim(),
                 widgets: widgetsOf(line),
             });
-            // A choice among named values is the shared value list, never a group of toggles (ia-design 2, rule 4).
-            assert.isNull(
-                line.querySelector('[role="radiogroup"]'),
-                `${String(line.dataset.line)}: a choice is a value list, not a group of toggles`,
-            );
             const slot = line.querySelector(".cm-scrub-slot");
             // A number's field has its scrub slot; a Unit line (R8) picks a unit, it is no number field.
             if (/number$/.test(kindOf(line.dataset.line ?? "")) && !/^R8/.test(line.dataset.rule ?? "")) {

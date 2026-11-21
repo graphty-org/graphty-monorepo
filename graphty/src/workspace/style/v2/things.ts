@@ -162,7 +162,9 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
         {
             part: "visibility",
             breakBefore: true,
-            groups: [[{ id: "visibility", name: "Visible", items: ["visible"], main: ["node.visible"] }]],
+            groups: [
+                [{ id: "visibility", name: "Visibility", items: ["visible"], main: ["node.visible"], unnamed: true }],
+            ],
         },
         {
             part: "effects",
@@ -271,7 +273,9 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
         {
             part: "visibility",
             breakBefore: true,
-            groups: [[{ id: "visibility", name: "Visible", items: ["visible"], main: ["edge.visible"] }]],
+            groups: [
+                [{ id: "visibility", name: "Visibility", items: ["visible"], main: ["edge.visible"], unnamed: true }],
+            ],
         },
         {
             part: "effects",

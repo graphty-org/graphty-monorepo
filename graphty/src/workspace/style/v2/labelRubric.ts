@@ -2,7 +2,7 @@
  * Style panel v2's text things (design/ui/style-panel-v2/design.md, sections 7.1, 7.3 and 7.4): a
  * label, an external label and a tooltip each edit one label style channel field by field. This
  * table says where each field sits (the row's common lines, the pop-over's Main, the sub-groups
- * its "+" adds), which control it draws and the display name of an option where the
+ * its "+" adds), which control it draws and the display name or glyph of an option where the
  * element's own name is not what the panel shows. What a field takes is read from graphty-element's
  * `LABEL_STYLE_DESCRIPTORS`; the channel that varies a field by data from its `labelFieldOf`.
  */
@@ -287,23 +287,23 @@ export const LABEL_RUBRIC: LabelRubric = {
  */
 export const LABEL_OPTION_NAMES: Readonly<Partial<Record<LabelField, Readonly<Record<string, OptionName>>>>> = {
     textAlign: {
-        left: { name: "Left" },
-        center: { name: "Center" },
-        right: { name: "Right" },
+        left: { name: "Left", glyph: "alignLeft" },
+        center: { name: "Center", glyph: "alignCenter" },
+        right: { name: "Right", glyph: "alignRight" },
     },
     borderAlign: {
-        outside: { name: "Outside" },
-        center: { name: "Center" },
+        outside: { name: "Outside", glyph: "borderOutside" },
+        center: { name: "Center", glyph: "borderCenter" },
     },
     iconPosition: {
-        left: { name: "Left" },
-        right: { name: "Right" },
+        left: { name: "Left", glyph: "arrowLeftToLine" },
+        right: { name: "Right", glyph: "arrowRightToLine" },
     },
     pointerDirection: {
-        top: { name: "Up" },
-        bottom: { name: "Down" },
-        left: { name: "Left" },
-        right: { name: "Right" },
+        top: { name: "Up", glyph: "pointUp" },
+        bottom: { name: "Down", glyph: "pointDown" },
+        left: { name: "Left", glyph: "pointLeft" },
+        right: { name: "Right", glyph: "pointRight" },
         auto: { name: "Auto" },
     },
     // "Ink", not "Glyphs": the Label row's Glyph kind is a different thing (E275).

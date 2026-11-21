@@ -5,7 +5,7 @@
  * value bound to data, a list, an asset or a text source keeps today's field.
  */
 
-import { ComboInput, PanelField, ToggleIconButton } from "@graphty/compact-mantine";
+import { ComboInput, PanelField, SegmentedControl, ToggleIconButton } from "@graphty/compact-mantine";
 import {
     type Channel,
     type ChannelDescriptor,
@@ -13,7 +13,7 @@ import {
     readChannelItems,
     writeChannelItems,
 } from "@graphty/graphty-element/catalog";
-import { ActionIcon, Checkbox, Group, Tooltip } from "@mantine/core";
+import { ActionIcon, Checkbox, Group, Tooltip, VisuallyHidden } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../../glyphs";
@@ -29,7 +29,7 @@ import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
 import { moveUnit, ruleOf, unsetIn } from "./lineWrites";
 import { coordinateDescriptor, ITEM_LISTS } from "./lists";
-import { type LineSpec, type Rule, segmentOptions, VALUE_GLYPHS } from "./rubric";
+import { isPictured, type LineSpec, type Rule, segmentOptions, VALUE_GLYPHS } from "./rubric";
 import { setOn } from "./things";
 import { sectionsOf } from "./valueSections";
 
@@ -157,8 +157,7 @@ export function PresetLine({
 }
 
 /**
- * A choice among named values (R8, R8f): the shared value list, as every other named choice is (ia-design 2,
- * principle 4: no row or line carries a group of toggles the others lack, E674); nothing chosen while unset.
+ * Segments (R8): icons when every option is pictured, else words; nothing selected while unset.
  * @param props - Component props
  * @param props.label - the line's accessible name
  * @param props.options - its options
@@ -176,23 +175,38 @@ export function SegmentsLine({
     options: readonly {
         readonly value: string;
         readonly name: string;
+        readonly glyph?: keyof typeof GLYPHS;
         readonly disabled?: boolean;
     }[];
     value: string;
     onPick: (value: string) => void;
 }>): React.JSX.Element {
+    const pictured = isPictured(options);
     return (
-        <PanelField
+        <SegmentedControl
             label={label}
-            kind="select"
-            width="fill"
-            data={options.map((option) => ({ value: option.value, label: option.name, disabled: option.disabled }))}
-            value={value === "" ? null : value}
-            onChange={(next) => {
-                if (next !== null && next !== "") {
-                    onPick(String(next));
-                }
-            }}
+            fullWidth
+            size="xs"
+            value={value}
+            onChange={onPick}
+            data={options.map((option) => {
+                const Glyph = option.glyph === undefined ? undefined : GLYPHS[option.glyph];
+                return {
+                    value: option.value,
+                    disabled: option.disabled,
+                    label:
+                        pictured && Glyph !== undefined ? (
+                            <Tooltip label={option.name}>
+                                <span style={{ display: "inline-flex" }}>
+                                    <Glyph size={14} aria-hidden />
+                                    <VisuallyHidden>{option.name}</VisuallyHidden>
+                                </span>
+                            </Tooltip>
+                        ) : (
+                            option.name
+                        ),
+                };
+            })}
         />
     );
 }

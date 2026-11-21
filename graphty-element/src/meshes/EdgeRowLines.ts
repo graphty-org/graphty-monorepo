@@ -567,6 +567,32 @@ export class EdgeRowLines {
     }
 
     /**
+     * The edge rows a row line can no longer draw: a head on an end that is no longer round, or an end the caller says
+     * is gone (its style hid it). An `Edge` draws them now, so they are painted again (`UpdateManager.syncStyles`).
+     * @param endGone - Whether a node row is no end a row line draws to.
+     * @returns The rows.
+     */
+    rowsOffEnds(endGone: (row: number) => boolean): number[] {
+        const { lines } = this;
+        const off: number[] = [];
+        for (const row of this.drawnRows(lines)) {
+            if (endGone(lines.source[row]) || endGone(lines.target[row])) {
+                off.push(row);
+                continue;
+            }
+
+            if (
+                (lines.capBatchOf[row] ?? NO_LINE) !== NO_LINE &&
+                (!this.headRow(lines.source[row]) || !this.headRow(lines.target[row]))
+            ) {
+                off.push(row);
+            }
+        }
+
+        return off;
+    }
+
+    /**
      * Whether a pulled head can stand on a node row: one with a round outline, drawn by a node batch or its `Node`.
      * @param row - The node row.
      * @returns True when it can.

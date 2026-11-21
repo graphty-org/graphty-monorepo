@@ -1548,6 +1548,32 @@ export class UpdateManager implements Manager {
         return nodesMoved || edgesMoved;
     }
 
+    /** `RowTable.roundWrites` when the pulled edges' ends were last checked ({@link UpdateManager.repaintPulledOffEnds}). */
+    private roundWritesSeen = 0;
+
+    /** Whether a node's style hid or showed it since the pulled edges' ends were last checked. */
+    private endsChanged = false;
+
+    /**
+     * Note that a node's style hid or showed it: the edges pulled onto it are checked at the next frame
+     * ({@link UpdateManager.repaintPulledOffEnds}).
+     */
+    noteEndsChanged(): void {
+        this.endsChanged = true;
+    }
+
+    /**
+     * Whether a node row is hidden by its style (`node.visible` false) rather than by a filter or a time window: the
+     * row table draws it at w = 0, and the object path still draws its edges.
+     * @param row - The node row.
+     * @returns True when it is.
+     * @internal
+     */
+    rowHiddenByStyle(row: number): boolean {
+        const table = this.graphContext.getRowTable?.() ?? null;
+        return table?.isHidden(row) === true && this.viewMasks?.visibility?.nodes()?.has(row) !== false;
+    }
+
     /**
      * Bring the meshes into line with what the session's style stack painted.
      *
@@ -1566,6 +1592,7 @@ export class UpdateManager implements Manager {
      */
     syncStyles(budgetMs = Number.POSITIVE_INFINITY): void {
         const painter = this.graphContext.getStylePainter?.();
+        this.repaintPulledOffEnds(painter);
 
         // NOT WHILE A PASS IS PAINTING. A pass yields to the event loop part way through, and
         // until it announces, the columns it is rewriting and the mesh keys it has not interned
@@ -1744,6 +1771,44 @@ export class UpdateManager implements Manager {
             }
 
             this.paintedSupportPoint = false;
+        }
+    }
+
+    /**
+     * Paint again the edges pulled from the row table whose ends no longer allow it -- a head on a row that stopped
+     * being round, or an end its style hid -- so an `Edge` draws them as the object path does: a node's shape or
+     * visibility changing does not paint its edges. Walks the pulled edges only when a row's outline turned
+     * (`RowTable.roundWrites`) or a style hid or showed a node.
+     * @param painter - Where the rows are queued.
+     */
+    private repaintPulledOffEnds(painter: StylePainter | undefined): void {
+        const table = this.graphContext.getRowTable?.() ?? null;
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        if (
+            painter === undefined ||
+            table === null ||
+            lines === null ||
+            (table.roundWrites === this.roundWritesSeen && !this.endsChanged)
+        ) {
+            return;
+        }
+
+        this.roundWritesSeen = table.roundWrites;
+        this.endsChanged = false;
+        for (const row of lines.rowsOffEnds((end) => this.endInvisible(end))) {
+            painter.queue("edge", row);
+        }
+
+        // ponytail: every built edge, once per outline turned; a list of the edges with pulled heads if this shows up
+        let redrawn = false;
+        for (const edge of this.builtEdges()) {
+            redrawn = edge.redrawPulledOffEnds() || redrawn;
+        }
+
+        // a placed line and cap are placed by the next walk, as after a render path change
+        if (redrawn) {
+            this.forceEdgeWalk();
+            this.meshesAdded();
         }
     }
 
@@ -1948,7 +2013,12 @@ export class UpdateManager implements Manager {
     private endInvisible(row: number): boolean {
         const node = this.dataManager.nodesByIndex[row];
         if (node !== undefined) {
-            return node.drawnOpacity <= 0;
+            return node.drawnOpacity <= 0 || node.hiddenByStyle;
+        }
+
+        // a row its style hides is drawn at w = 0, which a row line reads as no end; the object path draws the edge
+        if (this.rowHiddenByStyle(row)) {
+            return true;
         }
 
         const batches = this.graphContext.getNodeBatches?.() ?? null;
@@ -2005,6 +2075,7 @@ export class UpdateManager implements Manager {
         if (paint?.style.visible === false) {
             batches?.unpaintRow(index);
             table?.hide(index, true);
+            this.noteEndsChanged();
             return undefined;
         }
 

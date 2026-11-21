@@ -903,11 +903,14 @@ export class Edge {
             return (this.context.getNodeBatches?.()?.columnOpacityOf(row) ?? 1) <= 0;
         }
 
-        if (this.unbuiltEnd(end) !== INVALID_INDEX) {
-            return false;
+        const unbuilt = this.unbuiltEnd(end);
+        if (unbuilt !== INVALID_INDEX) {
+            // a row its style hides is drawn at w = 0, which a pulled line reads as no end (`UpdateManager.endInvisible`)
+            return this.context.getUpdateManager?.()?.rowHiddenByStyle(unbuilt) === true;
         }
 
-        return (end === "source" ? this.srcNode : this.dstNode).drawnOpacity <= 0;
+        const node = end === "source" ? this.srcNode : this.dstNode;
+        return node.drawnOpacity <= 0 || node.hiddenByStyle;
     }
 
     /**
@@ -3173,6 +3176,21 @@ export class Edge {
             this.headEnd("source", rows) &&
             this.headEnd("target", rows)
         );
+    }
+
+    /**
+     * Draw this edge again when its line is pulled from the row table but its ends no longer allow it: a head on an
+     * end that stopped being round, or an end its style hid (drawn at w = 0, which a pulled line reads as no end). An
+     * `Edge` with a placed line and cap draws it now, as the object path does (`UpdateManager.repaintPulledOffEnds`).
+     * @returns True when it was drawn again.
+     */
+    redrawPulledOffEnds(): boolean {
+        if (this.pulled === null || this.pullsLine(this.currentStyle)) {
+            return false;
+        }
+
+        this.updateStyle();
+        return true;
     }
 
     /**

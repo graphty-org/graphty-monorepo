@@ -282,6 +282,9 @@ function moveRows(
     }
 }
 
+/** The extent flags a head pulled from the row table reads: round, and a border in scene units (`RowTable.isRound`). */
+const HEAD_FLAGS = ROW_EXTENT_ROUND | ROW_EXTENT_SCREEN_BORDER;
+
 /**
  * The row tables of one graph. `rowPosition` holds what is drawn, which is usually the lane row
  * (z = 0 in 2D) and is otherwise whatever the mesh funnel last said: every other drawn place (a
@@ -309,6 +312,13 @@ export class RowTable {
     get drawnWrites(): number {
         return this.moves + this.positions.writes + this.extents.writes;
     }
+
+    /**
+     * Counts every row whose outline turned round or stopped being round, or whose border turned to or from screen
+     * pixels: a head pulled from the row table stands only
+     * on round rows (`EdgeRowLines`), so a change asks for the edges on it to be painted again.
+     */
+    roundWrites = 0;
 
     /** Calls that sent the `rowPosition` texture to the card. */
     positionUploads = 0;
@@ -605,12 +615,14 @@ export class RowTable {
     }
 
     /**
-     * Whether a row's outline is round, as {@link RowTable.extentOf} reads it, with nothing allocated.
+     * Whether a row's outline is round, with its border in scene units, as {@link RowTable.extentOf} reads it, with
+     * nothing allocated: what a head pulled from the row table stands on (a border drawn in screen pixels reaches as
+     * far as the zoom says).
      * @param row - The row.
      * @returns True when it is.
      */
     isRound(row: number): boolean {
-        return ((this.extents.floats[row * EXTENT_FLOATS + 3] ?? 0) & ROW_EXTENT_ROUND) !== 0;
+        return ((this.extents.floats[row * EXTENT_FLOATS + 3] ?? 0) & HEAD_FLAGS) === ROW_EXTENT_ROUND;
     }
 
     /**
@@ -624,7 +636,7 @@ export class RowTable {
         const { floats } = this.extents;
         const base = row * EXTENT_FLOATS;
         const code = floats[base + 3] ?? 0;
-        if ((code & ROW_EXTENT_ROUND) === 0) {
+        if ((code & HEAD_FLAGS) !== ROW_EXTENT_ROUND) {
             return false;
         }
 
@@ -783,6 +795,10 @@ export class RowTable {
             (node.shapeType === "ellipse" ? ROW_EXTENT_ELLIPSE : 0) |
             (node.paintedOpacity < 1 ? ROW_EXTENT_SEEN_THROUGH : 0) |
             (node.screenBorder === true ? ROW_EXTENT_SCREEN_BORDER : 0);
+        if (((this.extents.floats[base + 3] ?? 0) & HEAD_FLAGS) !== (extentFlags & HEAD_FLAGS)) {
+            this.roundWrites++;
+        }
+
         this.extents.floats.set(
             [
                 node.drawnScale,

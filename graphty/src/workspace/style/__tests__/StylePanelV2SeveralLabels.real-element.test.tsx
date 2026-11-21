@@ -125,21 +125,21 @@ describe("several labels per node", () => {
         assert.isNotNull(mainRow);
         assert.match(row.innerText.trim(), /^Label 2\b/, "the further label's row shows its number");
         assert.notEqual(mainRow.innerText.trim(), row.innerText.trim(), "the two label rows read differently");
-        // Each source shows at least its source's whole name, never "N..." (E206).
-        for (const button of [
-            within(row).getByRole("button", { name: "Node label 2 source, Node id, above" }),
-            within(mainRow).getByRole("button", { name: "Node label source, Node id, above" }),
-        ]) {
-            const shown = button.querySelector<HTMLElement>(".mantine-Button-label");
-            assert.isNotNull(shown);
-            const probe = document.createElement("span");
-            probe.style.font = getComputedStyle(shown).font;
-            probe.style.position = "absolute";
-            probe.textContent = "Node id";
-            document.body.append(probe);
-            const needed = probe.getBoundingClientRect().width;
-            probe.remove();
-            assert.isAtLeast(shown.clientWidth, needed, "the source's name fits beside its glyphs");
+        // At the app's default inspector width, each row's name and its whole source with its place
+        // ("Node id, above") are shown uncut, never "L..." or "Node ..." (E206, E265).
+        const inspector = screen.getByRole("complementary", { name: "Inspector" });
+        assert.equal(Math.round(inspector.getBoundingClientRect().width), 240, "the inspector's default width");
+        for (const [each, source] of [
+            [row, "Node label 2 source, Node id, above"],
+            [mainRow, "Node label source, Node id, above"],
+        ] as const) {
+            const shown = within(each).getByRole("button", { name: source }).querySelector(".mantine-Button-label");
+            assert.instanceOf(shown, HTMLElement);
+            assert.equal(shown.textContent, "Node id, above", "the source shows its place");
+            assert.isAtMost(shown.scrollWidth, shown.clientWidth, `"${shown.textContent}" fits its field`);
+            const name = each.querySelector(".ws-field-name");
+            assert.instanceOf(name, HTMLElement);
+            assert.isAtMost(name.scrollWidth, name.clientWidth, `the row name "${name.textContent}" is uncut`);
         }
         // Its look is its row's kind, not a setting: a fresh Label shows nothing set in its pop-over.
         assert.isNotNull(within(row).queryByRole("button", { name: "Node label 2 settings" }), "nothing set yet");

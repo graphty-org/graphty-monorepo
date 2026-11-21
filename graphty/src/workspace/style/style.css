@@ -795,11 +795,29 @@
     white-space: nowrap;
 }
 
-/* Style panel v2: a text's source (R12) keeps room for its source's name ("Node id") beside its link and
-   chevron glyphs; the row's name gives way first, ending in an ellipsis with its whole name as its tooltip,
-   so the source is never cut to one letter (E206). */
+/* Style panel v2: a text's source (R12) never cuts its row's name or its own words ("Node id, above"),
+   which at the default inspector width do not fit on one line beside the name, the link and chevron
+   glyphs and the Clear and settings columns (E206, E265). So the row is two lines: the name, uncut,
+   with Clear and settings at the far right (E550), and under it the source across the row's whole
+   width. Words longer than the whole width end in an ellipsis. */
 [data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] {
-    grid-template-columns: minmax(0, var(--ws-label, 80px)) minmax(104px, 1fr) 24px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-field-label {
+    flex: 1 0 auto;
+    min-height: 24px;
+}
+
+[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-slot {
+    order: 1;
+}
+
+[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-field-control {
+    flex: 0 0 100%;
+    order: 2;
 }
 
 /* Style panel v2's shader rows (Shaders, group outlines): the empty place column gives its width to

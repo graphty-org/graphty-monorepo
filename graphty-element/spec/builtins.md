@@ -2,7 +2,7 @@
 
 This registry names and defines every code-backed built-in a graphty document may name: node
 shapes, arrowheads, line patterns, transitions, the fixed sequences an overflow policy steps
-through, label looks, the closed choices of the style channels, the camera controllers, and the parse options a source
+through, label looks, the closed choices of the style channels, the scales, the camera controllers, and the parse options a source
 record may carry. A document that names one of these depends on its definition here; the
 specification (README.md, "Versions" rule 5) says that a definition never changes.
 
@@ -20,6 +20,9 @@ Rules:
    layer alone. An ordered list gains names only at its end.
 4. Data built-ins are not here because a document carries them: palettes, color scales as stops,
    shaders (as source text), value labels and assets.
+5. Algorithms, layouts, style channels and scales are also listed in the generated files of
+   `registry/` (README.md 10.1), with their options. Rule 1 applies to their names, and README.md
+   10.1 rule 2 lets one be renamed, by listing its former name, without a version change.
 
 Coordinates: a node shape is centered on the node's position in the scene frame (left-handed, y
 up). A flat outline is given in its own plane, x right and y up, counter-clockwise. An arrowhead is
@@ -357,6 +360,29 @@ registry cannot check them yet; each needs an exported list before version 2 is 
 (`src/config/NodeStyle.ts`); arrow `side`, gradient `kind`, `bendCurve`, `supportModel`,
 `supportScale` and `route` (`src/config/EdgeStyle.ts`); and `runPlacement`
 (`src/session/configKeys.ts`).
+
+## Scales
+
+Source: `src/catalog/scales.ts` (`SCALE_DESCRIPTORS`), computed by `src/session/styles/scales.ts`. A
+binding's `scale` names one; its options are in `registry/scales.json`. A scale maps a value `v`
+into the binding's range `[a, b]` (default `[0, 1]`) through the domain `[lo, hi]`: it finds a
+position `t` in [0, 1], `reverse` makes `t = 1 - t`, and the output is `a + t * (b - a)`. A value it
+cannot place is a miss, and the element is left as the layers beneath paint it.
+
+<!-- registry: scales -->
+
+| Name          | Definition                                                                                                                                                                                                                                                                                                             |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `linear`      | `t = (v - lo) / (hi - lo)`, clamped to [0, 1]; `lo = hi` gives 0.5. A `midpoint` `m` strictly between `lo` and `hi` maps `lo..m` onto `0..0.5` and `m..hi` onto `0.5..1`. A non-numeric or non-finite `v` is a miss.                                                                                                   |
+| `log`         | As `linear`, after taking log10 of `v`, `lo`, `hi` and `m`. A `v <= 0` is a miss, and a domain end `<= 0` makes every value a miss.                                                                                                                                                                                    |
+| `neglog10`    | As `log`, with -log10.                                                                                                                                                                                                                                                                                                 |
+| `sqrt`        | As `linear`, after `x -> sign(x) * abs(x)^0.5` on `v`, `lo`, `hi` and `m`.                                                                                                                                                                                                                                             |
+| `pow`         | As `linear`, after `x -> sign(x) * abs(x)^e`, `e` = `exponent` (default 1).                                                                                                                                                                                                                                            |
+| `bins`        | `k` = `bins` (default 5, at least 1); with `t` as `linear` finds it, `slot = min(k - 1, floor(t * k))` and the output position is `slot / (k - 1)`, or 0 when `k = 1`. `lo = hi` gives 0.5. A non-numeric `v`, or a non-finite domain end, is a miss.                                                                  |
+| `quantile`    | Reads `thresholds`, ascending: `slot` = the number of thresholds at or below `v`, and the position is `slot / (number of thresholds)`, or 0 when there are none. `lo = hi` with every threshold equal to it gives 0.5. A non-numeric `v` is a miss. `bins` (default 4) is how many groups the thresholds were cut for. |
+| `ordinal`     | The position is `i / (n - 1)` (0 when `n = 1`), `i` being the index of `v`'s text (README.md 11) in `categories` and `n` their count. A value not in `categories` is a miss.                                                                                                                                           |
+| `passthrough` | The value itself is the channel value: a finite number or a string as it is, a boolean as `"true"` or `"false"`; anything else is a miss. Neither domain nor range is read.                                                                                                                                            |
+| `index`       | The order in which the value's text was first met, from 0; the same value keeps its number. It is not placed in the range and not reversed. A value with no text is a miss.                                                                                                                                            |
 
 ## Camera controllers
 

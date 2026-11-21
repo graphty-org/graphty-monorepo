@@ -17,6 +17,8 @@
  *   config key is reported. A `label`
  *   role is not written as a style layer. Issue fixes and declarations of a column no type carries
  *   are reported.
+ * - Algorithm names. A run keeps the key version 1 wrote (`scc`); the version 2 read upgrades a
+ *   former key or option name to the current one (spec 10.1 rule 2, `src/session/document2/algorithmNames.ts`).
  * - Runs. Every run becomes a view run record under the namespace `session` (element-minted) or
  *   `reader`, so style paths name it by `as`; its outputs go to results. A run over the selection
  *   or the visible graph is written over the whole graph and `"replayable": false`, reported; a

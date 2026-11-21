@@ -133,7 +133,8 @@ export type DocumentCode =
     | "W_MEMBER_LEFT_OUT"
     | "W_RECIPE_NOT_APPLIED"
     | "W_LAYOUT_ENGINE_UNAVAILABLE"
-    | "W_LAYOUT_OPTION_NOT_APPLIED";
+    | "W_LAYOUT_OPTION_NOT_APPLIED"
+    | "W_NAME_UPGRADED";
 
 /**
  * One report entry of a version 2 save or open: a code and plain values (spec 13). A reference

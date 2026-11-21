@@ -710,7 +710,10 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
    has no `kind`: there are no special layers. `source.by` is `run`, `template` or `plugin`; a
    layer no run, template or plugin made writes no `source`, in style and view alike.
 2. `set` maps channel names (`node.color`) to values; `encode` maps channel names to bindings
-   (`{ "by": <path>, "scale", "palette", ... }`). A binding with a `map` may carry
+   (`{ "by": <path>, "scale", "palette", ... }`). Channel names are those `registry/channels.json`
+   lists (10.1), and a value `set` gives MUST be of the channel's `accepts` kind and within its
+   range; a binding's `scale` is a name `registry/scales.json` lists, defined in builtins.md
+   "Scales". A binding with a `map` may carry
    `"unmapped": "skip"`: an element whose value the map holds no entry for is left as the layers
    beneath paint it (absent, the value goes on through the scale); `unmapped` needs a `map`. A value naming a built-in (a node shape, an
    arrowhead, a line pattern, a label look) MUST be a name from `builtins.md`.
@@ -781,6 +784,10 @@ Every command MAY also carry `narrows` (only `false` is ever written), `extensio
    `narrows: false` only on an op that adds without filtering, never on `graph.filter` or
    `set.define`. A third party's op is its reverse-domain name plus a word
    (`org.example.motif-census`). A recipe written back as read (8.1 rule 5) keeps the command as read.
+8. An `algo.run`'s `algorithm` is a key `registry/algorithms.json` lists, or an extension's key
+   (10.1 rule 4); its `params` are named by that entry's options. A former key or option name is
+   read as its current one (10.1 rule 2). A `layout.set`'s `id` and `options` follow
+   `registry/layouts.json` (5 rule 9).
 
 ### 4.4 settings
 
@@ -833,7 +840,8 @@ A results section holds `bindsTo` (REQUIRED, `{ data }` only), `runs` (REQUIRED)
    9 rule 10, with element-naming options as element references), `engine` (the code that
    computed it, rule 6), `seed` (the seed it used, or `null`),
    `durationMs` (absent when the run was not timed, never 0), `bindsTo` (6.4), `fields` (`{ name, kind, type }`, `kind` being `node`, `edge` or
-   `graph`), `caveats`, `graph` (graph-level values), and `nodes` and `edges` outputs.
+   `graph`; a field's name, kind and type as `registry/algorithms.json` lists it for the run's
+   algorithm), `caveats`, `graph` (graph-level values), and `nodes` and `edges` outputs.
 3. `caveats` is graphty-element's `Caveats` without its deprecated `notes` and `partialReason`
    (the words are rebuilt from `facts` and `partialCause`), without `seed` and without
    `accelerator`: the run's own `seed` and `engine.accelerator` are the authority, and a reader
@@ -1576,22 +1584,22 @@ document migrated without its project file keeps its edge targets unbound, since
 An **open vocabulary** may gain values within a major version. A **closed object** MUST NOT be read
 by ignoring a member it does not know.
 
-| Section             | Open vocabulary                                                                                                                    | A reader meeting an unknown value                                                                                                                                      |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| wrapper             | `sections` keys                                                                                                                    | skips it with `W_UNKNOWN_KIND`, keeps it on re-save                                                                                                                    |
-| every section       | `dependencies.extensions` names                                                                                                    | skips and holds the section (3.6 rule 4)                                                                                                                               |
-| data                | source `kind`                                                                                                                      | an embedded source is built from its copy and is not refreshable; a referenced one is held (`W_SOURCE_UNAVAILABLE`, reason `kind`); its record is written back as read |
-| data                | `copy` form                                                                                                                        | that source alone is held (reason `copy-form`)                                                                                                                         |
-| data                | join step `op`, reader operation `op`                                                                                              | skips and holds the whole data section (4.1.10); an `off` join step is kept and not built                                                                              |
-| data                | `measurement` values                                                                                                               | draws as with no measurement                                                                                                                                           |
-| style               | channel names, selector kinds, scales, enumerated channel values, palette ids                                                      | fails that channel entry or layer alone, keeps it                                                                                                                      |
-| recipe              | command `op`, algorithm keys, layout ids (arrangements), layout option names, `drawnBy` engine names, the parts of a run's `style` | an unknown `op` stops the replay unless the command says `narrows: false` (4.3 rule 7); layouts as 5 rule 9                                                            |
-| results             | layout ids, layout option names, `drawnBy` engine names                                                                            | 5 rule 9                                                                                                                                                               |
-| notes               | target kinds, item key forms                                                                                                       | the target reads unsupported and is kept                                                                                                                               |
-| view                | camera controller names and `controllers` entries                                                                                  | 4.7 rule 2                                                                                                                                                             |
-| view                | run `scope` forms                                                                                                                  | that run's replay stops; the record is kept on re-save                                                                                                                 |
-| view                | layout ids, layout option names, `drawnBy` engine names                                                                            | 5 rule 9                                                                                                                                                               |
-| style, recipe, view | rule tree leaf kinds                                                                                                               | fails the holder alone (4.8.2 rule 6)                                                                                                                                  |
+| Section             | Open vocabulary                                                                                                                                     | A reader meeting an unknown value                                                                                                                                      |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| wrapper             | `sections` keys                                                                                                                                     | skips it with `W_UNKNOWN_KIND`, keeps it on re-save                                                                                                                    |
+| every section       | `dependencies.extensions` names                                                                                                                     | skips and holds the section (3.6 rule 4)                                                                                                                               |
+| data                | source `kind`                                                                                                                                       | an embedded source is built from its copy and is not refreshable; a referenced one is held (`W_SOURCE_UNAVAILABLE`, reason `kind`); its record is written back as read |
+| data                | `copy` form                                                                                                                                         | that source alone is held (reason `copy-form`)                                                                                                                         |
+| data                | join step `op`, reader operation `op`                                                                                                               | skips and holds the whole data section (4.1.10); an `off` join step is kept and not built                                                                              |
+| data                | `measurement` values                                                                                                                                | draws as with no measurement                                                                                                                                           |
+| style               | channel names and scales beyond the registries (10.1), selector kinds, enumerated channel values, palette ids                                       | fails that channel entry or layer alone, keeps it                                                                                                                      |
+| recipe              | command `op`, algorithm keys and layout ids beyond the registries (10.1), layout option names, `drawnBy` engine names, the parts of a run's `style` | an unknown `op` stops the replay unless the command says `narrows: false` (4.3 rule 7); layouts as 5 rule 9                                                            |
+| results             | layout ids, layout option names, `drawnBy` engine names                                                                                             | 5 rule 9                                                                                                                                                               |
+| notes               | target kinds, item key forms                                                                                                                        | the target reads unsupported and is kept                                                                                                                               |
+| view                | camera controller names and `controllers` entries                                                                                                   | 4.7 rule 2                                                                                                                                                             |
+| view                | run `scope` forms                                                                                                                                   | that run's replay stops; the record is kept on re-save                                                                                                                 |
+| view                | layout ids, layout option names, `drawnBy` engine names                                                                                             | 5 rule 9                                                                                                                                                               |
+| style, recipe, view | rule tree leaf kinds                                                                                                                                | fails the holder alone (4.8.2 rule 6)                                                                                                                                  |
 
 Closed objects:
 
@@ -1623,6 +1631,51 @@ operation `merge`.
 The schemas mark closed objects with `unevaluatedProperties: false` and leave open ones open. A
 schema is normative for what a writer produces; a reader MUST NOT reject a whole document because
 it fails a schema, and acts by the rules above instead.
+
+### 10.1 Registries
+
+A vocabulary the format owns is written by hand in this specification and checked against
+graphty-element's code: the settings (4.4), and the parse options and drawing built-ins of
+`builtins.md`. A vocabulary that other code owns -- the algorithms, the layouts, the style
+channels and the scales -- is generated from graphty-element's catalog into `registry/` and
+checked for staleness. Its names are still named built-ins, never reused, and renamed only
+through former names. The files are never edited by hand.
+
+| File                       | Each entry                                                                                                                                                                                                        |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `registry/algorithms.json` | `key`, `formerKeys`, `shape`, `scopeInput`, `weightMeaning`, `requires`, `approximable` (`method`, `defaultSample`, `seeded`), `options`, `fields`                                                                |
+| `registry/layouts.json`    | `id` (the arrangement), `maxDimensions`, `options` (the arrangement's saved options, 5 rule 9), `engines` (`[{ engine, options }]`, `options` the extra option names that engine takes: the `drawnBy` vocabulary) |
+| `registry/channels.json`   | `channel`, `target`, `accepts`, `values`, `min`, `exclusiveMin`, `max`, `integer`, `step`, `perWorldUnit`, `experimental`                                                                                         |
+| `registry/scales.json`     | `name`, `domainKind`, `options` (the definitions are in builtins.md "Scales")                                                                                                                                     |
+
+Each file holds `registry` (its name), `version` (the shape of the file, now 1), `$generated` (a
+note that it is generated) and the list, named as the file is. An option is `{ name, type, default, min, max, step, values, on, attributeType, formerNames }`, `type`
+being one of `number`, `integer`, `boolean`, `string`, `enum`, `seed`, `node-id`, `node-set`,
+`edge-set`, `attribute`, `partition`, `ordering`, `color` or `unknown`; a `min` or `max` may be a
+bound measured on the graph, such as `graph.nodeCount`. A field is `{ name, kind, type, unit,
+normalization, measurement, directedOnly, domain, polarity, order, missing, unstable }`, read as
+`results.<as>.<name>`.
+
+1. The names are named built-ins: 9 rule 5 applies, except as rule 2 says.
+2. **Renames are additive.**
+    - A key is renamed by listing the old key in the entry's `formerKeys` as `{ key, params }`; an
+      option by listing its old name in `formerNames`.
+    - A reader that meets a former key in a recipe `algo.run`, a results run, a view run record or
+      a layer `source` reads it as the current key, with the former key's `params` laid over the
+      file's params.
+    - A former option name is read as the current one; when both are present the current one wins
+      and the former is dropped.
+    - Each upgrade is reported `W_NAME_UPGRADED` (params `{ section, pointer, from, to }`).
+    - A writer writes only current names. A former name is never given to another entry. Result
+      fields have no former names: renaming one is a change of meaning.
+3. An option's `default` is informative: it is a package-owned default (9 rule 9(b)), and writers
+   save resolved values (9 rule 10).
+4. A key, layout id or channel in no registry, as a current or a former name, belongs to an
+   extension and is open (10). An extension's algorithm or layout key SHOULD be reverse-domain
+   (`org.example.leiden`), and no built-in key is.
+5. Within a major version a registry only gains entries, options, fields and former names.
+6. An option of type `node-id`, `node-set` or `edge-set` holds element references (6.2) wherever
+   params are written.
 
 ### Must-understand members
 
@@ -1687,7 +1740,7 @@ sub-objects.
   only the embedded sources' rows, so an archive save SHOULD embed every source and SHOULD include
   results.
 - Every section carries `kind`, `version` and `$schema`; every member has a schema; every named
-  built-in is defined in `builtins.md`.
+  built-in is defined in `builtins.md` or in `registry/*.json`.
 
 ## 13. Codes
 
@@ -1728,6 +1781,7 @@ application words them.
 | `W_CLASH_RULE_TYPE`           | a number clash rule met a cell it cannot read; the held value stays                                                       | `step`, `column`, `rule`, `cells`                                                                          |
 | `W_LAYOUT_ENGINE_UNAVAILABLE` | a layout's `drawnBy` names an engine the reader cannot draw that arrangement with; its default engine drew it             | `section`, `layout`, `engine`                                                                              |
 | `W_LAYOUT_OPTION_NOT_APPLIED` | a layout option the arrangement or the drawing engine does not take was left out                                          | `section`, `layout`, `engine`, `option`                                                                    |
+| `W_NAME_UPGRADED`             | a former algorithm key or option name was read as its current name (10.1)                                                 | `section`, `pointer`, `from`, `to`                                                                         |
 
 ## 14. Files in this directory
 
@@ -1735,6 +1789,7 @@ application words them.
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `README.md`                                                                                                                                                                      | this specification                                                                                                                               |
 | `builtins.md`                                                                                                                                                                    | the built-ins registry                                                                                                                           |
+| `registry/algorithms.json`, `registry/layouts.json`, `registry/channels.json`, `registry/scales.json`                                                                            | the generated registries (10.1); regenerate them with `npm run spec:registry` in graphty-element                                                 |
 | `schemas/graphty-document/v2.json`                                                                                                                                               | the full file                                                                                                                                    |
 | `schemas/<kind>/v<version>.json`                                                                                                                                                 | each section kind at its version                                                                                                                 |
 | `schemas/common/v2.json`                                                                                                                                                         | definitions the others share (header, ids, element references, rule trees, layers, join steps)                                                   |

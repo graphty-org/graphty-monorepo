@@ -169,7 +169,7 @@
             }
         },
         "route": {
-            "algorithm": "dijkstra",
+            "algorithm": "shortest-path",
             "params": {
                 "bidirectional": true,
                 "direction": "all",

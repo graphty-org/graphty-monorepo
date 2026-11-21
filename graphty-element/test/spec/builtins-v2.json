@@ -686,5 +686,47 @@
             "name": "dash-dot",
             "definition": "The band in `dash-dot` elements."
         }
+    ],
+    "scales": [
+        {
+            "name": "linear",
+            "definition": "`t = (v - lo) / (hi - lo)`, clamped to [0, 1]; `lo = hi` gives 0.5. A `midpoint` `m` strictly between `lo` and `hi` maps `lo..m` onto `0..0.5` and `m..hi` onto `0.5..1`. A non-numeric or non-finite `v` is a miss."
+        },
+        {
+            "name": "log",
+            "definition": "As `linear`, after taking log10 of `v`, `lo`, `hi` and `m`. A `v <= 0` is a miss, and a domain end `<= 0` makes every value a miss."
+        },
+        {
+            "name": "neglog10",
+            "definition": "As `log`, with -log10."
+        },
+        {
+            "name": "sqrt",
+            "definition": "As `linear`, after `x -> sign(x) * abs(x)^0.5` on `v`, `lo`, `hi` and `m`."
+        },
+        {
+            "name": "pow",
+            "definition": "As `linear`, after `x -> sign(x) * abs(x)^e`, `e` = `exponent` (default 1)."
+        },
+        {
+            "name": "bins",
+            "definition": "`k` = `bins` (default 5, at least 1); with `t` as `linear` finds it, `slot = min(k - 1, floor(t * k))` and the output position is `slot / (k - 1)`, or 0 when `k = 1`. `lo = hi` gives 0.5. A non-numeric `v`, or a non-finite domain end, is a miss."
+        },
+        {
+            "name": "quantile",
+            "definition": "Reads `thresholds`, ascending: `slot` = the number of thresholds at or below `v`, and the position is `slot / (number of thresholds)`, or 0 when there are none. `lo = hi` with every threshold equal to it gives 0.5. A non-numeric `v` is a miss. `bins` (default 4) is how many groups the thresholds were cut for."
+        },
+        {
+            "name": "ordinal",
+            "definition": "The position is `i / (n - 1)` (0 when `n = 1`), `i` being the index of `v`'s text (README.md 11) in `categories` and `n` their count. A value not in `categories` is a miss."
+        },
+        {
+            "name": "passthrough",
+            "definition": "The value itself is the channel value: a finite number or a string as it is, a boolean as `\"true\"` or `\"false\"`; anything else is a miss. Neither domain nor range is read."
+        },
+        {
+            "name": "index",
+            "definition": "The order in which the value's text was first met, from 0; the same value keeps its number. It is not placed in the range and not reversed. A value with no text is a miss."
+        }
     ]
 }

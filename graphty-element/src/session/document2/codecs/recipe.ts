@@ -17,6 +17,7 @@ import { isGraphtyError } from "../../../errors";
 import type { Run, RunStyle } from "../../runs/types";
 import type { ElementSet } from "../../sets/types";
 import type { GraphSession } from "../../types";
+import { markUpgraded, upgradeRun, wasUpgraded } from "../algorithmNames";
 import { layoutRecordJson, layoutRequest } from "../layoutRecord";
 import { projectMemory } from "../memory";
 import type {
@@ -758,6 +759,18 @@ class Replay {
         const { context } = this;
         const id = this.runId(as);
         markRecipeRun(context.session, id);
+        const upgraded = upgradeRun(
+            context.session.catalog.algorithms(),
+            algorithm,
+            params,
+            `${this.section.pointer}/commands/${at}`,
+            "recipe",
+            context.problems,
+        );
+        if (upgraded?.renamed === true) {
+            markUpgraded(this.section.body);
+        }
+
         if (!context.rerun && !context.canned.has(id)) {
             this.notRun(as);
             return;
@@ -765,7 +778,7 @@ class Replay {
 
         const { seed, sample, exact } = command;
         try {
-            await context.tx.runs.start(algorithm, this.bind(params ?? {}), {
+            await context.tx.runs.start(upgraded?.key ?? algorithm, this.bind(upgraded?.params ?? params ?? {}), {
                 as: id,
                 scope,
                 style: this.style(at, command.style, as),
@@ -815,6 +828,35 @@ class Replay {
     }
 }
 
+/**
+ * A recipe body with each `algo.run` under its current algorithm key and option names, as a recipe
+ * written back as read is written (spec 10.1 rule 2: a writer writes only current names).
+ * @param body - The body as read.
+ * @param algorithms - The algorithms this reader knows.
+ * @returns The body, the same object when nothing was renamed.
+ */
+function currentNames(body: JsonObject, algorithms: readonly AlgorithmDescriptor[]): JsonObject {
+    if (!Array.isArray(body.commands)) {
+        return body;
+    }
+
+    let renamed = false;
+    const commands = body.commands.map((command: unknown) => {
+        if (!isObject(command) || command.op !== "algo.run" || typeof command.algorithm !== "string") {
+            return command;
+        }
+
+        const upgraded = upgradeRun(algorithms, command.algorithm, command.params, "", "recipe");
+        if (upgraded?.renamed !== true) {
+            return command;
+        }
+
+        renamed = true;
+        return { ...command, algorithm: upgraded.key, params: upgraded.params };
+    });
+    return renamed ? { ...body, commands } : body;
+}
+
 /** The `graphty-recipe` section, version 2. */
 export const recipeCodec: SectionCodec = {
     section: "recipe",
@@ -833,6 +875,9 @@ export const recipeCodec: SectionCodec = {
                 : writeRecipe(context),
         );
     },
+    standsAsRead(section) {
+        return !wasUpgraded(section.body);
+    },
     async read(section, context) {
         const header = section.header as unknown as JsonObject;
         const applied = context.applyRecipe === true;
@@ -846,8 +891,11 @@ export const recipeCodec: SectionCodec = {
                         member in header ? [[member, header[member]]] : [],
                     ),
                 ),
-                body: Object.fromEntries(
-                    Object.entries(section.body).filter(([member]) => recipeCodec.members.includes(member)),
+                body: currentNames(
+                    Object.fromEntries(
+                        Object.entries(section.body).filter(([member]) => recipeCodec.members.includes(member)),
+                    ),
+                    context.session.catalog.algorithms(),
                 ),
                 applied,
             });

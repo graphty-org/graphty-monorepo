@@ -9,12 +9,14 @@
  */
 
 import type { AlgorithmDescriptor, EdgeId, FieldDescriptor, NodeId, RunId } from "../../../catalog/types";
+import { isGraphtyError } from "../../../errors";
 import { expandedGraph } from "../../groups";
 import { graphIdsOf } from "../../projectFile";
 import { createRunResult, type ResultElementValues } from "../../results/RunResult";
 import type { RunResult } from "../../results/types";
 import type { Caveats, Run, RunOutcome } from "../../runs";
 import type { GraphSession } from "../../types";
+import { markUpgraded, upgradeRun, wasUpgraded } from "../algorithmNames";
 import { canonicalText as canonical, isJsonObject } from "../framing";
 import { layoutRecordJson } from "../layoutRecord";
 import { projectMemory } from "../memory";
@@ -811,6 +813,49 @@ function checkBinding(reading: Reading, id: string, saved: unknown): void {
 }
 
 /**
+ * A run under its current algorithm key and option names (spec 10.1 rule 2), each upgrade reported:
+ * the run is kept, and written back, under them.
+ * @param reading - The open.
+ * @param id - The run's id.
+ * @param entry - The run as the file holds it.
+ * @returns The run's descriptor, its params in the file's form and the entry under current names,
+ *     or undefined for an algorithm this reader does not know.
+ */
+function upgradedEntry(
+    reading: Reading,
+    id: RunId,
+    entry: JsonObject,
+): { descriptor: AlgorithmDescriptor; params: JsonObject; current: JsonObject } | undefined {
+    const { context } = reading;
+    const upgraded =
+        typeof entry.algorithm === "string"
+            ? upgradeRun(
+                  context.session.catalog.algorithms(),
+                  entry.algorithm,
+                  entry.params,
+                  `/runs/${token(id)}`,
+                  "results",
+                  context.problems,
+              )
+            : undefined;
+    if (upgraded === undefined) {
+        return undefined;
+    }
+
+    if (upgraded.renamed) {
+        markUpgraded(reading.section.body);
+    }
+
+    const { params } = upgraded;
+    const writesParams = entry.params !== undefined || Object.keys(params).length > 0;
+    return {
+        descriptor: upgraded.descriptor,
+        params,
+        current: { ...entry, algorithm: upgraded.key, ...(writesParams ? { params } : {}) },
+    };
+}
+
+/**
  * Read one algorithm run (spec 8.2 rule 3). A run the view records is the view's to rerun or
  * restore: with rerun off its outcome waits for the view to start it; with rerun on it is compared
  * once the rerun ends. A run no view or recipe in the open starts is restored as saved, never rerun.
@@ -821,12 +866,14 @@ function checkBinding(reading: Reading, id: string, saved: unknown): void {
 async function readRun(reading: Reading, id: RunId, entry: JsonObject): Promise<void> {
     const { context } = reading;
     const kept = keptOf(context.session).runs;
-    const descriptor = typeof entry.algorithm === "string" ? descriptorOf(context.session, entry.algorithm) : undefined;
-    if (descriptor === undefined) {
+    const upgraded = upgradedEntry(reading, id, entry);
+    if (upgraded === undefined) {
         kept.set(id, { entry, result: undefined });
         context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: id } });
         return;
     }
+
+    const { descriptor, current } = upgraded;
 
     if (typeof entry.namespace === "string") {
         markRecipeRun(context.session, id);
@@ -860,12 +907,12 @@ async function readRun(reading: Reading, id: RunId, entry: JsonObject): Promise<
         ...(typeof accelerator === "string" ? { accelerator } : {}),
         notes: [],
     } as unknown as Caveats;
-    const { params, bound } = paramsIn(reading, id, entry.params, descriptor);
+    const { params, bound } = paramsIn(reading, id, upgraded.params, descriptor);
     const check = (result: RunResult): boolean => differs({ outputs, graph, fields }, result);
     const record = viewRunRecord(context, id);
     const recipe = record === undefined && context.applyRecipe === true && recipeStarts(context, runNameOf(id));
     if ((record !== undefined && rerunsOnOpen(context, id, record)) || (recipe && context.rerun)) {
-        compareWhenEnded(context, id, entry, check);
+        compareWhenEnded(context, id, current, check);
         return;
     }
 
@@ -882,7 +929,7 @@ async function readRun(reading: Reading, id: RunId, entry: JsonObject): Promise<
         durationMs: typeof entry.durationMs === "number" ? entry.durationMs : 0,
     });
     const outcome: RunOutcome = { result, summary: result.summary(), caveats, fields };
-    kept.set(id, { entry, result });
+    kept.set(id, { entry: current, result });
     context.restored.add("runs");
     if (record !== undefined || recipe) {
         // The view or the recipe starts it, after this section; the outcome waits for it.
@@ -896,8 +943,31 @@ async function readRun(reading: Reading, id: RunId, entry: JsonObject): Promise<
     }
 
     context.canned.set(id, outcome);
+    await restoreSaved(context, id, current, {
+        algorithm: descriptor.key,
+        params,
+        seed: entry.seed,
+        caveats: caveatsRead,
+    });
+}
+
+/**
+ * Start a run from its saved record with its saved outcome waiting. Params the algorithm refuses
+ * leave this run not run, kept as read, and the rest of the section restored.
+ * @param context - The open.
+ * @param id - The run.
+ * @param entry - The run as it is kept.
+ * @param start - The algorithm, params, seed and caveats.
+ */
+async function restoreSaved(context: ReadContext, id: RunId, entry: JsonObject, start: SavedStart): Promise<void> {
     try {
-        await startSaved(context, id, { algorithm: descriptor.key, params, seed: entry.seed, caveats: caveatsRead });
+        await startSaved(context, id, start);
+    } catch (error) {
+        keptOf(context.session).runs.set(id, { entry, result: undefined });
+        context.problems.push({
+            code: "W_RUN_NOT_RUN",
+            params: { run: id, reason: isGraphtyError(error) ? error.code : "E_INTERNAL" },
+        });
     } finally {
         context.canned.delete(id);
     }
@@ -948,6 +1018,9 @@ export const resultsCodec: SectionCodec = {
     members: ["runs", "layout"],
     async write(context) {
         return { body: await writeRuns(context) };
+    },
+    standsAsRead(section) {
+        return !wasUpgraded(section.body);
     },
     async read(section, context) {
         const kept = keptOf(context.session);

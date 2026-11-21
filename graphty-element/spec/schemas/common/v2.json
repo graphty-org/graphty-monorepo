@@ -1401,7 +1401,7 @@
         },
         "channelName": {
             "type": "string",
-            "description": "A style channel (node.color) or a shader parameter address (node.shaders.<id>.<param>). An open vocabulary.",
+            "description": "A style channel (node.color) or a shader parameter address (node.shaders.<id>.<param>). An open vocabulary: the built-in channels are those registry/channels.json lists (README 10.1).",
             "pattern": "^(node|edge|graph)\\.[A-Za-z0-9_.-]+$"
         },
         "staticStyle": {

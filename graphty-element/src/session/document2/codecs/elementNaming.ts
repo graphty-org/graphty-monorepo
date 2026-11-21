@@ -6,6 +6,7 @@
 
 import type { SetDefinition } from "../../../catalog/types";
 import type { GraphSession } from "../../types";
+import { upgradeRun } from "../algorithmNames";
 import { runsRead } from "./recipeCommands";
 
 /** A plain object, as a layer read from the session or a file holds one. */
@@ -105,9 +106,12 @@ function sourceNames(source: unknown, session: GraphSession): boolean {
         return false;
     }
 
-    const { params } = source;
-    const algorithm = session.catalog.algorithms().find((each) => each.key === source.algorithm);
-    return (algorithm?.options ?? []).some(
+    const upgraded =
+        typeof source.algorithm === "string"
+            ? upgradeRun(session.catalog.algorithms(), source.algorithm, source.params, "", "view")
+            : undefined;
+    const params = upgraded?.params ?? {};
+    return (upgraded?.descriptor.options ?? []).some(
         (option) =>
             (option.type === "node-id" || option.type === "node-set") &&
             params[option.name] !== undefined &&

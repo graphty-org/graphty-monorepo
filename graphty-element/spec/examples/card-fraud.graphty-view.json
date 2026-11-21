@@ -197,7 +197,7 @@
             "source": {
                 "by": "run",
                 "runId": "route",
-                "algorithm": "dijkstra",
+                "algorithm": "shortest-path",
                 "params": {
                     "bidirectional": true,
                     "direction": "all",
@@ -259,7 +259,7 @@
         {
             "id": "route",
             "name": "Ben Ode to Cy Lam",
-            "algorithm": "dijkstra",
+            "algorithm": "shortest-path",
             "params": {
                 "bidirectional": true,
                 "direction": "all",

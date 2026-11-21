@@ -379,6 +379,38 @@ describe("a version 1 project file, migrated", () => {
         }
     });
 
+    it("opens a run of the version 1 key scc as components with strength strong, and saves components", async () => {
+        const session = await baseSession();
+        await session.runs.start("components", { strength: "strong" }, { as: "parts", style: false });
+        const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
+        session.dispose();
+        const runs = (v1.members as JsonObject[]).flatMap((member) =>
+            Array.isArray(member.runs) ? (member.runs as JsonObject[]) : [],
+        );
+        assert.isNotEmpty(runs);
+        for (const run of runs) {
+            run.algorithm = "scc";
+            delete (run.params as JsonObject).strength;
+        }
+
+        const reader = sessionWithRuns(ON.features);
+        const report = await reader.project.open(JSON.stringify(v1), { migrate: true });
+        assert.include(
+            report.problems.map((problem) => problem.code),
+            "W_NAME_UPGRADED",
+        );
+        const [run] = reader.runs.list();
+        assert.strictEqual(run.algorithm, "components");
+        assert.strictEqual(run.params.strength, "strong");
+        const saved = JSON.parse((await reader.project.save({ format: 2 })).text) as JsonObject;
+        const { view } = saved.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(
+            (view.runs as JsonObject[]).map((record) => record.algorithm),
+            ["components"],
+        );
+        reader.dispose();
+    });
+
     it("writes the same file every time, so its ids and references are stable", async () => {
         const session = await busySession();
         const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;

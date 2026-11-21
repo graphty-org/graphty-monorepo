@@ -278,6 +278,7 @@ export interface AlgorithmDescriptor {
     description: string;
     descriptionId?: string;
     fields: readonly FieldDescriptor[];
+    formerKeys?: readonly LegacyAlgorithmKey[];
     key: AlgorithmKey;
     // @beta
     keywords?: readonly string[];
@@ -2667,6 +2668,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     // @deprecated
     description?: string;
     descriptionId?: string;
+    formerNames?: readonly string[];
     group?: string;
     internal?: boolean;
     max?: number | string | OptionBound;

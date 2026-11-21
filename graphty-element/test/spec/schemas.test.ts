@@ -16,6 +16,7 @@ import { assert, describe, it } from "vitest";
 import { algorithmKeyOf, BUILT_IN_ALGORITHMS } from "../../src/catalog/algorithms";
 import { LABEL_LOOKS } from "../../src/catalog/label-looks";
 import { layoutEntry } from "../../src/catalog/layouts";
+import { SCALE_DESCRIPTORS } from "../../src/catalog/scales";
 import { EdgeArrowTypes, EdgeLineTypes, EdgeOutlineTypes } from "../../src/config/EdgeStyle";
 import {
     NodeBorderPositions,
@@ -743,6 +744,7 @@ describe("the built-ins registry", () => {
         nodeModelFits: NodeModelFits.options,
         nodeModelCenters: NodeModelCenters.options,
         parseOptions: Object.keys(PARSE_OPTIONS),
+        scales: SCALE_DESCRIPTORS.map((scale) => scale.name),
     };
 
     it("lists exactly the names the source accepts, list for list", () => {

@@ -22,6 +22,7 @@ import type { Layer } from "../../styles/Layer";
 import type { GraphSession, SavedView, SavedViewInput, TransactionScope } from "../../types";
 import type { TimeWindow } from "../../visibility/filter";
 import type { SessionVisibilityApi } from "../../visibility/VisibilityApi";
+import { markUpgraded, upgradeRun, wasUpgraded } from "../algorithmNames";
 import { canonicalText as canonical } from "../framing";
 import { layoutRecordJson, layoutRequest } from "../layoutRecord";
 import type {
@@ -58,6 +59,9 @@ import {
 
 /** The section name, as every report names it. */
 const SECTION = "view";
+
+/** The members that name algorithms, which an open may read under former names (spec 10.1). */
+const UPGRADABLE = new Set(["runs", "layers"]);
 
 /**
  * The body members, in the order they are written, each with whether it is read from the live
@@ -1282,6 +1286,41 @@ function runAnswered(r: Reader, record: JsonObject, pointer: string): boolean {
 }
 
 /**
+ * A run record under its current algorithm key and option names (spec 10.1 rule 2), each upgrade
+ * reported: the record is kept, and written back, under them.
+ * @param r - The reader.
+ * @param record - The run record.
+ * @param pointer - Its pointer.
+ * @returns The record, as read when its algorithm is one this reader does not know.
+ */
+function currentRecord(r: Reader, record: unknown, pointer: string): unknown {
+    if (!isObject(record) || typeof record.algorithm !== "string") {
+        return record;
+    }
+
+    const { context } = r;
+    const upgraded = upgradeRun(
+        context.tx.catalog.algorithms(),
+        record.algorithm,
+        record.params,
+        pointer,
+        SECTION,
+        context.problems,
+    );
+    if (upgraded === undefined) {
+        return record;
+    }
+
+    if (upgraded.renamed) {
+        markUpgraded(r.section.body);
+    }
+
+    const { params } = upgraded;
+    const writesParams = record.params !== undefined || Object.keys(params).length > 0;
+    return { ...record, algorithm: upgraded.key, ...(writesParams ? { params } : {}) };
+}
+
+/**
  * Rerun or restore one view run, or report it not run and keep it.
  * @param r - The reader.
  * @param record - The run record.
@@ -1300,44 +1339,45 @@ async function readRun(r: Reader, record: unknown, at: number): Promise<void> {
         markRecipeRun(context.session, id);
     }
 
+    const current = currentRecord(r, record, pointer);
     const notRun = (): void => {
         context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: id } });
-        r.memory.notRun.set(id, record);
+        r.memory.notRun.set(id, current);
     };
-    if (!isObject(record) || typeof record.algorithm !== "string") {
+    if (!isObject(current) || typeof current.algorithm !== "string") {
         notRun();
         return;
     }
 
     const { params, bound } = mapParams(
         context.tx,
-        record.algorithm,
-        isObject(record.params) ? record.params : {},
+        current.algorithm,
+        isObject(current.params) ? current.params : {},
         r.mapper,
         `${pointer}/params`,
     );
-    const scope = scopeIn(r, record.scope, `${pointer}/scope`);
-    const reruns = rerunsOnOpen(context, id, record);
+    const scope = scopeIn(r, current.scope, `${pointer}/scope`);
+    const reruns = rerunsOnOpen(context, id, current);
     // A run reading a path this release cannot answer is kept, not run (spec 4.7 rule 5).
-    const answered = runAnswered(r, record, pointer);
+    const answered = runAnswered(r, current, pointer);
     if (!bound || !answered || scope === undefined || (!reruns && !context.canned.has(id))) {
         notRun();
         return;
     }
 
-    const stop = compareEngineWhenEnded(r, id, record, reruns);
+    const stop = compareEngineWhenEnded(r, id, current, reruns);
     try {
-        await context.tx.runs.start(record.algorithm, params, {
+        await context.tx.runs.start(current.algorithm, params, {
             as: id,
             style: false,
             scope,
-            ...(typeof record.seed === "number" ? { seed: record.seed } : {}),
+            ...(typeof current.seed === "number" ? { seed: current.seed } : {}),
         });
-        if (typeof record.name === "string") {
-            await context.tx.runs.rename(id, record.name);
+        if (typeof current.name === "string") {
+            await context.tx.runs.rename(id, current.name);
         }
 
-        if (record.derived === true) {
+        if (current.derived === true) {
             context.restoreDerived(id);
             r.derived.add(id);
         }
@@ -1596,14 +1636,30 @@ function readLayer(r: Reader, layers: readonly unknown[], n: number): ReadLayer[
 
     const { id, source, hidden, row, ...rest } = entry;
     const spec = mapRefs(rest, r.mapper, pointer) as LayerSpec;
+    const upgraded =
+        isObject(source) && source.by === "run" && typeof source.algorithm === "string"
+            ? upgradeRun(
+                  r.context.tx.catalog.algorithms(),
+                  source.algorithm,
+                  source.params,
+                  `${pointer}/source`,
+                  SECTION,
+                  r.context.problems,
+              )
+            : undefined;
+    if (upgraded?.renamed === true) {
+        markUpgraded(r.section.body);
+    }
+
     const readSource =
         isObject(source) && source.by === "run" && typeof source.algorithm === "string"
             ? {
                   ...source,
+                  algorithm: upgraded?.key ?? source.algorithm,
                   params: mapParams(
                       r.context.tx,
-                      source.algorithm,
-                      isObject(source.params) ? source.params : {},
+                      upgraded?.key ?? source.algorithm,
+                      upgraded?.params ?? (isObject(source.params) ? source.params : {}),
                       r.mapper,
                       `${pointer}/source/params`,
                   ).params,
@@ -1713,6 +1769,11 @@ function rememberRead(r: Reader, body: Readonly<JsonObject>): void {
             memory.heldOnly.set(name, original);
         }
 
+        // A member read under a former name is written from the session, under current names.
+        if (UPGRADABLE.has(name) && wasUpgraded(body)) {
+            continue;
+        }
+
         const now = withHeld(name, fresh, memory);
         memory.kept.set(name, { applied: canonical(now), original });
     }
@@ -1795,4 +1856,7 @@ export const viewCodec: SectionCodec = {
         return Promise.resolve({ body: keptBody(fresh, memory) });
     },
     read: readView,
+    standsAsRead(section) {
+        return !wasUpgraded(section.body);
+    },
 };

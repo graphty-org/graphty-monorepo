@@ -522,8 +522,8 @@ interface SessionParts {
 }
 
 /**
- * What the element's own tests hand a session besides its options: the clock of the coalescing
- * window and the repaint's slices, and the queue queued commands take their turn on, so a random
+ * What the element's own tests hand a session besides its options: the clock of how long a
+ * command ran and the repaint's slices, and the queue queued commands take their turn on, so a random
  * sequence can drive both.
  */
 interface SessionInternals {

@@ -621,6 +621,11 @@ export class Node implements ModelUser {
      * will keep only this once its mesh goes (design/rendering/row-renderer.md, stage 11).
      */
     #anchor!: TransformNode;
+    /**
+     * Whether the constructor has built the mesh: before then it measures a label it fits the shape
+     * to, which has nothing to hang from yet ({@link Node.labelTarget}).
+     */
+    readonly #constructed: boolean = false;
     /** Whether a consumer has read {@link Node.mesh}: the node then keeps drawing with its own mesh. */
     #meshHeld = false;
     /** Whether this node's model carries a silhouette mark (src/models/NodeOutlineLayers.ts). */
@@ -1053,6 +1058,7 @@ export class Node implements ModelUser {
 
         const fit = this.fitToLabel(paint.meshKey, o);
         const built = this.build(fit.meshKey, fit.style);
+        this.#constructed = true;
 
         // Parent to graph-root for XR gesture support
         // This allows gestures to transform the entire graph by manipulating the root
@@ -4852,9 +4858,13 @@ export class Node implements ModelUser {
      * The mesh a label hangs from: the node's own, or for a row a batch draws, its anchor made a
      * geometry-free mesh ({@link Node.boxAnchor}), so the row stays batched. The batch is told
      * first: a paint that keeps its mesh labels the node before it re-sorts it.
-     * @returns The mesh, or undefined for a removed node with no mesh.
+     * @returns The mesh, or undefined for a removed node with no mesh, or one still being built.
      */
     private labelTarget(): AbstractMesh | undefined {
+        if (!this.#constructed) {
+            return undefined;
+        }
+
         if (this.#mesh === null && !this.disposed) {
             this.context.getNodeBatches?.()?.sync(this);
         }

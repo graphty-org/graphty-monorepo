@@ -3350,6 +3350,11 @@ export class UpdateManager implements Manager {
             return;
         }
 
+        // The frame after a 2D/3D switch flattened the arrangement draws it as it is.
+        if (this.layoutManager.takeFrameHold()) {
+            return;
+        }
+
         this.statsManager.step();
         this.statsManager.graphStep.beginMonitoring();
 

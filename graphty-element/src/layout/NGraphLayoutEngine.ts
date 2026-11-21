@@ -155,6 +155,20 @@ function pairOf(link: NGraphLink): PairData {
     return link.data as PairData;
 }
 
+/** The seed ngraph.forcelayout hard-codes for its own generator, kept for an unseeded layout's start. */
+const NGRAPH_OWN_SEED = 42;
+
+/**
+ * How many spring lengths a new body's start box spans per body along each axis, in 3D and in 2D.
+ * Measured on 2026-11-21: wider, the first frame after an open draws nodes closer to their settled
+ * size; narrower, the layout settles in fewer steps. At these values a 40-node tree is first drawn
+ * under twice its settled size (test/browser/open-first-frame.test.ts) and every graph in
+ * test/layout/ngraph-settle-budget.test.ts settles within its step budget; 2D at 1 took Les
+ * Miserables a quarter more steps.
+ */
+const START_SPREAD_3D = 1;
+const START_SPREAD_2D = 0.75;
+
 /**
  * NGraph force-directed layout engine using ngraph.forcelayout
  */
@@ -226,8 +240,11 @@ export class NGraphEngine extends LayoutEngine {
     private clusterCount = 0;
     /** The nodes changed since `clusterBy` was read. */
     private clustersStale = true;
-    /** Places each new node when `seed` is set; null leaves placement to ngraph. */
-    private readonly seededPlacement: { rng: ReturnType<typeof random>; dim: number } | null = null;
+    /**
+     * Places each new node with no neighbor to start beside: from `seed` when it is set, otherwise from
+     * ngraph's own fixed 42. See {@link NGraphEngine.place}.
+     */
+    private readonly placement: { rng: ReturnType<typeof random>; dim: number; seeded: boolean };
 
     /**
      * Create an NGraph layout engine
@@ -281,9 +298,12 @@ export class NGraphEngine extends LayoutEngine {
         // ngraph.forcelayout never reads a generator from its settings: it seeds its own with a
         // hard-coded 42, so every seed used to give the same picture. A seeded layout therefore
         // places each node itself, from this generator, before the simulation moves it.
-        if (typeof typedConfig.seed === "number") {
-            this.seededPlacement = { rng: random(typedConfig.seed), dim: ngraphConfig.dimensions as number };
-        }
+        const seeded = typeof typedConfig.seed === "number";
+        this.placement = {
+            rng: random(seeded ? (typedConfig.seed as number) : NGRAPH_OWN_SEED),
+            dim: ngraphConfig.dimensions as number,
+            seeded,
+        };
 
         if (typeof typedConfig.nodeGap === "number") {
             this.nodeGap = typedConfig.nodeGap;
@@ -833,22 +853,31 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
-     * Place a new body from the seed, when `seed` is set; otherwise ngraph places it.
+     * Place a new body. Seeded, every body is placed from the seed. Unseeded, a body linked to one
+     * already placed stays where ngraph put it, beside them, and any other is placed here.
+     *
+     * In a box that grows with the number of bodies, about a spring length per body along each
+     * axis (see {@link START_SPREAD_3D}), as d3-force's phyllotaxis start grows with the square root
+     * of its count. Ngraph's own rule drops a body with no placed neighbor within half a spring
+     * length of the middle, so a graph loaded in one go started as one small dense ball, the camera
+     * framed it, and the first frames after a file opened drew every node many times its settled
+     * size until the layout had spread them (issue #9280). A box of ten spring lengths whatever the count was tried before: a
+     * 20-node graph took four times as long to settle, and was drawn a few pixels wide while it did.
      * @param id - The body's ngraph id.
      */
     private place(id: NodeIdType): void {
-        if (this.seededPlacement) {
-            // THE RULE NGRAPH ITSELF USES for a node with no placed neighbor -- within half a
-            // spring length of the origin -- only drawn from the seed. A wider start is a graph
-            // that flies in from far away: a box of ten spring lengths took a 20-node graph four
-            // times as long to settle, and was drawn a few pixels wide while it did.
-            const { rng, dim } = this.seededPlacement;
-            const { springLength } = this.ngraphLayout.simulator.settings;
-            const coord = (): number => (rng.nextDouble() - 0.5) * springLength;
-            const x = coord();
-            const y = coord();
-            this.ngraphLayout.setNodePosition(id, x, y, dim === 3 ? coord() : 0);
+        const { rng, dim, seeded } = this.placement;
+        if (!seeded && (this.ngraph.getLinks(id)?.size ?? 0) > 0) {
+            return;
         }
+
+        const { springLength } = this.ngraphLayout.simulator.settings;
+        const perAxis = Math.pow(this.ngraph.getNodeCount(), 1 / dim) * (dim === 3 ? START_SPREAD_3D : START_SPREAD_2D);
+        const side = springLength * Math.max(1, perAxis);
+        const coord = (): number => (rng.nextDouble() - 0.5) * side;
+        const x = coord();
+        const y = coord();
+        this.ngraphLayout.setNodePosition(id, x, y, dim === 3 ? coord() : 0);
     }
 
     /**
@@ -1072,11 +1101,12 @@ export class NGraphEngine extends LayoutEngine {
         const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
-            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at, this.rowSource?.positions)) {
                 const pos = this.ngraphLayout.getNodePosition(id);
                 pos.x = at.x;
                 pos.y = at.y;
-                pos.z = at.z;
+                // A 2D engine holds its bodies on the plane, whatever Z the array carries.
+                pos.z = this.ngraphLayout.simulator.settings.dimensions === 3 ? at.z : 0;
             }
         }
     }
@@ -1089,14 +1119,16 @@ export class NGraphEngine extends LayoutEngine {
     protected setNodePosition(n: Node, newPos: Position): void {
         const ngraphNode = this._getMappedNode(n);
         const currPos = this.ngraphLayout.getNodePosition(ngraphNode.id);
+        // A 2D engine holds its bodies on the plane, whatever Z it is handed.
+        const z = this.ngraphLayout.simulator.settings.dimensions === 3 ? (newPos.z ?? 0) : 0;
         currPos.x = newPos.x;
         currPos.y = newPos.y;
-        currPos.z = newPos.z;
+        currPos.z = z;
         // A drag is a placement like any other, so it lands in the shared array immediately rather
         // than waiting for a step that a settled simulation may never run. It is a PLACEMENT and
         // not a layout step, so it writes even onto a pinned row: a reader must be able to move a
         // node they have pinned.
-        this.writeNodePosition(n, newPos.x, newPos.y, newPos.z ?? 0, "placement");
+        this.writeNodePosition(n, newPos.x, newPos.y, z, "placement");
     }
 
     /**

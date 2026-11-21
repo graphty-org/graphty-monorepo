@@ -4,6 +4,36 @@
     "title": "graphty documents version 2: shared definitions",
     "description": "Definitions the version 2 schemas share: the header, ids, element references, rule trees, style layers and join steps.",
     "$defs": {
+        "engine": {
+            "type": "object",
+            "description": "The code that computed a run or drew a layout (spec 4.5 rule 6): every package whose code could have changed the numbers, at the version that ran, the accelerator, and the method that consumed the seed when it is not the one the record names. Deliberately open: a reader ignores a member it does not know and keeps it.",
+            "required": ["packages"],
+            "properties": {
+                "packages": {
+                    "type": "object",
+                    "description": "Package name to the version that ran, read from the package itself.",
+                    "minProperties": 1,
+                    "propertyNames": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "additionalProperties": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "accelerator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "cpu, or the backend that computed it, such as webgpu. Open; absent when unknown."
+                },
+                "method": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The code that consumed the seed, written only when it is not what the record names."
+                }
+            }
+        },
         "layoutDrawnBy": {
             "type": "object",
             "description": "Provenance: the engine that drew a layout, and every option it was given that the arrangement does not list, by the engine's own names (spec 5 rule 9). Deliberately open.",

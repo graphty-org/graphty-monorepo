@@ -17,7 +17,6 @@ import type { AlgorithmKey, LayerSpec, NodeId, RuleTree, ScopeInput } from "../.
 import { isGraphtyError } from "../../../errors/GraphtyError";
 import { dispatcherOf } from "../../dispatchers";
 import { expandedGraph, type GroupValue, type SavedCollapse } from "../../groups";
-import { ENGINE_VERSIONS } from "../../runs/engine";
 import type { Run } from "../../runs/types";
 import type { Layer } from "../../styles/Layer";
 import type { GraphSession, SavedView, SavedViewInput, TransactionScope } from "../../types";
@@ -37,8 +36,9 @@ import type {
 import { addedValues } from "./data";
 import { addedColumns, edgeRefOf, elementRefsOf, READER, rememberReaderEdge, savedEdgeId, typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
+import { reportEngineChanges } from "./engine";
 import { filterRule, refusedIn, unansweredPath } from "./recipeCommands";
-import { markRecipeRun, recipeRunName, restoredPositions } from "./results";
+import { engineInForce, layoutEngineInForce, markRecipeRun, recipeRunName, restoredPositions } from "./results";
 import { heldTypeSelector } from "./style";
 import {
     cameraJson,
@@ -277,7 +277,8 @@ function runJson(w: Writer, run: Run, pointer: string): JsonObject {
         ...(name === null ? {} : { name }),
         algorithm: run.algorithm,
         ...(Object.keys(params).length === 0 ? {} : { params }),
-        ...(Number.isInteger(seed) && (seed ?? -1) >= 0 ? { seed } : {}),
+        // A seed reproduces a result only under the code it was given to (spec 4.5 rule 6).
+        ...(Number.isInteger(seed) && (seed ?? -1) >= 0 ? { seed, engine: engineInForce(w, run) } : {}),
         scope: scopeJson(w, run),
         ...(w.isDerived(run.id) ? { derived: true } : {}),
         ...(narrowed ? { replayable: false } : {}),
@@ -489,7 +490,7 @@ function groupsJson(w: Writer): JsonObject[] {
 }
 
 /**
- * The `layout` member: the layout in force.
+ * The `layout` member: the layout in force, and the engine that drew the positions in force.
  * @param session - The session.
  * @returns The record.
  */
@@ -497,7 +498,7 @@ function layoutJson(session: GraphSession): JsonObject {
     return {
         ...layoutRecordJson(session, session.layout),
         dimension: session.layout.dimension === "2d" ? 2 : 3,
-        engine: { ...ENGINE_VERSIONS },
+        engine: layoutEngineInForce({ session }),
     };
 }
 
@@ -1172,7 +1173,67 @@ async function readLayout(r: Reader, layout: JsonObject): Promise<void> {
     const placed = restoredPositions(r.context.session);
     if (placed !== undefined) {
         await attempt(r, "layout", () => tx.positions.set(placed));
+    } else {
+        compareLayoutEngine(r, layout);
     }
+}
+
+/**
+ * Report `W_ENGINE_CHANGED` for a seeded layout that runs again rather than being put back, for
+ * each way the code that draws it differs from the code its record names: a seed draws the same
+ * only under the same engine (spec 8.2 rule 3). It is compared as it starts, before any hardware
+ * is known, so the accelerator is not compared.
+ * @param r - The reader.
+ * @param layout - The record.
+ */
+function compareLayoutEngine(r: Reader, layout: JsonObject): void {
+    const { tx } = r.context;
+    const seed = isObject(layout.options) ? layout.options.seed : undefined;
+    if (!isObject(layout.engine) || !Number.isInteger(seed)) {
+        return;
+    }
+
+    const drawnBy = isObject(layout.drawnBy) ? layout.drawnBy.engine : undefined;
+    reportEngineChanges(r.context, "layout", layout.engine, tx.layout.provenance, {
+        accelerator: false,
+        named: { ...(typeof drawnBy === "string" ? { was: drawnBy } : {}), now: tx.layout.engine },
+    });
+}
+
+/**
+ * Report `W_ENGINE_CHANGED` once a seeded run the view reruns has ended, for each way the code
+ * that reran it differs from the code its record names (spec 8.2 rule 3).
+ * @param r - The reader.
+ * @param id - The run.
+ * @param record - The run record.
+ * @param reruns - Whether the view reruns it; a restored run is not compared.
+ * @returns A function that stops waiting, for a run that never starts, or undefined when there is
+ *     nothing to compare: the run is not rerun, or its record holds no seed or no engine.
+ */
+function compareEngineWhenEnded(r: Reader, id: string, record: JsonObject, reruns: boolean): (() => void) | undefined {
+    const { context } = r;
+    if (!reruns || !Number.isInteger(record.seed) || !isObject(record.engine)) {
+        return undefined;
+    }
+
+    const results = context.other("results")?.body.runs;
+    const entry = isObject(results) ? results[id] : undefined;
+    const saved = isObject(entry) && isObject(entry.caveats) ? entry.caveats.method : undefined;
+    const stop = context.session.on("run:changed", ({ run, phase }) => {
+        const ended = context.session.runs.get(id);
+        if (run.id !== id || phase !== "end" || ended === undefined) {
+            return;
+        }
+
+        stop();
+        const now = ended.record.caveats.method;
+        reportEngineChanges(context, id, record.engine, ended.record.engine, {
+            accelerator: true,
+            // A view record holds no caveats: the method it names is the results entry's, if any.
+            named: { was: typeof saved === "string" ? saved : now, now },
+        });
+    });
+    return stop;
 }
 
 /**
@@ -1263,6 +1324,7 @@ async function readRun(r: Reader, record: unknown, at: number): Promise<void> {
         return;
     }
 
+    const stop = compareEngineWhenEnded(r, id, record, reruns);
     try {
         await context.tx.runs.start(record.algorithm, params, {
             as: id,
@@ -1285,6 +1347,7 @@ async function readRun(r: Reader, record: unknown, at: number): Promise<void> {
             throw error;
         }
 
+        stop?.();
         notRun();
     }
 }

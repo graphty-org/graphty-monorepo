@@ -13,7 +13,7 @@ import { expandedGraph } from "../../groups";
 import { graphIdsOf } from "../../projectFile";
 import { createRunResult, type ResultElementValues } from "../../results/RunResult";
 import type { RunResult } from "../../results/types";
-import { type Caveats, ENGINE_VERSIONS, type Run, type RunOutcome } from "../../runs";
+import type { Caveats, Run, RunOutcome } from "../../runs";
 import type { GraphSession } from "../../types";
 import { canonicalText as canonical, isJsonObject } from "../framing";
 import { layoutRecordJson } from "../layoutRecord";
@@ -28,6 +28,7 @@ import type {
     WriteContext,
 } from "../types";
 import { jsonSafe, numericCell } from "./dataRefs";
+import { engineJson, reportEngineChanges } from "./engine";
 import { mintUlid, rerunsOnOpen, viewRunRecord } from "./viewParts";
 
 /**
@@ -322,10 +323,13 @@ function runOut(
         });
     }
 
-    // The deprecated English members are not saved; the words are rebuilt from `facts`. The seed is
-    // the run's own `seed`, its one home (spec 4.5 rule 3).
+    // The deprecated English members are not saved; the words are rebuilt from `facts`. The seed and
+    // the accelerator are the run's own `seed` and `engine.accelerator`, their one home (spec 4.5
+    // rule 3).
     const caveats = Object.fromEntries(
-        Object.entries(record.caveats).filter(([key]) => !["notes", "partialReason", "seed"].includes(key)),
+        Object.entries(record.caveats).filter(
+            ([key]) => !["notes", "partialReason", "seed", "accelerator"].includes(key),
+        ),
     );
     const graph = encode(result.graph) as JsonObject;
     const nodes = outputsOut(
@@ -344,7 +348,7 @@ function runOut(
         ...recipeRunName(context.session, run.id),
         algorithm: run.algorithm,
         params,
-        engine: encode(record.engine),
+        engine: engineJson(record.engine),
         seed: Number.isInteger(record.seed) ? record.seed : null,
         ...(record.durationMs === null ? {} : { durationMs: record.durationMs }),
         bindsTo: runBinding(run, stamp),
@@ -428,10 +432,39 @@ function layoutOut(context: WriteContext, stamp: BuildStamp | undefined): JsonOb
         dimension: layout.dimension === "2d" ? 2 : 3,
         seed: Number.isInteger(seed) ? seed : null,
         // The session does not time a layout, so the record leaves `durationMs` out, never 0.
-        engine: encode(ENGINE_VERSIONS),
+        engine: engineJson(layout.provenance),
         bindsTo: runBinding(undefined, stamp),
         nodes: { refs: nodeRefs, columns },
     };
+}
+
+/**
+ * The engine a run is written with: a restored run's saved engine while its result is the one the
+ * file held (spec 4.5 rule 6), else the engine that ran it.
+ * @param context - The save, or anything that holds its session.
+ * @param context.session - The session.
+ * @param run - The run.
+ * @returns The engine as the file holds it.
+ */
+export function engineInForce(context: { readonly session: GraphSession }, run: Run): unknown {
+    const restored = keptOf(context.session).runs.get(run.id);
+    return restored !== undefined && restored.result === run.result
+        ? restored.entry.engine
+        : engineJson(run.record.engine);
+}
+
+/**
+ * The engine that drew the positions in force: the restored layout record's while the nodes stand
+ * where it put them (spec 4.7 rule 7), else the session's layout's.
+ * @param context - The save, or anything that holds its session.
+ * @param context.session - The session.
+ * @returns The engine as the file holds it.
+ */
+export function layoutEngineInForce(context: { readonly session: GraphSession }): unknown {
+    const kept = keptOf(context.session).layout;
+    return kept !== undefined && samePositions(kept, positionsNow(context.session))
+        ? kept.entry.engine
+        : engineJson(context.session.layout.provenance);
 }
 
 /**
@@ -695,21 +728,40 @@ function recipeStarts(context: ReadContext, name: RunName | undefined): boolean 
 }
 
 /**
- * Report `W_RESULTS_DIFFER` once a run another section starts has ended.
+ * Report `W_RESULTS_DIFFER` once a run another section starts has ended, and, for a seeded run,
+ * `W_ENGINE_CHANGED` for each way the code that reran it differs from the code the file names.
  * @param context - The open.
  * @param id - The run.
+ * @param entry - The run as the file holds it.
  * @param check - Whether its result disagrees.
  */
-function compareWhenEnded(context: ReadContext, id: RunId, check: (result: RunResult) => boolean): void {
+function compareWhenEnded(
+    context: ReadContext,
+    id: RunId,
+    entry: JsonObject,
+    check: (result: RunResult) => boolean,
+): void {
     const stop = context.session.on("run:changed", ({ run, phase }) => {
-        const result = context.session.runs.get(id)?.result;
-        if (run.id !== id || phase !== "end" || result === undefined) {
+        const ended = context.session.runs.get(id);
+        const result = ended?.result;
+        if (run.id !== id || phase !== "end" || ended === undefined || result === undefined) {
             return;
         }
 
         stop();
         if (check(result)) {
             context.problems.push({ code: "W_RESULTS_DIFFER", params: { run: id } });
+        }
+
+        if (Number.isInteger(entry.seed)) {
+            const saved = isJsonObject(entry.caveats) ? entry.caveats.method : undefined;
+            reportEngineChanges(context, id, entry.engine, ended.record.engine, {
+                accelerator: true,
+                named: {
+                    ...(typeof saved === "string" ? { was: saved } : {}),
+                    now: ended.record.caveats.method,
+                },
+            });
         }
     });
 }
@@ -799,13 +851,21 @@ async function readRun(reading: Reading, id: RunId, entry: JsonObject): Promise<
     // The deprecated `notes` are not saved; the words are rebuilt from `facts`. The run's own `seed`
     // is the authority over any the caveats hold (spec 4.5 rule 3).
     const seed = Number.isInteger(entry.seed) ? { seed: entry.seed } : {};
-    const caveats = { facts: [], ...caveatsRead, ...seed, notes: [] } as unknown as Caveats;
+    // So is its `engine.accelerator` over any accelerator the caveats hold.
+    const { accelerator } = isJsonObject(entry.engine) ? entry.engine : {};
+    const caveats = {
+        facts: [],
+        ...caveatsRead,
+        ...seed,
+        ...(typeof accelerator === "string" ? { accelerator } : {}),
+        notes: [],
+    } as unknown as Caveats;
     const { params, bound } = paramsIn(reading, id, entry.params, descriptor);
     const check = (result: RunResult): boolean => differs({ outputs, graph, fields }, result);
     const record = viewRunRecord(context, id);
     const recipe = record === undefined && context.applyRecipe === true && recipeStarts(context, runNameOf(id));
     if ((record !== undefined && rerunsOnOpen(context, id, record)) || (recipe && context.rerun)) {
-        compareWhenEnded(context, id, check);
+        compareWhenEnded(context, id, entry, check);
         return;
     }
 

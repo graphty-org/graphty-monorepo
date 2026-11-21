@@ -7763,6 +7763,13 @@ export interface SessionLayout {
      */
     readonly arrangedDimension: "2d" | "3d";
     /**
+     * The code that draws the layout in force: the packages, at the versions that run, the
+     * hardware (`accelerator`), and `method` when the code that consumes the seed is not
+     * {@link SessionLayout.engine} (a session with no renderer steps ForceAtlas2 for `ngraph` and
+     * `d3`). A save records it beside the positions (spec/README.md 4.5 rule 6).
+     */
+    readonly provenance: EngineVersions;
+    /**
      * Choose the layout. One step.
      * @param id - The catalog id; a registered engine name is read as the id it serves.
      * @param options - The engine, when not the catalog's default for `id`, and its options.
@@ -8803,6 +8810,11 @@ export interface AccelerationControllerLike {
     readonly policy: AccelerationPolicy;
     /** The node count at or above which accelerated work uses the accelerator. */
     readonly minNodes: number;
+    /**
+     * The attached accelerator, or null when none is. A run records its package beside the
+     * element's own (spec/README.md 4.5 rule 6). Absent, no accelerator package is recorded.
+     */
+    readonly accelerator?: GraphAccelerator | null;
     /**
      * Changes what the consumer asks of the hardware.
      * @param policy - The new policy.

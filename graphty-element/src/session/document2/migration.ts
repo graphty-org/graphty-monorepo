@@ -20,9 +20,9 @@
  * - Runs. Every run becomes a view run record under the namespace `session` (element-minted) or
  *   `reader`, so style paths name it by `as`; its outputs go to results. A run over the selection
  *   or the visible graph is written over the whole graph and `"replayable": false`, reported; a
- *   filter- or window-narrowed run is `"replayable": false`. `engine` names the file's generator
- *   for graphty-element and `unknown` for the algorithms and the layout; a caveat member version 1
- *   lacks takes a stated default; `shape`, `measured` and `sample` are dropped.
+ *   filter- or window-narrowed run is `"replayable": false`. `engine` lists only the file's
+ *   generator, at its version, with no accelerator (a seeded run record carries it too); a caveat
+ *   member version 1 lacks takes a stated default; `shape`, `measured` and `sample` are dropped.
  * - Sets. Every set goes to the view; an element-minted `set_<slug>` id becomes `set_` plus a ULID
  *   derived from it, and every `set` member naming it is rewritten.
  * - Visibility. Filter steps are reported and not written; `windowRaw` is not written.
@@ -40,7 +40,7 @@
 
 import { layoutAlias, layoutDescriptor, layoutIdForEngine, savedLayoutOptions } from "../../catalog/layouts";
 import { withParentIds } from "../parentIds";
-import { ENGINE_VERSIONS } from "../runs/engine";
+import { ELEMENT_VERSION } from "../runs/engine";
 import { rewriteOldPaths } from "../styles/fileStyles/oldLooks";
 import { renameRunInPath, v1Expression } from "../styles/predicate";
 import { addedColumns, canonicalJson, READER } from "./codecs/dataRefs";
@@ -673,7 +673,7 @@ function migrateRuns(runs: readonly JsonObject[], context: Context, data: Migrat
             ...(typeof run.name === "string" ? { name: run.name } : {}),
             algorithm: run.algorithm,
             ...(isObject(run.params) && Object.keys(run.params).length > 0 ? { params: run.params } : {}),
-            ...(Number.isInteger(seed) && (seed as number) >= 0 ? { seed } : {}),
+            ...(Number.isInteger(seed) && (seed as number) >= 0 ? { seed, engine: engineOf(context) } : {}),
             scope,
             ...(narrowed ? { replayable: false } : {}),
         };
@@ -731,25 +731,27 @@ const CAVEAT_DEFAULTS: JsonObject = {
 };
 
 /**
- * A version 1 run's caveats as version 2 writes them: without `notes`, `partialReason` and `seed`
- * (the run's own `seed` holds it), a
+ * A version 1 run's caveats as version 2 writes them: without `notes`, `partialReason`, `seed` and
+ * `accelerator` (the run's own `seed` and `engine` hold them), a
  * required member it lacks at its default.
  * @param caveats - The version 1 caveats.
  * @returns The caveats.
  */
 function caveatsOf(caveats: JsonObject): JsonObject {
-    const { notes: _notes, partialReason: _reason, seed: _seed, ...rest } = caveats;
+    const { notes: _notes, partialReason: _reason, seed: _seed, accelerator: _accelerator, ...rest } = caveats;
     return { ...CAVEAT_DEFAULTS, ...rest };
 }
 
 /**
- * The engine versions of a migrated run: the release that saved the file for graphty-element; a
- * version 1 file records none for the algorithms and the layout.
+ * The engine of a migrated record (spec 4.5 rule 6): only the package that saved the file, at its
+ * version. A version 1 file records no other package's version, nor the accelerator or the method,
+ * and a version is never written that nothing read.
  * @param context - The file.
- * @returns graphty-element's `EngineVersions`.
+ * @returns The engine.
  */
 function engineOf(context: Context): JsonObject {
-    return { element: String(context.generator.version), algorithms: "unknown", layout: "unknown" };
+    const { name, version } = context.generator;
+    return { packages: { [name === "graphty-element" ? "@graphty/graphty-element" : String(name)]: String(version) } };
 }
 
 /**
@@ -1107,7 +1109,7 @@ function layoutFromVersion1(id: string, engine: unknown, options: unknown): Json
 
 /**
  * The layout in force, as view's layout record: version 1's `{ id, engine, options, dimension }`
- * as 5 rule 9 writes it, and `engine` graphty-element's EngineVersions.
+ * as 5 rule 9 writes it, and `engine` the release that saved the file (spec 4.5 rule 6).
  * @param session - The session member, if any.
  * @param context - The file.
  * @returns The layout record, or undefined for none.
@@ -1475,7 +1477,7 @@ function generatorOf(value: JsonObject): JsonObject {
     const { generator } = value;
     return isObject(generator) && typeof generator.name === "string" && typeof generator.version === "string"
         ? { name: generator.name, version: generator.version }
-        : { name: "graphty-element", version: ENGINE_VERSIONS.element };
+        : { name: "graphty-element", version: ELEMENT_VERSION };
 }
 
 /**

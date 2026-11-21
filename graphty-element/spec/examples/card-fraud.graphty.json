@@ -893,9 +893,11 @@
                         "useDelta": true
                     },
                     "engine": {
-                        "element": "3.40.0",
-                        "algorithms": "2.1.2",
-                        "layout": "1.10.5"
+                        "packages": {
+                            "@graphty/graphty-element": "3.39.0",
+                            "@graphty/algorithms": "3.4.22"
+                        },
+                        "accelerator": "cpu"
                     },
                     "seed": null,
                     "durationMs": 3,
@@ -970,9 +972,11 @@
                         "useOptimized": true
                     },
                     "engine": {
-                        "element": "3.40.0",
-                        "algorithms": "2.1.2",
-                        "layout": "1.10.5"
+                        "packages": {
+                            "@graphty/graphty-element": "3.39.0",
+                            "@graphty/algorithms": "3.4.22"
+                        },
+                        "accelerator": "cpu"
                     },
                     "seed": 1873,
                     "durationMs": 2,
@@ -1052,9 +1056,11 @@
                         "timeOrder": null
                     },
                     "engine": {
-                        "element": "3.40.0",
-                        "algorithms": "2.1.2",
-                        "layout": "1.10.5"
+                        "packages": {
+                            "@graphty/graphty-element": "3.39.0",
+                            "@graphty/algorithms": "3.4.22"
+                        },
+                        "accelerator": "cpu"
                     },
                     "seed": null,
                     "durationMs": 1,
@@ -1124,9 +1130,11 @@
                 "seed": 52211,
                 "durationMs": 41,
                 "engine": {
-                    "element": "3.40.0",
-                    "algorithms": "2.1.2",
-                    "layout": "1.10.5"
+                    "packages": {
+                        "@graphty/graphty-element": "3.39.0",
+                        "@graphty/layout": "2.7.1"
+                    },
+                    "accelerator": "cpu"
                 },
                 "bindsTo": {
                     "build": "01JCBQ4H7K9N1Q3S5V7X9Z2B4D",
@@ -1491,6 +1499,13 @@
                         "useOptimized": true
                     },
                     "seed": 1873,
+                    "engine": {
+                        "packages": {
+                            "@graphty/graphty-element": "3.39.0",
+                            "@graphty/algorithms": "3.4.22"
+                        },
+                        "accelerator": "cpu"
+                    },
                     "scope": {
                         "types": ["account", "device"]
                     },
@@ -1538,9 +1553,11 @@
                 },
                 "dimension": 3,
                 "engine": {
-                    "element": "3.40.0",
-                    "algorithms": "2.1.2",
-                    "layout": "1.10.5"
+                    "packages": {
+                        "@graphty/graphty-element": "3.39.0",
+                        "@graphty/layout": "2.7.1"
+                    },
+                    "accelerator": "cpu"
                 }
             }
         }

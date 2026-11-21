@@ -10,7 +10,7 @@ import type { RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { TransactionOptions } from "../project/Dispatcher";
 import type { CannedOutcomes } from "../projectFile";
-import { ENGINE_VERSIONS } from "../runs";
+import { ELEMENT_VERSION } from "../runs";
 import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
 import { newDocumentId } from "./basics";
 import { refetchOptionsOf } from "./codecs/dataFetch";
@@ -92,7 +92,7 @@ export interface OpenChoices {
 }
 
 /** The generator every version 2 save writes. */
-const GENERATOR = Object.freeze({ name: "graphty-element", version: ENGINE_VERSIONS.element });
+const GENERATOR = Object.freeze({ name: "graphty-element", version: ELEMENT_VERSION });
 
 /**
  * The open data's id, minted on first need.

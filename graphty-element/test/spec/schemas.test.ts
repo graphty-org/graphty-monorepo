@@ -420,7 +420,46 @@ const MUTATIONS: Mutation[] = [
         },
     },
     {
-        name: "a layout record's versions (engine holds EngineVersions)",
+        name: "a run's engine without packages",
+        section: "results",
+        change: (results) => {
+            const run = Object.values(results.runs as JsonObject)[0] as JsonObject;
+            run.engine = { accelerator: "cpu" };
+        },
+    },
+    {
+        name: "a run's engine with no package",
+        section: "results",
+        change: (results) => {
+            const run = Object.values(results.runs as JsonObject)[0] as JsonObject;
+            run.engine = { packages: {}, accelerator: "cpu" };
+        },
+    },
+    {
+        name: "a layout's engine in the fixed element, algorithms and layout shape",
+        section: "results",
+        change: (results) => {
+            (results.layout as JsonObject).engine = { element: "3.40.0", algorithms: "2.1.2", layout: "1.10.5" };
+        },
+    },
+    {
+        name: "an accelerator in a run's caveats",
+        section: "results",
+        change: (results) => {
+            const run = Object.values(results.runs as JsonObject)[0] as JsonObject;
+            Object.assign(run.caveats as JsonObject, { accelerator: "cpu" });
+        },
+    },
+    {
+        name: "a seeded view run record with no engine",
+        section: "view",
+        change: (view) => {
+            const seeded = (view.runs as JsonObject[]).find((run) => run.seed !== undefined);
+            delete (seeded as JsonObject).engine;
+        },
+    },
+    {
+        name: "a layout record's versions (engine holds the code that drew it)",
         section: "results",
         change: (results) => Object.assign(results.layout as JsonObject, { versions: {} }),
     },

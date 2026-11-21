@@ -405,12 +405,18 @@ describe("view codec: writing", () => {
             params: { source: { space: SPACE, key: "a" }, targetNode: null, maxDepth: null },
             scope: "graph",
         });
-        // The arrangement is `id`, its engine provenance in `drawnBy`; `engine` is EngineVersions.
+        // The arrangement is `id`, its engine provenance in `drawnBy`; `engine` the code that drew it.
         const layout = section.layout as JsonObject;
         const { options, drawnBy, ...rest } = layout as { options: JsonObject; drawnBy: JsonObject };
+        const engine = layout.engine as { packages: JsonObject };
         assert.deepEqual(
-            { ...rest, engine: Object.keys(layout.engine as JsonObject) },
-            { id: "force", dimension: 3, engine: ["element", "algorithms", "layout"] },
+            { ...rest, engine: Object.keys(engine.packages) },
+            { id: "force", dimension: 3, engine: ["@graphty/graphty-element", "@graphty/layout"] },
+        );
+        // With no renderer, ForceAtlas2 steps the force layout drawnBy names as ngraph, and says so.
+        assert.deepEqual(
+            [(layout.engine as JsonObject).method, (layout.engine as JsonObject).accelerator],
+            ["forceatlas2", "cpu"],
         );
         assert.strictEqual(drawnBy.engine, "ngraph");
         // Resolved: every option the engine declares with a default, less the dimension's own,
@@ -454,6 +460,51 @@ describe("view codec: writing", () => {
             },
         ]);
         assert.deepEqual([session.layout.engine, session.layout.options.seed], ["ngraph", 4]);
+    });
+
+    it("writes the engine beside a run record's seed, and none for an unseeded run", async () => {
+        const session = await sessionWithData();
+        await session.runs.start("louvain", undefined, { as: "communities", style: false, seed: 1873 });
+        await session.runs.start("degree", undefined, { as: "links", style: false });
+        const section = await save(session);
+        assert.deepEqual(invalid(section), []);
+        const [seeded, unseeded] = section.runs as JsonObject[];
+        assert.strictEqual(seeded.seed, 1873);
+        const engine = seeded.engine as { packages: JsonObject; accelerator: string };
+        assert.sameMembers(Object.keys(engine.packages), ["@graphty/graphty-element", "@graphty/algorithms"]);
+        assert.strictEqual(engine.accelerator, "cpu");
+        assert.notProperty(unseeded, "engine");
+    });
+
+    it("reports a seeded layout drawn again under other code, without comparing the hardware", async () => {
+        const session = await sessionWithData();
+        await session.layout.set("force", { options: { seed: 7 } });
+        const layout = (await save(session)).layout as JsonObject;
+        const engine = layout.engine as { packages: Record<string, string>; accelerator: string };
+        const older = {
+            ...engine,
+            packages: { ...engine.packages, "@graphty/layout": "0.0.1" },
+            accelerator: "webgpu",
+        };
+        const opened = await sessionWithData();
+        const section = {
+            kind: "graphty-view",
+            version: 1,
+            bindsTo: { data: DATA_ID },
+            layout: { ...layout, engine: older },
+        };
+        const problems = await open(opened, section);
+        assert.deepEqual(problems, [
+            {
+                code: "W_ENGINE_CHANGED",
+                params: {
+                    run: "layout",
+                    key: "@graphty/layout",
+                    was: "0.0.1",
+                    now: engine.packages["@graphty/layout"],
+                },
+            },
+        ]);
     });
 
     it("writes a run the visible graph narrowed as not replayable, and reports it", async () => {

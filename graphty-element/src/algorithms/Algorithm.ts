@@ -2,7 +2,7 @@ import { accelerated, type AcceleratedAlgorithms } from "@graphty/algorithms";
 import { edgeIsDirected, type GraphSnapshot, INVALID_INDEX, maskTest, type U32 } from "@graphty/graph-format";
 
 import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
-import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
+import { type AccelerationPrecision, CPU_PRECISION, type GraphAccelerator } from "../acceleration/types";
 import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
 import { noteDescribedAlgorithm, noteUndescribedAlgorithm, publishAlgorithmDescriptor } from "../catalog/registry";
 import type { AlgorithmDescriptor, FieldDescriptor, NodeId, SuggestedName } from "../catalog/types";
@@ -356,6 +356,20 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
     static readonly loadedWeightByDefault: boolean = true;
 
     protected graph: Graph;
+    /**
+     * The accelerator the last accelerated work of this compute actually reached, or null when it
+     * ran on the CPU. A run records its backend as the hardware that computed it.
+     * @internal
+     */
+    reachedAccelerator: GraphAccelerator | null = null;
+
+    /**
+     * Forgets the accelerator an earlier compute reached, before a new one starts.
+     * @internal
+     */
+    protected forgetReachedAccelerator(): void {
+        this.reachedAccelerator = null;
+    }
 
     /** The `weight` option as passed, before any schema dropped it. */
     readonly #weightAsked: unknown;
@@ -639,7 +653,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                     // The dispatcher may still answer on the CPU port with an accelerator attached --
                     // eigenvector centrality over a graph whose iteration the device kernel cannot
                     // match, say -- so the precision follows whether a member was actually reached.
-                    let reached = false;
+                    let reached: GraphAccelerator | null = null;
                     const outcome = await controller.run(work, (accelerator) => {
                         // Logged before the device work starts, so a run that never comes back
                         // still says where it went.
@@ -647,7 +661,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                         return fn(
                             accelerated(
                                 narrowAlgorithms(accelerator, () => {
-                                    reached = true;
+                                    reached = accelerator;
                                 }),
                             ),
                             snapshot,
@@ -655,7 +669,8 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                     });
 
                     if (outcome.accelerated) {
-                        if (reached) {
+                        if (reached !== null) {
+                            this.reachedAccelerator = reached;
                             return { value: outcome.value, precision: outcome.precision };
                         }
 

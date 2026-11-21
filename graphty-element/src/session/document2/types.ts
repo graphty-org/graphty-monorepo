@@ -121,6 +121,7 @@ export type DocumentCode =
     | "W_CAMERA_CONTROLLER_UNKNOWN"
     | "W_RUN_NOT_RUN"
     | "W_RESULTS_DIFFER"
+    | "W_ENGINE_CHANGED"
     | "W_EDGE_MATCH_AMBIGUOUS"
     | "W_SOURCE_UNKEYED"
     | "W_NODE_NAMED_ONLY"

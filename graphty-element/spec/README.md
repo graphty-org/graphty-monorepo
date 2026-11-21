@@ -31,7 +31,7 @@ duplicate member name; a reader MUST refuse a document holding one. Its content 
 | `style`    | `graphty-style`    | 2       | style layers, palettes, shaders as source text, the style tree, value labels, the assets the layers draw                                      | name only (reusable)       |
 | `recipe`   | `graphty-recipe`   | 2       | the ordered commands applied to new data: join steps, filters, algorithm runs, rule sets, the layout                                          | name only (reusable)       |
 | `settings` | `graphty-settings` | 1       | project settings no other section holds, and timeline playback                                                                                | name only (reusable)       |
-| `results`  | `graphty-results`  | 2       | the record of each run and of the layout: what ran, the seed used, engine versions, the build it ran on, outputs                              | element references (bound) |
+| `results`  | `graphty-results`  | 2       | the record of each run and of the layout: what ran, the seed used, the code that computed it (engine), the build it ran on, outputs           | element references (bound) |
 | `notes`    | `graphty-notes`    | 2       | people's notes on the graph, its elements, sets and results                                                                                   | element references (bound) |
 | `view`     | `graphty-view`     | 1       | the session a file is opened to: camera, selection, pins, sets, visibility, layer order, element-naming layers, run records, the layout       | element references (bound) |
 
@@ -764,7 +764,9 @@ Every command MAY also carry `narrows` (only `false` is ever written), `extensio
    never the engine that draws it, and records no versions. The engine its author's session drew
    it with is provenance in `drawnBy` (5 rule 9). `params` on `algo.run` and `options` on `layout.set` hold the value used
    for every option the implementation declares with a default (9 rule 10). A hand-written command
-   may leave options out, and the reader applies its own current defaults.
+   may leave options out, and the reader applies its own current defaults. A recipe's seed (on
+   `algo.run`, or in `layout.set`'s `options`) asks for a seeded run; which code it seeds is
+   recorded where the run is recorded (4.5 rule 6), never in the recipe.
 5. A recipe never names an element. A rule naming an element cannot be a recipe step: the writer
    leaves it out and reports it.
 6. **Applying under a namespace** writes each `set.define` id as `set_<namespace>.<ULID>` and
@@ -828,24 +830,45 @@ A results section holds `bindsTo` (REQUIRED, `{ data }` only), `runs` (REQUIRED)
 1. `runs` is an object keyed by run id. A recipe-made run writes `namespace` and `as`; a
    hand-started run writes neither, and its run id is its only name.
 2. A run holds what actually ran: `algorithm`, `params` (every declared option's value as it ran,
-   9 rule 10, with element-naming options as element references), `engine` (graphty-element's
-   `EngineVersions`: `element`, `algorithms`, `layout`,
-   and `plugins` when an extension computed it), `seed` (the seed it used, or `null`),
+   9 rule 10, with element-naming options as element references), `engine` (the code that
+   computed it, rule 6), `seed` (the seed it used, or `null`),
    `durationMs` (absent when the run was not timed, never 0), `bindsTo` (6.4), `fields` (`{ name, kind, type }`, `kind` being `node`, `edge` or
    `graph`), `caveats`, `graph` (graph-level values), and `nodes` and `edges` outputs.
 3. `caveats` is graphty-element's `Caveats` without its deprecated `notes` and `partialReason`
-   (the words are rebuilt from `facts` and `partialCause`) and without `seed`: the run's own
-   `seed` is the authority, and a reader puts it back into the caveats. Its `method` is an
+   (the words are rebuilt from `facts` and `partialCause`), without `seed` and without
+   `accelerator`: the run's own `seed` and `engine.accelerator` are the authority, and a reader
+   puts them back into the caveats. Its `method` is an
    identifier (the algorithm's key, or a method of its own such as `stoer-wagner`), never
    reader-facing text: an application names it.
 4. Outputs are columns: `{ "refs": [<element references>], "columns": { <field>: [values] } }`,
    every column as long as `refs`.
 5. `layout` is the layout's record: `id`, the arrangement; `dimension`; `options`; `drawnBy`
    (5 rule 9), the options of both holding every declared option's value as it drew; `seed`; `durationMs` (absent
-   when the layout was not timed, never 0, as for a run); `engine`
-   (`EngineVersions`, as every run's); `bindsTo`; and `nodes: { refs, columns: { x, y, z } }`. It
-   has no run id; one layout is in force at a time. In results, `engine` always means
-   `EngineVersions`.
+   when the layout was not timed, never 0, as for a run); `engine` (rule 6); `bindsTo`; and
+   `nodes: { refs, columns: { x, y, z } }`. It has no run id; one layout is in force at a time.
+   When `options` also hold a seed, the record's own `seed` wins.
+6. **Engine.** Every record of something that ran holds `engine`: each results run, the results
+   and view `layout`, and each view run record with a seed. It holds:
+    - `packages` (REQUIRED, at least one member): an open map from package name to the version
+      that ran. It lists every package whose code could have changed the numbers and whose
+      version the writer read from the package itself. A writer never writes a version it did not
+      read; it MAY list a package that took no part. A bundled or depended-on library is covered
+      by the listing package's version. For a run, graphty-element lists itself,
+      `@graphty/algorithms`, the attached accelerator's package
+      (`@graphty/webgpu-graph-algorithms`) and any extension that declares a version, under its
+      catalog key. For a layout, it lists itself, `@graphty/layout` and the attached
+      accelerator's package.
+    - `accelerator`: `cpu`, or the backend that computed it (`webgpu`). An open vocabulary,
+      absent when unknown (as in a record migrated from version 1).
+    - `method`: written only when the code that consumed the seed is not what the record names
+      (`drawnBy.engine` for a layout, `caveats.method` for a run).
+
+    A seed reproduces a drawing or a result only under the same engine. A reader compares
+    `packages` by key, ignores `engine` members it does not know and keeps them. `engine` records
+    what ran, never the reader's versions: a restored record is written back with its saved
+    `engine` until that run or layout runs again. For example, a run on the GPU holds
+    `"@graphty/webgpu-graph-algorithms": "0.6.69"` among its `packages`, with `"accelerator":
+ "webgpu"`.
 
 ### 4.6 notes
 
@@ -878,7 +901,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
 | `order`         | one list of layer ids for the whole stack, bottom first, style and view layers alike                                                |
 | `layers`        | the layers that name elements or a dataset (section 5 rule 5)                                                                       |
 | `runs`          | the single ordered list of every run record, in the order made (rule 5)                                                             |
-| `layout`        | the layout record in force: `{ id, options, dimension, drawnBy, engine }` (rule 7)                                                  |
+| `layout`        | the layout record in force: `{ id, options, dimension, drawnBy, engine }` (rule 7; `engine` 4.5 rule 6)                             |
 
 1. Positions and cameras are in the frame of section 7. Every other position is layout output.
 2. **Camera.** `dimension` (`2` or `3`, closed; it follows the layout's dimension) and
@@ -909,7 +932,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
 5. **Run records.** Each carries its run `id`; a recipe-made run its `namespace` and `as`; the
    reader's `name` when it has one; `algorithm`; `params` (every declared option's value as it
    ran, 9 rule 10; element-naming options as element references: a node as `{ "space", "key" }`);
-   `seed`; `scope`; `"derived": true` when graphty-element minted the run's id, as
+   `seed`; with a seed, its `engine` (4.5 rule 6); `scope`; `"derived": true` when graphty-element minted the run's id, as
    version 1 records it; and, when it cannot be replayed exactly, `"replayable": false`.
    A view run record has no `style`. `scope` is one of graphty-element's `Scope` forms:
    `"graph"`, `"largest-component"`, `{ "set" }`, `{ "where" }`, `{ "nodes": [<node ref>] }`,
@@ -924,8 +947,9 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    recipe step makes, or a run or set whose name several open ones share, names it by run id or
    full set id.
 7. **Layout.** The layout record names the arrangement in `id` and its engine only in `drawnBy`,
-   as `layout.set` and results' `layout` do (5 rule 9); `engine` is graphty-element's
-   `EngineVersions`, exactly as in results' `layout` and every run. Its `options` and
+   as `layout.set` and results' `layout` do (5 rule 9); `engine` (4.5 rule 6) is the engine that
+   drew the positions in force, and when those are the positions a results `layout` restored, it
+   is that record's `engine`. Its `options` and
    `drawnBy.options` hold every declared option's value (9 rule 10).
    A layout scope (`layoutScope`) is not saved, and the save reports it.
 8. **Collapsed groups.** A collapse replaces a group's members with one node standing in for them;
@@ -1324,7 +1348,12 @@ of the view section.
    restored if present, otherwise it is listed as not run (`W_RUN_NOT_RUN`). When both a rerun and
    saved results exist, the report says whether they agree (`W_RESULTS_DIFFER`). A results run or
    layout with no record in an open view is restored as saved, never rerun, and reported. A file
-   with neither a view nor results opens with the new-project layout.
+   with neither a view nor results opens with the new-project layout. When a run or layout whose
+   record holds a seed and an `engine` (4.5 rule 6) is rerun and the rerun's engine differs, the
+   reader reports `W_ENGINE_CHANGED` once per difference. A difference is a package version that
+   differs or is on one side only, the accelerator, or the effective method (`method`, else what
+   the record names). A layout is compared when it starts, so its accelerator is not compared.
+   Unseeded reruns are not compared.
 4. **The recipe applies only when the caller asks**, with namespacing. `runAlgorithmsOnLoad` acts
    only when new data is loaded, never when a file is opened. When a full file holds both a recipe
    and a view, the load plan reports that the recipe was not applied and the view restored.
@@ -1639,39 +1668,40 @@ sub-objects.
 graphty-element reports what happened while reading or writing as `{ code, params }`. An
 application words them.
 
-| Code                          | When                                                                                                                      | Params                                    |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `E_BAD_DOCUMENT`              | the file is not I-JSON, or has no known `kind`                                                                            | `section`                                 |
-| `E_UNKNOWN_OPTION`            | a recipe command or scope has a member the reader does not know                                                           | `section`, `pointer`                      |
-| `E_UNKNOWN_COMMAND`           | a recipe command's `op` the reader does not know                                                                          | `section`, `pointer`                      |
-| `W_UNKNOWN_KIND`              | an unknown `sections` key, top level or in a later graph                                                                  | `section`, `graph`                        |
-| `W_UNKNOWN_MEMBER`            | an unknown member of an open object, selector, binding, palette or run style, or one a closed object lists in `ignorable` | `section`, `pointer`                      |
-| `W_SCHEMA_MISMATCH`           | `$schema` disagrees with `kind` and `version`                                                                             | `section`, `schema`                       |
-| `W_SECTION_KEPT`              | a section is held, or a local change to a held kind was not saved                                                         | `section`, `version`, `reason`, `graph`   |
-| `W_EXTENSION_REQUIRED`        | a section lists an extension the reader lacks                                                                             | `section`, `extension`                    |
-| `W_SECTION_UPGRADED`          | an older version was migrated on read                                                                                     | `section`, `from`, `to`                   |
-| `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section                                                            | `section`, `pointer`, `layer`, `movedTo`  |
-| `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over                                                          | `kind` or `section`, `field` or `pointer` |
-| `W_SOURCE_NO_PATH`            | a source has nothing to read it again by: embedded, or written with no `path`                                             | `source`, `reason`                        |
-| `W_SOURCE_UNAVAILABLE`        | a referenced source is held: not read, or its copy changed (8.3)                                                          | `source`, `reason`, `size`                |
-| `W_SOURCE_EMBEDDED`           | a source asked to be referenced was embedded: its rows are not its bytes                                                  | `source`, `reason`                        |
-| `W_OPTION_NOT_SAVED`          | a load option builtins.md does not list was left out of the saved record                                                  | `source`, `option`                        |
-| `W_SPACE_OVERLAP`             | a node key would add keys to a space another source already holds                                                         | `source`, `space`, `count`                |
-| `W_REFERENCE_UNBOUND`         | an element reference binds nowhere                                                                                        | `section`, `pointer`, `ref`               |
-| `W_DATA_CHANGED`              | same data id, but a run's build or copy ids differ                                                                        | `section`, `sources`                      |
-| `W_DATA_MISMATCH`             | a bound section was written on other data, or no data is open                                                             | `section`, `data`                         |
-| `W_CAMERA_CONTROLLER_UNKNOWN` | a camera names a controller the reader does not know                                                                      | `section`, `controller`                   |
-| `W_RUN_NOT_RUN`               | a run was neither rerun nor restored                                                                                      | `run`                                     |
-| `W_RESULTS_DIFFER`            | a rerun disagrees with the saved results                                                                                  | `run`                                     |
-| `W_SOURCE_UNKEYED`            | a source has no key column                                                                                                | `source`                                  |
-| `W_NODE_NAMED_ONLY`           | nodes only edges name, kept, supplied by those edges' sources                                                             | `source`, `count`                         |
-| `W_KEY_EMPTY`                 | rows whose key or end cell is null or empty were left out                                                                 | `source`, `column`, `rows`                |
-| `W_EDGE_END_MISSING`          | edges naming missing nodes were left out                                                                                  | `source`, `count`                         |
-| `W_COLUMN_WIDENED`            | two types declare one column with different dtypes                                                                        | `column`                                  |
-| `W_ROLES_DIFFER`              | built sources name a weight, time or location role differently                                                            | `table`, `role`, `sources`                |
-| `W_CLASH_RULE_TYPE`           | a number clash rule met a cell it cannot read; the held value stays                                                       | `step`, `column`, `rule`, `cells`         |
-| `W_LAYOUT_ENGINE_UNAVAILABLE` | a layout's `drawnBy` names an engine the reader cannot draw that arrangement with; its default engine drew it             | `section`, `layout`, `engine`             |
-| `W_LAYOUT_OPTION_NOT_APPLIED` | a layout option the arrangement or the drawing engine does not take was left out                                          | `section`, `layout`, `engine`, `option`   |
+| Code                          | When                                                                                                                      | Params                                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `E_BAD_DOCUMENT`              | the file is not I-JSON, or has no known `kind`                                                                            | `section`                                                                                                  |
+| `E_UNKNOWN_OPTION`            | a recipe command or scope has a member the reader does not know                                                           | `section`, `pointer`                                                                                       |
+| `E_UNKNOWN_COMMAND`           | a recipe command's `op` the reader does not know                                                                          | `section`, `pointer`                                                                                       |
+| `W_UNKNOWN_KIND`              | an unknown `sections` key, top level or in a later graph                                                                  | `section`, `graph`                                                                                         |
+| `W_UNKNOWN_MEMBER`            | an unknown member of an open object, selector, binding, palette or run style, or one a closed object lists in `ignorable` | `section`, `pointer`                                                                                       |
+| `W_SCHEMA_MISMATCH`           | `$schema` disagrees with `kind` and `version`                                                                             | `section`, `schema`                                                                                        |
+| `W_SECTION_KEPT`              | a section is held, or a local change to a held kind was not saved                                                         | `section`, `version`, `reason`, `graph`                                                                    |
+| `W_EXTENSION_REQUIRED`        | a section lists an extension the reader lacks                                                                             | `section`, `extension`                                                                                     |
+| `W_SECTION_UPGRADED`          | an older version was migrated on read                                                                                     | `section`, `from`, `to`                                                                                    |
+| `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section                                                            | `section`, `pointer`, `layer`, `movedTo`                                                                   |
+| `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over                                                          | `kind` or `section`, `field` or `pointer`                                                                  |
+| `W_SOURCE_NO_PATH`            | a source has nothing to read it again by: embedded, or written with no `path`                                             | `source`, `reason`                                                                                         |
+| `W_SOURCE_UNAVAILABLE`        | a referenced source is held: not read, or its copy changed (8.3)                                                          | `source`, `reason`, `size`                                                                                 |
+| `W_SOURCE_EMBEDDED`           | a source asked to be referenced was embedded: its rows are not its bytes                                                  | `source`, `reason`                                                                                         |
+| `W_OPTION_NOT_SAVED`          | a load option builtins.md does not list was left out of the saved record                                                  | `source`, `option`                                                                                         |
+| `W_SPACE_OVERLAP`             | a node key would add keys to a space another source already holds                                                         | `source`, `space`, `count`                                                                                 |
+| `W_REFERENCE_UNBOUND`         | an element reference binds nowhere                                                                                        | `section`, `pointer`, `ref`                                                                                |
+| `W_DATA_CHANGED`              | same data id, but a run's build or copy ids differ                                                                        | `section`, `sources`                                                                                       |
+| `W_DATA_MISMATCH`             | a bound section was written on other data, or no data is open                                                             | `section`, `data`                                                                                          |
+| `W_CAMERA_CONTROLLER_UNKNOWN` | a camera names a controller the reader does not know                                                                      | `section`, `controller`                                                                                    |
+| `W_RUN_NOT_RUN`               | a run was neither rerun nor restored                                                                                      | `run`                                                                                                      |
+| `W_RESULTS_DIFFER`            | a rerun disagrees with the saved results                                                                                  | `run`                                                                                                      |
+| `W_ENGINE_CHANGED`            | a seeded run or layout was rerun under other code than its record names                                                   | `run` (run id or `layout`), `key` (package name, `accelerator` or `method`), `was`, `now` (string or null) |
+| `W_SOURCE_UNKEYED`            | a source has no key column                                                                                                | `source`                                                                                                   |
+| `W_NODE_NAMED_ONLY`           | nodes only edges name, kept, supplied by those edges' sources                                                             | `source`, `count`                                                                                          |
+| `W_KEY_EMPTY`                 | rows whose key or end cell is null or empty were left out                                                                 | `source`, `column`, `rows`                                                                                 |
+| `W_EDGE_END_MISSING`          | edges naming missing nodes were left out                                                                                  | `source`, `count`                                                                                          |
+| `W_COLUMN_WIDENED`            | two types declare one column with different dtypes                                                                        | `column`                                                                                                   |
+| `W_ROLES_DIFFER`              | built sources name a weight, time or location role differently                                                            | `table`, `role`, `sources`                                                                                 |
+| `W_CLASH_RULE_TYPE`           | a number clash rule met a cell it cannot read; the held value stays                                                       | `step`, `column`, `rule`, `cells`                                                                          |
+| `W_LAYOUT_ENGINE_UNAVAILABLE` | a layout's `drawnBy` names an engine the reader cannot draw that arrangement with; its default engine drew it             | `section`, `layout`, `engine`                                                                              |
+| `W_LAYOUT_OPTION_NOT_APPLIED` | a layout option the arrangement or the drawing engine does not take was left out                                          | `section`, `layout`, `engine`, `option`                                                                    |
 
 ## 14. Files in this directory
 

@@ -15,7 +15,13 @@ import { assert, describe, it } from "vitest";
 import { createGraphSession, type GraphSession } from "../../../session";
 import { engineOptionsOf } from "../../../src/catalog/layouts";
 import type { EdgeId, NodeId } from "../../../src/catalog/types";
-import { markRecipeRun, resultsCodec, runIdOf, runNameOf } from "../../../src/session/document2/codecs/results";
+import {
+    layoutEngineInForce,
+    markRecipeRun,
+    resultsCodec,
+    runIdOf,
+    runNameOf,
+} from "../../../src/session/document2/codecs/results";
 import type {
     BuildStamp,
     DocumentProblem,
@@ -268,7 +274,12 @@ describe("writing results", () => {
         assert.notProperty(links, "namespace");
         assert.deepEqual([runs.lab__degree.namespace, runs.lab__degree.as], ["lab", "degree"]);
         assert.strictEqual(links.algorithm, "degree");
-        assert.deepEqual(Object.keys(links.engine as JsonObject), ["element", "algorithms", "layout"]);
+        // The code that computed it, read from the packages, and the hardware it ran on.
+        const engine = links.engine as { packages: JsonObject; accelerator: string };
+        assert.sameMembers(Object.keys(engine.packages), ["@graphty/graphty-element", "@graphty/algorithms"]);
+        assert.strictEqual(engine.accelerator, "cpu");
+        // The run's engine is the authority for the hardware; the caveats do not repeat it.
+        assert.notProperty(links.caveats, "accelerator");
         assert.deepEqual(links.bindsTo, STAMP);
         assert.deepEqual(links.fields, [
             { name: "value", kind: "node", type: "number" },
@@ -297,6 +308,10 @@ describe("writing results", () => {
         assert.deepEqual([layout.id, layout.dimension, (layout.drawnBy as JsonObject).engine], ["force", 3, "ngraph"]);
         assert.notProperty(layout, "algorithm");
         assert.notProperty(layout, "versions");
+        const drawn = layout.engine as { packages: JsonObject; accelerator: string; method?: string };
+        assert.sameMembers(Object.keys(drawn.packages), ["@graphty/graphty-element", "@graphty/layout"]);
+        // A session with no renderer steps ForceAtlas2 for the ngraph engine the record names.
+        assert.deepEqual([drawn.accelerator, drawn.method], ["cpu", "forceatlas2"]);
         assert.deepEqual(layout.bindsTo, STAMP);
         assert.notProperty(layout, "durationMs", "an untimed layout leaves its duration out, never 0");
         assert.deepEqual(layout.nodes, {
@@ -457,6 +472,73 @@ describe("reading results", () => {
             problems.filter((problem) => problem.code === "W_RESULTS_DIFFER").map((problem) => problem.params),
             [{ run: "links" }],
         );
+    });
+
+    it("puts the run's accelerator back into the restored caveats", async () => {
+        const section = await save((await withRuns()).session);
+        (runsOf(section).links.engine as JsonObject).accelerator = "webgpu";
+        const opened = await counted();
+        await open(opened, section, { rerun: false });
+        assert.strictEqual(opened.session.runs.get("links")?.result?.summary().caveats.accelerator, "webgpu");
+    });
+
+    it("writes a restored, unchanged run back with the engine it was saved with", async () => {
+        const section = await save((await withRuns()).session);
+        const older = { packages: { "@graphty/graphty-element": "1.0.0", "org.example.kit": "2.0.0" }, x: 1 };
+        runsOf(section).links.engine = older;
+        const opened = await counted();
+        await open(opened, section, { rerun: false });
+        assert.deepEqual(runsOf(await save(opened.session)).links.engine, older);
+    });
+
+    it("keeps the restored layout's engine while the nodes stand where it put them", async () => {
+        const section = await save((await withRuns()).session);
+        const older = { packages: { "@graphty/graphty-element": "1.0.0", "@graphty/layout": "0.0.1" } };
+        (section.layout as JsonObject).engine = older;
+        const opened = await counted();
+        await open(opened, section, { rerun: false });
+        assert.deepEqual(layoutEngineInForce(opened), older);
+        assert.deepEqual((await save(opened.session)).layout, section.layout);
+        // Once a node moves, the positions in force are the session's, and so is the engine.
+        await opened.session.positions.set([{ id: "a", x: 9, y: 9, z: 9 }]);
+        assert.notDeepEqual(layoutEngineInForce(opened), older);
+    });
+
+    it("reports a seeded rerun under another algorithms version, and nothing for an unseeded one", async () => {
+        const made = await withRuns();
+        await made.session.runs.start("louvain", undefined, { as: "communities", style: false, seed: 1873 });
+        const section = await save(made.session);
+        const runs = runsOf(section);
+        assert.strictEqual(runs.communities.seed, 1873);
+        for (const id of ["communities", "links"]) {
+            ((runs[id].engine as JsonObject).packages as JsonObject)["@graphty/algorithms"] = "0.0.1";
+        }
+
+        const opened = await counted();
+        const view = {
+            runs: [
+                {
+                    id: "communities",
+                    algorithm: "louvain",
+                    seed: 1873,
+                    engine: runs.communities.engine,
+                    scope: "graph",
+                },
+                { id: "links", algorithm: "degree", scope: "graph" },
+            ],
+        };
+        const problems = await open(opened, section, { rerun: true, view });
+        await opened.session.runs.start("louvain", undefined, { as: "communities", style: false, seed: 1873 });
+        await opened.session.runs.start("degree", undefined, { as: "links", style: false });
+        const changed = problems.filter((problem) => problem.code === "W_ENGINE_CHANGED").map((each) => each.params);
+        assert.deepEqual(changed, [
+            {
+                run: "communities",
+                key: "@graphty/algorithms",
+                was: "0.0.1",
+                now: (made.session.runs.get("links")?.record.engine.packages ?? {})["@graphty/algorithms"],
+            },
+        ]);
     });
 
     it("keeps a run of an algorithm this reader lacks and writes it back", async () => {

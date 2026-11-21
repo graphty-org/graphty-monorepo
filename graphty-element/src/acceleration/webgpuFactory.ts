@@ -94,6 +94,8 @@ function watchDevice(accelerator: GpuAccelerator): () => void {
 export interface WebGpuPeerRoot {
     /** The largest graph the peer computes exactly. */
     readonly EXACT_MAX_NODES: number;
+    /** The peer's own version; a peer released before it exported one has none. */
+    readonly VERSION?: string;
 }
 
 /** What the factory needs from the peer's `/browser` module. */
@@ -221,14 +223,22 @@ function declineFailure(declined: AcceleratorDeclined): GraphtyError {
  * Wraps the peer's accelerator as the element's, keeping every GPU type on this side.
  * @param accelerator - The peer's accelerator, already checked against its device.
  * @param release - Releases the device; the element calls it through `dispose`.
+ * @param version - The peer's own version, or undefined for a peer that states none.
  * @returns The accelerator the element attaches.
  */
-function toGraphAccelerator(accelerator: GpuAccelerator, release: () => void): GraphAccelerator {
+function toGraphAccelerator(
+    accelerator: GpuAccelerator,
+    release: () => void,
+    version: string | undefined,
+): GraphAccelerator {
     const { ctx } = accelerator;
     const { caps } = ctx;
     const wrapped: GraphAccelerator = {
         name: WEBGPU_ACCELERATOR_NAME,
         backend: "webgpu",
+        // A run records the package that computed it; a version the peer does not state is never
+        // made up.
+        ...(version === undefined ? {} : { package: { name: "@graphty/webgpu-graph-algorithms", version } }),
         device: {
             vendor: caps.vendor,
             architecture: caps.architecture,
@@ -255,7 +265,7 @@ function toGraphAccelerator(accelerator: GpuAccelerator, release: () => void): G
  * `E_NO_WEBGPU`, `E_NO_ADAPTER`, `E_SOFTWARE_ONLY`, `E_DEVICE_INCORRECT` or `E_TOO_LARGE`.
  */
 export function createWebGpuFactory(root: WebGpuPeerRoot, browser: WebGpuPeerBrowser): AcceleratorFactory {
-    const { EXACT_MAX_NODES } = root;
+    const { EXACT_MAX_NODES, VERSION } = root;
     const { acquireAccelerator: acquire } = browser;
 
     return async (options?: AcceleratorFactoryOptions): Promise<GraphAccelerator | null> => {
@@ -280,10 +290,14 @@ export function createWebGpuFactory(root: WebGpuPeerRoot, browser: WebGpuPeerBro
         }
 
         const unwatch = watchDevice(result.accelerator);
-        return toGraphAccelerator(result.accelerator, () => {
-            unwatch();
-            gpu.dispose();
-        });
+        return toGraphAccelerator(
+            result.accelerator,
+            () => {
+                unwatch();
+                gpu.dispose();
+            },
+            VERSION,
+        );
     };
 }
 

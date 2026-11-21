@@ -786,6 +786,10 @@
                         "type": "integer",
                         "minimum": 0
                     },
+                    "engine": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/engine",
+                        "description": "With a seed, the code the seed was given to (spec 4.5 rule 6)."
+                    },
                     "scope": {
                         "description": "One of graphty-element's Scope forms. Bare selection and visible are never written. An unknown form stops that run's replay and is kept.",
                         "oneOf": [
@@ -1007,13 +1011,14 @@
                 },
                 "dependentRequired": {
                     "namespace": ["as"],
-                    "as": ["namespace"]
+                    "as": ["namespace"],
+                    "seed": ["engine"]
                 }
             }
         },
         "layout": {
             "type": "object",
-            "description": "The layout record in force: the arrangement in id, the engine that drew it only in drawnBy (spec 5 rule 9), and engine graphty-element's EngineVersions, as in results.",
+            "description": "The layout record in force: the arrangement in id, the engine that drew it only in drawnBy (spec 5 rule 9), and engine the code that drew the positions in force (spec 4.5 rule 6).",
             "properties": {
                 "id": {
                     "type": "string",
@@ -1031,30 +1036,8 @@
                     "enum": [2, 3]
                 },
                 "engine": {
-                    "type": "object",
-                    "description": "graphty-element's EngineVersions.",
-                    "required": ["element", "algorithms", "layout"],
-                    "properties": {
-                        "element": {
-                            "type": "string",
-                            "minLength": 1
-                        },
-                        "algorithms": {
-                            "type": "string",
-                            "minLength": 1
-                        },
-                        "layout": {
-                            "type": "string",
-                            "minLength": 1
-                        },
-                        "plugins": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string",
-                                "minLength": 1
-                            }
-                        }
-                    }
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/engine",
+                    "description": "The engine that drew the positions in force (spec 4.5 rule 6)."
                 }
             },
             "required": ["id", "dimension", "engine"],

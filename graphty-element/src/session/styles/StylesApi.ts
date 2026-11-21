@@ -126,11 +126,11 @@ import { resultPath, type RunRef } from "../results/types";
 import {
     type Caveats,
     deriveRunId,
-    ENGINE_VERSIONS,
     type EngineVersions,
     ManagedRun,
     type ResolvedScope,
     type Run,
+    RUN_ENGINE,
     type RunBody,
     type RunDefinition,
     type RunOptions,
@@ -2145,7 +2145,7 @@ function layerIn(state: ProjectState, id: LayerId): Layer | undefined {
  *     malformed, which is a bug in the element rather than in the call.
  */
 export function createStylesApi(sources: StylesSources): SessionStylesApi {
-    const engine = sources.engine ?? ENGINE_VERSIONS;
+    const engine = sources.engine ?? RUN_ENGINE;
     const scales = sources.scales ?? createScaleRegistry();
     const dispatcher = sources.dispatcher ?? new Dispatcher({ definitions: STYLE_DEFINITIONS });
 

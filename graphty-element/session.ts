@@ -439,6 +439,7 @@ export type {
     BatchStepFailure,
     CaveatCode,
     Caveats,
+    ComputeBackend,
     EngineVersions,
     PartialCode,
     Precision,

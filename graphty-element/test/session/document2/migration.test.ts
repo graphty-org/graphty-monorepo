@@ -173,7 +173,10 @@ describe("a version 1 project file, migrated", () => {
         const v2 = migrateDocument1(v1, []);
         const { view } = v2?.sections as Record<string, JsonObject>;
         assert.deepStrictEqual(invalid(view), []);
-        const { engine: _versions, ...layout } = view.layout as JsonObject;
+        const { engine, ...layout } = view.layout as JsonObject;
+        // Only the release that saved the file is known: no other package, no accelerator.
+        const { version } = v1.generator as { version: string };
+        assert.deepStrictEqual(engine, { packages: { "@graphty/graphty-element": version } });
         assert.deepStrictEqual(layout, {
             id: "force",
             options: { seed: 3 },

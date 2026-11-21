@@ -166,6 +166,8 @@ const KNOWN_CHANNEL_GAPS: readonly string[] = [
     "edge.labelShiftY",
     "edge.labelShiftOf",
     "edge.labelGapOf",
+    // Restored for alignment (E672): the same missing By data as node.labelBox above.
+    "edge.labelBox",
     "edge.labels",
     "edge.xlabelLocation",
     "edge.xlabelOffsetX",
@@ -268,6 +270,8 @@ const KNOWN_LABEL_FIELD_GAPS: readonly string[] = [
     "edge.labelStyle.shiftY",
     "edge.labelStyle.shiftOf",
     "edge.labelStyle.gapOf",
+    // Drawn on edges since E672: the same missing By data as node.labelStyle.box above.
+    "edge.labelStyle.box",
     "edge.labelStyle.outline",
     "edge.labelStyle.outlineWidth",
     "edge.labelStyle.outlineOpacity",

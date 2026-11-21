@@ -310,7 +310,13 @@ export const LABEL_OPTION_NAMES: Readonly<Partial<Record<LabelField, Readonly<Re
     // "Ink", not "Glyphs": the Label row's Glyph kind is a different thing (E275).
     lineBox: { font: { name: "Font" }, size: { name: "Size" }, glyphs: { name: "Ink" } },
     runAlign: { baseline: { name: "Baseline" }, hanging: { name: "Hanging" }, middle: { name: "Middle" } },
-    box: { words: { name: "Words" }, "words-at-side": { name: "Beside" }, "target-width": { name: "Target" } },
+    // Four segments fit the line only with short names: "Side" for Beside, "Band" for the words moved in the band.
+    box: {
+        words: { name: "Words" },
+        "words-at-side": { name: "Side" },
+        "target-width": { name: "Target" },
+        "words-in-target": { name: "Band" },
+    },
     shiftOf: { box: { name: "Box" }, words: { name: "Words" } },
     gapOf: { box: { name: "Box" }, words: { name: "Words" } },
     declutter: { degree: { name: "Degree" }, size: { name: "Size" } },

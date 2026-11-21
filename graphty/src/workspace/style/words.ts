@@ -764,6 +764,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelShiftY": "Label shift y",
     "edge.labelShiftOf": "Label shift of",
     "edge.labelGapOf": "Label gap of",
+    "edge.labelBox": "Label box",
     "node.groupPadding": "Group padding",
     "node.groupPaddingRatio": "Group padding ratio",
     "node.groupPaddingOf": "Group padding of",

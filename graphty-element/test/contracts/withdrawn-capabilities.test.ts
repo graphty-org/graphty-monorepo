@@ -23,7 +23,6 @@ import { assert, describe, it } from "vitest";
 import { WITHDRAWN_CAPABILITIES } from "../../src/catalog/unreachable";
 import { EdgeStyle } from "../../src/config/EdgeStyle";
 import { NodeStyle } from "../../src/config/NodeStyle";
-import { isChannel } from "../../src/session/styles/channels";
 
 /**
  * How to prove one withdrawn subject is really gone, keyed by the subject as it was published.
@@ -46,11 +45,6 @@ const PROBES: Readonly<Record<string, () => string | null>> = {
 
         return parsed.success ? "EdgeStyle accepts `enabled` again, and nothing reads it." : null;
     },
-    "edge.labelBox": () =>
-        isChannel("edge.labelBox")
-            ? "`edge.labelBox` is a channel again. An edge text has no target box to size against, so " +
-              "every value draws the same picture."
-            : null,
 };
 
 describe("the capabilities 2.0 withdrew", () => {

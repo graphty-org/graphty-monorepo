@@ -58,6 +58,13 @@ const KINDS: readonly AlignKind[] = [
         set: { "edge.arrowHead": "normal", "edge.arrowHeadText": "ab" },
     },
     {
+        name: "edge Start caption",
+        side: "edge",
+        thing: "endCaption",
+        style: "edge.arrowTailTextStyle",
+        set: { "edge.arrowTail": "normal", "edge.arrowTailText": "ab" },
+    },
+    {
         name: "edge External label",
         side: "edge",
         thing: "xlabel",
@@ -135,7 +142,7 @@ describe("Style panel v2's Align line", () => {
                 await waitFor(() => {
                     const style = styleOf(session, layer, kind.style);
                     assert.equal(style.textAlign, option.toLowerCase(), `${option} is written`);
-                    assert.equal(style.box, "target-width", "with the box alignment needs");
+                    assert.equal(style.box, "words-in-target", "with the box alignment needs");
                 });
                 await userEvent.keyboard("{Escape}");
                 await waitFor(() => {

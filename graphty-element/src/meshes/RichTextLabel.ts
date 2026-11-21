@@ -526,8 +526,8 @@ export class RichTextLabel {
     private borderReach = 0;
     /** The width in canvas pixels a `box` of `"target-width"` holds the label's panel to, at the least. */
     private spanWidth = 0;
-    /** How wide, in world units, a `"target-width"` box is at a point target (an edge's text: its line's length). */
-    private spanWorld: number | undefined;
+    /** How wide a point target's band is, in the label's line heights (an edge's text: `EDGE_TEXT_BAND_LINES`). */
+    private spanLines: number | undefined;
     /** The room around the panel, on every side, its drop shadow and the outline past its padding are drawn in. */
     private shadowMargin = 0;
     private pointerInfo: PointerInfo | null = null;
@@ -1404,7 +1404,7 @@ export class RichTextLabel {
      * on a plane of that width. The letters keep their size.
      * ponytail: a new texture each time the target's width changes; a group's box only tells its label when it has
      * changed by a step (`Node.drawAsGroup`), so paint the band with a nine-slice if one ever follows every frame.
-     * @param target - What the label is attached to; a point has no width to reach across.
+     * @param target - What the label is attached to; a point's band is the fixed one {@link spanAcross} names.
      * @param bounds - The target's bounds, in its own frame.
      * @param bounds.min - Their lower corner.
      * @param bounds.max - Their upper corner.
@@ -1412,12 +1412,7 @@ export class RichTextLabel {
     private spanTarget(target: RichTextLabelOptions["attachTo"], bounds: { min: Vector3; max: Vector3 }): void {
         const { mesh } = this;
         const planeHeight = this.lineHeightInWorld() * this.heightInLines;
-        let across: number | undefined;
-        if (target instanceof AbstractMesh) {
-            across = (bounds.max.x - bounds.min.x) * (target.scaling.x || 1);
-        } else if (target instanceof Vector3) {
-            across = this.spanWorld;
-        }
+        const across = this.bandAcross(target, bounds);
         if (this.options.box !== "target-width" || across === undefined || mesh === null || planeHeight <= 0) {
             return;
         }
@@ -1433,6 +1428,48 @@ export class RichTextLabel {
         this.replaceTexture();
         const planeWidth = (this.actualDimensions.width / this.actualDimensions.height) * planeHeight;
         CreatePlaneVertexData({ width: planeWidth, height: planeHeight }).applyToMesh(mesh);
+    }
+
+    /**
+     * How wide the band a label's box is measured against is, in world units: a mesh target's width, or at a point
+     * target the band {@link spanAcross} names in line heights (an edge's text). Fixed for a point, so a moving edge
+     * never redraws its texts for it.
+     * @param target - What the label is attached to.
+     * @param bounds - The target's bounds, in its own frame.
+     * @param bounds.min - Their lower corner.
+     * @param bounds.max - Their upper corner.
+     * @returns The width, or undefined when the target has none.
+     */
+    private bandAcross(
+        target: RichTextLabelOptions["attachTo"],
+        bounds: { min: Vector3; max: Vector3 },
+    ): number | undefined {
+        if (target instanceof AbstractMesh) {
+            return (bounds.max.x - bounds.min.x) * (target.scaling.x || 1);
+        }
+        if (target instanceof Vector3 && this.spanLines !== undefined) {
+            return this.spanLines * this.lineHeightInWorld();
+        }
+        return undefined;
+    }
+
+    /**
+     * How far a `"words-in-target"` box moves its words, right on screen: half of how much narrower they are than the
+     * band, toward the side `textAlign` names; nothing centered, or with no band wider than them.
+     * @param across - The band's width, in world units.
+     * @param labelWidth - The label's width, in world units.
+     * @returns The move.
+     */
+    private alignInBand(across: number | undefined, labelWidth: number): number {
+        const { box, textAlign } = this.options;
+        if (box !== "words-in-target" || across === undefined || across <= labelWidth) {
+            return 0;
+        }
+        const slack = (across - labelWidth) / 2;
+        if (textAlign === "left") {
+            return -slack;
+        }
+        return textAlign === "right" ? slack : 0;
     }
 
     /**
@@ -2294,12 +2331,13 @@ export class RichTextLabel {
      * left middle and turned 33.5 degrees hangs 7 px below its node's middle).
      * @param labelWidth - The label's width, in world units.
      * @param labelHeight - The label's height, in world units.
+     * @param aligned - How far a `"words-in-target"` box moves its words along the label's own axis, in world units.
      * @returns The move, right and down.
      */
-    private offsetAndShift(labelWidth: number, labelHeight: number): { x: number; y: number } {
+    private offsetAndShift(labelWidth: number, labelHeight: number, aligned = 0): { x: number; y: number } {
         const { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 } = this.options;
         const turn = ((this.options.rotation ?? 0) * Math.PI) / 180;
-        let [sx0, sy0] = [shiftX * labelWidth, shiftY * labelHeight];
+        let [sx0, sy0] = [shiftX * labelWidth + aligned, shiftY * labelHeight];
         if (this.options.shiftOf === "words" && (shiftX !== 0 || shiftY !== 0)) {
             // the words' own box is what moves: its middle off the plane's, and its size, not the margins round it
             const w = this.textBounds;
@@ -2474,7 +2512,8 @@ export class RichTextLabel {
             this.placementBounds = { min: bounds.min, max: bounds.max, z: newPos.z };
         }
 
-        const move = this.offsetAndShift(labelWidth, labelHeight);
+        const aligned = this.alignInBand(this.bandAcross(target, bounds), labelWidth);
+        const move = this.offsetAndShift(labelWidth, labelHeight, aligned);
         const moved = move.x !== 0 || move.y !== 0;
         if (moved) {
             // beside its target the label is in the target's own frame, whose stretch its gaps undo
@@ -2754,18 +2793,13 @@ export class RichTextLabel {
     }
 
     /**
-     * Attaches the label to a target mesh or position
-     * @param target - The mesh or position to attach to
-     * @param position - The attachment position relative to the target
-     * @param offset - Distance offset from the target
+     * Say how wide the band a `"target-width"` or `"words-in-target"` box is measured against is when the label hangs
+     * from a point, in its own line heights: an edge's texts take `EDGE_TEXT_BAND_LINES`. Read on the next
+     * {@link attachTo}; undefined keeps the box round the words.
+     * @param lines - The width in line heights, or undefined.
      */
-    /**
-     * Say how wide a `"target-width"` box is when the label hangs from a point, in world units: an edge's text takes
-     * its line's length. Read on the next {@link attachTo}; undefined keeps the box round the words.
-     * @param width - The width, or undefined.
-     */
-    public spanAcross(width: number | undefined): void {
-        this.spanWorld = width;
+    public spanAcross(lines: number | undefined): void {
+        this.spanLines = lines;
     }
 
     /**

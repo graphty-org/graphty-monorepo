@@ -283,6 +283,37 @@ describe("Style panel v2's collapsed kinds", () => {
         });
     });
 
+    for (const shape of [undefined, "hexagon"] as const) {
+        it(`Plate: Switch to Behind on an Over plate ${shape === undefined ? "with no shape starts a card" : "keeps its shape"}`, async () => {
+            const { session, nodes } = await openGraph();
+            // An Over plate the layer already holds, as a file writes one: no Behind values held from an earlier switch.
+            await session.styles.update(nodes, {
+                set: {
+                    ...session.styles.get(nodes)?.set,
+                    "node.overlayColor": "#000000",
+                    "node.overlayOpacity": 0.3,
+                    ...(shape === undefined ? {} : { "node.overlayShape": shape }),
+                },
+            });
+            await session.styles.settled();
+            const tab = await openStyle("Key people");
+            await showKind("node");
+            const section = sectionOf(tab, "node-effects");
+            const [row] = await waitFor(() => {
+                const rows = rowsOf(section, "plate");
+                assert.lengthOf(rows, 1);
+                return rows;
+            });
+            await userEvent.click(within(row).getByRole("button", { name: /^Switch .* to/ }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Behind" }));
+            await waitFor(() => {
+                assert.isUndefined(written(session, nodes, "node.overlayColor"));
+                assert.equal(written(session, nodes, "node.underlayShape"), shape ?? "round-rectangle");
+                assert.equal(written(session, nodes, "node.underlayOpacity"), 1, "opaque, as '+' starts it");
+            });
+        });
+    }
+
     it("Arrow: '+' gives a Target arrow, '+' again a Source arrow, each its own row", async () => {
         const { session, edges } = await openGraph();
         const tab = await openStyle("Links");

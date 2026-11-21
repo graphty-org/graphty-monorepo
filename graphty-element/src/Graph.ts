@@ -850,8 +850,11 @@ export class Graph implements GraphContext {
         this.eventManager.emit(loaded ? "skybox-loaded" : "skybox-failed", { graph: this, url });
     };
     #autoFrame = true;
-    /** The edge whose tooltip is on screen, because the pointer is over its line: see {@link hoverEdgeTooltip}. */
-    #tooltipEdge: EdgeId | undefined;
+    /**
+     * The built edge whose tooltip is on screen, because the pointer is over its line: see {@link hoverEdgeTooltip}.
+     * The object, not its id, so an edge rebuilt under the same id draws its tooltip again.
+     */
+    #tooltipEdge: Edge | undefined;
     /** Whether the wheel zooms toward the pointer; see {@link setZoomToPointer}. */
     #zoomToPointer = false;
     /** How the 3D nodes are lit; see {@link setLighting}. */
@@ -5840,7 +5843,14 @@ export class Graph implements GraphContext {
             const move = ++edgeHoverMoves;
             const canvas = this.scene.getEngine().getInputElement();
             const { buttons } = pointerInfo.event as { buttons?: number };
-            if (!canvas || (buttons ?? 0) !== 0 || this.scene.metadata?.xrHelper?.baseExperience?.state === 2) {
+            if (!canvas || this.scene.metadata?.xrHelper?.baseExperience?.state === 2) {
+                return;
+            }
+
+            // A press (a drag starting over a line) takes the tooltip down, and reads no line while it lasts.
+            if ((buttons ?? 0) !== 0) {
+                edgeHoverHeard = move;
+                this.hoverEdgeTooltip(undefined);
                 return;
             }
 
@@ -7314,41 +7324,36 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The drawn edge at a point.
-     * @param x - X in CSS pixels from the canvas's left edge.
-     * @param y - Y in CSS pixels from the canvas's top edge.
-     * @returns The edge's id, or `undefined` when no drawn edge is that close.
+     * Show the tooltip of the edge whose line the pointer is over, and take down the one it was over before.
+     * @param edgeId - The edge under the pointer, or undefined for none.
      */
+    private hoverEdgeTooltip(edgeId: EdgeId | undefined): void {
+        const edge = edgeId === undefined ? undefined : dataManagerInternals.builtEdges(this.dataManager).get(edgeId);
+        if (edge === this.#tooltipEdge) {
+            return;
+        }
+
+        this.#tooltipEdge?.hideTooltip();
+        this.#tooltipEdge = edge;
+        edge?.showTooltip();
+    }
+
     /**
      * The `Edge`s built so far, building none: the element's own walks (a pick, a hover, a
      * restyle, a dimension switch) visit these, since an edge stored with no `Edge` has no line
      * object of its own to pick, restyle or rebuild. Every edge while all are built.
      * @returns They.
      */
-    /**
-     * Show the tooltip of the edge whose line the pointer is over, and take down the one it was over before.
-     * @param edgeId - The edge under the pointer, or undefined for none.
-     */
-    private hoverEdgeTooltip(edgeId: EdgeId | undefined): void {
-        if (edgeId === this.#tooltipEdge) {
-            return;
-        }
-
-        const built = dataManagerInternals.builtEdges(this.dataManager);
-        if (this.#tooltipEdge !== undefined) {
-            built.get(this.#tooltipEdge)?.hideTooltip();
-        }
-
-        this.#tooltipEdge = edgeId;
-        if (edgeId !== undefined) {
-            built.get(edgeId)?.showTooltip();
-        }
-    }
-
     private builtEdges(): MapIterator<Edge> {
         return dataManagerInternals.builtEdges(this.dataManager).values();
     }
 
+    /**
+     * The drawn edge at a point.
+     * @param x - X in CSS pixels from the canvas's left edge.
+     * @param y - Y in CSS pixels from the canvas's top edge.
+     * @returns The edge's id, or `undefined` when no drawn edge is that close.
+     */
     private pickEdgeId(x: number, y: number): EdgeId | undefined {
         return pickEdgeId(this.scene, this.builtEdges(), x, y, (point) => this.worldToScreen(point));
     }

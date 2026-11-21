@@ -1485,6 +1485,7 @@ export const EdgeStyle: z.ZodObject<{
                 words: "words";
                 "words-at-side": "words-at-side";
                 "target-width": "target-width";
+                "words-in-target": "words-in-target";
             }>>;
             sizeMode: z.ZodOptional<z.ZodEnum<{
                 world: "world";
@@ -1778,6 +1779,7 @@ export const EdgeStyle: z.ZodObject<{
                 words: "words";
                 "words-at-side": "words-at-side";
                 "target-width": "target-width";
+                "words-in-target": "words-in-target";
             }>>;
             sizeMode: z.ZodOptional<z.ZodEnum<{
                 world: "world";
@@ -2222,6 +2224,7 @@ export const EdgeStyle: z.ZodObject<{
             words: "words";
             "words-at-side": "words-at-side";
             "target-width": "target-width";
+            "words-in-target": "words-in-target";
         }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
@@ -2461,6 +2464,7 @@ export const EdgeStyle: z.ZodObject<{
             words: "words";
             "words-at-side": "words-at-side";
             "target-width": "target-width";
+            "words-in-target": "words-in-target";
         }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
@@ -2700,6 +2704,7 @@ export const EdgeStyle: z.ZodObject<{
             words: "words";
             "words-at-side": "words-at-side";
             "target-width": "target-width";
+            "words-in-target": "words-in-target";
         }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
@@ -6822,6 +6827,7 @@ export const NodeStyle: z.ZodObject<{
             words: "words";
             "words-at-side": "words-at-side";
             "target-width": "target-width";
+            "words-in-target": "words-in-target";
         }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
@@ -7061,6 +7067,7 @@ export const NodeStyle: z.ZodObject<{
             words: "words";
             "words-at-side": "words-at-side";
             "target-width": "target-width";
+            "words-in-target": "words-in-target";
         }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
@@ -7300,6 +7307,7 @@ export const NodeStyle: z.ZodObject<{
             words: "words";
             "words-at-side": "words-at-side";
             "target-width": "target-width";
+            "words-in-target": "words-in-target";
         }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
@@ -8191,6 +8199,7 @@ export const RichTextStyle: z.ZodObject<{
         words: "words";
         "words-at-side": "words-at-side";
         "target-width": "target-width";
+        "words-in-target": "words-in-target";
     }>>;
     sizeMode: z.ZodOptional<z.ZodEnum<{
         world: "world";

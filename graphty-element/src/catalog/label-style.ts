@@ -330,9 +330,10 @@ export interface LabelStyle {
      */
     minNodeScreenSize?: number;
     /**
-     * How the lines are lined up inside the label's box: against each other, and a one-line label against the box's
-     * sides when the box is wider than its words (`box: "target-width"`, as wide as its node, or as an edge's line is
-     * long). Unset, `"center"`.
+     * How the lines are lined up against each other inside the label's box, and where the box's words sit in the band
+     * of its target's width when `box` gives one: `"target-width"` lines them up inside a box as wide as the band,
+     * `"words-in-target"` moves the box round its words to the band's side. Either way a one-line label moves. Unset,
+     * `"center"`.
      */
     textAlign?: LabelTextAlign;
 
@@ -415,12 +416,14 @@ export interface LabelStyle {
      * its words, and an `inside-*` label too large for its target is centered on that axis. `"words-at-side"`: the box
      * is round its words, and an `inside-*` label stays against the side it names however large it is, its far end
      * reaching past the target. `"target-width"`: as `"words-at-side"`, and the box is at least as wide as its target,
-     * a band across it, with `textAlign` lining the words up inside it. An edge's text (its label, external label,
-     * tooltip or end caption) takes its line as its target: a `"target-width"` box is at least as long as the line,
-     * end to end, laid across the screen as the text is. A label at a bare point keeps the box round its words. Unset,
-     * `"words"`.
+     * a band across it, with `textAlign` lining the words up inside it. `"words-in-target"`: the box is round its
+     * words, as `"words"`, and `textAlign` moves it inside the band: Left puts its left side on the band's, Right its
+     * right side on the band's, Center leaves it in the middle; its background and border stay round the words. The
+     * band is as wide as the target: a node's width, or for an edge's text (its label, external label, tooltip or end
+     * caption) six of the text's own line heights, centered where the text would be, whatever the line's length. A
+     * label at a bare point keeps the box round its words. Unset, `"words"`.
      */
-    box?: "words" | "words-at-side" | "target-width";
+    box?: "words" | "words-at-side" | "target-width" | "words-in-target";
     /**
      * Whether the panel is kept inside the canvas. One that would cross an edge first moves to
      * the other side of its node (right to left, top to bottom), then is moved in if it still
@@ -825,10 +828,10 @@ export interface LabelStyleFieldDescriptor {
     readonly start?: string | number | boolean;
     /**
      * Other fields of the same label style a style editor writes beside this one, each with its value, so what it
-     * sets visibly draws: `textAlign` lines words up inside the label's box, and a one-line label's box is its words
-     * unless `box` is `"target-width"` (as wide as its node, or as an edge's line is long), so an editor setting the
-     * alignment writes that box too. Write a partner only where the style does not set it. Absent on a field that
-     * draws on its own.
+     * sets visibly draws: `textAlign` lines words up inside the label's box, and a one-line label's box is its words,
+     * so the alignment moves it only in the band of its target's width that `box: "words-in-target"` gives; an editor
+     * setting the alignment writes that box too. Write a partner only where the style does not set it. Absent on a
+     * field that draws on its own.
      * @since 3.63.0
      */
     readonly needs?: readonly LabelFieldNeed[];
@@ -887,8 +890,9 @@ const FIELD_START: Partial<Record<keyof LabelStyle, number>> = {};
 
 /** What each field needs written beside it to draw: see {@link LabelStyleFieldDescriptor.needs}. */
 const FIELD_NEEDS: Partial<Record<keyof LabelStyle, readonly LabelFieldNeed[]>> = {
-    // A one-line label's box is its words: only a box wider than them gives the alignment room to move it.
-    textAlign: [{ field: "box", value: "target-width" }],
+    // A one-line label's box is its words: only a band wider than them gives the alignment room to move it, and
+    // "words-in-target" gives one while its background stays round the words.
+    textAlign: [{ field: "box", value: "words-in-target" }],
 };
 
 const isSet = (field: keyof LabelStyle): LabelFieldCondition => ({ field, set: true });
@@ -1032,7 +1036,7 @@ const FIELD_ROWS = {
     shiftY: num("Shift Y"),
     shiftOf: choice("Shift Of", BOX_OR_WORDS),
     gapOf: choice("Gap Of", BOX_OR_WORDS),
-    box: choice("Box", ["words", "words-at-side", "target-width"]),
+    box: choice("Box", ["words", "words-at-side", "target-width", "words-in-target"]),
     keepInView: flag("Keep In View"),
     marginTop: num("Margin Top"),
     marginBottom: num("Margin Bottom"),

@@ -104,6 +104,13 @@ const EDGE_LABEL_LOCATION: AttachPosition = "center";
 const EDGE_LABEL_OFFSET = 0;
 
 /**
+ * How wide the band an edge text's `"target-width"` or `"words-in-target"` box is measured against is, in the text's
+ * own line heights (`LabelStyle.box`): an edge has no box of its own, and its line's length would carry an end caption
+ * half a line from its end and grow a small text's texture past what a texture can hold.
+ */
+const EDGE_TEXT_BAND_LINES = 6;
+
+/**
  * Where an edge's external label (`xlabel`) hangs from the line's middle when its block does not say and no layout
  * placed it: up and left, its lower right corner on the middle, the first place Graphviz's lib/label/xlabels.c tries.
  */
@@ -1750,8 +1757,8 @@ export class Edge {
             edgeDrawChanges.count++;
         }
 
-        // A text's "target-width" box is as long as the line, end to end (`LabelStyle.box`).
-        this.spanTexts(Vector3.Distance(src, dst));
+        // A text's "target-width" or "words-in-target" box is measured against a fixed band (`LabelStyle.box`).
+        this.spanTexts();
         // the layout's place (Graphviz's `lp` and `xlp`) is the label's center
         const laidLabel = lnk.labelAt !== undefined && !this.lifted;
         this.label?.attachTo(
@@ -3581,7 +3588,7 @@ export class Edge {
         this._tooltipOffset = placement.attachOffset;
         // Drawn on a pointer's arrival, when the graph is already at rest: placed now, and its animation starts now.
         if (this._lastSrcPos !== null && this._lastDstPos !== null) {
-            this.tooltip.spanAcross(Vector3.Distance(this._lastSrcPos, this._lastDstPos));
+            this.tooltip.spanAcross(EDGE_TEXT_BAND_LINES);
             this.tooltip.attachTo(
                 this.labelPoint(this._lastSrcPos, this._lastDstPos, true, undefined),
                 placement.attachPosition,
@@ -3592,10 +3599,11 @@ export class Edge {
     }
 
     /**
-     * Tell every text of this edge how long its line is, the width a `"target-width"` box spans (`LabelStyle.box`).
-     * @param length - The line's length, end to end, in world units.
+     * Tell every text of this edge the band a `"target-width"` or `"words-in-target"` box is measured against
+     * (`LabelStyle.box`): {@link EDGE_TEXT_BAND_LINES} of its own line heights, whatever the line's length, so a
+     * caption stays near its end, the texture stays small and a moving edge never redraws its texts for it.
      */
-    private spanTexts(length: number): void {
+    private spanTexts(): void {
         for (const text of [
             this.label,
             this.xlabelLabel,
@@ -3604,7 +3612,7 @@ export class Edge {
             this.arrowTailText,
             ...this.extraLabels.values(),
         ]) {
-            text?.spanAcross(length);
+            text?.spanAcross(EDGE_TEXT_BAND_LINES);
         }
     }
 

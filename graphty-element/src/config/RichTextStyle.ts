@@ -194,7 +194,7 @@ export const RichTextStyle = z.strictObject({
     // What a label outside its target is placed against it by: the whole box, or the words' own font box.
     gapOf: z.enum(["box", "words"]).optional(),
     // What its box is sized to, and whether a box larger than its target stays against the side it names.
-    box: z.enum(["words", "words-at-side", "target-width"]).optional(),
+    box: z.enum(["words", "words-at-side", "target-width", "words-in-target"]).optional(),
 
     // Screen fit (labelScreenFit.ts). No defaults, so a label that names neither is painted
     // exactly as before.

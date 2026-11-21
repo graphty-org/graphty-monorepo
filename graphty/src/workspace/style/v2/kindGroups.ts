@@ -137,6 +137,21 @@ function elementStarts(channel: Channel): Readonly<Record<string, unknown>> {
 }
 
 /**
+ * What a switch to a kind headed by a channel writes: graphty-element's `needs` over what moved, and its `startsWith`
+ * only where nothing moved into that channel, so a switch keeps a plate's own shape and gives one that has none the
+ * shape "+" starts it with.
+ * @param channel - the kind's head.
+ * @returns the switch writes.
+ */
+function startsUnlessMoved(channel: Channel): SwitchWrites {
+    return (moved) => {
+        const startsWith = channelDescriptor(channel)?.startsWith ?? [];
+        const fill = startsWith.filter((each) => moved[each.channel] === undefined);
+        return { ...startsOf(channel), ...Object.fromEntries(fill.map((each) => [each.channel, each.value])) };
+    };
+}
+
+/**
  * An Over line's start (ia-design 2): translucent at 30%, as wide as graphty-element starts an Under line beside the
  * row's line, so it reaches past the line's sides on any width.
  * @param lineWidth - the row's line width, or undefined for graphty-element's default line.
@@ -220,7 +235,15 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         thing: "plate",
         items: ["underlay", "overlay"],
         members: [
-            prefixKind("behind", "Behind", "node.underlayColor", { color: "node.underlayColor" }, "node.underlay"),
+            // A switch carries the shape and corners; one with no shape starts as the card "+" Plate starts as.
+            prefixKind(
+                "behind",
+                "Behind",
+                "node.underlayColor",
+                { color: "node.underlayColor" },
+                "node.underlay",
+                startsUnlessMoved("node.underlayColor"),
+            ),
             // A switch carries the shape and corners; the opacity and padding start as graphty-element starts a
             // plate over the node (translucent, a tenth of the node past it; ia-design 2).
             prefixKind(

@@ -289,8 +289,11 @@ type LabelBackgroundShapeValue = "rectangle" | "circle";
  */
 type LabelShiftOfValue = "box" | "words";
 
-/** What a label's box is sized to (`labelBox`): its words, its words held at a side, or its target's width. */
-type LabelBoxValue = "words" | "words-at-side" | "target-width";
+/**
+ * What a label's box is sized to (`labelBox`): its words, its words held at a side, its target's width, or its words
+ * moved inside its target's width by the alignment.
+ */
+type LabelBoxValue = "words" | "words-at-side" | "target-width" | "words-in-target";
 
 /** How a node's size is read: as a multiplier of the shape's own geometry, or as its largest extent. */
 type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeMode"]>;
@@ -423,6 +426,7 @@ export interface ChannelValues {
     "node.labelShiftOf": LabelShiftOfValue;
     "node.labelGapOf": LabelShiftOfValue;
     "node.labelBox": LabelBoxValue;
+    "edge.labelBox": LabelBoxValue;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
@@ -1662,13 +1666,11 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 }
 
 /**
- * The label channels that write one field of a label style. An edge text has no target box to size against, so
- * there is no `edge.labelBox`.
+ * The label channels that write one field of a label style. An edge text's box is measured against a fixed band
+ * (`LabelStyle.box`), so `edge.labelBox` is one too.
  */
-type LabelFieldChannel<Target extends "node" | "edge"> = Exclude<
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`,
-    "edge.labelBox"
->;
+type LabelFieldChannel<Target extends "node" | "edge"> =
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -2076,20 +2078,16 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 'the margins round its words, or "words", its words\' own font box, as Cytoscape.js puts a label ' +
                 'outside its node. Unset, "box".',
         }),
-        // an edge text has no target box to size against, so only a node label has a box channel
-        ...(target === "edge"
-            ? []
-            : [
-                  row("Box", "Box", {
-                      accepts: "enum",
-                      values: LABEL_BOX_VALUES,
-                      caveat:
-                          'What the label\'s box is sized to: "words", round its words, an inside label too large for its ' +
-                          'node being centered; "words-at-side", round its words, an inside label staying against the side ' +
-                          'it names however large it is; "target-width", as "words-at-side" and at least as wide as its ' +
-                          'node, a band across it. Unset, "words".',
-                  }),
-              ]),
+        row("Box", "Box", {
+            accepts: "enum",
+            values: LABEL_BOX_VALUES,
+            caveat:
+                'What the label\'s box is sized to: "words", round its words, an inside label too large for its ' +
+                'node being centered; "words-at-side", round its words, an inside label staying against the side ' +
+                'it names however large it is; "target-width", as "words-at-side" and at least as wide as its ' +
+                'target, a band across it; "words-in-target", round its words, moved by Text Align inside that ' +
+                "band. The band is a node's width, or six of an edge text's line heights. Unset, \"words\".",
+        }),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
@@ -2131,7 +2129,7 @@ const LABEL_BACKGROUND_SHAPE_VALUES: readonly LabelBackgroundShapeValue[] = ["re
 const LABEL_SHIFT_OF_VALUES: readonly LabelShiftOfValue[] = ["box", "words"];
 
 /** Every box the `labelBox` channels take. */
-const LABEL_BOX_VALUES: readonly LabelBoxValue[] = ["words", "words-at-side", "target-width"];
+const LABEL_BOX_VALUES: readonly LabelBoxValue[] = ["words", "words-at-side", "target-width", "words-in-target"];
 
 /**
  * A node label field channel: an edge label belongs to no node, so an
@@ -5805,6 +5803,7 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
             { channel: "node.shadowOffsetY", value: 0.1 },
         ],
     ],
+    // Unset, a plate draws at opacity 0 (nothing) and padding 0 (hidden behind the node it is as large as).
     [
         "node.underlayColor",
         [
@@ -5812,14 +5811,9 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
             { channel: "node.underlayPadding", value: 0.2 },
         ],
     ],
-    [
-        "node.overlayColor",
-        [
-            // Translucent enough to read as a plate laid over the node, never as its fill color.
-            { channel: "node.overlayOpacity", value: 0.3 },
-            { channel: "node.overlayPadding", value: 0.1 },
-        ],
-    ],
+    // Unset, a plate's opacity is 0 and it is not drawn (NodeMesh.createPlate); translucent enough to read as a plate
+    // laid over the node, never as its fill color.
+    ["node.overlayColor", [{ channel: "node.overlayOpacity", value: 0.3 }]],
     ["node.glowStrength", [{ channel: "node.glow", value: DEFAULT_GLOW_COLOR }]],
     [
         "node.chartKind",
@@ -5833,8 +5827,9 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
     ["node.wireframe", [{ channel: "node.meshDetail", value: "low" }]],
     ...labelNeeds("node.label"),
     ...labelNeeds("edge.label"),
-    // A one-line label's box is its words: alignment moves it only in a box as wide as its node.
-    ["node.labelTextAlign", [{ channel: "node.labelBox", value: "target-width" }]],
+    // A one-line label's box is its words: alignment moves it only inside the band of its target's width.
+    ["node.labelTextAlign", [{ channel: "node.labelBox", value: "words-in-target" }]],
+    ["edge.labelTextAlign", [{ channel: "edge.labelBox", value: "words-in-target" }]],
     // Half the width each side of the line, in the line's width units: 2 is a line's width each side.
     ["edge.outlineColor", [{ channel: "edge.outlineWidth", value: 2 }]],
     ["edge.outlineOpacity", [{ channel: "edge.outlineWidth", value: 2 }]],
@@ -5905,6 +5900,7 @@ const ENUM_DEFAULTS: ReadonlyMap<string, string> = new Map<Channel, string>([
         ).map(([field, value]): [Channel, string] => [`${target}.label${field}` as Channel, value]),
     ),
     ["node.labelBox", "words"],
+    ["edge.labelBox", "words"],
     // Unset, an external label sits against its node's top left corner (or up and left of a line's middle).
     ["node.xlabelLocation", "top-left"],
     ["edge.xlabelLocation", "top-left"],
@@ -5938,6 +5934,8 @@ const START: ReadonlyMap<string, ChannelScalar> = new Map<Channel, ChannelScalar
 const STARTS_WITH: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, readonly ChannelNeed[]>([
     // A plate behind the node starts as a card, never as a ring the node's own shape (ia-design 2).
     ["node.underlayColor", [{ channel: "node.underlayShape", value: "round-rectangle" }]],
+    // A plate over the node draws at padding 0, exactly over it; a tenth of the node past it reads as larger.
+    ["node.overlayColor", [{ channel: "node.overlayPadding", value: 0.1 }]],
 ]);
 
 /**

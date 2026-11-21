@@ -1018,6 +1018,7 @@ export type Channel =
     | "edge.labelShiftY"
     | "edge.labelShiftOf"
     | "edge.labelGapOf"
+    | "edge.labelBox"
     | "node.xlabel"
     | "node.xlabelStyle"
     | "node.xlabelLocation"

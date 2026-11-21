@@ -317,7 +317,6 @@
         "Styles/Node Models::AnimationPoses",
         "Styles/Node Models::FailedModelPlaceholder",
         "Styles/Node Models::ModelAndTextureByUrl",
-        "Styles/Node Models::ModelHaloHugsSilhouette",
         "Styles/Node Models::ModelPerCategory",
         "Styles/Node Models::PlainModelTakesNodeColor",
         "Styles/Node Models::ServersAsRacks",
@@ -332,7 +331,6 @@
         "Styles/Node::Color",
         "Styles/Node::Default",
         "Styles/Node::Flat",
-        "Styles/Node::Halo",
         "Styles/Node::Label",
         "Styles/Node::LabelFit",
         "Styles/Node::Opacity",
@@ -427,6 +425,14 @@
             "id": "Layout/GPU::SpringFake",
             "why": "Removed at the owner's request (issue #3414): the spring layout on the fake accelerator was unreliable under capture and had been excluded from the screenshot gate. The fake-accelerator path is still drawn by ForceAtlas2Fake, and spring on the accelerator is still covered by test/browser/simulation-layout-engine.test.ts.",
             "replacedBy": "Layout/GPU::ForceAtlas2Fake"
+        },
+        {
+            "id": "Styles/Node::Halo",
+            "why": "The halo channels (node.halo, node.haloColor, node.haloScale, node.haloOpacity) were removed from graphty-element because the halo is the ring drawn wider (owner, E305, E496): nothing is left for this story to show. A ring round a node is drawn by node.outerBorderColor, node.outerBorderWidth and node.outerBorderOpacity."
+        },
+        {
+            "id": "Styles/Node Models::ModelHaloHugsSilhouette",
+            "why": "The halo channels (node.halo, node.haloColor, node.haloScale, node.haloOpacity) were removed from graphty-element because the halo is the ring drawn wider (owner, E305, E496): nothing is left for this story to show. A ring round a node is drawn by node.outerBorderColor, node.outerBorderWidth and node.outerBorderOpacity."
         }
     ]
 }

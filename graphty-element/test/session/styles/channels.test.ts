@@ -398,6 +398,7 @@ const DECLARED = [
     "edge.labelShiftY",
     "edge.labelShiftOf",
     "edge.labelGapOf",
+    "edge.labelBox",
     "node.shaders",
     "edge.shaders",
     "node.labels",
@@ -445,7 +446,7 @@ describe("the channel set", () => {
 
     it("splits into two hundred and eleven node channels and one hundred and seventy-seven edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 211);
-        assert.strictEqual(channelsFor("edge").length, 177);
+        assert.strictEqual(channelsFor("edge").length, 178);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -1464,10 +1465,10 @@ describe("ChannelDescriptor.needs and start", () => {
             channel: "node.underlayPadding",
             value: 0.2,
         });
-        assert.deepInclude(CHANNEL_DESCRIPTORS["node.overlayColor"].needs ?? [], {
-            channel: "node.overlayPadding",
-            value: 0.1,
-        });
+        // a plate over the node draws at padding 0, so its padding is a start, not a need
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.overlayColor"].startsWith, [
+            { channel: "node.overlayPadding", value: 0.1 },
+        ]);
         for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
             for (const partner of descriptor.startsWith ?? []) {
                 assert.strictEqual(CHANNEL_DESCRIPTORS[partner.channel].target, descriptor.target, descriptor.channel);

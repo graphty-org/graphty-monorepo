@@ -493,16 +493,4 @@ export const WITHDRAWN_CAPABILITIES: readonly WithdrawnCapability[] = [
             "Hide edges through the session's filters. `edge.labelStyle` with `enabled: false` " +
             "takes an edge's words away without touching the line.",
     },
-    {
-        subject: "edge.labelBox",
-        withdrawnIn: "3.62",
-        reason:
-            "It drew nothing on an edge. The channel chose what a label's box is sized to -- its " +
-            "words, or the width of its target -- and an edge text has no target box to size " +
-            "against, so every value drew the same picture.",
-        instead:
-            "Nothing is needed for an edge: its label's box is always sized round its words. " +
-            "`node.labelBox` and the `box` field of a label style (`LabelStyle.box`) are " +
-            "unchanged and still size a node label.",
-    },
 ];

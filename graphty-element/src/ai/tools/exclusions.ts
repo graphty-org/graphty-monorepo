@@ -224,6 +224,14 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         owner: "WAIVER_OWNER_UNASSIGNED",
         expires: "2027-01-11",
     },
+    // The table formats' missing-value texts are a list of strings, a type no option schema offers yet.
+    ...["json", "csv", "xlsx"].map((format): Exclusion => ({
+        option: `formats/${format}/missing`,
+        reason: "unoffered-type",
+        kind: "defect",
+        owner: "WAIVER_OWNER_UNASSIGNED",
+        expires: "2027-01-11",
+    })),
 
     // An annotation is a union of shapes (shape, text, arrow, picture) no tool schema offers yet; the
     // assistant reaches the annotations only through a load that writes a file's own.
@@ -1232,6 +1240,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "loadArrangement",
             "step",
             "stepBatch",
+            "takeFrameHold",
             "updatePositions",
             "onRest",
             "restoring",

@@ -288,10 +288,11 @@ describe.each(RENDERERS)("a curve's draw on %s", (renderer) => {
 
 /**
  * Six horizontal and six vertical long curves (64 pieces each, so four entries apiece) crossing in one plane, the
- * horizontals first.
+ * horizontals first, or added in turn (horizontal, vertical, horizontal, ...).
+ * @param interleaved - Whether the edges are added in turn.
  * @returns The nodes, the edges, and which edges are horizontal.
  */
-function crossing(): Placed & { across: { src: number; dst: number }[] } {
+function crossing(interleaved: boolean): Placed & { across: { src: number; dst: number }[] } {
     const nodes: Placed["nodes"] = [];
     const across: Placed["edges"] = [];
     const down: Placed["edges"] = [];
@@ -306,20 +307,23 @@ function crossing(): Placed & { across: { src: number; dst: number }[] } {
         across.push({ src: i, dst: 100 + i });
         down.push({ src: 200 + i, dst: 300 + i });
     }
-    return { nodes, edges: [...across, ...down], across };
+    const edges = interleaved ? across.flatMap((edge, i) => [edge, down[i]]) : [...across, ...down];
+    return { nodes, edges, across };
 }
 
 /**
  * Load {@link crossing}'s curves, the horizontals red and the verticals blue, and read the picture.
  * @param renderer - The renderer.
  * @param path - The render path.
+ * @param interleaved - Whether the edges are added in turn ({@link crossing}).
  * @returns The picture, and the element still mounted.
  */
 async function crossed(
     renderer: "webgl" | "webgpu",
     path: RenderPath,
+    interleaved: boolean,
 ): Promise<{ element: Graphty; picture: Awaited<ReturnType<typeof readCanvas>> }> {
-    const graph = crossing();
+    const graph = crossing(interleaved);
     const { element } = await loaded(renderer, path, graph, { "edge.color": "#0000ff", "edge.width": 3 });
     const across = graph.across.map(({ src, dst }) => edgeBetween(element.graph, src, dst)?.id);
     await element.session.styles.add({
@@ -334,13 +338,21 @@ async function crossed(
 }
 
 describe.each(RENDERERS)("crossing curves on %s", (renderer) => {
-    it("draw in the objects path's order, so the later curve lies on top where two cross", async () => {
-        const objects = await crossed(renderer, "objects");
-        objects.element.remove();
-        const batched = await crossed(renderer, "batched");
-        assert.deepInclude(batched.element.graph.rowCounts, { pulledEdges: 12, objectEdges: 0 });
-        // a curve's pieces past its first take their draw slots when it is first placed, as the object path's do: a
-        // curve drawn whole in its first piece's place lies under or over the other the wrong way where two cross
-        assert.equal(overBar(objects.picture, batched.picture), 0, "the objects path's picture");
-    });
+    // added in turn, the restyled (red) curves sit between the others in draw order: a restyle that hands their draw
+    // slots back and takes them again moves them in it, where the object path recolors them in place (#9370)
+    it.each([
+        ["horizontals first", false],
+        ["added in turn", true],
+    ])(
+        "draw in the objects path's order, so the later curve lies on top where two cross (%s)",
+        async (_, interleaved) => {
+            const objects = await crossed(renderer, "objects", interleaved);
+            objects.element.remove();
+            const batched = await crossed(renderer, "batched", interleaved);
+            assert.deepInclude(batched.element.graph.rowCounts, { pulledEdges: 12, objectEdges: 0 });
+            // a curve's pieces past its first take their draw slots when it is first placed, as the object path's do: a
+            // curve drawn whole in its first piece's place lies under or over the other the wrong way where two cross
+            assert.equal(overBar(objects.picture, batched.picture), 0, "the objects path's picture");
+        },
+    );
 });

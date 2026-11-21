@@ -45,7 +45,8 @@ export type GraphFormatName =
     | "cx"
     | "obo"
     | "cys"
-    | "sif";
+    | "sif"
+    | "xlsx";
 
 /**
  * A format name: one of the built-in names (with editor autocomplete) or the name of a format you
@@ -79,6 +80,7 @@ export const GRAPH_FORMATS: readonly GraphFormatName[] = Object.freeze([
     "obo",
     "cys",
     "sif",
+    "xlsx",
 ]);
 
 /** Content confidence below this is a weak guess, which loses to a file extension another format claims. */

@@ -41,6 +41,8 @@ export const LAYOUT_DESCRIPTIONS: Readonly<Record<string, string>> = {
     layers: "Puts each group of nodes in its own column, in the order the groups are given.",
     fixed: "Leaves every node exactly where the loaded data placed it.",
     "location-map": "Puts every node at the place its data names, on a flat map or a globe drawn under the graph.",
+    geographic:
+        "Places every node at its latitude and longitude, projected onto a flat map (equirectangular, Web Mercator or Equal Earth), north up, with no map drawn under it.",
     "graphviz-dot": "Puts nodes in ranks so edges point one way, and orders each rank to cross as few edges as it can.",
     "graphviz-neato": "Places nodes so their drawn distances match their graph distances.",
     "graphviz-fdp": "Pulls connected nodes together and pushes the rest apart, with spring forces.",

@@ -2893,7 +2893,9 @@ export interface SessionDataApi {
      *     `"baseUrl"`) when no `baseUrl` is given, `E_UNKNOWN_DATASET` for a name that is not one,
      *     `E_FETCH_FAILED` when the download fails (`recoverable: false` for a client error other
      *     than 408 and 429, `details.status` when the server answered), `E_PARSE_FAILED` when the
-     *     file came back but could not be read, and with the signal's own reason when it is
+     *     file came back but could not be read (`details.issue` `"E_DATASET_CHECKSUM"` when it is
+     *     not the published file), `E_TOO_LARGE` (`details.limit`, `details.of` `"bytes"`) when it
+     *     is larger than graph-samples' download limit, and with the signal's own reason when it is
      *     aborted; nothing is recorded then.
      */
     loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
@@ -4178,9 +4180,11 @@ export interface ImportOptions {
     readonly mode?: "replace" | "merge";
     /**
      * `"recommended"` also chooses a layout for what was loaded, from its shape and its
-     * coordinates, in the same step; `"keep"` (the default) leaves the layout as it is.
+     * coordinates, in the same step; `"placed"` (since 3.40.0) draws it where its data placed it
+     * (the `fixed` layout) when every node arrived with a position, and otherwise leaves the
+     * layout as it is; `"keep"` (the default) leaves the layout as it is.
      */
-    readonly layout?: "recommended" | "keep";
+    readonly layout?: "recommended" | "placed" | "keep";
     /**
      * `"step"` (the default) records the load as one undoable step. `"start"` makes the loaded
      * graph where the history starts, as opening a new project does: the load is never undone or
@@ -6410,8 +6414,10 @@ export interface HoverDrawn {
     /** The node's center, from the top edge. */
     readonly y: number;
     /**
-     * The radius hover picks the node within: the radius it is drawn at, but never under 1.5
-     * device pixels, so a node drawn smaller than a pixel can still be pointed at.
+     * The radius hover picks the node within: the radius it is drawn at, but never under 0.71
+     * device pixels (half a pixel's diagonal), so a node drawn smaller than a pixel can still be
+     * pointed at. Where nothing else is drawn near it, hover also finds such a node a little
+     * farther out, up to 1.5 device pixels from its center.
      */
     readonly radius: number;
 }

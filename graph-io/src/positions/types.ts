@@ -150,6 +150,11 @@ export interface ImporterPositions extends PositionColumnExtra {
     readonly y?: string;
     /** A plain numeric node column holding z (simple form); omit for a 2D file. */
     readonly z?: string;
+    /**
+     * Simple form: the format does not declare `x`, `y` and `z` as coordinates; the importer recognized them by their
+     * names, so their y direction and unit are a guess. `extractPositions()` notes `W_POSITIONS_GUESSED`.
+     */
+    readonly byName?: boolean;
     /** A 3-component node column holding the coordinates (advanced form); defaults to the role-`position` column. */
     readonly column?: string;
     /**

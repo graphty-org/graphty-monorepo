@@ -109,6 +109,10 @@ describe("the weights option", () => {
         const g = cycleGraph({ n: 5 });
         expect(() => withWeights(g, { kind: "uniform", min: 2, max: 1 })).toThrow(RangeError);
         expect(() => withWeights(g, { kind: "integer", min: 1.5, max: 3 })).toThrow(RangeError);
+        expect(() => withWeights(g, { kind: "integer", min: 0, max: 2 ** 24 + 1 })).toThrow(/2\^24/);
+        expect(() => withWeights(g, { kind: "integer", min: -(2 ** 24) - 1, max: 0 })).toThrow(/2\^24/);
+        const exact = withWeights(g, { kind: "integer", min: 2 ** 24 - 3, max: 2 ** 24 }, 1).weights as Float32Array;
+        expect(exact.every((w) => Number.isInteger(w) && w >= 2 ** 24 - 3 && w <= 2 ** 24)).toBe(true);
         expect(() => withWeights(g, { kind: "exponential", mean: 0 })).toThrow(RangeError);
         expect(() => withWeights(g, { kind: "euclidean" })).toThrow(/no numeric node column "x"/);
         expect(() => withWeights(g, { kind: "column", column: "nope" })).toThrow(RangeError);

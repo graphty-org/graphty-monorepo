@@ -1136,10 +1136,12 @@ export abstract class LayoutEngine {
      * @param out.x - receives the scene-unit x
      * @param out.y - receives the scene-unit y
      * @param out.z - receives the scene-unit z
+     * @param lane - The element's array the row is in, adopted as a `Node`'s is when no array is
+     *     attached: an engine handed only rows has met no `Node` to adopt it from.
      * @returns true when the row is placed
      */
-    protected readRowPosition(row: number, out: { x: number; y: number; z: number }): boolean {
-        const positions = this.writablePositions;
+    protected readRowPosition(row: number, out: { x: number; y: number; z: number }, lane?: ElementPositions): boolean {
+        const positions = lane === undefined ? this.writablePositions : this.positionsFor(lane);
         if (!positions.isPlaced(row)) {
             return false;
         }

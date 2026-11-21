@@ -52,7 +52,7 @@ describe("Undo, Redo and Clear selection words", () => {
         });
         await session.styles.update(layer.id, { set: { "node.color": "#ff0000", "node.size": 3 } });
 
-        const undo = screen.getByRole("button", { name: "Undo changing node size on Hubs" });
+        const undo = await screen.findByRole("button", { name: "Undo changing node size on Hubs" });
         await userEvent.hover(undo);
         await screen.findByText("Undo changing node size on Hubs", undefined);
 
@@ -60,12 +60,14 @@ describe("Undo, Redo and Clear selection words", () => {
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Undid changing node size on Hubs");
         });
-        await userEvent.click(screen.getByRole("button", { name: /^Redo( |$)/ }));
+        await userEvent.click(await screen.findByRole("button", { name: "Redo changing node size on Hubs" }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Redid changing node size on Hubs");
         });
         // The accessible name says what Undo takes back, as the tooltip does.
-        assert.strictEqual(undo.getAttribute("aria-label"), "Undo changing node size on Hubs");
+        await waitFor(() => {
+            assert.strictEqual(undo.getAttribute("aria-label"), "Undo changing node size on Hubs");
+        });
     });
 
     it("reads a step whose name ends in a question mark once, and adds no period of its own", async () => {
@@ -73,7 +75,7 @@ describe("Undo, Redo and Clear selection words", () => {
         await session.transaction("Can the hubs be red?", (tx) =>
             tx.styles.add({ name: "Hubs", target: "node", selector: { match: "everything" }, set: { "node.size": 2 } }),
         );
-        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await userEvent.click(await screen.findByRole("button", { name: "Undo Can the hubs be red?" }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Undid Can the hubs be red?");
         });
@@ -96,10 +98,14 @@ describe("Undo, Redo and Clear selection words", () => {
             );
         await add("Hubs");
         await add("Rims");
-        const undo = (): Promise<void> => userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        // Clicked once it names the step, as a reader would: the header re-renders a task after
+        // the element reports the step.
+        const undo = async (step: string): Promise<void> => {
+            await userEvent.click(await screen.findByRole("button", { name: `Undo ${step}` }));
+        };
 
         // Panel closed: the notice says it, with the step's own period read once.
-        await undo();
+        await undo("Add Rims.");
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Undid Add Rims.");
         });
@@ -110,7 +116,7 @@ describe("Undo, Redo and Clear selection words", () => {
         await waitFor(() => {
             assert.equal(store.get().place, "assistant");
         });
-        await undo();
+        await undo("Add Hubs.");
         await waitFor(() => {
             assert.equal(store.get().announcement, "Undid Add Hubs.");
         });

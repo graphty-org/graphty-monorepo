@@ -9,3 +9,13 @@ export const HOSTED_DATASET_NAMES: readonly string[] = [
     "bioplex3-hct116",
     "com-dblp",
 ];
+
+/** The SHA-256 of every hosted dataset's .gsnp.gz file, by name, for fetchDataset's check. */
+export const HOSTED_DATASET_SHA256: Readonly<Record<string, string>> = {
+    "road-ny": "a5703c970f993a33bd623846e0fdf2296fc833443ee1fcd3e301743d1cd7c979",
+    "ogbn-arxiv": "9997f61804b66a5f16420b9d48470917bcac9c67f51331f21c59581f3d286ff2",
+    "go-basic": "d0c68b4d9d377bee34cf255c39a631dbb5a6aa809762518060fcda9f02f89a39",
+    "disease-ontology": "c0deb41124eae90e9bb79a46227d9aed7f93b687007d13dff58690dc7c2a36cf",
+    "bioplex3-hct116": "f3cec82afec54a53d5c25842dbab2730fd6cb3920dbb10d52f284830b28c8008",
+    "com-dblp": "fdf4976168e0461f42e651fd0bf4cb9e68dbbe1cfafd6813c93c9bb0097c7367",
+};

@@ -410,7 +410,13 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                 {
                     id: "outline",
                     name: "Outline",
-                    tail: ["edge.outlineColor", "edge.outlineWidth", "edge.outlineOpacity", "edge.outlineStyle"],
+                    tail: [
+                        "edge.outlineColor",
+                        "edge.outlineWidth",
+                        "edge.outlineScale",
+                        "edge.outlineOpacity",
+                        "edge.outlineStyle",
+                    ],
                 },
             ],
         },
@@ -640,7 +646,13 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                 {
                     id: "overlay",
                     name: "Overlay",
-                    main: ["edge.overlayColor", "edge.overlayOpacity", "edge.overlayPadding"],
+                    main: [
+                        "edge.overlayColor",
+                        "edge.overlayOpacity",
+                        "edge.overlayWidth",
+                        "edge.overlayScale",
+                        "edge.overlayPadding",
+                    ],
                 },
             ],
         },

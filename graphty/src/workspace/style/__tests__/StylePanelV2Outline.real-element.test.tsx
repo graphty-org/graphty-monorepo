@@ -2,14 +2,14 @@
  * Style panel v2's edge Outline item (C7, ia-design 2, E496, E675) on the REAL graphty-element and real input: every
  * band along an edge's line is one Outline item in the Line section, of kind Under line (`edge.outline*`, an opaque
  * casing beside the line) or Over line (`edge.overlay*`, a translucent wash over it, 2D only). "+" starts Under line,
- * a switch to Over line starts translucent and past the line's sides, a second "+" adds the kind no row draws, and
- * at their start values the two kinds and a plain line color draw three different pictures.
+ * a switch to Over line starts translucent and as wide as the Under line was (both kinds' Width is how much wider
+ * than the line), a second "+" adds the kind no row draws, and at their start values the two kinds and a plain line
+ * color draw three different pictures.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { channelDescriptor } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -37,10 +37,36 @@ async function plusOutline(section: HTMLElement): Promise<void> {
     await userEvent.keyboard("{Escape}");
 }
 
-/** What graphty-element writes beside the Over line's color when a layer starts it. */
-const OVER_START = Object.fromEntries(
-    (channelDescriptor("edge.overlayColor")?.needs ?? []).map((need) => [need.channel, need.value]),
-);
+/**
+ * Types a number into a line of the Outline row's settings and commits it with Enter.
+ * @param row - the Outline row.
+ * @param channel - the line's channel.
+ * @param text - what to type.
+ */
+async function typeWidth(row: HTMLElement, channel: string, text: string): Promise<void> {
+    await userEvent.click(within(row).getByRole("button", { name: / settings/ }));
+    const input = await waitFor(() => {
+        const each = document.querySelector<HTMLInputElement>(
+            `[data-thing-popover] .ws-row[data-line="${channel}"] input`,
+        );
+        assert.isNotNull(each, channel);
+        return each;
+    });
+    await userEvent.click(input);
+    await userEvent.keyboard("{Control>}a{/Control}");
+    await userEvent.keyboard(`${text}{Enter}`);
+    await userEvent.keyboard("{Escape}");
+}
+
+/**
+ * Switches an Outline row to a kind from its Switch to menu.
+ * @param row - the row.
+ * @param kind - the kind's name.
+ */
+async function switchTo(row: HTMLElement, kind: string): Promise<void> {
+    await userEvent.click(within(row).getByRole("button", { name: /^Switch .* to/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
+}
 
 /** Enough pixels apart that two pictures are two looks, not a seam of anti-aliasing. */
 const LOOKS_APART = 50;
@@ -71,12 +97,9 @@ describe("Style panel v2's edge Outline", () => {
             assert.isUndefined(written(session, edges, "edge.outlineColor"), "the casing comes off");
             assert.equal(written(session, edges, "edge.overlayColor"), color, "its color moves to the wash");
             assert.equal(written(session, edges, "edge.overlayOpacity"), 0.3, "at 30%");
-            assert.equal(
-                written(session, edges, "edge.overlayPadding"),
-                OVER_START["edge.overlayPadding"],
-                "as wide as graphty-element starts it",
-            );
-            assert.isAbove(Number(written(session, edges, "edge.overlayPadding")), 0);
+            // as wide as the Under line was: its Width past the line, at one line's width across
+            assert.equal(written(session, edges, "edge.overlayWidth"), 2);
+            assert.equal(written(session, edges, "edge.overlayScale"), 1);
         });
 
         await plusOutline(line);
@@ -85,6 +108,47 @@ describe("Style panel v2's edge Outline", () => {
             assert.isDefined(written(session, edges, "edge.overlayColor"), "beside the Over line");
             assert.lengthOf(outlineRows(line), 2);
         });
+    });
+
+    it("Width means the same in both kinds: a switch keeps a band 6 past the line that wide", async () => {
+        const { session, element, edges } = await openGraph();
+        await switchView("2D");
+        const tab = await openStyle("Links");
+        await showKind("edge");
+        const line = sectionOf(tab, "edge-line");
+        const plain = await picture(element);
+
+        await plusOutline(line);
+        const [row] = await waitFor(() => {
+            const rows = outlineRows(line);
+            assert.lengthOf(rows, 1);
+            return rows;
+        });
+        await typeWidth(row, "edge.outlineWidth", "6");
+        await waitFor(() => {
+            assert.equal(written(session, edges, "edge.outlineWidth"), 6);
+        });
+
+        await switchTo(row, "Over line");
+        await waitFor(() => {
+            assert.isDefined(written(session, edges, "edge.overlayColor"));
+            assert.equal(written(session, edges, "edge.overlayWidth"), 6, "the Width carries across");
+            assert.equal(written(session, edges, "edge.overlayScale"), 1, "measured past the line, as Under line's");
+        });
+        const wide = await picture(element);
+
+        // the same wash at graphty-element's start width, 2 past the line: a narrower band
+        const [over] = outlineRows(line);
+        await typeWidth(over, "edge.overlayWidth", "2");
+        await waitFor(() => {
+            assert.equal(written(session, edges, "edge.overlayWidth"), 2);
+        });
+        const narrow = await picture(element);
+        assert.isAbove(
+            pixelsApart(plain, wide),
+            pixelsApart(plain, narrow) + LOOKS_APART,
+            "the carried Width draws the wider band",
+        );
     });
 
     it("at start values, Under line, Over line and a plain line color draw three different pictures", async () => {

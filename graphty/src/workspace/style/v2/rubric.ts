@@ -610,7 +610,8 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     "outline:edge.overlayColor": {
-        common: [{ channel: "edge.overlayPadding", name: "Width" }],
+        // the same width as Under line's: how much wider than the line (`edge.overlayScale` 1)
+        common: [{ channel: "edge.overlayWidth", name: "Width" }],
         main: [{ channel: "edge.overlayOpacity", name: "Opacity" }],
     },
     // The Arrow item's rows (kindGroups.ts, C6), by the kind's arrowhead.

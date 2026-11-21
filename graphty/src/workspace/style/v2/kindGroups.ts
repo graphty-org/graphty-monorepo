@@ -33,9 +33,17 @@ export interface KindMember {
     readonly hint?: string;
     /** What all its channels start with: a switch moves each value to the same-named channel of the kind switched to. */
     readonly prefix?: string;
-    /** Values a switch to it writes over what moved (a plate laid over the node starts translucent, ia-design 2). */
-    readonly onSwitch?: Readonly<Record<string, unknown>>;
+    /**
+     * Values a switch to it writes over what moved (a plate laid over the node starts translucent, ia-design 2), or
+     * what to write given what moved.
+     */
+    readonly onSwitch?: SwitchWrites;
 }
+
+/** What a switch to a kind writes over what moved: values, or values worked out from what moved. */
+type SwitchWrites =
+    | Readonly<Record<string, unknown>>
+    | ((moved: Readonly<Record<string, unknown>>) => Readonly<Record<string, unknown>>);
 
 /** One group: the thing it is drawn as, and its kinds, the first the one "+" adds. */
 export interface KindGroup {
@@ -77,7 +85,7 @@ function prefixKind(
     head: Channel,
     slots: { readonly color?: Channel; readonly size?: Channel },
     prefix: string = head,
-    onSwitch?: Readonly<Record<string, unknown>>,
+    onSwitch?: SwitchWrites,
 ): KindMember {
     const others = KIND_HEADS.filter((other) => other !== prefix && other.startsWith(prefix));
     return {
@@ -178,20 +186,36 @@ export const KIND_GROUPS: readonly KindGroup[] = [
         side: "edge",
         thing: "outline",
         items: ["outline", "overlay"],
+        // Both kinds' Width is how much wider than the line (each's scale, the line's widths across, unset its own
+        // default), so a switch carries Width across by name and the band keeps its width (ia-design 2).
         members: [
-            // Opaque, as graphty-element draws an outline unset, and as wide as its start.
-            prefixKind("under", "Under line", "edge.outlineColor", { color: "edge.outlineColor" }, "edge.outline", {
-                ...startsOf("edge.outlineColor"),
-                "edge.outlineOpacity": channelDescriptor("edge.outlineOpacity")?.default,
-            }),
-            // graphty-element's start: translucent, past the line's sides (ia-design 2).
+            // Opaque, as graphty-element draws an outline unset.
+            prefixKind(
+                "under",
+                "Under line",
+                "edge.outlineColor",
+                { color: "edge.outlineColor" },
+                "edge.outline",
+                (moved) => ({
+                    "edge.outlineOpacity": channelDescriptor("edge.outlineOpacity")?.default,
+                    "edge.outlineScale": moved["edge.outlineScale"] ?? channelDescriptor("edge.overlayScale")?.default,
+                    "edge.outlineWidth":
+                        moved["edge.outlineWidth"] ?? startsOf("edge.outlineColor")["edge.outlineWidth"],
+                }),
+            ),
+            // Translucent at 30% (ia-design 2), as wide as the Under line was.
             prefixKind(
                 "over",
                 "Over line",
                 "edge.overlayColor",
                 { color: "edge.overlayColor" },
                 "edge.overlay",
-                startsOf("edge.overlayColor"),
+                (moved) => ({
+                    "edge.overlayOpacity": 0.3,
+                    "edge.overlayScale": moved["edge.overlayScale"] ?? channelDescriptor("edge.outlineScale")?.default,
+                    "edge.overlayWidth":
+                        moved["edge.overlayWidth"] ?? startsOf("edge.overlayColor")["edge.overlayWidth"],
+                }),
             ),
         ],
     },
@@ -313,6 +337,17 @@ function carried(
 }
 
 /**
+ * What a switch to a kind writes: what moved, with the kind's own switch values over it.
+ * @param to - the kind switched to.
+ * @param moved - what moved, or the kind's start when nothing did.
+ * @returns the writes.
+ */
+function switchWrites(to: KindMember, moved: Readonly<Record<string, unknown>>): Record<string, unknown> {
+    const extra = typeof to.onSwitch === "function" ? to.onSwitch(moved) : to.onSwitch;
+    return { ...moved, ...extra };
+}
+
+/**
  * Picks the entries of a record whose keys are in a list.
  * @param record - the record.
  * @param keys - the keys.
@@ -421,7 +456,7 @@ export async function switchKind(ctx: RowContext, group: KindGroup, from: KindMe
         writeSlot(set, to.slots.color, readSlot(left.set, from.slots.color));
         writeSlot(set, to.slots.size, readSlot(left.set, from.slots.size));
         next = {
-            set: Object.keys(set).length > 0 ? { ...set, ...to.onSwitch } : { ...to.start(), ...to.onSwitch },
+            set: switchWrites(to, Object.keys(set).length > 0 ? set : to.start()),
             encode: carried(left.encode, from, to, toOwns),
         };
     }

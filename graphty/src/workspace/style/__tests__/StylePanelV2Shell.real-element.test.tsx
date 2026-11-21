@@ -110,6 +110,31 @@ describe("Style panel v2 on", () => {
         }
     });
 
+    it("a layer that sets no line color lists Line first in the edge Line '+', in 2D and in 3D (C7)", async () => {
+        const { session } = await openGraph();
+        await session.styles.add({
+            name: "Bare links",
+            target: "edge",
+            selector: { match: "everything" },
+            // a Visibility value only: nothing of the Line section's things
+            set: { "edge.visible": true },
+        });
+        await session.styles.settled();
+        for (const view of ["2D", "3D"] as const) {
+            await switchView(view);
+            const tab = await openStyle("Bare links");
+            await showKind("edge");
+            const line = sectionOf(tab, "edge-line");
+            await userEvent.click(within(line).getByRole("button", { name: /^Add to edge line/ }));
+            assert.deepEqual(
+                menuOrder(await screen.findByRole("menu")),
+                ["Line", ...EDGE_LINE_ITEMS],
+                `${view} edge line`,
+            );
+            await userEvent.keyboard("{Escape}");
+        }
+    });
+
     it("draws the node tab's sections, each with its header rule", async () => {
         await openProject();
         const tab = await openStyle("Key people");

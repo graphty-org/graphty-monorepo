@@ -68,7 +68,13 @@ const RAISED_CHANNELS: readonly Channel[] = [
 ];
 
 /** An edge's overlay, the Outline's Over line kind (ia-design 2), though `parts.ts` lists it under Effects. */
-const OVERLAY_CHANNELS: readonly Channel[] = ["edge.overlayColor", "edge.overlayOpacity", "edge.overlayPadding"];
+const OVERLAY_CHANNELS: readonly Channel[] = [
+    "edge.overlayColor",
+    "edge.overlayOpacity",
+    "edge.overlayWidth",
+    "edge.overlayScale",
+    "edge.overlayPadding",
+];
 
 /** The custom shape's inner lines: the Shape's (its Custom shape sub-group), though `parts.ts` lists them under Border. */
 const INNER_LINE_CHANNELS: readonly Channel[] = [

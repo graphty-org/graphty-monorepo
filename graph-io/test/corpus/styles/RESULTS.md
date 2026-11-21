@@ -207,7 +207,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/fidelity/dunnart-planar-orthogonal.gml | ok | 60 | 65 | 3 | 3 | 95 | 100% | 0% | 0 | 1130 | 0 |  |
 | gml/fidelity/jgrapht-grid-territorio.gml | ok | 25 | 40 | 5 | 2 | 5 | 0% | 0% | 0 | 665 | 0 |  |
 | gml/fidelity/repro-groups-no-creator.gml | ok | 21 | 11 | 6 | 3 | 36 | 25% | 25% | 0 | 326 | 0 |  |
-| gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 760 | 100% | 0% | 0 | 933 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 2 | 760 | 100% | 0% | 0 | 933 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | gml/fidelity/visualgraph-tree30.gml | ok | 30 | 29 | 4 | 2 | 30 | 97% | 0% | 0 | 530 | 0 |  |
 | gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 117 | 0% | 0% | 0 | 1080 | 0 |  |
 | gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 7 | 5 | 87 | 0% | 0% | 0 | 922 | 0 |  |
@@ -221,7 +221,7 @@ Tool values are elements drawn with the writing program's default.
 | gml/generated/tamper-node-added.gml | ok | 31 | 40 | 8 | 6 | 74 | 24% | 11% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_EXTRA_LABELS |
 | gml/generated/yed-labels-and-arrows.gml | ok | 30 | 40 | 7 | 4 | 34 | 0% | 0% | 0 | 582 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
 | gml/spupyrev_bob__need4stacks261.gml | ok | 261 | 777 | 5 | 3 | 165 | 12% | 4% | 0 | 10572 | 0 |  |
-| graphml/LTVA1_STM32CrapSynth__func.graphml.gz | ok | 147 | 94 | 5 | 4 | 468 | 81% | 4% | 0 | 1513 | 0 |  |
+| graphml/LTVA1_STM32CrapSynth__func.graphml.gz | ok | 147 | 94 | 5 | 4 | 468 | 81% | 4% | 0 | 1493 | 0 |  |
 | graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml | ok | 70 | 72 | 6 | 7 | 164 | 84% | 2% | 0 | 789 | 0 |  |
 | graphml/StateSmith_StateSmith__Spec1Sm.graphml | ok | 14 | 7 | 2 | 3 | 49 | 100% | 0% | 0 | 121 | 0 | W_STYLE_NO_FILL |
 | graphml/a-little-srdjan_grapher__bleve.graphml.gz | ok | 39 | 120 | 3 | 3 | 229 | 100% | 0% | 0 | 636 | 0 |  |
@@ -267,7 +267,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yed-genericnode/diennea__herddb__herddb.graphml | ok | 14 | 0 | 4 | 1 | 37 | 70% | 0% | 0 | 82 | 0 |  |
 | graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | 6 | 5 | 444 | 76% | 3% | 0 | 1526 | 0 |  |
 | graphml/yed-large/crocs-muni__scrutiny__SCRUTINYWholeProcess.graphml.gz | ok | 31 | 0 | 3 | 1 | 71 | 70% | 0% | 0 | 288 | 0 | W_STYLE_NO_FILL |
-| graphml/yed-large/cuba-platform__documentation__DeploymentStructure.graphml.gz | ok | 263 | 6 | 6 | 3 | 273 | 84% | 18% | 0 | 2619 | 0 | W_STYLE_NO_FILL |
+| graphml/yed-large/cuba-platform__documentation__DeploymentStructure.graphml.gz | ok | 263 | 6 | 6 | 3 | 273 | 84% | 18% | 0 | 2614 | 0 | W_STYLE_NO_FILL |
 | graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz | ok | 152 | 254 | 9 | 3 | 736 | 93% | 5% | 0 | 2386 | 0 |  |
 | graphml/yed-shapenode/Animatron__player__flow.graphml | ok | 12 | 14 | 7 | 4 | 43 | 60% | 2% | 0 | 143 | 0 |  |
 | graphml/yed-shapenode/awslabs__ml-io__architecture.graphml | ok | 14 | 6 | 8 | 3 | 20 | 70% | 35% | 0 | 92 | 0 |  |

@@ -23,6 +23,7 @@ import {
     type CellValue,
     type ClashRule,
     type CopyTables,
+    type DrillUnit,
     type EdgesStep,
     type EdgeValuesStep,
     type MergeStep,
@@ -86,11 +87,19 @@ const escapeKey = (k: string): string => k.replaceAll(/[\\|]/g, String.raw`\$&`)
 export const isEmpty = (v: Value | undefined): v is null | undefined | "" => v === undefined || v === null || v === "";
 const text = (v: CellValue | undefined): string => (v === undefined || v === null ? "" : String(v));
 
-interface MatchOptions {
+/** How two keys compare: exactly, or ignoring case or spaces. */
+export interface MatchOptions {
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
 }
-function normalize(v: CellValue | undefined, o: MatchOptions = {}): string {
+
+/**
+ * A cell as the text a key compares by.
+ * @param v - The cell.
+ * @param o - Whether case and spaces count.
+ * @returns The text, Unicode-normalized.
+ */
+export function normalize(v: CellValue | undefined, o: MatchOptions = {}): string {
     let s = text(v).normalize("NFC");
     if (o.ignoreCase === true) {
         s = s.toLowerCase();
@@ -109,7 +118,11 @@ const listed = (f: RowFilter, r: Row): boolean => f.values.some((v) => normalize
  * @param table - Which table.
  * @returns The rows, or null when the source's copy has no such table.
  */
-function tableRows(src: Source, copies: ReadonlyMap<string, CopyTables>, table: TableName): readonly Row[] | null {
+export function tableRows(
+    src: Source,
+    copies: ReadonlyMap<string, CopyTables>,
+    table: TableName,
+): readonly Row[] | null {
     const rows = copies.get(copyKey(src))?.[table];
     if (!rows) {
         return null;
@@ -532,7 +545,65 @@ function newStats(step: Step, si: number): StepStats {
         emptyKey: 0,
         repeatedKept: 0,
         hub: [],
+        rowsDifferIn: {},
+        parallelPairs: 0,
+        endsMeet: {},
+        endsMissing: {},
+        namedOnly: 0,
+        repeated1: 0,
+        repeated2: 0,
+        newNodeTypes: {},
+        newEdgeTypes: {},
     };
+}
+
+/**
+ * Add one to a per-name count.
+ * @param counts - The counts.
+ * @param name - The name.
+ */
+function bump(counts: Record<string, number>, name: string): void {
+    counts[name] = (counts[name] ?? 0) + 1;
+}
+
+/**
+ * The values a list holds more than once.
+ * @param values - The values, each with what it was read from.
+ * @returns Each distinct repeated value, with the first of its units that names an element, else its first.
+ */
+function repeats(values: Iterable<readonly [string, DrillUnit]>): Map<string, DrillUnit> {
+    const seen = new Map<string, DrillUnit>();
+    const twice = new Map<string, DrillUnit>();
+    for (const [v, unit] of values) {
+        const first = seen.get(v);
+        if (first === undefined) {
+            seen.set(v, unit);
+        } else {
+            // the first of the key's rows that reached an element, so its drill row can name it
+            const held = twice.get(v) ?? first;
+            twice.set(v, held.element === undefined && unit.element !== undefined ? unit : held);
+        }
+    }
+    return twice;
+}
+
+/**
+ * The key values a merge's node 2s fold by: each one's first row of the source, unless the step
+ * leaves the row out or its key is empty.
+ * @param s - The merge.
+ * @param node2s - Its node 2s.
+ * @returns The keys, one per node 2, each with the node 2 and its row.
+ */
+function mergeKeys(s: MergeStep, node2s: readonly BuiltNode[]): (readonly [string, DrillUnit])[] {
+    return node2s.flatMap((n2) => {
+        const t = n2.touch.find((t) => t.source === s.source && t.table === "nodes");
+        const r = t?.cells;
+        const v = r?.[s.read.key];
+        const out = r === undefined || isEmpty(v) || (s.except !== undefined && listed(s.except, r));
+        return out || t === undefined || (s.rows !== undefined && !listed(s.rows, r))
+            ? []
+            : [[text(v), { table: "nodes", row: t.row, element: n2.id }] as const];
+    });
 }
 
 const supply = (el: BuiltElement, src: string): void => {
@@ -563,16 +634,6 @@ const settle = (n: BuiltNode): void => {
         }
     }
     delete n.ends;
-};
-const retarget = (edges: Iterable<BuiltEdge>, from: string, to: string): void => {
-    for (const e of edges) {
-        if (e.from === from) {
-            e.from = to;
-        }
-        if (e.to === from) {
-            e.to = to;
-        }
-    }
 };
 
 type Lookup = (v: CellValue | undefined) => string[];
@@ -664,23 +725,56 @@ class Builder {
     readonly nodes = new Map<string, BuiltNode>();
     readonly edges = new Map<string, BuiltEdge>();
     readonly aliases = new Map<string, string>();
+    // The edges ending at each node and the aliases naming each node, so a merge folding one node
+    // into another reads only what touches it rather than every edge and alias the build holds.
+    private readonly edgesAt = new Map<string, Set<BuiltEdge>>();
+    private readonly aliasesOf = new Map<string, Set<string>>();
     readonly edgeAliases = new Map<string, string>();
     readonly pairs = new Map<string, string>();
     readonly stats: StepStats[] = [];
     readonly issues: BuildIssue[] = [];
     readonly fates = new Map<string, Map<string, RowFate>>();
     readonly readerResults: ReaderResult[] = [];
+    // what each count counted, by step place and count name (see DrillUnit)
+    readonly drill = new Map<number, Map<string, DrillUnit[]>>();
     // `<source>#<table>` -> the rows a filtered step read, for the no-step fate
     private readonly reads = new Map<string, { src: string; table: TableName; n: number; read: Set<number> }>();
     private readonly types: readonly TypeEntry[];
     // the rows each `aggregate` column read so far, per element (see gather)
     private readonly gathered = new WeakMap<BuiltElement, Map<string, Value[]>>();
+    // the step that made each element, for its counts by type once the build is done
+    private readonly madeBy = new WeakMap<BuiltElement, StepStats>();
+    // the merge step that last folded one of an edge's ends, for its parallel pair or self-loop
+    private readonly endFoldedBy = new WeakMap<BuiltEdge, StepStats>();
 
     constructor(
         private readonly input: BuildInput,
         private readonly copies: ReadonlyMap<string, CopyTables>,
     ) {
         this.types = input.types ?? [];
+    }
+
+    // Note one thing a step's count counted.
+    mark(st: StepStats, count: string, unit: DrillUnit): void {
+        let byCount = this.drill.get(st.step);
+        if (!byCount) {
+            byCount = new Map();
+            this.drill.set(st.step, byCount);
+        }
+        const list = byCount.get(count);
+        if (list) {
+            list.push(unit);
+        } else {
+            byCount.set(count, [unit]);
+        }
+    }
+
+    // A count of distinct keys: its size, each key noted with a row of it and the element it reached.
+    keys(st: StepStats, count: "repeated1" | "repeated2", keys: ReadonlyMap<string, DrillUnit>): number {
+        for (const [key, unit] of keys) {
+            this.mark(st, count, { ...unit, key });
+        }
+        return keys.size;
     }
 
     resolve(space: string, key: string): string | undefined {
@@ -774,7 +868,10 @@ class Builder {
             return null;
         }
         st.newNodes++;
-        return this.mkNode(space, key, typeOf(this.types, "node", ctx, row));
+        const made = this.mkNode(space, key, typeOf(this.types, "node", ctx, row));
+        this.mark(st, "newNodes", { element: made.id });
+        this.madeBy.set(made, st);
+        return made;
     }
 
     // 3.7: the first step to give a node a type sets it; a different type a later step gives stays in its lineage.
@@ -787,6 +884,7 @@ class Builder {
         } else if (!n.otherTypes.includes(type)) {
             n.otherTypes.push(type);
             st.typeDiffers++;
+            this.mark(st, "typeDiffers", { element: n.id });
         }
     }
 
@@ -807,6 +905,10 @@ class Builder {
             // a repeat within one source: `repeated` decides, absent means first (3.3)
             if (mine.v !== v) {
                 st.rowsDiffer++;
+                bump(st.rowsDifferIn, col);
+                const unit = { source: src, row: at.row, element: el.id, name: col };
+                this.mark(st, "rowsDiffer", unit);
+                this.mark(st, "rowsDifferIn", unit);
             }
             if (!("repeated" in step) || step.repeated !== "last") {
                 return;
@@ -839,8 +941,13 @@ class Builder {
             return;
         }
         const differ = el.values[col] !== v;
-        if (differ) {
+        el.differAt ??= {};
+        const differAt = (el.differAt[col] ??= []);
+        // a cell counts once per step, however many of the step's rows write it (5.4)
+        if (differ && !differAt.includes(at.si)) {
+            differAt.push(at.si);
             st.valuesDiffer[col] = (st.valuesDiffer[col] ?? 0) + 1;
+            this.mark(st, "valuesDiffer", { source: src, row: at.row, element: el.id, name: col });
         }
         const clash = ruleFor(step, col);
         el.rule ??= {};
@@ -879,6 +986,7 @@ class Builder {
         const got = rule(all);
         if (!got) {
             st.ruleType[col] = (st.ruleType[col] ?? 0) + 1; // not numbers: the held value stays
+            this.mark(st, "ruleType", { element: el.id, name: col });
             return;
         }
         [el.origin[col], el.values[col]] = got;
@@ -996,6 +1104,8 @@ class Builder {
         for (const n of this.nodes.values()) {
             this.settleTime(n);
         }
+        this.countNewTypes();
+        this.countEdgeShapes();
         for (const { src, table, n, read } of this.reads.values()) {
             for (let i = 0; i < n; i++) {
                 if (!read.has(i) && this.fates.get(src)?.has(`${table}#${i}`) !== true) {
@@ -1003,8 +1113,53 @@ class Builder {
                 }
             }
         }
-        const { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults } = this;
-        return { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults };
+        const { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults, drill } = this;
+        return { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults, drill };
+    }
+
+    // The elements each step made that the graph still holds, by their final type.
+    private countNewTypes(): void {
+        for (const [els, field] of [
+            [this.nodes, "newNodeTypes"],
+            [this.edges, "newEdgeTypes"],
+        ] as const) {
+            for (const el of els.values()) {
+                const st = this.madeBy.get(el);
+                if (st !== undefined && el.type !== null) {
+                    bump(st[field], el.type);
+                    this.mark(st, field, { element: el.id, name: el.type });
+                }
+            }
+        }
+    }
+
+    // Parallel pairs and self-loops over the final edges, once merges have settled every end; each is
+    // credited to the merge that folded one of its ends, else to the step that made it.
+    private countEdgeShapes(): void {
+        const joined = new Set<string>();
+        for (const e of this.edges.values()) {
+            const st = this.endFoldedBy.get(e) ?? this.madeBy.get(e);
+            const pair = `${e.from}\u0001${e.to}`;
+            if (st !== undefined && joined.has(pair)) {
+                st.parallelPairs++;
+                this.mark(st, "parallelPairs", { element: e.id });
+            }
+            joined.add(pair);
+            if (st !== undefined && e.from === e.to) {
+                st.selfLoops++;
+                this.mark(st, "selfLoops", { element: e.id });
+            }
+        }
+    }
+
+    // One edge end: the node already built it found (its id), else none, by the space it looks in.
+    private end(st: StepStats, space: string, met: string | undefined, at: DrillUnit): void {
+        bump(met === undefined ? st.endsMissing : st.endsMeet, space);
+        this.mark(
+            st,
+            met === undefined ? "endsMissing" : "endsMeet",
+            met === undefined ? { ...at, name: space } : { ...at, name: space, element: met },
+        );
     }
 
     private bind(op: Extract<ReaderOp, { op: "remove" | "edit" }>): BuiltNode | BuiltEdge | null {
@@ -1045,7 +1200,7 @@ class Builder {
             if ("space" in el) {
                 this.dropNode(el);
             } else {
-                this.edges.delete(el.id);
+                this.dropEdge(el.id);
             }
             return true;
         }
@@ -1098,7 +1253,7 @@ class Builder {
             e.values[c] = v;
             e.origin[c] = READER_SOURCE;
         }
-        this.edges.set(id, e);
+        this.putEdge(e);
         return true;
     }
 
@@ -1139,6 +1294,22 @@ class Builder {
         nodeRows?.forEach((r, i) => {
             this.addNodeRow(s, src, { si, st, seen, empties }, r, i);
         });
+        const key = src.mapping.nodes?.key;
+        if (nodeRows && key !== undefined) {
+            st.repeated2 = this.keys(
+                st,
+                "repeated2",
+                repeats(
+                    nodeRows.flatMap((r, i) => {
+                        if (isEmpty(r[key])) {
+                            return [];
+                        }
+                        const unit = { table: "nodes", row: i, element: nodeId(nodeSpace(src), text(r[key])) } as const;
+                        return [[text(r[key]), unit] as const];
+                    }),
+                ),
+            );
+        }
         this.addEdges(s, si, st, src, empties);
         this.reportEmpty(s.source, empties);
     }
@@ -1155,6 +1326,7 @@ class Builder {
         const key = m.key === undefined ? `${src.origin.copy}#${i}` : r[m.key];
         if (isEmpty(key)) {
             st.emptyKey++;
+            this.mark(st, "emptyKey", { table: "nodes", row: i });
             at.empties.set(m.key ?? "", (at.empties.get(m.key ?? "") ?? 0) + 1);
             this.fate(s.source, "nodes", i, "left-out:empty-key");
             return;
@@ -1201,20 +1373,32 @@ class Builder {
         const sSpace = m.sourceSpace ?? ownSpace(src.id);
         const tSpace = m.targetSpace ?? ownSpace(src.id);
         const how = src.settings?.unmatched ?? "add";
+        const own = src.mapping.nodes === undefined ? null : nodeSpace(src);
+        const named = new Set<BuiltNode>();
         rows.forEach((r, i) => {
             const a = r[m.source];
             const b = r[m.target];
             if (isEmpty(a) || isEmpty(b)) {
                 const column = isEmpty(a) ? m.source : m.target;
                 st.emptyKey++;
+                this.mark(st, "emptyKey", { table: "edges", row: i });
                 empties.set(column, (empties.get(column) ?? 0) + 1);
                 this.fate(s.source, "edges", i, "left-out:empty-end");
                 return;
             }
+            const here = { table: "edges", row: i } as const;
+            this.end(st, sSpace, this.resolve(sSpace, text(a)), here);
             const na = this.node(sSpace, text(a), { source: s.source, end: "source" }, r, st, how);
+            this.end(st, tSpace, this.resolve(tSpace, text(b)), here);
             const nb = this.node(tSpace, text(b), { source: s.source, end: "target" }, r, st, how);
+            for (const n of [na, nb]) {
+                if (n?.space === own) {
+                    named.add(n);
+                }
+            }
             if (!na || !nb) {
                 st.unmatched++;
+                this.mark(st, "unmatched", here);
                 this.fate(s.source, "edges", i, "left-out:unmatched");
                 return;
             }
@@ -1237,6 +1421,11 @@ class Builder {
                 ends: { source: m.source, target: m.target },
             });
         });
+        const only = [...named].filter((n) => !n.touch.some((t) => t.source === s.source && t.table === "nodes"));
+        for (const n of only) {
+            this.mark(st, "namedOnly", { element: n.id });
+        }
+        st.namedOnly = only.length;
     }
 
     // ---- join.node-values (3.4)
@@ -1252,16 +1441,28 @@ class Builder {
             }
         }
         let empty = 0;
+        const keys: (readonly [string, DrillUnit])[] = [];
+        const fanned = new Map<string, DrillUnit>();
         for (const [r, i] of rows) {
             if (isEmpty(r[s.read.key])) {
                 empty++;
+                this.mark(st, "emptyKey", { table, row: i });
                 continue;
             }
+            const k = text(r[s.read.key]);
+            const unit: { table: TableName; row: number; element?: string } = { table, row: i };
+            keys.push([k, unit]);
+            const fans = st.fanOut;
             const n = this.nodeValuesTarget(s, st, look, r, i);
+            if (st.fanOut > fans) {
+                fanned.set(k, fanned.get(k) ?? { table, row: i });
+            }
             if (!n) {
                 continue;
             }
+            unit.element = n.id;
             st.matched++;
+            this.mark(st, "matched", { table, row: i, element: n.id });
             this.touch(n, s, si, table, r, i);
             supply(n, s.source);
             for (const c of s.columns ?? Object.keys(r).filter((c) => !roles.has(c))) {
@@ -1269,6 +1470,8 @@ class Builder {
             }
         }
         st.emptyKey += empty;
+        st.repeated1 = this.keys(st, "repeated1", fanned);
+        st.repeated2 = this.keys(st, "repeated2", repeats(keys));
         this.reportEmpty(s.source, new Map(empty > 0 ? [[s.read.key, empty]] : []));
         if (table === "edges") {
             st.hub.push(...hubs(rows, s.read.key));
@@ -1282,6 +1485,7 @@ class Builder {
         const ids = look(v);
         if (ids.length > 1) {
             st.fanOut++;
+            this.mark(st, "fanOut", { table, row: i });
             this.fate(s.source, table, i, "left-out:fan-out");
             return null;
         }
@@ -1291,6 +1495,7 @@ class Builder {
         }
         if (!n) {
             st.unmatched++;
+            this.mark(st, "unmatched", { table, row: i });
             this.fate(s.source, table, i, "left-out:unmatched");
         }
         return n;
@@ -1310,13 +1515,14 @@ class Builder {
         const empties = new Map<string, number>();
         const loose = s.ignoreCase === true || s.ignoreSpaces === true ? new Map<string, Map<string, string>>() : null;
         for (const [r, i] of rows) {
-            const a = this.edgeEnd(s, st, tr, r, "source", loose);
-            const b = this.edgeEnd(s, st, tr, r, "target", loose);
+            const here = { table, row: i };
+            const a = this.edgeEnd(s, st, tr, r, "source", loose, here);
+            const b = this.edgeEnd(s, st, tr, r, "target", loose, here);
             if ("miss" in a || "miss" in b) {
                 // an empty end counts first, then fan-out, then unmatched
                 const misses = [a, b].map((x) => ("miss" in x ? x.miss : null));
                 const miss = MISS_ORDER.find((m) => misses.includes(m)) ?? "left-out:unmatched";
-                this.countMiss(st, miss, misses[0] === "left-out:empty-end" ? rd.source : rd.target, empties);
+                this.countMiss(st, miss, misses[0] === "left-out:empty-end" ? rd.source : rd.target, empties, here);
                 this.fate(s.source, table, i, miss);
                 continue;
             }
@@ -1325,7 +1531,7 @@ class Builder {
             reach(b.n, s.source);
             const skip = new Set([rd.source, rd.target, rd.edgeId]);
             const cols = s.columns ?? Object.keys(r).filter((c) => !skip.has(c));
-            this.addEdge(s, si, st, {
+            const made = this.addEdge(s, si, st, {
                 load: s.source,
                 key: edgeStepKey(s, src, r, i, a.n, b.n),
                 from: a.n,
@@ -1340,18 +1546,28 @@ class Builder {
                 ends: { source: rd.source, target: rd.target },
                 repeated: s.repeated,
             });
+            this.mark(st, "matched", { ...here, element: made });
         }
         this.reportEmpty(s.source, empties);
     }
 
-    private countMiss(st: StepStats, miss: RowFateKind, column: string, empties: Map<string, number>): void {
+    private countMiss(
+        st: StepStats,
+        miss: RowFateKind,
+        column: string,
+        empties: Map<string, number>,
+        at: DrillUnit,
+    ): void {
         if (miss === "left-out:empty-end") {
             st.emptyKey++;
+            this.mark(st, "emptyKey", at);
             empties.set(column, (empties.get(column) ?? 0) + 1);
         } else if (miss === "left-out:fan-out") {
             st.fanOut++;
+            this.mark(st, "fanOut", at);
         } else {
             st.unmatched++;
+            this.mark(st, "unmatched", at);
         }
     }
 
@@ -1364,24 +1580,27 @@ class Builder {
         r: Row,
         which: "source" | "target",
         loose: Map<string, Map<string, string>> | null,
+        at: DrillUnit,
     ): EndHit {
         const rd = s.read;
         const v = r[which === "source" ? rd.source : rd.target];
         if (isEmpty(v)) {
             return { miss: "left-out:empty-end" };
         }
+        const space = which === "source" ? rd.sourceSpace : rd.targetSpace;
         if (tr && which === (s.viaEnd ?? "target")) {
             const ids = tr(v);
             if (ids.length > 1) {
                 return { miss: "left-out:fan-out" };
             }
             const n = ids.length === 1 ? this.nodes.get(ids[0]) : undefined;
+            this.end(st, n?.space ?? space, n?.id, at);
             return n ? { n } : { miss: "left-out:unmatched" };
         }
-        const space = which === "source" ? rd.sourceSpace : rd.targetSpace;
         const how = s.unmatchedRows ?? this.source(s.source).settings?.unmatched ?? "add";
         const idx = loose === null ? null : this.looseKeys(loose, space, s);
         const key = idx?.get(normalize(v, s)) ?? text(v);
+        this.end(st, space, this.resolve(space, key), at);
         const n = this.node(space, key, { source: s.source, part: s.part, end: which }, r, st, how);
         if (n && idx && !idx.has(normalize(v, s))) {
             idx.set(normalize(v, s), n.key);
@@ -1407,14 +1626,32 @@ class Builder {
     // ---- join.edge-values (3.4)
     private edgeValues(s: EdgeValuesStep, si: number, st: StepStats): void {
         const table = s.read.table ?? "edges";
-        for (const [r, i] of this.filtered(s, table)) {
+        const rows = this.filtered(s, table);
+        st.repeated2 = this.keys(
+            st,
+            "repeated2",
+            repeats(
+                rows
+                    .filter(([r]) => !isEmpty(r[s.read.edgeId]))
+                    .map(([r, i]) => {
+                        const id = edgeId(s.edges, text(r[s.read.edgeId]));
+                        return [
+                            text(r[s.read.edgeId]),
+                            { table, row: i, ...(this.edges.has(id) ? { element: id } : {}) },
+                        ];
+                    }),
+            ),
+        );
+        for (const [r, i] of rows) {
             const e = this.edges.get(edgeId(s.edges, text(r[s.read.edgeId])));
             if (!e) {
                 st.unmatched++;
+                this.mark(st, "unmatched", { table, row: i });
                 this.fate(s.source, table, i, "left-out:unmatched");
                 continue;
             }
             st.matched++;
+            this.mark(st, "matched", { table, row: i, element: e.id });
             this.touch(e, s, si, table, r, i);
             supply(e, s.source);
             for (const c of s.columns ?? Object.keys(r).filter((c) => c !== s.read.edgeId)) {
@@ -1423,14 +1660,15 @@ class Builder {
         }
     }
 
-    // One edge, keyed { load, key }, reduced by the step's `repeated`, else the graph's repeatedEdges (3.4, 3.8).
-    private addEdge(step: Step, si: number, st: StepStats, a: EdgeArgs): void {
+    // One edge, keyed { load, key }, reduced by the step's `repeated`, else the graph's repeatedEdges (3.4, 3.8);
+    // returns the id of the edge the row went into.
+    private addEdge(step: Step, si: number, st: StepStats, a: EdgeArgs): string {
         const id = edgeId(a.load, a.key);
         const { w, meaning, weightDefault, timeCol } = edgeRoles(a);
         const existing = this.edges.get(id);
         if (existing) {
             this.repeatEdge(existing, step, si, st, a, timeCol);
-            return;
+            return existing.id;
         }
         const policy = a.repeated === undefined ? (this.input.repeatedEdges ?? "keep") : "keep";
         const type = typeOf(this.types, "edge", a.ctx, a.row);
@@ -1447,7 +1685,7 @@ class Builder {
                 this.edgeAliases.set(id, twin.id);
                 span(twin, a, timeCol);
                 reduceWeight(twin, policy, w, meaning, weightDefault);
-                return;
+                return twin.id;
             }
         }
         const e: BuiltEdge = {
@@ -1470,20 +1708,20 @@ class Builder {
             timeFrom: null,
             ends: a.ends,
         };
-        this.edges.set(id, e);
+        this.putEdge(e);
         if (!this.pairs.has(pairKey(e.weightMeaning))) {
             this.pairs.set(pairKey(e.weightMeaning), id);
         }
         st.newEdges++;
-        if (a.from.id === a.to.id) {
-            st.selfLoops++;
-        }
+        this.mark(st, "newEdges", { table: a.table, row: a.index, element: e.id });
+        this.madeBy.set(e, st);
         supply(e, a.load);
         this.touch(e, step, si, a.table, a.row, a.index);
         for (const [c, v] of a.values) {
             this.write(e, c, v, { src: a.load, si, row: a.index, step, st });
         }
         span(e, a, timeCol);
+        return e.id;
     }
 
     // A second row with an existing edge's key: the step's `repeated`, else E_EDGE_KEY_COLLISION (3.3).
@@ -1522,35 +1760,56 @@ class Builder {
         const kept = new Map<string, BuiltNode[]>();
         const reached = new Set<string>();
         const before = [...this.nodes.values()].filter((n) => n.space === space).map((n) => n.id);
+        const fanned = new Map<string, DrillUnit>();
         for (const n2 of node2s) {
-            const rows = n2.touch.filter((t) => t.source === s.source && t.table === "nodes").map((t) => t.cells);
+            const own = n2.touch.filter((t) => t.source === s.source && t.table === "nodes");
+            const rows = own.map((t) => t.cells);
             const [r] = rows;
             const excluded =
                 (s.except !== undefined && listed(s.except, r)) || (s.rows !== undefined && !listed(s.rows, r));
             const v = r[s.read.key];
             const ids = excluded || isEmpty(v) ? [] : look(v).filter((id) => id !== n2.id);
             const n1 = ids.length === 1 ? this.nodes.get(ids[0]) : undefined;
+            const unit = { table: "nodes", row: own[0].row, element: n2.id, key: n2.key } as const;
             if (ids.length > 1) {
                 st.fanOut++;
+                this.mark(st, "fanOut", unit);
+                fanned.set(text(v), fanned.get(text(v)) ?? unit);
             } else if (n1) {
                 this.fold(n1, n2, { src: s.source, si, row: 0, step: s, st }, rows);
                 reached.add(n1.id);
                 groups.set(n1.id, (groups.get(n1.id) ?? 1) + rows.length);
                 st.merged++;
+                this.mark(st, "merged", unit);
             } else {
                 st.unmatched++;
+                this.mark(st, "unmatched", unit);
                 this.unmatchedNode2(s, n2, excluded, v, kept);
             }
         }
+        this.settleKept(st, space, kept);
+        const untouched = before.filter((id) => !reached.has(id) && this.nodes.has(id));
+        for (const id of untouched) {
+            this.mark(st, "untouched", { element: id });
+        }
+        st.untouched = untouched.length;
+        st.groups = [...groups.values()].sort((a, b) => b - a);
+        st.repeated1 = this.keys(st, "repeated1", fanned);
+        st.repeated2 = this.keys(st, "repeated2", repeats(mergeKeys(s, node2s)));
+    }
+
+    // Kept node 2s move into node 1's space by their key, unless several share it or it is taken.
+    private settleKept(st: StepStats, space: string, kept: Map<string, BuiltNode[]>): void {
         for (const [v, list] of kept) {
             if (list.length > 1 || this.nodes.has(nodeId(space, v))) {
                 st.repeatedKept += list.length;
+                for (const n of list) {
+                    this.mark(st, "repeatedKept", { element: n.id, key: v });
+                }
             } else {
                 this.move(list[0], space, v);
             }
         }
-        st.untouched = before.filter((id) => !reached.has(id) && this.nodes.has(id)).length;
-        st.groups = [...groups.values()].sort((a, b) => b - a);
     }
 
     // Only 2: Drop drops it; Keep, when field 1 is node 1's key, moves it into node 1's space later (3.6 item 3).
@@ -1579,22 +1838,73 @@ class Builder {
         n2.space = space;
         n2.key = key;
         this.nodes.set(id, n2);
-        this.aliases.set(old, id);
-        retarget(this.edges.values(), old, id);
+        this.alias(old, id);
+        this.retarget(old, id);
     }
 
     private dropNode(n: BuiltNode): void {
         this.nodes.delete(n.id);
-        for (const [id, e] of this.edges) {
-            if (e.from === n.id || e.to === n.id) {
-                this.edges.delete(id);
-            }
+        for (const e of [...(this.edgesAt.get(n.id) ?? [])]) {
+            this.dropEdge(e.id);
         }
+    }
+
+    private putEdge(e: BuiltEdge): void {
+        this.dropEdge(e.id);
+        this.edges.set(e.id, e);
+        for (const end of [e.from, e.to]) {
+            const at = this.edgesAt.get(end) ?? new Set<BuiltEdge>();
+            at.add(e);
+            this.edgesAt.set(end, at);
+        }
+    }
+
+    private dropEdge(id: string): void {
+        const e = this.edges.get(id);
+        if (e !== undefined) {
+            this.edges.delete(id);
+            this.edgesAt.get(e.from)?.delete(e);
+            this.edgesAt.get(e.to)?.delete(e);
+        }
+    }
+
+    // Every edge ending at `from` ends at `to` instead.
+    private retarget(from: string, to: string): void {
+        const moved = this.edgesAt.get(from);
+        if (moved === undefined) {
+            return;
+        }
+        this.edgesAt.delete(from);
+        const at = this.edgesAt.get(to) ?? new Set<BuiltEdge>();
+        for (const e of moved) {
+            if (e.from === from) {
+                e.from = to;
+            }
+            if (e.to === from) {
+                e.to = to;
+            }
+            at.add(e);
+        }
+        this.edgesAt.set(to, at);
+    }
+
+    private alias(id: string, to: string): void {
+        const before = this.aliases.get(id);
+        if (before !== undefined) {
+            this.aliasesOf.get(before)?.delete(id);
+        }
+        this.aliases.set(id, to);
+        const of = this.aliasesOf.get(to) ?? new Set<string>();
+        of.add(id);
+        this.aliasesOf.set(to, of);
     }
 
     // Node 2 folds into node 1 (3.4 join.merge): edges, sources, aliases, then values.
     private fold(n1: BuiltNode, n2: BuiltNode, at: WriteAt, rows: Row[]): void {
-        retarget(this.edges.values(), n2.id, n1.id);
+        for (const e of this.edgesAt.get(n2.id) ?? []) {
+            this.endFoldedBy.set(e, at.st);
+        }
+        this.retarget(n2.id, n1.id);
         n2.loads.forEach((l) => {
             supply(n1, l);
         });
@@ -1605,20 +1915,23 @@ class Builder {
             reach(n1, l);
         });
         n1.touch.push(...n2.touch);
+        for (const [col, steps] of Object.entries(n2.differAt ?? {})) {
+            n1.differAt ??= {};
+            n1.differAt[col] = [...new Set([...(n1.differAt[col] ?? []), ...steps])];
+        }
         n1.aliases.push({ space: n2.space, key: n2.key, type: n2.type }, ...n2.aliases);
         if (n2.type !== n1.type) {
             n1.otherTypes.push(n2.type);
             at.st.typeDiffers++;
+            this.mark(at.st, "typeDiffers", { element: n1.id, key: n2.key });
         }
         this.nodes.delete(n2.id);
-        this.aliases.set(n2.id, n1.id);
+        this.alias(n2.id, n1.id);
         for (const a of n2.aliases) {
-            this.aliases.set(nodeId(a.space, a.key), n1.id);
+            this.alias(nodeId(a.space, a.key), n1.id);
         }
-        for (const [k, v] of this.aliases) {
-            if (v === n2.id) {
-                this.aliases.set(k, n1.id);
-            }
+        for (const k of [...(this.aliasesOf.get(n2.id) ?? [])]) {
+            this.alias(k, n1.id);
         }
         this.foldValues(n1, n2, at, rows);
         if (n1.time === null && n2.time !== null) {
@@ -1657,6 +1970,7 @@ class Builder {
                         n1.values[col] = v;
                     }
                     at.st.rowsDiffer++;
+                    this.mark(at.st, "rowsDiffer", { source: src, row: cell.row, element: n1.id, name: col });
                 } else if (had) {
                     n1.alt.push({ src, col, v, from: n2.key });
                 } else {

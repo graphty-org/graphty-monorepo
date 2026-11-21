@@ -1,13 +1,13 @@
 // Round 2, clip 1.4: the find box takes a rule: =amount >= 9000, Enter. The 53 transfers of $9,000
 // or more light up, nearly all inside one small community in the middle of the drawing.
-import { BANK_CLIP, bankLouvain, typeInFind } from "./bank.js";
+import { BANK_CLIP, bank2D, typeInFind } from "./bank.js";
 
 export default {
     id: "rule-under-10k",
     ...BANK_CLIP,
     caption: "Find payments of $9,000 or more",
     async setup(h) {
-        await bankLouvain(h);
+        await bank2D(h); // one node color: selecting comes before algorithms
         await h.park({ x: 600, y: 420 });
     },
     leadMs: 500,

@@ -6,47 +6,153 @@
         {
             "marker": "Intro",
             "items": [
-                { "clip": "co-ring-dark", "seconds": 3.0, "zoom": false },
-                { "clip": "co-ring-lit", "from": 1.0, "seconds": 5.5, "zoom": false },
+                {
+                    "clip": "intro-bank",
+                    "caption": "Live layouts",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "at": ["force", 2.6],
+                    "seconds": 3.2
+                },
+                {
+                    "clip": "intro-bank",
+                    "caption": "Find communities",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "at": ["colored", -0.6],
+                    "seconds": 2.0
+                },
+                {
+                    "clip": "intro-bank",
+                    "caption": "2D to 3D",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "at": ["3D", -0.7],
+                    "dropMarks": ["3D", 0.05, "lifted", 0],
+                    "seconds": 3.3
+                },
+                {
+                    "clip": "intro-morph",
+                    "caption": "Animated layouts",
+                    "bleed": {
+                        "x": 297,
+                        "y": 160,
+                        "w": 1383
+                    },
+                    "cut": true,
+                    "zoom": false,
+                    "at": ["circle", 0.1],
+                    "seconds": 2.4
+                },
+                {
+                    "clip": "intro-globe",
+                    "caption": "On a globe",
+                    "bleed": true,
+                    "cut": true,
+                    "zoom": false,
+                    "seconds": 3.4,
+                    "from": 0.6
+                },
                 {
                     "card": "title",
-                    "over": { "clip": "co-ring-lit" },
-                    "lines": ["Find what's hidden in connected data."],
-                    "laterLines": ["Network analysis in your browser \u2014 fraud, biology, your own data"],
+                    "over": {
+                        "clip": "intro-bank",
+                        "at": ["turning", 1.5]
+                    },
+                    "zoom": false,
+                    "cut": true,
+                    "lines": ["See what your connected data is hiding"],
+                    "laterLines": ["Free, in your browser"],
                     "laterSec": 1.0
                 }
             ]
         },
         {
-            "marker": "Catch a fraud ring",
+            "marker": "The basics",
             "items": [
-                { "clip": "find-groups", "from": 0.9 },
-                { "clip": "rule-under-10k", "from": 1.3 },
-                { "clip": "fade-rest", "from": 7.5, "seconds": 4.5, "zoom": false }
+                {
+                    "clip": "open-fraud",
+                    "at": ["network drawn", -2.5],
+                    "seconds": 4.0,
+                    "tag": "Synthetic data",
+                    "caption": "Open a network file"
+                },
+                {
+                    "clip": "rule-under-10k",
+                    "seconds": 4.5,
+                    "caption": "Select by rule: $9,000 or more"
+                },
+                {
+                    "clip": "walk-neighbors",
+                    "seconds": 4.0,
+                    "caption": "Click a node, see its neighbors"
+                },
+                {
+                    "clip": "bulk-style",
+                    "seconds": 4.5,
+                    "caption": "Restyle all 16 drug targets at once"
+                },
+                {
+                    "clip": "find-groups",
+                    "seconds": 3.5,
+                    "caption": "Find communities"
+                },
+                {
+                    "clip": "list-of-layouts",
+                    "from": 8.0,
+                    "seconds": 3.5
+                }
             ]
         },
         {
-            "marker": "Follow the money",
+            "marker": "Going further",
             "items": [
-                { "clip": "money-map", "from": 6.3, "seconds": 5.0, "zoom": false },
-                { "clip": "press-play", "from": 7.5, "seconds": 4.5, "zoom": false }
+                {
+                    "clip": "fly-to-group",
+                    "from": 3.0,
+                    "seconds": 3.5,
+                    "caption": "Fly to one community"
+                },
+                {
+                    "clip": "blend-glow",
+                    "seconds": 4.0,
+                    "zoom": false
+                }
             ]
         },
         {
-            "marker": "Inside Alzheimer's disease",
-            "chapter": {
-                "title": "Inside Alzheimer's disease",
-                "sub": "Real data: Open Targets, STRING",
-                "short": true
-            },
+            "marker": "Special views",
             "items": [
-                { "clip": "bulk-style", "from": 8.1 },
-                { "clip": "shortest-path", "from": 5.3, "seconds": 5.0, "zoom": false }
+                {
+                    "clip": "fewest-flights",
+                    "seconds": 4.5,
+                    "zoom": false
+                },
+                {
+                    "clip": "press-play",
+                    "seconds": 4.5,
+                    "zoom": false,
+                    "caption": "Press play: money flows to Riga"
+                },
+                {
+                    "clip": "send-project",
+                    "from": 4.2,
+                    "seconds": 4.5,
+                    "drop": [7.15, 7.85],
+                    "zoom": false,
+                    "caption": "Send the project to a colleague"
+                },
+                {
+                    "card": "end",
+                    "zoom": false,
+                    "seconds": 5,
+                    "big": "graphty.app",
+                    "lines": ["Free and open source \u2014 in your browser"]
+                }
             ]
-        },
-        {
-            "marker": "graphty.app",
-            "items": [{ "card": "end", "big": "graphty.app", "lines": ["Free and open source \u2014 in your browser"] }]
         }
     ]
 }

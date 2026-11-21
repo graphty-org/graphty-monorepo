@@ -1,14 +1,14 @@
 // Round 2, clip 2.4 (bulk editing): the 16 selected proteins become one layer; one color and one
 // size, and all 16 change together.
 import { tap } from "../r2-1-fraud-ring/bank.js";
-import { ALZ_CLIP, alzHull, alzSelectApproved, TARGET_COLOR, TARGET_SIZE } from "./alz.js";
+import { ALZ_CLIP, alz2D, alzSelectApproved, TARGET_COLOR, TARGET_SIZE } from "./alz.js";
 
 export default {
     id: "bulk-style",
     ...ALZ_CLIP,
     caption: "Restyle all 16 drug targets at once",
     async setup(h) {
-        await alzHull(h);
+        await alz2D(h); // plain colors: selecting and styling come before algorithms
         await alzSelectApproved(h);
         await h.page.getByRole("combobox", { name: "Find" }).press("Escape");
         await h.park({ x: 1400, y: 960 });

@@ -17,7 +17,7 @@ export default {
     caption: "Mark the ring as one layer",
     async setup(h) {
         await bankRule(h);
-        await zoomToward(h, RING_ADDRESS, 3);
+        await zoomToward(h, RING_ADDRESS, 6);
         await bankNeighborhood(h);
         await h.park({ x: 1560, y: 880 });
     },

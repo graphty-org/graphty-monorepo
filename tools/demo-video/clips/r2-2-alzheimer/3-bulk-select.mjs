@@ -1,14 +1,15 @@
 // Round 2, clip 2.3 (bulk editing): the find box, "Approved"; the Values row "Select where drugStage
 // is Approved (16)": the 16 proteins an approved drug targets are selected at once.
-import { typeInFind } from "../r2-1-fraud-ring/bank.js";
-import { ALZ_CLIP, alzHull } from "./alz.js";
+import { loudSelected, typeInFind } from "../r2-1-fraud-ring/bank.js";
+import { ALZ_CLIP, alz2D } from "./alz.js";
 
 export default {
     id: "bulk-select",
     ...ALZ_CLIP,
     caption: "Select all 16 approved-drug targets",
     async setup(h) {
-        await alzHull(h);
+        await alz2D(h); // plain colors: selecting and styling come before algorithms
+        await loudSelected(h); // the 16 targets stand out once selected
         await h.park({ x: 600, y: 420 });
     },
     leadMs: 500,

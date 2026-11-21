@@ -1,7 +1,7 @@
 // "And more", beat 1: the Alzheimer's network, colored by community; Layout > Rings by group,
 // grouped by Louvain, and each community glides onto its own ring (Arc move, set in setup).
 import { alzLouvain, ALZ_CLIP } from "../r2-2-alzheimer/alz.js";
-import { layoutPanel, MORE, pickLayout, REST, setTransition } from "./more.js";
+import { MORE, REST, ringsByCommunity, setTransition } from "./more.js";
 
 export default {
     id: "list-of-layouts",
@@ -16,13 +16,7 @@ export default {
     },
     leadMs: 400,
     async run(h) {
-        const { page } = h;
-        await pickLayout(h, /^Rings by group\b/, false);
-        const form = layoutPanel(page).getByRole("form", { name: "Rings by group" });
-        // the form groups by "name" until told otherwise (an app default; reported)
-        await h.click(form.getByRole("combobox", { name: "Group by" }));
-        await h.click(page.getByRole("option", { name: /^Louvain\b/ }).first());
-        await h.click(form.getByRole("button", { name: "Apply" }));
+        await ringsByCommunity(h);
         h.mark("applied");
         await h.move(REST);
         await h.app.settled(); // the glide ends, then the hold

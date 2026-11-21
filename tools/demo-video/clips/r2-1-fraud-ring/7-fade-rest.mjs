@@ -1,13 +1,13 @@
-// Round 2, clip 1.7: the Louvain folder's eye turns the community colors off, then Everything's nodes
-// go pale gray: the red ring is what stands out. Key moment: held 5 s.
+// Round 3: Everything's nodes go pale gray: the red ring is what stands out. Key moment: held 5 s.
+// No Louvain in setup: a basics styling clip, so the run only fades everything else.
 //
 // Fading Everything's opacity instead (the color picker's Opacity slider) fades the ring too: the
 // Fraud ring layer sets only a color, so it takes Everything's opacity. A pale color leaves it red.
 import {
     BANK_CLIP,
+    bank2D,
     bankNeighborhood,
     bankRing,
-    bankRule,
     closeToasts,
     everythingNodes,
     RING_ADDRESS,
@@ -19,10 +19,10 @@ export const FADE_COLOR = "lightgray";
 export default {
     id: "fade-rest",
     ...BANK_CLIP,
-    caption: "Fade everything but the ring",
+    caption: "Fade everything else",
     async setup(h) {
-        await bankRule(h);
-        await zoomToward(h, RING_ADDRESS, 3); // the framing clip 1.6 ended on
+        await bank2D(h);
+        await zoomToward(h, RING_ADDRESS, 6); // the framing clip 1.6 ends on
         await bankNeighborhood(h);
         await bankRing(h);
         // the inspector on Everything's node style
@@ -35,8 +35,6 @@ export default {
     async run(h) {
         const { page } = h;
         const insp = page.getByRole("complementary", { name: "Inspector" });
-        await h.click("Hide Louvain");
-        await h.pause(900); // the community colors go
         const color = insp.getByRole("textbox", { name: /^Node color, set here/ });
         await h.click(color);
         await page.keyboard.press("Control+A"); // type over the old color

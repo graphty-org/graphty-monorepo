@@ -5,6 +5,8 @@ import { BANK, BANK_CLIP, BANK_FOLDER } from "./bank.js";
 export default {
     id: "open-fraud",
     ...BANK_CLIP,
+    // cosmograph off: with it on, the file opens as a ball of giant spheres that re-lays (app-defects.md)
+    featuresOff: ["file-styles", "cosmograph"],
     caption: "Open three months of bank transfers",
     async setup(h) {
         await h.park({ x: 1380, y: 760 });
@@ -17,5 +19,5 @@ export default {
         h.mark("network drawn");
         await h.move({ x: 1560, y: 900, width: 80, height: 60 }); // the hand steps off the drawing
     },
-    holdMs: 1500, // cut on the drawing: the next clip settles it
+    holdMs: 2500, // the opened network held
 };

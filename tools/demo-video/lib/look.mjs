@@ -60,6 +60,10 @@ body.clear { background: transparent; }
 .cap .main { font: 600 46px/1.1 Inter; color: #fff; white-space: nowrap; }
 .cap .tag { font: 500 26px/1 Inter; color: #8b95a3; letter-spacing: 0; background: none; padding: 0; margin: 0;
   text-transform: none; white-space: nowrap; }
+.label { position: absolute; left: 72px; top: 60px; display: flex; flex-direction: column; gap: 16px; }
+.label .bar { width: 72px; height: 7px; border-radius: 4px; background: ${LIME}; }
+.label .text { font: 600 50px/1.1 Inter; color: #fff; white-space: nowrap;
+  text-shadow: 0 2px 18px rgba(0,0,0,0.85), 0 0 3px rgba(0,0,0,0.6); }
 .card .later { opacity: 0; }
 .card.reveal .later { opacity: 1; }
 .frame { position: absolute; inset: 0; background: rgba(18,23,31,0.86); }
@@ -183,9 +187,16 @@ export const html = {
      * @returns the page
      */
     caption: ({ text, tag }) => page(div("cap", div("main", esc(text)) + (tag ? div("tag", esc(tag)) : "")), true),
+    /**
+     * A feature's name over full-bleed footage (transparent PNG), at the top left under a lime bar.
+     * @param data - the fields
+     * @param data.text - the name, 1-3 words
+     * @returns the page
+     */
+    label: ({ text }) => page(div("label", div("bar", "") + div("text", esc(text))), true),
 };
 
-const TRANSPARENT = new Set(["caption", "corners"]);
+const TRANSPARENT = new Set(["caption", "corners", "label"]);
 
 // runs in the page: the fonts are in and two frames are drawn with them
 function fontsThenTwoFrames() {

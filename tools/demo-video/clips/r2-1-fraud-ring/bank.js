@@ -133,12 +133,13 @@ export async function bankLouvain(h) {
 }
 
 /**
- * Where clip 1.4 ends: the find-box rule has selected the 53 transfers of $9,000 or more.
+ * Where clip 1.4 ends: the find-box rule has selected the 53 transfers of $9,000 or more. One node
+ * color: selecting comes before algorithms in the tour, so no community colors yet.
  * @param h - the hand
  */
 export async function bankRule(h) {
     const { page } = h;
-    await bankLouvain(h);
+    await bank2D(h);
     await page.getByRole("combobox", { name: "Find" }).fill("=amount >= 9000");
     await page.getByRole("combobox", { name: "Find" }).press("Enter");
     await page.getByText("53 edges selected").first().waitFor();
@@ -227,6 +228,37 @@ export async function eye(h, layer, show) {
     const { page } = h;
     await page.getByRole("button", { name: `${show ? "Show" : "Hide"} ${layer}`, exact: true }).click();
     await page.getByRole("button", { name: `${show ? "Hide" : "Show"} ${layer}`, exact: true }).waitFor();
+}
+
+/**
+ * The Selected layer drawn loud (setup only): its nodes a bright color and larger, so a selection
+ * reads at a glance on the whole network (the default highlight is faint at Fit).
+ * @param h - the hand
+ * @param o - the look
+ * @param [o.color] - the node color
+ * @param [o.size] - the node size
+ */
+export async function loudSelected(h, { color = "FF3B30", size = "2.5" } = {}) {
+    const { page } = h;
+    const insp = page.getByRole("complementary", { name: "Inspector" });
+    await page.getByRole("treeitem", { name: /^Selected, / }).click();
+    await insp.getByRole("tab", { name: "Style" }).click();
+    await page.getByRole("tablist", { name: "Style for" }).getByRole("tab", { name: /^Node/ }).click();
+    const fill = insp.getByRole("textbox", { name: /^Node color, / });
+    if (!(await fill.isVisible())) {
+        await insp.getByRole("button", { name: "Add to node fill" }).click();
+        await page.getByRole("menuitem", { name: "Color", exact: true }).click();
+    }
+    await fill.fill(color);
+    await fill.press("Enter");
+    const big = insp.getByRole("spinbutton", { name: "Node size" });
+    if (!(await big.isVisible())) {
+        await insp.getByRole("button", { name: "Add to node shape" }).click();
+        await page.getByRole("menuitem", { name: "Size", exact: true }).click();
+    }
+    await big.fill(size);
+    await big.press("Enter");
+    await page.getByRole("treeitem", { name: /^Everything, / }).click();
 }
 
 /**

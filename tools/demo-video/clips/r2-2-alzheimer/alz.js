@@ -202,13 +202,17 @@ export async function runPath(h, from, to) {
  * Where clip 2.6 ends, made bold for the cold open: the ACHE to APOE path, its edges wide and its
  * three proteins larger and named.
  * @param h - the hand
+ * @param o - options
+ * @param [o.width] - the path's edge width
+ * @param [o.labels] - false to leave the path's proteins unnamed (screen-pixel labels slow the capture)
  */
-export async function alzPathBold(h) {
+export async function alzPathBold(h, { width = 60, labels = true } = {}) {
     const { page } = h;
     await runPath(h, "ACHE", "APOE");
     // near-black: a color none of the community outlines uses, so the path reads over them
-    await h.app.layerEdges("Shortest path", { color: PATH_COLOR, width: 60 });
-    await labelLayer(h, "Shortest path");
+    await h.app.layerEdges("Shortest path", { color: PATH_COLOR, width });
+    if (labels) await labelLayer(h, "Shortest path");
+    else await page.getByRole("tablist", { name: "Style for" }).getByRole("tab", { name: /^Node/ }).click();
     await insp(page).getByRole("button", { name: "Add to node shape" }).click();
     await page.getByRole("menuitem", { name: "Size", exact: true }).click();
     const size = insp(page).getByRole("spinbutton", { name: "Node size" });

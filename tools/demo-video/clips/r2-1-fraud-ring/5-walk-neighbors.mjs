@@ -1,6 +1,6 @@
 // Round 2, clip 1.5: click one account the rule lit up; its neighbors in the inspector; the shared
 // address among them; the address's neighbors: twelve accounts, all at one flat.
-import { BANK_CLIP, bankRule, nodeBox, RING_ACCOUNT, RING_ADDRESS, zoomToward } from "./bank.js";
+import { BANK_CLIP, bankRule, loudSelected, nodeBox, RING_ACCOUNT, RING_ADDRESS, zoomToward } from "./bank.js";
 
 const at = {};
 
@@ -10,8 +10,9 @@ export default {
     caption: "12 accounts share one address",
     async setup(h) {
         await bankRule(h);
+        await loudSelected(h); // the neighbors the walk selects stand out
         // closer to the ring, so the account the hand clicks is big enough to see and hit
-        await zoomToward(h, RING_ADDRESS, 3);
+        await zoomToward(h, RING_ADDRESS, 6);
         at.account = await nodeBox(h, RING_ACCOUNT);
         await h.park({ x: 1250, y: 880 });
     },

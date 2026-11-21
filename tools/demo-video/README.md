@@ -199,12 +199,20 @@ The numbers below come from tmp/demo-video/rework/research-craft.md ("Rules").
 `marker` makes a chapter mark (mp4 chapters and the chapter list). `chapter` (`number`, `title`,
 optional `sub`; no `number` for "And more") adds a card over the blurred first frame of the section.
 Cards hold `1.0 s + 0.33 s a word + 0.8 s` at full opacity (a web address counts three words), with
-the two crossfades on top: a chapter card at least 4 s, the title 4-5 s (it follows the cold open),
+the two crossfades on top: a chapter card at least 4 s, the title 3-3.4 s (it follows the cold open),
 the end card 6 s; a chapter's `short: true` makes a 2 s mini card (the highlight's change of
 domain); a card's `seconds` can only lengthen that. A `title` card's `laterLines` fade in `laterSec`
 (1.5) after it appears. A clip's `seconds` trims it to its last `seconds` (the result and its whole hold); `from` starts it that many seconds in (with `seconds`, that long from there). A
-clip shows its own caption (from its json, checked against the take); the cut's `caption` is used only
-for a "not recorded yet" card in a `--draft` build.
+clip shows its own caption unless the cut's item sets `caption` (`""` for none). `at: ["settled", 0.5]`
+starts the clip that long after one of its marks (counted after any drops), so a re-take needs no new
+numbers. `cut: true` is a hard cut into the item, with no crossfade; `speed: N` plays it N times
+faster, tagged "Nx speed".
+`bleed: true` shows the app's canvas alone, full-bleed (a 16:9 crop of the canvas, x 297, y 110,
+1383 wide, scaled to fill the frame), with no stage and no caption band; its caption becomes a short
+label at the top left. `bleed: { x, y, w }` picks another 16:9 box. The intro uses it; its takes
+(clips/r3-intro) are made for the crop: dark canvas, larger nodes, the hand resting on the layer
+panel outside it. A `title` card's `over: { clip, at: [mark, s] }` plays that clip full-bleed behind
+the title, instead of a blurred still.
 `drop: [a, b]` cuts the stretch from `a` to `b` s out of the take first (a freeze the app made);
 `dropMarks: ["opened", 0.8, "settled", 0]` does the same between two of the take's marks plus offsets
 (a layout settling while the hand rests), so a re-take needs no new numbers; `drop` may also be a

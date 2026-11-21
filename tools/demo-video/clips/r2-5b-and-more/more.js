@@ -98,6 +98,21 @@ export async function pickLayout(h, row, apply = true) {
 }
 
 /**
+ * The recorded path to Rings by group, grouped by Louvain community: Layout, the row, Group by,
+ * Louvain, Apply.
+ * @param h - the hand
+ */
+export async function ringsByCommunity(h) {
+    const { page } = h;
+    await pickLayout(h, /^Rings by group\b/, false);
+    const form = layoutPanel(page).getByRole("form", { name: "Rings by group" });
+    // the form groups by "name" until told otherwise (an app default; reported)
+    await h.click(form.getByRole("combobox", { name: "Group by" }));
+    await h.click(page.getByRole("option", { name: /^Louvain\b/ }).first());
+    await h.click(form.getByRole("button", { name: "Apply" }));
+}
+
+/**
  * The inspector (the right panel).
  * @param page - the Playwright page
  * @returns its locator

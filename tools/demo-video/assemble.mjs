@@ -92,11 +92,11 @@ async function still(pngFile, seconds) {
 // ---------------------------------------------------------------- how long a card holds
 // Long enough to find the text, read it and read it again (research-craft.md, rule 8): at full
 // opacity, 1.0 s + 0.33 s a word + 0.8 s, a web address counting three words; at least 4 s for a
-// chapter or the title, 6 s for the end card; the title at most 5 s (it follows the cold open, where
+// chapter, 6 s for the end card; the title 3-3.4 s (it follows the cold open, where
 // viewers leave). The crossfades in and out come on top. A chapter's `short: true` is a 2 s mini card
 // (the highlight's domain changes). The cut's `seconds` may ask for longer, never shorter.
-const CARD_FLOOR = { chapter: 4, title: 4, end: 6 };
-const CARD_CAP = { title: 5 };
+const CARD_FLOOR = { chapter: 4, title: 3, end: 6 };
+const CARD_CAP = { title: 3.4 };
 /**
  * How long a card holds.
  * @param kind - "title", "chapter", "end" or "placeholder"
@@ -128,6 +128,20 @@ async function cardSegment(item) {
     if (item.card === "placeholder") noPlaceholder(`card "${item.text ?? item.caption}"`);
     const seconds = cardSeconds(item.card, item);
     const over = Boolean(item.over && clipMeta(item.over.clip));
+    // `over: { clip, at: [mark, s] }`: the title lies over that clip playing, full-bleed, not a still
+    if (over && item.over.at) {
+        const meta = clipMeta(item.over.clip);
+        const from = markTime(meta, item.over.at[0]) + item.over.at[1];
+        const moving = await bleedFramed(join(CLIPS, `${item.over.clip}.mp4`), from, seconds, null, true);
+        const card = await png(item.card, { ...item, over }, next("png"));
+        const later = item.laterLines?.length
+            ? {
+                  card: await png(item.card, { ...item, over: true, reveal: true }, next("png")),
+                  at: item.laterSec ?? 1.5,
+              }
+            : null;
+        return { file: await overFrame(moving, card, seconds, later, false), seconds };
+    }
     let frame = null;
     if (over) {
         frame = next("png");
@@ -169,6 +183,54 @@ async function framed(src, start, want, caption, tag, zoom = []) {
         `[0]fps=${FPS},${zoomFilter(zoom)}scale=${STAGE.w}:${STAGE.h}:flags=lanczos:force_original_aspect_ratio=decrease,` +
             `pad=${STAGE.w}:${STAGE.h}:(ow-iw)/2:(oh-ih)/2:color=0xf4f4f4,setsar=1,setpts=PTS-STARTPTS[v];[1][v]overlay=${STAGE.x}:${STAGE.y}:eof_action=repeat[a];[a][2]overlay=format=auto[b];` +
             `[3]format=rgba,fade=in:st=0.25:d=0.35:alpha=1,fade=out:st=${out.toFixed(3)}:d=0.35:alpha=1[c];[b][c]overlay=format=auto,format=yuv420p`,
+        "-frames:v",
+        String(toFrames(want)),
+        "-an",
+        ...ENC,
+        mp4,
+    ]);
+    return mp4;
+}
+
+// The app's canvas in a take (left of the inspector, right of the layer panel, above the toolbar),
+// as a 16:9 box: `bleed: true` fills the frame with it; `bleed: { x, y, w }` picks another 16:9 box.
+const CANVAS = { x: 297, y: 110, w: 1383 };
+
+/**
+ * The crop filter for a full-bleed box.
+ * @param bleed - true or { x, y, w } in take pixels (the height is 9/16 of w)
+ * @returns the filter chain, scaled to fill the frame
+ */
+function bleedFilter(bleed) {
+    const b = bleed === true ? CANVAS : { ...CANVAS, ...bleed };
+    const h = Math.round((b.w * 9) / 16);
+    return `crop=${b.w}:${h}:${b.x}:${b.y},scale=1920:1080:flags=lanczos,setsar=1`;
+}
+
+/**
+ * Footage full-bleed: the canvas alone fills the frame, no stage and no caption band; a short label
+ * (a feature's name) sits at the top left (never in the bottom tenth, under a player's controls).
+ * @param src - the take
+ * @param start - where in it to start, s
+ * @param want - how long, s
+ * @param label - the label, or none
+ * @param bleed - as for bleedFilter
+ * @returns the mp4
+ */
+async function bleedFramed(src, start, want, label, bleed) {
+    const mp4 = next("mp4");
+    const lab = label ? await png("label", { text: label }, next("png")) : null;
+    const out = Math.max(0.5, want - 0.4);
+    const graph =
+        `[0]fps=${FPS},${bleedFilter(bleed)},setpts=PTS-STARTPTS[v]` +
+        (lab
+            ? `;[1]format=rgba,fade=in:st=0.1:d=0.3:alpha=1,fade=out:st=${out.toFixed(3)}:d=0.3:alpha=1[l];[v][l]overlay=format=auto,format=yuv420p`
+            : ";[v]format=yuv420p");
+    await run([
+        ...seek(src, start),
+        ...(lab ? ["-loop", "1", "-framerate", String(FPS), "-i", lab] : []),
+        "-filter_complex",
+        graph,
         "-frames:v",
         String(toFrames(want)),
         "-an",
@@ -340,6 +402,18 @@ function autoZoom(meta, start, want, { hold = false, restMs = 0, after = 0 } = {
 const seek = (file, sec) => [...(sec > 0 ? ["-ss", Math.max(0, sec - 0.25 / FPS).toFixed(4)] : []), "-i", file];
 
 /**
+ * When one of a take's marks happened.
+ * @param meta - the clip's json
+ * @param name - the mark
+ * @returns s into the take
+ */
+function markTime(meta, name) {
+    const e = (meta.events ?? []).find((x) => x.type === "mark" && x.name === name);
+    if (!e) throw new Error(`${meta.id}: no mark "${name}"`);
+    return e.t / 1000;
+}
+
+/**
  * A span of a take between two of its marks.
  * @param meta - the clip's json
  * @param spec - [markA, offA, markB, offB]: offsets in s after each mark
@@ -347,12 +421,7 @@ const seek = (file, sec) => [...(sec > 0 ? ["-ss", Math.max(0, sec - 0.25 / FPS)
  */
 function markSpan(meta, spec) {
     const [ma, oa, mb, ob] = spec;
-    const at = (name) => {
-        const e = (meta.events ?? []).find((x) => x.type === "mark" && x.name === name);
-        if (!e) throw new Error(`${meta.id}: no mark "${name}" for dropMarks`);
-        return e.t / 1000;
-    };
-    const span = [at(ma) + oa, at(mb) + ob];
+    const span = [markTime(meta, ma) + oa, markTime(meta, mb) + ob];
     if (span[1] - span[0] < 0.2) throw new Error(`${meta.id}: dropMarks span ${span} is empty`);
     return span;
 }
@@ -363,23 +432,31 @@ const clipMeta = (id) => {
 };
 
 /**
- * A clip, trimmed to `seconds` if asked, framed on the stage with its caption under it.
- * The caption is the clip's own (checked against its take); the cut's caption is used only for a
- * clip not recorded yet.
- * @param item - the cut's item: { clip, seconds?, from?, drop?: [s, s] | [[s, s], ...], dropMarks?: [mark, s, mark, s], zoom?, zoomAfter?, caption?, tag?, placeholder? }
- * @returns the part: { file, seconds, clip, start }
+ * `speed: N`: the take (after its drops) played N times faster, its marks and `from` with it, tagged "Nx speed".
+ * @param src - the take
+ * @param meta - its meta (events are rescaled in place)
+ * @param item - the cut's item
+ * @returns the faster take (src) and the item with `from` in its time
  */
-async function clipSegment(item) {
-    const meta = clipMeta(item.clip);
-    if (!meta || meta.placeholder) noPlaceholder(`clip ${item.clip}`);
-    if (!meta) {
-        // what the clip will show, said in its own caption
-        const card = item.placeholder
-            ? { text: item.placeholder, caption: item.caption }
-            : { text: item.caption ?? item.clip, tag: "NOT RECORDED YET" };
-        return { ...(await cardSegment({ card: "placeholder", ...card, seconds: item.seconds ?? 5 })), missing: true };
-    }
-    let src = join(CLIPS, `${item.clip}.mp4`);
+async function faster(src, meta, item) {
+    if (!item.speed || item.speed === 1) return { src, item };
+    const fast = next("mp4");
+    // read only as much of the take as the item keeps (a long take sped up is mostly thrown away)
+    const keep = item.seconds === undefined ? [] : ["-t", String(((item.from ?? 0) + item.seconds) * item.speed + 1)];
+    await run([...keep, "-i", src, "-vf", `setpts=PTS/${item.speed}`, "-an", ...ENC, fast]);
+    meta.events = (meta.events ?? []).map((e) => ({ ...e, t: e.t / item.speed }));
+    const from = item.from === undefined ? undefined : item.from / item.speed;
+    return { src: fast, item: { ...item, from, tag: item.tag ?? `${item.speed}x speed` } };
+}
+
+/**
+ * The take with `drop` and `dropMarks` spans cut out, its input log moved back with them.
+ * @param src - the take
+ * @param meta - its meta (events are moved in place)
+ * @param item - the cut's item
+ * @returns the take without those spans
+ */
+async function dropSpans(src, meta, item) {
     // `drop`: [a, b] or a list of them; `dropMarks: [markA, offA, markB, offB]`: from offA s after
     // markA to offB s after markB (a layout settling while the hand rests), found in the take, so a
     // re-take needs no new numbers. Cut latest first, so each span's times still hold.
@@ -408,6 +485,30 @@ async function clipSegment(item) {
             .filter((e) => e.t < a * 1000 || e.t >= b * 1000)
             .map((e) => (e.t >= b * 1000 ? { ...e, t: e.t - gap } : e));
     }
+    return src;
+}
+
+/**
+ * A clip, trimmed to `seconds` if asked, framed on the stage with its caption under it.
+ * The caption is the cut's when the item sets one ("" for none), else the clip's own.
+ * `cut: true` on any item is a hard cut into it, with no crossfade.
+ * @param item - the cut's item: { clip, seconds?, from?, drop?: [s, s] | [[s, s], ...], dropMarks?: [mark, s, mark, s], zoom?, zoomAfter?, caption?, tag?, placeholder? }
+ * @returns the part: { file, seconds, clip, start }
+ */
+async function clipSegment(item) {
+    const meta = clipMeta(item.clip);
+    if (!meta || meta.placeholder) noPlaceholder(`clip ${item.clip}`);
+    if (!meta) {
+        // what the clip will show, said in its own caption
+        const card = item.placeholder
+            ? { text: item.placeholder, caption: item.caption }
+            : { text: item.caption ?? item.clip, tag: "NOT RECORDED YET" };
+        return { ...(await cardSegment({ card: "placeholder", ...card, seconds: item.seconds ?? 5 })), missing: true };
+    }
+    let src = await dropSpans(join(CLIPS, `${item.clip}.mp4`), meta, item);
+    // `at: [mark, s]`: start that many seconds after one of the take's marks (after the drops)
+    if (item.at) item = { ...item, from: markTime(meta, item.at[0]) + item.at[1] };
+    ({ src, item } = await faster(src, meta, item));
     const total = await duration(src);
     // `from` alone drops the start (dead lead-in); `seconds` alone keeps the end (the result and its hold)
     const want = snap(Math.min(item.seconds ?? total - (item.from ?? 0), total));
@@ -416,6 +517,10 @@ async function clipSegment(item) {
         const mp4 = next("mp4");
         await run([...seek(src, start), "-frames:v", String(toFrames(want)), "-an", ...ENC, mp4]);
         return { file: mp4, seconds: want, clip: item.clip, start };
+    }
+    if (item.bleed) {
+        const file = await bleedFramed(src, start, want, "caption" in item ? item.caption : meta.caption, item.bleed);
+        return { file, seconds: want, clip: item.clip, start };
     }
     const z =
         item.zoom === false
@@ -431,7 +536,14 @@ async function clipSegment(item) {
         const k = 1920 / z.keys[1].rect.w;
         console.log(`push-in: ${item.clip} at ${(playhead + z.keys[0].t).toFixed(1)} s, ${k.toFixed(2)}x`);
     }
-    const file = await framed(src, start, want, meta.caption ?? item.caption, item.tag ?? meta.tag, z.keys);
+    const file = await framed(
+        src,
+        start,
+        want,
+        "caption" in item ? item.caption : meta.caption,
+        item.tag ?? meta.tag,
+        z.keys,
+    );
     return { file, seconds: want, clip: item.clip, start };
 }
 
@@ -517,18 +629,21 @@ async function chapterSegment(chapter, first) {
 /**
  * A card laid over a blurred still frame (or on its own), held still; a second card (the same card
  * with more lines) may fade in over it later.
- * @param frame - the frame (PNG), or null for an opaque card
+ * @param frame - the frame (PNG), footage (mp4, with `blur` false), or null for an opaque card
  * @param card - the card (transparent PNG over a frame)
  * @param seconds - how long
  * @param later - { card, at }: the fuller card, faded in over 0.5 s from `at` s, or null
+ * @param [blur] - false to lay the card over the footage as it plays, unblurred
  * @returns the mp4
  */
-async function overFrame(frame, card, seconds, later = null) {
+async function overFrame(frame, card, seconds, later = null, blur = true) {
     const mp4 = next("mp4");
     const loop = (f) => ["-loop", "1", "-framerate", String(FPS), "-i", f];
-    const inputs = [...(frame ? loop(frame) : []), ...loop(card), ...(later ? loop(later.card) : [])];
+    let back = [];
+    if (frame) back = blur ? loop(frame) : ["-i", frame];
+    const inputs = [...back, ...loop(card), ...(later ? loop(later.card) : [])];
     const c = frame ? 1 : 0;
-    let graph = frame ? `[0]boxblur=12:2[f];[f][1]overlay=format=auto[a]` : `[0]null[a]`;
+    let graph = frame ? `[0]${blur ? "boxblur=12:2" : "null"}[f];[f][1]overlay=format=auto[a]` : `[0]null[a]`;
     graph += later
         ? `;[${c + 1}]format=rgba,fade=in:st=${later.at}:d=0.5:alpha=1[l];[a][l]overlay=format=auto,format=yuv420p`
         : ";[a]format=yuv420p";
@@ -551,10 +666,12 @@ for (const section of cut.sections) {
             console.log(`skipped ${item.clip ?? item.card}: ${item.skip}`);
             continue;
         }
+        if (item.cut) playhead += XF;
         if (item.clip) items.push(await clipSegment(item));
         else if (item.montage) items.push(await montageSegment(item));
         else if (item.video) items.push(await videoSegment(item));
         else items.push(await cardSegment(item));
+        items.at(-1).cut = Boolean(item.cut);
         playhead += items.at(-1).seconds - XF;
     }
     const head = section.chapter ? [await chapterSegment(section.chapter, items[0])] : [];
@@ -563,9 +680,10 @@ for (const section of cut.sections) {
 }
 const offsets = [];
 let t = 0;
-for (const s of segments) {
+// a part with `cut` starts where the one before ends, with no crossfade
+for (const [i, s] of segments.entries()) {
     offsets.push(t);
-    t += s.seconds - XF;
+    t += s.seconds - (segments[i + 1]?.cut ? 0 : XF);
 }
 const total = t + XF;
 
@@ -589,15 +707,17 @@ await piece([...cutOf(segments[0], 0), ...count(XF), "-vf", `fade=in:st=0:d=${XF
 for (let i = 0; i < segments.length; i++) {
     const s = segments[i];
     const last = i === segments.length - 1;
-    const end = last ? s.seconds : s.seconds - XF;
-    if (end - XF > 0.01)
+    const b = segments[i + 1];
+    const end = last || b.cut ? s.seconds : s.seconds - XF;
+    const begin = i > 0 && s.cut ? 0 : XF;
+    if (end - begin > 0.01)
         await piece([
-            ...cutOf(s, XF),
-            ...count(end - XF),
-            ...(last ? ["-vf", `fade=out:st=${(end - XF - 0.6).toFixed(3)}:d=0.6`] : []),
+            ...cutOf(s, begin),
+            ...count(end - begin),
+            ...(last ? ["-vf", `fade=out:st=${(end - begin - 0.6).toFixed(3)}:d=0.6`] : []),
         ]);
     if (last) break;
-    const b = segments[i + 1];
+    if (b.cut) continue;
     await piece([
         ...cutOf(s, s.seconds - XF),
         ...cutOf(b, 0),

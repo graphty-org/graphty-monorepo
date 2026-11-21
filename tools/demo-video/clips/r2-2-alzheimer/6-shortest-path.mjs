@@ -5,19 +5,22 @@
 // draws bold (edge width 60) with its three stops named. A re-run of Shortest path reuses the
 // "Shortest path" layer and its style, so setup styles the layer on this very path, then re-runs it
 // from ACHE to ACHE: the clip opens with only ACHE marked (orange, named), and Find path on camera
-// draws the bold, named path in one step.
-import { ALZ_CLIP, alzHull, alzPathBold, alzSelectApproved, alzTargetsLayer, runPath } from "./alz.js";
+// draws the bold, named path in one step. Only the path's three nodes are named.
+import { hideLegend } from "../r2-5b-and-more/more.js";
+import { ALZ_CLIP, alzLouvain, alzPathBold, alzSelectApproved, alzTargetsLayer, runPath } from "./alz.js";
 
 export default {
     id: "shortest-path",
     ...ALZ_CLIP,
     caption: "Donepezil's target to APOE: two steps",
     async setup(h) {
-        await alzHull(h);
+        await alzLouvain(h); // no community outlines: with them the take filmed at 8 fps
         await alzSelectApproved(h);
         await alzTargetsLayer(h);
-        await alzPathBold(h);
+        // drawn thick, so the path reads at a glance; no labels: with them the take filmed at 7 fps
+        await alzPathBold(h, { width: 200, labels: false });
         await runPath(h, "ACHE", "ACHE");
+        await hideLegend(h.page); // the legend card covered the drawing's top left
         await h.page.getByRole("treeitem", { name: /^Everything, / }).click();
         await h.page.mouse.click(1560, 975); // keys back to the graph, so P opens the path form
         await h.app.settled();

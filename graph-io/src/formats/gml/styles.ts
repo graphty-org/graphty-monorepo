@@ -1732,7 +1732,8 @@ function yedLabelSpot(model: string, position: unknown, stored: boolean): string
 
 /**
  * A yEd GML edge label's place: the box `x` and `y` store, its top left corner on the page, else its `model` and
- * `position`, as yEd's GraphML keeps them (`putYedEdgeLabel`). A curved line or a self-loop keeps graphty's place.
+ * `position`, as yEd's GraphML keeps them (`putYedEdgeLabel`). A line with smoothed bends is placed from its polyline,
+ * as yEd places it and graphty-element hangs it (the middle of its route); a self-loop keeps graphty's place.
  * @param snapshot - the graph
  * @param g - the edge's `graphics` value
  * @param lg - the edge's `LabelGraphics` value
@@ -1751,9 +1752,6 @@ function readYedLabelPlace(
     const list: unknown[] = Array.isArray(raw) ? raw : [raw].filter(isRec);
     const [source, target] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
     if (!isRec(label) || typeof label.model !== "string" || source === target) {
-        return;
-    }
-    if (isRec(g) && Number(g.smoothBends) === 1 && list.length > 2) {
         return;
     }
     const [s, t] = [centerOf(snapshot, source), centerOf(snapshot, target)];

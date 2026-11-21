@@ -26,6 +26,8 @@ describe("pulled line batch uploads", () => {
 
     beforeEach(() => {
         const engine = new NullEngine();
+        // a real card's largest texture: NullEngine says 512, which would make the table 512 texels wide
+        engine.getCaps().maxTextureSize = 8192;
         engine.updateTextureData = (_texture, _data, x, y, width, height): void => {
             sent.push({ x, y, width, height });
         };

@@ -143,6 +143,15 @@ export function keepFetched(url: string, bytes: Uint8Array, response: Response):
 }
 
 /**
+ * What a reader fetched for a URL, left for the load that takes it.
+ * @param url - The URL.
+ * @returns The body's digest, size and validators, or undefined.
+ */
+export function peekFetched(url: string): FetchedFacts | undefined {
+    return FETCHED.get(url);
+}
+
+/**
  * What a reader fetched for a URL, removed once taken.
  * @param url - The URL.
  * @returns The body's digest, size and validators, or undefined.

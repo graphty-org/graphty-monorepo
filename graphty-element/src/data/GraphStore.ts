@@ -685,11 +685,23 @@ export class GraphStore {
      */
     private held: GraphBuilder | null = null;
     /**
-     * Whether the builder may be let go: true from the store's start and from each load that
-     * replaces the graph, false from the first rebuild after a release (of a builder holding edges)
-     * until then, so editing a loaded graph rebuilds it once, not after every quiet moment.
+     * Whether the builder may be let go: true from the store's start, from each load that
+     * replaces the graph and from the end of a load that has paid for the rebuilds so far (see
+     * {@link GraphStore.rowsLoaded}), false from the first rebuild after a release (of a builder
+     * holding edges) until then, so editing a loaded graph rebuilds it once, not after every quiet
+     * moment.
      */
     private releasable = true;
+    /**
+     * Rows (nodes plus edges) the loads since the graph was last replaced added, and rows the
+     * rebuilds in that time copied. A load lets the builder go again only while the first is at
+     * least the second, so the rows rebuilds copy stay within the rows loaded plus one graph:
+     * many pages or sources rebuild a few times, never once per page.
+     */
+    private rowsLoaded = 0;
+    private rowsCopied = 0;
+    /** The graph's rows when the outermost open load opened. */
+    private rowsAtOpen = 0;
     /** The builder let go, while it is. */
     private released: ReleasedBuilder | null = null;
     /** How many times a let-go builder was rebuilt. */
@@ -891,6 +903,15 @@ export class GraphStore {
     }
 
     /**
+     * The graph's rows (nodes plus edges), read without rebuilding a let-go builder.
+     * @returns the row count
+     */
+    private rowCount(): number {
+        const graph = this.held ?? this.cache;
+        return graph === null ? 0 : graph.nodeCount + graph.edgeCount;
+    }
+
+    /**
      * The builder now, rebuilt from the snapshot first when it was let go.
      * @returns the builder
      */
@@ -992,6 +1013,7 @@ export class GraphStore {
         // ponytail: a graph that never gets edges rebuilds on every edit after a quiet moment; count
         // rebuilds per load if node-only editing shows up in a profile.
         this.releasable = base.edgeCount === 0;
+        this.rowsCopied += base.nodeCount + base.edgeCount;
         this.released = null;
         this.readsOf = null;
         this.revivals++;
@@ -1389,6 +1411,10 @@ export class GraphStore {
      * (design 12.3: a load is one import). Edges ingested with no load open are session edges.
      */
     openLoad(): void {
+        if (this.loadDepth === 0) {
+            this.rowsAtOpen = this.rowCount();
+        }
+
         this.loadDepth++;
     }
 
@@ -1411,6 +1437,14 @@ export class GraphStore {
             this.completeIdentity();
             // The pass's column writes are the store's own.
             this.account();
+            // A load, merging or not, may let a rebuilt builder go again: a graph built from several
+            // sources is one load after another, and keeping the builder after the second would
+            // hold a second copy of the whole graph for the rest of the session. Only while the
+            // loads have paid for the rebuilds, or paging would copy the graph once per page.
+            this.rowsLoaded += Math.max(0, this.rowCount() - this.rowsAtOpen);
+            if (this.rowsLoaded >= this.rowsCopied) {
+                this.releasable = true;
+            }
         }
     }
 
@@ -2345,6 +2379,9 @@ export class GraphStore {
         }
         if (replace !== null && !replace.restore) {
             this.releasable = true;
+            this.rowsLoaded = 0;
+            this.rowsCopied = 0;
+            this.rowsAtOpen = 0;
         }
 
         if (replace !== null) {

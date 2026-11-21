@@ -277,3 +277,10 @@ export function useUsageAnswer(): UsageAnswer | null {
 export function useAnalyticsSends(): boolean {
     return useSyncExternalStore(onSiteConfig, () => analyticsSends());
 }
+
+/**
+ * What a reader who does not share still sends, in the words of the first-visit card and Settings
+ * > Privacy. It says the same facts as the README and /privacy.html.
+ */
+export const ANONYMOUS_COUNTS =
+    "visits, the site that sent you, which sample, file format, layout, measure and export you use, the graph's size as a range, and that you edited a style, used the assistant (which provider and how the turn ended, never what you wrote), switched 2D or 3D, entered VR or AR, used or saved a camera, saved or reopened a project, played the timeline or hit a loading error";

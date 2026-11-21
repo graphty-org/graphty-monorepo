@@ -182,7 +182,8 @@ describe("pulled arrow caps", () => {
             get moves() {
                 return moves;
             },
-            centerOf: at,
+            extentWrites: 0,
+            restingCenterOf: at,
             extentOf: (row: number) => ({
                 scale: rows[row].scale,
                 round: rows[row].radius,

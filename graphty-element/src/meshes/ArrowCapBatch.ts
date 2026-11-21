@@ -1102,7 +1102,7 @@ export class ArrowCapBatch {
             }
 
             // Edge.placeArrowCaps over Edge.interceptPointsFromColumns, then Edge.placeArrowHead
-            const [fromAt, headAt] = [rows.centerOf(from), rows.centerOf(head)];
+            const [fromAt, headAt] = [rows.restingCenterOf(from), rows.restingCenterOf(head)];
             // a hidden row draws no cap: the shader stands it, and draws nothing
             if (rows.drawnPart(from) * rows.drawnPart(head) === 0) {
                 continue;

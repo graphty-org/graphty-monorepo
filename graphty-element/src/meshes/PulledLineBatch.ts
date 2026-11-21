@@ -1018,8 +1018,8 @@ export class PulledLineBatch {
 
         const capBack = look.lineStopAt(look.size * rowCapScale(rows, head));
         const { src, lineEnd } = trimEnds({
-            src: rows.centerOf(from),
-            dst: rows.centerOf(head),
+            src: rows.restingCenterOf(from),
+            dst: rows.restingCenterOf(head),
             source,
             target,
             capBack,
@@ -1038,7 +1038,7 @@ export class PulledLineBatch {
     private bareEnds(rows: RestSource["rows"], from: number, to: number): PlacedEnds | null {
         return rows.seenThrough(from) || rows.seenThrough(to)
             ? null
-            : { src: rows.centerOf(from), lineEnd: rows.centerOf(to) };
+            : { src: rows.restingCenterOf(from), lineEnd: rows.restingCenterOf(to) };
     }
 
     /**

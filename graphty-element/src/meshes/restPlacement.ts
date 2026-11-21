@@ -37,7 +37,7 @@ export class RestWatch {
     /** Whether the pieces' CPU places are current, so the shader draws them there. */
     placed = false;
 
-    /** The row table's `moves` when the pieces were last placed, or seen moving. */
+    /** The row table's moves and extent writes when the pieces were last placed, or seen changing. */
     private seen = -1;
 
     /** Whether a piece was written since the last placing. */
@@ -49,8 +49,9 @@ export class RestWatch {
      * @returns True when the batch should place every piece now.
      */
     due(rest: RestSource): boolean {
-        if (rest.rows.moves !== this.seen) {
-            this.seen = rest.rows.moves;
+        const version = rest.rows.moves + rest.rows.extentWrites;
+        if (version !== this.seen) {
+            this.seen = version;
             this.placed = false;
             this.pending = true;
             return false;
@@ -64,7 +65,7 @@ export class RestWatch {
      * @param rows - The row table, whose reads can repack its lane: that counts as a move but moves nothing drawn.
      */
     done(rows: RowTable): void {
-        this.seen = rows.moves;
+        this.seen = rows.moves + rows.extentWrites;
         this.placed = true;
         this.pending = false;
     }

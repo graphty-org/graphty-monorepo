@@ -166,6 +166,9 @@ class RowTexture {
         }
     }
 
+    /** Calls that wrote a row, counted for what follows the table's writes (`RowTable.extentWrites`). */
+    writes = 0;
+
     /**
      * Whether rows wait to go up.
      * @returns True when a row was touched since the last upload.
@@ -175,6 +178,7 @@ class RowTexture {
     }
 
     touch(first: number, last = first): void {
+        this.writes++;
         this.first = Math.min(this.first, first);
         this.last = Math.max(this.last, last);
     }
@@ -296,6 +300,15 @@ export class RowTable {
      * clear. Unchanged, no row is drawn anywhere new, so a walk of the drawn positions skips the rows.
      */
     moves = 0;
+    /**
+     * Counts every write to a row's extent (its scale, radius, border or shape): unchanged, no row is drawn any
+     * larger, smaller or of another shape, so what was placed from the extents at rest still stands (`restPlacement.ts`).
+     * @returns The count.
+     */
+    get extentWrites(): number {
+        return this.extents.writes;
+    }
+
     /** Calls that sent the `rowPosition` texture to the card. */
     positionUploads = 0;
     /** Landings sent to the `rowPosition` texture as the layout's readback brought them, with no row written. */
@@ -591,8 +604,20 @@ export class RowTable {
     }
 
     /**
+     * Where a row is drawn while the rows rest: the CPU copy as the card last had it, with no catch-up from the lane,
+     * which a frame that moved nothing has nothing to bring up to date (`restPlacement.ts`).
+     * @param row - The row.
+     * @returns Its place.
+     */
+    restingCenterOf(row: number): Xyz {
+        const { floats } = this.positions;
+        const base = row * POSITION_FLOATS;
+        return { x: floats[base] ?? 0, y: floats[base + 1] ?? 0, z: floats[base + 2] ?? 0 };
+    }
+
+    /**
      * How much of a row is drawn, as its `rowPosition` w holds it: 0 for a hidden row, which a pulled line or cap
-     * between it and another draws nothing for. Read after {@link RowTable.centerOf}, which brings the row up to date.
+     * between it and another draws nothing for. Read at rest, as {@link RowTable.restingCenterOf} is.
      * @param row - The row.
      * @returns Its w.
      */

@@ -1,0 +1,60 @@
+# algorithms coverage
+
+Line coverage 99.6% (4867 of 4886 lines) on 339dc843c773324191d41b7cd3bd59af37f911c3.
+
+| File | Lines hit | Coverage |
+| --- | --- | --- |
+| algorithms/src/catalog.ts | 3 / 3 | 100.0% |
+| algorithms/src/data-structures/priority-queue.ts | 56 / 56 | 100.0% |
+| algorithms/src/data-structures/union-find.ts | 54 / 57 | 94.7% |
+| algorithms/src/errors.ts | 44 / 45 | 97.8% |
+| algorithms/src/indexed/accelerator.ts | 148 / 149 | 99.3% |
+| algorithms/src/indexed/all-pairs.ts | 141 / 141 | 100.0% |
+| algorithms/src/indexed/articulation.ts | 68 / 68 | 100.0% |
+| algorithms/src/indexed/bellman-ford.ts | 29 / 29 | 100.0% |
+| algorithms/src/indexed/betweenness.ts | 102 / 102 | 100.0% |
+| algorithms/src/indexed/bfs.ts | 130 / 131 | 99.2% |
+| algorithms/src/indexed/bipartite.ts | 29 / 29 | 100.0% |
+| algorithms/src/indexed/by-id.ts | 3 / 3 | 100.0% |
+| algorithms/src/indexed/closeness.ts | 98 / 98 | 100.0% |
+| algorithms/src/indexed/common-neighbors.ts | 19 / 19 | 100.0% |
+| algorithms/src/indexed/components.ts | 25 / 25 | 100.0% |
+| algorithms/src/indexed/degree.ts | 25 / 25 | 100.0% |
+| algorithms/src/indexed/delta-pagerank.ts | 160 / 162 | 98.8% |
+| algorithms/src/indexed/dfs.ts | 75 / 75 | 100.0% |
+| algorithms/src/indexed/dijkstra.ts | 55 / 55 | 100.0% |
+| algorithms/src/indexed/eigenvector.ts | 109 / 109 | 100.0% |
+| algorithms/src/indexed/flow.ts | 215 / 216 | 99.5% |
+| algorithms/src/indexed/girvan-newman.ts | 53 / 53 | 100.0% |
+| algorithms/src/indexed/grsbm.ts | 169 / 169 | 100.0% |
+| algorithms/src/indexed/hierarchical.ts | 173 / 173 | 100.0% |
+| algorithms/src/indexed/hits.ts | 59 / 59 | 100.0% |
+| algorithms/src/indexed/isomorphism.ts | 178 / 178 | 100.0% |
+| algorithms/src/indexed/k-core.ts | 85 / 85 | 100.0% |
+| algorithms/src/indexed/katz.ts | 65 / 65 | 100.0% |
+| algorithms/src/indexed/label-propagation.ts | 252 / 255 | 98.8% |
+| algorithms/src/indexed/leiden.ts | 248 / 249 | 99.6% |
+| algorithms/src/indexed/link-prediction.ts | 103 / 103 | 100.0% |
+| algorithms/src/indexed/louvain.ts | 208 / 210 | 99.0% |
+| algorithms/src/indexed/markov.ts | 160 / 160 | 100.0% |
+| algorithms/src/indexed/matching.ts | 117 / 117 | 100.0% |
+| algorithms/src/indexed/min-cut.ts | 117 / 117 | 100.0% |
+| algorithms/src/indexed/modularity.ts | 33 / 33 | 100.0% |
+| algorithms/src/indexed/mst.ts | 61 / 61 | 100.0% |
+| algorithms/src/indexed/pagerank.ts | 82 / 82 | 100.0% |
+| algorithms/src/indexed/partition-agreement.ts | 58 / 58 | 100.0% |
+| algorithms/src/indexed/point-to-point.ts | 111 / 111 | 100.0% |
+| algorithms/src/indexed/scc.ts | 44 / 44 | 100.0% |
+| algorithms/src/indexed/shortest-routes.ts | 84 / 84 | 100.0% |
+| algorithms/src/indexed/simple-paths.ts | 55 / 55 | 100.0% |
+| algorithms/src/indexed/spectral.ts | 285 / 289 | 98.6% |
+| algorithms/src/indexed/structures/arc-source.ts | 8 / 8 | 100.0% |
+| algorithms/src/indexed/structures/bit-set.ts | 8 / 8 | 100.0% |
+| algorithms/src/indexed/structures/max-heap.ts | 7 / 7 | 100.0% |
+| algorithms/src/indexed/structures/min-heap.ts | 63 / 63 | 100.0% |
+| algorithms/src/indexed/structures/ring-queue.ts | 18 / 18 | 100.0% |
+| algorithms/src/indexed/structures/union-find.ts | 24 / 24 | 100.0% |
+| algorithms/src/indexed/sync.ts | 121 / 121 | 100.0% |
+| algorithms/src/indexed/terahac.ts | 153 / 153 | 100.0% |
+| algorithms/src/indexed/triangles.ts | 71 / 71 | 100.0% |
+| algorithms/src/utils/math-utilities.ts | 6 / 6 | 100.0% |

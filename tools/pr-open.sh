@@ -10,8 +10,9 @@
 # Run it in the branch's worktree, with every change committed. In order it:
 #   1. refuses uncommitted changes, master/golden branches, a branch with no issue (--issue, else
 #      `git config branch.<b>.issue` as tools/worktree-new.sh writes it, else the number right after the type
-#      prefix, as in fix/1234-topic), a branch with nothing master lacks, an empty or missing Proof file, and a
-#      title commitlint rejects (Lint PR Title is a required check);
+#      prefix, as in fix/1234-topic), a branch with nothing master lacks, an empty or missing Proof file, a Proof
+#      that does not name every test file the branch adds or changes (it was not run), and a title commitlint
+#      rejects (Lint PR Title is a required check);
 #   2. merges origin/<branch> when GitHub's copy has commits this one lacks (the owner's screenshot approvals),
 #      then checks that origin/master merges cleanly (git merge-tree); a conflict stops it, exit 2: merge it by hand.
 #      A branch that is only behind master is not merged: CI tests the pull request as merged with master and the
@@ -135,6 +136,21 @@ elif ! git merge-base --is-ancestor origin/master HEAD; then
     fi
 fi
 [ -n "$(git rev-list -1 origin/master..HEAD)" ] || die "$branch has nothing master lacks"
+
+# Every test file the branch adds or changes must have been run before CI sees it: its file name appears in the
+# Proof, at the start of a word or after a "/" (issue #8799: about one pull request run in twenty-five failed on a
+# test file its own change edited). A revert/ branch is exempt: it restores what master had, and opens at once.
+# ponytail: a name match, not a parsed test result; a Proof line saying why one was not run also names it.
+if [[ "$branch" != revert/* ]]; then
+    changed_files=$(git -c core.quotePath=false diff --name-only --diff-filter=AMR "$(git merge-base origin/master HEAD)" HEAD)
+    untested=$({ grep -E '\.(test|spec)\.[cm]?[jt]sx?$' <<<"$changed_files" || true; } |
+        while IFS= read -r f; do
+            name=$(sed 's/[][\.*^$+?(){}|/]/\\&/g' <<<"${f##*/}")
+            grep -qE -- "(^|[[:space:]/\"'(\`])$name" "$proof" || echo "$f"
+        done)
+    [ -z "$untested" ] ||
+        die "the Proof shows no run of these test files the branch changes; run them and put the output (or at least each file's name) in the Proof: $(head -20 <<<"$untested" | paste -sd ' ')"
+fi
 
 # An issue the style fidelity known-failure records still cite stays open: merging "Fixes" would close it and fail
 # master's fidelity:issues check (issue #8888). Its own issue defaults to Refs; a commit closing one is refused.

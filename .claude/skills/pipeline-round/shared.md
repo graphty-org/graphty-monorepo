@@ -241,8 +241,8 @@ the old branch (#4247).
 Every subagent prompt either skill writes ends with this paragraph, verbatim:
 
 > Rules: when the work is finished, open its pull request with `tools/pr-open.sh --proof <file>` (the Proof file
-> holds the commands you ran and what they showed; keep it in tmp/<name>/, because an untracked file in the worktree
-> is refused), write `pipeline-round: opened <branch> <url>` on the issue, and
+> holds the commands you ran and what they showed, naming every test file the branch adds or changes, or pr-open.sh
+> refuses it; keep it in tmp/<name>/, because an untracked file in the worktree is refused), write `pipeline-round: opened <branch> <url>` on the issue, and
 > stop. Unless your job is master's fix or revert, first check master yourself, just before opening:
 > `gh run list -R graphty-org/graphty-monorepo --workflow release.yml --status completed --limit 10 --json databaseId,conclusion,headSha --jq '.[]|"\(.databaseId) \(.conclusion) \(.headSha[0:9])"' | while read id c sha; do s=$c; if [ "$c" != success ]; then v=$(mktemp -d); gh run download $id -R graphty-org/graphty-monorepo -p 'verdict-*' -D $v >/dev/null 2>&1; s=$(jq -rs 'max_by(.attempt)|if .forward then "forward" elif .deferred or .state==null then "" else .state end' $v/*/*.json 2>/dev/null); [ -z "$s" ] && { [ "$c" = cancelled ] && continue; s=$c; }; fi; [ "$s" = forward ] && continue; echo "release.yml $s $sha run $id"; break; done`
 > (the newest full run's verdict, whatever the run's GitHub conclusion)

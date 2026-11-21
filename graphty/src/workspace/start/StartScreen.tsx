@@ -12,6 +12,7 @@ import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
+import { layoutRows } from "../layout/methods";
 import { useAnalyticsSends } from "../privacy/usageData";
 import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
@@ -165,7 +166,8 @@ function RecentTile({ entry }: Readonly<{ entry: RecentProject }>): React.JSX.El
  */
 function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
     const algorithms = session?.catalog.algorithms().length;
-    const layouts = session?.catalog.layouts().length;
+    // Counted as the Layout list counts its rows: a layout's other engines are rows of their own.
+    const layouts = session === null ? undefined : layoutRows(session.catalog.layouts()).length;
     return (
         <aside className="ws-land-strip" aria-label="graphty at a glance">
             <a className="ws-land-it ws-land-oss" href={GITHUB} target="_blank" rel="noopener noreferrer">

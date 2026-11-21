@@ -12,6 +12,7 @@
 import "../data/index";
 
 import {
+    coordinateSystemOf,
     type DerivedGraph,
     fromBytes,
     type GraphSnapshot,
@@ -1873,6 +1874,9 @@ export class SessionData implements SessionDataApi {
             nodes: readonly Record<string, unknown>[];
             edges: readonly Record<string, unknown>[];
         };
+        if (!("src" in graph)) {
+            placeFromDrawing(graph, data.nodes);
+        }
         const label = LABEL_COLUMNS.find((column) => data.nodes.some((node) => typeof node[column] === "string"));
         if (this.pages.batched?.() !== true || readsThroughDraft(options)) {
             const json = JSON.stringify({ directed: graph.directed, ...data });
@@ -10496,4 +10500,30 @@ function mixedAmong(edges: Iterable<BuiltEdge>): readonly string[] | null {
         meanings.add(e.weight === null ? "\u0000none" : (e.weightMeaning ?? "\u0000unstated"));
     }
     return weighted && (meanings.size > 1 || meanings.has("\u0000none")) ? Object.freeze([...sources]) : null;
+}
+
+/**
+ * Gives each node record the saved drawing a dataset's position column holds, as the `position`
+ * every reader seeds the layout from (center, y up), so a dataset graph-samples gives a drawing
+ * (BioPlex 3.0, WikiPathways WP615) is placed like a file with stored positions (issue #9281).
+ * A geographic position column is a place on the Earth, not a drawing, and is left to the map.
+ * @param snapshot - the dataset
+ * @param nodes - its node records, one per row in row order; changed in place
+ */
+function placeFromDrawing(snapshot: GraphSnapshot, nodes: readonly Record<string, unknown>[]): void {
+    const column = snapshot.nodes.byRole("position");
+    if (column === null) {
+        return;
+    }
+    const system = coordinateSystemOf(column.meta);
+    if (system.kind !== "cartesian") {
+        return;
+    }
+    const flip = system.yAxis === "down" ? -1 : 1;
+    for (let row = 0; row < nodes.length; row++) {
+        const xyz = column.isSet(row) ? (column.value(row) as ArrayLike<number>) : null;
+        if (xyz !== null && Number.isFinite(xyz[0]) && Number.isFinite(xyz[1]) && !("position" in nodes[row])) {
+            nodes[row].position = [xyz[0], flip * xyz[1], Number.isFinite(xyz[2]) ? xyz[2] : 0];
+        }
+    }
 }

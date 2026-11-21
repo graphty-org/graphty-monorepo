@@ -91,6 +91,25 @@ describe("fetchDataset", () => {
         expect(Object.keys(toElementData(pathway).nodes[0])).not.toContain("position");
     });
 
+    it("gives every dataset with a saved drawing a y-up position column (issue #9281)", async () => {
+        const drawn = fromEdgeArrays({
+            directed: true,
+            nodeCount: 2,
+            src: Uint32Array.of(0),
+            dst: Uint32Array.of(1),
+            nodeColumns: { x: Float64Array.of(1, 2), y: Float64Array.of(3, 4) },
+        }).toBytes();
+        for (const name of ["bioplex3-hct116", "stelzl-interactome", "yeast-perturbation"]) {
+            const snapshot = await fetchDataset(name, { fetch: () => Promise.resolve(new Response(drawn.slice())) });
+            const position = snapshot.nodes.byRole("position");
+            expect(position === null ? null : coordinateSystemOf(position.meta), name).toMatchObject({
+                kind: "cartesian",
+                yAxis: "up",
+            });
+            expect(Array.from(position?.value(1) as ArrayLike<number>), name).toEqual([2, 4, 0]);
+        }
+    });
+
     it("leaves a dataset without positions as it was", async () => {
         const snapshot = await fetchDataset("karate", {
             fetch: () => Promise.resolve(new Response(fromEdgeArrays(karate()).toBytes().slice())),

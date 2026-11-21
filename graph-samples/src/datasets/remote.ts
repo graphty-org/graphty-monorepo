@@ -24,8 +24,8 @@ export interface FetchDatasetOptions {
 }
 
 /**
- * Download a dataset and decode it. A dataset with node positions (openflights' airports, WikiPathways WP615's
- * drawing) also gets a role-`position` column whose `meta.coordinates` says what they are: geographic longitude and
+ * Download a dataset and decode it. A dataset with node positions (openflights' airports, a saved drawing such as
+ * WikiPathways WP615's or BioPlex 3.0's) also gets a role-`position` column whose `meta.coordinates` says what they are: geographic longitude and
  * latitude, or a drawing with y growing upward. Its plain columns stay as they are.
  * @param name - the dataset name: lowercase letters, digits and dashes
  * @param options - the base URL, fetch implementation and abort signal

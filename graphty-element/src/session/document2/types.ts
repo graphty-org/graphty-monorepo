@@ -9,10 +9,9 @@
  */
 
 import type { EdgeId, NodeId, RunId } from "../../catalog/types";
-import type { CannedOutcomes } from "../projectFile";
+import type { CannedOutcomes, ProjectSaveOptions } from "../projectFile";
 import type { CodedFact } from "../shared";
 import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
-import type { ProjectFileHandle } from "./codecs/fileHandles";
 
 /**
  * A section's name: its key in a full file's `sections`, and `graphty-<name>` is its kind.
@@ -264,17 +263,10 @@ export interface BuildStamp {
 }
 
 /** What a codec's `write` is given. */
-export interface WriteContext extends CodecContext {
+export interface WriteContext
+    extends CodecContext, Pick<ProjectSaveOptions, "paths" | "handles" | "location" | "rewriteRecipe"> {
     /** The saver's choice per source id or load key; a source with no entry is embedded. */
     readonly embed: Readonly<Record<string, SourceStorage>>;
-    /** A file source's path relative to the folder the file is saved in, per source id or load key. */
-    readonly paths?: Readonly<Record<string, string>>;
-    /** A file source's browser file handle, per source id or load key: referenced with no `path`. */
-    readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
-    /** The URL of the file being saved: every path read is rebased to it. */
-    readonly location?: string;
-    /** Write the recipe from the session even when one was opened from a file (spec 8.1 rule 5). Default false. */
-    readonly rewriteRecipe?: boolean;
     /** Whether a run's id was minted by the element (its namespace is the element's own). */
     isDerived(id: RunId): boolean;
     /** The `bindsTo` of a bound section: `{ data }` alone; a results run carries its own build stamp. */

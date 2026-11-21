@@ -73,6 +73,7 @@ import {
 import { GraphtyError } from "../errors";
 import { featureOff } from "../features/resolve";
 import type { PendingWorkProgress } from "../managers/OperationQueueManager";
+import { SOURCE_VALUE } from "../session/commands/data";
 import { dispatcherOf, scopeResolverOfSession } from "../session/GraphSession";
 import { rowsOf } from "../session/notes/countIndex";
 import { resolveEdgeWeight } from "../session/project/ingest";
@@ -83,6 +84,7 @@ import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
 import type { EdgeRecord, GraphSession, GroupTableOptions, NodeRecord } from "../session/types";
 import { wholeGraph } from "../session/working/graphs";
 import { writtenPositions } from "./filePositions";
+import { sourceMetaExtra } from "./graph-io-import";
 
 export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 
@@ -608,6 +610,12 @@ export function buildExportSnapshot(
         addMissingNodes: true,
         weightDtype: "f64",
     });
+    // What the loaded file's reader recorded under `meta.extra` (DOT's `strict` and HTML labels), so
+    // the writer of that format writes it again (issue #7600).
+    const extra = sourceMetaExtra(dispatcherOf(session).state.graph.values.get(SOURCE_VALUE));
+    if (extra !== undefined) {
+        builder.setMeta({ extra });
+    }
 
     const allNodes = session.data.nodes({ scope: "graph" });
     const allEdges = session.data.edges({ scope: "graph" });

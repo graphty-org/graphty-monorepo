@@ -58,7 +58,7 @@ fileInput.addEventListener("change", async (e) => {
 });
 ```
 
-## A File's Own Styles
+## A File's Own Styles {#a-files-own-styles}
 
 Many formats carry what the graph looks like as well as what it holds: Gephi's colors and sizes
 in GEXF, yEd's shapes in GraphML, a Cytoscape visual style, a Cytoscape.js stylesheet, Graphviz

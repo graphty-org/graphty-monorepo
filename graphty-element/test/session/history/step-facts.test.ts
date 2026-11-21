@@ -16,7 +16,7 @@ import type { CodedFact } from "../../../src/session/shared";
 import type { HistoryCode, HistoryStep } from "../../../src/session/types";
 import { fileStylesOn } from "../../helpers/file-styles-on";
 import { fixtureSession } from "./fixture-session";
-import { FIXTURES } from "./fixtures";
+import { FIXTURES, withFixtureFeatures } from "./fixtures";
 
 fileStylesOn();
 
@@ -63,6 +63,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "data.import": ["data.import"],
     "data.issues": ["data.issues"],
     "data.import-source": ["data.import-source"],
+    "data.steps-set": ["data.steps-set"],
     "data.expand": ["data.expand"],
     "data.source-expand": ["data.source-expand"],
     "data.collapse": ["data.collapse"],
@@ -171,6 +172,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.merge-nodes": ["count"],
     "data.import": ["name", "type"],
     "data.import-source": ["name", "source"],
+    "data.steps-set": ["kind", "name", "source"],
     "data.expand": ["node"],
     "data.source-expand": ["edges", "nodes", "seeds"],
     "data.collapse": ["node", "nodes"],
@@ -312,23 +314,25 @@ describe("history step facts", () => {
     });
 
     for (const fixture of FIXTURES.filter((each) => each.tags.includes("session"))) {
-        it(fixture.name, async () => {
-            const session = await fixtureSession();
-            await fixture.before?.(session);
-            const before = session.history.steps.at(session.history.position - 1);
+        it(fixture.name, () =>
+            withFixtureFeatures(fixture, async () => {
+                const session = await fixtureSession();
+                await fixture.before?.(session);
+                const before = session.history.steps.at(session.history.position - 1);
 
-            await session.execute(fixture.command);
+                await session.execute(fixture.command);
 
-            const step = topOf(session.history.steps, session.history.position);
-            assert.notStrictEqual(step, before, "the command recorded a step of its own");
-            assertDocumented(step.fact, fixture.name);
-            assert.include(
-                CODES_BY_OP[fixture.command.op as UndoableOp],
-                step.fact.code,
-                `${fixture.command.op} carries a code listed for it`,
-            );
-            session.dispose();
-        });
+                const step = topOf(session.history.steps, session.history.position);
+                assert.notStrictEqual(step, before, "the command recorded a step of its own");
+                assertDocumented(step.fact, fixture.name);
+                assert.include(
+                    CODES_BY_OP[fixture.command.op as UndoableOp],
+                    step.fact.code,
+                    `${fixture.command.op} carries a code listed for it`,
+                );
+                session.dispose();
+            }),
+        );
     }
 
     it("says what was done with its values, not words", async () => {

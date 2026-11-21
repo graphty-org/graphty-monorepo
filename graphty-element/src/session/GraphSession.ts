@@ -82,6 +82,7 @@ import {
 } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { dispatcherOf, registerDispatcher, registerSessionData, registerSessionRuns } from "./dispatchers";
+import { FILES_API, type FilesApi } from "./files/kindOf";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
 import { type LayoutRecommendation, recommendLayout } from "./layout";
@@ -104,6 +105,7 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
+
 export { dispatcherOf, sessionDataOf, sessionRunsOf } from "./dispatchers";
 import { ANNOTATIONS_VALUE, type DrawnAnnotation, type DrawnAnnotations, drawnAnnotationsOf } from "./annotations";
 import { graphsOf, type SessionGraphs } from "./graphs/GraphsApi";
@@ -127,11 +129,12 @@ import {
     NODES_ADDED,
     ROWS_MOVED,
 } from "./project/graphOps";
-import type { GraphSlice, LayoutChoice } from "./project/state";
+import type { GraphSlice, LayoutChoice, ProjectState } from "./project/state";
 import { reportCaught } from "./project/strict";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { type RecipeDocument, recipeOf } from "./recipe";
+import { type RecipesApi, recipesOf } from "./recipes/RecipesApi";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import { resultExecutionOf } from "./results/ResultsApi";
 import { shareNodeIndex } from "./results/RunResult";
@@ -186,6 +189,8 @@ import type { StatusRun } from "./sets/status";
 import type { SetsApi, SetUser } from "./sets/types";
 import { bindShadersController, createSessionShaders, type SessionShaders, type ShadersController } from "./shaders";
 import { type Provenance, PROVENANCE_VALUE, suppliedBy } from "./sources/provenance";
+import { RECORD_PATHS } from "./sources/steps/paths";
+import type { StepsEdit } from "./sources/steps/project";
 import {
     createAutoApplyPolicy,
     createStylesApi,
@@ -241,6 +246,7 @@ import type {
     HistoryClearOptions,
     HistoryOutcome,
     HistoryRestoreOptions,
+    HistoryStepId,
     LayoutMotion,
     LocationColumns,
     ModelChange,
@@ -281,6 +287,9 @@ import { type FilterRunResult, type TimeWindow } from "./visibility/filter";
 import type { SlideCounts } from "./visibility/slide";
 import { wholeGraph, type WholeSnapshot } from "./working/graphs";
 import { createWorkingGraph, type WorkingGraph } from "./working/view";
+
+/** The readable path every timed element of a source-steps build carries its time at (design 3.9). */
+const STEPS_TIME = "graphty.time";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -608,6 +617,8 @@ class Session implements ElementSession {
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
     readonly project: ProjectApi;
+    readonly recipes: RecipesApi;
+    readonly files: FilesApi = FILES_API;
 
     /**
      * Publish what happened to a model a layer names, as `model:changed`.
@@ -902,6 +913,7 @@ class Session implements ElementSession {
             parts.readProject,
             parts.controller,
             parts.nodeSizeSpace,
+            (values) => parts.data.settingRoles(values.data?.knownFields),
             parts.darkScheme,
         );
         this.project = projectOf(this, this.dispatcher, parts.canned, {
@@ -927,6 +939,7 @@ class Session implements ElementSession {
                 },
             },
         });
+        this.recipes = recipesOf(this.project, () => this.features);
         this.sessionData.setHeldRefresh(async (load, options) => {
             // Only a version 2 open holds a source.
             if (!this.features.has("save-files-v2")) {
@@ -2261,6 +2274,7 @@ function projectConfigReader(dispatcher: Dispatcher, base: () => SessionDataConf
  * @param read - Reads the project settings.
  * @param controller - The acceleration controller.
  * @param nodeSizeSpace - Reads the renderer's graph-wide node size space, for `inEffect`.
+ * @param roles - Under source-steps, the role edit a settings write makes; null for none.
  * @param darkScheme - Whether the renderer's color scheme is dark, for `backgroundColor`.
  * @returns The settings.
  */
@@ -2269,6 +2283,7 @@ function configOf(
     read: () => ProjectConfig,
     controller: AccelerationControllerLike,
     nodeSizeSpace: (() => string | undefined) | undefined,
+    roles: (values: ProjectConfigPatch) => StepsEdit | null,
     darkScheme?: () => boolean,
 ): SessionConfig {
     return Object.freeze({
@@ -2340,7 +2355,22 @@ function configOf(
             // loads first, since the write's executor cannot wait for it. Counted as owed while it
             // loads, so a wait for the picture does not end on a canvas without it (issue #7970).
             const loading = loadNamedShaders(values);
-            const write = (): Promise<unknown> => dispatcher.dispatch({ op: "config.set", values });
+            // Under source-steps a weight or time setting is a view of a source's role (design
+            // 3.9): written to that source's mapping in the same step, or refused when several
+            // built sources could take it.
+            const edit = roles(values);
+            const write = (): Promise<unknown> =>
+                dispatcher.dispatch(
+                    edit === null
+                        ? { op: "config.set", values }
+                        : {
+                              op: "batch",
+                              steps: [
+                                  { op: "data.steps-set", edit },
+                                  { op: "config.set", values },
+                              ],
+                          },
+                );
             await (loading === undefined ? write() : dispatcher.ahead(loading.then(write)));
         },
         inEffect: (key: GraphSettingKey): SettingEffect =>
@@ -2639,6 +2669,10 @@ function fieldKindsOf(
 
     if ((STRUCTURE_PATHS as readonly string[]).includes(path)) {
         return ["node"];
+    }
+
+    if (RECORD_PATHS.includes(path)) {
+        return data.readableKinds(path);
     }
 
     if (path.startsWith("results.")) {
@@ -3197,6 +3231,7 @@ function repaintAgainstCurrentData(
     repaintElements: RepaintEngine["repaintElements"];
     repaintMoved: RepaintEngine["repaintMoved"];
     encoding: RepaintEngine["encoding"];
+    encodingRevision: RepaintEngine["encodingRevision"];
     idle: RepaintEngine["idle"];
     invalidate: () => void;
 } {
@@ -3278,6 +3313,7 @@ function repaintAgainstCurrentData(
         // domain is settled against the element count the pass last sized its stores to, so
         // preparing here rather than in a pass would invent one.
         encoding: (entry) => engine.encoding(entry),
+        encodingRevision: () => engine.encodingRevision(),
         idle: () => engine.idle(),
         invalidate: (): void => {
             engine.invalidate();
@@ -3386,6 +3422,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const ceilings = options.ceilings ?? new RenderLimits(true);
     const fileStylesOn = (): boolean =>
         (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
+    const sourceStepsOn = (): boolean =>
+        (settledFeatures ?? resolveFeatures(requested())).enabled.includes("source-steps");
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is
@@ -3406,6 +3444,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
     dispatcher.services.fileStyles = fileStylesOn;
+    dispatcher.services.sourceSteps = sourceStepsOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
@@ -3502,6 +3541,23 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 return (mutation) => send({ op: "data.apply", mutation });
             },
             importer: (options) => dispatcher.capturedDispatch(options),
+            folder: () => {
+                const send = dispatcher.capturedDispatch();
+                const routed = dispatcher.routing;
+                return (command) => {
+                    const top = dispatcher.history.stepAt(dispatcher.history.position - 1);
+                    // Inside a routed verb it is part of that verb's step. With no step to join it
+                    // is written as setup, which becomes the baseline while nothing is recorded.
+                    if (routed) {
+                        return send(command);
+                    }
+                    return top === undefined
+                        ? send({ op: "batch", steps: [command], setup: true })
+                        : dispatcher.transaction("Staged a source", (tx) => tx.dispatch(command), {
+                              after: top.id as HistoryStepId,
+                          });
+                };
+            },
             loadLine: loadLineOf(dispatcher),
             edgeMeaning: (counter) => dispatcher.services.data?.edgeMeaning?.(counter),
             ceilings,
@@ -3542,6 +3598,21 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 runs: dispatcher.state.runs,
                 visibility: dispatcher.state.visibility,
             }),
+            references: () => {
+                const nodes: NodeId[] = [...dispatcher.state.pins];
+                const members: EdgeMember[] = [];
+                for (const { note } of dispatcher.state.notes.values()) {
+                    for (const target of note.targets) {
+                        if ("node" in target) {
+                            nodes.push(target.node);
+                        } else if ("edge" in target) {
+                            members.push(target.edge);
+                        }
+                    }
+                }
+                heldBySetsAndRuns(dispatcher.state, nodes, members);
+                return { nodes, edges: dispatcher.services.edgeIdentity?.idsOf(members) ?? [] };
+            },
         },
         {
             revision: () => inputs.tick.value,
@@ -3570,6 +3641,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeCandidates: () => time.api.candidates(),
             fileStyles: () => fileStylesOn(),
+            sourceSteps: sourceStepsOn,
+            sourceReferences: () =>
+                (settledFeatures ?? resolveFeatures(requested())).enabled.includes("source-references"),
             batched: () => internals.batched?.() === true,
             visibleMasks: () => ({ nodes: visibility.masks.nodes(), edges: visibility.masks.edges() }),
             // And the working graph, built below the visibility.
@@ -3647,6 +3721,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         dispatcher,
         edgeMember,
         pairsOrdered: () => pairsOrdered(snapshot()),
+        sourceSteps: sourceStepsOn,
         hasNode: (id: NodeId) => snapshot().ids.indexOf(id) !== INVALID_INDEX,
         dependencies,
         offering,
@@ -3779,6 +3854,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const scope: ScopeResolver = createScopeApi({
         snapshot,
         store: store.store,
+        sourceSteps: sourceStepsOn,
         components,
         // Read through a call rather than captured: both of these are built below, and the
         // resolver only reaches them when somebody resolves a scope that names them.
@@ -3867,6 +3943,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         result: resultSource,
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
+        own: (source: SourceKey) => data.ownValues(source),
+        sourceSteps: sourceStepsOn,
         onChange: (change) => {
             // What the filter keeps is read by the style stack's kept readings (`styles.counts`,
             // `drawnValues`): moved before anyone hears of the change, so a reader answers fresh.
@@ -4131,18 +4209,21 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         knownFields: () => {
             const known = readProject().data.knownFields;
+            // Under source-steps the timeline reads `graphty.time` wherever a built source has a
+            // time role (design 3.9): the build has already parsed each source's own column.
+            const timed = data.stepsTimed();
             return {
-                nodeTimePath: known.nodeTimePath,
+                nodeTimePath: timed.node ? STEPS_TIME : known.nodeTimePath,
                 nodeTimeUnit: known.nodeTimeUnit ?? null,
                 // A saved zone stays saved with the timeline off or a name this engine lacks, unread.
-                nodeTimeParseZone: readableZone(known.nodeTimeParseZone),
-                nodeTimeEndPath: known.nodeTimeEndPath ?? null,
-                nodeTimeSpellsPath: known.nodeTimeSpellsPath ?? null,
-                edgeTimePath: known.edgeTimePath,
+                nodeTimeParseZone: timed.node ? null : readableZone(known.nodeTimeParseZone),
+                nodeTimeEndPath: timed.node ? null : (known.nodeTimeEndPath ?? null),
+                nodeTimeSpellsPath: timed.node ? null : (known.nodeTimeSpellsPath ?? null),
+                edgeTimePath: timed.edge ? STEPS_TIME : known.edgeTimePath,
                 edgeTimeUnit: known.edgeTimeUnit ?? null,
-                edgeTimeParseZone: readableZone(known.edgeTimeParseZone),
-                edgeTimeEndPath: known.edgeTimeEndPath ?? null,
-                edgeTimeSpellsPath: known.edgeTimeSpellsPath ?? null,
+                edgeTimeParseZone: timed.edge ? null : readableZone(known.edgeTimeParseZone),
+                edgeTimeEndPath: timed.edge ? null : (known.edgeTimeEndPath ?? null),
+                edgeTimeSpellsPath: timed.edge ? null : (known.edgeTimeSpellsPath ?? null),
             };
         },
         declarations: () => dispatcher.state.attributes,
@@ -4167,6 +4248,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
             return data.setType({ kind, name }, "date");
         },
+        settingRoles: (knownFields) => data.settingRoles(knownFields),
     });
     timeInternals = time.internals;
     dispatcher.services.timeFieldChanged = () => {
@@ -4222,6 +4304,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         results: (runId) => runs.get(runId)?.result,
         records,
+        sourceSteps: sourceStepsOn,
         notes: createNoteFacts(
             () => dispatcher.state.notes,
             () => dispatcher.lane.writes("notes"),
@@ -4720,6 +4803,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an
         // empty picture on a graph that is plainly painted.
         encoding: painter.encoding,
+        // A pass that first prepares a layer (the first edges arriving) moves what `encoding`
+        // answers and nothing else the kept readings key on (issue #9218).
+        encodingRevision: painter.encodingRevision,
         // THE SAME QUEUE the runs and the filters take their turn in. A style write that ran
         // beside a load would paint half a graph and then be handed the other half.
         queue,
@@ -5749,7 +5835,16 @@ function planningContext(
         defaultScope,
         limits: runsOptions.limits ?? DEFAULT_COST_GATE_LIMITS,
         defaultCaveats,
-        loadedWeight: () => data.loadedWeight(),
+        // The one weight rule is judged over the edges the run reads (design 8.6).
+        loadedWeight: (spec) => {
+            const loaded = data.loadedWeightOver(null);
+            // Only a source-steps build mixes meanings; nothing else resolves the scope here.
+            if (loaded?.mixed === undefined || spec === undefined || spec === "graph") {
+                return loaded;
+            }
+            const { edges } = resolveScope(spec);
+            return data.loadedWeightOver((edge) => edges.has(edge));
+        },
         // "idle" counts: an accelerator IS attached and the node count is merely below the
         // threshold at which the element bothers to use it, so an algorithm that needs one can run.
         acceleratorAvailable: () => ACCELERATOR_ATTACHED.has(acceleration.capabilities.acceleration.state),
@@ -5758,4 +5853,31 @@ function planningContext(
         calibration: runsOptions.calibration ?? currentCalibration,
         ...(runsOptions.measurements === undefined ? {} : { measurements: runsOptions.measurements }),
     };
+}
+
+/**
+ * Add what kept sets and runs name to a rebuild's references: a fixed set's or a path's members,
+ * and the nodes a run's node-id parameters hold (a shortest path's source and target).
+ * @param state - The project state.
+ * @param nodes - The node references, added to.
+ * @param members - The edge references, added to.
+ */
+function heldBySetsAndRuns(state: Pick<ProjectState, "sets" | "runs">, nodes: NodeId[], members: EdgeMember[]): void {
+    for (const { definition } of state.sets.values()) {
+        if (definition.kind === "fixed" || definition.kind === "path") {
+            nodes.push(...definition.nodes);
+            const edges: readonly (EdgeMember | readonly EdgeMember[] | null)[] = definition.edges ?? [];
+            members.push(...edges.flat().filter((edge) => edge !== null));
+        }
+    }
+    const algorithms = SESSION_CATALOG_TABLES.algorithms();
+    for (const { command } of state.runs.values()) {
+        const options = algorithms.find((each) => each.key === command.algorithm)?.options ?? [];
+        for (const option of options) {
+            const value = command.params?.[option.name];
+            if (option.type === "node-id" && (typeof value === "string" || typeof value === "number")) {
+                nodes.push(value);
+            }
+        }
+    }
 }

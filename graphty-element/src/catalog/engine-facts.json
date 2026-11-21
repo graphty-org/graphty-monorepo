@@ -239,7 +239,30 @@
             "loadedWeightByDefault": true
         },
         "degree": {
-            "options": [],
+            "options": [
+                {
+                    "name": "direction",
+                    "plainName": "Direction",
+                    "technicalName": "direction",
+                    "type": "enum",
+                    "description": "On a directed graph, which edges the published value counts: incoming (in), outgoing (out) or both (total)",
+                    "default": "total",
+                    "values": [
+                        {
+                            "value": "total",
+                            "label": "Total"
+                        },
+                        {
+                            "value": "in",
+                            "label": "In"
+                        },
+                        {
+                            "value": "out",
+                            "label": "Out"
+                        }
+                    ]
+                }
+            ],
             "scopeInput": "subgraph",
             "weightMeaning": null,
             "loadedWeightByDefault": true

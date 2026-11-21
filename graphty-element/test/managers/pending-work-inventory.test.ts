@@ -79,6 +79,12 @@ const INVENTORY: Record<string, Covered> = {
         kind: "load",
         reason: "data.refresh of a source a version 2 open held reads its module, as a network refresh does in data.ts",
     },
+    "src/session/sources/references.ts": {
+        count: 1,
+        reason:
+            "a network reference's address for the network gate, read from the load module; it computes a URL " +
+            "and draws nothing (the read that follows goes through data.import, held in the load line)",
+    },
     "src/data/source-bytes.ts": {
         count: 1,
         kind: "load",
@@ -130,9 +136,11 @@ const INVENTORY: Record<string, Covered> = {
         reason: "a line pattern texture; a mesh whose texture is loading is not ready, which holds the frame",
     },
     "src/meshes/NodeDecorationMesh.ts": {
-        count: 1,
+        count: 3,
         kind: "shader",
-        reason: "a decoration's texture; a mesh whose texture is loading is not ready, which holds the frame",
+        reason:
+            "a decoration's texture; a mesh whose texture is loading is not ready, which holds the frame; a picture " +
+            "the engine could not decode, redrawn through an image, is held as a picture token until its texture starts",
     },
     "src/managers/BasemapManager.ts": {
         count: 3,

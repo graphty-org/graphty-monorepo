@@ -174,6 +174,7 @@ export type {
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    ReaderEditRow,
     RecordMatch,
     RecordMatchRank,
     RecordPage,
@@ -214,7 +215,47 @@ export type {
     SettingEffect,
     SettingEffectCode,
     SideMapping,
+    SourceBuildState,
+    SourceCellState,
+    SourceCellValue,
+    SourceCellValues,
+    SourceClashRule,
+    SourceConflict,
+    SourceConflictQuery,
+    SourceConnectOptions,
+    SourceCopy,
+    SourceCopyChoice,
+    SourceEdgeRef,
+    SourceEditChoice,
+    SourceElementRef,
+    SourceElementsFilter,
+    SourceEndOption,
+    SourceExtractOptions,
+    SourceField,
+    SourceHubValue,
+    SourceJoinInto,
+    SourceLineage,
     SourceLoaded,
+    SourceMergeOptions,
+    SourceMoveColumnsOptions,
+    SourceNodeRef,
+    SourceNoPathReason,
+    SourceRefreshIssue,
+    SourceRoleName,
+    SourceRoleOptions,
+    SourceRowFilter,
+    SourceSpaceName,
+    SourceSpaceOverlap,
+    SourceSpaceRow,
+    SourceStepCounts,
+    SourceStepOp,
+    SourceStepResolution,
+    SourceStepRow,
+    SourceTypeEntry,
+    SourceTypeName,
+    SourceTypeRule,
+    SourceValue,
+    SourceValuesDiffer,
     StartingCamera,
     StyleProblem,
     TableMapping,
@@ -394,6 +435,8 @@ export type {
     RunStatus,
     RunStyle,
     RunWindow,
+    StabilityOptions,
+    StabilityResult,
     StaleNote,
     StaleReason,
     StartOptions,
@@ -543,6 +586,7 @@ export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "
 export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./src/session";
 export { browserProjects } from "./src/session";
 export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./src/session";
+export type { FileKind, FilesApi } from "./src/session/files/kindOf";
 export type {
     AssetStorage,
     DocumentBindFacts,
@@ -578,6 +622,7 @@ export type {
     SourceUnavailableReason,
 } from "./src/session/projectFile";
 export { DOCUMENT_SECTIONS, PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+export type { RecipesApi } from "./src/session/recipes/RecipesApi";
 // Autosaved work read and deleted without an element (a start screen that offers it first).
 export type { AutosaveLookupOptions } from "./src/autosave/elementAutosave";
 export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";

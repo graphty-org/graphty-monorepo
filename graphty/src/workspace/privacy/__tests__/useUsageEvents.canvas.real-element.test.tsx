@@ -24,7 +24,7 @@ import { withFeatures } from "../../../test/features";
 import { openSampleFromStart } from "../../../test/open";
 import { dragAcross } from "../../../test/real-pointer";
 import { screen, waitFor } from "../../../test/test-utils";
-import { TEST_ANALYTICS } from "../../../test/usage-recorders";
+import { firstOnPage, type Recorded, recordInto, TEST_ANALYTICS } from "../../../test/usage-recorders";
 import { clearRecent } from "../../project/recent";
 
 /** What reached the PostHog stand-in, after cleaning. */
@@ -294,10 +294,35 @@ describe("usage counts from the reader's hands on the canvas", () => {
             { kind: "orbit" },
             ...Array.from({ length: zooms }, () => ({ kind: "zoom" })),
         ]);
+        // Counted for every reader: the first gesture on the page is marked as the first.
+        assert.deepEqual(
+            captured("camera_used").map((each) => each.first_on_page),
+            [true, ...Array.from({ length: zooms }, () => undefined)],
+        );
         assert.deepEqual(own("canvas_selected", "via"), [{ via: "click" }, { via: "box" }]);
         for (const { id } of [node, other]) {
             assert.notInclude(JSON.stringify(posthog), String(id));
         }
+    });
+
+    it("counts the first camera gesture of a page for a reader who does not share, and no later one", async () => {
+        // A reader who does not share: only the anonymous mode's stand-in.
+        undoPostHog();
+        const anonymous: Recorded[] = [];
+        recordInto(anonymous, "anonymous");
+        const element = await openedAtRest();
+        const orbited = next("camera_used");
+        await dragAcross(element, 80, { x: 8, y: 8 });
+        assert.deepEqual({ ...(await orbited) }, { kind: "orbit" });
+        await element.waitForStableFrame();
+        const again = next("camera_used");
+        await dragAcross(element, 80, { x: 8, y: 8 });
+        await again;
+        assert.deepEqual(firstOnPage(anonymous, "camera_used"), [{ kind: "orbit" }]);
+        assert.lengthOf(
+            anonymous.filter((each) => each.event === "camera_used"),
+            1,
+        );
     });
 
     it("counts a command run from Quick actions by keys by its id, never its label", async () => {

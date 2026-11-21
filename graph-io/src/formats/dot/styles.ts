@@ -1627,6 +1627,47 @@ function readNodeRings(n: NodeRead): void {
 }
 
 /**
+ * How far past a node's own outline its further outlines reach (`PERIPHERY_GAP` per outline after the first), or 0
+ * for a node with one: Graphviz clips an edge at a node's outermost periphery (lib/common/shapes.c, poly_inside).
+ * @param snapshot - the graph
+ * @param n - the node
+ * @returns the reach, in points
+ */
+function peripheryReach(snapshot: GraphSnapshot, n: number): number {
+    if (isCluster(snapshot, n)) {
+        return 0;
+    }
+    const shape = (nonEmpty(cellText(snapshot.nodes, "shape", n)) ?? "").trim().toLowerCase();
+    const raw = nonEmpty(cellText(snapshot.nodes, "peripheries", n));
+    const count = raw === null ? (SHAPE_PERIPHERIES.get(shape) ?? 1) : Math.trunc(Number(raw));
+    return Number.isFinite(count) && count > 1 && !NO_OUTLINE.has(shape) ? (count - 1) * PERIPHERY_GAP : 0;
+}
+
+/**
+ * Reads where an edge stops at a node with further outlines (`peripheries`, `doublecircle`, `tripleoctagon`): at the
+ * outermost one, as Graphviz clips it, so a line drawn between the node outlines stops on the outer ring
+ * (`sourceNodeGap`, `targetNodeGap`) rather than running across the rings to the node's own outline.
+ * @param snapshot - the graph
+ * @param e - the edge
+ * @param put - receives the values
+ */
+function readEdgePeripheryGaps(snapshot: GraphSnapshot, e: number, put: Put): void {
+    const [source, target] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+    if (source === target) {
+        return;
+    }
+    for (const [property, n] of [
+        ["sourceNodeGap", source],
+        ["targetNodeGap", target],
+    ] as const) {
+        const reach = peripheryReach(snapshot, n);
+        if (reach > 0) {
+            put(property, reach);
+        }
+    }
+}
+
+/**
  * Reads a node's or cluster's shape: a cluster is a rectangle, rounded by the `rounded` style as a box is. Graphviz draws
  * a striped box with square corners whatever `rounded` says.
  * @param n - the node
@@ -3070,6 +3111,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         const put: Put = (p, v) => {
             edge.put(e, p, v);
         };
+        readEdgePeripheryGaps(snapshot, e, put);
         readEdgeRoute(stored, () => loops.routeOf(e, get), get, put);
         readLabelPlaces(snapshot, places, e, get, put, cx.edge(e).directed);
     }

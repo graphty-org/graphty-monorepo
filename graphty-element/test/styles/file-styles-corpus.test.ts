@@ -18,6 +18,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 
+import { statesStyles } from "@graphty/graph-io/styles";
 import { afterAll, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, FILE_STYLE_ISSUE, type GraphSession, type Layer } from "../../session";
@@ -205,6 +206,12 @@ function check(session: GraphSession, read: FileStylesRead, result: FileResult):
     rows.forEach((row, at) => {
         edgeRecords[row] = edges[at];
     });
+
+    // A file that states no style of its own (its program's defaults only) adds no layers (issue #9298).
+    if (!statesStyles(read.extracted) && (read.annotations?.length ?? 0) === 0) {
+        assert.deepEqual(fileLayers(session), [], "a file that states no style adds no layers");
+        return;
+    }
 
     // The translation, again, with what the load gave it.
     const translation = translateFileStyles({

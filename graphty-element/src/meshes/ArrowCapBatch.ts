@@ -880,7 +880,14 @@ export class ArrowCapBatch {
 
         this.gone = true;
         this.stopFlush();
-        // Its material is this batch's own -- one for all its caps -- so it goes with it.
+        // Its material is this batch's own -- one for all its caps -- so it goes with it. Not the row table's textures a
+        // batch that pulls caps binds: the row table and every pulled line read them still.
+        if (this.pulled !== null) {
+            this.mesh.material?.dispose(true, false);
+            this.mesh.dispose(false, false);
+            return;
+        }
+
         this.mesh.dispose(false, true);
     }
 

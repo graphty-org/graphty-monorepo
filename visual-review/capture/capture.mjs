@@ -59,8 +59,9 @@ export const VIEWPORT = { width: 1200, height: 900 };
 /** Device pixels per CSS pixel, as Chromatic captures; recorded in results.json as `scale`. */
 export const SCALE = 2;
 /**
- * How long a story may take to load and render, and then each later step (the fonts, the project's
- * `waitFor`, the screenshot) before it is `failed`.
+ * How long a story may take to load and render, and then each later step (the fonts, the screenshot)
+ * before it is `failed`. The project's `waitFor` is not bounded: its method owns its own deadline, and a
+ * large sample may take as long as it needs (graph-io's fidelity `whenDone()`, #9220).
  */
 const RENDER_TIMEOUT = 30_000;
 
@@ -504,16 +505,14 @@ async function shootOnce(browser, url, { delay, waitFor }) {
             }),
         );
         if (waitFor) {
-            await bounded(
-                `waitFor ${waitFor.selector}.${waitFor.method}()`,
-                frame.evaluate(
-                    async ({ selector, method }) => {
-                        const found = [...document.querySelectorAll(selector)];
-                        await Promise.all(found.map((el) => /** @type {any} */ (el)[method]()));
-                        await new Promise((r) => requestAnimationFrame(() => r()));
-                    },
-                    { selector: waitFor.selector, method: waitFor.method },
-                ),
+            // Unbounded on purpose: the project's method decides when its story has settled or failed.
+            await frame.evaluate(
+                async ({ selector, method }) => {
+                    const found = [...document.querySelectorAll(selector)];
+                    await Promise.all(found.map((el) => /** @type {any} */ (el)[method]()));
+                    await new Promise((r) => requestAnimationFrame(() => r()));
+                },
+                { selector: waitFor.selector, method: waitFor.method },
             );
             if (waitFor.failOnConsole && lines.some((l) => l.includes(waitFor.failOnConsole))) {
                 return fail(waitFor.failOnConsole);

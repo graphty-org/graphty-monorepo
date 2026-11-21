@@ -2,6 +2,7 @@ import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
 import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
@@ -517,6 +518,31 @@ export class ColumnRow implements RowMeasure {
      */
     get walksEachFrame(): boolean {
         return false;
+    }
+
+    /**
+     * The row scan tests a ray against the row's source mesh, as it does a batched `Node`'s: a row never names a
+     * model, which stays on Babylon's pick.
+     * @returns True.
+     */
+    get drawnByRowScan(): boolean {
+        return true;
+    }
+
+    /**
+     * What the row scan tests a ray against.
+     * @returns The source mesh.
+     */
+    get drawnSourceMesh(): Mesh {
+        return this.paintedSourceMesh;
+    }
+
+    /**
+     * The row's paint draws at its source's size, so the scan scales its bound by 1.
+     * @returns One on each axis.
+     */
+    get drawnScaling(): Readonly<Vector3> {
+        return Vector3.OneReadOnly;
     }
 
     /**
@@ -1037,6 +1063,37 @@ export class NodeBatches {
     }
 
     /**
+     * Whether a row with no `Node` keeps the source it draws from under a new paint (see
+     * {@link NodeBatches.lookOf}): a `Node` built from that source keeps its mesh under the paint,
+     * and one built from a source the paint does not keep is rebuilt as soon as it is painted.
+     * @param index - The row.
+     * @param paint - The paint the row is about to take.
+     * @returns True when it keeps it; false when it does not, or no batch draws the row.
+     */
+    keepsLook(index: number, paint: NodePaint): boolean {
+        const row = this.columnRows.get(index);
+        return row !== undefined && this.keeps({ paint: row.paint, source: row.paintedSourceMesh }, paint);
+    }
+
+    /**
+     * Whether a paint keeps the source a row draws from now, as `Node.keepsMeshFor` keeps a
+     * `Node`'s mesh: the same key, or a deep-equal style and color on the same shader path.
+     * @param drawn - What the row is drawn as now, if anything.
+     * @param paint - The new paint.
+     * @returns True when it keeps it.
+     */
+    private keeps(drawn: Pick<RowLook, "paint" | "source"> | null, paint: NodePaint): boolean {
+        return (
+            drawn !== null &&
+            !drawn.source.isDisposed() &&
+            (drawn.paint.meshKey === paint.meshKey ||
+                (shaderPartOf(drawn.paint.meshKey) === shaderPartOf(paint.meshKey) &&
+                    isEqual(drawn.paint.style, paint.style) &&
+                    isEqual(drawn.paint.color, paint.color)))
+        );
+    }
+
+    /**
      * The source a paint draws from: the one the row has while the paint keeps it, as
      * `Node.keepsMeshFor` keeps a `Node`'s mesh (the same key, or a deep-equal style and color on
      * the same shader path), or else the paint's own.
@@ -1045,14 +1102,9 @@ export class NodeBatches {
      * @returns The source and the paint it was made for.
      */
     private sourceFor(drawn: RowLook | null, paint: NodePaint): { source: Mesh; sourcePaint: NodePaint } {
-        const keeps =
-            drawn !== null &&
-            !drawn.source.isDisposed() &&
-            (drawn.paint.meshKey === paint.meshKey ||
-                (shaderPartOf(drawn.paint.meshKey) === shaderPartOf(paint.meshKey) &&
-                    isEqual(drawn.paint.style, paint.style) &&
-                    isEqual(drawn.paint.color, paint.color)));
-        return keeps ? drawn : { source: this.host.sourceOf(paint), sourcePaint: paint };
+        return drawn !== null && this.keeps(drawn, paint)
+            ? drawn
+            : { source: this.host.sourceOf(paint), sourcePaint: paint };
     }
 
     /**

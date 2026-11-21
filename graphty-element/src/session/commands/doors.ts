@@ -2312,6 +2312,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             togglesOwnMeshes: READ,
             columnEnd: READ,
             endRow: READ,
+            batchEndRow: READ,
+            endDrawnAsGroup: READ,
         },
     },
     {
@@ -4287,6 +4289,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             owe: LANE,
             forgive: LANE,
             settle: LANE,
+            // One row of an owed publish, read without writing it.
+            owesRows: READ,
+            owedReadsSpill: READ,
+            readOwed: READ,
+            owedWrites: READ,
+            owedRowsRead: READ,
             keeps: READ,
             unsettledView: READ,
         },

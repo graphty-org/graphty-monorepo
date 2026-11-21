@@ -135,6 +135,37 @@ describe("multipartite", () => {
         assert.notEqual(row(r, 0)[1], row(r, 3)[1]);
     });
 
+    it("aspectRatio spreads the layers until the drawing has that shape, either alignment", () => {
+        // 17 layers: one of 30 nodes, the rest of 2, so unit spacing would draw a band 16 wide and 29 high
+        const layers = Array.from({ length: 17 }, (_, k) => (k === 0 ? 30 : 2));
+        const starts = layers.map((_, k) => layers.slice(0, k).reduce((a, b) => a + b, 0));
+        const g = graph(layers.reduce((a, b) => a + b, 0));
+        const subsets = layers.map((size, k) => Array.from({ length: size }, (_, j) => starts[k] + j));
+        const extent = (r: LayoutResult, axis: number): number => {
+            const values = Array.from({ length: r.positions.length / r.dim }, (_, i) => row(r, i)[axis]);
+            return Math.max(...values) - Math.min(...values);
+        };
+        for (const align of ["vertical", "horizontal"] as const) {
+            const r = layout.multipartite(g, { subsets, align, aspectRatio: 16 / 9 });
+            const ratio = extent(r, 0) / extent(r, 1);
+            assert.ok(Math.abs(ratio - 16 / 9) < 1e-6, `${align}: ${String(ratio)}`);
+        }
+        // many short layers: the nodes spread instead, and the layers keep unit spacing before rescaling
+        const wide = layout.multipartite(graph(34), {
+            subsets: Array.from({ length: 17 }, (_, k) => [2 * k, 2 * k + 1]),
+            aspectRatio: 2,
+        });
+        const wideRatio = extent(wide, 0) / extent(wide, 1);
+        assert.ok(Math.abs(wideRatio - 2) < 1e-6, String(wideRatio));
+    });
+
+    it("aspectRatio must be a positive number", () => {
+        assert.throws(
+            () => layout.multipartite(s, { subsets: [[0], [1]], aspectRatio: 0 }),
+            (e: unknown) => (e as { code?: string }).code === "E_BAD_OPTION",
+        );
+    });
+
     it("a u32 column puts equal values on one layer, in ascending value order", () => {
         assert.deepEqual(
             layout.multipartite(s, { subsets: "level" }).positions,

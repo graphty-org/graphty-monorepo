@@ -1441,6 +1441,9 @@ export class StylePainter {
     /** Whether every pending edge came from a pass marked `rowsOnly`. False unless one says so. */
     private edgesRowsOnly = false;
 
+    /** Whether every pending node was queued for a `Node` built from its row ({@link queue}), and no pass painted one. */
+    private nodesQueuedOnly = false;
+
     /** How to stop listening to the pass currently bound, or null when nothing is bound. */
     private stopListening: (() => void) | null = null;
 
@@ -1469,6 +1472,7 @@ export class StylePainter {
         this.pendingEdges.clear();
         this.nodesRowsOnly = false;
         this.edgesRowsOnly = false;
+        this.nodesQueuedOnly = false;
 
         if (paint !== null) {
             this.stopListening = paint.onPainted(() => {
@@ -1511,6 +1515,7 @@ export class StylePainter {
 
         if (nodes.length > 0) {
             this.nodesRowsOnly = rowsOnly && (this.nodesRowsOnly || this.pendingNodes.size === 0);
+            this.nodesQueuedOnly = false;
         }
 
         if (edges.length > 0) {
@@ -1555,6 +1560,27 @@ export class StylePainter {
     }
 
     /**
+     * Whether every pending node was queued for a `Node` built from its row, without taking the answer.
+     * @returns True when they were.
+     */
+    get nodesFromBuildsOnly(): boolean {
+        return this.nodesQueuedOnly;
+    }
+
+    /**
+     * Whether the nodes just drawn were only `Node`s built from their rows ({@link queue}): each is drawn as its row
+     * was, so only its own edges are placed again, not every edge (issue #9166). Asked by the frame that drew the
+     * last of them.
+     * @returns True when they were, once.
+     */
+    takeNodesBuildsOnly(): boolean {
+        const buildsOnly = this.nodesQueuedOnly;
+        this.nodesQueuedOnly = false;
+
+        return buildsOnly;
+    }
+
+    /**
      * Whether the edges just drawn came only from a time window's slide; see
      * {@link StylePainter.takeNodesRowsOnly}.
      * @returns True when they did, once.
@@ -1575,6 +1601,9 @@ export class StylePainter {
      */
     queue(target: SelectorTarget, index: number): void {
         if (index >= 0) {
+            if (target === "node") {
+                this.nodesQueuedOnly ||= this.pendingNodes.size === 0;
+            }
             (target === "node" ? this.pendingNodes : this.pendingEdges).add(index);
             this.nodesRowsOnly &&= target !== "node";
             this.edgesRowsOnly &&= target !== "edge";
@@ -1663,6 +1692,7 @@ export class StylePainter {
     invalidate(nodes: number, edges: number): void {
         this.nodesRowsOnly = false;
         this.edgesRowsOnly = false;
+        this.nodesQueuedOnly = false;
 
         for (let index = 0; index < nodes; index++) {
             this.pendingNodes.add(index);

@@ -504,7 +504,7 @@ export interface BaseDataSourceConfig {
     file?: File;
     graphIndex?: number;
     graphName?: string;
-    layout?: "recommended" | "keep";
+    layout?: "recommended" | "placed" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -1149,6 +1149,8 @@ export class Edge {
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     // @internal
+    batchEndRow(end: "source" | "target"): number;
+    // @internal
     columnEnd(end: "source" | "target"): ColumnRow | undefined;
     get data(): AdHocData;
     dispose(): void;
@@ -1184,6 +1186,8 @@ export class Edge {
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
     set dstNode(node: Node_2);
+    // @internal
+    endDrawnAsGroup(end: "source" | "target"): boolean;
     // @internal
     endRow(end: "source" | "target"): number;
     // @internal
@@ -2060,6 +2064,7 @@ export const EdgeStyle: z.ZodObject<{
         dashArray: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         colorFrom: z.ZodOptional<z.ZodEnum<{
+            none: "none";
             source: "source";
             target: "target";
         }>>;
@@ -2719,7 +2724,7 @@ export class EventManager implements Manager {
     emitGraphDataLoaded(graph: Graph | GraphContext, chunksLoaded: number, dataSourceType: string, report: ImportReport, loadId?: number): void;
     emitGraphError(graph: Graph | GraphContext | null, error: Error, context: GraphErrorEvent["context"], details?: Record<string, unknown>): void;
     // @deprecated
-    emitGraphEvent(type: string, data: Record<string, unknown>): void;
+    emitGraphEvent(type: EmittableEventType, data: Record<string, unknown>): void;
     emitGraphSettled(graph: Graph): void;
     emitLayoutInitialized(layoutType: string, shouldZoomToFit: boolean): void;
     emitNodeEvent(type: NodeEvent["type"], eventData: object): void;
@@ -2773,7 +2778,9 @@ export interface ExportGroupTable extends GroupTableOptions {
 }
 
 // @public
-export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
+export interface ExportLoss extends CodedFact<ExportLossCode | (string & {})> {
+    readonly expected: boolean;
+}
 
 // @public
 export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof CYS_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED" | ExportStyleLossCode;
@@ -2818,6 +2825,21 @@ export interface FigureResult {
 
 // @beta
 export type FileKind = "project" | "recipe" | "style" | "document" | "graph";
+
+// @public
+export interface FileLoadOptions {
+    edgeSource?: string;
+    edgeTarget?: string;
+    format?: string;
+    graphIndex?: number;
+    graphName?: string;
+    layout?: "recommended" | "placed" | "keep";
+    nodeIdPath?: string;
+    replace?: boolean;
+    signal?: AbortSignal;
+    styleOptions?: FileStyleOptions;
+    styles?: "file" | "none";
+}
 
 // @public
 export interface FilesApi {
@@ -3166,34 +3188,10 @@ export class Graph implements GraphContext {
     listenerCount(): number;
     // @deprecated
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
-    loadFromFile(file: File, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromFile(file: File, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
-    loadFromUrl(url: string, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromUrl(url: string, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
@@ -3490,7 +3488,7 @@ export interface GraphErrorEvent {
 }
 
 // @public
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public
 export type GraphEventType = GraphEvent["type"];
@@ -3774,37 +3772,13 @@ export class Graphty extends LitElement {
     listenerCount(): number;
     // @deprecated
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
-    loadFromFile(file: File, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromFile(file: File, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
     loadFromSource(source: string, params: Readonly<Record<string, unknown>>, options?: SourceLoadOptions): Promise<{
         key: string;
     }>;
-    loadFromUrl(url: string, options?: {
-        format?: string;
-        nodeIdPath?: string;
-        edgeSource?: string;
-        edgeTarget?: string;
-        replace?: boolean;
-        graphIndex?: number;
-        graphName?: string;
-        styles?: "file" | "none";
-        styleOptions?: FileStyleOptions;
-        layout?: "recommended" | "keep";
-        signal?: AbortSignal;
-    }): Promise<{
+    loadFromUrl(url: string, options?: FileLoadOptions): Promise<{
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
@@ -4324,6 +4298,13 @@ export type GraphtyErrorCode =
 * the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
+/**
+* A workbook source's `sheet` option names no sheet of the workbook. `details` are
+* `{ sheet, available }`: the name asked for, and every sheet's name in tab order. The file
+* itself was read fine. The caller loads again naming one of the available sheets, or leaves
+* `sheet` out to read the first.
+*/
+| "E_SHEET_NOT_FOUND"
 /**
 * A graphty project or document file (one `session.project.save` writes) was handed to a data
 * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
@@ -4914,6 +4895,11 @@ export interface GraphtyErrorDetailsMap {
         readonly issue?: string;
         readonly element?: string;
     };
+    E_SHEET_NOT_FOUND: {
+        readonly format?: string;
+        readonly sheet?: string;
+        readonly available?: readonly string[];
+    };
     E_TOO_LARGE: {
         readonly limit?: number;
         readonly count?: number;
@@ -5341,6 +5327,10 @@ export type GraphtyWarningCode =
 * reference back as they were), or a save kept it as a copy. `params.source` is the load's key
 * and `params.reason` is `not-found`, `denied` or `unreadable`. On an open, `params.name` (its
 * name, when it has one) and `params.url` (its address, for a URL load) say which it was.
+* When the read threw, `params.cause` is what it threw: the error's code (a `GraphtyErrorCode`,
+* or `unknown` for an error that is not a `GraphtyError`), and `params["cause.<name>"]` each
+* plain value of its `details` (`cause.status`, `cause.url`, ...; `cause.name`, the error's
+* name, for `unknown`). Absent when nothing was thrown (`denied`, or a copy that changed).
 */
 | "W_SOURCE_UNAVAILABLE"
 /**
@@ -5421,13 +5411,9 @@ export const GREENS_COLORS: readonly ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b"
 
 // @public
 export interface GroupOutlineAtResult {
-    // (undocumented)
     readonly group: string | number | boolean | null;
-    // (undocumented)
     readonly kind: "group-outline";
-    // (undocumented)
     readonly layer: LayerId;
-    // (undocumented)
     readonly shader: string;
 }
 
@@ -5452,6 +5438,12 @@ export { ImageData_2 as ImageData }
 
 // @public
 export const INFERNO_COLORS: readonly ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d"];
+
+// @public
+export interface InputBookkeepingEvent {
+    [key: string]: unknown;
+    type: "input-initialized" | "input-config-updated" | "input-pointer-lock-changed" | "input-recording-started" | "input-recording-stopped" | "input-playback-completed";
+}
 
 // @public
 export interface InputEnabledChangedEvent {
@@ -5627,6 +5619,8 @@ export abstract class LayoutEngine {
     protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     // @internal
     publishedBounds(): Readonly<Float64Array> | null;
+    // @internal
+    protected publishLeavesRow(lane: ElementPositions, row: number, x: number, y: number, z: number): boolean;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -5754,6 +5748,12 @@ export class LayoutManager implements Manager {
 
 // @public
 export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
+
+// @public
+export interface LayoutUpdatedEvent {
+    nodeCount: number;
+    type: "layout-updated";
+}
 
 // @public
 export interface LayoutWarningEvent {
@@ -5944,6 +5944,8 @@ class Node_2 implements ModelUser {
     get borderReach(): number;
     // @internal
     borderReachAlong(dir: Xyz): number;
+    // @internal
+    static closedForm(shape: string | undefined, rotation: number | undefined): boolean;
     get data(): AdHocData<string | number>;
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];
@@ -9305,7 +9307,7 @@ export class UpdateManager implements Manager {
     get awaitsLanding(): boolean;
     bindViewMasks(masks: ViewMasks | null): void;
     // @internal
-    buildPlainRow(id: NodeIdType_2): void;
+    buildPlainRows(ids: readonly NodeIdType_2[]): void;
     cameraHeld: boolean;
     // @internal
     columnFraming(): ColumnFraming | undefined;
@@ -9343,6 +9345,8 @@ export class UpdateManager implements Manager {
     markViewSized(node: Node_2, on: boolean): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    // @internal
+    nodeRowSelected(row: number): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;

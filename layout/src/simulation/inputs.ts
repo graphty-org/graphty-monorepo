@@ -5,7 +5,15 @@
  * converts it into a role column at engine creation (design 9.4 item 10).
  */
 
-import { type Column, expandEdges, type F32, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
+import {
+    type Column,
+    expandEdges,
+    type F32,
+    type GraphSnapshot,
+    type NodeId,
+    type NodeMask,
+    type U32,
+} from "@graphty/graph-format";
 
 import { refusal } from "../indexed/common.js";
 
@@ -144,4 +152,47 @@ export function resolveWeights(spec: boolean | string | null | undefined, s: Gra
                 { option: "weight", column: spec, dtype: column.dtype, expected: "f32, f64, u32 or i32" },
             );
     }
+}
+
+/**
+ * Resolves a simulation's `fixed` option to the pinned rows' mask words: a mask (copied, at least ceil(n / 32)
+ * words), the named bool node column's words, or, when the option is null, the role-`fixed` bool column's.
+ * @param spec - the option value
+ * @param s - the snapshot being loaded
+ * @param who - the simulation's name, for the messages
+ * @returns the words, or null when neither the option nor the snapshot pins any node
+ */
+export function resolveFixedMask(spec: NodeMask | string | null, s: GraphSnapshot, who: string): U32 | null {
+    const n = s.nodeCount;
+    const words = Math.ceil(n / 32);
+    if (typeof spec === "string") {
+        const column = s.nodes.get(spec);
+        if (column === null) {
+            throw refusal(
+                new RangeError(`${who}: fixed names node column "${spec}", which the snapshot does not hold`),
+                "E_UNKNOWN_COLUMN",
+                { option: "fixed", column: spec },
+            );
+        }
+        if (column.dtype !== "bool") {
+            throw refusal(
+                new TypeError(`${who}: fixed names node column "${spec}", which is ${column.dtype}, not bool`),
+                "E_COLUMN_TYPE",
+                { option: "fixed", column: spec, dtype: column.dtype, expected: "bool" },
+            );
+        }
+        return new Uint32Array(column.data.subarray(0, words));
+    }
+    if (spec !== null) {
+        if (spec.length < words) {
+            throw refusal(
+                new RangeError(`${who}: the fixed mask has ${spec.length} words, ${words} needed for ${n} nodes`),
+                "E_BAD_OPTION",
+                { option: "fixed", length: spec.length, expected: words },
+            );
+        }
+        return new Uint32Array(spec.subarray(0, words));
+    }
+    const byRole = s.nodes.byRole("fixed");
+    return byRole !== null && byRole.dtype === "bool" ? new Uint32Array(byRole.data.subarray(0, words)) : null;
 }

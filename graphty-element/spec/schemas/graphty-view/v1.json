@@ -100,10 +100,59 @@
             "type": "array",
             "items": {
                 "type": "object",
-                "required": ["name", "camera"],
+                "required": ["name"],
+                "anyOf": [{ "required": ["camera"] }, { "required": ["follows"] }],
                 "properties": {
                     "name": {
                         "type": "string"
+                    },
+                    "follows": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "A camera view id the view is recomputed from when applied. A reader that knows no such camera view opens the view at camera, written beside it whenever a renderer gave a pose."
+                    },
+                    "key": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "filters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "layers": {
+                        "type": "object",
+                        "description": "The style document (session.styles.toDocument()) the view brings back, element ids written as element references."
+                    },
+                    "hidden": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                        }
+                    },
+                    "positions": {
+                        "type": "object",
+                        "required": ["order", "xyz"],
+                        "properties": {
+                            "order": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                                }
+                            },
+                            "xyz": {
+                                "type": "array",
+                                "description": "x, y and z per node in order; null for a node nothing had placed.",
+                                "items": {
+                                    "type": ["number", "null"]
+                                }
+                            }
+                        },
+                        "unevaluatedProperties": false
+                    },
+                    "legend": {
+                        "type": "boolean"
                     },
                     "camera": {
                         "type": "object",

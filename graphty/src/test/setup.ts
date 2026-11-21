@@ -40,8 +40,12 @@ beforeAll(() => {
 // import is evaluated before the strict state global above is set.
 beforeEach(async () => {
     const { assumeUsageDeclinedForTests } = await import("../workspace/privacy/usageData");
+    const { WORKSPACE_LAYOUT } = await import("../workspace/settings/preferences");
 
     assumeUsageDeclinedForTests();
+    // Every test opens the workspace at the design's sizes: one that resized a panel or opened the
+    // table with autosave on does not leave its arrangement to the next.
+    localStorage.removeItem(WORKSPACE_LAYOUT.key);
 });
 
 // Cleanup after each test case

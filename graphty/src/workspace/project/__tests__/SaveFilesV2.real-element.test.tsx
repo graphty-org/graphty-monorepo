@@ -192,6 +192,23 @@ describe("version 2 save files, experiment on", () => {
         assert.isFalse(session.project.dirty);
     });
 
+    it("says the project cannot be saved when graphty-element cannot tell whether Save keeps the project", async () => {
+        const { store, session } = await openSample();
+        // The first answer (what each section holds) comes; the verdict for the choice fails.
+        const describe = session.project.describe.bind(session.project);
+        vi.spyOn(session.project, "describe").mockImplementation((options) =>
+            options?.sections === undefined ? describe(options) : Promise.reject(new Error("describe failed")),
+        );
+        await userEvent.keyboard("{Shift>}{Control>}s{/Control}{/Shift}");
+        await waitFor(() => {
+            assert.deepEqual(store.get().notice, {
+                message: "This project cannot be saved as a version 2 file.",
+                error: true,
+            });
+            assert.isNull(screen.queryByRole("dialog"));
+        });
+    });
+
     it("downloads a version 2 local copy, and reopens the project kept in this browser whole", async () => {
         const downloads = watchDownloads();
         const { store } = await openSample();

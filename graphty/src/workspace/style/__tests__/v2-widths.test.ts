@@ -12,8 +12,8 @@ import { assert, describe, it } from "vitest";
 import {
     LABEL_OPTION_NAMES,
     LABEL_RUBRIC,
-    labelFieldDescriptor,
     type LabelField,
+    labelFieldDescriptor,
     labelLineFields,
 } from "../v2/labelRubric";
 import {

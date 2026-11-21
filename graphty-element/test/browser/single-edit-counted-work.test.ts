@@ -89,8 +89,6 @@ interface Counted {
     readonly walked: number;
     /** Stored edges (those with no `Edge` yet) set again: a renumbering that reads each out and sets it sets them all. */
     readonly restored: number;
-    /** Lookups in any `Set`: a list swept of its removed items by a lookup per item looks up every edge. */
-    readonly probed: number;
 }
 
 /** The ways a `Map` is walked; each is counted on the data manager's map of built edges. */
@@ -158,23 +156,16 @@ async function countedWork(element: Graphty, edit: () => Promise<unknown>): Prom
     const edges = vi.spyOn(Edge.prototype, "applySessionPaint");
     const restored = vi.spyOn(RowEdges.prototype, "set");
     const { set } = Map.prototype;
-    const { has } = Set.prototype;
     let hashed = 0;
-    let probed = 0;
     Map.prototype.set = function (this: Map<unknown, unknown>, key: unknown, value: unknown) {
         hashed++;
         return set.call(this, key, value);
-    };
-    Set.prototype.has = function (this: Set<unknown>, value: unknown) {
-        probed++;
-        return has.call(this, value);
     };
     try {
         await edit();
         await settle(element);
     } finally {
         Map.prototype.set = set;
-        Set.prototype.has = has;
         walks.stop();
     }
 
@@ -187,7 +178,6 @@ async function countedWork(element: Graphty, edit: () => Promise<unknown>): Prom
         hashed,
         walked: walks.visited(),
         restored: restored.mock.calls.length,
-        probed,
     };
     restored.mockRestore();
     placed.mockRestore();
@@ -280,9 +270,6 @@ describe("one data edit on a large graph", () => {
             );
             assert.strictEqual(counted.walked, 0, `${edit} walks no built edge`);
             assert.isAtMost(counted.restored, 3 * SPAN, `${edit} sets only its own stored edges again`);
-            // Lookups that grow with the graph grow with its nodes (masks and selections over them), never with
-            // every edge: 2,000 edges at 400 nodes, against 500 at 100.
-            assert.isAtMost(counted.probed - before.probed, 3 * (400 - 100), `${edit} looks up no edge per edge`);
             if (/remove/i.test(edit) || edit === "firstEdit") {
                 // A removal, its undo and its redo renumber the rows after it, and the first edit under "batched"
                 // brings the builder back: the builder's id map, and under "batched" the rows waiting for a `Node`

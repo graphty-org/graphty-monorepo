@@ -73,8 +73,8 @@ export class DatasetError extends Error {
 }
 
 /**
- * Download a dataset and decode it. A dataset with node positions (openflights' airports, WikiPathways WP615's
- * drawing) also gets a role-`position` column whose `meta.coordinates` says what they are: geographic longitude and
+ * Download a dataset and decode it. A dataset with node positions (openflights' airports, a saved drawing such as
+ * WikiPathways WP615's or BioPlex 3.0's) also gets a role-`position` column whose `meta.coordinates` says what they are: geographic longitude and
  * latitude, or a drawing with y growing upward. Its plain columns stay as they are.
  * A dataset `DATASETS` lists is checked against its published SHA-256 unless `verify` is false. The
  * check is of the .gsnp.gz file, so it is skipped when the server sent it with

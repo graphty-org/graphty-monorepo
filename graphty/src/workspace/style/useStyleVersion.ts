@@ -2,8 +2,6 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
-import { STEP_REASONS } from "../sessionEvents";
-
 /** The session's events that change what the Style tab reads: the layers, the runs, the data. */
 const EVENTS = ["style:changed", "run:changed", "project:derived", "history:changed"] as const;
 
@@ -34,7 +32,8 @@ export function useStyleVersion(session: GraphSession | null, element: GraphtyEl
 
 /**
  * Re-renders the caller after every change the Style tab reads that is not to the style layers
- * alone: a run, the data, a label count, a history change no project change explains. A change to
+ * alone: a run, the data, a label count. The history is not one: an undo or redo is a project
+ * change, and the sections read the history only when they write. A change to
  * the layers alone (an animation's `styles.update` once a frame) does not bump it, so a panel that
  * reads the layers itself can skip a change to layers it does not show (#9423).
  * @param session - the element's session, or null.
@@ -63,11 +62,6 @@ export function useDataVersion(session: GraphSession | null, element: GraphtyEle
                       session.on("project:derived", () => {
                           if (derivedPending) {
                               derivedPending = false;
-                              bump();
-                          }
-                      }),
-                      session.on("history:changed", ({ reason }) => {
-                          if (!STEP_REASONS.has(reason)) {
                               bump();
                           }
                       }),

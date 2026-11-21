@@ -73,7 +73,7 @@ export const TIME_FIELD_EVENTS = [
 ] as const;
 
 /** The history moves that follow a `project:changed`, which says what they wrote. */
-export const STEP_REASONS: ReadonlySet<string> = new Set(["record", "merge", "undo", "redo", "restore"]);
+const STEP_REASONS: ReadonlySet<string> = new Set(["record", "merge", "undo", "redo", "restore"]);
 
 /**
  * Re-renders the caller after each of the element's events named, so what it reads from the

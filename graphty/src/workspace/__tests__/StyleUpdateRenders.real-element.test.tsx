@@ -108,8 +108,22 @@ async function animate(
     // The first update is a new step, which Undo names; the rest change only the value.
     await session.styles.update(fade, { set: { [channel]: 0.95 } });
     await element.waitForSettled();
-    await nextFrame();
+    // Counting starts once everything before it has been drawn: two frames in a row render nothing.
+    await waitFor(async () => {
+        const was = { ...counts };
+        await nextFrame();
+        await nextFrame();
+        assert.deepEqual(counts, was);
+    });
     const before = { ...counts };
+    // A step the history did not merge into the last one (a machine slower than the history's
+    // merge expects) is a new step, which Undo may name differently: the header may draw it.
+    let steps = 0;
+    const offSteps = session.on("history:changed", ({ reason }) => {
+        if (reason !== "merge") {
+            steps++;
+        }
+    });
     for (const value of [0.9, 0.7, 0.5, 0.3, 0.1]) {
         await session.styles.update(fade, { set: { [channel]: value } });
         await nextFrame();
@@ -117,7 +131,11 @@ async function animate(
     await element.waitForSettled();
     await nextFrame();
     assert.equal(session.styles.get(fade)?.set?.[channel], 0.1);
-    return Object.fromEntries(PANELS.map((id) => [id, (counts[id] ?? 0) - (before[id] ?? 0)]));
+    offSteps();
+    const drawn: Counts = Object.fromEntries(PANELS.map((id) => [id, (counts[id] ?? 0) - (before[id] ?? 0)]));
+    assert.isAtMost(drawn.header ?? 0, steps, "the header draws only for a step it may name anew");
+    const { header: _header, ...rest } = drawn;
+    return rest;
 }
 
 describe("one numeric style update in the workspace", () => {
@@ -134,7 +152,6 @@ describe("one numeric style update in the workspace", () => {
         assert.deepEqual(await animate(element, session, fade, "edge.animationSpeed"), {
             "canvas-overlays": 0,
             "legend-card": 0,
-            header: 0,
             toolbar: 0,
             "style-sections-node": 0,
             "style-sections-edge": 0,
@@ -151,7 +168,20 @@ describe("one numeric style update in the workspace", () => {
         assert.isAbove(counted["style-sections-edge"], 0);
         assert.isAtMost(counted["style-sections-edge"], 5);
         assert.equal(counted["style-sections-node"], 0, "the layer paints no node");
-        assert.equal(counted.header, 0);
         assert.equal(counted.toolbar, 0);
+    });
+
+    it("still draws the key again when a layer it names is renamed, which changes no block", async () => {
+        const { element, session, fade } = await openRing();
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        await waitFor(() => {
+            assert.match(legend.textContent, /Fade/);
+        });
+        await session.styles.renameRow(fade, "Highlights");
+        await element.waitForSettled();
+        await waitFor(() => {
+            assert.match(legend.textContent, /Highlights/);
+        });
+        assert.notMatch(legend.textContent, /Fade/);
     });
 });

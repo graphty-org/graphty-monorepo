@@ -691,8 +691,6 @@ describe("what a style editor needs to draw a row", () => {
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
         "edge.fadeEnd",
-        // Unset, the line is drawn in its own `edge.color`.
-        "edge.colorFrom",
         // Unset, a group reaches its largest member's radius past its members.
         "node.groupPadding",
         "node.groupPaddingRatio",

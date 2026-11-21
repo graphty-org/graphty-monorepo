@@ -980,8 +980,25 @@ function labelShown(label: unknown): boolean {
 }
 
 /**
+ * Whether yEd draws a label as its icon alone: visible, `hasText="false"` and naming an icon the graph holds
+ * (`graphml-stm32-func` n38, n39, n45, n46: a rotated label of a trapezoid icon over a white box).
+ * @param label - the label element
+ * @param icons - the graph's label icons, by resource id
+ * @returns true when only its icon is drawn
+ */
+function iconOnly(label: unknown, icons: ReadonlyMap<string, LabelIcon> | undefined): boolean {
+    const id = treeAttr(label, "iconData");
+    return (
+        treeAttr(label, "visible") !== "false" &&
+        treeAttr(label, "hasText") === "false" &&
+        id !== undefined &&
+        icons?.has(id) === true
+    );
+}
+
+/**
  * Reads an element's label: the first visible label with text (yEd icon nodes put an empty, `hasText="false"`
- * label first). A node's second one is its external label (`xlabel`) when it is drawn in the label's look, centered
+ * label first), else a node's first label drawn as its icon alone. A node's second one is its external label (`xlabel`) when it is drawn in the label's look, centered
  * where yEd stored it (yed-graphml-specimen-labels two-labels, configuration-er-labels); further visible labels are
  * noted for the element.
  * @param labels - the label elements, in file order
@@ -1002,11 +1019,11 @@ function readLabels(
     icons?: ReadonlyMap<string, LabelIcon>,
 ): void {
     const shown = labels.filter((l) => labelShown(l));
-    const label = shown[0];
+    const label = shown[0] ?? (node ? labels.find((l) => iconOnly(l, icons)) : undefined);
     if (label === undefined) {
         return;
     }
-    const text = labelWords(label);
+    const text = shown.length === 0 ? "" : labelWords(label);
     const second = node && geometry !== undefined && shown[1] !== undefined && drawnAsSecond(label, shown[1]);
     if (second) {
         readSecondLabel(shown[1], geometry, put, at);
@@ -1088,6 +1105,13 @@ function readSecondLabel(label: unknown, geometry: unknown, put: PutValue, at: S
 function readIconPlace(label: unknown, icons: ReadonlyMap<string, LabelIcon>, put: PutValue): void {
     const id = treeAttr(label, "iconData");
     const icon = id === undefined ? undefined : icons.get(id);
+    if (icon !== undefined && iconOnly(label, icons)) {
+        // no words: the label is its icon, placed and turned as the label is
+        put("labelImage", icon.picture);
+        put("labelImageWidth", icon.size[0]);
+        put("labelImageHeight", icon.size[1]);
+        return;
+    }
     const middle = (treeAttr(label, "modelPosition") ?? "c") === "c";
     if (icon === undefined || treeAttr(label, "modelName") !== "internal" || !middle) {
         return;
@@ -1820,6 +1844,10 @@ function yedIconSizes(snapshot: GraphSnapshot, resources: ReadonlyMap<string, st
  * @returns the icon, or null when it holds no PNG that reads
  */
 function yedIconSize(r: unknown, resources: ReadonlyMap<string, string>): LabelIcon | null {
+    const realizer = treeChild(treeChild(r, "NodeRealizerIcon"), "ShapeNode");
+    if (realizer !== undefined) {
+        return realizerIcon(realizer);
+    }
     const scaled = treeChild(r, "ScaledIcon");
     const image = treeAttr(treeChild(scaled, "ImageIcon"), "image");
     const picture = image === undefined ? undefined : resources.get(image);
@@ -1832,6 +1860,47 @@ function yedIconSize(r: unknown, resources: ReadonlyMap<string, string>): LabelI
         return Number.isFinite(n) ? n : 1;
     };
     return { size: [size[0] * scale("xScale"), size[1] * scale("yScale")], picture };
+}
+
+/** yEd's shape types a node realizer icon is drawn as, each an SVG outline in a box of 1 by 1. */
+const ICON_OUTLINES: ReadonlyMap<string, string> = new Map([
+    ["rectangle", "M0 0 H1 V1 H0 Z"],
+    ["ellipse", "M0 0.5 A0.5 0.5 0 1 0 1 0.5 A0.5 0.5 0 1 0 0 0.5 Z"],
+    // yEd's own SVG of graphml-stm32-func's trapezoid icon: M0 30 L29.1025 0 L87.3075 0 L116.41 30 Z
+    ["trapezoid", "M0 1 L0.25 0 L0.75 0 L1 1 Z"],
+    ["trapezoid2", "M0 0 L1 0 L0.75 1 L0.25 1 Z"],
+    ["diamond", "M0.5 0 L1 0.5 L0.5 1 L0 0.5 Z"],
+    ["triangle", "M0.5 0 L1 1 L0 1 Z"],
+]);
+
+/** A color as yEd writes one, safe to put in an SVG. */
+const ICON_COLOR = /^#[\da-f]{6}(?:[\da-f]{2})?$/i;
+
+/**
+ * A node realizer icon (`yed:NodeRealizerIcon`: a node's look drawn as a label's icon) as a picture: its shape, fill
+ * and border drawn as an SVG the size of its geometry.
+ * @param node - the icon's `y:ShapeNode`
+ * @returns the icon, or null for a shape type it is not drawn as or a geometry with no size
+ */
+function realizerIcon(node: unknown): LabelIcon | null {
+    const geometry = treeChild(node, "Geometry");
+    const [w, h] = ["width", "height"].map((k) => Number(treeAttr(geometry, k)));
+    const outline = ICON_OUTLINES.get(treeAttr(treeChild(node, "Shape"), "type") ?? "rectangle");
+    if (outline === undefined || ![w, h].every((n) => Number.isFinite(n) && n > 0)) {
+        return null;
+    }
+    const color = (el: unknown): string => {
+        const c = treeAttr(el, "color") ?? "";
+        return ICON_COLOR.test(c) && treeAttr(el, "transparent") !== "true" ? c : "none";
+    };
+    const border = treeChild(node, "BorderStyle");
+    const line = Number(treeAttr(border, "width") ?? 1);
+    const stroke = treeAttr(border, "hasColor") === "false" ? "none" : color(border);
+    const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${String(w)}" height="${String(h)}" viewBox="0 0 1 1" ` +
+        `preserveAspectRatio="none"><path d="${outline}" fill="${color(treeChild(node, "Fill"))}" stroke="${stroke}" ` +
+        `stroke-width="${String(Number.isFinite(line) ? line : 1)}" vector-effect="non-scaling-stroke"/></svg>`;
+    return { size: [w, h], picture: `data:image/svg+xml;base64,${btoa(svg)}` };
 }
 
 /**

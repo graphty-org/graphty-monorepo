@@ -33,16 +33,7 @@ import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { viewDim } from "./drawn";
 import { replaceUse } from "./families";
-import {
-    kindGroupOf,
-    type KindMember,
-    kindsShown,
-    kindStarts,
-    lineWidthOf,
-    lookOf,
-    ownsOf,
-    PLAIN_LOOK,
-} from "./kindGroups";
+import { kindGroupOf, type KindMember, kindsShown, kindStarts, lineWidthOf, ownsOf, PLAIN_LOOK } from "./kindGroups";
 import {
     entryIds,
     entryNumber,
@@ -542,13 +533,9 @@ function ThingSection({
             return false;
         }
         setWaiting((now) => [...now, `${ENTRY_WAIT}${entry}`]);
-        // A look's label is written at once, so its row shows its look while it waits for its source. A plain Label
-        // beside a label in a look names the plain look: a further label naming none draws in the main label's.
-        const main = TEXT_THINGS[ctx.side].label?.style;
-        const named = look ?? (main !== undefined && lookOf(ctx, main) !== PLAIN_LOOK ? PLAIN_LOOK : undefined);
-        if (named !== undefined) {
-            writeEntry(ctx, entry, { style: { look: named } }).catch(fail);
-        }
+        // Its look is written at once, so its row shows its look while it waits for its source. A plain Label names
+        // the plain look: a further label naming none draws in the main label's, whatever that later becomes.
+        writeEntry(ctx, entry, { style: { look: look ?? PLAIN_LOOK } }).catch(fail);
         return true;
     };
     // The first label in a look: its look is written, and its row waits for its source as Label's does.

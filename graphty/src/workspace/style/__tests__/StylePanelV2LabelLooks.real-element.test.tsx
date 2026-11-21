@@ -203,12 +203,62 @@ describe("a label's look is a kind of its row", () => {
         assert.notEqual(room.getAttribute("data-disabled"), "true");
         await session.styles.update(nodes, { set: { ...session.styles.get(nodes)?.set, "node.labels": eight } });
         await session.styles.settled();
+        // At the cap Label is still listed, but not pickable, and so is every look it adds.
+        const disabled = (item: HTMLElement | null): boolean =>
+            item !== null && (item.getAttribute("data-disabled") === "true" || item.hasAttribute("disabled"));
         await waitFor(async () => {
             const full = await open();
-            assert.isTrue(
-                full === null || full.getAttribute("data-disabled") === "true" || full.hasAttribute("disabled"),
+            assert.isNotNull(full, "Label is still listed");
+            assert.isTrue(disabled(full), "but not pickable");
+        });
+        await userEvent.click(within(sectionOf(tab, "node-text")).getByRole("button", { name: "Add to node text" }));
+        const menu = await screen.findByRole("menu");
+        assert.isTrue(disabled(within(menu).queryByRole("menuitem", { name: "Card" })), "nor is a Card");
+        assert.isFalse(disabled(within(menu).queryByRole("menuitem", { name: "Tooltip" })), "Tooltip still is");
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("a further Text label stays Text when the main label later becomes a Card", async () => {
+        const { session, nodes } = await openGraph();
+        const tab = await openStyle("Key people");
+        await plus(tab, "node", "Label", "Node label");
+        await waitFor(() => {
+            assert.isDefined(session.styles.get(nodes)?.encode?.["node.label"]);
+        });
+        const id = session.styles.newLabelId(nodes);
+        await plus(tab, "node", "Label", "Node label 2");
+        await waitFor(() => {
+            const value = written(session, nodes, "node.labels") as readonly LabelEntry[] | undefined;
+            assert.equal(value?.find((entry) => entry.id === id)?.style?.look, "default", "it names the plain look");
+        });
+        await switchTo(sectionOf(tab, "node-text"), "node label", "Card");
+        await waitFor(() => {
+            assert.equal(styleOf(session, nodes, "node.labelStyle").look, "card");
+        });
+        await waitFor(() => {
+            const text = sectionOf(tab, "node-text");
+            assert.isNotNull(within(text).queryByRole("button", { name: "Switch node card to" }), "the main is a Card");
+            assert.isNotNull(
+                within(text).queryByRole("button", { name: "Switch node label 2 to" }),
+                "the further label is still named Label",
             );
         });
+    });
+
+    it("a node Tooltip's Switch to Card writes only the look", async () => {
+        const { session, nodes } = await openGraph();
+        const tab = await openStyle("Key people");
+        await plus(tab, "node", "Tooltip", "Node tooltip");
+        await waitFor(() => {
+            assert.isDefined(session.styles.get(nodes)?.encode?.["node.tooltip"]);
+        });
+        const before = restOf(session, nodes, "node.tooltipStyle");
+        const was = styleOf(session, nodes, "node.tooltipStyle");
+        await switchTo(sectionOf(tab, "node-text"), "node tooltip", "Card");
+        await waitFor(() => {
+            assert.deepEqual(styleOf(session, nodes, "node.tooltipStyle"), { ...was, look: "card" });
+        });
+        assert.equal(restOf(session, nodes, "node.tooltipStyle"), before, "the switch writes only the look");
     });
 
     it("'+' Label on an empty Text adds a Text label, and its Switch to Card writes only the look", async () => {

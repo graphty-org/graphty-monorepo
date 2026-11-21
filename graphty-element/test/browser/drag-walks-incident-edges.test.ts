@@ -84,7 +84,7 @@ async function mounted(size: number, layout: string): Promise<Graphty> {
 async function dragCounted(
     size: number,
     layout: string,
-): Promise<{ visits: number; frames: number; followed: number }> {
+): Promise<{ visits: number; frames: number; followed: number; batched: boolean }> {
     const element = await mounted(size, layout);
     const position = element.nodeScreenPosition("t");
     assert.isDefined(position, "node t is drawn");
@@ -125,7 +125,7 @@ async function dragCounted(
     await element.waitForStableFrame();
     const after = edge.drawnLine?.center;
     assert.isDefined(after, "its line is still drawn");
-    return { visits, frames, followed: after.subtract(before).length() };
+    return { visits, frames, followed: after.subtract(before).length(), batched: element.renderPath === "batched" };
 }
 
 describe("a drag", () => {
@@ -133,9 +133,13 @@ describe("a drag", () => {
         "visits only the dragged node's edges, at any graph size, on %s",
         async (layout) => {
             for (const size of SIZES) {
-                const { visits, frames, followed } = await dragCounted(size, layout);
+                const { visits, frames, followed, batched } = await dragCounted(size, layout);
                 const message = `${String(visits)} edge visits on ${String(frames)} frames at ${String(size)} nodes`;
-                assert.isAbove(visits, 0, message);
+                // on the batched path an edge pulled from the row table follows its node on the card, with no visit
+                if (!batched) {
+                    assert.isAbove(visits, 0, message);
+                }
+
                 assert.isAtMost(visits, frames * DEGREE, message);
                 assert.isAbove(followed, 0, "the dragged node's edge followed it");
             }

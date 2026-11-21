@@ -67,6 +67,18 @@ export class RestWatch {
         this.pending = false;
     }
 
+    /**
+     * Start following the rows from now, on a watch that never saw them: a batch made, or first given pieces to place,
+     * while the rows rest places them on that frame rather than waiting a frame to see the rows stand still. A frame
+     * that writes the rows after this still hands the pieces back to the shader ({@link RestWatch.due}).
+     * @param rows - The row table.
+     */
+    start(rows: RowTable): void {
+        if (this.seen === -1) {
+            this.seen = rows.drawnWrites;
+        }
+    }
+
     /** A piece was written: the next rest places it. */
     touch(): void {
         this.pending = true;

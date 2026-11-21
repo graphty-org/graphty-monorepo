@@ -751,6 +751,10 @@ export class PulledLineBatch {
         this.rows[piece * this.pieceFloats + 7] = back;
         this.endLooks[piece] = look;
         this.rest = rest ?? this.rest;
+        if (this.rest !== null) {
+            this.watch.start(this.rest.rows);
+        }
+
         this.touch(piece);
         this.unplace(piece);
     }
@@ -763,6 +767,7 @@ export class PulledLineBatch {
     restFrom(rest: RestSource): void {
         if (this.pattern !== undefined && this.rest === null) {
             this.rest = rest;
+            this.watch.start(rest.rows);
             this.watch.touch();
         }
     }

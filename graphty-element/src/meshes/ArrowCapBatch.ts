@@ -371,7 +371,9 @@ export class ArrowCapBatch {
                     mesh.thinInstanceSetBuffer(kind, floats[kind as PulledBuffer], stride, false);
                 }
 
-                this.pulled = { floats, host, looks: [], watch: new RestWatch() };
+                const watch = new RestWatch();
+                watch.start(host.rows);
+                this.pulled = { floats, host, looks: [], watch };
             }
         }
 

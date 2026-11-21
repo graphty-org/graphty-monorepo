@@ -372,9 +372,11 @@ describe("the edge ID target", () => {
         const b = graph.worldToScreen(edge.dstNode.drawnWorldPosition);
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         // Edge i and edge i + NODES join the same nodes; the walk names the one it reaches last.
-        const expected = edgesOf(element)
+        const twin = edgesOf(element)
             .filter((other) => other.srcId === edge.srcId && other.dstId === edge.dstId)
-            .at(-1)?.id;
+            .at(-1);
+        assert.isDefined(twin);
+        const expected = twin.id;
         assert.strictEqual(walked(element, mid.x, mid.y), expected, "the walk names the edge there");
         const before = edgePickWork.measured;
         await click(element, mid);

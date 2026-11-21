@@ -93,7 +93,7 @@ async function typeInto(line: HTMLElement, text: string, which = 0): Promise<voi
 /**
  * Adds a thing from an empty section's title and its "+" menu.
  * @param tab - the Style tab.
- * @param section - the section's id ("edge-ends").
+ * @param section - the section's id ("edge-arrows").
  * @param item - the menu item.
  * @param thing - the thing's id.
  * @returns the thing's row.
@@ -141,7 +141,7 @@ describe("Style panel v2's edge things", () => {
 
     it("Ends adds a Target end once; its arrow comes from a sectioned list; Size writes and undoes", async () => {
         const { session, id, tab } = await openEdges();
-        const row = await addFromTitle(tab, "edge-ends", "Target end", "target");
+        const row = await addFromTitle(tab, "edge-arrows", "Target end", "target");
         await waitFor(() => {
             assert.isDefined(written(session, id, "edge.arrowHead"), "the end starts with its arrow");
         });
@@ -173,7 +173,7 @@ describe("Style panel v2's edge things", () => {
             );
         });
         await userEvent.keyboard("{Escape}");
-        await userEvent.click(within(sectionOf(tab, "edge-ends")).getByRole("button", { name: /^Add/ }));
+        await userEvent.click(within(sectionOf(tab, "edge-arrows")).getByRole("button", { name: /^Add/ }));
         await screen.findByRole("menuitem", { name: "Source end" });
         assert.isNull(screen.queryByRole("menuitem", { name: "Target end" }), "each end is added once");
         await userEvent.keyboard("{Escape}");

@@ -1,4 +1,4 @@
-import { ControlSection, PanelField, Popout, TargetTooltip } from "@graphty/compact-mantine";
+import { ControlSection, PanelField, TargetTooltip } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Menu, Tooltip } from "@mantine/core";
@@ -6,41 +6,26 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { nodeModelsOn } from "../features";
 import { GLYPHS } from "../glyphs";
-import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspace } from "../state/WorkspaceContext";
 import { ControlLabel } from "./ControlLabel";
 import { shownChannel } from "./offered";
 import { GradientRow } from "./parts/GradientRow";
 import { Field, type RowContext } from "./PropertyRow";
 import { carriedOpacity, lineIn, partlySet, removeLine, writeIn } from "./row";
-import { type PasteInit, ShaderEditorDialog } from "./ShaderEditorDialog";
-import { type OptionTile, ShaderGallery } from "./ShaderGallery";
-import { ShaderRow } from "./ShaderRow";
-import { addShader, moveShader, pickedShader, placeOf, shaderEntries, writeWireframe } from "./shaderSlots";
-import { focusLineNext, headerBottom } from "./useFocusLine";
+import { listenForOptions, useShaderList } from "./shaderList";
+import { writeWireframe } from "./shaderSlots";
+import { focusLineNext } from "./useFocusLine";
 import { PlusList } from "./v2/PlusList";
 import {
     channelWord,
     failureWords,
     fieldName,
-    LISTED_PLACES,
     OPACITY_OF,
     PICTURE_WORD,
     type SectionSpec,
     settingWord,
     TWO_WORDS,
 } from "./words";
-
-/**
- * The tab's own style options a gallery search also finds (decisions-v2, section 2.2): Glow and
- * Wireframe on the Node tab, Band on the Edge tab, each by the property its "+" adds.
- */
-const OPTION_CHANNELS: Readonly<Record<"node" | "edge", readonly Channel[]>> = {
-    node: ["node.glow", "node.wireframe"],
-    edge: ["edge.bandColor"],
-};
-
-/** The sections listening for an option a gallery picked, each answering for its own properties. */
-const optionAdds = new Set<(side: "node" | "edge", channel: Channel) => boolean>();
 
 /**
  * Whether the row sets a property: a line of its own (not the element's locked base), or, for
@@ -254,10 +239,7 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
     };
     useEffect(() => {
         const listener = (side: "node" | "edge", channel: Channel): boolean => answer.current(side, channel);
-        optionAdds.add(listener);
-        return () => {
-            optionAdds.delete(listener);
-        };
+        return listenForOptions(listener);
     }, []);
     // A style's own "+": the settings it does not set yet, named under it ("Strength" under Glow).
     const settingsAdd = (style: ChannelDescriptor): React.ReactNode => {
@@ -532,47 +514,16 @@ export function WireframeRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
 }
 
 /**
- * A tab's Shaders section (decisions-v2, section 2.1): one "+" that opens the shared gallery, and
- * one row per use on the layer's list in its order. A pick adds the shader at its own place, to
- * every selected layer in one undo step, and hands focus to the new row's place. A search hit on
- * one of the tab's own style options adds that option's row in its section instead. "New
- * shader..." opens the code dialog, which asks the place. Control+V on the section opens the
- * dialog with the clipboard's text.
+ * A tab's Shaders section: one "+" that opens the shared gallery, and one row per use (see
+ * {@link useShaderList}). Control+V on the section opens the dialog with the clipboard's text.
  * @param props - Component props
  * @param props.ctx - the row and kind
  * @param props.spec - the section
  * @returns The section
  */
 function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: SectionSpec }>): React.JSX.Element {
-    const { store } = useWorkspace();
-    const [gallery, setGallery] = useState(false);
-    const [code, setCode] = useState<PasteInit | null>(null);
     const sectionBox = useRef<HTMLDivElement>(null);
-    const tab = ctx.side;
-    const all = shaderEntries(ctx);
-    const entries = all.filter(
-        (entry) => (spec.shapeOwnsReplace !== true || placeOf(entry) !== "replace") && (spec.listed?.(entry) ?? true),
-    );
-    const options: OptionTile[] = OPTION_CHANNELS[tab].map((channel) => ({
-        key: channel,
-        label: channelWord(channel),
-    }));
-    const fail = (verb: string) => (error: unknown) => {
-        store.set({ notice: { message: failureWords(spec.title, verb, error), error: true } });
-    };
-    // Show in Style on a notice asks for this side's "+": it takes focus once the section is drawn.
-    const shaderNext = useWorkspaceState((state) => state.shaderNext);
-    useEffect(() => {
-        if (shaderNext === tab) {
-            store.set({ shaderNext: null });
-            sectionBox.current?.querySelector<HTMLElement>("[data-plus]")?.focus();
-        }
-    }, [shaderNext, tab, store]);
-    const pick = async (id: string): Promise<void> => {
-        const name = ctx.session.shaders.describe(id)?.plainName ?? id;
-        await addShader(ctx, await pickedShader(ctx.session, id));
-        store.set({ announcement: `${name} added` });
-    };
+    const list = useShaderList(ctx, spec, sectionBox);
     // "+" opens ONE list of the tab's shaders, built-in and custom alike, "New shader..." first; in Style panel v2
     // a place is chosen only when a shader is created, in the code dialog (E368, E381).
     const add = (
@@ -580,157 +531,41 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
             kind={ctx.side}
             title={spec.title}
             options={[{ key: "shader:gallery", label: `${spec.title}...` }]}
-            expanded={gallery}
-            onAdd={() => {
-                setGallery(true);
-            }}
+            expanded={list.galleryOpen}
+            onAdd={list.openGallery}
         />
-    );
-    const rows = entries.map((entry) =>
-        spec.renderRow === undefined ? (
-            <ShaderRow
-                key={entry.key}
-                ctx={ctx}
-                entry={entry}
-                count={entries.length}
-                onMove={(from, to) => {
-                    moveShader(ctx, from, to).catch(fail("changed"));
-                }}
-                onCode={setCode}
-            />
-        ) : (
-            <React.Fragment key={entry.key}>{spec.renderRow(entry)}</React.Fragment>
-        ),
     );
     return (
         <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- only catches the paste shortcut bubbling from the section's own controls
             ref={sectionBox}
             data-section={`${ctx.side}-${spec.id}`}
             className="ws-section"
-            onKeyDown={(event) => {
-                pasteKey(event, setCode);
-            }}
+            onKeyDown={list.onKeyDown}
         >
             {spec.shapeOwnsReplace === true ? (
                 // Style panel v2: the one "+" list (v2/PlusList.tsx).
                 <PlusList
                     level="section"
                     title={spec.title}
-                    empty={entries.length === 0}
+                    empty={list.entries.length === 0}
                     collapseKey={`${ctx.side}:${spec.id}`}
                     add={add}
                 >
-                    {rows}
+                    {list.rows}
                 </PlusList>
             ) : (
                 <ControlSection
                     label={spec.title}
                     headingLevel={3}
-                    empty={entries.length === 0}
+                    empty={list.entries.length === 0}
                     collapsible={false}
                     actions={add}
                 >
-                    {rows}
+                    {list.rows}
                 </ControlSection>
             )}
-            <Popout
-                opened={gallery}
-                onOpenChange={(open) => {
-                    setGallery(open);
-                    // Closed with nothing picked: focus goes back to the section's "+".
-                    if (!open && (document.activeElement ?? document.body) === document.body) {
-                        sectionBox.current?.querySelector<HTMLElement>("[data-plus]")?.focus();
-                    }
-                }}
-            >
-                <Popout.Panel
-                    width={280}
-                    placement="left"
-                    alignment="start"
-                    anchorY={sectionBox}
-                    boundaryTop={gallery ? headerBottom() : 0}
-                    header={{ variant: "title", title: spec.title }}
-                    closeLabel={`Close ${spec.title}`}
-                >
-                    <Popout.Content>
-                        <ShaderGallery
-                            session={ctx.session}
-                            tab={tab}
-                            options={options}
-                            marked={entries.map((entry) => entry.use.shader)}
-                            exclude={spec.shapeOwnsReplace === true ? "replace" : undefined}
-                            bare={spec.shapeOwnsReplace === true}
-                            places={spec.shapeOwnsReplace === true ? LISTED_PLACES[tab] : undefined}
-                            onNew={() => {
-                                setGallery(false);
-                                setCode({});
-                            }}
-                            onPick={(id) => {
-                                setGallery(false);
-                                pick(id).catch(fail("added"));
-                            }}
-                            onOption={(channel) => {
-                                setGallery(false);
-                                for (const answer of optionAdds) {
-                                    if (answer(tab, channel as Channel)) {
-                                        break;
-                                    }
-                                }
-                            }}
-                            onDelete={(id) => {
-                                const name = ctx.session.shaders.describe(id)?.plainName ?? id;
-                                ctx.session.shaders
-                                    .remove(id)
-                                    .then(() => {
-                                        store.set({ announcement: `${name} deleted` });
-                                    })
-                                    .catch(fail("deleted"));
-                            }}
-                        />
-                    </Popout.Content>
-                </Popout.Panel>
-            </Popout>
-            {code !== null && (
-                <ShaderEditorDialog
-                    session={ctx.session}
-                    tab={tab}
-                    put={(scope, id, params) => addShader(ctx, id, params, scope)}
-                    init={code}
-                    onClose={() => {
-                        setCode(null);
-                    }}
-                />
-            )}
+            {list.overlays}
         </div>
-    );
-}
-
-/**
- * Control+V (Command+V) with focus on a control of the Shaders section, not in a text field: opens
- * the code dialog with the clipboard's text, or with the unsent draft when the browser will not
- * read the clipboard.
- * @param event - the key.
- * @param open - opens the dialog.
- */
-function pasteKey(event: React.KeyboardEvent, open: (init: PasteInit) => void): void {
-    const target = event.target as HTMLElement;
-    const typing = target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA";
-    if (typing || !(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "v") {
-        return;
-    }
-    event.preventDefault();
-    const read = navigator.clipboard?.readText?.();
-    if (read === undefined) {
-        open({});
-        return;
-    }
-    read.then(
-        (text) => {
-            open(text.trim() === "" ? {} : { text });
-        },
-        () => {
-            open({});
-        },
     );
 }
 

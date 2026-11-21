@@ -8,6 +8,7 @@
 
 import { LabelsProvider } from "@graphty/compact-mantine";
 import { type Channel, writeChannelList } from "@graphty/graphty-element/catalog";
+import { Divider } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
 import { cosmographOn, nodeModelsOn } from "../../features";
@@ -20,7 +21,8 @@ import { PickerNamesOnly } from "../pickerNames";
 import type { RowContext } from "../PropertyRow";
 import { needsFor, startForOrNone, writeIn, writeLine } from "../row";
 import { ScrubSlots } from "../scrubSlots";
-import { AddButton, type AddOption, Section } from "../Section";
+import { AddButton, type AddOption } from "../Section";
+import { useShaderList } from "../shaderList";
 import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { viewDim } from "./drawn";
@@ -104,6 +106,9 @@ function thingsOf(
 } {
     const things = section.groups.map((group) =>
         group.flatMap((thing) => {
+            if (thing.shader === true) {
+                return [{ thing, channels: [] }];
+            }
             const channels = thingChannels(ctx, part, section, thing, kindChannels(ctx));
             return channels.length === 0 || mainOf(ctx, thing, channels) === undefined ? [] : [{ thing, channels }];
         }),
@@ -189,6 +194,24 @@ function ThingSection({
     section,
 }: Readonly<{ ctx: RowContext; part: PartSpec; section: SectionThings }>): React.JSX.Element {
     const { store } = useWorkspace();
+    const id = section.id ?? part.id;
+    const title = section.title ?? part.title;
+    const sectionBox = useRef<HTMLDivElement>(null);
+    // Effects holds the tab's shaders (E668): its Shader item opens the one gallery, each use a row of its own.
+    const holdsShaders = section.groups.flat().some((thing) => thing.shader === true);
+    const shaders = useShaderList(
+        ctx,
+        {
+            id,
+            title: "Shader",
+            channels: [ctx.side === "node" ? "node.shaders" : "edge.shaders"],
+            shaders: true,
+            shapeOwnsReplace: true,
+            renderRow: (entry) => <ShaderUseRow ctx={ctx} entry={entry} />,
+        },
+        sectionBox,
+        holdsShaders,
+    );
     // Things "+" added that the row does not set yet, waiting for their first value.
     const [waiting, setWaiting] = useState<readonly string[]>([]);
     const [menu, setMenu] = useState(false);
@@ -200,6 +223,10 @@ function ThingSection({
     const groups: AddOption[][] = [
         ...things.map((group) =>
             group.flatMap(({ thing }): AddOption[] => {
+                if (thing.shader === true) {
+                    // Any number of shaders: the item always opens the gallery.
+                    return [{ key: thing.id, label: thing.name }];
+                }
                 if (!shown.some((each) => each.thing === thing)) {
                     // A thing that draws nothing in this view (a 3D-only one in 2D) is dimmed, still pickable.
                     const main = thing.start ?? thing.main[0];
@@ -219,6 +246,10 @@ function ThingSection({
     const options = groups.flat().filter((option) => option.disabled !== true);
     const add = (id: string): void => {
         setMenu(false);
+        if (id === "shader") {
+            shaders.openGallery();
+            return;
+        }
         const found = things.flat().find((each) => each.thing.id === id);
         const thing = found?.thing;
         const main = found === undefined ? undefined : mainOf(ctx, found.thing, found.channels);
@@ -262,22 +293,27 @@ function ThingSection({
                 store.set({ notice: { message: failureWords(thing.name, "added", error), error: true } });
             });
     };
-    const empty = shown.length === 0;
+    const empty = shown.length === 0 && shaders.entries.length === 0;
     // Only a section of one thing adds it straight from "+" (design 2.3); any other shows its menu,
     // so the reader sees what "+" adds, and a "+" with nothing left to add is not drawn.
     const single = section.groups.flat().length === 1;
     return (
-        <div data-section={`${ctx.side}-${part.id}`} className="ws-section">
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- only catches the shader paste shortcut bubbling from the section's own controls
+            ref={sectionBox}
+            data-section={`${ctx.side}-${id}`}
+            className="ws-section"
+            onKeyDown={holdsShaders ? shaders.onKeyDown : undefined}
+        >
             <PlusList
                 level="section"
-                title={part.title}
+                title={title}
                 empty={empty}
-                collapseKey={`${ctx.side}:${part.id}`}
+                collapseKey={`${ctx.side}:${id}`}
                 add={
                     options.length === 0 ? undefined : (
                         <AddButton
                             kind={ctx.side}
-                            title={part.title}
+                            title={title}
                             groups={groups}
                             onAdd={add}
                             alwaysMenu={!single}
@@ -313,7 +349,9 @@ function ThingSection({
                         </PlusListKind>
                     );
                 })}
+                {shaders.rows}
             </PlusList>
+            {shaders.overlays}
         </div>
     );
 }
@@ -341,25 +379,14 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
     });
     const body =
         query.trim() === "" ? (
-            // Every section is shown, an empty one as its header with its "+" (there is no reader switch for it).
-            sections.map(({ part, section }) =>
-                part.id === "shaders" ? (
-                    <Section
-                        key={part.id}
-                        ctx={ctx}
-                        spec={{
-                            id: part.id,
-                            title: part.title,
-                            channels: itemChannels(part.items[0]),
-                            shaders: true,
-                            shapeOwnsReplace: true,
-                            renderRow: (entry) => <ShaderUseRow ctx={ctx} entry={entry} />,
-                        }}
-                    />
-                ) : (
-                    <ThingSection key={part.id} ctx={ctx} part={part} section={section} />
-                ),
-            )
+            // Every section is shown, an empty one as its header with its "+" (there is no reader switch for it); a
+            // separator parts the mark's parts from how it shows (E551, ia-design 1).
+            sections.map(({ part, section }) => (
+                <React.Fragment key={part.id}>
+                    {section.breakBefore === true && <Divider data-section-break="" />}
+                    <ThingSection ctx={ctx} part={part} section={section} />
+                </React.Fragment>
+            ))
         ) : (
             <FindSettingResults
                 ctx={ctx}

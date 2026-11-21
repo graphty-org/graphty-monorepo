@@ -42,10 +42,11 @@ const ADDS = (["node", "edge"] as const).flatMap((side) =>
             .flat()
             .filter(
                 (thing) =>
-                    needsOf(mainChannel(thing)).length > 0 ||
-                    channelDescriptor(mainChannel(thing))?.start !== undefined,
+                    thing.shader !== true &&
+                    (needsOf(mainChannel(thing)).length > 0 ||
+                        channelDescriptor(mainChannel(thing))?.start !== undefined),
             )
-            .map((thing) => ({ side, part: section.part, thing })),
+            .map((thing) => ({ side, part: section.id ?? section.part, thing })),
     ),
 );
 

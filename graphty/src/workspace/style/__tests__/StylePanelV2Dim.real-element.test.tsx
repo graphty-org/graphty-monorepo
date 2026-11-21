@@ -14,21 +14,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openGraph, openStyle, sectionOf } from "./v2Harness";
-
-/**
- * Switches the view from the toolbar's Mode menu, as a reader does.
- * @param to - the view.
- */
-async function switchView(to: "2D" | "3D"): Promise<void> {
-    const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-    await userEvent.click(within(toolbar).getByRole("button", { name: /^Mode, / }));
-    const menu = await screen.findByRole("menu", { name: /^Mode/ });
-    await userEvent.click(within(menu).getByRole("menuitemradio", { name: new RegExp(`^${to}`) }));
-    await waitFor(() => {
-        assert.isNotNull(within(toolbar).queryByRole("button", { name: `Mode, ${to}` }));
-    });
-}
+import { openGraph, openShaderList, openStyle, sectionOf, switchView } from "./v2Harness";
 
 /**
  * The tooltip of a dimmed line or item (or of the dimmed row around it), or null when it is not dimmed.
@@ -146,10 +132,9 @@ vec4 shade(NodeInput n) { return n.color; }
         assert.isTrue(added.ok, JSON.stringify(added));
         await switchView("2D");
         const tab = await openStyle("Key people");
-        const shaders = sectionOf(tab, "node-shaders");
         const open = async (): Promise<HTMLElement> => {
-            // "+" opens the one list of the node's shaders (E381).
-            await userEvent.click(within(shaders).getByRole("button", { name: /^Add to node shaders/ }));
+            // Effects "+" > Shader opens the one list of the node's shaders (E381, E668).
+            await openShaderList(tab, "node");
             return waitFor(() => {
                 const found = document.querySelector<HTMLElement>('.ws-gallery-tile[data-shader="user/lamp"]');
                 assert.isNotNull(found, "the custom shader is in the gallery");

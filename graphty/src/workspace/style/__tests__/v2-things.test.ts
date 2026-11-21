@@ -11,19 +11,17 @@ import { byKind, SECTIONS, type ThingSpec } from "../v2/things";
 describe("Style panel v2's sections", () => {
     for (const side of ["node", "edge"] as const) {
         it(`${side}: every part is a section and every item is in one thing`, () => {
-            // The owner removed Order and groups (E420, E422): its part is no section.
+            // The owner removed Order and groups (E420, E422): its part is no section. Shaders are Effects'
+            // Shader item (E668): their part is no section either.
             assert.sameMembers(
                 SECTIONS[side].map((section) => section.part),
-                PARTS[side].map((part) => part.id).filter((id) => id !== "order"),
+                PARTS[side].map((part) => part.id).filter((id) => id !== "order" && id !== "shaders"),
             );
             for (const section of SECTIONS[side]) {
                 const part = PARTS[side].find((each) => each.id === section.part);
                 assert.isDefined(part, section.part);
                 const things = section.groups.flat();
                 assert.isAtMost(things.length, 12, `${section.part}: at most 12 in its menu`);
-                if (section.part === "shaders") {
-                    continue;
-                }
                 // An item another section's thing takes whole as its own (the ring, in Effects) is that thing's.
                 const takenWhole = (channels: readonly string[]): number =>
                     SECTIONS[side]
@@ -49,6 +47,31 @@ describe("Style panel v2's sections", () => {
             }
         });
     }
+});
+
+describe("the sections' order (ia-design.md section 2, E675)", () => {
+    const order = (side: "node" | "edge"): string[] =>
+        SECTIONS[side].map((section) => `${section.breakBefore === true ? "| " : ""}${section.title ?? section.part}`);
+
+    it("node: Fill, Text, Shape, Border | Visibility, Effects", () => {
+        assert.deepEqual(order("node"), ["fill", "text", "shape", "border", "| visibility", "effects"]);
+    });
+
+    it("edge: Line, Arrows, Route, Text | Visibility, Effects", () => {
+        assert.deepEqual(order("edge"), ["line", "Arrows", "route", "text", "| visibility", "effects"]);
+    });
+
+    it("each tab's Effects holds its one Shader item (E668)", () => {
+        for (const side of ["node", "edge"] as const) {
+            const shaders = SECTIONS[side].flatMap((section) =>
+                section.groups
+                    .flat()
+                    .filter((thing) => thing.shader === true)
+                    .map(() => section.part),
+            );
+            assert.deepEqual(shaders, ["effects"], side);
+        }
+    });
 });
 
 describe("a long section", () => {

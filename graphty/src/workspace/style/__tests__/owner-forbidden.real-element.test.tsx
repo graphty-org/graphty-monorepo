@@ -19,7 +19,7 @@ import { screen, waitFor, within } from "../../../test/test-utils";
 import { outsideTheList } from "./approvedControls";
 import { showKind } from "./kindTab";
 import { type Forbidden, OWNER_FORBIDDEN } from "./owner-forbidden";
-import { onlyPlusAdds, openGraph, openStyle, picture, pixelsApart } from "./v2Harness";
+import { onlyPlusAdds, openGraph, openShaderList, openStyle, picture, pixelsApart } from "./v2Harness";
 
 /** What a walk saw. */
 interface Seen {
@@ -362,12 +362,7 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
         await openGraph();
         const tab = await openStyle("Key people");
         await showKind("node");
-        const shaders = tab.querySelector<HTMLElement>('[data-style-panel-v2] [data-section="node-shaders"]');
-        assert.isNotNull(shaders);
-        if (shaders === null) {
-            return;
-        }
-        await userEvent.click(within(shaders).getByRole("button", { name: /^Add to node shaders/ }));
+        await openShaderList(tab, "node");
         await userEvent.click(await screen.findByRole("button", { name: "New shader..." }));
         const dialog = await screen.findByRole("dialog", { name: /^(New|Edit) shader$/ });
         await userEvent.click(within(dialog).getByRole("combobox", { name: /^Place/ }));

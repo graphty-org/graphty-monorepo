@@ -18,7 +18,7 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { DIALOG_PLACES } from "../words";
 import { showKind } from "./kindTab";
-import { openGraph, openStyle, picture, pixelsApart, sectionOf } from "./v2Harness";
+import { openGraph, openShaderList, openStyle, picture, pixelsApart, sectionOf } from "./v2Harness";
 
 /**
  * Registers a custom shader for one place, under its own id and name.
@@ -45,8 +45,7 @@ async function custom(session: GraphSession, target: "node" | "edge", place: str
 async function openList(kind: "node" | "edge"): Promise<HTMLElement> {
     const tab = await screen.findByTestId("style-tab");
     await showKind(kind);
-    const section = sectionOf(tab, `${kind}-shaders`);
-    await userEvent.click(within(section).getByRole("button", { name: new RegExp(`^Add to ${kind} shaders`) }));
+    await openShaderList(tab, kind);
     assert.isNull(screen.queryByRole("menu"), "no menu of places: the list opens at once");
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".ws-gallery-grid")?.parentElement;

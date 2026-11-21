@@ -72,18 +72,18 @@ describe("Style panel v2's budget", () => {
         }
     });
 
-    it("an empty layer draws at most 8 marks", async () => {
+    it("an empty layer draws its 6 sections and at most 8 marks (ia-design 2)", async () => {
         const { session } = await openProject();
         await session.styles.add({ name: "Blank", target: "node", selector: { match: "everything" }, set: {} });
         await session.styles.settled();
         const tab = await openStyle("Blank");
         await waitFor(() => {
-            assert.lengthOf(sectionsIn(tab), 8);
+            assert.lengthOf(sectionsIn(tab), 6);
         });
         assert.isAtMost(marksIn(tab), 8);
     });
 
-    it("the minus is the far-right slot of every set line", async () => {
+    it("the minus is the far-right slot of every set line, but for a row's settings '...' after it (E550)", async () => {
         const { session, id } = await openProject();
         await session.styles.update(id, {
             set: { "node.color": "#E8590C", "node.shape": "star", "node.size": 2, "node.borderColor": "#111111" },
@@ -97,14 +97,18 @@ describe("Style panel v2's budget", () => {
         });
         for (const line of lines) {
             const buttons = [...line.querySelectorAll<HTMLElement>("button")];
-            const last = buttons.at(-1);
+            // A row's main line ends [-] [...] (design 2.4, E550): its settings sit right of its minus.
+            const settings = / settings$/.test(buttons.at(-1)?.getAttribute("aria-label") ?? "");
+            const last = settings ? buttons.at(-2) : buttons.at(-1);
             assert.match(
                 last?.getAttribute("aria-label") ?? "",
                 /^Remove /,
                 `${String(line.dataset.line)} ends in its minus`,
             );
             const right = Math.max(
-                ...[...line.querySelectorAll("*")].map((each) => each.getBoundingClientRect().right),
+                ...[...line.querySelectorAll("*")]
+                    .filter((each) => !settings || !buttons.at(-1)?.contains(each))
+                    .map((each) => each.getBoundingClientRect().right),
             );
             assert.isAtLeast((last?.getBoundingClientRect().right ?? 0) + 1, right, "nothing sits right of the minus");
         }

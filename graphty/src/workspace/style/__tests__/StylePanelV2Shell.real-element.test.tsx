@@ -1,7 +1,7 @@
 /**
  * Style panel v2's shell on the REAL graphty-element, driven by real clicks (design/ui/style-panel-v2/design.md,
- * sections 2.3 and 2.4): with the style-panel-v2 experiment on, the node tab draws its eight sections in the
- * design's order; a section of one thing adds it from its "+", a section of several opens a "+" menu in groups
+ * sections 2.3 and 2.4): with the style-panel-v2 experiment on, each tab draws its six sections in two groups
+ * in ia-design's order; a section of one thing adds it from its "+", a section of several opens a "+" menu in groups
  * from its "+"; a thing row's minus takes the whole thing off the layer and one Undo brings it back. Every "+"
  * list's only button is its "+": its title and bar add nothing, and a section collapses from its caret alone,
  * remembered by the reader, never by the project. With the experiment off, the panel by part of the drawing is
@@ -17,15 +17,74 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { cleanup, screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { layersNow, onlyPlusAdds, openProject, openStyle, sectionOf, written } from "./v2Harness";
+import { layersNow, onlyPlusAdds, openProject, openStyle, sectionOf, switchView, written } from "./v2Harness";
 
-/** The node tab's sections, in the design's order. */
-const NODE_SECTIONS = ["Shape", "Fill", "Border", "Text", "Effects", "Visibility", "Shaders"];
+/** Each tab's sections, in ia-design.md's order (E675), "|" where the separator between the two groups sits. */
+const SECTION_ORDER = {
+    node: ["Fill", "Text", "Shape", "Border", "|", "Visibility", "Effects"],
+    edge: ["Line", "Arrows", "Route", "Text", "|", "Visibility", "Effects"],
+} as const;
+
+/** Each tab's Effects "+" items, "|" where a divider sits: every shader is the one Shader item (E668). */
+const EFFECTS_ITEMS = {
+    node: ["Ring", "Shader", "Glow", "|", "Drop shadow", "Raised edge", "Underlay", "Overlay"],
+    edge: ["Shader", "Animation", "|", "Underlay", "Overlay"],
+} as const;
+
+/**
+ * A tab's section headings and its separator, top to bottom, as a reader sees them.
+ * @param panel - the v2 panel.
+ * @returns the headings, "|" for the separator.
+ */
+function sectionOrder(panel: HTMLElement): string[] {
+    return [...panel.querySelectorAll('[data-section-break], [data-section] [role="heading"][aria-level="3"]')].map(
+        (element) => (element.hasAttribute("data-section-break") ? "|" : element.textContent),
+    );
+}
+
+/**
+ * The open menu's items and dividers, top to bottom.
+ * @param menu - the menu.
+ * @returns the item names, "|" for a divider.
+ */
+function menuOrder(menu: HTMLElement): string[] {
+    return [...menu.querySelectorAll('[role="menuitem"], .mantine-Menu-divider')].map((element) =>
+        element.classList.contains("mantine-Menu-divider") ? "|" : element.textContent,
+    );
+}
 
 describe("Style panel v2 on", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("draws the node tab's sections in order, each with its header rule", async () => {
+    it("draws each tab's sections and Effects '+' items in ia-design's order, in 2D and in 3D (E668, E675)", async () => {
+        await openProject();
+        const tab = await openStyle("Key people");
+        for (const view of ["2D", "3D"] as const) {
+            await switchView(view);
+            for (const side of ["node", "edge"] as const) {
+                await showKind(side);
+                const panel = await waitFor(() => {
+                    const found = tab.querySelector<HTMLElement>(`[data-style-panel-v2][data-group="${side}"]`);
+                    assert.isNotNull(found);
+                    return found;
+                });
+                assert.deepEqual(sectionOrder(panel), [...SECTION_ORDER[side]], `${view} ${side} sections`);
+                assert.isNull(panel.querySelector('[data-section$="-shaders"]'), "no Shaders section");
+                const effects = sectionOf(tab, `${side}-effects`);
+                await userEvent.click(
+                    within(effects).getByRole("button", { name: new RegExp(`^Add to ${side} effects`) }),
+                );
+                assert.deepEqual(
+                    menuOrder(await screen.findByRole("menu")),
+                    [...EFFECTS_ITEMS[side]],
+                    `${view} ${side}`,
+                );
+                await userEvent.keyboard("{Escape}");
+            }
+        }
+    });
+
+    it("draws the node tab's sections, each with its header rule", async () => {
         await openProject();
         const tab = await openStyle("Key people");
         const panel = await waitFor(() => {
@@ -33,11 +92,12 @@ describe("Style panel v2 on", () => {
             assert.isNotNull(found);
             return found;
         });
+        const sections = SECTION_ORDER.node.filter((name) => name !== "|");
         const headings = within(panel)
             .getAllByRole("heading", { level: 3 })
             .map((heading) => heading.textContent);
-        assert.deepEqual(headings, NODE_SECTIONS);
-        assert.lengthOf(panel.querySelectorAll('[data-testid="control-section"]'), NODE_SECTIONS.length);
+        assert.deepEqual(headings, sections);
+        assert.lengthOf(panel.querySelectorAll('[data-testid="control-section"]'), sections.length);
         // Fill holds the layer's color; Shape sets nothing yet, so it is the empty state.
         assert.isNull(sectionOf(tab, "node-fill").querySelector('[data-testid="control-section"][data-empty]'));
         assert.isNotNull(sectionOf(tab, "node-shape").querySelector('[data-testid="control-section"][data-empty]'));
@@ -86,7 +146,7 @@ describe("Style panel v2 on", () => {
             within(menu)
                 .getAllByRole("menuitem")
                 .map((item) => item.textContent),
-            ["Ring", "Glow", "Drop shadow", "Raised edge", "Underlay", "Overlay"],
+            ["Ring", "Shader", "Glow", "Drop shadow", "Raised edge", "Underlay", "Overlay"],
         );
         assert.lengthOf(menu.querySelectorAll(".mantine-Menu-divider"), 1, "a divider between the two groups");
         await userEvent.click(within(menu).getByRole("menuitem", { name: "Ring" }));
@@ -141,9 +201,9 @@ describe("Style panel v2's '+' lists", () => {
         for (const plus of panel.querySelectorAll("[data-plus]")) {
             assert.isNotNull(plus.closest("[data-plus-list]"), `${plus.getAttribute("aria-label") ?? ""} is in a list`);
         }
-        // Each section, set (Fill) and empty, the Shaders section included.
+        // Each section, set (Fill) and empty.
         const sections = [...panel.querySelectorAll<HTMLElement>('[data-plus-list="section"]')];
-        assert.isAtLeast(sections.length, 7);
+        assert.isAtLeast(sections.length, 6);
         for (const section of sections) {
             await onlyPlusAdds(session, section, section.textContent ?? "a section");
         }

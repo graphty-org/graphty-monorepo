@@ -83,6 +83,33 @@ export function sectionOf(tab: HTMLElement, id: string): HTMLElement {
 }
 
 /**
+ * Switches the view from the toolbar's Mode menu, as a reader does.
+ * @param to - the view.
+ */
+export async function switchView(to: "2D" | "3D"): Promise<void> {
+    const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+    await userEvent.click(within(toolbar).getByRole("button", { name: /^Mode, / }));
+    const menu = await screen.findByRole("menu", { name: /^Mode/ });
+    await userEvent.click(within(menu).getByRole("menuitemradio", { name: new RegExp(`^${to}`) }));
+    await waitFor(() => {
+        assert.isNotNull(within(toolbar).queryByRole("button", { name: `Mode, ${to}` }));
+    });
+}
+
+/**
+ * Opens a tab's one shader list from its Effects section's "+" > Shader (E668), by real clicks.
+ * @param tab - the Style tab, showing the kind.
+ * @param kind - the kind.
+ * @returns the Effects section.
+ */
+export async function openShaderList(tab: HTMLElement, kind: "node" | "edge"): Promise<HTMLElement> {
+    const effects = sectionOf(tab, `${kind}-effects`);
+    await userEvent.click(within(effects).getByRole("button", { name: new RegExp(`^Add to ${kind} effects`) }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Shader" }));
+    return effects;
+}
+
+/**
  * Opens three nodes on a circle, two edges between them, a layer "Key people" over every node and a layer
  * "Links" over every edge, each setting only its color.
  * @returns the session, the element and the two layers' ids.

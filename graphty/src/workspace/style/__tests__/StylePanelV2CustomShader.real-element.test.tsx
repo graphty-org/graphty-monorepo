@@ -82,7 +82,7 @@ describe("Style panel v2's custom shader parameters", () => {
         });
         await session.styles.settled();
         const tab = await openStyle("Key people");
-        const section = sectionOf(tab, "node-shaders");
+        const section = sectionOf(tab, "node-effects");
 
         const ours = await openUse(section, BUILT_IN);
         await userEvent.keyboard("{Escape}");

@@ -180,6 +180,11 @@
             "name": "MenuShortcut",
             "from": "@graphty/compact-mantine",
             "dom": ".cm-menu-shortcut"
+        },
+        {
+            "name": "Divider",
+            "from": "@mantine/core",
+            "dom": ".mantine-Divider-root"
         }
     ],
     "containers": [

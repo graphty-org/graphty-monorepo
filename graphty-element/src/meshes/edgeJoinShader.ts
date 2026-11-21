@@ -305,7 +305,7 @@ EdgeTrimEnd pulledCapEnd(int row, float w, out float scale) {
     return end;
 }
 
-// Edge.transformArrowCap's line under a head drawn from the row table (PulledCapBatch): from the source's outline to
+// Edge.transformArrowCap's line under a head drawn from the row table (ArrowCapBatch.setPulled): from the source's outline to
 // capBack, at the head's node scale, before the target's. Ends that meet nothing (overlapping nodes) keep the centers,
 // as Edge.placeArrowFromCentres leaves the line there.
 void pulledCapTrim(int fromRow, int toRow, float fromW, float toW, float capBack, inout vec3 head, inout vec3 tail) {

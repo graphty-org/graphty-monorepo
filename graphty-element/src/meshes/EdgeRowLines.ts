@@ -130,7 +130,7 @@ export interface EdgeRowLinesHost {
     readonly lean: () => LeanLines;
     /** Ask for a frame, so a row painted or unpainted shows. */
     readonly requestFrame: () => void;
-    /** Whether no layout is moving the rows, so heads are placed on the CPU (`PulledCapBatch.flush`). */
+    /** Whether no layout is moving the rows, so heads are placed on the CPU at rest (`restPlacement.ts`). */
     readonly settled: () => boolean;
 }
 

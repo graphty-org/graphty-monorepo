@@ -1,5 +1,5 @@
 /**
- * @file A pulled arrow cap (`CAP_PULLED`, `PulledCapBatch`) draws the pixels of the placed cap (`ArrowCapBatch`),
+ * @file A pulled arrow cap (`CAP_PULLED`, `ArrowCapBatch.setPulled`) draws the pixels of a placed cap,
  * stood where `Edge.placeArrowHead` stands it over the trim mirror's ends
  * (`trimEnds`), reads its place from the row table so a move uploads no cap byte, and draws nothing
  * once either end's row has w = 0 or the cap is handed back. Design:

@@ -983,7 +983,7 @@ export class EdgeMesh {
 
     /**
      * The batch key of a 3D billboarded cap's shape, as {@link EdgeMesh.createArrowHead} keys it, for a batch that
-     * places its caps on the card (`PulledCapBatch`). Only a cap the billboard shader draws with one material: a
+     * places its caps on the card (`ArrowCapBatch.setPulled`). Only a cap the billboard shader draws with one material: a
      * filled or open cap of a known type, with no inside color (`fillColor`), no picture and not a sphere dot.
      * @param options - The cap's options, as {@link EdgeMesh.createArrowHead} takes them.
      * @returns Its shape's key, or null for any other cap.

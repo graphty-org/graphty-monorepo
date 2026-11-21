@@ -1,7 +1,7 @@
 /**
  * @file Under `renderPath: "batched"`, an edge with an arrowhead or a dashed or dotted line is still a row line
  * (`EdgeRowLines`): its line is pulled from its nodes' rows, draws its pattern in its shader and stops at the head's
- * back, and its head is drawn from the row table too (`PulledCapBatch`), so neither a directed graph's default look nor
+ * back, and its head is drawn from the row table too (`ArrowCapBatch.setPulled`), so neither a directed graph's default look nor
  * an arrowhead or dash restyle builds an `Edge` or leaves an object edge. The picture is the `"objects"` path's, pixel
  * for pixel. Words on a cap that draw nothing do not need an `Edge` either.
  */

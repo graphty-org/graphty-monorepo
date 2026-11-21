@@ -7,6 +7,31 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../src/session";
+import { NESTED_GROUPS, NESTED_XGMML, savedWithParentRows } from "../../helpers/nested-numeric-groups";
+
+/**
+ * Check, through `graphty.members`, that exactly these nodes are groups, each holding this many.
+ * @param session - The session.
+ * @param groups - Each group and the nodes it holds directly.
+ */
+async function assertGroups(session: GraphSession, groups: Readonly<Record<string, readonly string[]>>): Promise<void> {
+    for (const [group, members] of Object.entries(groups)) {
+        const { id } = await session.styles.add({
+            name: `Group ${group}`,
+            target: "node",
+            selector: {
+                match: "expression",
+                // A file's id is held as text; either spelling names the node.
+                where: `(id == '${group}' || id == \`${JSON.stringify(group)}\`) && graphty.members == \`${members.length}\``,
+            },
+            set: { "node.size": 2 },
+        });
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(id).matched, 1, `${group} holds ${members.length}`);
+    }
+
+    assert.strictEqual(await groupsSelected(session), Object.keys(groups).length, "no other node is a group");
+}
 
 /**
  * Add a layer that selects the groups, and say how many nodes it selects.
@@ -69,5 +94,39 @@ describe("graphty.members", () => {
         };
         await session.data.import({ type: "json", config: { data: JSON.stringify(doc) } });
         assert.strictEqual(await groupsSelected(session), 1);
+    });
+
+    it("keeps a file's nested groups, its ids numbers, by node id, not by row, through a save and an open", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "xgmml", config: { data: NESTED_XGMML } });
+        await assertGroups(session, NESTED_GROUPS);
+        const { text } = await session.project.save();
+        session.dispose();
+
+        const opened = createGraphSession();
+        assert.deepEqual((await opened.project.open(text)).problems, []);
+        await assertGroups(opened, NESTED_GROUPS);
+    });
+
+    it("opens a project saved when the parent key held the parent's row with every node in its group", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "xgmml", config: { data: NESTED_XGMML } });
+        const { text } = await session.project.save();
+        session.dispose();
+
+        const opened = createGraphSession();
+        assert.deepEqual((await opened.project.open(savedWithParentRows(text))).problems, []);
+        await assertGroups(opened, NESTED_GROUPS);
+    });
+
+    it("keeps plain records' parent keys through a save and an open", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "team" }, { id: "ana", parent: "team" }, { id: "bo", parent: "team" }]);
+        const { text } = await session.project.save();
+        session.dispose();
+
+        const opened = createGraphSession();
+        await opened.project.open(text);
+        await assertGroups(opened, { team: ["ana", "bo"] });
     });
 });

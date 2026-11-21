@@ -541,6 +541,9 @@ await element.session.data.import({ type: "json", config: { data: JSON.stringify
 `team` is drawn as a box around `ana`, `bo` and `cy`; `dee` is outside it.
 
 Node records you add yourself nest the same way: a `parent` key names the group a node is in.
+A node read from a file that nests (a Graphviz cluster, a GraphML or XGMML nested graph, a
+Cytoscape.js compound) carries the same key, holding its group's id, so `session.data.nodes()`
+shows which group each node is in.
 
 ```typescript
 await element.session.data.addNodes([{ id: "team" }, { id: "ana", parent: "team" }, { id: "bo", parent: "team" }]);

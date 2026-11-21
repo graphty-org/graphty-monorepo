@@ -5834,6 +5834,22 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Keep the loads an opened version 2 file saved by reference as references, as
+     * {@link SessionData.setCopy} would, so `copies()` and `sources()` list them so and a save keeps
+     * them so. Internal: the version 2 data section calls it as it builds the open data.
+     * @param keys - The loads' keys (their source ids).
+     */
+    keepReferences(keys: Iterable<SourceKey>): void {
+        for (const key of keys) {
+            const facts = this.loadFacts.get(key) ?? { loadedAt: new Date().toISOString(), mode: "merge" as const };
+            // Read from a file, as a version 1 open's facts are: a fetch of it asks the network gate.
+            this.loadFacts.set(key, { ...facts, copy: "reference", opened: true });
+        }
+
+        this.copyTick++;
+    }
+
+    /**
      * Keep what an open read each reference from again, so those loads are reloadable. Internal:
      * the project file calls it once an open is done; each open replaces the last one's.
      * @param inputs - What each reference was read from, by load key.

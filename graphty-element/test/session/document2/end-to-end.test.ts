@@ -15,6 +15,7 @@ import { createGraphSession, type GraphSession } from "../../../session";
 import { schemaUrl } from "../../../src/session/document2/framing";
 import { DOCUMENT_SECTIONS, type DocumentSection, type JsonObject } from "../../../src/session/document2/types";
 import { FIXTURE_EDGES, FIXTURE_NODES, SELF_CONTAINED_KINDS } from "../../saved-format/kinds";
+import { finishAtOnce } from "../runs/harness";
 
 const SPEC = new URL("../../../spec/", import.meta.url);
 const readText = (path: string): string => readFileSync(new URL(path, SPEC), "utf8");
@@ -111,6 +112,29 @@ describe("save files version 2, end to end", () => {
         const written = withGenerator(JSON.parse(saved.text) as JsonObject, example.generator);
         assert.deepEqual(written, example);
         assert.strictEqual(JSON.stringify(written), JSON.stringify(example));
+    });
+
+    it("opens the smallest working example with its run, its layer and its layout, and saves it back", async () => {
+        const example = readJson("examples/minimal/minimal-working.graphty.json");
+        const session = createGraphSession({ ...ON, runs: { execute: finishAtOnce } });
+        const report = await session.project.open(readText("examples/minimal/minimal-working.graphty.json"));
+        assert.strictEqual(report.opened, "project");
+        assert.deepEqual(invalid(example), []);
+        assert.strictEqual(session.data.nodes().length, 4);
+        assert.deepEqual(
+            session.runs.list().map((run) => run.id),
+            ["rank"],
+        );
+        assert.include(
+            session.styles.list().map((layer) => layer.name),
+            "Size by rank",
+        );
+        assert.deepEqual([session.layout.id, session.layout.options.seed], ["force", 7]);
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(new Date(String(example.modified)));
+        const saved = await session.project.save({ format: 2, sections: ["data", "style", "recipe", "view"] });
+        const written = withGenerator(JSON.parse(saved.text) as JsonObject, example.generator);
+        assert.deepEqual(written, withGenerator(example, example.generator));
     });
 
     it("applies the example's type selector and replays its run over a type scope", async () => {

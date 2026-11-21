@@ -18,9 +18,10 @@
  * save file format's specification (spec/README.md, section 4.8.2): JMESPath's syntax, cut down to
  * paths, literals, comparisons, `&&`, `||`, `!` and parentheses, plus three extensions --
  * arithmetic (`+ - * /` over numbers), the bare words `true`, `false` and `null` as values, and an
- * ordering of two strings (by Unicode code point), which JMESPath leaves undefined. An expression
- * that is also valid JMESPath means what JMESPath means by it, except that ordering two strings is
- * defined. Three measured facts drove compiling it here rather than calling a JMESPath library:
+ * ordering of two strings (by Unicode code point), which JMESPath leaves undefined. The spec's
+ * grammar alone defines it: it is not JMESPath. Bare `true`, `false` and `null` are values where
+ * JMESPath reads them as field names, and a path is one column lookup where JMESPath walks nested
+ * keys. Three measured facts drove compiling it here rather than calling a JMESPath library:
  *
  * - `jmespath@0.16.0` exports `compile()`, but it exposes no evaluator for the tree that comes
  *   back, so a parsed expression cannot be run. `search()` is the only door and it re-parses

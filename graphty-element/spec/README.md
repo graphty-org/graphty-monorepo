@@ -42,6 +42,14 @@ data it was written on (`bindsTo`).
 Each section is either a file of its own (a **section file**) or a member of a **full file** that
 holds any subset of the sections.
 
+**The smallest working file** is `examples/minimal/minimal-working.graphty.json`: one embedded
+CSV source in data, a layer sizing nodes by a pagerank run's `results.rank.value`, the run and a
+seeded force layout. What happens when a file opens comes from view (the runs it lists are run
+again, its `layout` is drawn and its layers apply) and from style (its layers apply). The recipe
+is only what applies to new data (8.2 rule 4), so it repeats the run and the layout for that. A
+layer that reads a hand-started run, or any run no recipe step makes, sits in view's `layers`
+(5 rule 5).
+
 ## 2. File forms
 
 ### 2.1 Section files
@@ -287,20 +295,20 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 `mapping`, `settings`, `annotations`, `metadata`, `license`, `citation`, `copy`, `columns`,
 `loaded`, and the two must-understand slots `extensions` and `ignorable` (10).
 
-| Field                             | Holds                                                                                                                                                                                                                                                                                                  |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`                              | `src_` plus a ULID (3.3)                                                                                                                                                                                                                                                                               |
-| `label`                           | display text, including any name the caller gives; also the default role match (3.6 rule 3)                                                                                                                                                                                                            |
-| `kind`                            | an open vocabulary: `file`, `url`, `network`, `sample`, `derived`, `reader`, or a reverse-domain kind such as `org.example.cypher` (10)                                                                                                                                                                |
-| `format`, `options`               | `format` is the id of the format that parses the bytes; `options` holds only the names builtins.md "Parse options" lists for that format (rule 9), never identity, join or direction choices. A network source has neither: its request is in `origin.ledger`                                          |
-| `origin`                          | `copy`, the copy id (always); plus per kind: file `name`, `size`, `mediaType`, `path`; url `url`, `size`, `mediaType`, `etag`, `lastModified`; network exactly `url`, `credentials` (`{ slot }`) and `ledger` (rule 7); sample `dataset` and version, or a generated sample's `generator` and `params` |
-| `mapping`                         | per table, graphty-element's `TableMapping` names (4.1.3)                                                                                                                                                                                                                                              |
-| `settings`                        | closed: `duplicateIds` (`first` default, `merge`, `refuse`) and `unmatched` (`add` default, `leave-out`)                                                                                                                                                                                               |
-| `annotations`                     | the shapes and text a source draws beside its graph, in the source's frame (y up, its own units), with their scale                                                                                                                                                                                     |
-| `metadata`, `license`, `citation` | the file's own header (its own direction among it), license and citation                                                                                                                                                                                                                               |
-| `copy`                            | the rows (embedded), or absent (referenced)                                                                                                                                                                                                                                                            |
-| `columns`                         | graph-format `ColumnDecl`s grouped by table, `{ nodes: { <working name>: decl }, edges: {...} }`; always with `copy`, and on a referenced source as what an open checks the rows it reads again against                                                                                                |
-| `loaded`                          | when the current copy was read                                                                                                                                                                                                                                                                         |
+| Field                             | Holds                                                                                                                                                                                                                                                                                                                                                            |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                              | `src_` plus a ULID (3.3)                                                                                                                                                                                                                                                                                                                                         |
+| `label`                           | display text, including any name the caller gives; also the default role match (3.6 rule 3)                                                                                                                                                                                                                                                                      |
+| `kind`                            | an open vocabulary: `file`, `url`, `network`, `sample`, `derived`, `reader`, or a reverse-domain kind such as `org.example.cypher` (10)                                                                                                                                                                                                                          |
+| `format`, `options`               | `format` is the id of the format that parses the bytes (builtins.md "Formats"; absent, the bytes are recognized as a load with no format recognizes them); `options` holds only the names builtins.md "Parse options" lists for that format (rule 9), never identity, join or direction choices. A network source has neither: its request is in `origin.ledger` |
+| `origin`                          | `copy`, the copy id (always); plus per kind: file `name`, `size`, `mediaType`, `path`; url `url`, `size`, `mediaType`, `etag`, `lastModified`; network exactly `url`, `credentials` (`{ slot }`) and `ledger` (rule 7); sample `dataset` and version, or a generated sample's `generator` and `params`                                                           |
+| `mapping`                         | per table, graphty-element's `TableMapping` names (4.1.3)                                                                                                                                                                                                                                                                                                        |
+| `settings`                        | closed: `duplicateIds` (`first` default, `merge`, `refuse`) and `unmatched` (`add` default, `leave-out`)                                                                                                                                                                                                                                                         |
+| `annotations`                     | the shapes and text a source draws beside its graph, in the source's frame (y up, its own units), with their scale                                                                                                                                                                                                                                               |
+| `metadata`, `license`, `citation` | the file's own header (its own direction among it), license and citation                                                                                                                                                                                                                                                                                         |
+| `copy`                            | the rows (embedded), or absent (referenced)                                                                                                                                                                                                                                                                                                                      |
+| `columns`                         | column declarations (`{ name, dtype }` with optional `nullable`, `unset` and `origin`, `dtype` from builtins.md "Column dtypes") grouped by table, `{ nodes: { <working name>: decl }, edges: {...} }`; always with `copy`, and on a referenced source as what an open checks the rows it reads again against                                                    |
+| `loaded`                          | when the current copy was read                                                                                                                                                                                                                                                                                                                                   |
 
 1. **The copy id.** `origin.copy` is `sha256:` plus lower-case hex of the bytes as read for file,
    url and downloaded sample sources, and a ULID minted whenever that copy changes for network,
@@ -315,7 +323,7 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    the reader does not know may have either form, `sha256:` or a ULID.
 2. **Working column names everywhere.** Every column name in a document is a working name, after
    renames. A column's source name appears only in `mapping.<table>.renamed` and in its
-   `ColumnDecl.origin.title`.
+   column declaration's `origin.title`.
 3. **Embedded copies are tables**: an object whose only members are `nodes` and/or `edges`, each an
    object of equal-length value arrays keyed by working column name, rows in the order read. An
    unset cell is `null`; a `json` column lists its unset rows as `unset` in its `columns` entry, so
@@ -342,18 +350,26 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    by a refresh; `credentials` (`{ "slot" }`, the credential slot's name, never a secret); and
    `ledger`, the request history, the only member a refresh reads. The ledger is closed (with the
    two slots of 10, "Must-understand members", at its top level only) and holds:
-    - `source`: the driver id (`url`, `rest`, `openalex`, ...);
-    - `sourceVersion`: an integer, at least 1;
+    - `source`: the driver id (`url`, `rest`, `openalex`, ...), an open vocabulary that a
+      reader without that driver cannot refresh (the source is then built from its copy, or held
+      when referenced);
+    - `sourceVersion`: the version of that driver's `params` shape, an integer of at least 1; a
+      reader whose driver has another version reads the ledger as the driver says, or cannot
+      refresh the source;
     - `endpoint`: the origin and path, or `null` for the source's default;
-    - `params`: the source's params, a REST mapping included, without what marks a credential;
+    - `params`: the source's params, a REST mapping included, without what marks a credential.
+      Their shape belongs to the driver: a third party writes them back verbatim and never
+      interprets them;
     - `limits` (optional, closed): `maxNodes`, `maxEdges`, `maxBytes`, `maxRequests` and
       `timeoutMs`, each an integer of at least 1;
     - `pages`: at least 1;
     - `next`: an opaque cursor that never holds a credential, or `null`;
     - `validators` (closed): `etag`, `lastModified`, `modified`, `serverVersion` and
       `contentHash`;
-    - `expand` (optional, closed): `depth`, `direction`, `limit`, `relationshipTypes` and
-      `layout`; never a trigger, so a received file cannot make a click fetch;
+    - `expand` (optional, closed): `depth` (absent, 1), `direction` (`out`, `in` or `both`, the
+      default), `limit` (absent, none), `relationshipTypes` (absent, all) and `layout` (`continue`,
+      the default: nodes an expansion adds join the running layout; `none`: they stay where they
+      start); never a trigger, so a received file cannot make a click fetch;
     - `expansions`, in order: each `{ seeds, depth, direction, limit?, at, next, validators }`,
       closed, its `seeds` node references `{ space, key }` (6.2). An expansion's position is its
       identity.
@@ -802,13 +818,13 @@ A settings section holds `settings` and `playback`.
     | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
     | `runAlgorithmsOnLoad`   | boolean                                                                                                                                                                                                                                     | Whether the on-load algorithms run when new data is loaded (never when a file opens, 8.2 rule 4).                                     |
     | `runPlacement`          | `"beneath"` or `"top"`                                                                                                                                                                                                                      | Where a finished run's layer lands: beneath the lowest written layer that drives the same property, or on top of the unpinned layers. |
-    | `layoutTransition`      | `{ transition, seconds?, hold?, params? }`, `seconds` 0 to 30, `hold` 0 to 1                                                                                                                                                                | How nodes move to a new layout. Absent: a new layout is drawn in one step.                                                            |
+    | `layoutTransition`      | `{ transition, seconds?, hold?, params? }`, `seconds` 0 to 30, `hold` 0 to 1                                                                                                                                                                | How nodes move to a new layout.                                                                                                       |
     | `layoutStepsBeforeDraw` | number >= 0                                                                                                                                                                                                                                 | Layout iterations before the first drawing.                                                                                           |
     | `layoutStepsPerFrame`   | number > 0                                                                                                                                                                                                                                  | Layout iterations per drawn frame.                                                                                                    |
     | `layoutSettleDelta`     | number >= 0                                                                                                                                                                                                                                 | The largest move in a round of iterations below which the layout counts as settled and stops; 0 means it never settles early.         |
     | `background`            | `{ backgroundType: "color", color?, darkColor?, shader? }` or `{ backgroundType: "skybox", data, projection?, color?, darkColor?, shader? }`, where `shader` is `{ id, params? }` resolved against the style section's shaders (4.2 rule 6) | What the graph is drawn against.                                                                                                      |
     | `selectionStyle`        | look: `{ color, scale, opacity, edgeColor, edgeScale, edgeOpacity }`                                                                                                                                                                        | The look of the Selected starting row.                                                                                                |
-    | `pinnedStyle`           | look                                                                                                                                                                                                                                        | The look of the Pinned starting row. Absent: no Pinned row.                                                                           |
+    | `pinnedStyle`           | look                                                                                                                                                                                                                                        | The look of the Pinned starting row.                                                                                                  |
     | `timelineHiddenLook`    | `"hidden"` or `"ghost"`                                                                                                                                                                                                                     | How the Timeline Hidden starting row starts.                                                                                          |
     | `minMarkSize`           | `{ node?, edge? }`, numbers >= 0                                                                                                                                                                                                            | The smallest a node is drawn (`node.size` units) and an edge (`edge.width` units).                                                    |
 
@@ -855,8 +871,12 @@ A results section holds `bindsTo` (REQUIRED, `{ data }` only), `runs` (REQUIRED)
    when the layout was not timed, never 0, as for a run); `engine` (rule 6); `bindsTo`; and
    `nodes: { refs, columns: { x, y, z } }`. It has no run id; one layout is in force at a time.
    When `options` also hold a seed, the record's own `seed` wins.
-6. **Engine.** Every record of something that ran holds `engine`: each results run, the results
-   and view `layout`, and each view run record with a seed. It holds:
+6. **Engine.** Every record of something that ran holds `engine`: each results run and the
+   results `layout`. The view `layout` and a view run record with a seed hold it when the writer
+   drew those positions or computed that run, or restored them from a record that held one; a
+   file naming a layout or a seeded run that has not run yet leaves it out, since a writer never
+   writes a version it did not read. A reader treats an absent `engine` as one it cannot compare.
+   It holds:
     - `packages` (REQUIRED, at least one member): an open map from package name to the version
       that ran. It lists every package whose code could have changed the numbers and whose
       version the writer read from the package itself. A writer never writes a version it did not
@@ -965,7 +985,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
 5. **Run records.** Each carries its run `id`; a recipe-made run its `namespace` and `as`; the
    reader's `name` when it has one; `algorithm`; `params` (every declared option's value as it
    ran, 9 rule 10; element-naming options as element references: a node as `{ "space", "key" }`);
-   `seed`; with a seed, its `engine` (4.5 rule 6); `scope`; `"derived": true` when graphty-element minted the run's id, as
+   `seed`; with a seed, its `engine` when it ran (4.5 rule 6); `scope`; `"derived": true` when graphty-element minted the run's id, as
    version 1 records it; and, when it cannot be replayed exactly, `"replayable": false`.
    A view run record has no `style`. `scope` is one of graphty-element's `Scope` forms:
    `"graph"`, `"largest-component"`, `{ "set" }`, `{ "where" }`, `{ "nodes": [<node ref>] }`,
@@ -980,8 +1000,8 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    recipe step makes, or a run or set whose name several open ones share, names it by run id or
    full set id.
 7. **Layout.** The layout record names the arrangement in `id` and its engine only in `drawnBy`,
-   as `layout.set` and results' `layout` do (5 rule 9); `engine` (4.5 rule 6) is the engine that
-   drew the positions in force, and when those are the positions a results `layout` restored, it
+   as `layout.set` and results' `layout` do (5 rule 9); `engine` (4.5 rule 6), written when the
+   positions in force were drawn, is the engine that drew them, and when those are the positions a results `layout` restored, it
    is that record's `engine`. Its `options` and
    `drawnBy.options` hold every declared option's value (9 rule 10).
    A layout scope (`layoutScope`) is not saved, and the save reports it.
@@ -1055,10 +1075,13 @@ small languages, defined here once.
 
 #### 4.8.2 Expressions
 
-1. A `where` is a **graphty expression**: a subset of JMESPath's syntax plus three extensions --
-   arithmetic, the bare words `true`, `false` and `null` as values, and an ordering of two
-   strings. An expression that is also valid JMESPath means what JMESPath means by it, except that
-   ordering two strings is defined. An expression is at most 1024 characters.
+1. A `where` is a **graphty expression**. It borrows JMESPath's syntax for paths, literals,
+   comparisons, `&&`, `||`, `!` and parentheses, and adds arithmetic. The grammar and the rules
+   below alone define what an expression means; it is not JMESPath, and an expression JMESPath
+   also accepts may mean something else here. Three differences: the bare words `true`, `false`
+   and `null` are values (JMESPath reads them as field names); a path is one raw path (4.8.1), so
+   `data.el.load` reads the column `el.load` where JMESPath would walk nested keys; and two strings
+   are ordered (JMESPath leaves that undefined). An expression is at most 1024 characters.
 2. The grammar:
 
     ```
@@ -1117,7 +1140,8 @@ small languages, defined here once.
    is a leaf.
 2. A leaf speaks about nodes, edges or both. `all` and `any` fold only the halves that speak, and
    `not` negates only those. An empty group constrains nothing.
-3. The leaves, required members first:
+3. The leaves. The required members come before the `;`, the optional ones after it; a leaf
+   with no `;` has only required members:
 
     | Kind            | Members                                                                                                                              | Matches                                                                                                                                                          | Speaks                                                      |
     | --------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -1125,7 +1149,7 @@ small languages, defined here once.
     | `edges`         | `where`                                                                                                                              | the edges whose expression is true                                                                                                                               | edges                                                       |
     | `range`         | `attribute`; `min`, `max`, `as` (`"time"`), `nodes` (`all`, `ends`, `none`), `missing` (`include`, `exclude`)                        | the values in `[min, max]`; with `"as": "time"` the bounds are epoch milliseconds and an ISO time with no zone is UTC                                            | the halves carrying the attribute                           |
     | `categories`    | `attribute`, `values`; `nodes`, `missing`, `match` (`any`, `all`)                                                                    | the values among `values`; with `match`, a list value holding any or all of them                                                                                 | the halves carrying the attribute                           |
-    | `degree`        | `min`, `max`, `direction` (`in`, `out`, `all`)                                                                                       | the nodes whose number of edges is in `[min, max]`                                                                                                               | nodes                                                       |
+    | `degree`        | ; `min`, `max`, `direction` (`in`, `out`, `all`)                                                                                     | the nodes whose number of edges is in `[min, max]`                                                                                                               | nodes                                                       |
     | `component`     | `id`                                                                                                                                 | one connected component. Components are found ignoring edge direction and numbered from 0 in the order of each one's first node in the merged graph's node order | nodes                                                       |
     | `neighborhood`  | `seeds`, `depth`                                                                                                                     | the nodes at most `depth` hops from the seeds; in a bound section only                                                                                           | nodes                                                       |
     | `isolated`      |                                                                                                                                      | the nodes with no edge to another node                                                                                                                           | nodes                                                       |
@@ -1138,14 +1162,50 @@ small languages, defined here once.
     | `text`          | `reads`, `mode` (`substring`, `exact`, `starts-with`, `ends-with`, `regex`), `text`; `caseSensitive`, `nodes`                        | the elements whose text passes a text test; case, accents and runs of spaces are folded unless `caseSensitive`                                                   | the halves carrying the value; `"reads": "id"` speaks nodes |
     | `source`        | `sources`; `side` (`nodes`, `edges`)                                                                                                 | the nodes and edges those sources supplied                                                                                                                       | `side`, or both                                             |
     | `union`         | `side`, `within`, `branches`; `sources`                                                                                              | everything in any branch that is on, each branch folded from `start` (`all` or `none`) by its ordered `add`, `keep` and `except` steps                           | `side`                                                      |
-    | `hops`          | `of`, `max`, `direction`                                                                                                             | the nodes at most `max` hops from a reference; inside a union step only                                                                                          | nodes                                                       |
+    | `hops`          | ; `of`, `max`, `direction`                                                                                                           | the nodes at most `max` hops from a reference; inside a union step only                                                                                          | nodes                                                       |
     | `touching`      | `ends` (`either`, `both`, `one`); `of`                                                                                               | the edges with that many ends in a reference; inside a union step only                                                                                           | edges                                                       |
-    | `nonempty`      | `of`                                                                                                                                 | everything while a reference holds a node, else nothing; inside a union step only                                                                                | nodes and edges                                             |
+    | `nonempty`      | ; `of`                                                                                                                               | everything while a reference holds a node, else nothing; inside a union step only                                                                                | nodes and edges                                             |
     | `same-value`    | `path`; `as`                                                                                                                         | the elements sharing a value for `path` with a reference node; inside a union step only                                                                          | the halves carrying the path                                |
     | `by-size`       | `path`; `min`, `max`, `top`, `from`, `ties`                                                                                          | the elements whose category for `path` has a member count in `[min, max]`, or is among the `top` categories by size                                              | the halves carrying the path                                |
     | `measure`       | `algorithm`, `field`; `params`, `bind`, `test`, `scope`                                                                              | the elements whose value of an algorithm's field passes `test`; inside a union step only                                                                         | the halves the field measures                               |
 
-4. Leaf kinds are an open vocabulary, and each known leaf is closed. An unknown kind, or an unknown
+4. **Absent members.** An optional member left out means, as a format default (9 rule 9):
+    - `min`, `max` (range, degree, by-size): no bound on that side; `as` (range): numbers.
+    - `nodes` (range, categories, text): `all`, the leaf is silent about nodes when its value lives
+      on edges; `ends` keeps only the ends of a passing edge; `none` holds no nodes at all.
+    - `missing` (range, categories, threshold): `exclude`, an element with no value fails.
+    - `match` (categories): a value is read as one category.
+    - `direction` (degree, hops): `all`.
+    - `ties` (threshold, by-size): `fewer`, the tie group a `top` cut falls in is left out; `all`
+      takes it whole.
+    - `from` (threshold, by-size): `high`, count from the highest values or largest categories.
+    - `within` (threshold): `graph`, rank the whole column.
+    - `caseSensitive` (text): false, case, accents and runs of spaces are folded.
+    - `side` (source): both halves.
+    - `sources` (union): every source's elements.
+    - `of` (hops, touching, nonempty), `as` (same-value): no reference, so the step matches
+      nothing.
+    - `max` (hops): every node the reference reaches.
+    - `params` (measure): every option at its default; `bind`: no option bound; `test`: every
+      element the field measures passes; `scope`: the step's base.
+5. **Union branches, steps and references.**
+    - A union's `branches` are, in order, objects `{ start, steps }` with optional `id`, `name`,
+      `autoName`, `color` and `on`. `start` is `all` (all of `side` within the base) or `none`.
+      `on` false keeps the branch and leaves it out; absent, it is on. `id`, `name`, `autoName`
+      and `color` are the writer's and never change what a branch matches.
+    - A step is `{ op, rule }` with optional `id`, `on` (absent, on), `computedOn` (`base`, the
+      default, or `so-far`, the branch before this step), `links` (a rule tree on edges: the step
+      reads only the edges that pass it), `ends` (on an edge branch, how a node leaf is read:
+      `both`, the default, or `either`), `frozenFrom` and `mode`. `op` `add` adds the matches to
+      the branch so far, `keep` keeps only them and `except` removes them. A `union` is refused as
+      a step's `rule`. `mode` is the writer's and never read.
+    - A step's reference (`of`, `as` and each `bind` value) is a scope form (4.3 rule 2), or one of
+      two strings valid only in a step: `hovered-or-selected` (the hovered node, else a lone
+      selected node) and `so-far` (the step's input). A reference holding no node matches nothing.
+    - `measure`'s `bind` maps the algorithm's node options to references. Its `test` is the body
+      of a `range`, `threshold`, `categories`, `text`, `by-size` or `same-value` leaf, with that
+      leaf's `kind` and without its path member (`attribute`, `path` or `reads`) and its `nodes`.
+6. Leaf kinds are an open vocabulary, and each known leaf is closed. An unknown kind, or an unknown
    member of a known leaf, fails its holder as 4.8.2 rule 6 says. A leaf has no `extensions` or
    `ignorable` slot.
 
@@ -1225,13 +1285,17 @@ source whose row made it.
       `join.edges` step puts `<part>/` in front and counts over its `read.table` by its own read
       roles, every row whether or not the step reads it (4.1.8 rule 3).
     - A node row of a source whose mapping names no key column is keyed `<digest>#<n>`. `<digest>`
-      is the first 32 lowercase hex digits of the SHA-256 of the RFC 8785 canonical JSON of the
-      row's non-null cells, by working column name; `n` counts rows with the same digest, from 1, in
+      is the first 32 lowercase hex digits of the SHA-256 of the UTF-8 bytes of the RFC 8785
+      canonical JSON of an object holding the row's non-null cells, by working column name. Each
+      cell is first written as section 11 writes it: a non-finite number as `"NaN"`, `"Infinity"`
+      or `"-Infinity"`, an integer beyond 2^53 - 1 either way as its decimal string, and a `json`
+      cell as its value; `n` counts rows with the same digest, from 1, in
       row order. A writer MAY then write these keys as a key column; graphty-element does, writing
       every node table with key column `id`, so the key holds after the first save.
     - Conformance cases: re-sorting or appending rows leaves every key unchanged; two rows from `a`
       to `b` are `a|b#1` and `a|b#2`; a row from `a|x` to `b` is `a\|x|b#1`; a re-sorted keyless
-      node table keeps its keys.
+      node table keeps its keys; a node row `{ "big": 2^60, "score": NaN }` is hashed from
+      `{"big":"1152921504606846976","score":"NaN"}`.
 
     A reader-added node is keyed by its id exactly as a source row is (its
     typed id in the `add`'s `columns.id`), so its id is the same after a save and a reopen; when
@@ -1507,16 +1571,21 @@ While a section is held:
    `{ section, from, to }`).
 8. A section whose version is newer than the reader knows is skipped and held (8.4).
 9. **Who owns a default.**
-    - A **format default** is one this specification states for a member it defines, in text or as
-      a schema `default` keyword: `repeatedEdges`, a source's settings, the join step members of
-      4.1.8, `graph.filter`'s `on`, a note's `mediaType`, a view run's `replayable`, a 3D camera's `up`
-      and a 2D camera's `rotation` (4.7 rule 2), and a parse option's absent value where
-      builtins.md states one. It is frozen for the section's major version. Changing it is a change of meaning (rule 4), and that
-      version's migration writes the old default into older files. An absent mapping role means
-      none.
+    - A **format default** is one this specification or builtins.md states for a member it
+      defines, in text or as a schema `default` keyword. Among them: `repeatedEdges`, a source's
+      settings, the join step members of 4.1.8, a mapping's `timeParseZone` (absent, UTC: 4.1.3),
+      `graph.filter`'s `on`, a note's `mediaType`, a view run's `replayable`, a 3D camera's `up` and
+      a 2D camera's `rotation` (4.7 rule 2), a parse option's absent value where builtins.md states
+      one, the absent value of each optional rule tree leaf member (4.8.3 rule 4), and every
+      parameter default a built-in's Definition states in builtins.md: a binding's range `[0, 1]`,
+      the scale options (`pow` `exponent` 1, `bins` `bins` 5, `quantile` `bins` 4, `reverse` false)
+      and the transition parameters (`glide` `easing`, `stagger` 0.5 and the rest). It is frozen for
+      the section's major version. Changing it is a change of meaning (rule 4), and that version's
+      migration writes the old default into older files. An absent mapping role means none.
     - Every **other default** belongs to code the format does not version: algorithm and layout
       option defaults (the algorithms and layout packages, or a plugin), the settings defaults
-      (graphty-element's `CONFIG_KEYS`), parser defaults (the `errorLimit` parse option's "the
+      (graphty-element's `CONFIG_KEYS`; an absent `layoutTransition` or `pinnedStyle` is the
+      reader's own, 4.4 rule 4), parser defaults (the `errorLimit` parse option's "the
       reader's default" among them), and the renderer's look for unset
       channels. Changing one never bumps a version and needs no migration.
 10. **Writers save resolved values.** A writer MUST write the value used for every option that a
@@ -1526,7 +1595,8 @@ While a section is held:
     option whose declared default is null (off unless asked), unless they were asked for. A run's
     seed goes where 4.3 and 4.5 put it. A settings writer writes every key it holds that has a value
     in force. A reader meeting an absent option or setting applies its own current default, and the
-    results it writes record the value used. Style is the exception (4.2 rule 9).
+    results it writes record the value used. Style is the exception (4.2 rule 9): a style writer
+    need not write a scale or transition option whose format default it uses.
 
 ### 9.1 Version 1 files
 
@@ -1605,7 +1675,7 @@ Closed objects:
 
 - In data: a source's `mapping` and `settings`, a type entry and its rules, a join step and its
   `read`, `rows` and `except`, a reader
-  operation, the reader source itself and a source record. An unknown member that `ignorable`
+  operation, the reader source itself, a source record and a network source's `origin`. An unknown member that `ignorable`
   does not name holds the whole data section (4.1.10): ignoring one would build another graph
   under the same build stamp. Also closed, but failing only their source (4.1.10): a source's
   `options` (closed per format, builtins.md "Parse options") and a network `origin.ledger` with
@@ -1628,6 +1698,15 @@ selector's own `match` is unaffected); the join step members `action`, `membersh
 `compare`; the `read` members of 4.1.8 rule 10; a step `mapping`'s `many`; and the reader
 operation `merge`.
 
+**Closed for writers only.** The schemas also close objects this list does not name: in view,
+`selection`, `pinned` items, `groups` items and their `edges`, `timeline`, `framing`, a saved
+view's `positions` and `layout`; in results, a run's `bindsTo`, its `fields` items, its `nodes` and
+`edges` outputs, and `layout` with its `bindsTo`, `nodes` and `columns`; in data, `conversions`
+items, `issues` and its `ignored` and `kept` items; in style, `shaders` and `valueLabels` items;
+and `position`, `asset` and `assetFile` everywhere. A writer writes no member the schema does not
+list in one of these, and a later version may add one only as an additive change. A reader reads
+them as open objects (9 rule 3): it ignores a member it does not know and keeps it on re-save.
+
 The schemas mark closed objects with `unevaluatedProperties: false` and leave open ones open. A
 schema is normative for what a writer produces; a reader MUST NOT reject a whole document because
 it fails a schema, and acts by the rules above instead.
@@ -1638,18 +1717,21 @@ A vocabulary the format owns is written by hand in this specification and checke
 graphty-element's code: the settings (4.4), and the parse options and drawing built-ins of
 `builtins.md`. A vocabulary that other code owns -- the algorithms, the layouts, the style
 channels and the scales -- is generated from graphty-element's catalog into `registry/` and
-checked for staleness. Its names are still named built-ins, never reused, and renamed only
-through former names. The files are never edited by hand.
+checked for staleness. Its names are still named built-ins and never reused. Algorithm keys and
+algorithm option names are renamed only through former names (rule 2). Layout ids, layout option
+names, channel names and scale names have no former names: within a major version they are never
+renamed, and a retired one stays listed as deprecated (9 rule 5). The files are never edited by
+hand.
 
-| File                       | Each entry                                                                                                                                                                                                        |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `registry/algorithms.json` | `key`, `formerKeys`, `shape`, `scopeInput`, `weightMeaning`, `requires`, `approximable` (`method`, `defaultSample`, `seeded`), `options`, `fields`                                                                |
-| `registry/layouts.json`    | `id` (the arrangement), `maxDimensions`, `options` (the arrangement's saved options, 5 rule 9), `engines` (`[{ engine, options }]`, `options` the extra option names that engine takes: the `drawnBy` vocabulary) |
-| `registry/channels.json`   | `channel`, `target`, `accepts`, `values`, `min`, `exclusiveMin`, `max`, `integer`, `step`, `perWorldUnit`, `experimental`                                                                                         |
-| `registry/scales.json`     | `name`, `domainKind`, `options` (the definitions are in builtins.md "Scales")                                                                                                                                     |
+| File                       | Each entry                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `registry/algorithms.json` | `key`, `formerKeys`, `shape`, `scopeInput`, `weightMeaning`, `requires`, `approximable` (`method`, `defaultSample`, `seeded`), `options`, `fields`                                                                                                                                                                                           |
+| `registry/layouts.json`    | `id` (the arrangement), `maxDimensions`, `options` (the arrangement's saved options as option objects, 5 rule 9), `engines` (`[{ engine, options }]`, `options` the option objects of the extra options that engine takes: the `drawnBy` vocabulary). An option the engine works out from the dimension carries `"derivedFrom": "dimension"` |
+| `registry/channels.json`   | `channel`, `target`, `accepts`, `values`, `min`, `exclusiveMin`, `max`, `integer`, `step`, `perWorldUnit`, `experimental`                                                                                                                                                                                                                    |
+| `registry/scales.json`     | `name`, `domainKind`, `options` (the definitions are in builtins.md "Scales")                                                                                                                                                                                                                                                                |
 
 Each file holds `registry` (its name), `version` (the shape of the file, now 1), `$generated` (a
-note that it is generated) and the list, named as the file is. An option is `{ name, type, default, min, max, step, values, on, attributeType, formerNames }`, `type`
+note that it is generated) and the list, named as the file is. An option is `{ name, type, default, min, max, step, values, on, attributeType, formerNames, derivedFrom }`, `type`
 being one of `number`, `integer`, `boolean`, `string`, `enum`, `seed`, `node-id`, `node-set`,
 `edge-set`, `attribute`, `partition`, `ordering`, `color` or `unknown`; a `min` or `max` may be a
 bound measured on the graph, such as `graph.nodeCount`. A field is `{ name, kind, type, unit,
@@ -1668,14 +1750,19 @@ normalization, measurement, directedOnly, domain, polarity, order, missing, unst
     - Each upgrade is reported `W_NAME_UPGRADED` (params `{ section, pointer, from, to }`).
     - A writer writes only current names. A former name is never given to another entry. Result
       fields have no former names: renaming one is a change of meaning.
-3. An option's `default` is informative: it is a package-owned default (9 rule 9(b)), and writers
-   save resolved values (9 rule 10).
+3. An algorithm or layout option's `default` is informative: it is a package-owned default (9
+   rule 9), and writers save resolved values (9 rule 10). A scale option's `default` in
+   `registry/scales.json` is a copy of the format default builtins.md "Scales" states, and the
+   staleness check keeps the two equal.
 4. A key, layout id or channel in no registry, as a current or a former name, belongs to an
    extension and is open (10). An extension's algorithm or layout key SHOULD be reverse-domain
    (`org.example.leiden`), and no built-in key is.
 5. Within a major version a registry only gains entries, options, fields and former names.
 6. An option of type `node-id`, `node-set` or `edge-set` holds element references (6.2) wherever
    params are written.
+7. An option marked `"derivedFrom": "dimension"` (an engine's `dim`) is worked out from the layout
+   record's `dimension`. A writer writes it only when it was asked for a value the dimension does
+   not give (a flat force drawing in a 3D view); otherwise `dimension` says it.
 
 ### Must-understand members
 
@@ -1721,14 +1808,14 @@ sub-objects.
 
 - A finite number is the JSON number ECMAScript `Number::toString` writes. Non-finite values are
   the strings `"Infinity"`, `"-Infinity"` and `"NaN"`, read as numbers exactly where the declared
-  type is number (a type schema, a `ColumnDecl` dtype, a results field, an option typed number);
+  type is number (a type schema, a numeric column dtype (builtins.md "Column dtypes"), a results field, an option typed number);
   any other string stays text.
 - A key is always a string: a number as `Number::toString` writes it, so `34`, `34.0` and `"34"`
   are one key; a boolean as `true` or `false`. Cells are turned to text the same way before
   matching a type rule's `values`.
 - An integer too large to hold exactly (beyond 2^53 - 1 either way) is written as its decimal
   string, and read back as a number only where the column's schema declares `number` or `integer`
-  (a numeric `ColumnDecl` dtype); anywhere else it stays text. Its row is never refused.
+  (a numeric column dtype); anywhere else it stays text. Its row is never refused.
 - The prefixes `graphty.` and `_source.` are reserved in column names.
 
 ## 12. Archiving
@@ -1798,5 +1885,6 @@ application words them.
 | `examples/card-fraud.graphty.json`                                                                                                                                               | a worked example holding all seven sections                                                                                                      |
 | `examples/card-fraud.graphty-*.json`                                                                                                                                             | each of its sections as a section file                                                                                                           |
 | `examples/minimal/`                                                                                                                                                              | the smallest valid file of each form                                                                                                             |
+| `examples/minimal/minimal-working.graphty.json`                                                                                                                                  | the smallest file that draws something on open: one embedded CSV, a run, a layer reading it and a layout (section 1)                             |
 | `examples/minimal/minimal-graphs.graphty.json`                                                                                                                                   | a full file holding two graphs, the second referencing a file by its path                                                                        |
 | `examples/minimal/minimal-referenced.graphty-data.json`                                                                                                                          | a data section holding one referenced source                                                                                                     |

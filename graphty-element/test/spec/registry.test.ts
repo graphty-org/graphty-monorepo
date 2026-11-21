@@ -11,9 +11,10 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { assert, describe, it } from "vitest";
 
 import { BUILT_IN_ALGORITHMS } from "../../src/catalog/algorithms";
-import { engineOptionNames, LAYOUT_CATALOG, savedLayoutOptions } from "../../src/catalog/layouts";
+import { LAYOUT_CATALOG, savedLayoutOptions } from "../../src/catalog/layouts";
 import { SCALE_DESCRIPTORS } from "../../src/catalog/scales";
 import type { FieldDescriptor, OptionDescriptor } from "../../src/catalog/types";
+import { dimensionOptions } from "../../src/session/document2/codecs/viewParts";
 import { CHANNEL_DESCRIPTORS } from "../../src/session/styles/channels";
 
 const SPEC = new URL("../../spec/", import.meta.url);
@@ -126,15 +127,26 @@ function projection(): Record<string, JsonObject> {
         const all = [implementations.find((each) => each.isDefault), ...implementations].flatMap(
             (each) => each?.options ?? [],
         );
+        // An option the engine works out from the dimension is written only when asked (9 rule 10).
+        const layoutOption = (option: OptionDescriptor, derived: ReadonlySet<string>): JsonObject => ({
+            ...optionOf(option),
+            ...(derived.has(option.name) ? { derivedFrom: "dimension" } : {}),
+        });
+        const defaultDerived = dimensionOptions(descriptor.engine);
         return {
             id: descriptor.id,
             maxDimensions: descriptor.maxDimensions,
             options: saved.map((name) =>
-                optionOf(all.find((option) => option.name === name) ?? ({ name, type: "unknown" } as OptionDescriptor)),
+                layoutOption(
+                    all.find((option) => option.name === name) ?? ({ name, type: "unknown" } as OptionDescriptor),
+                    defaultDerived,
+                ),
             ),
             engines: implementations.map((each) => ({
                 engine: each.engine,
-                options: (engineOptionNames(descriptor.id, each.engine) ?? []).filter((name) => !saved.includes(name)),
+                options: each.options
+                    .filter((option) => !saved.includes(option.name))
+                    .map((option) => layoutOption(option, dimensionOptions(each.engine))),
             })),
         };
     });
@@ -186,6 +198,35 @@ describe("the generated registries (README 10.1)", () => {
             assert.deepStrictEqual(committed, wanted, "run npm run spec:registry");
         });
     }
+});
+
+describe("scale option defaults are the format defaults builtins.md states (README 10.1 rule 3)", () => {
+    it("gives every default a scale's Definition states the same value in registry/scales.json", () => {
+        const builtins = readFileSync(new URL("builtins.md", SPEC), "utf8");
+        const section = builtins.slice(builtins.indexOf("## Scales"), builtins.indexOf("## Camera controllers"));
+        const scales = new Map(
+            (REGISTRY.scales.scales as JsonObject[]).map((entry) => [
+                entry.name as string,
+                entry.options as JsonObject[],
+            ]),
+        );
+        let checked = 0;
+        for (const [, name, definition] of section.matchAll(/^\| `([a-z0-9]+)` +\|(.*)\|$/gm)) {
+            for (const [, option, value] of definition.matchAll(/`([A-Za-z]+)` \(default ([^,)]+)/g)) {
+                const listed = scales.get(name)?.find((each) => each.name === option);
+                assert.isDefined(listed, `${name}.${option}`);
+                assert.strictEqual(text(listed.default), value, `${name}.${option}`);
+                checked += 1;
+            }
+        }
+
+        for (const options of scales.values()) {
+            const reverse = options.find((each) => each.name === "reverse");
+            assert.isTrue(reverse === undefined || reverse.default === false, "reverse (default false)");
+        }
+
+        assert.isAtLeast(checked, 3);
+    });
 });
 
 describe("renames never reuse a name (README 10.1 rules 1 and 2)", () => {
@@ -291,6 +332,45 @@ describe("the examples write registry names (README 10.1)", () => {
         }
     });
 
+    it("give every results field the name, kind and type the algorithm registry lists", () => {
+        let checked = 0;
+        for (const results of ofKind("graphty-results")) {
+            for (const [id, run] of Object.entries((results.runs ?? {}) as Record<string, JsonObject>)) {
+                const fields = new Map(
+                    ((algorithms.get(run.algorithm as string)?.fields ?? []) as JsonObject[]).map((field) => [
+                        field.name as string,
+                        field,
+                    ]),
+                );
+                for (const field of (run.fields ?? []) as JsonObject[]) {
+                    const listed = fields.get(field.name as string);
+                    assert.isDefined(listed, `${id} ${text(field.name)}`);
+                    assert.deepEqual(field, pick(listed, ["name", "kind", "type"]), `${id} ${text(field.name)}`);
+                    checked += 1;
+                }
+            }
+        }
+
+        assert.isAbove(checked, 0);
+    });
+
+    it("never save an option the dimension says in a layout record's own options", () => {
+        const records = [...ofKind("graphty-recipe"), ...ofKind("graphty-results"), ...ofKind("graphty-view")]
+            .flatMap((section) => [section.layout, ...((section.commands ?? []) as Json[])])
+            .filter((each): each is JsonObject => typeof each === "object" && each !== null && !Array.isArray(each))
+            .filter((each) => each.op === undefined || each.op === "layout.set");
+        assert.isAbove(records.length, 0);
+        for (const record of records) {
+            const entry = layouts.get(record.id as string);
+            const derived = ((entry?.options ?? []) as JsonObject[])
+                .filter((option) => option.derivedFrom === "dimension")
+                .map((option) => option.name as string);
+            for (const name of Object.keys((record.options ?? {}) as JsonObject)) {
+                assert.notInclude(derived, name, text(record.id));
+            }
+        }
+    });
+
     it("set and encode only registry channels, through registry scales", () => {
         let checked = 0;
         for (const section of [...ofKind("graphty-style"), ...ofKind("graphty-view")]) {
@@ -339,7 +419,11 @@ describe("the examples write registry names (README 10.1)", () => {
                 const engine = (entry.engines as JsonObject[]).find((each) => each.engine === drawnBy.engine);
                 assert.isDefined(engine, text(drawnBy.engine));
                 for (const name of Object.keys((drawnBy.options ?? {}) as JsonObject)) {
-                    assert.include(engine.options as string[], name, `${text(drawnBy.engine)} option`);
+                    assert.include(
+                        (engine.options as JsonObject[]).map((option) => option.name),
+                        name,
+                        `${text(drawnBy.engine)} option`,
+                    );
                 }
             }
         }

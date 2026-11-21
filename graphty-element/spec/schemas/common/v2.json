@@ -949,11 +949,25 @@
                                                     "rule": {
                                                         "type": "object",
                                                         "required": ["kind"]
+                                                    },
+                                                    "on": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "computedOn": {
+                                                        "enum": ["base", "so-far"]
+                                                    },
+                                                    "ends": {
+                                                        "enum": ["both", "either"]
                                                     }
-                                                }
+                                                },
+                                                "description": "A step (README 4.8.3 rule 5): op and rule, and optional id, on (absent, on), computedOn, links, ends, frozenFrom and mode."
                                             }
+                                        },
+                                        "on": {
+                                            "type": "boolean"
                                         }
-                                    }
+                                    },
+                                    "description": "A branch (README 4.8.3 rule 5): start and steps, and optional id, name, autoName, color and on (absent, on)."
                                 }
                             }
                         },

@@ -728,5 +728,139 @@
             "name": "index",
             "definition": "The order in which the value's text was first met, from 0; the same value keeps its number. It is not placed in the range and not reversed. A value with no text is a miss."
         }
+    ],
+    "formats": [
+        {
+            "name": "json",
+            "definition": "a node-link or nodes-and-edges graph document, or the collection of rows `pointer` names"
+        },
+        {
+            "name": "csv",
+            "definition": "one table. A header in Neo4j's export form reads as Neo4j's node and relationship tables. Otherwise the rows are an edge table whose ends are the mapping's `source` and `target`, else the first pair of `source`/`target`, `src`/`dst` or `from`/`to` the header holds; with no pair, a header with an `id` column makes a node table. An edge table's distinct ends make the node table, each node keyed by its end's text. The first row is always the header"
+        },
+        {
+            "name": "graphml",
+            "definition": "the file's nodes and edges"
+        },
+        {
+            "name": "gexf",
+            "definition": "the file's nodes and edges"
+        },
+        {
+            "name": "gml",
+            "definition": "the file's nodes and edges"
+        },
+        {
+            "name": "dot",
+            "definition": "the file's nodes and edges"
+        },
+        {
+            "name": "pajek",
+            "definition": "the file's vertices and arcs or edges"
+        },
+        {
+            "name": "sif",
+            "definition": "no reader in this release"
+        },
+        {
+            "name": "cx2",
+            "definition": "no reader in this release"
+        },
+        {
+            "name": "xgmml",
+            "definition": "the nodes and edges of the graph `graphIndex` or `graphName` picks"
+        },
+        {
+            "name": "cx",
+            "definition": "the nodes and edges of the network `graphIndex` or `graphName` picks"
+        },
+        {
+            "name": "cys",
+            "definition": "the nodes and edges of the session's network `graphIndex` or `graphName` picks"
+        },
+        {
+            "name": "obo",
+            "definition": "the terms as nodes and their relations as edges"
+        },
+        {
+            "name": "xlsx",
+            "definition": "the sheet `sheet` names, read as `csv` reads one table"
+        }
+    ],
+    "dtypes": [
+        {
+            "name": "f32",
+            "definition": "numbers; the strings `\"NaN\"`, `\"Infinity\"` and `\"-Infinity\"`, and an integer's decimal string, read as numbers (README.md 11)"
+        },
+        {
+            "name": "f64",
+            "definition": "as `f32`"
+        },
+        {
+            "name": "i32",
+            "definition": "as `f32`"
+        },
+        {
+            "name": "u32",
+            "definition": "as `f32`"
+        },
+        {
+            "name": "u8",
+            "definition": "as `f32`"
+        },
+        {
+            "name": "bool",
+            "definition": "booleans"
+        },
+        {
+            "name": "dict",
+            "definition": "strings"
+        },
+        {
+            "name": "string",
+            "definition": "strings"
+        },
+        {
+            "name": "json",
+            "definition": "any JSON value, `null` included as a value; the rows listed in the declaration's `unset` have no value"
+        }
+    ],
+    "parseOptions": [
+        {
+            "name": "delimiter",
+            "definition": "csv"
+        },
+        {
+            "name": "missing",
+            "definition": "csv, json, xlsx"
+        },
+        {
+            "name": "pointer",
+            "definition": "json"
+        },
+        {
+            "name": "sheet",
+            "definition": "xlsx"
+        },
+        {
+            "name": "graphIndex",
+            "definition": "cx, cys, json, xgmml, xlsx"
+        },
+        {
+            "name": "graphName",
+            "definition": "cx, cys, json, xgmml, xlsx"
+        },
+        {
+            "name": "errorLimit",
+            "definition": "`*`"
+        },
+        {
+            "name": "styles",
+            "definition": "`*`"
+        },
+        {
+            "name": "styleOptions",
+            "definition": "`*`"
+        }
     ]
 }

@@ -191,10 +191,19 @@
                                                         },
                                                         "dtypes": {
                                                             "type": "object",
-                                                            "description": "The graph-format dtype each column in columns is declared with, read as a copy's cells are, so a number written as its string form reads back as a number.",
+                                                            "description": "The dtype (builtins.md \"Column dtypes\") each column in columns is declared with, read as a copy's cells are, so a number written as its string form reads back as a number.",
                                                             "additionalProperties": {
-                                                                "type": "string",
-                                                                "minLength": 1
+                                                                "enum": [
+                                                                    "f32",
+                                                                    "f64",
+                                                                    "i32",
+                                                                    "u32",
+                                                                    "u8",
+                                                                    "bool",
+                                                                    "dict",
+                                                                    "string",
+                                                                    "json"
+                                                                ]
                                                             }
                                                         }
                                                     },
@@ -327,7 +336,7 @@
                         "format": {
                             "type": "string",
                             "minLength": 1,
-                            "description": "The id of the format that parses the bytes. A network source has none: its request is in origin.ledger."
+                            "description": "The id of the format that parses the bytes (builtins.md \"Formats\"). Absent, the bytes are recognized as a load with no format recognizes them. A network source has none: its request is in origin.ledger."
                         },
                         "options": {
                             "type": "object",
@@ -690,8 +699,18 @@
                                             "minLength": 1
                                         },
                                         "dtype": {
-                                            "type": "string",
-                                            "minLength": 1
+                                            "enum": [
+                                                "f32",
+                                                "f64",
+                                                "i32",
+                                                "u32",
+                                                "u8",
+                                                "bool",
+                                                "dict",
+                                                "string",
+                                                "json"
+                                            ],
+                                            "description": "builtins.md \"Column dtypes\": how the copy's cells are read."
                                         },
                                         "unset": {
                                             "type": "array",
@@ -701,10 +720,10 @@
                                             }
                                         }
                                     },
-                                    "description": "A graph-format ColumnDecl, keyed by working name, plus unset for a json column. Rebuild and re-export input only."
+                                    "description": "A column declaration, keyed by working name: name, dtype (builtins.md \"Column dtypes\"), nullable, and unset for a json column. Rebuild and re-export input only."
                                 }
                             },
-                            "description": "graph-format ColumnDecls grouped by table, { nodes: { <working name>: decl }, edges: { ... } }: as the copy is for an embedded source; for a referenced one, what an open checks the rows it reads again against."
+                            "description": "Column declarations grouped by table, { nodes: { <working name>: decl }, edges: { ... } }: as the copy is for an embedded source; for a referenced one, what an open checks the rows it reads again against."
                         },
                         "loaded": {
                             "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"

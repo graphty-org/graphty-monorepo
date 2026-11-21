@@ -625,6 +625,24 @@ export function viewRunRecord(context: ReadContext, id: string): JsonObject | un
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * The options an engine works out from the layout's dimension (`dim`, and whatever the engine sets
+ * per dimension): a file writes `dimension` instead, and one of these only when it was asked for
+ * (spec 9 rule 10).
+ * @param engine - The registered engine name.
+ * @returns Their names.
+ */
+export function dimensionOptions(engine: string): Set<string> {
+    const derived = new Set(["dim"]);
+    for (const dimension of [2, 3] as const) {
+        for (const key of Object.keys(LayoutEngine.getOptionsForDimensionByType(engine, dimension) ?? {})) {
+            derived.add(key);
+        }
+    }
+
+    return derived;
+}
+
+/**
  * A layout's options as a file writes them: every option its engine declares with a default, at
  * the value in force, and every option asked for. The options an engine derives from the
  * dimension, and the options whose default is null, are left out unless they were asked for, since `dimension` already says them: `dim`,
@@ -647,13 +665,7 @@ export function resolvedLayoutOptions(
         return { ...canonicalizeParams(layout.options, []) };
     }
 
-    const derived = new Set(["dim"]);
-    for (const dimension of [2, 3] as const) {
-        for (const key of Object.keys(LayoutEngine.getOptionsForDimensionByType(layout.engine, dimension) ?? {})) {
-            derived.add(key);
-        }
-    }
-
+    const derived = dimensionOptions(layout.engine);
     // A null default (`clusterBy`, `nodeGap`) means the option is off unless asked: not written.
     const declared = engineOptionsOf(descriptor, layout.engine).filter(
         (option) => option.default !== null && !derived.has(option.name),

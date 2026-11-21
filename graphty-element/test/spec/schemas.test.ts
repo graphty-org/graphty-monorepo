@@ -9,6 +9,7 @@
 
 import { readdirSync, readFileSync } from "node:fs";
 
+import type { Dtype } from "@graphty/graph-format";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
@@ -17,6 +18,7 @@ import { algorithmKeyOf, BUILT_IN_ALGORITHMS } from "../../src/catalog/algorithm
 import { LABEL_LOOKS } from "../../src/catalog/label-looks";
 import { layoutEntry } from "../../src/catalog/layouts";
 import { SCALE_DESCRIPTORS } from "../../src/catalog/scales";
+import { KNOWN_FORMAT_IDS } from "../../src/catalog/types";
 import { EdgeArrowTypes, EdgeLineTypes, EdgeOutlineTypes } from "../../src/config/EdgeStyle";
 import {
     NodeBorderPositions,
@@ -452,14 +454,6 @@ const MUTATIONS: Mutation[] = [
         },
     },
     {
-        name: "a seeded view run record with no engine",
-        section: "view",
-        change: (view) => {
-            const seeded = (view.runs as JsonObject[]).find((run) => run.seed !== undefined);
-            delete (seeded as JsonObject).engine;
-        },
-    },
-    {
         name: "a layout record's versions (engine holds the code that drew it)",
         section: "results",
         change: (results) => Object.assign(results.layout as JsonObject, { versions: {} }),
@@ -595,6 +589,15 @@ describe("readable paths, map bindings and several graphs", () => {
         assert.strictEqual(errorsOf(style), "");
     });
 
+    it("take a view layout and a seeded view run that have not run yet, with no engine", () => {
+        // A writer never writes a version it did not read (4.5 rule 6).
+        const { view } = sectionsOf(cardFraud());
+        delete (view.layout as JsonObject).engine;
+        const seeded = (view.runs as JsonObject[]).find((run) => run.seed !== undefined) as JsonObject;
+        delete seeded.engine;
+        assert.strictEqual(errorsOf(view), "");
+    });
+
     it("write graphs only with two or more, the first naming the top-level graph", () => {
         const two = readJson(new URL("examples/minimal/minimal-graphs.graphty.json", SPEC));
         assert.strictEqual(errorsOf(two), "");
@@ -725,6 +728,21 @@ function registryLists(): Map<string, string[]> {
     return new Map([...registryRows()].map(([list, rows]) => [list, rows.map((row) => row.name)]));
 }
 
+/** The column dtypes a file may declare: graph-format's, less `list` (builtins.md "Column dtypes"). */
+const FILE_DTYPES = [
+    "f32",
+    "f64",
+    "i32",
+    "u32",
+    "u8",
+    "bool",
+    "dict",
+    "string",
+    "json",
+] as const satisfies readonly Dtype[];
+/** Compiles only while FILE_DTYPES holds every graph-format dtype but `list`. */
+const EVERY_DTYPE: [Exclude<Dtype, "list" | (typeof FILE_DTYPES)[number]>] extends [never] ? true : false = true;
+
 describe("the built-ins registry", () => {
     const CODE: Record<string, readonly string[]> = {
         nodeShapes: NodeShapes.options,
@@ -743,6 +761,8 @@ describe("the built-ins registry", () => {
         nodeModelUpAxes: NodeModelUpAxes.options,
         nodeModelFits: NodeModelFits.options,
         nodeModelCenters: NodeModelCenters.options,
+        formats: KNOWN_FORMAT_IDS.filter((id) => id !== "graphty"),
+        dtypes: FILE_DTYPES,
         parseOptions: Object.keys(PARSE_OPTIONS),
         scales: SCALE_DESCRIPTORS.map((scale) => scale.name),
     };
@@ -752,6 +772,39 @@ describe("the built-ins registry", () => {
         assert.sameMembers([...lists.keys()], Object.keys(CODE));
         for (const [list, names] of lists) {
             assert.deepEqual(names, [...CODE[list]], list);
+        }
+    });
+
+    it("gives every column dtype in the data and view schemas the same names", () => {
+        assert.isTrue(EVERY_DTYPE);
+        const enums: unknown[] = [];
+        const walk = (value: unknown): void => {
+            if (typeof value !== "object" || value === null) {
+                return;
+            }
+
+            const held = value as Record<string, unknown>;
+            const properties = held.properties as Record<
+                string,
+                { enum?: unknown; additionalProperties?: { enum?: unknown } }
+            >;
+            if (typeof properties === "object" && properties !== null) {
+                if (properties.dtype?.enum !== undefined) {
+                    enums.push(properties.dtype.enum);
+                }
+
+                if (properties.dtypes?.additionalProperties?.enum !== undefined) {
+                    enums.push(properties.dtypes.additionalProperties.enum);
+                }
+            }
+
+            Object.values(held).forEach(walk);
+        };
+        walk(readJson(new URL("schemas/graphty-data/v2.json", SPEC)));
+        walk(readJson(new URL("schemas/graphty-view/v1.json", SPEC)));
+        assert.strictEqual(enums.length, 3);
+        for (const each of enums) {
+            assert.deepEqual(each, [...FILE_DTYPES]);
         }
     });
 

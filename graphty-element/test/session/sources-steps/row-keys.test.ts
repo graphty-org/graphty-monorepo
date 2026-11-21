@@ -1,5 +1,7 @@
 // The keys of rows that name no key of their own (spec 6.1): keyless edge rows by their ends,
 // node rows of a source with no key column by their content.
+import { createHash } from "node:crypto";
+
 import { assert, describe, it } from "vitest";
 
 import { keylessEdgeKeys, keylessNodeKeys } from "../../../src/session/sources/rowKeys";
@@ -51,6 +53,12 @@ describe("keyless node keys", () => {
         assert.match(keys[0], /^[0-9a-f]{32}#1$/);
         assert.deepEqual(keylessNodeKeys([...rows].reverse()), [...keys].reverse());
         assert.deepEqual(keylessNodeKeys([{ age: 3, name: "Ava" }]), [keys[0]], "column order does not count");
+    });
+
+    it("hashes a non-finite cell and a large integer as section 11 writes them (spec 6.1)", () => {
+        const text = '{"big":"1152921504606846976","score":"NaN"}';
+        const digest = createHash("sha256").update(text, "utf8").digest("hex").slice(0, 32);
+        assert.deepEqual(keylessNodeKeys([{ score: Number.NaN, big: 2 ** 60 }]), [`${digest}#1`]);
     });
 
     it("numbers identical rows #1 and #2", () => {

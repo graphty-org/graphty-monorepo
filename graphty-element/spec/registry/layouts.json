@@ -18,7 +18,8 @@
                     "type": "integer",
                     "default": 3,
                     "min": 2,
-                    "max": 3
+                    "max": 3,
+                    "derivedFrom": "dimension"
                 },
                 {
                     "name": "clusterBy",
@@ -49,51 +50,295 @@
             "engines": [
                 {
                     "engine": "ngraph",
-                    "options": ["springLength", "springCoefficient", "gravity", "theta", "dragCoefficient", "timeStep"]
+                    "options": [
+                        {
+                            "name": "springLength",
+                            "type": "number",
+                            "default": 10,
+                            "min": 0
+                        },
+                        {
+                            "name": "springCoefficient",
+                            "type": "number",
+                            "default": 0.8,
+                            "min": 0,
+                            "step": 0.1
+                        },
+                        {
+                            "name": "gravity",
+                            "type": "number",
+                            "default": -12,
+                            "step": 1
+                        },
+                        {
+                            "name": "theta",
+                            "type": "number",
+                            "default": 0.8,
+                            "min": 0,
+                            "step": 0.1
+                        },
+                        {
+                            "name": "dragCoefficient",
+                            "type": "number",
+                            "default": 0.9,
+                            "min": 0,
+                            "step": 0.05
+                        },
+                        {
+                            "name": "timeStep",
+                            "type": "number",
+                            "default": 0.5,
+                            "min": 0,
+                            "step": 0.1
+                        }
+                    ]
                 },
                 {
                     "engine": "d3",
-                    "options": ["alphaMin", "alphaTarget", "alphaDecay", "velocityDecay"]
+                    "options": [
+                        {
+                            "name": "alphaMin",
+                            "type": "number",
+                            "default": 0.1,
+                            "min": 0,
+                            "step": 0.01
+                        },
+                        {
+                            "name": "alphaTarget",
+                            "type": "number",
+                            "default": 0,
+                            "min": 0,
+                            "step": 0.01
+                        },
+                        {
+                            "name": "alphaDecay",
+                            "type": "number",
+                            "default": 0.0228,
+                            "min": 0,
+                            "step": 0.001
+                        },
+                        {
+                            "name": "velocityDecay",
+                            "type": "number",
+                            "default": 0.4,
+                            "min": 0,
+                            "step": 0.05
+                        }
+                    ]
                 },
                 {
                     "engine": "forceatlas2",
                     "options": [
-                        "scalingFactor",
-                        "maxIter",
-                        "jitterTolerance",
-                        "scalingRatio",
-                        "gravity",
-                        "distributedAction",
-                        "strongGravity",
-                        "dissuadeHubs",
-                        "linlog",
-                        "weighted",
-                        "nodeMass"
+                        {
+                            "name": "scalingFactor",
+                            "type": "number",
+                            "default": 100,
+                            "min": 1,
+                            "max": 1000
+                        },
+                        {
+                            "name": "maxIter",
+                            "type": "integer",
+                            "default": 100,
+                            "min": 0
+                        },
+                        {
+                            "name": "jitterTolerance",
+                            "type": "number",
+                            "default": 1,
+                            "min": 0,
+                            "step": 0.1
+                        },
+                        {
+                            "name": "scalingRatio",
+                            "type": "number",
+                            "default": 2,
+                            "min": 0,
+                            "step": 0.1
+                        },
+                        {
+                            "name": "gravity",
+                            "type": "number",
+                            "default": 1,
+                            "min": 0,
+                            "step": 0.1
+                        },
+                        {
+                            "name": "distributedAction",
+                            "type": "boolean",
+                            "default": false
+                        },
+                        {
+                            "name": "strongGravity",
+                            "type": "boolean",
+                            "default": false
+                        },
+                        {
+                            "name": "dissuadeHubs",
+                            "type": "boolean",
+                            "default": false
+                        },
+                        {
+                            "name": "linlog",
+                            "type": "boolean",
+                            "default": false
+                        },
+                        {
+                            "name": "weighted",
+                            "type": "boolean",
+                            "default": true
+                        },
+                        {
+                            "name": "nodeMass",
+                            "type": "unknown",
+                            "default": null
+                        }
                     ]
                 },
                 {
                     "engine": "spring",
-                    "options": ["scalingFactor", "k", "iterations", "scale"]
+                    "options": [
+                        {
+                            "name": "scalingFactor",
+                            "type": "number",
+                            "default": 100,
+                            "min": 1,
+                            "max": 1000
+                        },
+                        {
+                            "name": "k",
+                            "type": "number",
+                            "default": null
+                        },
+                        {
+                            "name": "iterations",
+                            "type": "number",
+                            "default": 50,
+                            "min": 0
+                        },
+                        {
+                            "name": "scale",
+                            "type": "number",
+                            "default": 1,
+                            "min": 0,
+                            "step": 0.1
+                        }
+                    ]
                 },
                 {
                     "engine": "kamada-kawai",
-                    "options": ["scalingFactor", "scale", "weighted"]
+                    "options": [
+                        {
+                            "name": "scalingFactor",
+                            "type": "number",
+                            "default": 50,
+                            "min": 1,
+                            "max": 1000
+                        },
+                        {
+                            "name": "scale",
+                            "type": "number",
+                            "default": 1,
+                            "min": 0,
+                            "step": 0.1
+                        },
+                        {
+                            "name": "weighted",
+                            "type": "boolean",
+                            "default": true
+                        }
+                    ]
                 },
                 {
                     "engine": "spring-electrical",
                     "options": [
-                        "maxIter",
-                        "springLength",
-                        "springCoefficient",
-                        "gravity",
-                        "dragCoefficient",
-                        "timeStep",
-                        "scale"
+                        {
+                            "name": "maxIter",
+                            "type": "integer",
+                            "default": null,
+                            "min": 0
+                        },
+                        {
+                            "name": "springLength",
+                            "type": "number",
+                            "default": 10,
+                            "min": 0,
+                            "step": 1
+                        },
+                        {
+                            "name": "springCoefficient",
+                            "type": "number",
+                            "default": 0.8,
+                            "min": 0,
+                            "step": 0.1
+                        },
+                        {
+                            "name": "gravity",
+                            "type": "number",
+                            "default": -12,
+                            "step": 1
+                        },
+                        {
+                            "name": "dragCoefficient",
+                            "type": "number",
+                            "default": 0.9,
+                            "min": 0,
+                            "step": 0.05
+                        },
+                        {
+                            "name": "timeStep",
+                            "type": "number",
+                            "default": 0.5,
+                            "min": 0,
+                            "step": 0.1
+                        },
+                        {
+                            "name": "scale",
+                            "type": "number",
+                            "default": 1,
+                            "min": 0,
+                            "step": 0.1
+                        }
                     ]
                 },
                 {
                     "engine": "arf",
-                    "options": ["scalingFactor", "scaling", "scale", "a", "maxIter"]
+                    "options": [
+                        {
+                            "name": "scalingFactor",
+                            "type": "number",
+                            "default": 50,
+                            "min": 1,
+                            "max": 1000
+                        },
+                        {
+                            "name": "scaling",
+                            "type": "number",
+                            "default": 1,
+                            "min": 0,
+                            "step": 0.1
+                        },
+                        {
+                            "name": "scale",
+                            "type": "number",
+                            "default": 1,
+                            "min": 0,
+                            "step": 0.1
+                        },
+                        {
+                            "name": "a",
+                            "type": "number",
+                            "default": 1.1,
+                            "min": 0,
+                            "step": 0.1
+                        },
+                        {
+                            "name": "maxIter",
+                            "type": "integer",
+                            "default": 1000,
+                            "min": 0
+                        }
+                    ]
                 }
             ]
         },
@@ -120,7 +365,8 @@
                     "type": "integer",
                     "default": 2,
                     "min": 2,
-                    "max": 3
+                    "max": 3,
+                    "derivedFrom": "dimension"
                 }
             ],
             "engines": [
@@ -222,7 +468,8 @@
                     "type": "integer",
                     "default": 2,
                     "min": 2,
-                    "max": 2
+                    "max": 2,
+                    "derivedFrom": "dimension"
                 }
             ],
             "engines": [
@@ -255,7 +502,8 @@
                     "type": "integer",
                     "default": 2,
                     "min": 2,
-                    "max": 3
+                    "max": 3,
+                    "derivedFrom": "dimension"
                 },
                 {
                     "name": "resolution",
@@ -306,7 +554,8 @@
                     "type": "integer",
                     "default": 2,
                     "min": 2,
-                    "max": 2
+                    "max": 2,
+                    "derivedFrom": "dimension"
                 }
             ],
             "engines": [
@@ -339,7 +588,8 @@
                     "type": "integer",
                     "default": 2,
                     "min": 2,
-                    "max": 2
+                    "max": 2,
+                    "derivedFrom": "dimension"
                 },
                 {
                     "name": "seed",
@@ -371,7 +621,8 @@
                     "type": "integer",
                     "default": 2,
                     "min": 2,
-                    "max": 3
+                    "max": 3,
+                    "derivedFrom": "dimension"
                 },
                 {
                     "name": "seed",
@@ -522,7 +773,8 @@
                     "type": "integer",
                     "default": 3,
                     "min": 2,
-                    "max": 3
+                    "max": 3,
+                    "derivedFrom": "dimension"
                 },
                 {
                     "name": "scale",

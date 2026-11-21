@@ -599,6 +599,12 @@ export class Node implements ModelUser {
     #playing: TemplateAnimation | null = null;
     /** The view's scale on this node (`node.sizeSpace`), a shrink left out. */
     #wholeScale = 1;
+    /**
+     * A model's mesh and the scale it was built at: its size (`NodeMesh.createModelInstance`),
+     * which a view's scale multiplies rather than replaces. A shape's mesh is built at its size,
+     * so it has none (issue #9304).
+     */
+    #modelBuilt: { readonly mesh: AbstractMesh; readonly scale: Vector3 } | null = null;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
 
@@ -1172,7 +1178,17 @@ export class Node implements ModelUser {
      * @returns The reach.
      */
     private get sceneBorderReach(): number {
-        return typeof this.borderBuilt?.scale === "number" ? 0 : this.borderReach;
+        return this.screenBorder ? 0 : this.borderReach;
+    }
+
+    /**
+     * Whether this node's border is drawn in screen pixels (`border.screenWidth`), so {@link Node.borderReach} changes
+     * with the zoom and {@link Node.layoutRadius} leaves it out.
+     * @returns True for a screen-pixel border.
+     * @internal
+     */
+    get screenBorder(): boolean {
+        return typeof this.borderBuilt?.scale === "number";
     }
 
     /**
@@ -2208,7 +2224,17 @@ export class Node implements ModelUser {
      */
     get drawnScale(): number {
         const scale = this.batchTable?.extentOf(this.row).scale;
-        return scale === undefined ? this.#anchor.scaling.x : exactOf(scale, this.#anchor.scaling.x);
+        const own = this.#anchor.scaling.x / (this.builtScale()?.x ?? 1);
+        return scale === undefined ? own : exactOf(scale, own);
+    }
+
+    /**
+     * The scale the node's mesh was built at, when it is a model's.
+     * @returns The scale, or null for a mesh built at its size.
+     */
+    private builtScale(): Vector3 | null {
+        const built = this.#modelBuilt;
+        return built !== null && built.mesh === this.#anchor ? built.scale : null;
     }
 
     /**
@@ -2247,7 +2273,13 @@ export class Node implements ModelUser {
      * @param whole - Its scale when it is not shrunk.
      */
     private drawScaled(scale: number, whole: number): void {
-        this.#anchor.scaling.setAll(scale);
+        const built = this.builtScale();
+        if (built === null) {
+            this.#anchor.scaling.setAll(scale);
+        } else {
+            built.scaleToRef(scale, this.#anchor.scaling);
+        }
+
         this.measureRow();
         if (this.#wholeScale !== whole) {
             this.#wholeScale = whole;
@@ -2991,7 +3023,9 @@ export class Node implements ModelUser {
         const model = this.modelFor(o);
         if (model !== null) {
             this.setDrawn(model, null);
-            return NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
+            const mesh = NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
+            this.#modelBuilt = { mesh, scale: mesh.scaling.clone() };
+            return mesh;
         }
 
         const image = this.imageFor(o);

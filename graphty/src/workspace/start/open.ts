@@ -17,7 +17,6 @@ import type { DataSourceInput, GraphSession, LoadDraft } from "@graphty/graphty-
 import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
-import { appFeatureOn } from "../../features";
 import { APP_CALLER_KEY } from "../../lib/analytics";
 import { siteConfig } from "../../siteConfig";
 import type { CommandContext } from "../commands/registry";
@@ -66,13 +65,10 @@ export function openProject(
         ...startOpening({
             name,
             load: async (session) => {
-                // With usage analytics on, the name is a step marked as the app's own, so it is not
-                // counted as the reader's; off, it is written as before.
-                await (appFeatureOn("usage-analytics")
-                    ? session.transaction("Name the project", (tx) => tx.config.set({ name }), {
-                          callerKey: APP_CALLER_KEY,
-                      })
-                    : session.config.set({ name }));
+                // The name is a step marked as the app's own, so it is not counted as the reader's.
+                await session.transaction("Name the project", (tx) => tx.config.set({ name }), {
+                    callerKey: APP_CALLER_KEY,
+                });
                 await load(session);
             },
         }),

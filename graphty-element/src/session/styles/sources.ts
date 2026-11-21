@@ -48,7 +48,7 @@ import type { EdgeId, NodeId, Path, RunId, TopTies } from "../../catalog/types";
 import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/paths";
 import { RESULT_ROOT, type RunResult } from "../results";
 import { edgeSpaceOf } from "../scope/spaces";
-import { RECORD_PATHS } from "../sources/steps/paths";
+import { DRAFT_PATH, RECORD_PATHS } from "../sources/steps/paths";
 import type { SessionRecordSource } from "../types";
 import type { SelectorSource, SelectorTarget } from "./predicate";
 
@@ -93,6 +93,11 @@ export interface SelectorSourceParts {
      * paths read nothing, as they do on an element no note names.
      */
     readonly notes?: NoteFactsReader;
+    /**
+     * What a drawn draft's commit does to one node or edge, for the `graphty.draft` path, read
+     * under the source-steps experiment only. Absent, or answering undefined, the path reads nothing.
+     */
+    readonly draft?: (target: SelectorTarget, id: string) => string | undefined;
     /**
      * Whether the source-steps experiment is on. While it is off, the readable paths
      * (`graphty.type`, ...) read nothing, as before the experiment, even on a record that happens
@@ -271,6 +276,8 @@ type PathKind =
     | "attribute"
     /** One of the note values, under `graphty.notes.`. */
     | "note"
+    /** What a drawn draft does to the element, at `graphty.draft`. */
+    | "draft"
     /** A node's structural value, one of {@link STRUCTURE_PATHS}. */
     | "structure"
     /** Nothing this session can answer, so every read of it is absent. */
@@ -364,6 +371,10 @@ function parseElementPath(path: Path): PathEntry {
     const note = noteFieldOf(path);
     if (note !== undefined) {
         return { kind: "note", key: "", runId: "", field: note };
+    }
+
+    if (path === DRAFT_PATH) {
+        return { kind: "draft", key: "", runId: "", field: "" };
     }
 
     return NOTHING;
@@ -563,6 +574,10 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
             return parseElementPath(path);
         }
 
+        if (path === DRAFT_PATH && parts.sourceSteps?.() !== true) {
+            return NOTHING;
+        }
+
         const held = paths.get(path);
 
         if (held !== undefined) {
@@ -697,6 +712,22 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
     };
 
     /**
+     * What a drawn draft does to one element.
+     * @param held - The frame.
+     * @param target - Whether the asking layer paints nodes or edges.
+     * @param index - The element's dense index.
+     * @returns Its mark, or undefined while no draft is drawn.
+     */
+    const draftAt = (held: Frame, target: SelectorTarget, index: number): string | undefined => {
+        const read = parts.draft;
+        if (read === undefined || index < 0 || index >= (target === "node" ? held.nodeCount : held.edgeCount)) {
+            return undefined;
+        }
+
+        return read(target, target === "node" ? String(held.graph.ids.idOf(index)) : edgeIdAt(held, index));
+    };
+
+    /**
      * One element's value for a path.
      * @param target - Whether the asking layer paints nodes or edges.
      * @param index - The element's dense index.
@@ -715,6 +746,10 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
         }
 
         const held = current();
+
+        if (entry.kind === "draft") {
+            return draftAt(held, target, index);
+        }
 
         // The node at one end of an edge: nodes have no ends, so they read nothing.
         if (entry.kind === "end") {
@@ -759,7 +794,7 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
 
         const held = current();
 
-        if (entry.kind === "end" || entry.kind === "structure") {
+        if (entry.kind === "end" || entry.kind === "structure" || entry.kind === "draft") {
             return isPresent(valueOf(target, index, path));
         }
 

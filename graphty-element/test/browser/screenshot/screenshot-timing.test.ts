@@ -317,3 +317,37 @@ test("can skip waiting for operations with timing.waitForOperations: false", asy
     release();
     await operation;
 });
+
+// Issue #9215: a picture still loading (a background, a node's image or 3D model) is drawn only
+// once it lands, so a capture waits for it as waitForStableFrame() does.
+test("waits for a picture still loading", async () => {
+    graph = await createTestGraphWithData();
+    const landed = graph.getUpdateManager().pending.begin("picture", "a test picture is still loading");
+
+    let captured = false;
+    const capture = graph.captureScreenshot().then(() => {
+        captured = true;
+    });
+
+    // Five drawn frames, any of which a capture that did not wait would have been taken from.
+    await drawnFrames(graph.getScene(), 5);
+    assert.isFalse(captured, "the capture waits while the picture loads");
+
+    landed();
+    await capture;
+    assert.isTrue(captured, "the capture is taken once the picture has landed");
+});
+
+test("captureNow stops waiting for a picture still loading", async () => {
+    graph = await createTestGraphWithData();
+    const landed = graph.getUpdateManager().pending.begin("picture", "a test picture is still loading");
+    const now = new AbortController();
+
+    const capture = graph.captureScreenshot({ timing: { captureNow: now.signal } });
+    await drawnFrames(graph.getScene(), 2);
+    now.abort();
+
+    const result = await capture;
+    assert.ok(result.blob instanceof Blob, "the capture is taken while the picture still loads");
+    landed();
+});

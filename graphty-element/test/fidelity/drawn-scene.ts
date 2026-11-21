@@ -2060,7 +2060,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         color = cssColor(fields.color).hex;
         ({ opacity } = fields);
         dashPx = elementDashes(pm.elements, p);
-    } else if (internal.pulled?.run === null) {
+    } else if (internal.pulled?.curve === false) {
         // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centers, stopped at
         // a translucent end's outline as its shader stops it (`PULLED_TRIM_GLSL`, the object line's bare ends), in the
         // color, opacity and width its piece carries (`PulledLineBatch.setLook`): the batched path's plain lines
@@ -2213,6 +2213,8 @@ export interface DrawnAnnotation {
     heads?: ScreenBox[];
     /** A piece over a node's face: its color. */
     fill?: string;
+    /** A picture drawn in a node's label (yEd's label icon), not over its face. */
+    label?: true;
 }
 
 /**
@@ -2287,7 +2289,9 @@ export function readDrawn(graph: Graph): DrawnGraph {
         ...shown.flatMap((n) => n.pieces),
         ...shown.flatMap((n) => (n.shadow === undefined ? [] : [{ kind: "image" as const, box: n.shadow }])),
         // and so is the picture in its label (yEd's label icon)
-        ...shown.flatMap((n) => (n.label?.image === undefined ? [] : [{ kind: "image" as const, box: n.label.image }])),
+        ...shown.flatMap((n) =>
+            n.label?.image === undefined ? [] : [{ kind: "image" as const, box: n.label.image, label: true as const }],
+        ),
         // and so are the shapes it draws beneath and over itself (Cytoscape.js's underlay and overlay)
         ...shown.flatMap((n) => (n.halos ?? []).map((h) => ({ kind: "shape" as const, ...h }))),
     ];

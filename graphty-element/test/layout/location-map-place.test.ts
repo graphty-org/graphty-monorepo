@@ -148,6 +148,35 @@ describe("placeOnMap on a flat map", () => {
         assert.deepEqual([...placed.positions.subarray(0, 2)], [7, 8]);
     });
 
+    it("places unplaced nodes by each unplaced choice and reports the same count under each", () => {
+        const source: LocationSource = { kind: "location", column: "where", values: ["", "1, 2", "x"], named: true };
+        const initial = new Float32Array([7, 8, Number.NaN, Number.NaN, 5, 6]);
+        const run = (unplaced: "tray" | "leave" | "hide"): ReturnType<typeof placeOnMap> =>
+            placeOnMap(source, { ids: ["a", "b", "c"], sizes: null, initial }, { ...OPTIONS, unplaced });
+        const tray = run("tray");
+        const leave = run("leave");
+        const hide = run("hide");
+        for (const placed of [tray, leave, hide]) {
+            assert.deepEqual(placed.unplacedRows, [0, 2]);
+            assert.deepEqual([...placed.frame.unplacedIds], ["a", "c"]);
+            const unparsed = placed.warnings.find((w) => w.code === "W_LOCATION_UNPARSED");
+            assert.deepInclude(unparsed?.params, { unplaced: 2, total: 3 });
+            assert.isTrue(Number.isFinite(placed.positions[2]) && Number.isFinite(placed.positions[3]));
+        }
+
+        // The tray: one row below the map.
+        assert.isTrue([0, 1, 4, 5].every((at) => Number.isFinite(tray.positions[at])));
+        assert.equal(tray.positions[1], tray.positions[5]);
+        assert.isFalse(tray.frame.hidesUnplaced);
+        // Left where they were.
+        assert.deepEqual([...leave.positions.subarray(0, 2)], [7, 8]);
+        assert.deepEqual([...leave.positions.subarray(4, 6)], [5, 6]);
+        assert.isFalse(leave.frame.hidesUnplaced);
+        // Hidden: no coordinate at all, and the frame says they are kept off the canvas.
+        assert.isTrue([0, 1, 4, 5].every((at) => Number.isNaN(hide.positions[at])));
+        assert.isTrue(hide.frame.hidesUnplaced);
+    });
+
     it("reports out-of-range values apart from unreadable ones", () => {
         const placed = placeOnMap(
             { kind: "columns", latitude: "a", longitude: "b", lat: [95, 10], lon: [0, 10] },

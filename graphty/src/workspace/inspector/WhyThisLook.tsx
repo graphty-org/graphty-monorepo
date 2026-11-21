@@ -143,7 +143,7 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
                         )}
                         <Anchor
                             component="button"
-                            size="xs"
+                            size="sm"
                             // Says it opens the row, so it is never a second "Everything"
                             // beside the tree row of that name.
                             aria-label={`Open layer ${line.name}`}
@@ -153,7 +153,7 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
                         >
                             {line.name}
                         </Anchor>
-                        <Text size="xs" c="dimmed" truncate>
+                        <Text size="sm" c="dimmed" truncate>
                             {line.tokens.join(", ")}
                         </Text>
                     </Group>

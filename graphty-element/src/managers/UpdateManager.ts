@@ -32,6 +32,7 @@ import type { ElementMask } from "../session/scope/index";
 import type { EdgeAgeFade } from "../session/time/ageFade";
 import type { GraphFraming } from "../session/types";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { inXR } from "../xr/inXR";
 import { mapCorners } from "./BasemapManager";
 import { type DataManager, dataManagerInternals, disposeReleased } from "./DataManager";
@@ -1655,7 +1656,7 @@ export class UpdateManager implements Manager {
      * @returns The count, or 0 while no label is decluttered.
      */
     private labelPasses(): number {
-        const declutter: unknown = this.graphContext.getScene().metadata?.labelDeclutter;
+        const declutter: unknown = (this.graphContext.getScene().metadata as GraphSceneMetadata | null)?.labelDeclutter;
         return declutter instanceof LabelDeclutter ? declutter.passes : 0;
     }
 
@@ -1970,14 +1971,17 @@ export class UpdateManager implements Manager {
         const painted: [Node, NodePaint][] = [];
         const taken = painter.takeNodes(size);
 
-        for (const index of taken) {
-            const node = rows.get(index) ?? this.unbuiltPainted(painter, index);
-            const paint = node === undefined ? null : painter.nodePaint(index);
+        // A row built here is painted at once; its rebuilt mesh goes with the batch's (#9184).
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const index of taken) {
+                const node = rows.get(index) ?? this.unbuiltPainted(painter, index);
+                const paint = node === undefined ? null : painter.nodePaint(index);
 
-            if (node !== undefined && paint !== null) {
-                painted.push([node, paint]);
+                if (node !== undefined && paint !== null) {
+                    painted.push([node, paint]);
+                }
             }
-        }
+        });
 
         return { painted, taken: taken.length };
     }
@@ -2132,13 +2136,15 @@ export class UpdateManager implements Manager {
      * @returns The batch size.
      */
     private nodeBatchSize(budgetMs: number, nodes: number): number {
-        if (minimumWorkPerFrame()) {
-            return MINIMUM_PAINT_BATCH;
-        }
-
-        // An unbounded frame (no budget given) takes everything at once.
+        // An unbounded frame (no budget given) takes everything at once, in the minimum-work mode too: a layout that
+        // reads the sizes asks for the whole repaint (`drawArrivedPaint`), and under "batched" a row no batch has
+        // painted has no size to read.
         if (budgetMs === Number.POSITIVE_INFINITY) {
             return budgetMs;
+        }
+
+        if (minimumWorkPerFrame()) {
+            return MINIMUM_PAINT_BATCH;
         }
 
         return Math.max(NODE_PAINT_BATCH, Math.ceil(nodes / REPAINT_FRAMES), Math.floor(this.nodePaintRate * budgetMs));
@@ -3687,7 +3693,7 @@ export class UpdateManager implements Manager {
         }
 
         const scene = this.graphContext.getScene();
-        const flat = scene.metadata?.twoD === true;
+        const flat = (scene.metadata as GraphSceneMetadata | null)?.twoD === true;
         const pad = this.framing?.extent === "centers" ? 0 : table.widestHalf;
         const root = scene.getTransformNodeByName("graph-root");
         const world = root?.computeWorldMatrix(true);
@@ -3750,12 +3756,14 @@ export class UpdateManager implements Manager {
             }
         }
 
-        for (const row of faint) {
-            const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
-            if (id !== undefined) {
-                dataManagerInternals.buildRow(this.dataManager, id);
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const row of faint) {
+                const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
+                if (id !== undefined) {
+                    dataManagerInternals.buildRow(this.dataManager, id);
+                }
             }
-        }
+        });
     }
 
     /**
@@ -5001,7 +5009,7 @@ export class UpdateManager implements Manager {
     private frameBox(box: FramingBox, frame: LocationMapFrame | null): FramingBox {
         const scene = this.graphContext.getScene();
         const fits = screenFitFrames.callbacksOf(scene);
-        const declutter: unknown = scene.metadata?.labelDeclutter;
+        const declutter: unknown = (scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
         let current = box;
         // ponytail: a placement that flips with the camera runs a label pass per round, up to the cap;
         // a lower cap for placement alone if a large graph ever oscillates.

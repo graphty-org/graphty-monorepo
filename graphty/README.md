@@ -39,13 +39,17 @@ when a reader opens one.
 
 Usage data: by default the app sends PostHog nothing, and Share usage data turns on error reports
 (Sentry) only. The `usage-analytics` experiment, switched on in the `features` list of the site's
-`/site.json` or with `?features=usage-analytics` in the address, adds usage counts to PostHog (EU
+`/site.json` or with `?features=usage-analytics` in the address, adds usage counts to PostHog (US
 region). They are sent only when that `/site.json` also has an `analytics` block with PostHog ids
 and the page is served from that site's own host, so a copy you host yourself sends PostHog nothing.
-Where they are sent, every visitor who has not turned on Share usage data sends a few anonymous
-counts in PostHog's cookieless mode, with no cookies and no stored id: visits, the site that sent
-them, and which sample, file format, layout, measure and export they use (ids only, never file names
-or contents). A reader who shares sends the same counts through PostHog's shared mode instead, with
+Where they are sent, every visitor who has not turned on Share usage data sends anonymous counts,
+at most one of each kind per page, in PostHog's cookieless mode, with no cookies and no stored id:
+visits, the site that sent them, which sample, file format, layout, measure and export they use and
+the graph's size as a range, and that they edited a style, used the assistant (its provider, whether
+typed or spoken, and how it ended), switched between 2D and 3D, entered VR or AR, moved or saved the
+camera, saved or reopened a project, played the timeline, or hit an error loading a graph (ids and
+fixed codes only, never file names, contents or what they wrote). A `?internal=1` address marks a
+browser's events as the builders' own testing until `?internal=0`. A reader who shares sends the same counts through PostHog's shared mode instead, with
 its stored id, plus masked session replays, click, control-change and command events, page speed and
 survey answers. The app's `/privacy.html` lists every event and property, and how to turn it off.
 

@@ -507,7 +507,7 @@ export interface CameraViewRegistration {
 }
 
 // @public
-export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "all-paths.length-bounded" | "all-paths.capped" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "bfs.depth-bounded" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
+export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "layers.kept" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "all-paths.length-bounded" | "all-paths.capped" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "bfs.depth-bounded" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
 
 // @public
 export interface Caveats {
@@ -813,6 +813,8 @@ export class Edge {
         pattern: JoinedPatternKind | null;
     } | null;
     get drawnPattern(): readonly ArrowCap[];
+    // @internal
+    get drawnStrands(): readonly string[];
     // (undocumented)
     readonly dstId: NodeIdType;
     get dstNode(): Node_2;
@@ -1384,6 +1386,14 @@ export type GraphtyErrorCode =
 */
 | "E_DUPLICATE_ID"
 /**
+* A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
+* incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
+* `details.column` and `details.rule` name them. The caller picks another rule for that column.
+* Under the source-steps experiment a step's merge refuses the same way, and `details.step`
+* also names the step.
+*/
+| "E_CLASH_RULE_TYPE"
+/**
 * Two edges run between the same ordered pair of nodes and `data.knownFields.repeatedEdges`
 * is `"error"`. `details` name both endpoints and the index of the edge already present. The
 * caller sets the policy to `keep`, `first`, `last`, `sum`, `min` or `max`.
@@ -1927,6 +1937,61 @@ export type GraphtyErrorCode =
 */
 | "E_NOT_SETTLED"
 /**
+* A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+* the space. The caller names another space. Experimental: the source-steps experiment.
+*/
+| "E_SPACE_RESERVED"
+/**
+* A key names nodes in more than one id space, so it names no one node. `details.key` is the
+* key, `details.spaces` the spaces holding it. The caller names the space, or the
+* `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+*/
+| "E_AMBIGUOUS_ID"
+/**
+* Make an edge would add a staged source in the id space of the nodes it connects to, so its
+* nodes would meet them instead of being joined by edges. `details.source` and `details.space`
+* name them. The caller stages the source in another space. Experimental: the source-steps
+* experiment.
+*/
+| "E_JOIN_SPACE_SAME"
+/**
+* A merge or Make an edge reads node rows the source does not hold. `details.source` is the
+* source. Experimental: the source-steps experiment.
+*/
+| "E_STEP_NEEDS_NODES"
+/**
+* An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
+* `details.column` is the column. Experimental: the source-steps experiment.
+*/
+| "E_EDIT_ROLE_COLUMN"
+/**
+* A role setter that names no source could mean several built sources: each carries the
+* column and can carry the role. `details.sources` lists them; the caller names one with the
+* setter's `source` option. Experimental: the source-steps experiment.
+*/
+| "E_ROLE_TARGET_AMBIGUOUS"
+/**
+* A draft of the sources and steps is open (`session.data.draft()`), so a data write, an undo
+* or a redo would change what its commit replaces. `details.draft` names the draft. The caller
+* commits or discards it first. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_OPEN"
+/**
+* A draft's commit was refused because the committed sources and steps changed after the
+* draft opened: a data write already on its way when it opened landed first, and the commit
+* would have undone it. `details.draft` names the draft, which stays open. The caller discards
+* it and opens a new one. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_STALE"
+/**
+* A draft opened with `askOverlap` holds a key-overlap question nobody answered: a source it
+* added meets nodes another source's node rows built (`W_SPACE_OVERLAP`). `details.space` and
+* `details.source` name the space and the source. The caller answers it with
+* `draft.answerOverlap(source, "merge" | "separate")` and commits again. Experimental: the
+* source-steps experiment.
+*/
+| "E_OVERLAP_UNANSWERED"
+/**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
 * an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
@@ -1938,6 +2003,11 @@ export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> =
 
 // @public
 export interface GraphtyErrorDetailsMap {
+    E_CLASH_RULE_TYPE: {
+        readonly column: string;
+        readonly rule: string;
+        readonly step?: number;
+    };
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
@@ -2477,6 +2547,8 @@ class Node_2 implements ModelUser {
     // @internal
     resampleLabel(): void;
     get roundRadius(): number | null;
+    // @internal
+    get screenBorder(): boolean;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
@@ -3386,6 +3458,7 @@ export interface SourceRead extends SourceInput {
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
     readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
+    readonly issues?: readonly SourceRefreshIssue[];
     readonly removed: SourceCounts;
     readonly updated: SourceCounts;
 }
@@ -3500,7 +3573,7 @@ export interface WeightMeaning {
 }
 
 // @public
-export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
+export type WeightSkip = CodedFact<"weight.meaning-mismatch" | "weight.meaning-mixed">;
 
 // @public
 export interface WholeGraphScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {

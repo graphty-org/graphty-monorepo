@@ -19,8 +19,12 @@ import type { GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { PendingSourceLoad } from "./sources/types";
 
-/** What a request would fetch. OPEN UNION: later releases add values. */
-export type NetworkRequestKind = "model" | "texture" | "source";
+/**
+ * What a request would fetch: a model, a texture, a saved network-source load, or the rows of a
+ * load a project saved as a reference (`data`, asked `by: "file"` while the project opens). OPEN
+ * UNION: later releases add values.
+ */
+export type NetworkRequestKind = "model" | "texture" | "source" | "data";
 
 /**
  * What asked for it: a layer from a project or style file or a template (`file`), a layer an AI

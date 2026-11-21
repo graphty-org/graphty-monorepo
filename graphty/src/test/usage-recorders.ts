@@ -5,8 +5,8 @@
  */
 import { setPostHogClientForTests, type TrackingMode } from "../lib/analytics";
 
-/** A site's analytics block that turns PostHog on (a fake key and the EU host). */
-export const TEST_ANALYTICS = { posthogKey: "phc_testkey123", posthogHost: "https://eu.i.posthog.com" } as const;
+/** A site's analytics block that turns PostHog on (a fake key and the US host). */
+export const TEST_ANALYTICS = { posthogKey: "phc_testkey123", posthogHost: "https://us.i.posthog.com" } as const;
 
 /** One recorded event, after cleaning. */
 export interface Recorded {
@@ -27,6 +27,7 @@ const CONTEXT_KEYS: ReadonlySet<string> = new Set([
     "utm_campaign",
     "visit",
     "use_case",
+    "internal",
 ]);
 
 /**

@@ -369,6 +369,14 @@ export const GraphBehaviorOpts = z.strictObject({
     fetchNodes: z.optional(z.instanceof(Function)),
     /** A host function that returns the edges of a node (see `FetchEdgesFn`). */
     fetchEdges: z.optional(z.instanceof(Function)),
+    /**
+     * A host function that returns the edges of the nodes an expansion just fetched (see
+     * `FetchNeighborEdgesFn`). Unset BY DEFAULT, so an expansion adds the expanded node's own
+     * edges and its neighbors and nothing else. Set, an expansion also hands it the ids of the
+     * nodes it fetched and adds the edges it returns whose ends are both in the graph or just
+     * fetched, in the same step.
+     */
+    fetchNeighborEdges: z.optional(z.instanceof(Function)),
 });
 
 /* ******* REFACTOR EVERYTHING BELOW THIS LINE *********/
@@ -397,3 +405,9 @@ interface EdgeObjectType {
 
 export type FetchNodesFn = (nodeIds: Set<NodeIdType>, g: Graph) => Set<NodeObjectType>;
 export type FetchEdgesFn = (node: GraphNode, g: Graph) => Set<EdgeObjectType>;
+/**
+ * The edges of the nodes an expansion just fetched, so a fresh neighborhood is drawn with the
+ * edges among its members and to the nodes already in the graph, rather than as a star. An edge
+ * whose other end is neither in the graph nor just fetched is left out.
+ */
+export type FetchNeighborEdgesFn = (nodeIds: Set<NodeIdType>, g: Graph) => Iterable<EdgeObjectType>;

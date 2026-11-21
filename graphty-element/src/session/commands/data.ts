@@ -31,6 +31,7 @@ import type { RequestedLayout } from "@graphty/graph-io";
 
 import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
+import type { RepeatGroup } from "../../data/edgeIdentity";
 import { searchRecord } from "../../data/endpoints";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
@@ -55,7 +56,7 @@ import type {
     DraftTable,
     HistoryCode,
     JoinRecord,
-    LoadChoices,
+    LoadedChoices,
     LoadedSource,
     LoadedSourceKind,
     LoadMappingRead,
@@ -296,13 +297,14 @@ export interface DataImportCommand {
     /**
      * Count the load instead of refusing it: a limit it passes is recorded in the report, and
      * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
-     * `pairs` holds the graph's edges as `pairKey(source, target)` (both ways on an undirected
-     * graph), so a record repeating one is counted as the real merge counts it.
+     * `pairs` holds the graph's edges by `pairKey(source, target)` (both ways on an undirected
+     * graph), each with its type and weight meaning, so a record repeating one is counted as the
+     * real merge counts it.
      */
     readonly measure?: {
         readonly nodes: ReadonlySet<NodeId>;
         readonly edges: number;
-        readonly pairs?: ReadonlySet<string>;
+        readonly pairs?: ReadonlyMap<string, readonly RepeatGroup[]>;
     };
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
@@ -339,7 +341,7 @@ export interface DataImportCommand {
     /** The load's key, in place of the next one: a next page or refresh adds to its entry, an edited join keeps it. */
     readonly key?: SourceKey;
     /** The choices the rows were read with, kept with the load in `data.sources()`. */
-    readonly choices?: LoadChoices;
+    readonly choices?: LoadedChoices;
     /** The roles each table was read with, the element's own reading included, kept with the load. */
     readonly mapping?: LoadMappingRead;
     /**
@@ -564,12 +566,26 @@ export interface DataService {
         after?: UndoableContext["after"],
     ): Promise<ImportOutcome | null | undefined>;
     /**
+     * The weight meaning an edge was stored under, for a draft's report of a merge.
+     * @param counter - The edge's counter.
+     * @returns The meaning, or undefined when unknown.
+     */
+    edgeMeaning?(counter: number): string | null | undefined;
+    /**
      * Set graph-level values through `draft`: what a plugin algorithm wrote to `graphResults`, or
      * the data source's new name.
      * @param values - The values by name.
      * @param draft - The command's draft.
      */
     values?(values: Readonly<Record<string, unknown>>, draft: Draft): void;
+    /**
+     * Take the direction a file declares, as an import of it does: kept only while the graph holds
+     * no edges and the configuration has not settled one.
+     * @param directed - Whether the file declares a directed graph.
+     * @param statedBy - The part of the file that said so.
+     * @param draft - The command's draft.
+     */
+    direct(directed: boolean, statedBy: string, draft: Draft): void;
 }
 
 /** A session's stable edge identity, read from its current snapshot. */
@@ -840,7 +856,7 @@ function sizeOf(mutation: Exclude<DataMutation, { kind: "clear" }>): number {
  * @param mutation - The mutation.
  * @returns "Added 3 nodes" and the like.
  */
-function labelOf(mutation: DataMutation): string {
+export function labelOf(mutation: DataMutation): string {
     if (mutation.kind === "clear") {
         return "Cleared the graph";
     }
@@ -865,7 +881,7 @@ function labelOf(mutation: DataMutation): string {
  * @param mutation - The mutation.
  * @returns `data.add-nodes` with its count, and the like.
  */
-function factOf(mutation: DataMutation): CodedFact<HistoryCode> {
+export function factOf(mutation: DataMutation): CodedFact<HistoryCode> {
     if (mutation.kind === "clear") {
         return { code: "data.clear", params: {} };
     }

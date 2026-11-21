@@ -1,4 +1,4 @@
-import type { AbstractEngine, EffectLayer, Nullable, Observer, Plane } from "@babylonjs/core";
+import type { AbstractEngine, EffectLayer, Matrix, Nullable, Observer, Plane } from "@babylonjs/core";
 import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Frustum } from "@babylonjs/core/Maths/math.frustum.js";
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
@@ -109,6 +109,36 @@ export function nodeFramingBox(
     // The centers of one node, or of nodes all in one place, enclose nothing to fit: their drawn box is framed instead.
     if (extent === "centers" && min.x === max.x && min.y === max.y) {
         return nodeFramingBox(nodes, "drawn", columns);
+    }
+
+    return { min, max, spots };
+}
+
+/**
+ * A box given by two corners, taken into world space: its eight corners are its spots, which a "turning" fit
+ * (`camera.fitBounds`) keeps in view as the camera turns.
+ * @param lo - The smallest corner, in the graph's own space.
+ * @param hi - The largest corner.
+ * @param world - The transform the graph is drawn in (`graph-root`), if any.
+ * @returns The box in world space.
+ */
+function cornerBox(lo: Vector3, hi: Vector3, world: Matrix | undefined): FramingBox {
+    const min = new Vector3(Infinity, Infinity, Infinity);
+    const max = new Vector3(-Infinity, -Infinity, -Infinity);
+    const spots: FramingSpot[] = [];
+    for (let i = 0; i < 8; i++) {
+        const corner = new Vector3(
+            (i & 1) === 0 ? lo.x : hi.x,
+            (i & 2) === 0 ? lo.y : hi.y,
+            (i & 4) === 0 ? lo.z : hi.z,
+        );
+        if (world !== undefined) {
+            Vector3.TransformCoordinatesToRef(corner, world, corner);
+        }
+
+        min.minimizeInPlace(corner);
+        max.maximizeInPlace(corner);
+        spots.push({ pos: corner, half: 0 });
     }
 
     return { min, max, spots };
@@ -1940,14 +1970,17 @@ export class UpdateManager implements Manager {
         const painted: [Node, NodePaint][] = [];
         const taken = painter.takeNodes(size);
 
-        for (const index of taken) {
-            const node = rows.get(index) ?? this.unbuiltPainted(painter, index);
-            const paint = node === undefined ? null : painter.nodePaint(index);
+        // A row built here is painted at once; its rebuilt mesh goes with the batch's (#9184).
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const index of taken) {
+                const node = rows.get(index) ?? this.unbuiltPainted(painter, index);
+                const paint = node === undefined ? null : painter.nodePaint(index);
 
-            if (node !== undefined && paint !== null) {
-                painted.push([node, paint]);
+                if (node !== undefined && paint !== null) {
+                    painted.push([node, paint]);
+                }
             }
-        }
+        });
 
         return { painted, taken: taken.length };
     }
@@ -2102,13 +2135,15 @@ export class UpdateManager implements Manager {
      * @returns The batch size.
      */
     private nodeBatchSize(budgetMs: number, nodes: number): number {
-        if (minimumWorkPerFrame()) {
-            return MINIMUM_PAINT_BATCH;
-        }
-
-        // An unbounded frame (no budget given) takes everything at once.
+        // An unbounded frame (no budget given) takes everything at once, in the minimum-work mode too: a layout that
+        // reads the sizes asks for the whole repaint (`drawArrivedPaint`), and under "batched" a row no batch has
+        // painted has no size to read.
         if (budgetMs === Number.POSITIVE_INFINITY) {
             return budgetMs;
+        }
+
+        if (minimumWorkPerFrame()) {
+            return MINIMUM_PAINT_BATCH;
         }
 
         return Math.max(NODE_PAINT_BATCH, Math.ceil(nodes / REPAINT_FRAMES), Math.floor(this.nodePaintRate * budgetMs));
@@ -3595,9 +3630,26 @@ export class UpdateManager implements Manager {
      */
     private measure(): FramingBox | undefined {
         return (
+            this.fixedFraming() ??
             this.envelopeFraming() ??
             framingBox(this.layoutManager.nodes, this.layoutManager.edges, this.framing?.extent, this.columnFraming())
         );
+    }
+
+    /**
+     * The box the project setting `framing.box` fixes, in world space: framed whatever the nodes' extent, while the
+     * fixed layout draws the stored positions it frames.
+     * @returns The box, or undefined when the setting fixes none or another layout runs.
+     */
+    private fixedFraming(): FramingBox | undefined {
+        const fixed = this.framing?.box;
+        // The box is the file's frame for its own stored positions: any other layout draws the nodes elsewhere.
+        if (fixed === undefined || this.layoutManager.layoutType !== "fixed") {
+            return undefined;
+        }
+
+        const world = this.graphContext.getScene().getTransformNodeByName("graph-root")?.computeWorldMatrix(true);
+        return cornerBox(new Vector3(fixed.min[0], fixed.min[1], 0), new Vector3(fixed.max[0], fixed.max[1], 0), world);
     }
 
     /**
@@ -3644,28 +3696,14 @@ export class UpdateManager implements Manager {
         const pad = this.framing?.extent === "centers" ? 0 : table.widestHalf;
         const root = scene.getTransformNodeByName("graph-root");
         const world = root?.computeWorldMatrix(true);
-        const min = new Vector3(Infinity, Infinity, Infinity);
-        const max = new Vector3(-Infinity, -Infinity, -Infinity);
-        // The box's corners are the spots a "turning" fit fits (`camera.fitBounds`).
-        const spots: FramingSpot[] = [];
         // The batches draw a row flat in 2D, wherever the layout put its z.
         const near = flat ? 0 : bounds[2] - pad;
         const far = flat ? 0 : bounds[5] + pad;
-        for (let i = 0; i < 8; i++) {
-            const corner = new Vector3(
-                (i & 1) === 0 ? bounds[0] - pad : bounds[3] + pad,
-                (i & 2) === 0 ? bounds[1] - pad : bounds[4] + pad,
-                (i & 4) === 0 ? near : far,
-            );
-            if (world !== undefined) {
-                Vector3.TransformCoordinatesToRef(corner, world, corner);
-            }
-
-            min.minimizeInPlace(corner);
-            max.maximizeInPlace(corner);
-            spots.push({ pos: corner, half: 0 });
-        }
-
+        const { min, max, spots } = cornerBox(
+            new Vector3(bounds[0] - pad, bounds[1] - pad, near),
+            new Vector3(bounds[3] + pad, bounds[4] + pad, far),
+            world,
+        );
         return min.x < max.x || min.y < max.y ? { min, max, spots } : undefined;
     }
 
@@ -3717,12 +3755,14 @@ export class UpdateManager implements Manager {
             }
         }
 
-        for (const row of faint) {
-            const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
-            if (id !== undefined) {
-                dataManagerInternals.buildRow(this.dataManager, id);
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const row of faint) {
+                const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
+                if (id !== undefined) {
+                    dataManagerInternals.buildRow(this.dataManager, id);
+                }
             }
-        }
+        });
     }
 
     /**

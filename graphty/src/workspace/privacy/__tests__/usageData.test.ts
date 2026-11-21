@@ -129,7 +129,7 @@ describe("the usage data gate", () => {
 describe("the live sender", () => {
     /** The event names the anonymous stand-in recorded. */
     const sends: string[] = [];
-    const analytics = { posthogKey: "phc_testkey123", posthogHost: "https://eu.i.posthog.com" };
+    const analytics = { posthogKey: "phc_testkey123", posthogHost: "https://us.i.posthog.com" };
     const signals = { dnt: true, gpc: false };
     /** Installs the anonymous mode's recording stand-in. */
     const recordAnonymous = (): void => {

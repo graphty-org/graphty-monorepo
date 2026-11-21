@@ -510,7 +510,7 @@ One dialog, a section list down the left, closed with X or Esc, Mod+, (spec 12.3
   sent."). _With the `usage-analytics` experiment on, on a site that sends PostHog anything:_ off
   reads "Anonymous counts are still sent: visits, the site that sent you, and which sample, file
   format, layout, measure and export you use."; a line on anonymous counts, shown only while Share
-  is off: no cookies or stored id (PostHog, EU); and a **Privacy details** link to `/privacy.html`.
+  is off: no cookies or stored id (PostHog, US); and a **Privacy details** link to `/privacy.html`.
 - **Accessibility and input**: Single-key shortcuts (on/off, WCAG 2.1.4). Reduced motion is not
   drawn until graphty-element honors it (an unbuilt item is not drawn).
 

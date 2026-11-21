@@ -184,6 +184,8 @@ export const KNOWN_ALGORITHMS = [
     "all-paths",
     "edge-betweenness",
     "removal-impact",
+    "articulation-points",
+    "bridges",
 ] as const;
 
 /** One of the built-in algorithms. */
@@ -666,7 +668,7 @@ export interface OptionUnsupported {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelImage`, `labelImageWidth`, `labelImageHeight`, `labelImageOffsetX`, `labelImageOffsetY`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -721,6 +723,11 @@ export type Channel =
     | "node.labelBorderAlign"
     | "node.labelBorderStyle"
     | "node.labelBackgroundShape"
+    | "node.labelImage"
+    | "node.labelImageWidth"
+    | "node.labelImageHeight"
+    | "node.labelImageOffsetX"
+    | "node.labelImageOffsetY"
     | "node.labelOffsetX"
     | "node.labelOffsetY"
     | "node.labelShiftX"
@@ -909,6 +916,8 @@ export type Channel =
     | "edge.gradientColors"
     | "edge.gradientStops"
     | "edge.gradientKind"
+    | "edge.strandColors"
+    | "edge.strandSpacing"
     | "edge.style"
     | "edge.patternCount"
     | "edge.waveAmplitude"
@@ -1056,6 +1065,11 @@ export type Channel =
     | "edge.labelBorderAlign"
     | "edge.labelBorderStyle"
     | "edge.labelBackgroundShape"
+    | "edge.labelImage"
+    | "edge.labelImageWidth"
+    | "edge.labelImageHeight"
+    | "edge.labelImageOffsetX"
+    | "edge.labelImageOffsetY"
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
     | "edge.labelShiftX"
@@ -1398,7 +1412,24 @@ export type Selector =
      *     selector: { match: "hover", reach: "neighbors", invert: true }, set: { "node.opacity": 0.25 } });
      * ```
      */
-    | { match: "hover"; reach?: "node" | "neighbors"; invert?: boolean; orSelected?: boolean };
+    | { match: "hover"; reach?: "node" | "neighbors"; invert?: boolean; orSelected?: boolean }
+    /**
+     * The elements of some types, under the `source-steps` experiment: those whose one type
+     * (the readable path `graphty.type`) is listed, such as the accounts of a graph of accounts and
+     * merchants. Refused with `E_FEATURE_OFF` while the experiment is off.
+     *
+     * ```ts
+     * session.styles.add({ name: "Accounts", target: "node",
+     *     selector: { match: "type", types: ["account"] }, set: { "node.color": "#4c6ef5" } });
+     * ```
+     * Experimental: may change or be removed in a minor release.
+     */
+    | {
+          /** Match by type. */
+          match: "type";
+          /** The types whose elements match. */
+          types: readonly string[];
+      };
 
 /**
  * Who put a layer in the stack. Every layer names its source. An element layer's `reason` says
@@ -2232,7 +2263,18 @@ export type Scope =
  * A {@link Scope} as a write position accepts it: an inline definition may name edges by session
  * {@link EdgeId}. Every getter returns the canonical {@link Scope}, with stable members.
  */
-export type ScopeInput = Exclude<Scope, { define: unknown }> | { define: SetDefinitionInput };
+export type ScopeInput =
+    | Exclude<Scope, { define: unknown }>
+    | { define: SetDefinitionInput }
+    /**
+     * Under the `source-steps` experiment: the nodes whose one type (`graphty.type`) is listed and
+     * the edges between them. Read back as its canonical `{ where }` on `graphty.type`.
+     * Experimental: may change or be removed in a minor release.
+     */
+    | {
+          /** The types whose nodes are in scope. */
+          types: readonly string[];
+      };
 
 /**
  * Which way an edge is followed: arriving (`in`), leaving (`out`) or both (`all`). What a degree
@@ -3126,8 +3168,10 @@ export interface CatalogApi {
      * string. A "partition" option on nodes comes back with `values` too: one choice per column
      * that can group the nodes -- a categorical node attribute (value: its name) or a finished
      * run's categorical node field (value: its `results.` path, label: the run's label) --
-     * leaving out the key and label columns and any column with a value per node. Every other
-     * field is the static descriptor's.
+     * leaving out the key and label columns and any column with a value per node. The choices
+     * come best grouping first: finished runs' fields, the newest run first, then attributes, the
+     * fewest distinct values first (a column holding one value, or an unknown count, last), so a
+     * form can open on the first. Every other field is the static descriptor's.
      * @param key - An algorithm key, looked for first, or a layout id.
      * @param scope - What to measure; the session's default run scope when absent.
      * @returns The options, in declaration order.

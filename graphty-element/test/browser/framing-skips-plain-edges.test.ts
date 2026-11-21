@@ -3,7 +3,7 @@
  *
  * Such an edge runs between two nodes the framing box already holds, so it cannot widen it. While a
  * layout moves the nodes and the camera frames every step, a graph of plain lines walked every edge
- * for labels and curve points; now the walk grows the box only by the curved and labelled edges, and
+ * for labels and curve points; now the walk grows the box only by the curved and labeled edges, and
  * the box is the same as the walk of every edge gives, on both render paths.
  */
 
@@ -27,18 +27,18 @@ afterEach(() => {
 const NODES = Array.from({ length: 60 }, (_, id) => ({ id }));
 
 /**
- * A chain of edges, every fifth one curved and every seventh (from the second) labelled.
+ * A chain of edges, every fifth one curved and every seventh (from the second) labeled.
  * @param mixed - False for a chain of plain lines only.
- * @returns The edges and how many are curved or labelled.
+ * @returns The edges and how many are curved or labeled.
  */
 function chain(mixed: boolean): { edges: Record<string, unknown>[]; widening: number } {
     const edges = NODES.slice(1).map(({ id }) => ({
         src: id - 1,
         dst: id,
         ...(mixed && id % 5 === 0 ? { curved: true } : {}),
-        ...(mixed && id % 7 === 1 ? { labelled: true } : {}),
+        ...(mixed && id % 7 === 1 ? { labeled: true } : {}),
     }));
-    return { edges, widening: edges.filter((edge) => "curved" in edge || "labelled" in edge).length };
+    return { edges, widening: edges.filter((edge) => "curved" in edge || "labeled" in edge).length };
 }
 
 /**
@@ -66,9 +66,9 @@ async function mounted(path: "objects" | "batched", edges: Record<string, unknow
         set: { "edge.curvature": true },
     } as never);
     await element.session.styles.add({
-        name: "labelled",
+        name: "labeled",
         target: "edge",
-        selector: { match: "has", path: "data.labelled" },
+        selector: { match: "has", path: "data.labeled" },
         set: { "edge.label": "A caption long enough to stick out" },
     } as never);
     await element.session.data.addNodes(NODES);
@@ -147,12 +147,12 @@ for (const path of ["objects", "batched"] as const) {
             assert.deepEqual(skipped, unskipped, "the same box");
         });
 
-        it("walks only the curved and labelled edges, and frames the same box", async () => {
+        it("walks only the curved and labeled edges, and frames the same box", async () => {
             const { edges, widening } = chain(true);
             const element = await mounted(path, edges);
             const { walked, skipped, unskipped } = await measureWhileMoving(element, 3);
 
-            assert.deepEqual(walked, [widening, widening, widening], "only the curved and labelled edges");
+            assert.deepEqual(walked, [widening, widening, widening], "only the curved and labeled edges");
             assert.deepEqual(skipped, unskipped, "the same box with and without the skip");
         });
     });

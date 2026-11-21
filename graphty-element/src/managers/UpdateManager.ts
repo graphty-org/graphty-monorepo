@@ -360,7 +360,7 @@ export function framingBox(
         const curve = drawnCurveInWorld(edge);
         // A straight edge with no text runs between two nodes the box already holds: it cannot widen it. On a
         // moving graph of plain lines that is every edge, so it is left before any growing (issue #9420).
-        // ponytail: still one check per edge; a list of the curved and labelled edges, like `placedEdges`, if a
+        // ponytail: still one check per edge; a list of the curved and labeled edges, like `placedEdges`, if a
         // million plain edges need the frame back.
         if (
             framingWalk.skipPlain &&

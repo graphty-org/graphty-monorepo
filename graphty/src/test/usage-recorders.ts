@@ -27,6 +27,7 @@ const CONTEXT_KEYS: ReadonlySet<string> = new Set([
     "utm_campaign",
     "visit",
     "use_case",
+    "internal",
 ]);
 
 /**

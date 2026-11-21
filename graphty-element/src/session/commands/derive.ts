@@ -64,6 +64,35 @@ export type ValuesWhere = (
 ) => unknown[];
 
 /**
+ * Every computed column's values, worked out in order: one reading an earlier one reads its new
+ * values. A column whose expression no longer parses is left out.
+ * @param columns - The computed columns.
+ * @param valuesWhere - Reads an expression over every element.
+ * @returns The values per kind, by the column's path and dense index.
+ */
+export function derivedValues(
+    columns: readonly DerivedColumn[],
+    valuesWhere: ValuesWhere,
+): { readonly node: Map<Path, unknown[]>; readonly edge: Map<Path, unknown[]> } {
+    const fresh = { node: new Map<Path, unknown[]>(), edge: new Map<Path, unknown[]>() };
+    for (const column of columns) {
+        const overlay = fresh[column.kind];
+        try {
+            overlay.set(
+                `data.${column.name}`,
+                column.score === undefined
+                    ? valuesWhere(column.expression, column.kind, overlay)
+                    : scoreValues(column.score, (path) => valuesWhere(quotePath(path), column.kind, overlay)),
+            );
+        } catch {
+            // Checked when it was added; a project file anyone edited could still hold a bad one.
+            continue;
+        }
+    }
+    return fresh;
+}
+
+/**
  * The values of computed columns that differ from what the records hold now. The columns are
  * worked out in order, and one reading an earlier one reads its new values.
  * @param columns - The computed columns.
@@ -76,35 +105,24 @@ export function derivedRows(
     snapshot: GraphSnapshot,
     valuesWhere: ValuesWhere,
 ): { readonly nodes: RowUpdate<NodeId>[]; readonly edges: RowUpdate<EdgeId>[] } {
-    const fresh = { node: new Map<Path, unknown[]>(), edge: new Map<Path, unknown[]>() };
+    const fresh = derivedValues(columns, valuesWhere);
     const changed = {
         node: new Map<number, Record<string, unknown>>(),
         edge: new Map<number, Record<string, unknown>>(),
     };
-    for (const column of columns) {
-        const path = `data.${column.name}`;
-        const overlay = fresh[column.kind];
-        let values: unknown[];
-        try {
-            values =
-                column.score === undefined
-                    ? valuesWhere(column.expression, column.kind, overlay)
-                    : scoreValues(column.score, (path) => valuesWhere(quotePath(path), column.kind, overlay));
-        } catch {
-            // Checked when it was added; a project file anyone edited could still hold a bad one.
-            continue;
+    for (const kind of ["node", "edge"] as const) {
+        for (const [path, values] of fresh[kind]) {
+            const held = valuesWhere(quotePath(path), kind);
+            const rows = changed[kind];
+            const name = path.slice("data.".length);
+            values.forEach((value, at) => {
+                if (!deepEquals(value, held[at])) {
+                    const row = rows.get(at) ?? {};
+                    row[name] = value;
+                    rows.set(at, row);
+                }
+            });
         }
-
-        const held = valuesWhere(quotePath(path), column.kind);
-        overlay.set(path, values);
-        const rows = changed[column.kind];
-        values.forEach((value, at) => {
-            if (!deepEquals(value, held[at])) {
-                const row = rows.get(at) ?? {};
-                row[column.name] = value;
-                rows.set(at, row);
-            }
-        });
     }
 
     const nodes = [...changed.node].map(([at, values]) => ({ id: snapshot.ids.idOf(at), values }));

@@ -506,7 +506,7 @@ describe("the notice a held-back run gives", () => {
 
     it("names the layer and hands an encoding back to the element", () => {
         const { session, encode } = standIn({ painting: suppressed("encoding"), layers: { mine: "My gray" } });
-        const notice = runNotice(session, "run-1");
+        const notice = runNotice(session, "run-1", "PageRank");
         assert.equal(notice?.message, "Hidden by your layer My gray");
         notice?.action?.run();
         assert.equal(encode.mock.calls.length, 1);
@@ -514,27 +514,27 @@ describe("the notice a held-back run gives", () => {
 
     it("hands a highlight back as a highlight", () => {
         const { session, encode, highlight } = standIn({ painting: suppressed("highlight"), layers: { mine: "Mine" } });
-        runNotice(session, "run-1")?.action?.run();
+        runNotice(session, "run-1", "PageRank")?.action?.run();
         assert.equal(highlight.mock.calls.length, 1);
         assert.equal(encode.mock.calls.length, 0);
     });
 
     it("hands an algorithm's mark back as a mark, never as a highlight", () => {
         const { session, highlight, mark } = standIn({ painting: suppressed("mark"), layers: { mine: "Mine" } });
-        runNotice(session, "run-1")?.action?.run();
+        runNotice(session, "run-1", "PageRank")?.action?.run();
         assert.equal(mark.mock.calls.length, 1);
         assert.equal(highlight.mock.calls.length, 0);
     });
 
     it("still says what happened when the layer is gone", () => {
         const { session } = standIn({ painting: suppressed("encoding") });
-        assert.equal(runNotice(session, "run-1")?.message, "Hidden by your layer above it");
+        assert.equal(runNotice(session, "run-1", "PageRank")?.message, "Hidden by your layer above it");
     });
 
     it("gives no notice for a run that painted or is not decided", () => {
         const added = { state: "decided", suggestions: [{ outcome: "added" }] } as unknown as RunPainting;
-        assert.isNull(runNotice(standIn({ painting: added }).session, "run-1"));
+        assert.isNull(runNotice(standIn({ painting: added }).session, "run-1", "PageRank"));
         const pending = { state: "pending", suggestions: [] } as RunPainting;
-        assert.isNull(runNotice(standIn({ painting: pending }).session, "run-1"));
+        assert.isNull(runNotice(standIn({ painting: pending }).session, "run-1", "PageRank"));
     });
 });

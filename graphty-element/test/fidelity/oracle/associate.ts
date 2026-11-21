@@ -3309,6 +3309,8 @@ export function associate(
     };
     const knownIds = new Set([...guideIds, ...prims.flatMap((p) => (p.hint?.role === "node" ? [p.hint.id] : []))]);
     const nodes = new Map<string, PNode>();
+    // what each node was built from, to read again once graphty's frame is known (`labelPictureOf`)
+    const built = new Map<string, { shapes: Prim[]; texts: PText[]; rows: ReadonlySet<Prim> | undefined }>();
     const edges: PEdge[] = [];
     const groups: PGroup[] = [];
     const keys = [...hinted.keys()].sort();
@@ -3318,16 +3320,9 @@ export function associate(
         if (role === "node") {
             const shapes = ps.filter((p) => p.kind === "shape" || p.kind === "image");
             const nid = resolveId(ps[0]?.hint?.id ?? id);
-            nodes.set(
-                nid,
-                nodeFrom(
-                    nid,
-                    shapes,
-                    ps.flatMap((p) => (p.text ? [p.text] : [])),
-                    undefined,
-                    fillOverStroke,
-                ),
-            );
+            const texts = ps.flatMap((p) => (p.text ? [p.text] : []));
+            built.set(nid, { shapes, texts, rows: undefined });
+            nodes.set(nid, nodeFrom(nid, shapes, texts, undefined, fillOverStroke));
             ps.forEach(take);
         }
     }
@@ -3583,7 +3578,9 @@ export function associate(
             const under = underlaysOf(drawn);
             const shapes = drawn.filter((p) => !under.has(p));
             shapes.forEach(take);
-            nodes.set(id, nodeFrom(id, shapes, [], tableRowsOf.get(chosen)?.get(id), fillOverStroke));
+            const rows = tableRowsOf.get(chosen)?.get(id);
+            built.set(id, { shapes, texts: [], rows });
+            nodes.set(id, nodeFrom(id, shapes, [], rows, fillOverStroke));
         }
     }
 
@@ -3595,9 +3592,18 @@ export function associate(
     ).forEach(take);
 
     // ---- edges by geometry: open paths whose two ends land on drawn nodes
+    const frame = guideFrame(guide, nodes, options.ownLayout === true);
+    // a picture graphty draws in a node's label over the node, read as the node's picture on the program's side too
+    const labelPictures =
+        frame === null ? [] : guide.strays.filter((x) => x.label === true).map((x) => carryBox(frame, x.box));
+    for (const [id, b] of labelPictures.length === 0 ? [] : built) {
+        const shapes = labelPictureOf(b.shapes, labelPictures, prims);
+        if (shapes !== null) {
+            nodes.set(id, nodeFrom(id, shapes, b.texts, b.rows, fillOverStroke));
+        }
+    }
     const nodeList = [...nodes.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
     const nodeBox = boxOfNode;
-    const frame = guideFrame(guide, nodes, options.ownLayout === true);
     const undrawn = undrawnEnds(guide, nodes, frame);
     // How far from a node's box a path's end still lands on it: past a thick border too, which a line ends at the
     // outer edge of (Cytoscape's mapped widths run to 7 px, its dots and zigzags are drawn outside the node's
@@ -5100,6 +5106,44 @@ export function bandsGroup(p: Prim, t: PText, group: PBox): boolean {
         inside([cx(t.box), cy(t.box)], b) &&
         across !== down
     );
+}
+
+/** How much a node's last outline and a label picture graphty draws must share for the outline to be that picture. */
+const LABEL_PICTURE_IOU = 0.5;
+
+/**
+ * A node's shapes with the last outline the program draws for it read as a picture, where graphty draws a picture in
+ * the node's label at its spot: yEd draws a label icon of a node's look (a `yed:NodeRealizerIcon`) as an outline over
+ * the node, which graphty draws as a picture (graphml-stm32-func n38, n39, n45, n46: a trapezoid icon on a wordless
+ * label over a white box, whose outline is the label's, not the node's). The outline is its fill and its stroke along
+ * the same points, drawn last, and never the node's only one. The node's own outline under it is its whole: a fill
+ * along the same points as its stroke, which the outline over it hid, is the node's again.
+ * @param shapes - the node's shapes
+ * @param pictures - the label pictures graphty draws, in the oracle's frame
+ * @param prims - every primitive of the drawing
+ * @returns the shapes with that outline as one picture, or null when the node has none
+ */
+function labelPictureOf(shapes: readonly Prim[], pictures: readonly PBox[], prims: readonly Prim[]): Prim[] | null {
+    const sorted = [...shapes].sort((a, b) => a.index - b.index);
+    const last = sorted.at(-1);
+    if (last === undefined || last.kind !== "shape") {
+        return null;
+    }
+    const outline = sorted.filter((p) => p.kind === "shape" && samePoints(p, last));
+    const box = union(outline.map((p) => p.box));
+    if (outline.length === sorted.length || !pictures.some((b) => boxIoU(b, box) >= LABEL_PICTURE_IOU)) {
+        return null;
+    }
+    const picture: Prim = { ...last, tag: "image", kind: "image", box, fill: null, stroke: null };
+    const rest = sorted.filter((p) => !outline.includes(p));
+    const hid = prims.filter(
+        (p) =>
+            p.kind === "shape" &&
+            p.index < last.index &&
+            !shapes.includes(p) &&
+            rest.some((q) => q.kind === "shape" && samePoints(p, q)),
+    );
+    return [...hid, ...rest, picture];
 }
 
 /** Intersection over union of two boxes. */

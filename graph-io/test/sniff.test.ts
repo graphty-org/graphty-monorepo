@@ -83,6 +83,7 @@ describe("rankFormats / sniffFormat (design 8.2)", () => {
             "obo",
             "cys",
             "sif",
+            "xlsx",
         ]);
     });
 

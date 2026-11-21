@@ -119,8 +119,15 @@ export const EMPTY_STEPS: SourceSteps = Object.freeze({
 
 /** One change a door makes to the {@link SourceSteps}. */
 export type StepsEdit =
-    /** The whole value. */
-    | { readonly kind: "set"; readonly value: SourceSteps }
+    /**
+     * The whole value. A draft's commit names the value it started from as `draftBase`, and is refused
+     * with `E_DRAFT_STALE` when the value it lands on is another.
+     */
+    | {
+          readonly kind: "set";
+          readonly value: SourceSteps;
+          readonly draftBase?: { readonly value: SourceSteps; readonly draft: string };
+      }
     /**
      * A source, staged or added with `join.add`; `replace` first takes out every source, step, type
      * and reader operation (a replacing load).
@@ -234,7 +241,7 @@ const copyMaps = new WeakMap<Copies, ReadonlyMap<string, CopyTables>>();
  * @param copies - The copies by id.
  * @returns A map, the same one for the same object.
  */
-function copyMap(copies: Copies): ReadonlyMap<string, CopyTables> {
+export function copyMap(copies: Copies): ReadonlyMap<string, CopyTables> {
     let map = copyMaps.get(copies);
     if (map === undefined) {
         map = new Map(Object.entries(copies));
@@ -279,7 +286,7 @@ export function counted(value: SourceSteps, copies: Copies): SourceSteps {
  * @param src - The source.
  * @returns The registry with the rules.
  */
-function withSourceRules(types: readonly TypeEntry[], src: StepsSource): readonly TypeEntry[] {
+export function withSourceRules(types: readonly TypeEntry[], src: StepsSource): readonly TypeEntry[] {
     const rules: [string, TypeRule][] = [];
     for (const [end, name] of Object.entries(src.endTypes ?? {}) as ["source" | "target", string | undefined][]) {
         if (name !== undefined) {
@@ -360,7 +367,25 @@ export function addSource(
         steps: [...base.steps, { op: "join.add", source: src.id }],
     };
     const issues = [met, ownSpaceOverlap(next, src.id, copies)].filter((each) => each !== null);
-    return issues.length === 0 ? next : { ...next, sources: { ...next.sources, [src.id]: { ...added, issues } } };
+    if (issues.length === 0) {
+        return next;
+    }
+    // The issues change nothing the build reads, so the value with them shares the build just made.
+    const reported = { ...next, sources: { ...next.sources, [src.id]: { ...added, issues } } };
+    builds.set(reported, { copies, result: buildOf(next, copies) });
+    return reported;
+}
+
+/** The key-overlap question (5.5) a source asks when it is added: the keys it meets, and whose. */
+export interface OverlapQuestion {
+    /** The space it proposes. */
+    readonly space: string;
+    /** How many of its keys meet. */
+    readonly count: number;
+    /** How many distinct keys it holds. */
+    readonly of: number;
+    /** The sources whose node rows built the nodes it meets, `reader` for the reader's, in order added. */
+    readonly sources: readonly string[];
 }
 
 /**
@@ -369,22 +394,43 @@ export function addSource(
  * @param base - The value it is added to.
  * @param src - The source.
  * @param copies - The rows as read.
- * @returns The overlap, or null when it meets nothing or does not ask.
+ * @returns The question, or null when it meets nothing or does not ask.
  */
-function proposedOverlap(base: SourceSteps, src: StepsSource, copies: Copies): SpaceOverlap | null {
+export function overlapQuestion(base: SourceSteps, src: StepsSource, copies: Copies): OverlapQuestion | null {
     const proposed = src.mapping.nodes?.key === undefined ? null : nodeSpace(src);
     if (proposed === null || src.spacePicked === true || proposed === ownSpace(src.id)) {
         return null;
     }
     const built = buildOf(base, copies);
     const keys = nodeKeys(src, copies);
-    const meet = [...keys].filter((k) => {
+    const by = new Set<string>();
+    let count = 0;
+    for (const k of keys) {
         const n = resolveNode(built, proposed, k);
-        return n !== null && (n.loads.includes("reader") || n.touch.some((t) => t.table === "nodes"));
-    });
-    return meet.length === 0
-        ? null
-        : { code: "W_SPACE_OVERLAP", params: { space: proposed, count: meet.length, of: keys.size } };
+        const rows = n?.touch.filter((t) => t.table === "nodes").map((t) => t.source) ?? [];
+        const reader = n?.loads.includes(READER_SOURCE) === true;
+        if (rows.length > 0 || reader) {
+            count++;
+            rows.forEach((each) => by.add(each));
+            if (reader) {
+                by.add(READER_SOURCE);
+            }
+        }
+    }
+    const order = [...Object.keys(base.sources), READER_SOURCE];
+    return count === 0 ? null : { space: proposed, count, of: keys.size, sources: order.filter((id) => by.has(id)) };
+}
+
+/**
+ * The overlap a source records when it is added, as its `W_SPACE_OVERLAP`.
+ * @param base - The value it is added to.
+ * @param src - The source.
+ * @param copies - The rows as read.
+ * @returns The overlap, or null.
+ */
+function proposedOverlap(base: SourceSteps, src: StepsSource, copies: Copies): SpaceOverlap | null {
+    const q = overlapQuestion(base, src, copies);
+    return q === null ? null : { code: "W_SPACE_OVERLAP", params: { space: q.space, count: q.count, of: q.of } };
 }
 
 /**
@@ -447,6 +493,15 @@ function ownSpaceOverlap(next: SourceSteps, id: string, copies: Copies): SpaceOv
 export function applyEdit(prior: SourceSteps, edit: StepsEdit, copies: Copies): SourceSteps {
     switch (edit.kind) {
         case "set":
+            if (edit.draftBase !== undefined && edit.draftBase.value !== prior) {
+                throw new GraphtyError({
+                    code: "E_DRAFT_STALE",
+                    message: "The sources and steps changed after the draft opened: its commit would undo that change.",
+                    source: "data",
+                    details: { draft: edit.draftBase.draft },
+                });
+            }
+            return edit.value;
         case "restore":
             return edit.value;
         case "add": {

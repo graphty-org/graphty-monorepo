@@ -274,7 +274,12 @@ describe("the timeline on the real element", () => {
         await waitFor(() => {
             assert.isAtLeast(waits(), before + 2);
         });
-        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        // The sample is about 26 weeks, so on a slow machine the play can reach the end of the data
+        // before a click on Pause lands, and the button reads Play again. Stop it whichever way it
+        // stands: pausing an ended play does nothing. The Pause button has its own test above.
+        act(() => {
+            session.time.pause();
+        });
         listening.mockRestore();
     });
 

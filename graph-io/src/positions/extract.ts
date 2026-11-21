@@ -5,7 +5,7 @@
  * `positions()` hook) declares.
  */
 
-import type { Column, GraphSnapshot } from "@graphty/graph-format";
+import { type Column, coordinateSystemOf, type GraphSnapshot } from "@graphty/graph-format";
 
 import { NoteCollector } from "../common/notes.js";
 import { type GraphTool, toolOf } from "../common/units.js";
@@ -40,6 +40,8 @@ interface Spelling {
     readonly groups: readonly ImporterGroupBox[];
     readonly medianNodeSize: number | null | undefined;
     readonly tool: GraphTool | null | undefined;
+    /** The plain columns the importer recognized by their names only, so their spelling is a guess; empty otherwise. */
+    readonly guessedFrom: readonly string[];
 }
 
 /** Report codes of format readers that mean the file mixes 2- and 3-coordinate positions. */
@@ -54,6 +56,7 @@ const PHRASES: Readonly<Record<PositionNoteCode, string>> = {
     W_POSITION_ANCHOR_NO_SIZE: "top-left positions have no size and were not moved to the center",
     W_POSITION_OTHER_VIEWS: "other views were not used",
     W_POSITIONS_NOT_READ: "position-like columns this format does not read",
+    W_POSITIONS_GUESSED: "columns read as positions by their names",
 };
 
 /**
@@ -101,6 +104,9 @@ export function extractPositions(
     const stacked = dropStacked(coords, placed, notes);
     noteReport(report, notes);
     noteOtherViews(snapshot, notes);
+    for (const name of spelling.guessedFrom) {
+        notes.add(POSITION_ISSUE.GUESSED, { sample: name });
+    }
     return {
         version: 1,
         source: {
@@ -139,7 +145,8 @@ function spellingOf(importer: GraphImporter, snapshot: GraphSnapshot, signal: Ab
         return plainSpelling(snapshot, hook);
     }
     const column = hook?.column === undefined ? snapshot.nodes.byRole("position") : snapshot.nodes.get(hook.column);
-    if (column === null || column.meta.components < 2) {
+    // longitude and latitude are places on the Earth, not a drawing: a geographic column is left to a map layout
+    if (column === null || column.meta.components < 2 || coordinateSystemOf(column.meta).kind === "geographic") {
         return hook?.unplacedCircle === undefined ? null : circleSpelling(snapshot, hook);
     }
     const extra = { ...extraOf(column.meta.extra), ...extraOf(hook ?? {}) };
@@ -202,8 +209,11 @@ function plainSpelling(snapshot: GraphSnapshot, hook: ImporterPositions): Spelli
  * @param hook - the hook's answer, or null
  * @returns groups, median node size and tool
  */
-function hookFields(hook: ImporterPositions | null): Pick<Spelling, "groups" | "medianNodeSize" | "tool"> {
-    return { groups: hook?.groups ?? [], medianNodeSize: hook?.medianNodeSize, tool: hook?.tool };
+function hookFields(
+    hook: ImporterPositions | null,
+): Pick<Spelling, "groups" | "medianNodeSize" | "tool" | "guessedFrom"> {
+    const guessedFrom = hook?.byName === true ? [hook.x, hook.y, hook.z].filter((n) => n !== undefined) : [];
+    return { groups: hook?.groups ?? [], medianNodeSize: hook?.medianNodeSize, tool: hook?.tool, guessedFrom };
 }
 
 /**

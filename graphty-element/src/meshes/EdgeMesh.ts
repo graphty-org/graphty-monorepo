@@ -19,6 +19,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { parseArrowStack } from "./arrowStack";
 import {
@@ -275,7 +276,7 @@ export class EdgeMesh {
 
         const isOrtho = camera.mode === Camera.ORTHOGRAPHIC_CAMERA;
         // Check scene metadata for twoD flag (will be set by Graph)
-        const is2DGraph = scene.metadata?.twoD === true;
+        const is2DGraph = (scene.metadata as GraphSceneMetadata | null)?.twoD === true;
 
         return isOrtho && is2DGraph;
     }

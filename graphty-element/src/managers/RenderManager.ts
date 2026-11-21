@@ -1257,6 +1257,12 @@ export class RenderManager implements Manager {
         this.engine.dispose();
         forgetDisposedScene();
         if (gl !== undefined) {
+            // The fence wait below holds the context, and the context holds its canvas: left in
+            // the page, the canvas holds the element and through it the whole disposed graph until
+            // the GPU drains -- minutes on a software GPU after a 1,000,000-edge draw, which kept
+            // about 2 GB alive and crashed the next graph's page (#9217). Out of the page, it holds
+            // nothing else. A renderer swap has already replaced this canvas, so this is a no-op there.
+            this.canvas.remove();
             releaseWhenIdle(gl);
         }
     }

@@ -30,6 +30,7 @@ import {
     readsNothing,
     removeLine,
     sourceName,
+    startForOrNone,
     startingValue,
     type Target,
     writeIn,
@@ -769,9 +770,8 @@ function fieldControl(props: FieldControlProps): React.ReactNode {
                 label={name}
                 value={undefined}
                 shown={
-                    fresh
-                        ? (ctx.beneath(descriptor.channel).value ?? startingValue(descriptor, ctx.session))
-                        : undefined
+                    // A channel with no starting value (a label style, a list) waits empty for the first pick.
+                    fresh ? (ctx.beneath(descriptor.channel).value ?? startForOrNone(ctx, descriptor)) : undefined
                 }
                 mixed={!fresh}
                 waiting={fresh}
@@ -905,7 +905,7 @@ function ColorValue({
     waiting?: boolean;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
-    const shown = waiting ? (ctx.beneath(descriptor.channel).value ?? startingValue(descriptor, ctx.session)) : value;
+    const shown = waiting ? (ctx.beneath(descriptor.channel).value ?? startForOrNone(ctx, descriptor)) : value;
     const hex = hexOf(shown) ?? "#000000";
     const channel = carriedOpacity(ctx, descriptor.channel);
     const percent = (read: unknown): number | undefined =>

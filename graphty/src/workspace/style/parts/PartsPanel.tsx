@@ -89,9 +89,14 @@ export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.J
     const [query, setQuery] = useState("");
     const box = useRef<HTMLInputElement>(null);
     const ctx: RowContext = { ...row, pickers: "listbox" };
+    // The label lists are Style panel v2's further-label rows (v2/labelEntries.ts): this panel has no line for them.
     const parts = partsFor(
         ctx.side,
-        experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) }),
+        new Set<Channel>([
+            ...experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) }),
+            "node.labels",
+            "edge.labels",
+        ]),
     );
     const writes = writesOf(ctx.session, ctx);
     const written = (channel: Channel): boolean => writes.has(channel) || (ctx.many?.count(channel) ?? 0) > 0;

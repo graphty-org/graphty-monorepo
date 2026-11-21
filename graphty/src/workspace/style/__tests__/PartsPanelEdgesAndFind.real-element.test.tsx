@@ -254,6 +254,29 @@ describe("each part's settings page", () => {
         });
         assert.isNull(page.querySelector('[data-unset-line="node.labelWeight"]'), "Type's settings are on Type");
     });
+
+    it("every unset line of the text settings adds with '+' and the panel stays up", async () => {
+        await openProject([every("Everything", "node", { "node.color": "#ff0000" })]);
+        const tab = await openStyle("Everything");
+        const page = await openPage(tab, "Node text settings");
+        const unset = (): string[] =>
+            [...page.querySelectorAll<HTMLElement>("[data-unset-line]")].map((line) => line.dataset.unsetLine ?? "");
+        const names = await waitFor(() => {
+            const now = unset();
+            assert.isNotEmpty(now);
+            return now;
+        });
+        // The label lists are Style panel v2's further-label rows: this panel has no line for them.
+        assert.notInclude(names, "node.labels");
+        for (const name of names) {
+            const add = page.querySelector<HTMLElement>(`[data-unset-line="${name}"] button`);
+            if (add === null) {
+                continue;
+            }
+            await userEvent.click(add);
+            assert.isNull(screen.queryByText("This panel could not be shown"), `"+" on ${name} keeps the panel up`);
+        }
+    });
 });
 
 describe("Find a setting", () => {

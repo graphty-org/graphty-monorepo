@@ -368,4 +368,34 @@ describe.each(
         assert.isAtLeast(checked, middle.length / 2, "most points land on their own node");
         assert.deepEqual(missed, [], "nodes a click finds under the pointer that hover did not read");
     });
+
+    // A node too small to cover a pixel center at its own size must still win in front of a big one.
+    it.runIf(view === "3d")("reads a node smaller than a pixel in front of a large one", async () => {
+        const { element, ids } = await tinyLine(path, view);
+        const hub = ids[LINE / 2];
+        await element.session.styles.add({
+            name: "Hub",
+            target: "node",
+            selector: { match: "ids", nodes: [hub] },
+            set: { "node.size": 8 },
+        });
+        await element.session.data.addNodes([{ id: "leaf", position: { x: LINE / 2, y: 0, z: -8 } }]);
+        await element.session.styles.add({
+            name: "Leaf",
+            target: "node",
+            selector: { match: "ids", nodes: ["leaf"] },
+            set: { "node.size": 0.3 },
+        });
+        await settle(element);
+        assert.isBelow(
+            element.nodeScreenPosition("leaf")?.radius ?? Infinity,
+            0.71,
+            "the leaf may cover no pixel center",
+        );
+        const point = nodePoint(element, "leaf");
+        assert.strictEqual(element.elementAt(point)?.id, "leaf", "a click there selects the leaf");
+        await hover(element, point);
+        await settle(element);
+        assert.strictEqual(element.session.selection.hovered, "leaf");
+    });
 });

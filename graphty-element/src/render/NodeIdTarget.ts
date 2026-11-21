@@ -56,8 +56,8 @@ uniform float shapeRadius;
 #endif
 varying float vId;
 #ifdef ROW_PULL
-// For a row drawn larger than it is: the vertex's offset from the row's center and the row's own
-// radius, in device pixels. A radius of 0 means the row is drawn as it is.
+// For a row drawn larger than it is: the vertex's offset from the row's center and the radius it keeps
+// its own depth within, in device pixels. A radius of 0 means the row is drawn as it is.
 varying vec3 vGrown;
 #endif
 #ifdef ID_FLOAT
@@ -94,7 +94,9 @@ void main(void) {
         float grRadius = 0.5 * shapeRadius * max(length((grX.xy / grX.w - grNdc) * idPixels), length((grY.xy / grY.w - grNdc) * idPixels));
         if (grRadius > 0.0 && grRadius < MIN_RADIUS_PX) {
             grV.xy = (grNdc + (grV.xy / grV.w - grNdc) * (MIN_RADIUS_PX / grRadius)) * grV.w;
-            vGrown = vec3(0.5 * (grV.xy / grV.w - grNdc) * idPixels, grRadius);
+            // Never under the farthest a point can be from a pixel center: a row smaller than that could
+            // cover no pixel at its own depth, and a larger node behind it would take all of them.
+            vGrown = vec3(0.5 * (grV.xy / grV.w - grNdc) * idPixels, max(grRadius, 0.71));
         }
 #ifdef ID_FLOAT
         vPick = vec3(grNdc, grRadius > 0.0 ? max(grRadius, MIN_RADIUS_PX) : 0.0);

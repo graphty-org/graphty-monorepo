@@ -187,7 +187,7 @@ describe("one data edit on a large graph", () => {
                 const loadMs = performance.now() - loadStart;
                 // From here the frames are driven by hand, so a step times its own work and not the canvas's draw.
                 element.graph.engine.stopRenderLoop();
-                await drainGpu(element);
+                const loadGpuMs = await drainGpu(element);
                 const { data } = element.session;
                 // Read before the clock starts: a page of edges is a read of its own, not part of an edit.
                 const [first, second, third] = [1, 5, 9].map(
@@ -219,7 +219,10 @@ describe("one data edit on a large graph", () => {
                 };
 
                 const ms = (value: number): string => `${value.toFixed(0)} ms`;
-                console.log(`[single-edit] ${path} ${String(nodeCount)}/${String(edgeCount)}: load ${ms(loadMs)}`);
+                console.log(
+                    `[single-edit] ${path} ${String(nodeCount)}/${String(edgeCount)}: load ${ms(loadMs)}, ` +
+                        `gpu after the load ${ms(loadGpuMs)}`,
+                );
                 for (const [edit, step] of Object.entries(steps)) {
                     console.log(
                         `[single-edit] ${path} ${String(nodeCount)}/${String(edgeCount)} ${edit}: ` +

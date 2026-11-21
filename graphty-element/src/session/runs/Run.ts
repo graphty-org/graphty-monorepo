@@ -33,7 +33,7 @@ import { bindResultPath, type ResultSummary, type RunResult } from "../results/t
 import type { HeldCaptures } from "../sets/captures";
 import type { CodedFact, CodedFactParam } from "../shared";
 import { type StyleSuggestion, suggestStyles } from "../styles/derive";
-import type { PartialCode } from "./caveatFacts";
+import { caveat, type PartialCode } from "./caveatFacts";
 import { keepGroupNumbers } from "./groupNumbers";
 import {
     type Caveats,
@@ -342,6 +342,12 @@ export interface RunSurroundings {
      * @returns The result, or undefined when there is none.
      */
     numberedAfter?(): unknown;
+    /**
+     * The style layers reading this run now, which a re-execution draws its new result with as
+     * they stand (the `layers.kept` caveat fact). Optional: absent, nothing is reported.
+     * @returns The layer ids.
+     */
+    keptLayers?(): readonly string[];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1277,8 +1283,20 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                 .map((field) => field.name),
         );
         const kept = keepGroupNumbers(before, outcome.result, unstable, this.mergeCaveats(outcome, partial, timedOut));
+        // A re-execution paints nothing new: the layers already reading the run draw the new
+        // result as they stand, with whatever was changed on them since, and the caveats say so.
+        const layers = this.result === undefined ? [] : (this.surroundings.keptLayers?.() ?? []);
         this.resultValue = kept.result;
-        this.caveatsValue = kept.caveats;
+        this.caveatsValue =
+            layers.length === 0
+                ? kept.caveats
+                : Object.freeze({
+                      ...kept.caveats,
+                      facts: Object.freeze([
+                          ...(kept.caveats.facts ?? []),
+                          caveat("layers.kept", { layers: [...layers] }),
+                      ]),
+                  });
         this.partialValue = partial;
         this.durationValue = Math.round(nowMs() - this.startedAtMs);
         this.statusValue = canceled ? "canceled" : "succeeded";

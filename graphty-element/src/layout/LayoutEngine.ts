@@ -2316,6 +2316,22 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         } else {
             this.#keep = loading ? null : this.#keptWhilePaused(change, grown);
         }
+
+        if (this.rearrangesAfter(change.next, change.previous)) {
+            this.#keep = null;
+        }
+    }
+
+    /**
+     * Whether this freeze re-runs the whole arrangement even when it only added, because what the
+     * engine drew the existing nodes from has changed with it. None of the shipped engines but the
+     * fixed layout says so, whose spread is read from the edges (#9257).
+     * @param _next - the graph as frozen now
+     * @param _previous - the graph as frozen before, or null on the first freeze
+     * @returns true to keep no node where it is
+     */
+    protected rearrangesAfter(_next: GraphSnapshot, _previous: GraphSnapshot | null): boolean {
+        return false;
     }
 
     /**

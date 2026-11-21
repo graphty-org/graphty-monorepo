@@ -74,6 +74,7 @@ interface EdgeLines {
     outlineBatch: EdgeLineBatch | null;
     outlineSlots: number[];
     gradientPieces: { batch: EdgeLineBatch; slot: number; color: string }[];
+    strandRuns: { batch: EdgeLineBatch; slots: number[]; color: string }[];
 }
 
 /**
@@ -220,6 +221,45 @@ describe("an edge painted in a gradient", () => {
     test("draws none for kind none", async () => {
         const edge = await oneEdge({ "edge.gradientColors": "#ff0000 #0000ff", "edge.gradientKind": "none" });
         assert.lengthOf(edge.drawnGradient, 0);
+    });
+});
+
+describe("an edge drawn as parallel strands", () => {
+    test("draws a strand per color beside the line's path, first on the right, and not the line itself", async () => {
+        const edge = await oneEdge({
+            "edge.strandColors": "#ff0000 #00ff00 #0000ff",
+            "edge.strandSpacing": 2,
+            "edge.width": 4,
+            "edge.color": "#505050",
+        });
+        const { strandRuns, lineBatch, lineSlots } = edge as unknown as EdgeLines;
+        assert.deepEqual(edge.drawnStrands, ["#ff0000", "#00ff00", "#0000ff"]);
+        assert(lineBatch);
+        assert.strictEqual(lineBatch.colorOf(lineSlots[0])?.[3], 0, "the line under the strands is clear");
+        // the line runs along +x, so its right is -y; a line 4 wide is 0.1 across, the strands 0.2 apart
+        const [start] = lineBatch.endsOf(lineSlots[0]);
+        const ys = strandRuns.map(({ batch, slots }) => {
+            const [from, to] = batch.endsOf(slots[0]);
+            assert.closeTo(from.x, start.x, 1e-6);
+            assert.closeTo(from.y, to.y, 1e-6);
+            return from.y - start.y;
+        });
+        assert.deepEqual(
+            ys.map((y) => Math.round(y * 1000) / 1000),
+            [-0.2, 0, 0.2],
+        );
+        assert.deepEqual(
+            strandRuns.map(({ batch }) => lookOf(batch).color),
+            ["#ff0000", "#00ff00", "#0000ff"],
+        );
+    });
+
+    test("draws the line as it is for fewer than two colors", async () => {
+        const edge = await oneEdge({ "edge.strandColors": "#ff0000", "edge.color": "#505050" });
+        const { lineBatch, lineSlots } = edge as unknown as EdgeLines;
+        assert.lengthOf(edge.drawnStrands, 0);
+        assert(lineBatch);
+        assert.strictEqual(lineBatch.colorOf(lineSlots[0])?.[3], 1);
     });
 });
 

@@ -20,16 +20,16 @@ type ImageBackground = CameraImageChoices["background"];
 /**
  * The Preset select: the element's screenshot presets, or Custom.
  * @param props - Component props
- * @param props.preset - the matching preset's id, or undefined for Custom
- * @param props.onPick - called with the preset's choices
+ * @param props.preset - the picked preset's id, or null for Custom
+ * @param props.onPick - called with the preset and its choices (only the preset, null, for Custom)
  * @returns the select
  */
 export function PresetSelect({
     preset,
     onPick,
 }: Readonly<{
-    preset: string | undefined;
-    onPick: (look: ReturnType<typeof presetChoices>) => void;
+    preset: CameraImageChoices["preset"];
+    onPick: (pick: Partial<CameraImageChoices>) => void;
 }>): React.JSX.Element {
     return (
         <Select
@@ -39,9 +39,7 @@ export function PresetSelect({
             allowDeselect={false}
             onChange={(id) => {
                 const chosen = SCREENSHOT_PRESET_DESCRIPTORS.find((entry) => entry.id === id);
-                if (chosen !== undefined) {
-                    onPick(presetChoices(chosen));
-                }
+                onPick(chosen === undefined ? { preset: null } : { preset: chosen.id, ...presetChoices(chosen) });
             }}
         />
     );
@@ -142,6 +140,7 @@ export function ImageLookFields({
  * @param props.onCancel - closes the dialog
  * @param props.capture - runs a capture
  * @param props.fields - the fields above the callout
+ * @param props.heading - whether the section opens with its "Image" heading, as in the list of outputs
  * @returns the section and the footer
  */
 export function ImageBody({
@@ -154,6 +153,7 @@ export function ImageBody({
     onCancel,
     capture,
     fields,
+    heading = false,
 }: Readonly<{
     status: CaptureStatus;
     preview: string | null;
@@ -164,6 +164,7 @@ export function ImageBody({
     onCancel: () => void;
     capture: (destination: "download" | "clipboard", waitForSettle?: boolean) => Promise<void>;
     fields: React.ReactNode;
+    heading?: boolean;
 }>): React.JSX.Element {
     const busy = status.kind === "capturing";
     const callout = (() => {
@@ -186,6 +187,11 @@ export function ImageBody({
     return (
         <>
             <section className="ws-export-main" aria-label="Image">
+                {heading ? (
+                    <Text component="h3" fw={550} size="md" m={0}>
+                        Image
+                    </Text>
+                ) : null}
                 {fields}
                 {callout}
                 <div className="ws-export-preview" data-transparent={transparent}>

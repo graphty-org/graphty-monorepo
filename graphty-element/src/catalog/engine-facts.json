@@ -2073,7 +2073,7 @@
                     "plainName": "Unplaced Nodes",
                     "technicalName": "unplaced",
                     "type": "enum",
-                    "description": "Nodes with no usable location: in a row beside the map, or left where they were",
+                    "description": "Nodes with no usable location: in a row beside the map, left where they were, or not drawn (with their edges) while the layout is shown; each way they are still reported",
                     "default": "tray",
                     "values": [
                         {
@@ -2083,6 +2083,10 @@
                         {
                             "value": "leave",
                             "label": "Leave"
+                        },
+                        {
+                            "value": "hide",
+                            "label": "Hide"
                         }
                     ],
                     "advanced": true

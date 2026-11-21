@@ -2,7 +2,7 @@ import { Anchor, Button, CloseButton, Group, Paper, Stack, Text } from "@mantine
 import React, { type RefObject, useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
-import { answerUsageData, type UsageAnswer, useAnalyticsSends, useUsageAnswer } from "./usageData";
+import { ANONYMOUS_COUNTS, answerUsageData, type UsageAnswer, useAnalyticsSends, useUsageAnswer } from "./usageData";
 import { UsageDataText } from "./UsageDataText";
 
 /** The line after an answer, by the answer, with the usage-analytics experiment off. */
@@ -113,7 +113,7 @@ export function UsageDataCard({
                 <UsageDataText />
                 <Text size="xs" c="dimmed">
                     {analytics
-                        ? "Until you share, anonymous counts are sent: visits, the site that sent you, which sample, file format, layout, measure and export you use, and whether you share. No cookies, no stored id, no names or contents."
+                        ? `Until you share, anonymous counts are sent: ${ANONYMOUS_COUNTS}, and whether you share. No cookies, no stored id, no names or contents.`
                         : "Nothing is collected until you answer."}
                 </Text>
                 <Group gap="xs">

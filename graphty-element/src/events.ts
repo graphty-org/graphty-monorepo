@@ -1235,6 +1235,8 @@ export interface AiCommandErrorEvent {
     type: "ai-command-error";
     /** The failure. */
     error: Error;
+    /** Why it failed, as the result the command resolves with carries it (`ExecutionResult.code`). */
+    code: AiResultCode;
     /** The command's text. */
     input: string;
     /** Whether running it again unchanged could succeed. */

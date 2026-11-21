@@ -28,8 +28,8 @@ import type { HighlightSpec, MarkSpec, TemplatePosition } from "../styles/Styles
 import { findRow, rowsOf, type StyleRowId, type StyleRowPin, type StyleRowPlace } from "../styles/tree";
 import type { HistoryCode } from "../types";
 
-/** The values of `style.patch`'s discriminant: one per styles verb that reaches it. */
-const STYLE_PATCH_ACTIONS = Object.freeze([
+/** The values of `style.patch`'s discriminant (`action`): one per styles verb that reaches it. */
+export const STYLE_PATCH_ACTIONS = Object.freeze([
     "add",
     "update",
     "remove",

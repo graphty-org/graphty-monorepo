@@ -610,6 +610,8 @@ export interface ChannelValues {
     "edge.gradientColors": string;
     "edge.gradientStops": string;
     "edge.gradientKind": EdgeGradientKindValue;
+    "edge.strandColors": string;
+    "edge.strandSpacing": number;
     "edge.style": EdgeLineValue;
     "edge.patternCount": number;
     "edge.waveAmplitude": number;
@@ -1106,6 +1108,12 @@ const EDGE_GRADIENT_CAVEAT =
     "by spaces, `edge.gradientStops` where each sits from 0 to 1 (unset, or not one per color: evenly " +
     'spaced), and `edge.gradientKind` "linear" from the source end to the target end, "radial" out from ' +
     'the line\'s middle to both ends, or "none". Fewer than two colors draw none. Drawn on solid lines.';
+
+const EDGE_STRANDS_CAVEAT =
+    "Draws the line as parallel strands side by side in place of its `edge.color`: `edge.strandColors` are CSS " +
+    "colors separated by spaces, the first strand on the right of the line's direction from source to target and " +
+    "the last on its left, each drawn over the one before, and `edge.strandSpacing` how far apart their middles " +
+    "are in line widths (1: strands that touch). Fewer than two colors draw the line as it is. Drawn on solid lines.";
 
 /** How an edge's gradient runs, or that it has none. */
 const EDGE_GRADIENT_KIND_VALUES: readonly EdgeGradientKindValue[] = ["linear", "radial", "none"];
@@ -4717,6 +4725,30 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: EDGE_GRADIENT_CAVEAT,
     },
+    "edge.strandColors": {
+        channel: "edge.strandColors",
+        target: "edge",
+        plainName: "Edge Strand Colors",
+        shortName: "Strand colors",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.strands.colors",
+        renderable: true,
+        caveat: EDGE_STRANDS_CAVEAT,
+    },
+    "edge.strandSpacing": {
+        channel: "edge.strandSpacing",
+        target: "edge",
+        plainName: "Edge Strand Spacing",
+        shortName: "Strand spacing",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.strands.spacing",
+        renderable: true,
+        caveat: EDGE_STRANDS_CAVEAT,
+    },
     "edge.style": {
         channel: "edge.style",
         target: "edge",
@@ -5453,6 +5485,7 @@ const LIST_OF: ReadonlyMap<string, "color" | "number"> = new Map<string, "color"
     ["node.chartValues", "number"],
     ["edge.gradientColors", "color"],
     ["edge.gradientStops", "number"],
+    ["edge.strandColors", "color"],
 ]);
 
 /**

@@ -16343,7 +16343,7 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": ["n_html1->n_html2#0","s_doubleoctagon->s_tripleoctagon#0","s_parallelogram->s_threepoverhang#0","s_tripleoctagon->s_invtriangle#0"],
+            "edge.route": ["n_html1->n_html2#0","s_parallelogram->s_threepoverhang#0"],
             "edge.curve": [],
             "edge.color": [],
             "edge.width": [],

@@ -6219,6 +6219,29 @@ function readRemovedCasing(set: Readonly<Record<string, unknown>>): Record<strin
 }
 
 /**
+ * An edge band's width written as the other band kind, so a style editor that turns an outline into an overlay
+ * (or back) keeps the band it draws. An overlay of `edge.overlayPadding` p is 2p across whatever the line's width,
+ * as an outline of `edge.outlineScale` 0 and `edge.outlineWidth` 2p is.
+ * @param to - The kind to write: `"outline"` (`edge.outline*`) or `"overlay"` (`edge.overlay*`).
+ * @param values - The band's current values, of the other kind.
+ * @returns The width channels of `to` that draw the same band, or undefined when there is no exact reading without
+ * the line's width (no overlay padding set, or an outline whose scale is not 0).
+ */
+export function edgeBandWidthAs(
+    to: "outline" | "overlay",
+    values: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, number>> | undefined {
+    if (to === "outline") {
+        const padding = values["edge.overlayPadding"];
+        return typeof padding === "number" ? { "edge.outlineScale": 0, "edge.outlineWidth": 2 * padding } : undefined;
+    }
+    const width = values["edge.outlineWidth"];
+    return values["edge.outlineScale"] === 0 && typeof width === "number"
+        ? { "edge.overlayPadding": width / 2 }
+        : undefined;
+}
+
+/**
  * The set values of a layer that names removed channels, in current channels.
  * @param set - The layer's set values.
  * @returns The values in current channels, with what was dropped.
@@ -6311,10 +6334,11 @@ export function readRemovedChannels<T extends { readonly set?: object; readonly 
     if (casingKeys.length > 0 && !(set?.values !== undefined && "edge.outlineScale" in set.values)) {
         const casing = readRemovedCasing(Object.fromEntries(casingKeys.map((key) => [key, undefined])));
         set = {
+            // the layer's own outline width wins over the translated one
             values: {
-                ...set?.values,
                 "edge.outlineScale": casing["edge.outlineScale"],
                 "edge.outlineWidth": casing["edge.outlineWidth"],
+                ...set?.values,
             },
             dropped: set?.dropped ?? [],
         };

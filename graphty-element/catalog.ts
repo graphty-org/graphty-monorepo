@@ -247,6 +247,7 @@ export {
     channelDescriptor,
     CHANNELS,
     channelsFor,
+    edgeBandWidthAs,
     labelFieldAddress,
     labelFieldOf,
     listItemAddress,

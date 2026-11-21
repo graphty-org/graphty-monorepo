@@ -216,7 +216,6 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                     // Pattern is its own item, so "dashed" is in "+" (ia-design 2).
                     { id: "pattern", name: "Pattern", items: [], main: ["edge.style"], own: PATTERN_CHANNELS },
                 ],
-                [{ id: "band", name: "Band", items: ["band"], main: ["edge.bandColor"] }],
                 [{ id: "outline", name: "Outline", items: ["outline"], main: ["edge.outlineColor"] }],
             ],
         },
@@ -292,12 +291,6 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                     },
                 ],
                 [
-                    {
-                        id: "underlay",
-                        name: "Underlay",
-                        items: ["underlay"],
-                        main: ["edge.underlayColor"],
-                    },
                     {
                         id: "overlay",
                         name: "Overlay",

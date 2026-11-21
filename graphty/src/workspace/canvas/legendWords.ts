@@ -44,7 +44,7 @@ const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
     "edge.width": "Edge width",
     "edge.opacity": "Edge opacity",
     "edge.style": "Edge line",
-    "edge.bandColor": "Edge band",
+    "edge.outlineColor": "Edge outline",
 };
 
 /** The channels whose swatches carry a size. */
@@ -70,14 +70,14 @@ const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
 
 /**
  * The channels whose key would be a bare number beside a name ("Key people 72", "Selected 0.4"):
- * a ring's or a band's width and opacity, a text's size, and how fast an edge's motion runs. Their
+ * a ring's or an outline's width and opacity, a text's size, and how fast an edge's motion runs. Their
  * row is drawn, not read.
  */
 const NUMBER_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
     "node.outerBorderWidth",
     "node.outerBorderOpacity",
-    "edge.bandWidth",
-    "edge.bandOpacity",
+    "edge.outlineWidth",
+    "edge.outlineOpacity",
     "node.labelSize",
     "edge.labelSize",
     "node.tooltipSize",

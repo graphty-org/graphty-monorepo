@@ -2009,11 +2009,6 @@ export const EdgeStyle: z.ZodObject<{
                 "dash-dot": "dash-dot";
             }>>;
         }, z.core.$strict>>;
-        underlay: z.ZodOptional<z.ZodObject<{
-            color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
-            opacity: z.ZodOptional<z.ZodNumber>;
-            padding: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strict>>;
         overlay: z.ZodOptional<z.ZodObject<{
             color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             opacity: z.ZodOptional<z.ZodNumber>;
@@ -2546,11 +2541,6 @@ export const EdgeStyle: z.ZodObject<{
         maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
-    }, z.core.$strict>>;
-    band: z.ZodOptional<z.ZodObject<{
-        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
-        scale: z.ZodOptional<z.ZodNumber>;
-        opacity: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     visible: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;

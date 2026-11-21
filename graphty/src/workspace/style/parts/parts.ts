@@ -407,7 +407,6 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     name: "Gradient",
                     tail: ["edge.gradientKind", "edge.gradientColors", "edge.gradientStops"],
                 },
-                { id: "band", name: "Band", tail: ["edge.bandColor", "edge.bandWidth", "edge.bandOpacity"] },
                 {
                     id: "outline",
                     name: "Outline",
@@ -638,11 +637,6 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
             title: "Effects",
             list: true,
             items: [
-                {
-                    id: "underlay",
-                    name: "Underlay",
-                    main: ["edge.underlayColor", "edge.underlayOpacity", "edge.underlayPadding"],
-                },
                 {
                     id: "overlay",
                     name: "Overlay",

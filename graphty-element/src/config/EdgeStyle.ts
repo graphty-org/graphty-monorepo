@@ -269,8 +269,9 @@ const LineStyle = z.strictObject({
      */
     blending: z.boolean().optional(),
     /**
-     * A band drawn under the line along its whole length (Cytoscape.js `line-outline-*`,
-     * vis-network `edges.background`): `width` is how much wider than the line it is, in the
+     * A band drawn under the line along its whole length, in both views (Cytoscape.js `line-outline-*` and
+     * `underlay-*`, vis-network `edges.background`, a selected edge's casing): `width` is how much wider than the
+     * line it is, in the
      * line's own width units (half of it each side), `color` and `opacity` its paint, `type` its
      * own pattern: "solid" (the default), "dash", "dot" or "dash-dot" (vis-network's
      * `background.dashes`). No width draws none. Drawn under solid lines; a dotted or dashed line
@@ -285,18 +286,10 @@ const LineStyle = z.strictObject({
         })
         .optional(),
     /**
-     * A band drawn beneath the line along its whole length, `padding` either side of the line's
-     * middle (in the line's width units) whatever the line's own width, in `color` at `opacity`
-     * (Cytoscape.js `underlay-*`). No opacity, or 0, draws none.
+     * A band drawn over the line along its whole length, `padding` either side of the line's middle (in the line's
+     * width units) whatever the line's own width, in `color` at `opacity` (Cytoscape.js `overlay-*`), in the 2D view
+     * only. No opacity, or 0, draws none.
      */
-    underlay: z
-        .strictObject({
-            color: ColorStyle.optional(),
-            opacity: z.number().min(0).max(1).optional(),
-            padding: z.number().nonnegative().optional(),
-        })
-        .optional(),
-    /** The same band drawn over the line (Cytoscape.js `overlay-*`). */
     overlay: z
         .strictObject({
             color: ColorStyle.optional(),
@@ -497,18 +490,6 @@ export const EdgeStyle = z.strictObject({
      * centered where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
      */
     xlabel: RichTextStyle.optional(),
-    /**
-     * A wider line drawn behind the edge's own, as a casing: the selection look, as a style.
-     * Drawn only when it names a colour. `scale` is a multiple of twice the line's width; the
-     * `edge.band*` channels write it.
-     */
-    band: z
-        .strictObject({
-            color: ColorStyle.optional(),
-            scale: z.number().nonnegative().optional(),
-            opacity: z.number().min(0).max(1).optional(),
-        })
-        .optional(),
     /**
      * False stops drawing the edge (its line, caps and words) and nothing else: it stays in the
      * graph, counted, selectable and measured. The `edge.visible` channel writes it.

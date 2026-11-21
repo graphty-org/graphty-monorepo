@@ -467,11 +467,9 @@ describe("a node's underlay and overlay", () => {
         assert.strictEqual(paint(parts.overlay).emissiveColor.toHexString().toLowerCase(), "#0000ff");
     });
 
-    test("are drawn in the 2D view only (E669), as are an edge's underlay and overlay", async () => {
+    test("are drawn in the 2D view only (E669), as is an edge's overlay", async () => {
         await oneEdge(
             {
-                "edge.underlayOpacity": 1,
-                "edge.underlayPadding": 4,
                 "edge.overlayOpacity": 0.5,
                 "edge.overlayPadding": 4,
             },
@@ -488,18 +486,16 @@ describe("a node's underlay and overlay", () => {
                 underlay: AbstractMesh | null;
                 overlay: AbstractMesh | null;
             };
-        const bands = (): string[] =>
-            (edgeBetween(graph as Graph, "A", "B") as unknown as { haloBands: { kind: string }[] }).haloBands.map(
-                (band) => band.kind,
-            );
+        const bands = (): number =>
+            (edgeBetween(graph as Graph, "A", "B") as unknown as { haloBands: unknown[] }).haloBands.length;
         assert(parts().underlay && parts().overlay, "2D draws both plates");
-        assert.sameMembers(bands(), ["underlay", "overlay"]);
+        assert.strictEqual(bands(), 1, "2D draws the edge's overlay");
         await graph.setViewMode("3d");
         await operationQueueOf(graph).waitForCompletion();
         await graph.waitForStableFrame();
         assert.isNull(parts().underlay, "3D draws no node underlay");
         assert.isNull(parts().overlay, "3D draws no node overlay");
-        assert.deepEqual(bands(), [], "3D draws neither the edge's underlay nor its overlay");
+        assert.strictEqual(bands(), 0, "3D draws no edge overlay");
     });
 
     test("are read off the scene as shapes of their own round the node, in their colors", async () => {
@@ -597,26 +593,22 @@ describe("a node's shadow", () => {
     });
 });
 
-describe("an edge's underlay and overlay", () => {
-    test("are bands twice their padding wide, whatever the line's width, beneath and over the line", async () => {
+describe("an edge's overlay", () => {
+    test("is a band twice its padding wide, whatever the line's width, over the line", async () => {
         const edge = await oneEdge({
             "edge.width": 0.5,
-            "edge.underlayOpacity": 0.5,
-            "edge.underlayColor": "#00ff00",
-            "edge.underlayPadding": 2,
             "edge.overlayOpacity": 0.5,
             "edge.overlayColor": "#0000ff",
             "edge.overlayPadding": 1,
         });
-        const bands = (edge as unknown as { haloBands: { kind: string; batch: EdgeLineBatch }[] }).haloBands;
-        const under = bands.find((b) => b.kind === "underlay");
-        const over = bands.find((b) => b.kind === "overlay");
-        assert(under && over, "both bands are drawn");
-        assert.strictEqual(lookOf(under.batch).color, "#00ff00");
+        const [over] = (edge as unknown as { haloBands: { batch: EdgeLineBatch }[] }).haloBands;
+        assert(over, "the band is drawn");
         assert.strictEqual(lookOf(over.batch).color, "#0000ff");
-        assert.closeTo(lookOf(under.batch).width / lookOf(over.batch).width, 2, 1e-6);
-        // the underlay behind the line, the overlay before it
-        assert.isAbove(under.batch.mesh.position.z, 0);
+        const line = (edge as unknown as EdgeLines).lineBatch;
+        assert(line, "the line is drawn");
+        // twice its padding of 1 across, four times the line's width of 0.5
+        assert.closeTo(lookOf(over.batch).width / lookOf(line).width, 4, 1e-6);
+        // before the line
         assert.isBelow(over.batch.mesh.position.z, 0);
     });
 });

@@ -336,9 +336,6 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.outlineWidth": "mesh",
     "edge.outlineOpacity": "mesh",
     "edge.outlineStyle": "mesh",
-    "edge.underlayColor": "mesh",
-    "edge.underlayOpacity": "mesh",
-    "edge.underlayPadding": "mesh",
     "edge.overlayColor": "mesh",
     "edge.overlayOpacity": "mesh",
     "edge.overlayPadding": "mesh",
@@ -347,11 +344,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.gradientStops": "mesh",
     "edge.gradientKind": "mesh",
 
-    // Drawn beside the mesh, and per element by nature: the halo is an overlay instance, the band
-    // its own line batch, each rebuilt by the paint that carries it.
-    "edge.bandColor": "content",
-    "edge.bandWidth": "content",
-    "edge.bandOpacity": "content",
+    // Drawn beside the mesh, and per element by nature, each rebuilt by the paint that carries it.
     "node.label": "content",
     "node.labelStyle": "content",
     "node.tooltip": "content",

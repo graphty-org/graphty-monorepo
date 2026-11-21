@@ -137,7 +137,7 @@ const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
 export const pulledLines = { version: 0 };
 
 /** Style keys a pulled line can carry; any other set keeps the edge an object edge (`Edge.pullsLine`). */
-const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
+const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "visible"]);
 
 /** Line keys a pulled line draws exactly as the plain line does. */
 const PULLED_LINE_KEYS = new Set([
@@ -199,7 +199,7 @@ const pulledLookOf = new WeakMap<EdgeStyleConfig, boolean>();
 
 /**
  * The part of `Edge.pullsLine` that reads the style alone: it sets only keys a pulled line draws, a solid line,
- * no words, no cap and no band.
+ * no words and no cap.
  * @param style - The resolved style.
  * @returns True when the look can be pulled.
  */
@@ -214,8 +214,7 @@ function pulledLook(style: EdgeStyleConfig): boolean {
             (line.type ?? "solid") === "solid" &&
             drawnText(style.label) === undefined &&
             noCap(style.arrowHead) &&
-            noCap(style.arrowTail) &&
-            style.band?.color === undefined;
+            noCap(style.arrowTail);
         pulledLookOf.set(style, pulls);
     }
 
@@ -976,8 +975,8 @@ export class Edge {
     /** This edge's slots in {@link Edge.outlineBatch}, one per piece of its line. */
     private outlineSlots: number[] = [];
 
-    /** The bands drawn beneath (`line.underlay`) and over (`line.overlay`) this edge's line, with their slots. */
-    private haloBands: { kind: "underlay" | "overlay"; batch: EdgeLineBatch; slots: number[] }[] = [];
+    /** The band drawn over (`line.overlay`) this edge's line, with its slots. */
+    private haloBands: { batch: EdgeLineBatch; slots: number[] }[] = [];
 
     /**
      * The pieces a line painted in a gradient (`line.gradient`) is drawn as, source end first:
@@ -2146,16 +2145,10 @@ export class Edge {
      */
     private paintHalo(style: EdgeStyleConfig): void {
         const { graph } = this.context.getStyles().config;
-        // A band a layer painted; else, while selected, the selection settings' band -- unless the
-        // starting rows are on, where the Selected row draws it as a style instead.
+        // While selected, the selection settings' band -- unless the starting rows are on, where the
+        // Selected row draws it as an outline (`edge.outline*`) instead.
         let selection: Pick<GraphSelectionStyleConfig, "edgeColor" | "edgeScale" | "edgeOpacity"> | null = null;
-        if (style.band?.color !== undefined) {
-            selection = {
-                edgeColor: style.band.color,
-                edgeScale: style.band.scale ?? DEFAULT_SELECTION_STYLE.edgeScale,
-                edgeOpacity: style.band.opacity ?? DEFAULT_SELECTION_STYLE.edgeOpacity,
-            };
-        } else if (this.selected && graph.startingRows !== true) {
+        if (this.selected && graph.startingRows !== true) {
             selection = graph.selection ?? DEFAULT_SELECTION_STYLE;
         }
         const width = (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) * 2 * (selection?.edgeScale ?? 0);
@@ -4984,9 +4977,13 @@ export class Edge {
         }
 
         this.outlineSlots = [this.outlineBatch.acquire(this)];
-        // ponytail: in 3D the band and the line are drawn at the same depth, so either may show where they overlap
         if (this.context.is2D()) {
             this.outlineBatch.mesh.position.z = OUTLINE_BEHIND;
+        } else if (this.outlineBatch.mesh.material) {
+            // In 3D the band is pushed back in depth, as the selection band is, so the line wins every pixel they
+            // share and the band shows only beside it, as a casing. The batch is the outline's alone.
+            this.outlineBatch.mesh.material.zOffset = HALO_DEPTH_OFFSET;
+            this.outlineBatch.mesh.material.zOffsetUnits = HALO_DEPTH_OFFSET;
         }
     }
 
@@ -5045,40 +5042,34 @@ export class Edge {
     }
 
     /**
-     * Build the bands drawn beneath (`line.underlay`) and over (`line.overlay`) this edge's line:
-     * Cytoscape.js's underlay and overlay, each twice its padding wide whatever the line's width, a
-     * hair behind or before the line in 2D.
+     * Build the band drawn over (`line.overlay`) this edge's line: Cytoscape.js's overlay, twice its
+     * padding wide whatever the line's width, a hair before the line, in 2D only. The band beneath
+     * the line is its outline ({@link Edge.createOutline}).
      * @param meshKey - The source mesh key the edge is drawn under.
      * @param style - The style the line is drawn from.
      */
     private createHaloBands(meshKey: string, style: EdgeStyleConfig): void {
-        for (const kind of ["underlay", "overlay"] as const) {
-            const halo = style.line?.[kind];
-            // An underlay and an overlay are drawn in the 2D view only (their channels' drawnWhen).
-            const opacity = this.context.is2D() ? (halo?.opacity ?? 0) : 0;
-            const width = 2 * (halo?.padding ?? 0);
-            if (opacity <= 0 || width <= 0 || this.lineBatch === null) {
-                continue;
-            }
-
-            const batch = EdgeMesh.lineBatch(
-                this.context.getMeshCache(),
-                { styleId: `${meshKey}-${kind}`, width, color: halo?.color ?? "#000000" },
-                { ...style, line: { ...style.line, type: "solid", opacity, animationSpeed: 0 } },
-                this.context.getScene(),
-                false,
-            );
-            if (batch === null) {
-                continue;
-            }
-
-            // ponytail: in 3D a band and the line are drawn at the same depth, so either may show where they overlap
-            if (this.context.is2D()) {
-                batch.mesh.position.z = kind === "underlay" ? OUTLINE_BEHIND : -OUTLINE_BEHIND;
-            }
-
-            this.haloBands.push({ kind, batch, slots: [batch.acquire(this)] });
+        const halo = style.line?.overlay;
+        // An overlay is drawn in the 2D view only (its channels' drawnWhen).
+        const opacity = this.context.is2D() ? (halo?.opacity ?? 0) : 0;
+        const width = 2 * (halo?.padding ?? 0);
+        if (opacity <= 0 || width <= 0 || this.lineBatch === null) {
+            return;
         }
+
+        const batch = EdgeMesh.lineBatch(
+            this.context.getMeshCache(),
+            { styleId: `${meshKey}-overlay`, width, color: halo?.color ?? "#000000" },
+            { ...style, line: { ...style.line, type: "solid", opacity, animationSpeed: 0 } },
+            this.context.getScene(),
+            false,
+        );
+        if (batch === null) {
+            return;
+        }
+
+        batch.mesh.position.z = -OUTLINE_BEHIND;
+        this.haloBands.push({ batch, slots: [batch.acquire(this)] });
     }
 
     /**

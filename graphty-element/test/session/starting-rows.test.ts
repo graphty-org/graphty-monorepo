@@ -158,7 +158,7 @@ describe("the starting rows", () => {
         await session.styles.settled();
         assert.isAbove(session.selection.edges.length, 0);
         assert.strictEqual(session.styles.counts(edge).matched, session.selection.edges.length);
-        assert.strictEqual(session.styles.counts(edge).painted["edge.bandColor"], session.selection.edges.length);
+        assert.strictEqual(session.styles.counts(edge).painted["edge.outlineColor"], session.selection.edges.length);
 
         session.selection.clear();
         await session.styles.settled();

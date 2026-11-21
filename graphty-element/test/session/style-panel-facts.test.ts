@@ -114,7 +114,7 @@ describe("the Selected starting row's ring", () => {
         assert.strictEqual(ring, "#0077BB", "the selected edge's blue: one color marks nodes and edges");
         assert.notProperty(set, "node.glow", "the owner's choice (#7448): no dark glow under the ring");
         assert.strictEqual(set["node.outerBorderOpacity"], 1, "solid, so the ring is the color measured");
-        const band = selectedPart(session, "edge")?.set?.["edge.bandColor"] as string;
+        const band = selectedPart(session, "edge")?.set?.["edge.outlineColor"] as string;
         assert.strictEqual(band, session.config.selectionStyle.edgeColor);
         // Measured, with no second tone (#811): ring and band read 3:1 or better on the light
         // default background and both dark backgrounds the element offers.

@@ -1969,11 +1969,47 @@ function combineParts(
     } else {
         combineArrowFills(n, words, values, notes);
         combineLineOpacity(n, words.get("_lineOpacity"), values);
+        combineUnderlay(n, words, values);
     }
     combineDashes(kind, n, words, values);
     combineLabelText(kind, n, words, values);
     combineLabelDress(kind, n, words, values, notes, whole);
     combineVisibility(kind, n, words, values);
+}
+
+/**
+ * An edge's underlay as the line's outline, the same band drawn beneath the line along its whole length: Cytoscape.js
+ * draws it `underlay-padding` either side of the line's middle whatever the line's width (cytoscape.js 3.34.3
+ * `drawEdgeUnderlay`: `lineWidth = 2 * padding`), and only with an `underlay-opacity` above 0 (its default is 0), in
+ * `underlay-color` (black, 10px unset). The outline is that much wider than the line.
+ * ponytail: an edge with a `line-outline-width` as well keeps only the underlay; files that set both are not known
+ * @param n - the element count
+ * @param words - the parts by internal name
+ * @param values - the values, `width` the line's own; changed in place
+ */
+function combineUnderlay(
+    n: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+): void {
+    const opacity = words.get("_underlayOpacity");
+    if (opacity === undefined) {
+        return;
+    }
+    const col = (p: string): (StyleValue | null)[] => (values[p] ??= new Array<StyleValue | null>(n).fill(null));
+    for (let i = 0; i < n; i++) {
+        const o = Number(opacity[i] ?? 0);
+        if (o <= 0 || Number.isNaN(o)) {
+            continue;
+        }
+        const padding = Number(words.get("_underlayPadding")?.[i] ?? 10);
+        const width = values.width?.[i];
+        // unset, a line is 3px wide (cytoscape.js 3.34.3 line 18711)
+        const line = typeof width === "number" ? width : 3;
+        col("outlineColor")[i] = words.get("_underlayColor")?.[i] ?? "#000000";
+        col("outlineOpacity")[i] = o;
+        col("outlineWidth")[i] = Math.max(0, 2 * padding - line);
+    }
 }
 
 /**

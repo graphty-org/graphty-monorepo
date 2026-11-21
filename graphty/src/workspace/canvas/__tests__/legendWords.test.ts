@@ -173,8 +173,8 @@ describe("the legend card's words", () => {
             block({ layerId: "label", channel: "node.labelSize", kind: "literal", swatches: [swatch({ value: 72 })] }),
             block({ layerId: "ring", channel: "node.outerBorderWidth", kind: "literal" }),
             block({ layerId: "ring", channel: "node.outerBorderOpacity", kind: "literal" }),
-            block({ layerId: "band", channel: "edge.bandWidth", kind: "literal" }),
-            block({ layerId: "band", channel: "edge.bandOpacity", kind: "literal" }),
+            block({ layerId: "band", channel: "edge.outlineWidth", kind: "literal" }),
+            block({ layerId: "band", channel: "edge.outlineOpacity", kind: "literal" }),
             // A motion's speed would print "On the path 2".
             block({ layerId: "band", channel: "edge.animationSpeed", kind: "literal" }),
             // A pattern count would print "Bob 2".

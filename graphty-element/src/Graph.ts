@@ -6257,7 +6257,7 @@ export class Graph implements GraphContext {
             this.#edgeMeshes.add(batch.mesh);
             // A band under the line (an outline a layer drew) must draw before it: with no depth written
             // the later of two meshes at one depth wins, and a band drawn last hid its line.
-            if (key.includes("-outline") || key.includes("-underlay")) {
+            if (key.includes("-outline")) {
                 this.#edgeBandMeshes.add(batch.mesh);
             }
 

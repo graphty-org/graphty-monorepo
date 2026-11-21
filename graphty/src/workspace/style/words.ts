@@ -202,7 +202,7 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
         {
             id: "line",
             title: "Line",
-            // Band is a line option, a flat stripe under the line, never a shader.
+            // Outline is a line option, a flat stripe under the line, never a shader.
             channels: [
                 "edge.color",
                 "edge.opacity",
@@ -213,9 +213,9 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
                 "edge.curvature",
                 "edge.taper",
                 "edge.lift",
-                "edge.bandColor",
-                "edge.bandWidth",
-                "edge.bandOpacity",
+                "edge.outlineColor",
+                "edge.outlineWidth",
+                "edge.outlineOpacity",
             ],
         },
         {
@@ -465,9 +465,6 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.color": "Color",
     "edge.width": "Width",
     "edge.opacity": "Opacity",
-    "edge.bandColor": "Band",
-    "edge.bandWidth": "Band width",
-    "edge.bandOpacity": "Band opacity",
     "edge.visible": "Show",
     "edge.style": "Pattern",
     "edge.patternCount": "Pattern count",
@@ -667,9 +664,6 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.outlineWidth": "Outline width",
     "edge.outlineOpacity": "Outline opacity",
     "edge.outlineStyle": "Outline pattern",
-    "edge.underlayColor": "Underlay color",
-    "edge.underlayOpacity": "Underlay opacity",
-    "edge.underlayPadding": "Underlay padding",
     "edge.overlayColor": "Overlay color",
     "edge.overlayOpacity": "Overlay opacity",
     "edge.overlayPadding": "Overlay padding",

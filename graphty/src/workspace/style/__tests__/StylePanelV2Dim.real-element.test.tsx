@@ -98,10 +98,10 @@ describe("Style panel v2 dims what draws nothing in this view", () => {
         });
     });
 
-    // A node's Plate (its underlay and overlay, E669) and an edge's Underlay and Overlay draw only in 2D.
+    // A node's Plate (its underlay and overlay, E669) and an edge's Overlay draw only in 2D.
     for (const [side, names] of [
         ["node", ["Plate"]],
-        ["edge", ["Underlay", "Overlay"]],
+        ["edge", ["Overlay"]],
     ] as const) {
         it(`${side} ${names.join(" and ")}: in 3D the '+' items are dimmed '2D only', in 2D not (E669)`, async () => {
             await openGraph();

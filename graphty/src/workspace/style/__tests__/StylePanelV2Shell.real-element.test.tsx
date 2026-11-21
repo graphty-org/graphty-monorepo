@@ -37,7 +37,7 @@ const SECTION_ORDER = {
 /** Each tab's Effects "+" items, "|" where a divider sits: every shader is the one Shader item (E668). */
 const EFFECTS_ITEMS = {
     node: ["Ring", "Shader", "Glow", "|", "Drop shadow", "Raised edge", "Plate"],
-    edge: ["Shader", "Animation", "|", "Underlay", "Overlay"],
+    edge: ["Shader", "Animation", "|", "Overlay"],
 } as const;
 
 /**

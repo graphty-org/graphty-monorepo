@@ -943,10 +943,6 @@ function channelPlans(
         ["outlineColor", [id("edge.outlineColor")]],
         ["outlineOpacity", [id("edge.outlineOpacity")]],
         ["outlineStyle", [table("edge.outlineStyle", OUTLINE_STYLES, LINE_STYLES_NEAREST)]],
-        ["underlayColor", [id("edge.underlayColor")]],
-        ["underlayOpacity", [id("edge.underlayOpacity")]],
-        // in the line's own width units, as its width is
-        ["underlayPadding", [length("edge.underlayPadding")]],
         ["overlayColor", [id("edge.overlayColor")]],
         ["overlayOpacity", [id("edge.overlayOpacity")]],
         // in the line's own width units, as its width is

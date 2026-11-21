@@ -107,9 +107,6 @@ describe("Style panel v2's Find a setting", () => {
             "no result names the old Ends section",
         );
         inDrawnSections("edge", outline, sections);
-        const underlay = await find(tab, "underlay");
-        assert.include(underlay, "Effects - Underlay");
-        inDrawnSections("edge", underlay, sections);
         const arrow = await find(tab, "target end");
         assert.include(arrow, "Arrows - Arrow (Target)");
         inDrawnSections("edge", arrow, sections);

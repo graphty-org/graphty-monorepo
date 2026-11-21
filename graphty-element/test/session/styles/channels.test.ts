@@ -237,16 +237,10 @@ const DECLARED = [
     "edge.fadeStart",
     "edge.fadeOpacity",
     "edge.blending",
-    "edge.bandColor",
-    "edge.bandWidth",
-    "edge.bandOpacity",
     "edge.outlineColor",
     "edge.outlineWidth",
     "edge.outlineOpacity",
     "edge.outlineStyle",
-    "edge.underlayColor",
-    "edge.underlayOpacity",
-    "edge.underlayPadding",
     "edge.overlayColor",
     "edge.overlayOpacity",
     "edge.overlayPadding",
@@ -443,9 +437,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and eleven node channels and one hundred and seventy-seven edge channels", () => {
+    it("splits into two hundred and eleven node channels and one hundred and seventy-one edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 211);
-        assert.strictEqual(channelsFor("edge").length, 177);
+        assert.strictEqual(channelsFor("edge").length, 171);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -988,9 +982,7 @@ describe("colour channels", () => {
             "node.shapeLineHaloColor",
             "node.gradientColor",
             "edge.color",
-            "edge.bandColor",
             "edge.outlineColor",
-            "edge.underlayColor",
             "edge.overlayColor",
             "edge.arrowHeadColor",
             "edge.arrowHeadFillColor",
@@ -1209,8 +1201,8 @@ describe("which drawn part a channel adjusts", () => {
         }
     });
 
-    it("folds a band, an arrowhead and a label's look into their parts", () => {
-        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.bandWidth"].modifies, "edge.bandColor");
+    it("folds an outline, an arrowhead and a label's look into their parts", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.outlineWidth"].modifies, "edge.outlineColor");
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowTailSize"].modifies, "edge.arrowTail");
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHeadTextColor"].modifies, "edge.arrowHeadText");
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].modifies, "node.label");
@@ -1369,7 +1361,8 @@ describe("ChannelDescriptor.drawnWhen", () => {
             assert.deepStrictEqual(CHANNEL_DESCRIPTORS[`node.${kind}Color`].drawnWhen, [{ dimension: "2d" }]);
         }
         assert.deepStrictEqual(CHANNEL_DESCRIPTORS["edge.overlayColor"].drawnWhen, [{ dimension: "2d" }]);
-        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["edge.underlayColor"].drawnWhen, [{ dimension: "2d" }]);
+        // the band beneath the line is the outline, drawn in both views (E677)
+        assert.isUndefined(CHANNEL_DESCRIPTORS["edge.outlineColor"].drawnWhen);
     });
 });
 
@@ -1471,7 +1464,7 @@ describe("every sub-setting names its part", () => {
             .filter((descriptor) => descriptor.modifies === undefined && descriptor.off !== undefined)
             .map((descriptor) => descriptor.channel)
             .sort();
-        assert.deepStrictEqual(heads, ["edge.animationSpeed", "edge.bandColor", "node.glow"]);
+        assert.deepStrictEqual(heads, ["edge.animationSpeed", "node.glow"]);
     });
 
     it("groups each part's settings under the channel that switches it on", () => {
@@ -1507,7 +1500,6 @@ describe("a channel's range", () => {
         "edge.arrowTailOpacity": 1,
         "edge.arrowTailPosition": 1,
         "edge.arrowTailTextOpacity": 1,
-        "edge.bandOpacity": 1,
         "edge.fadeOpacity": 1,
         "edge.labelBackgroundOpacity": 1,
         "edge.labelBorderOpacity": 1,
@@ -1517,7 +1509,6 @@ describe("a channel's range", () => {
         "edge.outlineOpacity": 1,
         "edge.overlayOpacity": 1,
         "edge.taper": 4,
-        "edge.underlayOpacity": 1,
         "node.borderOpacity": 1,
         "node.chartBackgroundOpacity": 1,
         "node.chartGap": 1,

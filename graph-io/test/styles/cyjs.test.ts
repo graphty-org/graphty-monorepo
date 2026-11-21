@@ -754,6 +754,28 @@ describe("the cascade", () => {
         }
     });
 
+    it("reads an edge's underlay as its outline, as wide as Cytoscape.js draws it whatever the line's width", () => {
+        const doc = {
+            elements: SMALL.elements,
+            style: [
+                { selector: "edge", style: { width: 4 } },
+                {
+                    selector: "#ab",
+                    style: { "underlay-opacity": 0.5, "underlay-color": "rgb(77,175,74)", "underlay-padding": 8 },
+                },
+            ],
+        };
+        const r = evaluateCytoscapeJs(doc);
+        // edge "ab" first, "cd" second
+        expect(r.edge.values.outlineOpacity?.[0]).toBe(0.5);
+        expect(r.edge.values.outlineColor?.[0]).toBe("#4daf4a");
+        // 2 x 8 across, 4 of it the line's own
+        expect(r.edge.values.outlineWidth?.[0]).toBe(12);
+        expect(r.edge.values).not.toHaveProperty("underlayOpacity");
+        // an edge with no underlay opacity has no outline
+        expect(r.edge.values.outlineWidth?.[1] ?? null).toBeNull();
+    });
+
     it("reads a stylesheet given as text as it reads the same sheet given as an array", () => {
         const text = `node { width: 20; background-color: #336699 }
             .big { width: 50 }

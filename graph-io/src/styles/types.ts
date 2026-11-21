@@ -868,15 +868,6 @@ export interface EdgeStyleValues {
     readonly outlineOpacity: number;
     /** The pattern that band is drawn in (vis-network `background.dashes`); unset, solid. */
     readonly outlineStyle: StyleLineStyle;
-    /**
-     * The color of a band drawn beneath the line along its whole length, `underlayPadding` either side of the line's
-     * middle whatever its width (Cytoscape.js `underlay-*`); drawn only with an `underlayOpacity` above 0.
-     */
-    readonly underlayColor: StyleColor;
-    /** The opacity of that band, 0..1; 0 draws none. */
-    readonly underlayOpacity: number;
-    /** How far either side of the line's middle the band reaches (a length). */
-    readonly underlayPadding: number;
     /** The color of the same band drawn over the line (Cytoscape.js `overlay-*`). */
     readonly overlayColor: StyleColor;
     /** The opacity of the band over the line, 0..1; 0 draws none. */

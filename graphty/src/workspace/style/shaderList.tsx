@@ -18,11 +18,11 @@ import { channelWord, failureWords, LISTED_PLACES, type SectionSpec } from "./wo
 
 /**
  * The tab's own style options a gallery search also finds (decisions-v2, section 2.2): Glow and
- * Wireframe on the Node tab, Band on the Edge tab, each by the property its "+" adds.
+ * Wireframe on the Node tab, Outline on the Edge tab, each by the property its "+" adds.
  */
 const OPTION_CHANNELS: Readonly<Record<"node" | "edge", readonly Channel[]>> = {
     node: ["node.glow", "node.wireframe"],
-    edge: ["edge.bandColor"],
+    edge: ["edge.outlineColor"],
 };
 
 /** The sections listening for an option a gallery picked, each answering for its own properties. */

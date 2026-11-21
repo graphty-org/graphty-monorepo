@@ -1795,11 +1795,8 @@ function elementDashes(elements: readonly ArrowCap[], p: Projector): number[] | 
  * @returns its color, opacity and whole width in pixels, or null for none
  */
 function readOutline(internal: EdgeInternals, p: Projector): DrawnEdge["outline"] {
-    // the band drawn under the line: its outline, else its underlay (Cytoscape.js draws both as a wider stroke beneath)
-    const underlay = internal.haloBands.find((band) => band.kind === "underlay");
-    return internal.outlineBatch === null
-        ? readBand(underlay?.batch ?? null, underlay?.slots ?? [], p)
-        : readBand(internal.outlineBatch, internal.outlineSlots, p);
+    // the band drawn under the line (a Cytoscape.js underlay is read as one too)
+    return readBand(internal.outlineBatch, internal.outlineSlots, p);
 }
 
 /**
@@ -1809,7 +1806,7 @@ function readOutline(internal: EdgeInternals, p: Projector): DrawnEdge["outline"
  * @returns its color, opacity and whole width in pixels, or null for none
  */
 function readOverlay(internal: EdgeInternals, p: Projector): DrawnEdge["overlay"] {
-    const overlay = internal.haloBands.find((band) => band.kind === "overlay");
+    const [overlay] = internal.haloBands;
     return readBand(overlay?.batch ?? null, overlay?.slots ?? [], p);
 }
 

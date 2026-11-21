@@ -204,6 +204,7 @@ import {
     type ElementRemaps,
     type RepaintEngine,
 } from "./styles/repaint";
+import { outlineWidthOfScale } from "./styles/rows";
 import { createScaleRegistry } from "./styles/scales";
 import { selectorScope } from "./styles/selector";
 import {
@@ -2582,7 +2583,11 @@ function peekLayersOf(peeked: {
             source: { by: "element", reason: "hover" },
             target: "edge",
             selector: { match: "ids", edges: peeked.edges },
-            set: { "edge.bandColor": "#334155", "edge.bandWidth": 2.5, "edge.bandOpacity": 1 },
+            set: {
+                "edge.outlineColor": "#334155",
+                "edge.outlineWidth": outlineWidthOfScale(2.5),
+                "edge.outlineOpacity": 1,
+            },
         });
     }
 

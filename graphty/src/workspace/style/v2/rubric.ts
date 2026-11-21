@@ -601,12 +601,6 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { name: "Wave", lines: [{ channel: "edge.waveAmplitude", name: "Wave", pair: "edge.wavePeriod" }] },
         ],
     },
-    band: {
-        main: [
-            { channel: "edge.bandWidth", name: "Width" },
-            { channel: "edge.bandOpacity", name: "Opacity" },
-        ],
-    },
     outline: {
         main: [
             { channel: "edge.outlineWidth", name: "Width" },
@@ -691,12 +685,6 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     { channel: "edge.supportScale", name: "Scale", rule: "R8" },
                 ],
             },
-        ],
-    },
-    underlay: {
-        main: [
-            { channel: "edge.underlayPadding", name: "Padding" },
-            { channel: "edge.underlayOpacity", name: "Opacity" },
         ],
     },
     overlay: {

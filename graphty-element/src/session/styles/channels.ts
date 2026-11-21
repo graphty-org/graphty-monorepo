@@ -579,16 +579,10 @@ export interface ChannelValues {
     "edge.fadeOpacity": number;
     "edge.blending": boolean;
     "edge.opacity": number;
-    "edge.bandColor": ColorValue;
-    "edge.bandWidth": number;
-    "edge.bandOpacity": number;
     "edge.outlineColor": ColorValue;
     "edge.outlineWidth": number;
     "edge.outlineOpacity": number;
     "edge.outlineStyle": EdgeOutlineValue;
-    "edge.underlayColor": ColorValue;
-    "edge.underlayOpacity": number;
-    "edge.underlayPadding": number;
     "edge.overlayColor": ColorValue;
     "edge.overlayOpacity": number;
     "edge.overlayPadding": number;
@@ -790,7 +784,6 @@ export type ColorChannel =
     | "node.labelOutline"
     | "node.labelBorder"
     | "edge.color"
-    | "edge.bandColor"
     | "edge.arrowHeadColor"
     | "edge.arrowTailColor"
     | "edge.labelColor"
@@ -806,7 +799,6 @@ export type ColorChannel =
     | "edge.arrowMiddleHeadFillColor"
     | "edge.arrowMiddleTailFillColor"
     | "edge.outlineColor"
-    | "edge.underlayColor"
     | "edge.overlayColor"
     | "edge.labelOutline"
     | "edge.labelBorder";
@@ -980,7 +972,7 @@ export interface ChannelDescriptor {
     readonly caveatCode?: ChannelCaveatCode;
     /**
      * The channel whose drawn part this one adjusts, on a channel that is a sub-setting of
-     * another: a band's width and opacity modify `edge.bandColor`, an arrowhead's size, colour and
+     * another: an outline's width and opacity modify `edge.outlineColor`, an arrowhead's size, colour and
      * opacity modify `edge.arrowHead`, a label's size, colour, background and style modify its
      * words (`node.label`). A style editor offers one item per drawn part -- the channels with no
      * `modifies` -- and the channels that modify it as that part's settings. Absent on a channel
@@ -1105,11 +1097,6 @@ export const EFFECT_OFF = "none";
  */
 export const OFF_COLOR: ColorValue = Object.freeze({ r: 0, g: 0, b: 0, a: 0, hex: EFFECT_OFF });
 
-/** What an edge band is, read by `edge.bandColor`. */
-const BAND_CAVEAT =
-    "A wider line drawn behind the edge's own, so the line keeps its paint down the middle and " +
-    "the band shows on both sides as a casing.";
-
 /**
  * The glow color to start from when switching a glow on: the `node.glow` channel's default. A glow
  * is drawn only when a style names a color (a strength alone draws nothing), so a consumer that
@@ -1184,8 +1171,9 @@ const BUNDLED: ChannelCondition = { channel: "edge.route", values: ["bundled"] }
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
-    "line (half of it each side, in the line's width units), as Cytoscape.js draws a line outline and " +
-    "vis-network an edge background, in `edge.outlineStyle`'s pattern (solid, dash, dot or dash-dot). Drawn only " +
+    "line (half of it each side, in the line's width units), as Cytoscape.js draws a line outline or an " +
+    "underlay and vis-network an edge background, in `edge.outlineStyle`'s pattern (solid, dash, dot or " +
+    "dash-dot), in both views; the starting Selected layer draws a selected edge's casing with it. Drawn only " +
     "with a width above 0, and under solid lines: a dotted " +
     "or dashed line drawn as separate pieces has none.";
 
@@ -2571,7 +2559,7 @@ type HaloKind = "underlay" | "overlay";
 /** The channels of a node's underlay or overlay: `node.underlayColor` and so on. */
 type NodeHaloChannel<K extends HaloKind> = `node.${K}${"Color" | "Opacity" | "Padding" | "Shape" | "CornerRadius"}`;
 
-/** The channels of an edge's underlay or overlay: `edge.underlayColor` and so on. */
+/** The channels of an edge's overlay: `edge.overlayColor` and so on (the band beneath the line is `edge.outline*`). */
 type EdgeHaloChannel<K extends HaloKind> = `edge.${K}${"Color" | "Opacity" | "Padding"}`;
 
 /**
@@ -4654,46 +4642,6 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "dense graph, and overlapping lines do not muddy. Every pixel the line covers is its color at " +
             "full strength, so `edge.opacity` and the fade channels have no effect on it.",
     },
-    "edge.bandColor": {
-        channel: "edge.bandColor",
-        target: "edge",
-        plainName: "Edge Band Color",
-        shortName: "Band",
-        group: "line",
-        // The selection look's blue: a band is drawn only once a layer names a colour.
-        default: "#0077BB",
-        accepts: "color",
-        stylePath: "band.color",
-        off: EFFECT_OFF,
-        renderable: true,
-        caveat: BAND_CAVEAT,
-    },
-    "edge.bandWidth": {
-        channel: "edge.bandWidth",
-        target: "edge",
-        plainName: "Edge Band Width",
-        shortName: "Band width",
-        group: "line",
-        // A multiple of twice the line's own width, as the selection look's edgeScale.
-        default: 2.5,
-        accepts: "number",
-        min: 0,
-        stylePath: "band.scale",
-        renderable: true,
-    },
-    "edge.bandOpacity": {
-        channel: "edge.bandOpacity",
-        target: "edge",
-        plainName: "Edge Band Opacity",
-        shortName: "Band opacity",
-        group: "line",
-        default: 1,
-        accepts: "number",
-        min: 0,
-        max: 1,
-        stylePath: "band.opacity",
-        renderable: true,
-    },
     "edge.outlineColor": {
         channel: "edge.outlineColor",
         target: "edge",
@@ -4746,7 +4694,6 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: EDGE_OUTLINE_CAVEAT,
     },
-    ...haloRows("edge", "underlay"),
     ...haloRows("edge", "overlay"),
     "edge.gradientColors": {
         channel: "edge.gradientColors",
@@ -5477,8 +5424,6 @@ function shippedDefault(descriptor: ChannelDescriptor): string | number | boolea
 /** Which drawn part each sub-setting channel adjusts: see {@link ChannelDescriptor.modifies}. */
 const DECLARED_MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
     ["node.glowStrength", "node.glow"],
-    ["edge.bandWidth", "edge.bandColor"],
-    ["edge.bandOpacity", "edge.bandColor"],
     ["edge.patternCount", "edge.style"],
     ["edge.fadeStart", "edge.fadeEnd"],
     ["edge.fadeOpacity", "edge.fadeEnd"],
@@ -5509,7 +5454,6 @@ const PART_PREFIXES: readonly (readonly [prefix: string, head: Channel])[] = [
     ["node.underlay", "node.underlayColor"],
     ["node.overlay", "node.overlayColor"],
     ["edge.outline", "edge.outlineColor"],
-    ["edge.underlay", "edge.underlayColor"],
     ["edge.overlay", "edge.overlayColor"],
     ["node.glyph", "node.glyph"],
     ["node.image", "node.image"],
@@ -5717,7 +5661,6 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
         ],
     ),
     ...(["Color", "Opacity", "Padding"] as const).flatMap((suffix): [Channel, readonly ChannelCondition[]][] => [
-        [`edge.underlay${suffix}`, [ONLY_2D]],
         [`edge.overlay${suffix}`, [ONLY_2D]],
     ]),
     ["node.underlayCornerRadius", [ONLY_2D, { channel: "node.underlayShape", values: ROUND_CORNER_SHAPES }]],
@@ -5824,23 +5767,12 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
     ["edge.outlineOpacity", [{ channel: "edge.outlineWidth", value: 2 }]],
     ["edge.outlineStyle", [{ channel: "edge.outlineWidth", value: 2 }]],
     [
-        "edge.underlayColor",
-        [
-            { channel: "edge.underlayOpacity", value: 1 },
-            // In the line's width units, twice this wide, and beneath the line: 6 stands clear of the default line,
-            // 8 wide (3 drew a band narrower than the line, hidden under it).
-            { channel: "edge.underlayPadding", value: 6 },
-        ],
-    ],
-    [
         "edge.overlayColor",
         [
             { channel: "edge.overlayOpacity", value: 0.5 },
             { channel: "edge.overlayPadding", value: 3 },
         ],
     ],
-    ["edge.bandWidth", [{ channel: "edge.bandColor", value: DEFAULT_SELECTION_STYLE.edgeColor }]],
-    ["edge.bandOpacity", [{ channel: "edge.bandColor", value: DEFAULT_SELECTION_STYLE.edgeColor }]],
     ["edge.dashLength", [{ channel: "edge.style", value: "dash" }]],
     ["edge.dashGap", [{ channel: "edge.style", value: "dash" }]],
     ["edge.waveAmplitude", [{ channel: "edge.style", value: "sinewave" }]],

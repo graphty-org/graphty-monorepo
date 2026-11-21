@@ -154,8 +154,6 @@
             "labelSize": 16,
             "labelFont": "Helvetica Neue, Helvetica, sans-serif",
             "labelWeight": "normal",
-            "underlayColor": "#000000",
-            "underlayPadding": 10,
             "overlayColor": "#000000",
             "overlayPadding": 10
         },

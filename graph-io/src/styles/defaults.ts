@@ -601,8 +601,6 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     sourceArrowColor: v("#999999", `${CYJS} 18639`),
                     targetArrowColor: v("#999999", `${CYJS} 18639`),
                     outlineColor: v("#000000", `${CYJS} 18644`),
-                    underlayColor: v("#000000", `${CYJS} 18524`),
-                    underlayPadding: v(10, `${CYJS} 18525`),
                     overlayColor: v("#000000", `${CYJS} 18519`),
                     overlayPadding: v(10, `${CYJS} 18520`),
                     gradientKind: v("none", `${CYJS} 18640 (line-fill solid)`),

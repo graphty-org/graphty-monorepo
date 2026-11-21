@@ -537,9 +537,11 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["line-gradient-stop-colors", { property: "gradientColors", type: "text" }],
     ["line-gradient-stop-positions", { property: "gradientStops", type: "text" }],
     ["line-outline-color", { property: "outlineColor", type: "color" }],
-    ["underlay-color", { property: "underlayColor", type: "color" }],
-    ["underlay-opacity", { property: "underlayOpacity", type: "zeroOne" }],
-    ["underlay-padding", { property: "underlayPadding", type: "size" }],
+    // the band beneath the line, combined afterward into the line's outline, which draws the same band
+    // (`combineUnderlay`)
+    ["underlay-color", { property: "_underlayColor", type: "color" }],
+    ["underlay-opacity", { property: "_underlayOpacity", type: "zeroOne" }],
+    ["underlay-padding", { property: "_underlayPadding", type: "size" }],
     ["overlay-color", { property: "overlayColor", type: "color" }],
     ["overlay-opacity", { property: "overlayOpacity", type: "zeroOne" }],
     ["overlay-padding", { property: "overlayPadding", type: "size" }],

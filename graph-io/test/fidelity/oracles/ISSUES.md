@@ -1114,8 +1114,9 @@ hidden` does not -- Cytoscape.js still draws the edge to the invisible node (`ta
   `cytoscapejs-specimen-edges-lines-p2`). Fixed in fix round 1 (below): the hidden node is kept at opacity 0.
 - An edge's `underlay-*` and `overlay-*` draw a band along the line (`edge-underlay-opacity-0-5`,
   `edge-overlay-opacity-0-5` in `cytoscapejs-specimen-edges-lines-p2`; the node forms are on
-  `cytoscapejs-specimen-node-sizes-opacity`). Read into the neutral `underlay*` / `overlay*` properties and drawn
-  by graphty-element's `underlay` / `overlay` (a node's padded filled shape, an edge's band), matching the SVG. OPEN,
+  `cytoscapejs-specimen-node-sizes-opacity`). Read into the neutral `underlay*` / `overlay*` properties (an edge's underlay
+  into its `outline*`, the same band beneath the line, since 2026-11-21) and drawn by graphty-element's `underlay` /
+  `overlay` (a node's padded filled shape) and an edge's outline and overlay band, matching the SVG. OPEN,
   comparator work: the oracle's node underlays and overlays are unassociated strays (`stray.present`), and an
   edge's overlay, a wider stroke drawn OVER its line, is read as a second edge (`edge-overlay-opacity-0-5`
   `#g1` fails `edge.present`); the underlay is judged as the edge's outline and passes.

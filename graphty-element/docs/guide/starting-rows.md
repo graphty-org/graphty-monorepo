@@ -25,11 +25,11 @@ console.log(session.styles.counts(hovered.id).matched); // 1
 
 ## The three rows
 
-| Row        | Paints                       | Pinned | Starts out writing                          |
-| ---------- | ---------------------------- | ------ | ------------------------------------------- |
-| Everything | every node and edge          | bottom | nothing                                     |
-| Selected   | the selected nodes and edges | top    | a ring on nodes and a band on edges (below) |
-| Hovered    | the node under the pointer   | top    | nothing                                     |
+| Row        | Paints                       | Pinned | Starts out writing                              |
+| ---------- | ---------------------------- | ------ | ----------------------------------------------- |
+| Everything | every node and edge          | bottom | nothing                                         |
+| Selected   | the selected nodes and edges | top    | a ring on nodes and an outline on edges (below) |
+| Hovered    | the node under the pointer   | top    | nothing                                         |
 
 The Selected ring is a solid ring outside the node's border (`node.outerBorderColor`,
 `node.outerBorderWidth`, `node.outerBorderOpacity`) and the band a solid band, both in the
@@ -60,7 +60,7 @@ calculated value, so you can rename, move, hide or delete them or narrow them wi
 (the `state` rule leaf in [Selections Built From Steps](./selection-steps.md)).
 
 With `startingRows` on, the selection look is drawn by the Selected row, so recoloring the ring is
-a write to that row (`"node.outerBorderColor"`, `"edge.bandColor"`), and the `selectionStyle` setting
+a write to that row (`"node.outerBorderColor"`, `"edge.outlineColor"`), and the `selectionStyle` setting
 draws nothing itself. With it off (the default), nothing changes: there are no starting rows and
 `selectionStyle` draws the selection as before.
 

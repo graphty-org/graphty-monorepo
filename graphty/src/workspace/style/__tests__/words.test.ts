@@ -76,7 +76,7 @@ describe("the Style tab's words and arrangement", () => {
             "edge.arrowHead",
             "edge.arrowTailOpacity",
             "edge.animationSpeed",
-            "edge.bandColor",
+            "edge.outlineColor",
         ]) {
             assert.isTrue(at(channel), channel);
         }

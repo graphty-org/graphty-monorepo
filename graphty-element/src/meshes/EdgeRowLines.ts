@@ -12,8 +12,8 @@ import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import type { LeanLines, PulledLineBatch } from "./PulledLineBatch";
 
-/** Style keys a row line may set: any other needs an `Edge` (a cap, a label or a band is drawn by one). */
-const ROW_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
+/** Style keys a row line may set: any other needs an `Edge` (a cap or a label is drawn by one). */
+const ROW_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "visible"]);
 
 /**
  * Line keys a row line draws exactly as an `Edge`'s pulled straight line does. A curve, a fan, a gap, bends, a
@@ -266,7 +266,7 @@ export class EdgeRowLines {
     }
 
     /**
-     * Whether a paint is one a row line draws: a shown, plain solid straight line with no cap, words or band,
+     * Whether a paint is one a row line draws: a shown, plain solid straight line with no cap or words,
      * while lines do not fade by age. A hidden paint is refused: an `Edge` hides its line.
      * @param style - The resolved style.
      * @returns True when no `Edge` is needed.
@@ -292,8 +292,7 @@ export class EdgeRowLines {
             !EdgeMesh.pullsCurve(style) &&
             drawnText(style.label) === undefined &&
             noCap(style.arrowHead) &&
-            noCap(style.arrowTail) &&
-            style.band?.color === undefined
+            noCap(style.arrowTail)
         );
     }
 

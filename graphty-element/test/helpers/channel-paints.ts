@@ -302,8 +302,6 @@ const PROBE_VALUES: Readonly<Partial<Record<string, unknown>>> = {
     "node.shapePoints": "-1,1 1,1 0,-1",
     "node.stripeFrame": "0.2 0.2 0.2 0.2",
     "edge.wavePeriod": 1.5,
-    // a band beneath the line twice this wide, wider than the default line (8)
-    "edge.underlayPadding": 8,
     // the list's last value, "automatic", draws at the default place by design
     "edge.xlabelLocation": "bottom-right",
     // the probe scene's caps are 3

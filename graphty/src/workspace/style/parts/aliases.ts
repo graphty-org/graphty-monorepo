@@ -37,5 +37,5 @@ export const SEARCH_ALIASES: Readonly<Partial<Record<Channel, readonly string[]>
     "node.outerBorderColor": ["ring", "rings", "halo", "highlight", "selection"],
     // Every band along an edge's line is its Outline (ia-design 2, E677): the casing beneath it, the wash over it.
     "edge.outlineColor": ["band", "casing", "underlay"],
-    "edge.overlayColor": ["overlay", "wash"],
+    "edge.overlayColor": ["overlay"],
 };

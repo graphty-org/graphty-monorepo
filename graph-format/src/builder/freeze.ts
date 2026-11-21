@@ -20,7 +20,7 @@ import { GraphFormatError } from "../errors.js";
 import { identityNodeIdMap, nodeIdMapFromIds } from "../ids/node-id-map.js";
 import { createSnapshot, type GraphSnapshot, seedView } from "../snapshot/graph-snapshot.js";
 import { isIdentity } from "../snapshot/validate.js";
-import { edgeListViewOf } from "../snapshot/views.js";
+import { edgeListViewOf, edgeWeightsOf } from "../snapshot/views.js";
 import {
     type Column,
     type ColumnDeclPatch,
@@ -1024,14 +1024,7 @@ function seedEdgeList(
     }
     const src = staging.src.view().slice(0, edgeCount);
     const dst = staging.dst.view().slice(0, edgeCount);
-    let edgeWeights: F32 | null = null;
-    if (weights !== null) {
-        edgeWeights = new Float32Array(edgeCount);
-        for (let e = 0; e < edgeCount; e++) {
-            edgeWeights[e] = weights[edgeToArc[e]];
-        }
-    }
-    seedView(snapshot, "edgeList", edgeListViewOf(snapshot, src, dst, edgeWeights));
+    seedView(snapshot, "edgeList", edgeListViewOf(snapshot, src, dst, edgeWeightsOf(weights, edgeToArc, edgeCount)));
 }
 
 /**

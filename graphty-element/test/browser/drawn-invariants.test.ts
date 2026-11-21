@@ -25,6 +25,7 @@ import {
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
+import { MIN_RADIUS_PX } from "../../src/render/NodeIdTarget";
 import { strayInk, undrawnEdges, undrawnNodes } from "../helpers/drawn-invariants";
 import { click, hover, nodePoint } from "../helpers/real-input";
 
@@ -287,5 +288,114 @@ describe.each(
             await assertAllDrawn(element, `at the ${transition} pose held at ${String(hold)}`);
             element.remove();
         }
+    });
+});
+
+/** How many nodes the tiny-node line holds: enough that the framed line puts them under two pixels apart. */
+const LINE = 240;
+
+/**
+ * An element already drawn, empty, then given a line of nodes too small and too close to draw as
+ * they are in the node ID target hover reads: each is drawn there at the target's least radius, so
+ * its neighbors' enlarged discs cover its center.
+ * @param path - The render path.
+ * @param view - 2D or 3D.
+ * @returns The element and the ids.
+ */
+async function tinyLine(path: Path, view: View): Promise<{ element: Graphty; ids: string[] }> {
+    const element = document.createElement("graphty-element");
+    element.renderPath = path;
+    element.style.display = "block";
+    element.style.width = "400px";
+    element.style.height = "400px";
+    document.body.appendChild(element);
+    cleanups.push(() => {
+        element.remove();
+    });
+    await element.updateComplete;
+    await element.setViewMode(view);
+    await element.session.styles.add({
+        name: "Tiny",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.size": 0.8 },
+    });
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
+    const ids = Array.from({ length: LINE }, (_, i) => `n${String(i)}`);
+    // Every other node farther from the camera, so in 3D its nearer neighbors' grown discs cover it.
+    await element.session.data.addNodes(ids.map((id, i) => ({ id, position: { x: i, y: 0, z: i % 2 === 0 ? 0 : 3 } })));
+    await element.graph.setLayout("fixed", { dim: 3 });
+    await settle(element);
+    return { element, ids };
+}
+
+// #9377: hover read a node's neighbor, drawn larger than it is in the node ID target, wherever that
+// neighbor's disc covered the node, so on a dense graph some nodes could never be hovered.
+describe.each(
+    (["objects", "batched"] as const).flatMap((path) => (["2d", "3d"] as const).map((view) => ({ path, view }))),
+)("hover over nodes drawn under two pixels on the $path path in $view", ({ path, view }) => {
+    it("reads the node the pointer is on, as a click there would", async () => {
+        const { element, ids } = await tinyLine(path, view);
+        const middle = ids.slice(LINE / 2 - 10, LINE / 2 + 10);
+        // The fixture's premise: drawn under the target's least radius, closer than twice it.
+        const near = element.nodeScreenPosition(middle[0]);
+        const next = element.nodeScreenPosition(middle[1]);
+        assert.isBelow(near?.radius ?? Infinity, MIN_RADIUS_PX, "a node is drawn smaller than the target draws it");
+        assert.isBelow(Math.abs((next?.x ?? Infinity) - (near?.x ?? 0)), 2 * MIN_RADIUS_PX, "neighbors are that close");
+        const heard: string[] = [];
+        element.addEventListener("graphty-node-hover", (event) => {
+            heard.push(String(event.detail.nodeId));
+        });
+        const missed: string[] = [];
+        let checked = 0;
+        for (const id of middle) {
+            const point = nodePoint(element, id);
+            await hover(element, point);
+            await settle(element);
+            const clicked = element.elementAt(point);
+            // Where two nodes' own shapes overlap, a click and a hover may each name either.
+            if (clicked?.id !== id) {
+                continue;
+            }
+
+            checked++;
+            if (element.session.selection.hovered !== id || heard.at(-1) !== id) {
+                missed.push(`${id} read ${String(element.session.selection.hovered)}`);
+            }
+        }
+
+        assert.isAtLeast(checked, middle.length / 2, "most points land on their own node");
+        assert.deepEqual(missed, [], "nodes a click finds under the pointer that hover did not read");
+    });
+
+    // A node too small to cover a pixel center at its own size must still win in front of a big one.
+    it.runIf(view === "3d")("reads a node smaller than a pixel in front of a large one", async () => {
+        const { element, ids } = await tinyLine(path, view);
+        const hub = ids[LINE / 2];
+        await element.session.styles.add({
+            name: "Hub",
+            target: "node",
+            selector: { match: "ids", nodes: [hub] },
+            set: { "node.size": 8 },
+        });
+        await element.session.data.addNodes([{ id: "leaf", position: { x: LINE / 2, y: 0, z: -8 } }]);
+        await element.session.styles.add({
+            name: "Leaf",
+            target: "node",
+            selector: { match: "ids", nodes: ["leaf"] },
+            set: { "node.size": 0.3 },
+        });
+        await settle(element);
+        assert.isBelow(
+            element.nodeScreenPosition("leaf")?.radius ?? Infinity,
+            0.71,
+            "the leaf may cover no pixel center",
+        );
+        const point = nodePoint(element, "leaf");
+        assert.strictEqual(element.elementAt(point)?.id, "leaf", "a click there selects the leaf");
+        await hover(element, point);
+        await settle(element);
+        assert.strictEqual(element.session.selection.hovered, "leaf");
     });
 });

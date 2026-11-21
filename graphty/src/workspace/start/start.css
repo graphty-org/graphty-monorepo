@@ -1208,7 +1208,9 @@ html.ws-land-page #root {
     z-index: 10;
     display: grid;
     place-items: center;
-    background: color-mix(in srgb, var(--cm-bg) 80%, transparent);
+    /* An outline around the drop area (the window), never a wash over the page (#9282). */
+    outline: 3px dashed var(--ws-land-accent);
+    outline-offset: -8px;
     pointer-events: none;
 }
 

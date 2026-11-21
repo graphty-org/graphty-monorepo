@@ -527,6 +527,27 @@ describe("the location map", () => {
         assert.isBelow(note.top - location.bottom, location.height, "right under it");
     });
 
+    it("hides the nodes with no place when Unplaced is Hide, and still says how many there are", async () => {
+        const element = await openAirports();
+        await layOutOnMap(element, "2D");
+        assert.isTrue(element.nodeScreenPosition("nowhere")?.visible, "in the tray, drawn");
+
+        const popover = await openMapForm();
+        await pickByKeys(popover, "Unplaced", "Hide");
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(() => {
+            assert.strictEqual(element.session.layout.options.unplaced, "hide");
+        });
+        await element.waitForSettled();
+        await element.waitForStableFrame();
+        await waitFor(() => {
+            assert.isFalse(element.nodeScreenPosition("nowhere")?.visible, "not drawn on the map");
+        });
+        assert.isTrue(element.nodeScreenPosition("LHR")?.visible, "a node with a place is still drawn");
+        assert.deepStrictEqual(element.mapFrame?.unplaced, ["nowhere"]);
+        await screen.findAllByText("1 of 4 nodes unplaced", undefined);
+    });
+
     it("puts Select on the unplaced notice, and posts it once across a 2D/3D switch", async () => {
         const { element, store } = await openWorkspace(false, NODES);
         let posted = 0;

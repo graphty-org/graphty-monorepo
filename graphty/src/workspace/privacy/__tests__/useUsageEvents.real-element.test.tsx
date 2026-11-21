@@ -187,8 +187,8 @@ function catchDownloads(): string[] {
     return names;
 }
 
-// The usage-analytics experiment on, in both test configurations: these counts are its own.
-withFeatures(["usage-analytics"]);
+// No experiments, in both test configurations.
+withFeatures([]);
 
 describe("usage counts from the real element", () => {
     beforeEach(async () => {

@@ -414,7 +414,7 @@ function SampleLibrary(): React.JSX.Element {
 
 /**
  * The foot of the page: the formats it opens, the license, the code, the docs and, when the page
- * sends PostHog anything (the usage-analytics experiment on a site with PostHog ids), the privacy page.
+ * sends PostHog anything (a site with PostHog ids, on its own host), the privacy page.
  * @returns The footer
  */
 function PageFoot(): React.JSX.Element {

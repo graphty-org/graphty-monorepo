@@ -6,14 +6,10 @@
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-// The usage data card's words without the usage-analytics experiment, in the On configuration too.
-withoutFeatures(["usage-analytics"]);
 
 const OPEN: Partial<WorkspaceState> = { project: { name: "Les Miserables", id: 1 } };
 

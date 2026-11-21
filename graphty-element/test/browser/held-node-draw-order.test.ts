@@ -47,6 +47,35 @@ const SHAPES: Partial<Record<Looks, [string, string]>> = {
 };
 
 /**
+ * Mount an empty element.
+ * @param path - Its render path.
+ * @returns The element.
+ */
+async function mountElement(path: "objects" | "batched"): Promise<Graphty> {
+    const element = document.createElement("graphty-element");
+    element.style.display = "block";
+    element.style.width = "400px";
+    element.style.height = "300px";
+    element.renderPath = path;
+    document.body.appendChild(element);
+    cleanups.push(() => {
+        element.remove();
+    });
+    await element.updateComplete;
+    return element;
+}
+
+/**
+ * How many pixels the batched picture differs from the objects one by, each drawn on its own mount.
+ * @param draw - Mounts on a path, does the steps, and returns the picture.
+ * @returns The pixels over the bar.
+ */
+async function pathsDiffer(draw: (path: "objects" | "batched") => Promise<CanvasFrame>): Promise<number> {
+    const objects = await draw("objects");
+    return pixelsOverBar(objects, await draw("batched"));
+}
+
+/**
  * Mount an element and load the circles, in 2D (or 3D for the solids).
  * @param looks - Which looks: rings no batch draws, or plain shapes a batch draws.
  * @param options - How.
@@ -59,16 +88,7 @@ async function ringedLooks(
     { path = "objects", settle = true }: { path?: "objects" | "batched"; settle?: boolean } = {},
 ): Promise<Graphty> {
     const ringed = looks === true || looks === "ringed";
-    const element = document.createElement("graphty-element");
-    element.style.display = "block";
-    element.style.width = "400px";
-    element.style.height = "300px";
-    element.renderPath = path;
-    document.body.appendChild(element);
-    cleanups.push(() => {
-        element.remove();
-    });
-    await element.updateComplete;
+    const element = await mountElement(path);
     await element.session.data.addNodes(NODES);
     await element.graph.setLayout("fixed", { dim: 3 });
     await element.setViewMode(looks === "translucent solids" ? "3d" : "2d");
@@ -272,24 +292,21 @@ describe("a node whose mesh was read under batched", () => {
 
     for (const ids of [[0], [1], [2, 5]]) {
         it(`keeps its place among translucent looks of two shapes when ${ids.join(" and ")} is read`, async () => {
-            const pictures: CanvasFrame[] = [];
-            for (const path of ["objects", "batched"] as const) {
+            const differ = await pathsDiffer(async (path) => {
                 const { graph } = await ringedLooks("translucent shapes", { path });
                 for (const id of ids) {
                     assert.isFalse(graph.getNode(id)?.mesh.isDisposed());
                 }
 
                 await readCanvas(graph);
-                pictures.push(await readCanvas(graph));
+                const picture = await readCanvas(graph);
                 if (path === "batched") {
                     assert.equal(graph.rowCounts.objectNodes, ids.length, "only the read rows leave the batches");
                 }
-            }
 
-            const [objects, batched] = pictures;
-            assert.isDefined(objects);
-            assert.isDefined(batched);
-            assert.equal(pixelsOverBar(objects, batched), 0);
+                return picture;
+            });
+            assert.equal(differ, 0);
         });
     }
 
@@ -323,8 +340,7 @@ describe("a node whose mesh was read under batched", () => {
         [[1], ["objects", "batched"]],
     ] as const) {
         it(`keeps its place among translucent looks when ${ids.join(" and ")} is read, then the graph goes to ${there.join(" then ")}`, async () => {
-            const pictures: CanvasFrame[] = [];
-            for (const path of ["objects", "batched"] as const) {
+            const differ = await pathsDiffer(async (path) => {
                 const { graph } = await ringedLooks("translucent shapes", { path });
                 for (const id of ids) {
                     assert.isFalse(graph.getNode(id)?.mesh.isDisposed());
@@ -344,19 +360,16 @@ describe("a node whose mesh was read under batched", () => {
                     assert.equal(graph.getNode(id)?.drawnSourceMesh, other, "it shares its look's source again");
                 }
 
-                pictures.push(await readCanvas(graph));
-            }
+                const picture = await readCanvas(graph);
 
-            const [objects, batched] = pictures;
-            assert.isDefined(objects);
-            assert.isDefined(batched);
-            assert.equal(pixelsOverBar(objects, batched), 0);
+                return picture;
+            });
+            assert.equal(differ, 0);
         });
     }
 
     it("keeps its look drawn in its place when the rest of its look leaves it and comes back", async () => {
-        const pictures: CanvasFrame[] = [];
-        for (const path of ["objects", "batched"] as const) {
+        const differ = await pathsDiffer(async (path) => {
             const { graph, session } = await ringedLooks("one shape", { path });
             assert.isFalse(graph.getNode(0)?.mesh.isDisposed());
             // Every row but the read one takes another look, then the odd ones come back to the first.
@@ -369,13 +382,11 @@ describe("a node whose mesh was read under batched", () => {
                 await readCanvas(graph);
             }
 
-            pictures.push(await readCanvas(graph));
-        }
+            const picture = await readCanvas(graph);
 
-        const [objects, batched] = pictures;
-        assert.isDefined(objects);
-        assert.isDefined(batched);
-        assert.equal(pixelsOverBar(objects, batched), 0);
+            return picture;
+        });
+        assert.equal(differ, 0);
     });
 
     it("keeps its place among the rows of its look a batch draws, with a look of another shape over it", async () => {
@@ -388,8 +399,7 @@ describe("a node whose mesh was read under batched", () => {
     });
 
     it("draws a node read before its new look's frame where the objects path draws that look", async () => {
-        const pictures: CanvasFrame[] = [];
-        for (const path of ["objects", "batched"] as const) {
+        const differ = await pathsDiffer(async (path) => {
             // Read between the layers' change and the frame that paints it, while the row has no `Node` yet.
             const element = await ringedLooks("ringed", { path, settle: false });
             assert.isFalse(element.graph.getNode(0)?.mesh.isDisposed());
@@ -401,13 +411,11 @@ describe("a node whose mesh was read under batched", () => {
             } as never);
             await operationQueueOf(element.graph).waitForCompletion();
             await element.waitForStableFrame();
-            pictures.push(await readCanvas(element.graph));
-        }
+            const picture = await readCanvas(element.graph);
 
-        const [objects, batched] = pictures;
-        assert.isDefined(objects);
-        assert.isDefined(batched);
-        assert.equal(pixelsOverBar(objects, batched), 0);
+            return picture;
+        });
+        assert.equal(differ, 0);
     });
 
     for (const [ids, restyled] of [
@@ -417,8 +425,7 @@ describe("a node whose mesh was read under batched", () => {
     ] as const) {
         it(`keeps its place among translucent looks when ${ids.join(" and ")} is read, then ${restyled} takes another shape`, async () => {
             // The read node's new look has no batch of its own: its source blends where that batch would.
-            const pictures: CanvasFrame[] = [];
-            for (const path of ["objects", "batched"] as const) {
+            const differ = await pathsDiffer(async (path) => {
                 const { graph, session } = await ringedLooks("translucent", { path });
                 for (const id of ids) {
                     assert.isFalse(graph.getNode(id)?.mesh.isDisposed());
@@ -433,30 +440,16 @@ describe("a node whose mesh was read under batched", () => {
                 } as never);
                 await operationQueueOf(graph).waitForCompletion();
                 await readCanvas(graph);
-                pictures.push(await readCanvas(graph));
-            }
-
-            const [objects, batched] = pictures;
-            assert.isDefined(objects);
-            assert.isDefined(batched);
-            assert.equal(pixelsOverBar(objects, batched), 0);
+                return readCanvas(graph);
+            });
+            assert.equal(differ, 0);
         });
     }
 
     for (const opacity of [1, 0.6]) {
         it(`builds only the read rows of a long look, within limits.objectRows, at opacity ${opacity}`, async () => {
-            const pictures: CanvasFrame[] = [];
-            for (const path of ["objects", "batched"] as const) {
-                const element = document.createElement("graphty-element");
-                element.style.display = "block";
-                element.style.width = "400px";
-                element.style.height = "300px";
-                element.renderPath = path;
-                document.body.appendChild(element);
-                cleanups.push(() => {
-                    element.remove();
-                });
-                await element.updateComplete;
+            const differ = await pathsDiffer(async (path) => {
+                const element = await mountElement(path);
                 const warnings: unknown[] = [];
                 element.addEventListener("limits-warning", (event) => warnings.push(event));
                 element.limits = { objectRows: 10 };
@@ -485,19 +478,17 @@ describe("a node whose mesh was read under batched", () => {
                 }
 
                 await readCanvas(element.graph);
-                pictures.push(await readCanvas(element.graph));
+                const picture = await readCanvas(element.graph);
                 if (path === "batched") {
                     // The rows between the read ones stay on the look's batches: no `Node` each, none past the budget.
                     assert.equal(element.graph.rowCounts.objectNodes, 3, "only the read rows are built");
                     assert.equal(element.graph.rowCounts.batchedNodes, 47);
                     assert.lengthOf(warnings, 0, "no row goes past limits.objectRows");
                 }
-            }
 
-            const [objects, batched] = pictures;
-            assert.isDefined(objects);
-            assert.isDefined(batched);
-            assert.equal(pixelsOverBar(objects, batched), 0);
+                return picture;
+            });
+            assert.equal(differ, 0);
         });
     }
 });

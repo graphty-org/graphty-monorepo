@@ -170,9 +170,10 @@ describe("several labels per node", () => {
         await userEvent.click(
             within(sectionOf(hubTab, "node-text")).getByRole("button", { name: /^Add to node text/ }),
         );
-        // Named by what it draws, as its row reads it.
-        const offered = await screen.findByRole("menuitem", { name: /^Label 2/ });
-        assert.include(offered.textContent, "Node id", "the item says what the label draws");
+        // Named by number; what it draws, as its row reads it, is the item's tooltip, never words in the bar.
+        const offered = await screen.findByRole("menuitem", { name: "Label 2" });
+        assert.equal(offered.textContent, "Label 2", "no words at the item's end");
+        assert.include(offered.getAttribute("title"), "Node id", "its tooltip says what the label draws");
         await userEvent.click(offered);
         const hubRow = await entryRow(hubTab, expected);
         // It reads the words Key people gives it, so no source list opens.

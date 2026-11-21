@@ -516,12 +516,11 @@ function ThingSection({
                 ...label,
                 key: `${ENTRY_WAIT}${id}`,
                 label: `${label.label} ${String(entryNumber(ctx, shownIds, id))}`,
-                // Named by what it draws, the words its row shows ("name, below"), so the reader knows which it is.
-                detail: labelWords(ctx, id),
                 // Restyling a label already drawn adds none, so the cap never holds it back.
                 disabled: ctx.many === undefined ? undefined : true,
                 dimmed: undefined,
-                hint: undefined,
+                // What it draws, the words its row shows ("name, below"), as its tooltip: no words in the bar (E106).
+                hint: labelWords(ctx, id),
             }));
     const plus = groups.map((group) =>
         group.flatMap((option) =>

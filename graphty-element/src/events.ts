@@ -584,6 +584,7 @@ export interface LayoutChangedEvent {
 
 /** Emitted when the running layout has moved the nodes after nodes were added to the graph. */
 export interface LayoutUpdatedEvent {
+    /** The event's name. */
     type: "layout-updated";
     /** How many nodes were added. */
     nodeCount: number;

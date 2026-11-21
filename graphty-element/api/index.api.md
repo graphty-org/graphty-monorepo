@@ -5748,7 +5748,6 @@ export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
 // @public
 export interface LayoutUpdatedEvent {
     nodeCount: number;
-    // (undocumented)
     type: "layout-updated";
 }
 

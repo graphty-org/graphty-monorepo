@@ -1,3 +1,4 @@
+import { mulberry32 } from "@graphty/algorithms";
 import {
     type GraphSnapshot,
     INVALID_INDEX,
@@ -489,6 +490,8 @@ interface BuildOptions {
      * and every build a consumer asks for (issue #9292).
      */
     readonly fromSeed?: boolean;
+    /** The same layout, switched from 2D to 3D: a simulation starts from the 2D drawing. See `liftIntoDepth`. */
+    readonly lift?: boolean;
     /**
      * A switch of the same layout from 3D to 2D: a force engine starts from the arrangement it
      * replaces, flattened onto the plane, with no pre-steps, so the first frame draws every node where
@@ -496,6 +499,12 @@ interface BuildOptions {
      */
     readonly flatten?: boolean;
 }
+
+/** How far off the plane a lifted node starts, as a fraction of the 2D drawing's width: see `liftIntoDepth`. */
+const LIFT_JITTER = 0.05;
+
+/** The fixed seed of the lift's jitter, so a seeded layout lifts into the same 3D drawing every time. */
+const LIFT_SEED = 9372;
 
 /**
  * Whether two values of the `layout` slice draw the same arrangement: the same layout, options and
@@ -1545,6 +1554,7 @@ export class LayoutManager implements Manager {
 
             this.addLateArrivals(engine, nodeArray, edgeArray, edgeRows);
 
+            this.liftIntoDepth(engine, how);
             // A 2D/3D switch starts a force engine from where its nodes are drawn, not from the
             // seed's jumble around the origin, which the camera then framed as giant nodes (#9279).
             this.flattenOnSwitch(engine, how);
@@ -1600,6 +1610,58 @@ export class LayoutManager implements Manager {
 
             throw this.reportLayoutFailure(type, error, "initialised");
         }
+    }
+
+    /**
+     * Put every placed, unpinned node on the plane a small seeded step off it, keeping its X and Y,
+     * so a 3D simulation starts from the 2D drawing and lifts its clusters into depth.
+     *
+     * WHY. A force engine built for 3D placed fresh bodies near the origin: switching a settled 2D
+     * drawing to 3D showed a ball for seconds, which spread into another drawing, and the reader lost
+     * their mental map (issue #9372). Started exactly on the plane, the forces have no Z component
+     * and the drawing would stay flat, so each node gets a Z of up to `LIFT_JITTER` of the drawing's
+     * width. A Z the array already holds is kept.
+     * @param engine - The engine just built and initialized.
+     * @param how - The build; only one with `lift` set is lifted.
+     */
+    private liftIntoDepth(engine: LayoutEngine, how: BuildOptions): void {
+        // A static engine computes its own 3D drawing; only a simulation starts from where nodes are.
+        if (how.lift !== true || engine instanceof StaticLayoutEngine) {
+            return;
+        }
+
+        const positions = this.dataManager[WRITABLE_LANE];
+        const rows = positions.count;
+        const at = { x: 0, y: 0, z: 0 };
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        for (let row = 0; row < rows; row++) {
+            if (positions.isPlaced(row)) {
+                positions.read(row, at);
+                minX = Math.min(minX, at.x);
+                maxX = Math.max(maxX, at.x);
+                minY = Math.min(minY, at.y);
+                maxY = Math.max(maxY, at.y);
+            }
+        }
+
+        const width = Math.max(maxX - minX, maxY - minY);
+        const amplitude = LIFT_JITTER * (width > 0 ? width : 1);
+        const random = mulberry32(LIFT_SEED);
+        for (let row = 0; row < rows; row++) {
+            if (!positions.isPlaced(row) || positions.isPinned(row)) {
+                continue;
+            }
+
+            positions.read(row, at);
+            if (at.z === 0) {
+                positions.write(row, at.x, at.y, (random() * 2 - 1) * amplitude);
+            }
+        }
+
+        engine.loadArrangement();
     }
 
     /**
@@ -2431,6 +2493,13 @@ export class LayoutManager implements Manager {
                 restoring,
                 live,
                 explicitScope: options.explicitScope === true,
+                // The same layout going from 2D to 3D lifts the drawing rather than starting over (#9372).
+                lift:
+                    !restoring &&
+                    built !== null &&
+                    sameArrangement(built, choice) &&
+                    this.engineDimension === 2 &&
+                    dimension === 3,
                 // Only the dimension changed, to 2D: `sameLayout` fell through because the engine
                 // redraws. Not to 3D, where a force engine started flat has no force out of the plane.
                 flatten: sameLayout && !restoring && dimension === 2,

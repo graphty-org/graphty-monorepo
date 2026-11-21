@@ -5,7 +5,7 @@
  * PostHog's shared mode; Share itself is one anonymous count, `usage_data_shared`. The answer is
  * the reader's own preference, kept in this browser. Where the page sends PostHog nothing
  * (analyticsSends: a site with no PostHog ids, or off the site's own host), Share and No start and
- * stop error reporting alone (nothing at all off the site's own host), in this tab alone,
+ * stop error reporting alone (nothing at all for a site file with PostHog ids off its own host), in this tab alone,
  * with the address bar left as it is, and No still deletes what an earlier visit that sent PostHog
  * stored for analytics. A Share given where the page sent PostHog nothing
  * never starts PostHog once it sends: the card asks again (SHARE_WITH_ANALYTICS), and the error
@@ -24,7 +24,7 @@ import {
     stripQueryForRecorders,
 } from "../../lib/analytics";
 import { initSentry, stopSentry } from "../../lib/sentry";
-import { onSiteConfig } from "../../siteConfig";
+import { onSiteConfig, siteConfig } from "../../siteConfig";
 
 /** The reader's answer to the usage data card. */
 export type UsageAnswer = "share" | "declined";
@@ -65,11 +65,11 @@ const live = {
      * @param fresh - false when another tab's Share started this one (see startPostHog).
      */
     start: (fresh = true): void => {
-        // Where the page sends PostHog nothing (a site with no PostHog ids): Share starts error
-        // reporting alone. Off the site's own host (a local build serving a real site's site.json)
-        // nothing starts.
+        // Where the page sends PostHog nothing: Share starts error reporting alone, except for a site
+        // file with PostHog ids served off its site's own host (a local build serving a real site's
+        // site.json), where nothing starts.
         if (!analyticsSends()) {
-            if (onOwnHost()) {
+            if (siteConfig().analytics === undefined || onOwnHost()) {
                 initSentry();
             }
             return;

@@ -272,6 +272,20 @@ describe("on a site with no PostHog ids", () => {
         assert.strictEqual(globalThis.location.search, SECRET_QUERY, "the address bar is left as it was");
     });
 
+    it("starts error reporting alone on a first visit's Share", async () => {
+        await boot(false);
+        const card = screen.getByRole("complementary", { name: "Usage data" });
+        await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+        assert.strictEqual(sentryStarts, 1, "Share starts error reporting, as before");
+        await useTheApp();
+
+        assert.strictEqual(imports, 0, "PostHog's code was never asked for");
+        assert.isEmpty(network.urls, "no request reached PostHog");
+        assert.isEmpty(analyticsKeys(), "nothing was stored for analytics");
+        assert.isNull(screen.queryByRole("complementary", { name: "Survey" }));
+        assert.isNull(document.querySelector(".ws-usage-corner"), "no survey corner: the card is laid out as before");
+    });
+
     it("deletes what an earlier visit that sent PostHog stored, when the reader turns sharing off", async () => {
         // A reader who shared on a visit that sent PostHog, back on a site with no PostHog ids.
         localStorage.setItem("graphty.usageData.v1", "share-analytics");
@@ -450,14 +464,13 @@ describe("the usage card while site.json loads", () => {
         assert.strictEqual(document.activeElement, close, "focus stayed on its Close");
     });
 
-    it("starts nothing for a Share, and asks again with focus on the question, when site.json switches PostHog on after it", async () => {
+    it("stops what a Share started, and asks again with focus on the question, when site.json switches PostHog on after it", async () => {
         // The page paints before site.json settles: the card's words never name PostHog.
         render(<Workspace store={createWorkspaceStore()} />);
         const card = screen.getByRole("complementary", { name: "Usage data" });
         await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
-        // Before site.json the page is on no site's own host, so the Share starts nothing; focus moved
-        // to the answer line's Close.
-        assert.isFalse(isSentryEnabled(), "a Share before site.json starts no error reporting");
+        // Not vacuous: the Share started error reporting, and focus moved to the answer line's Close.
+        assert.isTrue(isSentryEnabled(), "Share started error reporting");
         await vi.waitFor(() => {
             assert.strictEqual(document.activeElement?.getAttribute("aria-label"), "Close");
         });
@@ -467,7 +480,7 @@ describe("the usage card while site.json loads", () => {
             await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
         });
 
-        assert.isFalse(isSentryEnabled(), "nor does site.json arriving start any");
+        assert.isFalse(isSentryEnabled(), "error reporting stopped with the Share it came from");
         const asked = screen.getByRole("complementary", { name: "Usage data" });
         await vi.waitFor(() => {
             assert.strictEqual(

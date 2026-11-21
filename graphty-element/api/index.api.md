@@ -2060,6 +2060,7 @@ export const EdgeStyle: z.ZodObject<{
         dashArray: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         colorFrom: z.ZodOptional<z.ZodEnum<{
+            none: "none";
             source: "source";
             target: "target";
         }>>;

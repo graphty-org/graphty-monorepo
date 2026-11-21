@@ -352,6 +352,25 @@ const ALONG_CAP = 4;
 const LAID_END_MATCH = 1e-4;
 
 /**
+ * Scratch vectors for the per-edge, per-frame placement of a straight line and its arrow head (issue #9420): read
+ * and written within one call, never kept. A moving graph places every edge every frame, and a fresh vector for each
+ * step of each edge was a million short-lived objects a frame at a hundred thousand edges.
+ */
+const scratchDirection = new Vector3();
+const scratchHeadDirection = new Vector3();
+const scratchHeadTip = new Vector3();
+const scratchArrowAt = new Vector3();
+const scratchBorder = new Vector3();
+const scratchLineEnd = new Vector3();
+
+/** The arrow head's shape and size for one placement, worked out once and read twice (`Edge.headShape`). */
+interface HeadShape {
+    geometry: ReturnType<typeof EdgeMesh.getArrowGeometry>;
+    arrowLength: number;
+    scale: number;
+}
+
+/**
  * The shader uses resolved on an edge: its style's `shaders`, which the painter writes from
  * `edge.shaders`.
  * @param style - The resolved style.
@@ -1270,6 +1289,16 @@ export class Edge {
     private _lastSrcPos: Vector3 | null = null;
     private _lastDstPos: Vector3 | null = null;
 
+    /** Where `followLayout` lays the line's two ends this frame, kept so a frame allocates none (issue #9420). */
+    private readonly laidSrc = new Vector3();
+    private readonly laidDst = new Vector3();
+
+    /**
+     * The arrow head's shape while `placeArrowCaps` runs, so trimming the line (`capBack`) and placing the head
+     * (`placeArrowHead`) work it out once between them; undefined outside it.
+     */
+    private placingHead: HeadShape | null | undefined = undefined;
+
     /**
      * Whether the placement under way follows a moved end. A batched end only a ray reaches then takes its node's
      * bounding radius, and `UpdateManager` places the edge again, measured, once the move rests (design section 4.3).
@@ -1802,8 +1831,8 @@ export class Edge {
         this.setTextsDrawn(true);
 
         // Cache positions for next frame
-        this._lastSrcPos = srcPos.clone();
-        this._lastDstPos = dstPos.clone();
+        this._lastSrcPos = this._lastSrcPos?.copyFrom(srcPos) ?? srcPos.clone();
+        this._lastDstPos = this._lastDstPos?.copyFrom(dstPos) ?? dstPos.clone();
         this.endsMoving = false;
     }
 
@@ -1828,7 +1857,8 @@ export class Edge {
             gliding &&
             this.columnEnd(end) === undefined &&
             this.context.getLayoutManager().groupBox((end === "source" ? this.srcNode : this.dstNode).id) !== undefined;
-        return gliding && !group ? drawn.clone() : new Vector3(laid.x, laid.y, laid.z ?? 0);
+        const out = end === "source" ? this.laidSrc : this.laidDst;
+        return gliding && !group ? out.copyFrom(drawn) : out.set(laid.x, laid.y, laid.z ?? 0);
     }
 
     /**
@@ -4087,6 +4117,10 @@ export class Edge {
      * @param drawn - Whether the edge is drawn.
      */
     private setTextsDrawn(drawn: boolean): void {
+        if (!this.label && !this.xlabelLabel && !this.arrowHeadText && !this.arrowTailText) {
+            return;
+        }
+
         for (const [labelMesh, part] of this.textMeshes()) {
             labelMesh.setEnabled(drawn && !this.leftOutLabels.includes(part));
         }
@@ -4156,30 +4190,9 @@ export class Edge {
         // it. The whole buffer reaches the GPU once a frame, from the batch itself.
         if (this.lineBatch && this.lineIsCurve) {
             const curve = this.placeCurve(this.lineBatch, this.lineSlots, srcPoint, dstPoint);
-            this.placeEffects(curve);
-            this.placeOutline(curve);
-            this.placeGradient(curve);
-            this.placeStrands(curve);
+            this.placeBands(curve);
         } else if (this.lineBatch) {
-            // One straight piece: a run left from a lift, a fan or a loop is handed back to one slot.
-            // A line tapered at both ends is two, so its middle can be its widest.
-            const straight = [srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z];
-            if (tapersBothEnds(this.drawnStyle)) {
-                const middle = Vector3.Center(srcPoint, dstPoint);
-                const halves = [...straight.slice(0, 3), middle.x, middle.y, middle.z, ...straight.slice(3)];
-                this.placeRun(this.lineBatch, this.lineSlots, halves, (slot) => {
-                    this.prepareLineSlot(slot);
-                });
-            } else if (this.lineSlots.length > 1) {
-                this.placeRun(this.lineBatch, this.lineSlots, straight);
-            } else {
-                this.lineBatch.place(this.lineSlots[0], srcPoint, dstPoint);
-            }
-
-            this.placeEffects(straight);
-            this.placeOutline(straight);
-            this.placeGradient(straight);
-            this.placeStrands(straight);
+            this.placeStraight(this.lineBatch, srcPoint, dstPoint);
         } else if (this.mesh instanceof PatternedLineMesh) {
             // Pattern lines: Update element positions in world space
             this.mesh.update(srcPoint, dstPoint);
@@ -4962,10 +4975,7 @@ export class Edge {
             this.placeRun(this.haloBatch, this.haloSlots, flat);
         }
 
-        this.placeOutline(flat);
-        this.placeGradient(flat);
-        this.placeStrands(flat);
-        this.placeEffects(flat);
+        this.placeBands(flat);
     }
 
     /**
@@ -5086,6 +5096,67 @@ export class Edge {
      * right of its direction, the strands `strandStep` apart.
      * @param flat - The line's points, flat x, y, z.
      */
+    /**
+     * Place a straight batched line, and what it carries along it. One straight piece: a run left from a lift, a fan
+     * or a loop is handed back to one slot. A line tapered at both ends is two, so its middle can be its widest.
+     * @param batch - The line's batch.
+     * @param srcPoint - Where it starts.
+     * @param dstPoint - Where it ends.
+     */
+    private placeStraight(batch: EdgeLineBatch, srcPoint: Vector3, dstPoint: Vector3): void {
+        const tapers = tapersBothEnds(this.drawnStyle);
+        // a plain line of one slot, nearly every line, is placed with no points list (issue #9420)
+        if (!tapers && this.lineSlots.length <= 1 && !this.hasBands()) {
+            batch.place(this.lineSlots[0], srcPoint, dstPoint);
+            return;
+        }
+
+        const straight = [srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z];
+        if (tapers) {
+            const middle = Vector3.Center(srcPoint, dstPoint);
+            const halves = [...straight.slice(0, 3), middle.x, middle.y, middle.z, ...straight.slice(3)];
+            this.placeRun(batch, this.lineSlots, halves, (slot) => {
+                this.prepareLineSlot(slot);
+            });
+        } else if (this.lineSlots.length > 1) {
+            this.placeRun(batch, this.lineSlots, straight);
+        } else {
+            batch.place(this.lineSlots[0], srcPoint, dstPoint);
+        }
+
+        this.placeBands(straight);
+    }
+
+    /**
+     * Whether the line carries anything laid along it besides itself: effects, a halo or outline band, gradient
+     * pieces or strands. A plain line has none, and a moving graph then skips laying them (issue #9420).
+     * @returns True when it has one.
+     */
+    private hasBands(): boolean {
+        return (
+            this.effectRuns.size > 0 ||
+            this.haloBands.length > 0 ||
+            this.outlineBatch !== null ||
+            this.gradientPieces.length > 0 ||
+            this.strandRuns.length > 0
+        );
+    }
+
+    /**
+     * Lay everything the line carries along it (see {@link hasBands}) along its points.
+     * @param flat - The line's points, flat x, y, z.
+     */
+    private placeBands(flat: readonly number[]): void {
+        if (!this.hasBands()) {
+            return;
+        }
+
+        this.placeOutline(flat);
+        this.placeGradient(flat);
+        this.placeStrands(flat);
+        this.placeEffects(flat);
+    }
+
     private placeStrands(flat: readonly number[]): void {
         const n = this.strandRuns.length;
         for (const [i, { batch, slots }] of this.strandRuns.entries()) {
@@ -5371,26 +5442,68 @@ export class Edge {
             };
         }
 
-        const { srcPoint, dstPoint, newEndPoint } = this.getInterceptPoints();
+        this.placingHead = null;
+        try {
+            const { srcPoint, dstPoint, newEndPoint } = this.getInterceptPoints();
 
-        // If we can't find intercept points, fall back to approximate positions
-        if (!srcPoint || !dstPoint || !newEndPoint) {
-            return arrowCap ? this.placeArrowFromCentres(arrowCap) : { srcPoint: null, dstPoint: null };
+            // If we can't find intercept points, fall back to approximate positions
+            if (!srcPoint || !dstPoint || !newEndPoint) {
+                return arrowCap ? this.placeArrowFromCentres(arrowCap) : { srcPoint: null, dstPoint: null };
+            }
+
+            const direction = dstPoint.subtractToRef(srcPoint, scratchDirection).normalize();
+
+            if (arrowCap) {
+                this.placeArrowHead(arrowCap, dstPoint, direction, [dstPoint, srcPoint]);
+            }
+
+            const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction, [srcPoint, dstPoint]);
+            if (this.arrowMiddleHeadCap !== null || this.arrowMiddleTailCap !== null) {
+                this.placeMidCaps([srcPoint, dstPoint]);
+            }
+
+            return {
+                srcPoint: adjustedSrcPoint,
+                dstPoint: newEndPoint, // Line ends before arrow to create gap for arrow to fill
+            };
+        } finally {
+            this.placingHead = undefined;
+        }
+    }
+
+    /**
+     * The arrow head's geometry and length at the target end. Inside `placeArrowCaps` it is worked out once and kept
+     * for the rest of that placement, which asks twice: once to trim the line, once to place the head.
+     * @param is2D - Whether the head is drawn flat, at full size.
+     * @returns The shape.
+     */
+    private headShape(is2D: boolean): HeadShape {
+        if (this.placingHead) {
+            return this.placingHead;
         }
 
-        const direction = dstPoint.subtract(srcPoint).normalize();
-
-        if (arrowCap) {
-            this.placeArrowHead(arrowCap, dstPoint, direction, [dstPoint, srcPoint]);
+        const style = this.currentStyle;
+        const geometry = EdgeMesh.getArrowGeometry(
+            style.arrowHead?.type ?? "normal",
+            Edge.capOf(style, style.arrowHead),
+        );
+        // PHASE 4: In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres), so their
+        // scaleFactor is 1.0, not 0.25
+        if (is2D && geometry.scaleFactor !== undefined) {
+            geometry.scaleFactor = 1;
         }
 
-        const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction, [srcPoint, dstPoint]);
-        this.placeMidCaps([srcPoint, dstPoint]);
-
-        return {
-            srcPoint: adjustedSrcPoint,
-            dstPoint: newEndPoint, // Line ends before arrow to create gap for arrow to fill
+        const scale = this.capScaleAt("target");
+        const shape = {
+            geometry,
+            arrowLength: EdgeMesh.calculateArrowLength() * (style.arrowHead?.size ?? 1) * scale,
+            scale,
         };
+        if (this.placingHead === null) {
+            this.placingHead = shape;
+        }
+
+        return shape;
     }
 
     /**
@@ -5407,37 +5520,25 @@ export class Edge {
         direction: Vector3,
         path: readonly Vector3[] = [],
     ): void {
-        // Use common arrow geometry functions for positioning
+        // Use common arrow geometry functions for positioning. The tip and direction are scratch: the cap copies
+        // what it is placed at.
         const arrowStyle = this.currentStyle;
-        const arrowPosition = this.context.getStatsManager().measure("Edge.transformArrowCap.mainPath", () => {
-            const along = pointFromEnd(path, arrowStyle.arrowHead?.position ?? 0);
-            if (along !== null) {
-                dstPoint = new Vector3(along.tip.x, along.tip.y, along.tip.z);
-                direction = new Vector3(along.toward.x, along.toward.y, along.toward.z);
-            } else {
-                dstPoint = dstPoint.subtract(direction.scale(Edge.capGap(arrowStyle.arrowHead)));
-            }
-
-            const arrowType = arrowStyle.arrowHead?.type;
-            const arrowSize = arrowStyle.arrowHead?.size ?? 1;
-            const scale = this.capScaleAt("target");
-            arrowCap.setScale(scale);
-            const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
-            const geometry = EdgeMesh.getArrowGeometry(
-                arrowType ?? "normal",
-                Edge.capOf(arrowStyle, arrowStyle.arrowHead),
+        const along = pointFromEnd(path, arrowStyle.arrowHead?.position ?? 0);
+        if (along !== null) {
+            dstPoint = scratchHeadTip.set(along.tip.x, along.tip.y, along.tip.z);
+            direction = scratchHeadDirection.set(along.toward.x, along.toward.y, along.toward.z);
+        } else {
+            const gap = Edge.capGap(arrowStyle.arrowHead);
+            dstPoint = scratchHeadTip.set(
+                dstPoint.x - direction.x * gap,
+                dstPoint.y - direction.y * gap,
+                dstPoint.z - direction.z * gap,
             );
+        }
 
-            // PHASE 4: Override scaleFactor for 2D arrows
-            // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
-            // so their scaleFactor should be 1.0, not 0.25
-            if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
-                geometry.scaleFactor = 1;
-            }
-
-            // Calculate arrow position using common function
-            return EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
-        });
+        const { geometry, arrowLength, scale } = this.headShape(arrowCap.is2D);
+        arrowCap.setScale(scale);
+        const arrowPosition = EdgeMesh.arrowPositionToRef(dstPoint, direction, arrowLength, geometry, scratchArrowAt);
 
         arrowCap.place(arrowPosition, direction);
         Edge.placeStack(this.headStack, arrowStyle.arrowHead, dstPoint, direction);
@@ -6056,7 +6157,7 @@ export class Edge {
      * @param dstPoint - Where it meets the destination node's surface; moved in place.
      */
     private pastBorders(srcPoint: Vector3, dstPoint: Vector3): void {
-        const direction = dstPoint.subtract(srcPoint);
+        const direction = dstPoint.subtractToRef(srcPoint, scratchBorder);
         const span = direction.length();
         // along the line: a polygon's border drawn in from its outline reaches less far at a slant (issue #7566)
         const along = (node: Node, sign: number): number =>
@@ -6126,8 +6227,12 @@ export class Edge {
         }
 
         // Direction points FROM source TO destination (forward direction)
-        const direction = dstPoint.subtract(srcPoint).normalize();
-        return dstPoint.subtract(direction.scale(back.capGap)).subtract(direction.scale(back.capBack));
+        const d = dstPoint.subtractToRef(srcPoint, scratchLineEnd).normalize();
+        return new Vector3(
+            dstPoint.x - d.x * back.capGap - d.x * back.capBack,
+            dstPoint.y - d.y * back.capGap - d.y * back.capBack,
+            dstPoint.z - d.z * back.capGap - d.z * back.capBack,
+        );
     }
 
     /**
@@ -6144,16 +6249,7 @@ export class Edge {
             return null;
         }
 
-        const arrowSize = style.arrowHead?.size ?? 1;
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * this.capScaleAt("target");
-        const arrowType = style.arrowHead?.type ?? "normal";
-        const geometry = EdgeMesh.getArrowGeometry(arrowType, Edge.capOf(style, style.arrowHead));
-
-        // PHASE 4: Override scaleFactor for 2D arrows in line endpoint calculation
-        if (this.arrowCap?.is2D && geometry.scaleFactor !== undefined) {
-            geometry.scaleFactor = 1;
-        }
-
+        const { geometry, arrowLength } = this.headShape(this.arrowCap?.is2D === true);
         return { capGap: Edge.capGap(style.arrowHead), capBack: EdgeMesh.lineStopOf(arrowLength, geometry) };
     }
 

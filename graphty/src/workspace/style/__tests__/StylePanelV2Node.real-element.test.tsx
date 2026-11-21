@@ -95,6 +95,9 @@ describe("Style panel v2's node things", () => {
             assert.equal(written(session, id, "node.borderWidth"), 0.1, "and the width graphty-element says it needs");
         });
         assert.isNotNull(row.querySelector('[data-line="node.borderColor"] .cm-paint'), "the row is a color field");
+        const main = row.querySelector<HTMLElement>('[data-line="node.borderColor"]');
+        assert.isNotNull(main);
+        assert.isNotNull(within(main).queryByText("Border", { exact: true }), "its name column reads Border (E674)");
         const width = await lineOf(row, "node.borderWidth");
         await waitFor(() => {
             assert.isTrue(width.hasAttribute("data-set"), "the Width line is set");

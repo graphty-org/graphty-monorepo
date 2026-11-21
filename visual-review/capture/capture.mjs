@@ -58,7 +58,28 @@ export const CLOCK_START = "2026-01-01T12:00:00Z";
 export const VIEWPORT = { width: 1200, height: 900 };
 /** Device pixels per CSS pixel, as Chromatic captures; recorded in results.json as `scale`. */
 export const SCALE = 2;
+/**
+ * How long a story may take to load and render, and then each later step (the fonts, the screenshot)
+ * before it is `failed`. The project's `waitFor` is not bounded: its method owns its own deadline, and a
+ * large sample may take as long as it needs (graph-io's fidelity `whenDone()`, #9220).
+ */
 const RENDER_TIMEOUT = 30_000;
+
+/**
+ * Rejects when `promise` has not settled within RENDER_TIMEOUT, naming the step: a page that stops
+ * answering after its render would otherwise hold the worker until the job's own timeout.
+ * @template T
+ * @param {string} step what the page was doing
+ * @param {Promise<T>} promise the step
+ * @returns {Promise<T>} the step's result
+ */
+function bounded(step, promise) {
+    let timer;
+    const limit = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${step}: Timeout ${RENDER_TIMEOUT}ms exceeded`)), RENDER_TIMEOUT);
+    });
+    return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
+}
 /**
  * Chromium's switches for every capture. `--disable-gpu-rasterization` draws the page's text and
  * shapes on the CPU: rasterized through SwiftShader, a glyph that sits on a sub-pixel boundary
@@ -445,21 +466,29 @@ async function shootOnce(browser, url, { delay, waitFor }) {
         // A play function that threw ends the render "finished" without Storybook's error screen.
         // Storybook's verdict is the exception event it emitted, which the preview's channel keeps
         // as the last event of its kind (an unhandled error while playing counts too).
-        const played = await frame.evaluate(() => {
-            const channel = /** @type {any} */ (globalThis).__STORYBOOK_PREVIEW__?.channel;
-            const e =
-                channel?.last?.("playFunctionThrewException")?.[0] ??
-                channel?.last?.("unhandledErrorsWhilePlaying")?.[0]?.[0];
-            return e ? [String(e.message ?? ""), String(e.stack ?? "")] : null;
-        });
+        const played = await bounded(
+            "play function result",
+            frame.evaluate(() => {
+                const channel = /** @type {any} */ (globalThis).__STORYBOOK_PREVIEW__?.channel;
+                const e =
+                    channel?.last?.("playFunctionThrewException")?.[0] ??
+                    channel?.last?.("unhandledErrorsWhilePlaying")?.[0]?.[0];
+                return e ? [String(e.message ?? ""), String(e.stack ?? "")] : null;
+            }),
+        );
         if (played) {
             return fail(["play function failed", ...played].join("\n"));
         }
         if (phase === "errored" || phase === "aborted") {
             // Storybook's error screen holds the thrown message and its stack (a play function's
             // failed expect included).
-            const shown = await frame.evaluate(() =>
-                ["error-message", "error-stack"].map((id) => document.getElementById(id)?.textContent?.trim() ?? ""),
+            const shown = await bounded(
+                "error screen",
+                frame.evaluate(() =>
+                    ["error-message", "error-stack"].map(
+                        (id) => document.getElementById(id)?.textContent?.trim() ?? "",
+                    ),
+                ),
             );
             return fail([`story render ${phase}`, ...shown].join("\n"));
         }
@@ -467,12 +496,16 @@ async function shootOnce(browser, url, { delay, waitFor }) {
         // render completed; a capture taken before it arrives draws the fallback face, so the
         // text and anything placed beside the text differ from a later capture.
         // Wait for every font in use, then for one frame drawn with them.
-        await frame.evaluate(async () => {
-            await document.fonts.ready;
-            await new Promise((r) => requestAnimationFrame(() => r()));
-            await document.fonts.ready;
-        });
+        await bounded(
+            "fonts",
+            frame.evaluate(async () => {
+                await document.fonts.ready;
+                await new Promise((r) => requestAnimationFrame(() => r()));
+                await document.fonts.ready;
+            }),
+        );
         if (waitFor) {
+            // Unbounded on purpose: the project's method decides when its story has settled or failed.
             await frame.evaluate(
                 async ({ selector, method }) => {
                     const found = [...document.querySelectorAll(selector)];
@@ -492,7 +525,7 @@ async function shootOnce(browser, url, { delay, waitFor }) {
         // full page of the story iframe -- the viewport, or everything a scroll would reach when
         // the story is taller or wider -- so every story of a project is the same size unless
         // it overflows.
-        const png = await screenshotWholePage(page, frame);
+        const png = await bounded("screenshot", screenshotWholePage(page, frame));
         return { png, reason: null, console: lines };
     } catch (e) {
         return fail(e.message);

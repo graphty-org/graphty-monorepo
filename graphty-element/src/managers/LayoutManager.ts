@@ -2083,14 +2083,15 @@ export class LayoutManager implements Manager {
             // Under renderPath "batched" a row with no Node is something to step as well.
             const batched = this.dataManager.renderLimits?.batched() ?? false;
             const nothingToStep = batched ? this.dataManager.nodes.size === 0 : nodeArray.length === 0;
-            if (this.flattens(engine, how)) {
+            if (nothingToStep || this.sizesToCome(engine)) {
+                // Owed even on a switch to 2D: an empty graph has no arrangement to keep.
+                this.preStepsOwed = true;
+            } else if (this.flattens(engine, how)) {
                 // The arrangement it starts from is already laid out: stepping it before the first
                 // frame would move every node away from where the reader just saw it. Nor does the
                 // first frame step it: that frame draws the flattened arrangement as it is.
                 this.preStepsOwed = false;
                 this.#holdOneFrame = true;
-            } else if (nothingToStep || this.sizesToCome(engine)) {
-                this.preStepsOwed = true;
             } else if (!(await this.spendPreSteps(engine, how.live))) {
                 throw cancelledBuild();
             }

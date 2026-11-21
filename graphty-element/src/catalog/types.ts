@@ -3168,8 +3168,10 @@ export interface CatalogApi {
      * string. A "partition" option on nodes comes back with `values` too: one choice per column
      * that can group the nodes -- a categorical node attribute (value: its name) or a finished
      * run's categorical node field (value: its `results.` path, label: the run's label) --
-     * leaving out the key and label columns and any column with a value per node. Every other
-     * field is the static descriptor's.
+     * leaving out the key and label columns and any column with a value per node. The choices
+     * come best grouping first: finished runs' fields, the newest run first, then attributes, the
+     * fewest distinct values first (a column holding one value, or an unknown count, last), so a
+     * form can open on the first. Every other field is the static descriptor's.
      * @param key - An algorithm key, looked for first, or a layout id.
      * @param scope - What to measure; the session's default run scope when absent.
      * @returns The options, in declaration order.

@@ -334,6 +334,8 @@ function freshenWorldMatrix(mesh: AbstractMesh): void {
 
 interface EdgeOpts {
     metadata?: object;
+    /** True when the edge was stored earlier with no `Edge` (a batched row), so building it is no arrival. */
+    stored?: boolean;
 }
 
 /** Most uses along one edge drawn at once; past it the highest are kept. */
@@ -1605,8 +1607,11 @@ export class Edge {
         this.drawnStyle = style;
 
         // An edge arriving in a graph already drawing edge shaders plays the entrances it starts with.
-        if (EdgeShaderDrawing.peek(this.context.getScene()) !== undefined) {
-            this.causedAt = performance.now();
+        // A batched row's `Edge` is built when it is first painted with something only an `Edge` draws,
+        // which is not when the edge arrived: it plays them only when its row arrived just now.
+        const drawing = EdgeShaderDrawing.peek(this.context.getScene());
+        if (drawing !== undefined) {
+            this.causedAt = opts.stored === true ? drawing.arrivalOf(edgeId) : performance.now();
         }
 
         // create arrow mesh if needed

@@ -99,6 +99,8 @@ export class EdgeShaderDrawing {
     private readonly resolving = new Set<string>();
     private readonly stopStatus: () => void;
     private disposed = false;
+    /** When each edge stored with no `Edge` arrived, by edge counter, while it may still enter. */
+    private readonly arrivals = new Map<number, number>();
 
     /**
      * Start a scene's drawing.
@@ -257,6 +259,35 @@ export class EdgeShaderDrawing {
      */
     now(): number {
         return this.runtime?.uniforms.now() ?? EDGE_NEVER;
+    }
+
+    /**
+     * Note that an edge arrived now with no `Edge` (a batched row), so the `Edge` built for it later
+     * plays the entrances its arrival would have. Arrivals past the cause window are forgotten.
+     * @param edgeId - The edge's counter.
+     */
+    arrived(edgeId: number): void {
+        const now = performance.now();
+        for (const [id, at] of this.arrivals) {
+            if (now - at <= CAUSE_WINDOW_MS) {
+                break;
+            }
+
+            this.arrivals.delete(id);
+        }
+
+        this.arrivals.delete(edgeId);
+        this.arrivals.set(edgeId, now);
+    }
+
+    /**
+     * When an edge stored with no `Edge` arrived ({@link arrived}).
+     * @param edgeId - The edge's counter.
+     * @returns The time by `performance.now()`, or negative infinity when it arrived before this
+     *   drawing or longer ago than an entrance can follow.
+     */
+    arrivalOf(edgeId: number): number {
+        return this.arrivals.get(edgeId) ?? Number.NEGATIVE_INFINITY;
     }
 
     /**

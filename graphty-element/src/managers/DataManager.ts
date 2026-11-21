@@ -25,6 +25,7 @@ import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
 import { type EdgeRow, type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
+import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
 import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
@@ -3323,6 +3324,11 @@ export class DataManager implements Manager {
         const { edgeIndex, edgeId } = stored;
         this.unbuiltEdges.set(edgeIndex, fromColumns(stored.record) ? { ...stored, record: IN_SLICE } : stored);
         this.unbuiltEdgeIds.set(edgeId, edgeIndex);
+        const scene = this.graphContext?.getScene();
+        if (scene !== undefined) {
+            EdgeShaderDrawing.peek(scene)?.arrived(edgeId);
+        }
+
         // ponytail: one hand-over per edge; buffer them as `arrivedRows` does if a profile shows the calls.
         this.layoutEdgeRows?.add([edgeRowOf(stored)]);
         this.storedUnpainted(edgeId, edgeIndex);
@@ -3360,7 +3366,7 @@ export class DataManager implements Manager {
      */
     private makeEdge(stored: StoredEdge, announce = true, queue = true, paint: EdgePaint | null = null): Edge {
         const { record: edge, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId } = stored;
-        const opts = {};
+        const opts = { stored: !announce };
         if (!this.graphContext) {
             throw new Error("GraphContext not set. Call setGraphContext before adding edges.");
         }

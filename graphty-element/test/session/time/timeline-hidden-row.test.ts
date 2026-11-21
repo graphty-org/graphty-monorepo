@@ -69,6 +69,24 @@ function stripped(text: string): string {
 }
 
 /**
+ * A project's text as a writer from before files carried the style tree's mode saved it: with no
+ * `startingRows`, `editableBase` or `runPlacement`, so the reader's own mode stands (issue #6516).
+ * @param text - The project.
+ * @returns The older text.
+ */
+function withoutTreeMode(text: string): string {
+    const document = JSON.parse(text) as { members: { kind: string; config?: Record<string, unknown> }[] };
+    const config = document.members.find((each) => each.kind === "graphty-session")?.config;
+    assert.isDefined(config);
+    for (const key of ["startingRows", "editableBase", "runPlacement"]) {
+        assert.property(config, key);
+        Reflect.deleteProperty(config, key);
+    }
+
+    return JSON.stringify(document);
+}
+
+/**
  * Open a project's text in a new session.
  * @param text - The project.
  * @returns The session.
@@ -211,7 +229,8 @@ describe("the Timeline Hidden row", () => {
         const nodes = Array.from({ length: 4 }, (_, i) => ({ id: `n${String(i)}`, t: i }));
         await session.data.import({ type: "json", config: { data: JSON.stringify({ nodes, edges: [] }) } });
         await session.time.setField({ nodes: { start: "t" } });
-        const { text } = await session.project.save();
+        // An older file: a current one carries `startingRows: false`, and opens with them off.
+        const text = withoutTreeMode((await session.project.save()).text);
         session.dispose();
 
         const opened = createGraphSession();

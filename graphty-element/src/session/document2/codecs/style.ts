@@ -405,7 +405,9 @@ function writeLayer(spec: LayerSpec, id: string, rowId: string | undefined, sess
         name: spec.name,
         ...(spec.target === undefined ? {} : { target: spec.target }),
         selector: renameRuns(writeSelector(spec.selector, session), runName),
-        ...(spec.set === undefined ? {} : { set: spec.set }),
+        // A layer with no look of its own (the starting Hovered row) writes an empty `set`: a
+        // layer has `set` or `encode` (spec 4.2).
+        ...(spec.set === undefined && spec.encode !== undefined ? {} : { set: spec.set ?? {} }),
         ...(spec.encode === undefined ? {} : { encode: renameRuns(spec.encode, runName) }),
         ...(source === undefined
             ? {}

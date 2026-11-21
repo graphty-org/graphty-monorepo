@@ -349,7 +349,8 @@ describe("save files are self-contained", () => {
         const ids = await builtInIds();
         const session = await fixtureSession(createGraphSession);
         const texts: string[] = [];
-        for (const row of SELF_CONTAINED_KINDS) {
+        // A kind with no catalog names nothing itself; style-tree-mode's rows' names are other kinds' exceptions.
+        for (const row of SELF_CONTAINED_KINDS.filter((each) => each.catalog !== false)) {
             texts.push(...(await row.useEvery(session)).saves);
         }
 

@@ -883,8 +883,10 @@ function badDocument(details: Readonly<Record<string, unknown>> = {}): GraphtyEr
  */
 function configOf(session: GraphSession): ProjectConfigPatch {
     const { data, runAlgorithmsOnLoad, background, selectionStyle, pinnedStyle, layoutBehavior } = session.config;
+    const { startingRows, editableBase, runPlacement } = session.config;
     // Through JSON text, so the settings hold only what the saved file can: no undefined values,
-    // so an unset `pinnedStyle` is left out.
+    // so an unset `pinnedStyle` is left out. The style-tree settings are always written, so a file
+    // opens with its own style tree mode rather than the reading build's or app's (issue #6516).
     const text = JSON.stringify({
         data: { algorithms: data.algorithms, directed: data.directed, knownFields: data.knownFields },
         runAlgorithmsOnLoad,
@@ -892,6 +894,9 @@ function configOf(session: GraphSession): ProjectConfigPatch {
         selectionStyle,
         pinnedStyle,
         layoutBehavior,
+        startingRows,
+        editableBase,
+        runPlacement,
     });
     return JSON.parse(text) as ProjectConfigPatch;
 }

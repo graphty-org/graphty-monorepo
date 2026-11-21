@@ -218,6 +218,23 @@ export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
         },
     },
     {
+        // The style tree's mode: settings, not built-ins, so nothing is stubbed; the file must carry
+        // each one off its default rather than leave it to the reading build or app (issue #6516).
+        kind: "style-tree-mode",
+        useEvery: async (session) => {
+            const mode = { startingRows: true, editableBase: true, runPlacement: "top" } as const;
+            await session.config.set(mode);
+            return { used: Object.keys(mode), listed: 3, saves: [] };
+        },
+        builtInModules: {},
+        catalog: false,
+        state: ({ config }) => ({
+            startingRows: config.startingRows,
+            editableBase: config.editableBase,
+            runPlacement: config.runPlacement,
+        }),
+    },
+    {
         kind: "palettes",
         useEvery: useEveryPalette,
         builtInModules: {

@@ -461,6 +461,8 @@ function migrateStyle(
                 id,
                 name: typeof name === "string" ? name : "",
                 ...renameRuns(rest, rename),
+                // A layer with no look of its own (the starting Hovered row): a layer has `set` or `encode`.
+                ...(rest.set === undefined && rest.encode === undefined ? { set: {} } : {}),
                 ...(source === undefined ? {} : { source: { ...source, runId: rename(String(source.runId)) } }),
             },
             context,

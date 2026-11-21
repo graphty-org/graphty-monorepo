@@ -919,6 +919,8 @@ export class Graph implements GraphContext {
     #thumbnailQueue: Promise<unknown> = Promise.resolve();
     /** Whether each model's template could be built, by digest and stand-ins (`checkModel`). */
     readonly #modelChecks = new Map<string, Promise<ModelCheck>>();
+    /** Where `checkModel` builds its templates; see {@link Graph.#checkScene}. */
+    #checkSceneHeld: Scene | null = null;
     /** Margins of the canvas something else covers, in CSS pixels; see {@link setViewInsets}. */
     #viewInsets: Required<ViewInsets> = fullInsets(undefined);
     skybox?: string;
@@ -5517,7 +5519,14 @@ export class Graph implements GraphContext {
      * @returns The counts as of the last frame.
      */
     get rowCounts(): RowCounts {
-        const batchedNodes = this.#nodeBatches?.batchedNodes ?? 0;
+        const batches = this.#nodeBatches;
+        const batchedNodes = batches?.batchedNodes ?? 0;
+        // Only a `Node` has a mesh of its own: a row stored with no `Node` that no batch draws is drawn by nothing.
+        let objectNodes = 0;
+        for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+            objectNodes += batches?.draws(node) === true ? 0 : 1;
+        }
+
         // An edge stored with no `Edge` is drawn from the row tables (`EdgeRowLines`), never as an object.
         let objectEdges = 0;
         for (const edge of this.builtEdges()) {
@@ -5526,7 +5535,7 @@ export class Graph implements GraphContext {
 
         return {
             batchedNodes,
-            objectNodes: this.dataManager.nodes.size - batchedNodes,
+            objectNodes,
             pulledEdges: this.dataManager.edges.size - objectEdges,
             objectEdges,
         };
@@ -7495,7 +7504,8 @@ export class Graph implements GraphContext {
             const corners = boxCorners(local, half, world);
             const centre = world === undefined ? local : Vector3.TransformCoordinates(local, world);
             const worldRadius = Math.max(half.x, half.y, half.z) * rootScale;
-            const at = this.#screenSpot(centre, worldRadius, corners, !table.isHidden(row));
+            // A row whose source is off its batch (an object row of that look) is drawn by nothing.
+            const at = this.#screenSpot(centre, worldRadius, corners, batches.draws(column) && !table.isHidden(row));
             yield { id, row, at, centre, corners, node: null, column };
         }
     }
@@ -8217,6 +8227,27 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The scene `checkModel` builds its templates in: a virtual scene of the graph's engine, which
+     * nothing draws. Built in the graph's own scene, a check's loading, meshes and shaders each
+     * made the graph draw a frame that showed nothing new, about ten per model -- under software
+     * WebGL on a busy machine, seconds of drawing for a dialog's check (#9219). Kept for the next
+     * check, so its environment loads once; the engine frees it with itself.
+     * @returns The scene.
+     */
+    #checkScene(): Scene {
+        const held = this.#checkSceneHeld;
+        if (held !== null && !held.isDisposed && held.getEngine() === this.engine) {
+            return held;
+        }
+
+        const scene = new Scene(this.engine, { virtual: true });
+        // Nothing is drawn or picked in it: the graph's canvas input stays the graph scene's alone.
+        scene.detachControl();
+        this.#checkSceneHeld = scene;
+        return scene;
+    }
+
+    /**
      * Whether a model can be drawn, without drawing it: its template is built once and freed. See
      * {@link ModelCheck}. Kept by the model's files, so asking again, or for every member of a set,
      * costs one build each.
@@ -8258,7 +8289,7 @@ export class Graph implements GraphContext {
         if (check === undefined) {
             check = this.#thumbnailQueue.then(async () => {
                 try {
-                    (await this.#modelTemplate(this.scene, ref, record, standIn, {})).dispose();
+                    (await this.#modelTemplate(this.#checkScene(), ref, record, standIn, {})).dispose();
                     return { drawable: true };
                 } catch (error) {
                     return failed(error);
@@ -10206,16 +10237,18 @@ export class Graph implements GraphContext {
             return nodes;
         }
 
-        for (const row of unbuilt) {
-            const id =
-                batches?.columnRowOf(row) === undefined
-                    ? dataManagerInternals.unbuiltAt(this.dataManager, row)
-                    : undefined;
-            const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
-            if (node !== undefined) {
-                nodes.push(node);
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const row of unbuilt) {
+                const id =
+                    batches?.columnRowOf(row) === undefined
+                        ? dataManagerInternals.unbuiltAt(this.dataManager, row)
+                        : undefined;
+                const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
+                if (node !== undefined) {
+                    nodes.push(node);
+                }
             }
-        }
+        });
 
         return nodes;
     }

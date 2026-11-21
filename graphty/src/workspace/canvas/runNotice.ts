@@ -8,15 +8,23 @@
 
 import type { GraphSession, RunId } from "@graphty/graphty-element/session";
 
+import { nothingChosenWords } from "../analyze/words";
 import type { Notice } from "../state/store";
 
 /**
  * The notice for one run, from what the element decided to paint for it.
+ * A set that chose nothing paints no layer, so the notice says so instead (#9305).
  * @param session - the element's session.
  * @param runId - the run.
+ * @param name - the run's name in words.
  * @returns the notice, or null when every suggestion painted (a started run shows no notice).
  */
-export function runNotice(session: GraphSession, runId: RunId): Notice | null {
+export function runNotice(session: GraphSession, runId: RunId, name: string): Notice | null {
+    const run = session.runs.get(runId);
+    const nothing = run === undefined ? null : nothingChosenWords(run, name);
+    if (nothing !== null) {
+        return { message: nothing };
+    }
     const painting = session.runs.painting(runId);
     if (painting?.state !== "decided") {
         return null;

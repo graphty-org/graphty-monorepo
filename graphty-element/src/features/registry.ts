@@ -15,6 +15,7 @@ export type FeatureId =
     | "location-map"
     | "cosmograph"
     | "file-styles"
+    | "source-steps"
     | "source-references"
     | "save-files-v2";
 
@@ -39,6 +40,10 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // Reading and writing the styles other programs write into graph files, and every style channel
     // and value added to draw them.
     { id: "file-styles", plainName: "File styles", issue: 706, since: "2026-11-06" },
+    // Sources kept as read and the graph rebuilt from ordered steps (design
+    // design/data/multiple-data-sources-design.md, stage 1); off, loads, joins and saved files are
+    // as before. `all` does not switch it on (features/resolve.ts); name it to try it.
+    { id: "source-steps", plainName: "Sources and steps", issue: 8928, since: "2026-11-18" },
     // Version 2 save files (spec/README.md): `project.save` with `format: 2` and `project.open` of a
     // version 2 full or section file. Off, `format: 2` is refused and version 2 files are read as
     // before (refused as a newer version); version 1 files are written and read exactly as before.

@@ -67,6 +67,16 @@ function drawnLine(element: GraphtyElement | null): string | undefined {
     return location.kind === "columns" ? `${location.latitude}, ${location.longitude}` : location.column;
 }
 
+/** A form's unapplied values, with the values it opened on. */
+type Draft = { basis: Record<string, unknown>; values: Record<string, unknown> };
+
+/**
+ * What the reader edited in each layout's form and has not applied, by session and layout row, with
+ * the values the form opened on: a form closed without Apply opens again on the edits, as long as
+ * it would still open on the same values (the drawn layout, the selection, unchanged).
+ */
+const drafts = new WeakMap<GraphSession, Map<string, Draft>>();
+
 /** Props for LayoutForm. */
 interface LayoutFormProps {
     session: GraphSession;
@@ -387,7 +397,16 @@ export function LayoutForm({
         values: startingValues(session, descriptor),
         engine: engineOf(descriptor),
     }));
-    const [values, setValues] = useState<Record<string, unknown>>(start.values);
+    const draftKey = `${descriptor.id}/${start.engine ?? ""}`;
+    const [values, setValues] = useState<Record<string, unknown>>(() => {
+        const draft = drafts.get(session)?.get(draftKey);
+        return draft !== undefined && sameValues(draft.basis, start.values) ? draft.values : start.values;
+    });
+    useEffect(() => {
+        const own = drafts.get(session) ?? new Map<string, Draft>();
+        drafts.set(session, own);
+        own.set(draftKey, { basis: start.values, values });
+    }, [session, draftKey, start.values, values]);
     // Undefined: the catalog's default engine for the layout. Each engine has a row of its own.
     const { engine } = start;
     const [error, setError] = useState<string | null>(null);

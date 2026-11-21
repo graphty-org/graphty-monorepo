@@ -72,7 +72,7 @@ import { readProjectConfig } from "./commands/config";
 import { declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
-import { holdStartingCameras, writeStartingViews } from "./commands/view";
+import { holdStartingCameras, SAVED_VIEW_PARTS, unknownView, writeStartingViews } from "./commands/view";
 import {
     calibrateOnce,
     type CostEstimate,
@@ -105,6 +105,7 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
+
 export { dispatcherOf, sessionDataOf, sessionRunsOf } from "./dispatchers";
 import { ANNOTATIONS_VALUE, type DrawnAnnotation, type DrawnAnnotations, drawnAnnotationsOf } from "./annotations";
 import { graphsOf, type SessionGraphs } from "./graphs/GraphsApi";
@@ -128,9 +129,9 @@ import {
     NODES_ADDED,
     ROWS_MOVED,
 } from "./project/graphOps";
-import type { GraphSlice, LayoutChoice } from "./project/state";
+import type { GraphSlice, LayoutChoice, ProjectState } from "./project/state";
 import { reportCaught } from "./project/strict";
-import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
+import { answeringFromProject, type CannedOutcomes, clearStyleRows, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { type RecipeDocument, recipeOf } from "./recipe";
 import { type RecipesApi, recipesOf } from "./recipes/RecipesApi";
@@ -188,6 +189,8 @@ import type { StatusRun } from "./sets/status";
 import type { SetsApi, SetUser } from "./sets/types";
 import { bindShadersController, createSessionShaders, type SessionShaders, type ShadersController } from "./shaders";
 import { type Provenance, PROVENANCE_VALUE, suppliedBy } from "./sources/provenance";
+import { RECORD_PATHS } from "./sources/steps/paths";
+import type { StepsEdit } from "./sources/steps/project";
 import {
     createAutoApplyPolicy,
     createStylesApi,
@@ -243,6 +246,7 @@ import type {
     HistoryClearOptions,
     HistoryOutcome,
     HistoryRestoreOptions,
+    HistoryStepId,
     LayoutMotion,
     LocationColumns,
     ModelChange,
@@ -251,6 +255,8 @@ import type {
     ProjectConfigPatch,
     ProjectSlice,
     SavedView,
+    SavedViewInput,
+    SavedViewPart,
     SessionAnnotations,
     SessionCapabilities,
     SessionCatalogApi,
@@ -283,6 +289,9 @@ import { type FilterRunResult, type TimeWindow } from "./visibility/filter";
 import type { SlideCounts } from "./visibility/slide";
 import { wholeGraph, type WholeSnapshot } from "./working/graphs";
 import { createWorkingGraph, type WorkingGraph } from "./working/view";
+
+/** The readable path every timed element of a source-steps build carries its time at (design 3.9). */
+const STEPS_TIME = "graphty.time";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -430,6 +439,8 @@ const TX_PARTS = [
     "tours",
     "annotations",
     "positions",
+    // Without it `tx.hidden.add` escaped the transaction into a step of its own.
+    "hidden",
     "config",
 ] as const satisfies readonly (keyof GraphSession)[];
 
@@ -826,9 +837,13 @@ class Session implements ElementSession {
         registerSessionRuns(this, this.sessionRuns);
         registerSessionData(this, parts.data);
         this.history = historyOf(this.dispatcher, () => version);
-        this.views = viewsOf(this.dispatcher, (names) => {
-            publish(this.watchers, "views:seeded", { names });
-        });
+        this.views = viewsOf(
+            this.dispatcher,
+            (names) => {
+                publish(this.watchers, "views:seeded", { names });
+            },
+            { read: (part) => this.viewPart(part), open: (name, view) => this.openViewParts(name, view) },
+        );
         this.tours = toursOf(this.dispatcher);
         this.graphs = graphsOf(this);
         this.annotations = annotationsOf(this.dispatcher);
@@ -906,6 +921,7 @@ class Session implements ElementSession {
             parts.readProject,
             parts.controller,
             parts.nodeSizeSpace,
+            (values) => parts.data.settingRoles(values.data?.knownFields),
             parts.darkScheme,
         );
         this.project = projectOf(this, this.dispatcher, parts.canned, {
@@ -1077,6 +1093,87 @@ class Session implements ElementSession {
         }
 
         return dispatch(command) as unknown as CommandOutcome<C>;
+    }
+
+    /**
+     * A part of the session a saved view keeps, as the session holds it now.
+     * @param part - The part.
+     * @returns Its value, or undefined for a legend no element draws.
+     */
+    private viewPart(part: SavedViewPart): unknown {
+        const { visibility } = this.dispatcher.state;
+        switch (part) {
+            case "filters":
+                return visibility.conditions;
+            case "hidden":
+                return visibility.hidden ?? [];
+            case "layers": {
+                const { problems: _problems, ...document } = this.styles.toDocument();
+                return document;
+            }
+            case "positions": {
+                const { order, xyz } = this.positions.snapshot();
+                return { order: [...order], xyz: Array.from(xyz) };
+            }
+            default:
+                return this.dispatcher.services.legend?.shown();
+        }
+    }
+
+    /**
+     * Bring back the parts a saved view keeps (all but the legend), as one step.
+     * @param name - The view's name.
+     * @param view - The view.
+     * @returns Settles once the step is recorded.
+     */
+    private async openViewParts(name: string, view: SavedView): Promise<void> {
+        const parts = SAVED_VIEW_PARTS.filter((part) => part !== "legend" && view[part] !== undefined);
+        if (parts.length === 0) {
+            return;
+        }
+        const { filters, layers, hidden, positions } = view;
+        await this.dispatcher.transaction(
+            "view.open",
+            async (scope) => {
+                const tx = this.scopeOf(scope);
+                if (filters !== undefined) {
+                    await tx.execute({ op: "visibility.conditions", conditions: filters });
+                }
+                if (layers !== undefined) {
+                    await clearStyleRows(tx);
+                    await tx.styles.applyTemplate(layers);
+                }
+                if (hidden !== undefined) {
+                    const now = tx.hidden.ids;
+                    const keep = new Set(hidden);
+                    const show = [...now].filter((id) => !keep.has(id));
+                    const hide = hidden.filter((id) => !now.has(id));
+                    if (show.length > 0) {
+                        await tx.hidden.remove(show);
+                    }
+                    if (hide.length > 0) {
+                        await tx.hidden.add(hide);
+                    }
+                }
+                if (positions !== undefined) {
+                    // A node the graph no longer holds, or one nothing had placed, is skipped.
+                    const held = new Set(this.positions.snapshot().order);
+                    const at = positions.order.flatMap((id, index) =>
+                        held.has(id) && !Number.isNaN(positions.xyz[index * 3]) ? [index] : [],
+                    );
+                    if (at.length > 0) {
+                        const xyz = new Float32Array(at.length * 3);
+                        at.forEach((index, row) => {
+                            for (let axis = 0; axis < 3; axis++) {
+                                xyz[row * 3 + axis] = positions.xyz[index * 3 + axis];
+                            }
+                        });
+                        await tx.positions.restore({ order: at.map((index) => positions.order[index]), xyz });
+                    }
+                }
+            },
+            { fact: { code: "view.open", params: { name, parts } } },
+        );
     }
 
     /**
@@ -2075,14 +2172,32 @@ function annotationsOf(dispatcher: Dispatcher): SessionAnnotations {
     });
 }
 
+/** How the saved views read and bring back the parts of the session they keep beside the camera. */
+interface ViewParts {
+    /**
+     * A part as the session holds it now.
+     * @param part - The part.
+     * @returns Its value, or undefined when the session has none to keep (a legend with no element).
+     */
+    read(part: SavedViewPart): unknown;
+    /**
+     * Bring back the parts a view keeps, as one step; nothing when it keeps none.
+     * @param name - The view's name.
+     * @param view - The view.
+     * @returns Settles once the step is recorded.
+     */
+    open(name: string, view: SavedView): Promise<void>;
+}
+
 /**
  * The saved camera views: the dispatcher's `views` slice, read as a map in project order, with the
  * verbs that write it.
  * @param dispatcher - The dispatcher.
  * @param seeded - Told the names the starting cameras wrote into the baseline.
+ * @param parts - Reads and brings back the parts a view keeps beside the camera.
  * @returns The views.
  */
-function viewsOf(dispatcher: Dispatcher, seeded: (names: readonly string[]) => void): SessionViews {
+function viewsOf(dispatcher: Dispatcher, seeded: (names: readonly string[]) => void, parts: ViewParts): SessionViews {
     const { state } = dispatcher;
     const held = state.views;
     /**
@@ -2118,21 +2233,45 @@ function viewsOf(dispatcher: Dispatcher, seeded: (names: readonly string[]) => v
                 .map(([, view]) => view)
                 .values(),
         [Symbol.iterator]: () => ordered()[Symbol.iterator](),
-        save: async (
-            saved: readonly {
-                readonly name: string;
-                readonly camera?: CameraState;
-                readonly follows?: string;
-                readonly key?: string | null;
-            }[],
-        ) => {
-            // The camera is read once, here, so redo and replay never read the live camera again.
-            const resolved = saved.map((view) =>
-                view.camera === undefined && view.follows === undefined
-                    ? { ...view, camera: currentCamera(dispatcher) }
-                    : view,
-            );
+        save: async (saved: readonly SavedViewInput[]) => {
+            // The camera and the kept parts are read once, here, so redo and replay never read the
+            // live session again.
+            const resolved = saved.map(({ include = [], ...view }) => {
+                const read: Record<string, unknown> = {};
+                for (const part of include) {
+                    if (!(SAVED_VIEW_PARTS as readonly string[]).includes(part)) {
+                        throw new GraphtyError({
+                            code: "E_OPTION_RANGE",
+                            message: `A saved view keeps ${SAVED_VIEW_PARTS.join(", ")}; not "${part}".`,
+                            source: "view",
+                            details: { option: "include", value: part },
+                        });
+                    }
+                    read[part] = view[part] ?? parts.read(part);
+                }
+                const kept = {
+                    ...view,
+                    ...Object.fromEntries(Object.entries(read).filter(([, v]) => v !== undefined)),
+                };
+                return view.camera === undefined && view.follows === undefined
+                    ? { ...kept, camera: currentCamera(dispatcher) }
+                    : kept;
+            });
             await dispatcher.dispatch({ op: "view.save", views: resolved });
+        },
+        open: async (name: string, options: { readonly animate?: boolean } = {}) => {
+            const view = held.get(name);
+            if (view === undefined) {
+                throw unknownView([name], state.viewOrder);
+            }
+            await parts.open(name, view);
+            if (view.legend !== undefined) {
+                dispatcher.services.legend?.show(view.legend);
+            }
+            // A session that draws nothing has no camera to move; the rest is brought back.
+            if (dispatcher.services.camera !== undefined) {
+                await dispatcher.dispatch({ op: "view.camera", preset: name, animate: options.animate === true });
+            }
         },
         remove: async (names: readonly string[]) => {
             await dispatcher.dispatch({ op: "view.remove", names });
@@ -2266,6 +2405,7 @@ function projectConfigReader(dispatcher: Dispatcher, base: () => SessionDataConf
  * @param read - Reads the project settings.
  * @param controller - The acceleration controller.
  * @param nodeSizeSpace - Reads the renderer's graph-wide node size space, for `inEffect`.
+ * @param roles - Under source-steps, the role edit a settings write makes; null for none.
  * @param darkScheme - Whether the renderer's color scheme is dark, for `backgroundColor`.
  * @returns The settings.
  */
@@ -2274,6 +2414,7 @@ function configOf(
     read: () => ProjectConfig,
     controller: AccelerationControllerLike,
     nodeSizeSpace: (() => string | undefined) | undefined,
+    roles: (values: ProjectConfigPatch) => StepsEdit | null,
     darkScheme?: () => boolean,
 ): SessionConfig {
     return Object.freeze({
@@ -2345,7 +2486,22 @@ function configOf(
             // loads first, since the write's executor cannot wait for it. Counted as owed while it
             // loads, so a wait for the picture does not end on a canvas without it (issue #7970).
             const loading = loadNamedShaders(values);
-            const write = (): Promise<unknown> => dispatcher.dispatch({ op: "config.set", values });
+            // Under source-steps a weight or time setting is a view of a source's role (design
+            // 3.9): written to that source's mapping in the same step, or refused when several
+            // built sources could take it.
+            const edit = roles(values);
+            const write = (): Promise<unknown> =>
+                dispatcher.dispatch(
+                    edit === null
+                        ? { op: "config.set", values }
+                        : {
+                              op: "batch",
+                              steps: [
+                                  { op: "data.steps-set", edit },
+                                  { op: "config.set", values },
+                              ],
+                          },
+                );
             await (loading === undefined ? write() : dispatcher.ahead(loading.then(write)));
         },
         inEffect: (key: GraphSettingKey): SettingEffect =>
@@ -2644,6 +2800,10 @@ function fieldKindsOf(
 
     if ((STRUCTURE_PATHS as readonly string[]).includes(path)) {
         return ["node"];
+    }
+
+    if (RECORD_PATHS.includes(path)) {
+        return data.readableKinds(path);
     }
 
     if (path.startsWith("results.")) {
@@ -3202,6 +3362,7 @@ function repaintAgainstCurrentData(
     repaintElements: RepaintEngine["repaintElements"];
     repaintMoved: RepaintEngine["repaintMoved"];
     encoding: RepaintEngine["encoding"];
+    encodingRevision: RepaintEngine["encodingRevision"];
     idle: RepaintEngine["idle"];
     invalidate: () => void;
 } {
@@ -3283,6 +3444,7 @@ function repaintAgainstCurrentData(
         // domain is settled against the element count the pass last sized its stores to, so
         // preparing here rather than in a pass would invent one.
         encoding: (entry) => engine.encoding(entry),
+        encodingRevision: () => engine.encodingRevision(),
         idle: () => engine.idle(),
         invalidate: (): void => {
             engine.invalidate();
@@ -3391,6 +3553,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const ceilings = options.ceilings ?? new RenderLimits(true);
     const fileStylesOn = (): boolean =>
         (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
+    const sourceStepsOn = (): boolean =>
+        (settledFeatures ?? resolveFeatures(requested())).enabled.includes("source-steps");
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is
@@ -3411,6 +3575,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
     dispatcher.services.fileStyles = fileStylesOn;
+    dispatcher.services.sourceSteps = sourceStepsOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
@@ -3507,6 +3672,23 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 return (mutation) => send({ op: "data.apply", mutation });
             },
             importer: (options) => dispatcher.capturedDispatch(options),
+            folder: () => {
+                const send = dispatcher.capturedDispatch();
+                const routed = dispatcher.routing;
+                return (command) => {
+                    const top = dispatcher.history.stepAt(dispatcher.history.position - 1);
+                    // Inside a routed verb it is part of that verb's step. With no step to join it
+                    // is written as setup, which becomes the baseline while nothing is recorded.
+                    if (routed) {
+                        return send(command);
+                    }
+                    return top === undefined
+                        ? send({ op: "batch", steps: [command], setup: true })
+                        : dispatcher.transaction("Staged a source", (tx) => tx.dispatch(command), {
+                              after: top.id as HistoryStepId,
+                          });
+                };
+            },
             loadLine: loadLineOf(dispatcher),
             edgeMeaning: (counter) => dispatcher.services.data?.edgeMeaning?.(counter),
             ceilings,
@@ -3547,6 +3729,21 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 runs: dispatcher.state.runs,
                 visibility: dispatcher.state.visibility,
             }),
+            references: () => {
+                const nodes: NodeId[] = [...dispatcher.state.pins];
+                const members: EdgeMember[] = [];
+                for (const { note } of dispatcher.state.notes.values()) {
+                    for (const target of note.targets) {
+                        if ("node" in target) {
+                            nodes.push(target.node);
+                        } else if ("edge" in target) {
+                            members.push(target.edge);
+                        }
+                    }
+                }
+                heldBySetsAndRuns(dispatcher.state, nodes, members);
+                return { nodes, edges: dispatcher.services.edgeIdentity?.idsOf(members) ?? [] };
+            },
         },
         {
             revision: () => inputs.tick.value,
@@ -3575,6 +3772,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeCandidates: () => time.api.candidates(),
             fileStyles: () => fileStylesOn(),
+            sourceSteps: sourceStepsOn,
             sourceReferences: () =>
                 (settledFeatures ?? resolveFeatures(requested())).enabled.includes("source-references"),
             batched: () => internals.batched?.() === true,
@@ -3654,6 +3852,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         dispatcher,
         edgeMember,
         pairsOrdered: () => pairsOrdered(snapshot()),
+        sourceSteps: sourceStepsOn,
         hasNode: (id: NodeId) => snapshot().ids.indexOf(id) !== INVALID_INDEX,
         dependencies,
         offering,
@@ -3786,6 +3985,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const scope: ScopeResolver = createScopeApi({
         snapshot,
         store: store.store,
+        sourceSteps: sourceStepsOn,
         components,
         // Read through a call rather than captured: both of these are built below, and the
         // resolver only reaches them when somebody resolves a scope that names them.
@@ -3874,6 +4074,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         result: resultSource,
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
+        own: (source: SourceKey) => data.ownValues(source),
+        sourceSteps: sourceStepsOn,
         onChange: (change) => {
             // What the filter keeps is read by the style stack's kept readings (`styles.counts`,
             // `drawnValues`): moved before anyone hears of the change, so a reader answers fresh.
@@ -4138,18 +4340,21 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         knownFields: () => {
             const known = readProject().data.knownFields;
+            // Under source-steps the timeline reads `graphty.time` wherever a built source has a
+            // time role (design 3.9): the build has already parsed each source's own column.
+            const timed = data.stepsTimed();
             return {
-                nodeTimePath: known.nodeTimePath,
+                nodeTimePath: timed.node ? STEPS_TIME : known.nodeTimePath,
                 nodeTimeUnit: known.nodeTimeUnit ?? null,
                 // A saved zone stays saved with the timeline off or a name this engine lacks, unread.
-                nodeTimeParseZone: readableZone(known.nodeTimeParseZone),
-                nodeTimeEndPath: known.nodeTimeEndPath ?? null,
-                nodeTimeSpellsPath: known.nodeTimeSpellsPath ?? null,
-                edgeTimePath: known.edgeTimePath,
+                nodeTimeParseZone: timed.node ? null : readableZone(known.nodeTimeParseZone),
+                nodeTimeEndPath: timed.node ? null : (known.nodeTimeEndPath ?? null),
+                nodeTimeSpellsPath: timed.node ? null : (known.nodeTimeSpellsPath ?? null),
+                edgeTimePath: timed.edge ? STEPS_TIME : known.edgeTimePath,
                 edgeTimeUnit: known.edgeTimeUnit ?? null,
-                edgeTimeParseZone: readableZone(known.edgeTimeParseZone),
-                edgeTimeEndPath: known.edgeTimeEndPath ?? null,
-                edgeTimeSpellsPath: known.edgeTimeSpellsPath ?? null,
+                edgeTimeParseZone: timed.edge ? null : readableZone(known.edgeTimeParseZone),
+                edgeTimeEndPath: timed.edge ? null : (known.edgeTimeEndPath ?? null),
+                edgeTimeSpellsPath: timed.edge ? null : (known.edgeTimeSpellsPath ?? null),
             };
         },
         declarations: () => dispatcher.state.attributes,
@@ -4174,6 +4379,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
             return data.setType({ kind, name }, "date");
         },
+        settingRoles: (knownFields) => data.settingRoles(knownFields),
     });
     timeInternals = time.internals;
     dispatcher.services.timeFieldChanged = () => {
@@ -4229,6 +4435,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         results: (runId) => runs.get(runId)?.result,
         records,
+        sourceSteps: sourceStepsOn,
         notes: createNoteFacts(
             () => dispatcher.state.notes,
             () => dispatcher.lane.writes("notes"),
@@ -4727,6 +4934,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an
         // empty picture on a graph that is plainly painted.
         encoding: painter.encoding,
+        // A pass that first prepares a layer (the first edges arriving) moves what `encoding`
+        // answers and nothing else the kept readings key on (issue #9218).
+        encodingRevision: painter.encodingRevision,
         // THE SAME QUEUE the runs and the filters take their turn in. A style write that ran
         // beside a load would paint half a graph and then be handed the other half.
         queue,
@@ -5756,7 +5966,16 @@ function planningContext(
         defaultScope,
         limits: runsOptions.limits ?? DEFAULT_COST_GATE_LIMITS,
         defaultCaveats,
-        loadedWeight: () => data.loadedWeight(),
+        // The one weight rule is judged over the edges the run reads (design 8.6).
+        loadedWeight: (spec) => {
+            const loaded = data.loadedWeightOver(null);
+            // Only a source-steps build mixes meanings; nothing else resolves the scope here.
+            if (loaded?.mixed === undefined || spec === undefined || spec === "graph") {
+                return loaded;
+            }
+            const { edges } = resolveScope(spec);
+            return data.loadedWeightOver((edge) => edges.has(edge));
+        },
         // "idle" counts: an accelerator IS attached and the node count is merely below the
         // threshold at which the element bothers to use it, so an algorithm that needs one can run.
         acceleratorAvailable: () => ACCELERATOR_ATTACHED.has(acceleration.capabilities.acceleration.state),
@@ -5765,4 +5984,31 @@ function planningContext(
         calibration: runsOptions.calibration ?? currentCalibration,
         ...(runsOptions.measurements === undefined ? {} : { measurements: runsOptions.measurements }),
     };
+}
+
+/**
+ * Add what kept sets and runs name to a rebuild's references: a fixed set's or a path's members,
+ * and the nodes a run's node-id parameters hold (a shortest path's source and target).
+ * @param state - The project state.
+ * @param nodes - The node references, added to.
+ * @param members - The edge references, added to.
+ */
+function heldBySetsAndRuns(state: Pick<ProjectState, "sets" | "runs">, nodes: NodeId[], members: EdgeMember[]): void {
+    for (const { definition } of state.sets.values()) {
+        if (definition.kind === "fixed" || definition.kind === "path") {
+            nodes.push(...definition.nodes);
+            const edges: readonly (EdgeMember | readonly EdgeMember[] | null)[] = definition.edges ?? [];
+            members.push(...edges.flat().filter((edge) => edge !== null));
+        }
+    }
+    const algorithms = SESSION_CATALOG_TABLES.algorithms();
+    for (const { command } of state.runs.values()) {
+        const options = algorithms.find((each) => each.key === command.algorithm)?.options ?? [];
+        for (const option of options) {
+            const value = command.params?.[option.name];
+            if (option.type === "node-id" && (typeof value === "string" || typeof value === "number")) {
+                nodes.push(value);
+            }
+        }
+    }
 }

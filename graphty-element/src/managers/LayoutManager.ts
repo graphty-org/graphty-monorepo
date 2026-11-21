@@ -56,6 +56,7 @@ import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { Node, NodeIdType } from "../Node";
+import type { RowExtent as TableExtent } from "../render/RowTable";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
 import type { LayoutMotion } from "../session/types";
@@ -1746,10 +1747,8 @@ export class LayoutManager implements Manager {
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
             weightMeaning: this.weightMeaningFor(type),
             rowData: (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row),
-            rowHalfExtents: (row) => {
-                const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
-                return extent !== undefined && extent.scale > 0 ? extent.half : null;
-            },
+            rowHalfExtents: (row) => this.measuredRow(row)?.half ?? null,
+            rowBorderReach: (row) => this.measuredRow(row)?.border ?? 0,
             positionScale: () => this.graphContext?.getStyles().config.data.knownFields.positionScale,
             knownFields: () => this.graphContext?.getStyles().config.data.knownFields,
             rankSets: () => this.dataManager.rankSets,
@@ -1801,25 +1800,36 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * A row as the row table measured it, under renderPath "batched" only: the "objects" path reads its `Node`s.
+     * @param row - The row; INVALID_INDEX for none.
+     * @returns Its extent; null off "batched", for no row, or before the row is measured.
+     */
+    private measuredRow(row: number): TableExtent | null {
+        if (row === INVALID_INDEX || this.dataManager.renderLimits?.batched() !== true) {
+            return null;
+        }
+
+        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
+        return extent === undefined || extent.scale <= 0 ? null : extent;
+    }
+
+    /**
      * How far a row drawn with no `Node` reaches, as the row table measured it, for `nodeGap`: what its `Node` would
      * answer for `layoutRadius` and `drawnHalfExtents`.
      * @param row - The row; INVALID_INDEX for none.
      * @returns The reach; null off renderPath "batched", for no row, or before the row is measured.
      */
     private rowExtent(row: number): RowExtent | null {
-        if (row === INVALID_INDEX || this.dataManager.renderLimits?.batched() !== true) {
+        const extent = this.measuredRow(row);
+        if (extent === null) {
             return null;
         }
 
-        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
-        if (extent === undefined || extent.scale <= 0) {
-            return null;
-        }
-
-        const { half } = extent;
+        // `layoutRadius` counts the border, so a row reaches as far whether or not it has its `Node`.
+        const { half, border } = extent;
         return extent.round === null
-            ? { radius: Math.max(half.x, half.y, half.z), half }
-            : { radius: extent.round, half: null };
+            ? { radius: Math.max(half.x, half.y, half.z) + border, half }
+            : { radius: extent.round + border, half: null };
     }
 
     /**

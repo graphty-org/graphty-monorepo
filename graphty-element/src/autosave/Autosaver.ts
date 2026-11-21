@@ -14,7 +14,8 @@
  *   built at once and written, and the entry is marked `ended: "replaced"` in the same commit as
  *   the new entry's first write, so a kill in between leaves the old entry restorable.
  * - **Fencing.** Every write states the generation it expects. A write the store rejects because
- *   another writer committed to the entry moves this session to a new entry holding all of it.
+ *   another writer committed to the entry moves this session to a new entry holding all of it,
+ *   and so does a write whose entry's lock another tab holds: one tab writes an entry.
  * - **Failures** become `status.problem` codes; the work stays in memory and the next change
  *   tries again.
  * @module autosave
@@ -48,6 +49,7 @@ import {
 import {
     type AutosaveAvailable,
     type AutosaveCode,
+    AutosaveConflict,
     type AutosaveEntry,
     type AutosaveEntryMeta,
     type AutosaveParts,
@@ -2142,8 +2144,12 @@ export class Autosaver {
         arm();
         try {
             for (const entry of job.claim) {
-                await this.#claim(entry);
-                // ponytail: a fresh random id is never held elsewhere; a refused claim is not retried.
+                // One writer per entry: a lock held by another tab refuses the write before the
+                // store sees it, even when the entry's generation still matches, and the work moves
+                // to a new entry as after a fenced conflict (#818).
+                if ((await this.#claim(entry)) === null) {
+                    return { error: new AutosaveConflict(entry.id, entry.gen, entry.gen), stalled: false };
+                }
             }
 
             await this.#store.commit(job.writes, {

@@ -1601,12 +1601,21 @@ export async function pixelsOfColours(
     // the buffer read is the frame just drawn. A fixed warm-up of frames stood here before: forty
     // full-canvas renders per call, which a play function reading four colors paid 160 times over,
     // about 19 s on an idle machine and past the 30 s limit on a loaded one (#2413).
+    // The read is taken inside the frame, before it is presented: a WebGPU canvas holds nothing once a
+    // frame has ended (test/helpers/whole-canvas.ts reads the same way).
     await scene.graph.scene.whenReadyAsync();
+    engine.beginFrame();
     scene.graph.scene.render();
-
-    const width = engine.getRenderWidth();
-    const height = engine.getRenderHeight();
-    const pixels = (await engine.readPixels(0, 0, width, height)) as unknown as Uint8Array;
+    const read = engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight());
+    engine.endFrame();
+    const pixels = (await read) as unknown as Uint8Array;
+    // A WebGPU read is in the canvas's own format, BGRA where that is the preferred one: put each pixel
+    // in RGBA order, so a color counts as itself on both engines (#9257).
+    if (engine.isWebGPU && navigator.gpu.getPreferredCanvasFormat() === "bgra8unorm") {
+        for (let offset = 0; offset < pixels.length; offset += 4) {
+            [pixels[offset], pixels[offset + 2]] = [pixels[offset + 2], pixels[offset]];
+        }
+    }
 
     return hexes.map((hex) => {
         const want = [

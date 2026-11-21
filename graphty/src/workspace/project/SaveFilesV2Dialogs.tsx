@@ -364,6 +364,9 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
     const [storage, setStorage] = useState<Record<string, SourceStorage>>({});
     const [form, setForm] = useState<"full" | "section">("full");
     const [saving, setSaving] = useState(false);
+    // Whether the reader asked to save (Save or Enter) before graphty-element answered: the save
+    // then runs once it does, and Save shows it is waiting.
+    const [pending, setPending] = useState(false);
     // Whether the save chosen is the project or a copy, as graphty-element says, and for which
     // choice: a verdict for an earlier choice is no verdict, so Save waits for the current one.
     const [verdict, setVerdict] = useState<{
@@ -384,6 +387,7 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
         setChosen([...DOCUMENT_SECTIONS]);
         setForm("full");
         setFacts(null);
+        setPending(false);
         let live = true;
         session.project.describe().then(
             (described) => {
@@ -437,10 +441,17 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
     const close = (): void => {
         workspace.store.set({ dialog: null });
     };
+    const blocked = trimmed === "" || chosen.length === 0;
+    const ready = facts !== null && whole !== null;
     const save = async (): Promise<void> => {
-        if (trimmed === "" || saving || facts === null || chosen.length === 0 || whole === null) {
+        if (blocked || saving) {
             return;
         }
+        if (facts === null || whole === null) {
+            setPending(true);
+            return;
+        }
+        setPending(false);
         setSaving(true);
         left.current = false;
         try {
@@ -453,6 +464,13 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
             setSaving(false);
         }
     };
+
+    // An early Save or Enter saves once graphty-element answers.
+    useEffect(() => {
+        if (pending && ready) {
+            void save();
+        }
+    });
 
     return (
         <Modal opened={opened} onClose={close} title={`Save ${current} as`} size="lg">
@@ -504,8 +522,10 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
                     </Button>
                     <Button
                         type="submit"
-                        disabled={trimmed === "" || facts === null || chosen.length === 0 || whole === null}
-                        loading={saving}
+                        // Enabled while graphty-element is still answering, so an early Enter is
+                        // kept (a form with a disabled default button drops it); it then waits.
+                        disabled={blocked}
+                        loading={saving || (pending && !blocked)}
                     >
                         {whole === false ? "Save copy" : "Save"}
                     </Button>

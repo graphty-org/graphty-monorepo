@@ -750,6 +750,11 @@ const LOAD_FROM_FILE = calls(
     ],
 );
 
+/** A source-steps write: refused while the experiment is off, a `data.steps-set` step while it is on. */
+const SOURCE_STEPS_WRITE = exempt(
+    "Experimental (source-steps): refused with E_FEATURE_OFF while the experiment is off, as on every session " +
+        "the door rows run on; with it on it dispatches the undoable data.steps-set, covered by GESTURE_DOORS.",
+);
 const CAMERA = exempt("The camera is view state, not saved in a project file.");
 const XR = exempt("An XR device session is view state, not saved in a project file.");
 const SELECTION = exempt("Selection is not a step; undo and redo select what they changed instead.");
@@ -1140,6 +1145,7 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     ),
     showContext: assigns(true, [{ op: "visibility.context", show: true }]),
     notDrawn: READ,
+    held: READ,
     steps: READ,
     setSteps: calls(
         [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],
@@ -2183,6 +2189,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             paintedColor: READ,
             borderReach: READ,
             borderReachAlong: READ,
+            screenBorder: READ,
             framingBounds: READ,
             drawnHalfExtents: READ,
             surfaceIsBox: READ,
@@ -2857,6 +2864,32 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             source: READ,
             sources: READ,
             sourcesOf: READ,
+            // The source-steps experiment: the reads read the committed sources and steps; the
+            // writes are refused with E_FEATURE_OFF on every session these rows run on, and with the
+            // experiment on dispatch data.steps-set (GESTURE_DOORS).
+            steps: READ,
+            spaces: READ,
+            types: READ,
+            edits: READ,
+            ref: READ,
+            stage: SOURCE_STEPS_WRITE,
+            declareType: SOURCE_STEPS_WRITE,
+            removeEdit: SOURCE_STEPS_WRITE,
+            settleEdit: SOURCE_STEPS_WRITE,
+            resolveStep: SOURCE_STEPS_WRITE,
+            merge: SOURCE_STEPS_WRITE,
+            connect: SOURCE_STEPS_WRITE,
+            extract: SOURCE_STEPS_WRITE,
+            moveColumns: SOURCE_STEPS_WRITE,
+            pick: SOURCE_STEPS_WRITE,
+            use: SOURCE_STEPS_WRITE,
+            removeStep: SOURCE_STEPS_WRITE,
+            setStepOff: SOURCE_STEPS_WRITE,
+            add: SOURCE_STEPS_WRITE,
+            lineage: READ,
+            values: READ,
+            cell: READ,
+            conflicts: READ,
             issues: READ,
             hiddenColumns: READ,
             derivedColumns: READ,
@@ -3962,6 +3995,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }],
             ),
             remove: calls([["door view"]], [{ op: "view.remove", names: ["door view"] }]),
+            // The parts the view keeps, as one step; the camera move is exempt, and this session
+            // draws nothing, so it has none.
+            open: {
+                kind: "dispatches",
+                op: "visibility.conditions",
+                call: {
+                    kind: "call",
+                    args: ["door kept"],
+                    around: async (target) => {
+                        const views = target as { save(list: unknown[]): Promise<void> };
+                        await views.save([{ name: "door kept", camera: { zoom: 2 }, filters: [] }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [{ op: "visibility.conditions", conditions: [] }],
+            },
             rename: calls(
                 ["door view", "door renamed"],
                 [{ op: "view.rename", from: "door view", to: "door renamed" }],
@@ -4617,6 +4666,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
  * the test that checks it.
  */
 export const GESTURE_DOORS: Readonly<Record<string, string>> = {
+    "data.steps-set":
+        "Every data door that changes the graph (import, generate, loadDataset, loadExample, importColumns, a " +
+        "draft's load and join, editJoin, addNodes and the other direct edits, stage, declareType, removeEdit, merge, " +
+        "connect, extract, moveColumns, a renameColumn naming a source, pick, use, removeStep, setStepOff, add, removeSource, " +
+        "replaceSource, reloadSource, a network refresh, settleEdit, resolveStep) while the " +
+        "source-steps " +
+        "experiment is on; the door rows here run with it off. Checked by test/session/source-steps/*.test.ts.",
     "data.expand":
         "Double-clicking a node when the layout behaviour supplies fetchNodes and fetchEdges (src/NodeBehavior.ts); " +
         "checked by test/browser/expansion-through-behaviour.test.ts.",

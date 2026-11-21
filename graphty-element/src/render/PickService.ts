@@ -1124,20 +1124,25 @@ export function hoverEdgeAt(
  * only asynchronously, so there it takes the edges near the point from the last read: the hover's window where the
  * pointer rests, or else the newest whole read of the target, drawn from what is drawn now, from the picture on
  * screen or from the one before it ({@link EdgeIdTarget.held}). A click does not use this, see {@link clickEdgeAt}.
- * ponytail: an answer no read can give (the first question about an edge on WebGPU, right after the lines or the
- * canvas changed and before a frame drew them, in a layout transition, before the target is ready, or with no
- * target) is one typed walk over every row line, with no object per line.
+ * ponytail: an answer no read can give is one typed walk over every row line, with no object per line: the first
+ * `elementAt` on WebGPU (or the first after the target stopped whole reads, {@link EdgeIdTarget.held}), one right
+ * after the lines or the canvas changed and before a frame drew them, one from an older picture whose edges near the
+ * point are no longer under it, before the target is ready, or with no target. In a layout transition it walks too:
+ * there every pick answers at the layout's end, which `pickAtLayout` reaches by moving every moving node there and
+ * back, so the pick is a walk over the nodes whatever the edges cost. A CPU index of the lines if that matters.
  * @param args - {@link hoverEdgeAt}'s: the scene, the graph's edges, x and y, toScreen and the row lines.
  * @returns The edge's id, or `undefined`.
  */
 export function pressEdgeAt(...args: Parameters<typeof hoverEdgeAt>): EdgeId | undefined {
     const [scene, edges, x, y, toScreen, lines = null] = args;
-    const near = scene.getEngine().isWebGPU ? heldNear(scene, x, y) : edgesNear(scene, x, y);
+    const near = scene.getEngine().isWebGPU ? heldNear(scene, x, y, true) : edgesNear(scene, x, y);
     if (near === null || near instanceof Promise) {
         return pickEdgeId(scene, edges(), x, y, toScreen, lines);
     }
 
-    return pickEdgeId(scene, near.edges, x, y, toScreen, lines, near.rows);
+    const found = pickEdgeId(scene, near.edges, x, y, toScreen, lines, near.rows);
+    // A read of an older picture may miss the edge that moved under the point since: measure every edge then.
+    return found === undefined && near.stale === true ? pickEdgeId(scene, edges(), x, y, toScreen, lines) : found;
 }
 
 /**
@@ -1171,11 +1176,12 @@ function edgesNear(scene: Scene, x: number, y: number): EdgeCandidates | Promise
  * @param scene - The scene.
  * @param x - X in CSS pixels.
  * @param y - Y in CSS pixels.
+ * @param whole - Also answer from the target's whole reads, as `elementAt` does ({@link EdgeIdTarget.held}).
  * @returns The edges, or null when no read answers for the point now.
  */
-function heldNear(scene: Scene, x: number, y: number): EdgeCandidates | null {
+function heldNear(scene: Scene, x: number, y: number, whole = false): EdgeCandidates | null {
     const target = edgeIdTargets.get(scene);
-    return target === undefined || transitionUnderWay(scene) ? null : target.held(x, y, pickRadius(scene));
+    return target === undefined || transitionUnderWay(scene) ? null : target.held(x, y, pickRadius(scene), whole);
 }
 
 /**

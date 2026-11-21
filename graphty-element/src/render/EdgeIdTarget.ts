@@ -31,11 +31,13 @@ import type { EdgeRowLines } from "../meshes/EdgeRowLines";
  * costs the target the rows it changed.
  *
  * On WebGPU a read comes back only after a frame, so a synchronous pick (`elementAt`) cannot wait for one. Once
- * anything has asked the target about an edge, it is drawn in each frame whose picture changed and read back whole
- * after it (one copy of the canvas's pixels, with no decoding), and a synchronous pick takes the edges near its point
- * from the newest such read: one drawn from the same rows, camera and lines, or else from the picture on screen
- * or the one before it, with a wider window to cover what moved since. The pick then costs a window of
- * pixels, whatever the edge count.
+ * `elementAt` has asked the target about an edge, it is drawn in each frame whose picture changed and read back whole
+ * after it (one copy of the canvas's pixels, with no decoding), until {@link IDLE_WHOLE_READS} such reads went by
+ * with no `elementAt` asking. A synchronous pick takes the edges near its point from the newest such read: one drawn
+ * from the same rows, camera and lines, or else from the picture on screen or the one before it, with a wider window
+ * to cover what moved since. The pick then costs a window of pixels, whatever the edge count; from an older picture,
+ * when none of the edges it names is under the point any more, the pick measures every edge instead. A hover and a
+ * click wait for a window's read of their own, and start no whole reads.
  */
 
 /**
@@ -69,6 +71,12 @@ void main(void) {
  */
 const STALE_WIDEN = 4;
 
+/**
+ * How many whole reads a WebGPU target sends with no synchronous pick asking before it stops reading whole: a graph
+ * that `elementAt` stopped asking about pays for no more of them.
+ */
+const IDLE_WHOLE_READS = 60;
+
 /** The alpha a row line writes, to tell its id (an edge row) from an `Edge`'s (its place in the list). */
 const ROW_ALPHA = 128;
 
@@ -92,6 +100,11 @@ void main(void) {
 export interface EdgeCandidates {
     readonly edges: Edge[];
     readonly rows: number[];
+    /**
+     * Read from a whole read drawn from a picture before what is drawn now: the edge now under the point may be
+     * missing, so a pick that finds none of these must measure every edge.
+     */
+    readonly stale?: boolean;
 }
 
 /** What the target asks of its graph. */
@@ -162,6 +175,8 @@ export class EdgeIdTarget {
     private drawnVersion = "";
     /** Whether whole reads are kept, on WebGPU: from the first question about an edge on. */
     private armed = false;
+    /** Whole reads sent since a synchronous pick last asked: see {@link IDLE_WHOLE_READS}. */
+    private unasked = 0;
     /** Whole reads sent and not yet back. */
     private wholeInFlight = 0;
     /** What the last whole read sent was drawn from, so a frame drawn from the same sends none. */
@@ -276,7 +291,6 @@ export class EdgeIdTarget {
             return null;
         }
 
-        this.arm();
         if (this.builtAt !== edgeDrawChanges.count) {
             this.rebuild();
         }
@@ -319,15 +333,21 @@ export class EdgeIdTarget {
      * @param x - X in CSS pixels.
      * @param y - Y in CSS pixels.
      * @param radius - The window's half-width, in render pixels.
+     * @param whole - Also answer from the whole reads, and keep them coming (`elementAt`); a click, which can wait
+     *   for a read, passes false and starts none.
      * @returns The edges, or null when no read answers for this point: the first question about an edge, or right
-     *   after the lines or the canvas changed, before a frame has drawn them.
+     *   after the lines or the canvas changed, before a frame has drawn them. Edges from a picture before what is
+     *   drawn now are marked {@link EdgeCandidates.stale}.
      */
-    held(x: number, y: number, radius: number): EdgeCandidates | null {
+    held(x: number, y: number, radius: number, whole = false): EdgeCandidates | null {
         if (this.disposed) {
             return null;
         }
 
-        this.arm();
+        if (whole) {
+            this.arm();
+        }
+
         this.writeRows();
         if (this.builtAt !== edgeDrawChanges.count || !this.fits()) {
             return null;
@@ -341,7 +361,7 @@ export class EdgeIdTarget {
             }
         }
 
-        return this.wholeWindow(cx, cy, radius);
+        return whole ? this.wholeWindow(cx, cy, radius) : null;
     }
 
     /**
@@ -371,7 +391,7 @@ export class EdgeIdTarget {
         const w = Math.min(width, cx + r + 1) - left;
         const h = Math.min(height, cy + r + 1) - bottom;
         if (w <= 0 || h <= 0) {
-            return this.named(this.pixels, 0);
+            return exact ? this.named(this.pixels, 0) : null;
         }
 
         if (this.pixels.length < w * h * 4) {
@@ -383,11 +403,12 @@ export class EdgeIdTarget {
             this.pixels.set(whole.pixels.subarray(at, at + w * 4), row * w * 4);
         }
 
-        return this.named(this.pixels, w * h);
+        return exact ? this.named(this.pixels, w * h) : { ...this.named(this.pixels, w * h), stale: true };
     }
 
     /** Keep whole reads from now on, on WebGPU, and draw a frame to take the first. */
     private arm(): void {
+        this.unasked = 0;
         if (!this.armed && this.scene.getEngine().isWebGPU) {
             this.armed = true;
             this.host.requestFrame();
@@ -435,6 +456,12 @@ export class EdgeIdTarget {
         if (drawnNow && (sent?.version !== this.drawnVersion || !sameValues(sent.from, this.drawnFrom))) {
             const stamp = { from: this.drawnFrom, version: this.drawnVersion };
             this.wholeSent = stamp;
+            if (++this.unasked >= IDLE_WHOLE_READS) {
+                // Stop; what was on screen is forgotten, so after the next question only an exact read answers.
+                this.armed = false;
+                this.shown = null;
+                this.before = [];
+            }
             // Read after the frame is sent, as a hover's read is.
             queueMicrotask(() => {
                 this.readWhole(frame, stamp);

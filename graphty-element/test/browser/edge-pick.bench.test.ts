@@ -22,6 +22,10 @@
  * A WebGPU hover or click waits for a frame, so `frameMs` (one requested frame, as `waitForStableFrame` waits for it)
  * is printed beside them: on SwiftShader a frame of 100,000 lines takes seconds, on a GPU milliseconds.
  *
+ * What a frame costs while the picture changes: `panFrame*` times frames that each pan the camera by about a pixel,
+ * from asking for the frame until the GPU has finished it, before any `elementAt`; `panFrameAsked*` times the same
+ * frames between the moving `elementAt`s, which on WebGPU also draw the edge ID target and read it back whole.
+ *
  * Also printed: how many picks named an edge (each point is on one, unless a node covers it), how many row lines a
  * pick measured, and the first hover, which rebuilds the edge ID target's line list. Nothing is asserted but that
  * the picks found edges: the times are printed as `[edge-pick]` and as `bench-row` lines.
@@ -165,8 +169,46 @@ describe("edge pick cost", () => {
                 await hover(element, { x: 1, y: 1 });
                 const firstHover = performance.now() - firstStart;
                 await element.waitForStableFrame();
-                // On WebGPU the first question about an edge starts the whole reads of the edge ID target: wait for
-                // the first to come back. The code before them has no such counts.
+
+                // A frame that pans the camera by about a pixel, timed from asking for it until the GPU has done its
+                // work (on WebGPU; on WebGL until the frame is drawn): what a layout or a camera move costs a frame.
+                const camera = element.graph.scene.activeCamera;
+                const step = span / WIDTH;
+                const queue = (
+                    element.graph.scene.getEngine() as unknown as {
+                        _device?: { queue: { onSubmittedWorkDone(): Promise<void> } };
+                    }
+                )._device?.queue;
+                const panFrame = async (): Promise<number> => {
+                    const start = performance.now();
+                    await new Promise<void>((resolve) => {
+                        element.graph.scene.onAfterRenderObservable.addOnce(() => {
+                            resolve();
+                        });
+                        if (camera !== null) {
+                            camera.position.x += step;
+                        }
+
+                        renderManagerOf(element.graph).requestFrame();
+                    });
+                    await queue?.onSubmittedWorkDone();
+                    return performance.now() - start;
+                };
+                const MOVES = 20;
+                // Before any elementAt: no whole reads of the edge ID target.
+                const quietFrames: number[] = [];
+                for (let i = 0; i < MOVES; i++) {
+                    quietFrames.push(await panFrame());
+                }
+                if (camera !== null) {
+                    camera.position.x -= step * MOVES;
+                }
+                await element.waitForStableFrame();
+
+                // On WebGPU the first elementAt starts the whole reads of the edge ID target: wait for the first to
+                // come back. The code before them has no such counts.
+                element.elementAt({ x: 1, y: 1 });
+                await element.waitForStableFrame();
                 const wholeCounts = element.graph.getEdgeIdTarget()?.counts as
                     { wholeReads?: number; wholePending?: number } | undefined;
                 while (
@@ -188,24 +230,14 @@ describe("edge pick cost", () => {
                 }
                 const pressLines = ((edgePickWork as { rowLines?: number }).rowLines ?? 0) - lines0;
 
-                // elementAt between frames while each frame pans the camera by about a pixel.
-                const camera = element.graph.scene.activeCamera;
-                const step = span / WIDTH;
+                // elementAt between frames while each frame pans the camera by about a pixel; the frames are timed
+                // too, as asked about they also draw and read the edge ID target whole on WebGPU.
                 const movingTimes: number[] = [];
+                const askedFrames: number[] = [];
                 let movingEdges = 0;
                 const movingLines0 = (edgePickWork as { rowLines?: number }).rowLines ?? 0;
-                const MOVES = 20;
                 for (const point of points.slice(0, MOVES)) {
-                    await new Promise<void>((resolve) => {
-                        element.graph.scene.onAfterRenderObservable.addOnce(() => {
-                            resolve();
-                        });
-                        if (camera !== null) {
-                            camera.position.x += step;
-                        }
-
-                        renderManagerOf(element.graph).requestFrame();
-                    });
+                    askedFrames.push(await panFrame());
                     const start = performance.now();
                     const got = element.elementAt(point);
                     movingTimes.push(performance.now() - start);
@@ -347,6 +379,10 @@ describe("edge pick cost", () => {
                     movingElementAtMaxMs: Number(Math.max(...movingTimes).toFixed(3)),
                     movingElementAtEdgesFound: movingEdges,
                     movingElementAtRowLinesPerPick: movingLines / MOVES,
+                    panFrameMedianMs: Number(median(quietFrames).toFixed(3)),
+                    panFrameMaxMs: Number(Math.max(...quietFrames).toFixed(3)),
+                    panFrameAskedMedianMs: Number(median(askedFrames).toFixed(3)),
+                    panFrameAskedMaxMs: Number(Math.max(...askedFrames).toFixed(3)),
                     restedPressMedianMs: Number(median(restedTimes).toFixed(3)),
                     restedPressMaxMs: Number(Math.max(...restedTimes).toFixed(3)),
                     restedPressRowLinesPerPick: restedLines / POINTS,

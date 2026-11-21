@@ -433,10 +433,13 @@ describe("the work of a plain edge pick on batched", () => {
                     }
                 };
 
-                // The first question about an edge (here a hover over empty canvas) starts the whole reads.
+                // A hover starts no whole reads; the first elementAt (here over empty canvas) does.
                 const { reads } = target.counts;
                 await hover(element, { x: 2, y: 2 });
                 await readBack(element, reads);
+                await element.waitForStableFrame();
+                assert.strictEqual(target.counts.wholeReads + target.counts.wholePending, 0, "a hover reads no whole");
+                assert.isNull(element.elementAt({ x: 2, y: 2 }), "nothing is at the corner");
                 await wholeBack();
 
                 // elementAt where no hover has been: WebGPU cannot read the target now, and the whole read answers.
@@ -486,6 +489,59 @@ describe("the work of a plain edge pick on batched", () => {
                 assert.deepEqual(asked.hit, { kind: "edge", id: nextId }, "the line is still found");
                 assert.isAbove(asked.lines, 0, "it is measured");
                 assert.isBelow(asked.lines, 40, "with only the lines near it, from the read before the pan");
+
+                // Pan farther than the wider window covers (two columns of lines, about 45 pixels) and ask in the
+                // frame that draws it: the read before the pan names no line under the point now, so every line is
+                // measured, and the answer is the one the settled picture gives.
+                await wholeBack();
+                const far = await new Promise<{ hit: unknown; lines: number }>((resolve) => {
+                    element.graph.scene.onAfterRenderObservable.addOnce(() => {
+                        const start = edgePickWork.rowLines;
+                        const hit = element.elementAt(mid);
+                        resolve({ hit, lines: edgePickWork.rowLines - start });
+                    });
+                    if (camera !== null) {
+                        camera.position.x += 10;
+                    }
+
+                    renderManagerOf(element.graph).requestFrame();
+                });
+                await wholeBack();
+                const settled = element.elementAt(mid);
+                assert.isNotNull(settled, "a line lies under the point after the pan");
+                assert.deepEqual(
+                    far.hit,
+                    settled,
+                    "in the frame of the pan elementAt names the line the settled picture does",
+                );
+                assert.isAtLeast(far.lines, LINES, "found by measuring every line");
+
+                // With no elementAt asking, the whole reads stop after a bounded number of changed frames.
+                const panned = async (): Promise<void> => {
+                    await new Promise<void>((resolve) => {
+                        element.graph.scene.onAfterRenderObservable.addOnce(() => {
+                            resolve();
+                        });
+                        if (camera !== null) {
+                            camera.position.x += 0.01;
+                        }
+
+                        renderManagerOf(element.graph).requestFrame();
+                    });
+                };
+                const sent = (): number => target.counts.wholeReads + target.counts.wholePending;
+                const first = sent();
+                for (let i = 0; i < 70; i++) {
+                    await panned();
+                }
+                await wholeBack();
+                const stopped = sent();
+                assert.isAbove(stopped, first, "changed frames are read while elementAt asked lately");
+                assert.isAtMost(stopped - first, 61, "at most 60 reads after the last question");
+                for (let i = 0; i < 5; i++) {
+                    await panned();
+                }
+                assert.strictEqual(sent(), stopped, "then changed frames are read no more");
             },
         );
     }

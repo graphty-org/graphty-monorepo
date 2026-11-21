@@ -1,6 +1,7 @@
 /**
- * @file A file that carries no style information adds no style layers when its styles are drawn, and a file that
- * carries styles still adds its own (issue #9298).
+ * @file A file that carries no style information adds no style layers when its styles are drawn, while the rest of
+ * what the load reads from it (the scale of its lengths) still applies, and a file that carries styles still adds its
+ * own (issue #9298).
  */
 import { assert, describe, it } from "vitest";
 
@@ -39,16 +40,18 @@ const STYLED = JSON.stringify({
 /**
  * Import a JSON document with its styles drawn.
  * @param data - The document.
- * @returns The layers before and after, and the layers the load reports.
+ * @returns The layers before and after, the layers the load reports and the scale of its lengths.
  */
-async function load(data: string): Promise<{ before: string[]; after: string[]; reported: readonly string[] }> {
+async function load(
+    data: string,
+): Promise<{ before: string[]; after: string[]; reported: readonly string[]; lengthScale: number | undefined }> {
     const session = createGraphSession();
     try {
         const before = session.styles.list().map((l) => l.id);
         await session.data.import({ type: "json", config: { data } }, { styles: "file" });
         const after = session.styles.list().map((l) => l.id);
-        const reported = session.data.lastImport()?.styles?.layers ?? [];
-        return { before, after, reported };
+        const styles = session.data.lastImport()?.styles;
+        return { before, after, reported: styles?.layers ?? [], lengthScale: styles?.lengthScale };
     } finally {
         session.dispose();
     }
@@ -56,9 +59,11 @@ async function load(data: string): Promise<{ before: string[]; after: string[]; 
 
 describe("file styles from a JSON file", () => {
     it("adds no layers for a file with no style information", async () => {
-        const { before, after, reported } = await load(PLAIN);
+        const { before, after, reported, lengthScale } = await load(PLAIN);
         assert.deepStrictEqual(after, before);
         assert.deepStrictEqual([...reported], []);
+        // the rest of what the load read still applies: the scale the file's lengths and stored positions take
+        assert.isNumber(lengthScale);
     });
 
     it("still adds the layers of a file that carries styles", async () => {

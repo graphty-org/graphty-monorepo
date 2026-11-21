@@ -185,16 +185,6 @@ function elementDefaultsOf(
 }
 
 /**
- * A file's styles when the file states any of its own; a file that states none is drawn as one without styles, so its
- * program's defaults alone add no layers (issue #9298).
- * @param read - The styles the data source read, or null.
- * @returns The styles, or null when the file states none.
- */
-function stated(read: FileStylesRead | null): FileStylesRead | null {
-    return read !== null && (statesStyles(read.extracted) || (read.annotations?.length ?? 0) > 0) ? read : null;
-}
-
-/**
  * Apply the styles of the file an import read, inside the import's step.
  * @param command - The import.
  * @param outcome - What the load left.
@@ -227,14 +217,13 @@ export async function applyFileStyles(
         return null;
     }
 
-    const offered =
+    const read =
         (await outcome.reader?.fileStyles?.({
             ...(options.toolDefaults === undefined ? {} : { toolDefaults: options.toolDefaults }),
             viewport: ctx.services.viewport?.() ?? null,
             signal: ctx.signal,
         })) ?? null;
     ctx.signal.throwIfAborted();
-    const read = stated(offered);
     const notes: FileStyleNote[] = [];
     const layers: LayerId[] = [];
     let sceneScale: number | null = null;
@@ -423,7 +412,9 @@ async function applyRead(
         positionsStored: read.positionsStored === true,
     });
     const notes = [...translation.notes];
-    const accepted = acceptedLayers(translation.layers, ctx.services.styles, notes);
+    // A file that states no style of its own adds no layers: its program's defaults alone are not the file's styles
+    // (issue #9298). Its stored positions' scale, framing, background and annotations still apply.
+    const accepted = statesStyles(read.extracted) ? acceptedLayers(translation.layers, ctx.services.styles, notes) : [];
 
     // The values, written onto the elements the element holds as ordinary data columns: only those a layer or the
     // visibility filter reads, so a value a layer the file rebuilt no longer reads leaves no column behind.

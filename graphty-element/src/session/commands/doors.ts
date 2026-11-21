@@ -2533,6 +2533,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        // The renumberings of edge rows the data manager keeps, so each `Edge` brings its row forward when read: a
+        // record of what the store already renumbered, which changes nothing a project saves.
+        name: "RowRenumbering",
+        file: "src/managers/RowRenumbering.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "UpdateManager",
         file: "src/managers/UpdateManager.ts",
         half: "renderer",
@@ -4162,6 +4170,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             settle: LANE,
             keeps: READ,
             unsettledView: READ,
+            // The rows written since a count of changes, so a reader places only those; reads, writes nothing.
+            rowsChangedSince: READ,
         },
     },
     {
@@ -4326,6 +4336,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             publishedBounds: READ,
             // The size a "screen"-sized node of size 1 is drawn against (`node.sizeSpace`).
             nodeScreenReference: READ,
+            // How many edges it holds, counted with no sweep of the list; the frame loop reads it.
+            edgeCount: READ,
         },
     },
     {

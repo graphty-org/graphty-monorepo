@@ -22,7 +22,7 @@ const NODES = [
 ];
 
 /**
- * How far apart a reader may see two neighbouring headers, in pixels: a short number column (as
+ * How far apart a reader may see two neighboring headers, in pixels: a short number column (as
  * wide as its header) draws its header from the end, about 60px from the column before it.
  */
 const NEAR = 100;

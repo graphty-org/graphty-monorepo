@@ -2527,6 +2527,8 @@ class Node_2 implements ModelUser {
     resampleLabel(): void;
     get roundRadius(): number | null;
     // @internal
+    get screenBorder(): boolean;
+    // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;

@@ -740,13 +740,39 @@ function AddMenu({
     onOpenChange?: (opened: boolean) => void;
     target?: React.JSX.Element;
 }>): React.JSX.Element | null {
+    const [own, setOwn] = useState(false);
+    const isOpen = opened ?? own;
+    const dropdown = useRef<HTMLDivElement>(null);
+    const change = (next: boolean): void => {
+        setOwn(next);
+        onOpenChange?.(next);
+    };
+    const changeRef = useRef(change);
+    changeRef.current = change;
+    // A menu whose first item is disabled opens with focus left on its "+", where the menu's own Escape never
+    // hears the key: Escape there closes it too, as it does with focus in the menu.
+    useEffect(() => {
+        if (!isOpen) {
+            return undefined;
+        }
+        const onKey = (event: KeyboardEvent): void => {
+            const inMenu = dropdown.current?.contains(document.activeElement) === true;
+            if (event.key === "Escape" && !inMenu) {
+                changeRef.current(false);
+            }
+        };
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.removeEventListener("keydown", onKey);
+        };
+    }, [isOpen]);
     if (groups.flat().every((option) => option.disabled === true)) {
         return null;
     }
     return (
-        <Menu position="bottom-end" opened={opened} onChange={onOpenChange}>
+        <Menu position="bottom-end" opened={isOpen} onChange={change}>
             <Menu.Target>{target}</Menu.Target>
-            <Menu.Dropdown>
+            <Menu.Dropdown ref={dropdown}>
                 {groups.flatMap((group, at) => [
                     ...(at === 0 ? [] : [<Menu.Divider key={`divider-${String(at)}`} />]),
                     ...group.map((option) => menuItem(option, onAdd)),

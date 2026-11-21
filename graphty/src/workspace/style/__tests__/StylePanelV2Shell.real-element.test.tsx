@@ -186,6 +186,30 @@ describe("Style panel v2 on", () => {
         );
     });
 
+    it("Escape closes a '+' menu whose first item is disabled, with focus still on its '+'", async () => {
+        await openGraph();
+        const tab = await openStyle("Links");
+        await showKind("edge");
+        const text = sectionOf(tab, "edge-text");
+        // A Label waiting for its source leaves the Label item disabled, first in the menu.
+        await userEvent.click(within(text).getByRole("button", { name: "Add to edge text" }));
+        await userEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Label" }));
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector('[role="dialog"]'), "the label's source list closed");
+        });
+        await userEvent.click(within(text).getByRole("button", { name: "Add to edge text" }));
+        const menu = await screen.findByRole("menu");
+        assert.isTrue(
+            within(menu).getByRole("menuitem", { name: "Label" }).hasAttribute("data-disabled"),
+            "the first item is disabled",
+        );
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu"), "Escape closed the menu");
+        });
+    });
+
     it("Border's '+' adds the one Border, a stroke with its color and width", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");

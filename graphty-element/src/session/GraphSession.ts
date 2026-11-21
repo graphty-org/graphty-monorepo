@@ -537,6 +537,11 @@ interface SessionInternals {
     readonly nodeSizeSpace?: () => string | undefined;
     /** Whether the renderer's color scheme is dark (`Graph.setColorScheme`); absent with no renderer. */
     readonly darkScheme?: () => boolean;
+    /**
+     * The nodes the active layout keeps off the canvas (the location map's `unplaced: "hide"`), the
+     * same array until they change; drawn as not visible with `session.hidden`'s. Absent with no renderer.
+     */
+    readonly layoutHidden?: () => readonly NodeId[] | null;
 }
 
 /**
@@ -1865,6 +1870,37 @@ function hiddenOf(dispatcher: Dispatcher): SessionHidden {
             }
         },
     });
+}
+
+/**
+ * Two lists read as one, the same array until either changes, so a reader keyed on the array
+ * rebuilds only then.
+ * @param first - One list.
+ * @param second - The other.
+ * @returns The joined list, or undefined while both are empty.
+ */
+function bothLists(
+    first: () => readonly NodeId[] | undefined,
+    second: () => readonly NodeId[] | null,
+): () => readonly NodeId[] | undefined {
+    let kept: { a: readonly NodeId[] | undefined; b: readonly NodeId[] | null; both: readonly NodeId[] } | null = null;
+    return () => {
+        const a = first();
+        const b = second();
+        if (b === null || b.length === 0) {
+            return a;
+        }
+
+        if (a === undefined || a.length === 0) {
+            return b;
+        }
+
+        if (kept?.a !== a || kept.b !== b) {
+            kept = { a, b, both: [...a, ...b] };
+        }
+
+        return kept.both;
+    };
 }
 
 /**
@@ -4601,7 +4637,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             edgeCount: () => snapshot().edgeCount,
             elements,
             // `session.hidden`: drawn as not visible over whatever the layers paint.
-            hidden: hiddenRowsOf(snapshot, () => dispatcher.state.visibility.hidden),
+            // So are the nodes the active layout keeps off the canvas.
+            hidden: hiddenRowsOf(
+                snapshot,
+                bothLists(
+                    () => dispatcher.state.visibility.hidden,
+                    () => internals.layoutHidden?.() ?? null,
+                ),
+            ),
             // What makes a run-bound layer cost its RUN rather than the graph: a layer selecting
             // the elements one run measured walks that run's 300 rows, not the graph's 50,000.
             measured: elements.measured,

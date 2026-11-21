@@ -1136,10 +1136,12 @@ export abstract class LayoutEngine {
      * @param out.x - receives the scene-unit x
      * @param out.y - receives the scene-unit y
      * @param out.z - receives the scene-unit z
+     * @param from - The element's array, for an engine holding rows with no `Node`: with no `Node`
+     *     it never adopts that array, and would read its own empty one (as `publishColumn` takes it).
      * @returns true when the row is placed
      */
-    protected readRowPosition(row: number, out: { x: number; y: number; z: number }): boolean {
-        const positions = this.writablePositions;
+    protected readRowPosition(row: number, out: { x: number; y: number; z: number }, from?: ElementPositions): boolean {
+        const positions = from === undefined ? this.writablePositions : this.positionsFor(from);
         if (!positions.isPlaced(row)) {
             return false;
         }

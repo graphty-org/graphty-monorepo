@@ -11,6 +11,7 @@
  * session gives back unchanged is written exactly as it was read.
  */
 
+import { isCameraViewName } from "../../../camera/names";
 import type { CameraState } from "../../../camera/types";
 import type { AlgorithmKey, LayerSpec, NodeId, RuleTree, ScopeInput } from "../../../catalog/types";
 import { isGraphtyError } from "../../../errors/GraphtyError";
@@ -19,7 +20,7 @@ import { expandedGraph, type GroupValue, type SavedCollapse } from "../../groups
 import { ENGINE_VERSIONS } from "../../runs/engine";
 import type { Run } from "../../runs/types";
 import type { Layer } from "../../styles/Layer";
-import type { GraphSession, TransactionScope } from "../../types";
+import type { GraphSession, SavedView, SavedViewInput, TransactionScope } from "../../types";
 import type { TimeWindow } from "../../visibility/filter";
 import type { SessionVisibilityApi } from "../../visibility/VisibilityApi";
 import { canonicalText as canonical } from "../framing";
@@ -500,6 +501,63 @@ function layoutJson(session: GraphSession): JsonObject {
 }
 
 /**
+ * One saved view as the file holds it: its name, its camera, and every part it keeps. A following
+ * view is written with the pose it gives now as well, so a reader that does not know `follows`
+ * still opens it at a camera. Node ids are written as element references; a node that names no
+ * element is left out, with its position.
+ * @param w - The writer.
+ * @param name - The view's name.
+ * @param view - The view.
+ * @returns The entry, or none when it has neither a camera nor a followed view.
+ */
+function savedViewJson(w: Writer, name: string, view: SavedView): JsonObject[] {
+    const state =
+        view.follows === undefined ? view.camera : dispatcherOf(w.session).services.camera?.pose?.(view.follows);
+    const camera = state === undefined ? undefined : cameraJson(state);
+    if (camera === undefined && view.follows === undefined) {
+        return [];
+    }
+
+    const mapped = mapRefs(
+        { hidden: view.hidden, filters: view.filters, layers: view.layers },
+        w.mapper,
+        "",
+    ) as JsonObject;
+    const positions = view.positions === undefined ? undefined : positionsJson(w, view.positions);
+    return [
+        {
+            name,
+            ...(camera === undefined ? {} : { camera }),
+            ...(view.follows === undefined ? {} : { follows: view.follows }),
+            ...(view.key === undefined ? {} : { key: view.key }),
+            ...mapped,
+            ...(positions === undefined ? {} : { positions }),
+            ...(view.legend === undefined ? {} : { legend: view.legend }),
+        },
+    ];
+}
+
+/**
+ * A saved view's positions as the file holds them: element references and x, y, z per node, null
+ * for a node nothing had placed (JSON holds no NaN).
+ * @param w - The writer.
+ * @param positions - The positions.
+ * @returns The member.
+ */
+function positionsJson(w: Writer, positions: NonNullable<SavedView["positions"]>): JsonObject {
+    const order: unknown[] = [];
+    const xyz: (number | null)[] = [];
+    positions.order.forEach((id, n) => {
+        const node = w.refs.nodeRef(id);
+        if (node !== undefined) {
+            order.push(node);
+            xyz.push(...positions.xyz.slice(n * 3, n * 3 + 3).map((value) => (Number.isFinite(value) ? value : null)));
+        }
+    });
+    return { order, xyz };
+}
+
+/**
  * Drop the members with nothing to say.
  * @param body - The members.
  * @returns The members that hold something.
@@ -527,14 +585,7 @@ function freshBody(w: Writer): JsonObject {
     const layers = layersJson(w);
     return compact({
         camera: liveCamera(session),
-        // A following view is written as the pose it gives now; version 2 does not keep `follows`
-        // or `key` yet.
-        views: [...session.views].flatMap(([name, view]) => {
-            const state =
-                view.follows === undefined ? view.camera : dispatcherOf(session).services.camera?.pose?.(view.follows);
-            const camera = state === undefined ? undefined : cameraJson(state);
-            return camera === undefined ? [] : [{ name, camera }];
-        }),
+        views: [...session.views].flatMap(([name, view]) => savedViewJson(w, name, view)),
         selection: compact(selection as JsonObject),
         pinned: pinnedJson(w),
         groups: groupsJson(w),
@@ -932,6 +983,72 @@ function cameraRead(r: Reader, camera: unknown): CameraState | undefined {
 }
 
 /**
+ * One saved view a file holds, as `views.save` takes it. A file from before a view kept more than
+ * its camera has only the name and the camera; a `follows` this release knows no camera view for
+ * opens at the camera written beside it.
+ * @param r - The reader.
+ * @param view - The entry.
+ * @param pointer - Where it is.
+ * @returns The view, or none when it has no name or nothing to open at.
+ */
+function savedViewIn(r: Reader, view: JsonObject, pointer: string): SavedViewInput[] {
+    if (typeof view.name !== "string") {
+        return [];
+    }
+
+    const follows = typeof view.follows === "string" && isCameraViewName(view.follows) ? view.follows : undefined;
+    const camera = follows === undefined ? cameraRead(r, view.camera) : undefined;
+    if (follows === undefined && camera === undefined) {
+        return [];
+    }
+
+    const { hidden, filters, layers } = mapRefs(
+        { hidden: view.hidden, filters: view.filters, layers: view.layers },
+        r.mapper,
+        pointer,
+    ) as JsonObject;
+    const positions = isObject(view.positions) ? positionsIn(r, view.positions, `${pointer}/positions`) : undefined;
+    return [
+        {
+            name: view.name,
+            ...(follows === undefined ? { camera } : { follows }),
+            ...(typeof view.key === "string" && view.key !== "" ? { key: view.key } : {}),
+            ...(Array.isArray(filters) ? { filters: filters as never } : {}),
+            ...(isObject(layers) ? { layers: layers as never } : {}),
+            ...(Array.isArray(hidden) ? { hidden: hidden as NodeId[] } : {}),
+            ...(positions === undefined ? {} : { positions }),
+            ...(typeof view.legend === "boolean" ? { legend: view.legend } : {}),
+        },
+    ];
+}
+
+/**
+ * A saved view's positions as the session holds them: node ids and x, y, z per id, NaN for a node
+ * nothing had placed. A reference that binds nowhere is reported and left out, with its position.
+ * @param r - The reader.
+ * @param positions - The member.
+ * @param pointer - Where it is.
+ * @returns The positions, or undefined when the member is malformed.
+ */
+function positionsIn(r: Reader, positions: JsonObject, pointer: string): SavedView["positions"] {
+    const { order, xyz } = positions;
+    if (!Array.isArray(order) || !Array.isArray(xyz)) {
+        return undefined;
+    }
+
+    const ids: NodeId[] = [];
+    const at: number[] = [];
+    order.forEach((ref: unknown, n) => {
+        const id = r.mapper.node(ref, `${pointer}/order/${n}`);
+        if (id !== undefined) {
+            ids.push(id as NodeId);
+            at.push(...(xyz.slice(n * 3, n * 3 + 3) as unknown[]).map((v) => (typeof v === "number" ? v : Number.NaN)));
+        }
+    });
+    return { order: ids, xyz: at };
+}
+
+/**
  * Apply the camera, the saved views and the view settings.
  * @param r - The reader.
  * @param body - The body.
@@ -939,10 +1056,9 @@ function cameraRead(r: Reader, camera: unknown): CameraState | undefined {
 async function readCameraAndSettings(r: Reader, body: Readonly<JsonObject>): Promise<void> {
     const { tx } = r.context;
     if (Array.isArray(body.views)) {
-        const views = body.views.flatMap((view: unknown) => {
-            const camera = isObject(view) && typeof view.name === "string" ? cameraRead(r, view.camera) : undefined;
-            return camera === undefined ? [] : [{ name: (view as { name: string }).name, camera }];
-        });
+        const views = body.views.flatMap((view: unknown, n) =>
+            isObject(view) ? savedViewIn(r, view, `${r.section.pointer}/views/${n}`) : [],
+        );
         await attempt(r, "views", async () => {
             await tx.views.save(views);
             r.context.restored.add("views");

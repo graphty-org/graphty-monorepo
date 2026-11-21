@@ -784,7 +784,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
 | Member          | Holds                                                                                                                               |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `camera`        | graphty-element's `CameraState` members as they are but `type`, points as `{ x, y, z }`, plus `dimension` and `controller` (rule 2) |
-| `views`         | saved views: `{ "name", "camera" }`                                                                                                 |
+| `views`         | saved views: `{ "name", "camera", "follows", "key", "filters", "layers", "hidden", "positions", "legend" }`, `camera` or `follows`  |
 | `selection`     | `{ "nodes": [...], "edges": [...] }` element references                                                                             |
 | `pinned`        | the pinned nodes only: `{ "node", "position": { "x", "y", "z" } }`                                                                  |
 | `groups`        | the collapsed groups, in the order they are collapsed again: `{ "groupBy", "group", "position", "pinned", "edges" }` (rule 8)       |

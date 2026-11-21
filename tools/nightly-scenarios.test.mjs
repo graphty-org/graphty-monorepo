@@ -708,9 +708,18 @@ describe("the nightly path's scenario matrix", () => {
         assert.equal(ci.ref, H);
         ran(
             r,
-            ...["packages", "build", "lint", "checks", "docs", "test", "links", "performance", "story-tests"].map(
-                (j) => `ci/${j}`,
-            ),
+            ...[
+                "packages",
+                "build",
+                "lint",
+                "checks",
+                "docs",
+                "test",
+                "links",
+                "performance",
+                "timing-benchmarks",
+                "story-tests",
+            ].map((j) => `ci/${j}`),
         );
         ran(r, "ci/story-tests-merge", "ci/all-checks");
         skipped(

@@ -2264,10 +2264,11 @@ jobs:
     # measurement with no pass/fail role must not hold them. continue-on-error absorbs a failed job but not a
     # canceled one, and a job that reaches its timeout-minutes is canceled, which makes the whole run conclude
     # canceled (issue #7986). So the benchmarks stop themselves first: each runs under tools/before-deadline.sh,
-    # which fails its step at DEADLINE (44 minutes in), and the steps after them carry their own
-    # timeout-minutes, all inside the job's 50.
-    # Two jobs, side by side: the algorithms table alone takes about 16 minutes and graphty-element's
-    # benchmarks about 30, and run one after the other they outgrew the one job's 44 minutes (issue #8148).
+    # which fails its step at its job's DEADLINE, and the steps after them carry their own
+    # timeout-minutes, all inside the job's timeout-minutes.
+    # Three jobs, side by side: the algorithms table alone takes about 16 minutes, and run one after the other
+    # with graphty-element's benchmarks they outgrew one job's 44 minutes (issue #8148); graphty-element's
+    # browser and timing benchmarks then split too, so one cannot spend the other's time (issue #9456).
     algorithms-benchmarks:
         name: Algorithms Benchmarks
         needs: packages
@@ -2336,21 +2337,26 @@ jobs:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node tools/results/post-benchmarks.mjs algorithms algorithms/benchmark-results/benchmark-sessions-*-comprehensive.json
 
-    # graphty-element's browser and timing benchmarks and the graphty app's load time.
+    # graphty-element's browser timing benchmarks (the browser-bench project, in Chromium).
+    # Its own job and deadline, apart from the timing benchmarks below, so a slow host for one cannot spend the
+    # other's time (issue #9456: run one after the other under one 44-minute deadline, browser-bench took what it
+    # needed and bench got only what was left). Each deadline is its own green time from job start (set-up
+    # included; the larger of runs 44788679828 and 44873487083) times 1.12, the headroom the one job had (44 min
+    # against 2353 s used): 1762 s -> 33 min here, 840 s -> 16 min for the timing benchmarks.
     performance:
         name: Performance Benchmarks
         needs: packages
         if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
         continue-on-error: true
         runs-on: ubuntu-24.04
-        timeout-minutes: 50
+        timeout-minutes: 39
         # id-token: write is the health API's credential (tools/results/post-benchmarks.mjs posts the numbers)
         permissions:
             contents: read
             id-token: write
         steps:
             - name: Note when the benchmarks must end
-              run: echo "DEADLINE=$(( $(date +%s) + 44 * 60 ))" >> "$GITHUB_ENV"
+              run: echo "DEADLINE=$(( $(date +%s) + 33 * 60 ))" >> "$GITHUB_ENV"
 
             - uses: actions/checkout@v7
               with:
@@ -2413,12 +2419,88 @@ jobs:
               if: ${{ !cancelled() }}
               run: pnpm exec playwright install chromium firefox webkit
 
-            # Before the bench project: its three-engine autosave run is the long one, and a job that
-            # runs out of time there must not cost the browser numbers.
             - name: Run the graphty-element browser timing benchmarks
               if: ${{ !cancelled() }}
               working-directory: graphty-element
               run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=browser-bench
+
+    # graphty-element's timing benchmarks (the bench project) and the graphty app's load time, under their own
+    # deadline (see Performance Benchmarks above, issue #9456).
+    timing-benchmarks:
+        name: Timing Benchmarks
+        needs: packages
+        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 22
+        # id-token: write is the health API's credential (tools/results/post-benchmarks.mjs posts the numbers)
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - name: Note when the benchmarks must end
+              run: echo "DEADLINE=$(( $(date +%s) + 16 * 60 ))" >> "$GITHUB_ENV"
+
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: pnpm/action-setup@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # Every package's dist: graphty-element imports the other packages through their dist.
+            - name: Download all package builds
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-packages
+                  path: .
+
+            # Both benchmark projects launch browsers: browser-bench runs in Chromium, and bench's
+            # test/lifecycle/autosave-engines.bench.test.ts launches Chromium, Firefox and WebKit
+            # through Playwright. Installed as the graphty-element-lifecycle shard installs them (same
+            # cache key, all three browsers' system packages), before either benchmark runs.
+            # Restore only: saving all three browsers under the shared key would hand Firefox and WebKit
+            # to every Chromium-only shard that restores it.
+            - name: Restore Playwright browsers
+              if: ${{ !cancelled() }}
+              uses: actions/cache/restore@v6
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+              if: ${{ !cancelled() }}
+
+            - name: Install Playwright system packages
+              if: ${{ !cancelled() }}
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  browsers: chromium firefox webkit
+
+            # A cache hit may hold only Chromium; a browser already installed is skipped.
+            - name: Install Playwright browsers
+              if: ${{ !cancelled() }}
+              run: pnpm exec playwright install chromium firefox webkit
 
             # The repaint's frame budget and undo's cost against a load, timed without coverage. A
             # stopwatch measures whatever else the machine is doing, so these never gate a push;
@@ -4165,6 +4247,7 @@ jobs:
                 links,
                 algorithms-benchmarks,
                 performance,
+                timing-benchmarks,
                 cost-accuracy,
                 story-tests-merge,
                 all-checks,

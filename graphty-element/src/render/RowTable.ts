@@ -591,6 +591,15 @@ export class RowTable {
     }
 
     /**
+     * Whether a row's body is drawn translucent, so a line leaves it at its outline (`ROW_EXTENT_SEEN_THROUGH`).
+     * @param row - The row.
+     * @returns True when it is.
+     */
+    seenThrough(row: number): boolean {
+        return ((this.extents.floats[row * EXTENT_FLOATS + 3] ?? 0) & ROW_EXTENT_SEEN_THROUGH) !== 0;
+    }
+
+    /**
      * Where the coordinate lane puts a row, as the repack draws it: flat in 2D.
      * @param row - The row.
      * @param out - Written with the place.

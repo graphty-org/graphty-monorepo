@@ -1,7 +1,7 @@
 /**
  * @file Under `renderPath: "batched"` an edge row with no `Edge` is drawn from its paint as a straight line
  * pulled from its two nodes' rows (`EdgeRowLines`), the picture the `Edge`'s own pulled line draws; a paint only
- * an `Edge` draws (a tail, a dash, a curve) is refused. The `"objects"` path has none. Stage 27 (lazy `Edge`) of
+ * an `Edge` draws (a tail, a zigzag, a curve) is refused. The `"objects"` path has none. Stage 27 (lazy `Edge`) of
  * design/rendering/row-renderer.md.
  */
 
@@ -105,7 +105,7 @@ describe("an edge row with no Edge", () => {
         const refused: EdgePaint["style"][] = [
             { line: { color: "#ff0000" }, arrowTail: { type: "normal" } },
             { line: { color: "#ff0000" }, arrowHead: { type: "normal", stack: "normal" } },
-            { line: { type: "dash" } },
+            { line: { type: "zigzag" } },
             { line: { bezier: true } },
             { line: { width: 0 } },
             { line: { nodeGap: 1 } },
@@ -270,15 +270,15 @@ async function lazyLoaded(
 }
 
 /**
- * Dash every edge: a look only an `Edge` draws.
+ * Draw every edge as a zigzag: a look only an `Edge` draws (pattern elements, `PatternedLineMesh`).
  * @param element - The element.
  */
-async function dashed(element: Graphty): Promise<void> {
+async function zigzag(element: Graphty): Promise<void> {
     await element.session.styles.add({
-        name: "dashed",
+        name: "zigzag",
         target: "edge",
         selector: { match: "everything" },
-        set: { "edge.style": "dash" },
+        set: { "edge.style": "zigzag" },
     } as never);
 }
 
@@ -334,7 +334,7 @@ describe("an edge stored with no Edge", () => {
     });
 
     it("builds its Edge for a paint only an Edge draws", async () => {
-        const element = await lazyLoaded([{ src: 0, dst: 1 }], true, { before: dashed });
+        const element = await lazyLoaded([{ src: 0, dst: 1 }], true, { before: zigzag });
         const lines = element.graph.getEdgeRowLines();
         assert.isNotNull(lines);
         assert.equal(lines.count, 0);
@@ -677,7 +677,7 @@ describe("an edge loaded with no switch", () => {
                 { src: 2, dst: 3 },
             ],
             true,
-            { before: dashed },
+            { before: zigzag },
         );
         const built = dataManagerInternals.edgesBuilt(element.graph.getDataManager());
         assert.equal(built, 3);

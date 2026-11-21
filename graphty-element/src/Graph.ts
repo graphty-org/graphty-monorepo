@@ -5609,6 +5609,7 @@ export class Graph implements GraphContext {
                 requestFrame: () => {
                     this.renderManager.requestFrame();
                 },
+                settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
             });
             const batches = this.#nodeBatches;
             const target = new NodeIdTarget(this.scene, {

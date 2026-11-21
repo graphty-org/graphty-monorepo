@@ -1155,23 +1155,7 @@ export class EdgeLineBatch {
      * @returns The spacing.
      */
     private spacingFor(length: number): number {
-        if (!this.pattern) {
-            return 0;
-        }
-
-        const { elementLength, count, gap } = this.pattern;
-        // a gap of the line's own repeats from the line's start, as a dash pattern does, the last element cut
-        // where the line ends
-        if (gap !== undefined && count === undefined) {
-            return Math.max(elementLength + gap, 1e-6);
-        }
-        const n = discreteMeshCount(length, elementLength, count);
-        // one element: the next would start past the line's end
-        if (n < 2) {
-            return 2 * (length + elementLength);
-        }
-
-        return Math.max((length - elementLength) / (n - 1), 1e-6);
+        return patternSpacing(this.pattern, length);
     }
 
     /**
@@ -1399,4 +1383,32 @@ function pieceLength(flat: readonly number[], i: number): number {
     const z = flat[i * 3 + 5] - flat[i * 3 + 2];
 
     return Math.sqrt(x * x + y * y + z * z); // eslint-disable-line unicorn/prefer-modern-math-apis -- per piece, per frame; Math.hypot is measurably slower
+}
+
+/**
+ * The dash or dot spacing for an edge of one length: the center-to-center distance that puts the first element at the
+ * start and the last at the end, as `PatternedLineMesh` places its elements on a straight line. 0 for a solid line. A
+ * pulled line's shader runs the same rule (`edgeJoinShader`'s `pulledSpacing`).
+ * @param pattern - The line's pattern; undefined for a solid line.
+ * @param length - The edge's length along its pieces.
+ * @returns The spacing.
+ */
+export function patternSpacing(pattern: EdgeLineMeta["pattern"], length: number): number {
+    if (!pattern) {
+        return 0;
+    }
+
+    const { elementLength, count, gap } = pattern;
+    // a gap of the line's own repeats from the line's start, as a dash pattern does, the last element cut
+    // where the line ends
+    if (gap !== undefined && count === undefined) {
+        return Math.max(elementLength + gap, 1e-6);
+    }
+    const n = discreteMeshCount(length, elementLength, count);
+    // one element: the next would start past the line's end
+    if (n < 2) {
+        return 2 * (length + elementLength);
+    }
+
+    return Math.max((length - elementLength) / (n - 1), 1e-6);
 }

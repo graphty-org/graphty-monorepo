@@ -22,7 +22,20 @@ const ROW_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band
  * Line keys a row line draws exactly as an `Edge`'s pulled straight line does. A curve, a fan, a gap, bends, a
  * support point is shaped per edge, and an animation (a non-zero `animationSpeed`) moves, so each needs an `Edge`.
  */
-const ROW_LINE_KEYS = new Set(["type", "animationSpeed", "width", "color", "opacity", "minScreenWidth", "route"]);
+const ROW_LINE_KEYS = new Set([
+    "type",
+    "animationSpeed",
+    "width",
+    "color",
+    "opacity",
+    "minScreenWidth",
+    "route",
+    // a dashed or dotted line's pattern, which a pulled line draws in its shader (`EdgeMesh.pulledPattern`)
+    "dashLength",
+    "dashGap",
+    "dashArray",
+    "patternCount",
+]);
 
 /**
  * Whether every key set on a style block is one of the keys named.
@@ -102,6 +115,8 @@ interface RowLook {
     readonly opacity: number;
     /** Its head drawn from the row table, null for none; only judged when the style draws one. */
     readonly head: PulledHead | null;
+    /** Whether its line has a pattern (`EdgeMesh.pulledPattern`). */
+    readonly patterned: boolean;
 }
 
 /** What {@link EdgeRowLines} reads from the graph. */
@@ -118,6 +133,8 @@ export interface EdgeRowLinesHost {
     readonly batchedRow: (row: number) => boolean;
     /** Ask for a frame, so a row painted or unpainted shows. */
     readonly requestFrame: () => void;
+    /** Whether no layout is moving the rows, so heads are placed on the CPU (`PulledCapBatch.flush`). */
+    readonly settled: () => boolean;
 }
 
 /**
@@ -300,7 +317,7 @@ export class EdgeRowLines {
             (line.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 &&
             setsOnly(style, ROW_STYLE_KEYS) &&
             setsOnly(line, ROW_LINE_KEYS) &&
-            (line.type ?? "solid") === "solid" &&
+            EdgeMesh.pulledPattern(style, line.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) !== null &&
             !line.animationSpeed &&
             !EdgeMesh.pullsCurve(style) &&
             drawnText(style.label) === undefined &&
@@ -327,6 +344,8 @@ export class EdgeRowLines {
                 rgb: Color3.FromHexString(color),
                 opacity: EdgeMesh.opacityOf(style),
                 head: EdgeMesh.drawsNoCap(style.arrowHead) ? null : pulledHeadOf(style),
+                patterned:
+                    EdgeMesh.pulledPattern(style, style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) !== undefined,
             };
         }
 
@@ -352,18 +371,23 @@ export class EdgeRowLines {
         if (
             !look.draws ||
             batchUploadFrames.edgeAges(scene).on ||
+            // a pattern is drawn by the 3D line's shader only
+            (look.patterned && EdgeMesh.drawsFlat(scene)) ||
             (head !== null && (EdgeMesh.drawsFlat(scene) || !this.headRow(source) || !this.headRow(target)))
         ) {
             return false;
         }
 
         const { width, color } = look;
+        // a head's batch is made before its line's, as an object edge makes its cap first: a head and the line under
+        // it are coplanar, and two opaque meshes draw in the order they were made
+        const headBatch = head === null ? null : pulledHeadBatch(head, cache, scene, rows, this.host);
         const batch = EdgeMesh.pulledBatch(cache, { styleId: meshKey, width, color }, style, scene, () => rows, {
             route: "straight",
             lean: this.host.lean(),
         });
-        // as `Edge.pullLine` gives its piece the look: in 2D a world width
-        const drawnWidth = EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20;
+        // as `Edge.pullLine` gives its piece the look: in 2D, or with a pattern, a world width
+        const drawnWidth = EdgeMesh.drawsFlat(scene) || look.patterned ? width / 40 : width * 20;
         let piece: number;
         try {
             piece = batch.acquire(drawnWidth);
@@ -378,15 +402,16 @@ export class EdgeRowLines {
 
         batch.setLook(piece, look.rgb, look.opacity, drawnWidth);
         batch.setRows(piece, source, target);
+        batch.restFrom(this.host);
         let at = this.batches.indexOf(batch);
         if (at === -1) {
             at = this.batches.push(batch) - 1;
         }
 
         this.lines.set(row, at, piece, source, target);
-        if (head !== null) {
-            batch.setCapBack(piece, head.lineStop);
-            this.paintHead(row, head, source, target);
+        if (head !== null && headBatch !== null) {
+            batch.setCapBack(piece, head.lineStop, head.look, this.host);
+            this.paintHead(row, head, headBatch, source, target);
         }
 
         this.drawn++;
@@ -479,19 +504,18 @@ export class EdgeRowLines {
      * Draw a row line's head from the row table, in the cap batch of its shape and opacity.
      * @param row - The edge row.
      * @param head - Its head.
+     * @param batch - Its head's batch.
      * @param source - Its source node's row.
      * @param target - Its target node's row.
      */
-    private paintHead(row: number, head: PulledHead, source: number, target: number): void {
-        const { scene, cache, rows } = this.host;
-        const batch = pulledHeadBatch(head, cache, scene, rows);
+    private paintHead(row: number, head: PulledHead, batch: PulledCapBatch, source: number, target: number): void {
         let at = this.capBatches.indexOf(batch);
         if (at === -1) {
             at = this.capBatches.push(batch) - 1;
         }
 
         const slot = batch.acquire();
-        batch.setCap(slot, { ...head.place, from: source, head: target });
+        batch.setCap(slot, { ...head.place, from: source, head: target }, head.look);
         this.lines.capBatchOf[row] = at;
         this.lines.capSlot[row] = slot;
     }

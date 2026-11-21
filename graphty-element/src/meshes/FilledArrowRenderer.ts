@@ -310,6 +310,10 @@ attribute vec2 capRows;
 // The source end's gap, the target end's gap, the cap's own gap, and how far its center sits
 // behind its tip at scale 1.
 attribute vec4 capPlace;
+// Where the CPU placed the cap at rest (PulledCapBatch.place), as Edge.placeArrowHead places an object edge's:
+// its center and, in w, its drawn size (0 while it is not placed). Read only while capPlaced is 1.
+attribute vec4 capAt;
+uniform float capPlaced;
 uniform highp sampler2D rowPosition;
 uniform highp sampler2D rowExtent;
 ${EDGE_TRIM_GLSL}
@@ -360,6 +364,11 @@ void main() {
     float scale = finalWorld[3][3] == 0.0 || arrowHidden > 0.5 ? 0.0 : arrowSize;
     vColor = arrowColor;
     vClip = arrowClip;
+#ifdef CAP_PULLED
+    // a pulled cap has no arrowClip buffer, and an unbound attribute reads 0, which would clip it at its tip:
+    // it is always whole, as a placed arrow cap's -1 says
+    vClip = -1.0;
+#endif
 #else
     vec3 lineDir = lineDirection;
     float scale = size;
@@ -371,7 +380,11 @@ void main() {
     // Edge.placeArrowHead over the include's ends: the tip stands its gap back from where the line
     // meets the head's node, the center its offset behind the tip, both along the trimmed line.
     scale = 0.0;
-    if (capRows.x >= 0.0 && capRows.y >= 0.0) {
+    if (capRows.x >= 0.0 && capRows.y >= 0.0 && capPlaced > 0.5 && capAt.w > 0.0) {
+        // at rest: the CPU's place, in the objects path's float64 arithmetic, so the cap draws its picture
+        worldCenter = (finalWorld * vec4(capAt.xyz, 1.0)).xyz;
+        scale = capAt.w;
+    } else if (capRows.x >= 0.0 && capRows.y >= 0.0) {
         int fromRow = int(capRows.x + 0.5);
         int to = int(capRows.y + 0.5);
         vec4 a = capTexel(rowPosition, fromRow);
@@ -389,14 +402,9 @@ void main() {
                 // A closed end lies on the line between the centers, so that line's direction is
                 // the trimmed line's, with fewer roundings.
                 lineDir = normalize(b.xyz - a.xyz);
-            } else if (any(greaterThan(abs(b.xyz - a.xyz), vec3(0.01)))) {
-                // Edge.placeArrowFromCentres: the line has no ends (the nodes overlap), so the
-                // tip stands at the target's box along the line between the centers.
-                lineDir = normalize(b.xyz - a.xyz);
-                target.radius = -1.0;
-                tip = b.xyz - lineDir * edgeTrimReach(-lineDir, target);
-                placed = true;
             }
+            // else the line has no ends: the nodes overlap, and Edge.placeArrowFromCentres hides the head, since two
+            // round ends that overlap have boxes that do too (Edge.endsOverlap)
             if (placed) {
                 vec3 centre = tip - lineDir * (capPlace.z + capPlace.w * toScale);
                 worldCenter = (finalWorld * vec4(centre, 1.0)).xyz;
@@ -1689,8 +1697,8 @@ void main() {
             scene,
             { vertex: "filledArrow", fragment: "filledArrow" },
             {
-                attributes: ["position", "arrowSize", "arrowColor", "capRows", "capPlace"],
-                uniforms: ["world", "viewProjection", "cameraPosition", "opacity"],
+                attributes: ["position", "arrowSize", "arrowColor", "capRows", "capPlace", "capAt", "arrowDirection"],
+                uniforms: ["world", "viewProjection", "cameraPosition", "opacity", "capPlaced"],
                 samplers: ["rowPosition", "rowExtent"],
                 defines: ["#define CAP_PULLED"],
             },

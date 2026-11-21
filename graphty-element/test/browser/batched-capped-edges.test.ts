@@ -1,32 +1,25 @@
 /**
- * @file Under `renderPath: "batched"`, with arrowheads drawn from the row table (`pulledCapsOn`, an internal switch
- * left off until the owner rules on design/rendering/row-renderer.md section 10), an edge with an arrowhead is still a
- * row line (`EdgeRowLines`): its line is
- * pulled from its nodes' rows and stops at the head's back, and its head is drawn from the row table too
- * (`PulledCapBatch`), so neither a directed graph's default look nor an arrowhead restyle builds an `Edge` or leaves an
- * object edge. The picture is the `"objects"` path's. Words on a cap that draw nothing do not need an `Edge` either.
+ * @file Under `renderPath: "batched"`, an edge with an arrowhead or a dashed or dotted line is still a row line
+ * (`EdgeRowLines`): its line is pulled from its nodes' rows, draws its pattern in its shader and stops at the head's
+ * back, and its head is drawn from the row table too (`PulledCapBatch`), so neither a directed graph's default look nor
+ * an arrowhead or dash restyle builds an `Edge` or leaves an object edge. The picture is the `"objects"` path's, pixel
+ * for pixel. Words on a cap that draw nothing do not need an `Edge` either.
  */
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
-import { pulledCapsOn } from "../../src/meshes/PulledCapBatch";
-import { type CanvasFrame, readCanvas } from "../helpers/whole-canvas";
+import { type CanvasFrame, pixelsOverBar, readCanvas } from "../helpers/whole-canvas";
 
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
 const RENDERERS = ADAPTER === "" ? (["webgl"] as const) : (["webgl", "webgpu"] as const);
 
-beforeEach(() => {
-    pulledCapsOn.value = true;
-});
-
 afterEach(() => {
-    pulledCapsOn.value = false;
     document.body.replaceChildren();
 });
 
@@ -97,33 +90,6 @@ function drawn(element: Graphty): { rowLines: number; built: number; objectEdges
     };
 }
 
-/**
- * The pixels two frames differ in, and the largest difference in any channel.
- * @param a - One frame.
- * @param b - The other.
- * @returns The counts.
- */
-function differing(a: CanvasFrame, b: CanvasFrame): { over: number; most: number } {
-    let over = 0;
-    let most = 0;
-    for (let i = 0; i < a.pixels.length; i += 4) {
-        let pixel = 0;
-        for (let c = 0; c < 4; c++) {
-            pixel = Math.max(pixel, Math.abs((a.pixels[i + c] ?? 0) - (b.pixels[i + c] ?? 0)));
-        }
-
-        over += pixel > 1 ? 1 : 0;
-        most = Math.max(most, pixel);
-    }
-
-    return { over, most };
-}
-
-/** Pixels a pulled head may draw a sample apart from the placed one, in this scene: one, at node 11's facets. */
-const KNOWN_PIXELS = 1;
-/** One anti-aliasing sample of four, in levels, rounded up. */
-const ONE_SAMPLE = 64;
-
 const ALL_ROW_LINES = { rowLines: EDGES.length, built: 0, objectEdges: 0 };
 
 describe("an arrowed edge on the batched path", () => {
@@ -145,6 +111,18 @@ describe("an arrowed edge on the batched path", () => {
         assert.deepEqual(drawn(element), ALL_ROW_LINES, "arrowed");
     });
 
+    it("stays a row line when a restyle dashes every line", async () => {
+        const element = await loaded("batched");
+        await element.session.styles.add({
+            name: "dashed",
+            target: "edge",
+            selector: everything,
+            set: { "edge.style": "dash" },
+        } as never);
+        await settled(element);
+        assert.deepEqual(drawn(element), ALL_ROW_LINES);
+    });
+
     it("stays a row line with words on its head that draw nothing", async () => {
         const element = await loaded("batched", "webgl", { "edge.arrowHeadTextSize": 14 });
         assert.deepEqual(drawn(element), ALL_ROW_LINES);
@@ -164,10 +142,10 @@ describe("an arrowed edge on the batched path", () => {
         } as never)) as { id: string };
         await settled(element);
         assert.deepEqual(drawn(element), ALL_ROW_LINES);
-        assert.equal(differing(plain, await readCanvas(element.graph)).over, 0, "no head left behind");
+        assert.equal(pixelsOverBar(plain, await readCanvas(element.graph)), 0, "no head left behind");
         await element.session.styles.remove(id);
         await settled(element);
-        assert.equal(differing(arrowed, await readCanvas(element.graph)).over, 0, "the heads back");
+        assert.equal(pixelsOverBar(arrowed, await readCanvas(element.graph)), 0, "the heads back");
     });
 
     it("draws a selected arrowed edge as the objects path draws it", async () => {
@@ -185,9 +163,7 @@ describe("an arrowed edge on the batched path", () => {
         objects.remove();
         const batched = await loaded("batched");
         const have = await select(batched);
-        const got = differing(want, have);
-        assert.isAtMost(got.over, KNOWN_PIXELS, `${String(got.over)} pixels differ`);
-        assert.isAtMost(got.most, ONE_SAMPLE, `by up to ${String(got.most)} levels`);
+        assert.equal(pixelsOverBar(want, have), 0);
     });
 
     it("draws the same picture once reading the edges builds their Edges, before the next frame", async () => {
@@ -202,18 +178,17 @@ describe("an arrowed edge on the batched path", () => {
         element.graph.scene.render();
         const read = engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight());
         engine.endFrame();
-        assert.equal(differing(want, { pixels: (await read) as Uint8Array }).over, 0);
+        assert.equal(pixelsOverBar(want, { pixels: (await read) as Uint8Array }), 0);
     });
 });
 
-// Whatever the switch: words on a cap that draw nothing, or a cap of size 0, draw nothing an `Edge` is needed for.
+// Words on a cap that draw nothing, or a cap of size 0, draw nothing an `Edge` is needed for.
 describe("an edge with no drawn head on the batched path", () => {
     for (const [name, set] of [
         ["words switched off", { "edge.arrowHead": "none", "edge.arrowHeadTextSize": 14 }],
         ["a head of size 0", { "edge.arrowHeadSize": 0 }],
     ] as const) {
         it(`is a row line with ${name}, heads off the row table`, async () => {
-            pulledCapsOn.value = false;
             const element = await loaded("batched", "webgl", set);
             assert.deepEqual(drawn(element), ALL_ROW_LINES);
         });
@@ -228,6 +203,9 @@ describe.each(RENDERERS)("an arrowed row line's picture on %s", (renderer) => {
             { "edge.width": 40, "edge.arrowHead": "open-normal", "edge.arrowHeadSize": 2 },
         ],
         ["vee heads, translucent", { "edge.arrowHead": "vee", "edge.arrowHeadOpacity": 0.5 }],
+        ["dashed lines", { "edge.style": "dash" }],
+        ["dotted lines with no heads", { "edge.style": "dot", "edge.arrowHead": "none" }],
+        ["star lines, wide", { "edge.style": "star", "edge.width": 3 }],
     ] as const) {
         it(`is the objects path's, ${name}`, async () => {
             const objects = await loaded("objects", renderer, set);
@@ -235,12 +213,7 @@ describe.each(RENDERERS)("an arrowed row line's picture on %s", (renderer) => {
             objects.remove();
             const batched = await loaded("batched", renderer, set);
             assert.deepEqual(drawn(batched), ALL_ROW_LINES);
-            const got = differing(want, await readCanvas(batched.graph));
-            // A pulled head is stood in 32-bit floats on the card, a placed one in doubles: where a head's tip meets its
-            // node's facets the two can disagree on one anti-aliasing sample (design/rendering/row-renderer.md
-            // section 10). Counted, not widened: at most one such pixel, and by one sample at most.
-            assert.isAtMost(got.over, KNOWN_PIXELS, `${String(got.over)} pixels differ`);
-            assert.isAtMost(got.most, ONE_SAMPLE, `by up to ${String(got.most)} levels`);
+            assert.equal(pixelsOverBar(want, await readCanvas(batched.graph)), 0);
         });
     }
 });

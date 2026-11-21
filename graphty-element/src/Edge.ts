@@ -69,7 +69,7 @@ import { batchUploadFrames } from "./meshes/FrameRoster";
 import type { ColumnRow } from "./meshes/NodeBatch";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { movingTexel } from "./meshes/pulledAnimatedLine";
-import { type PulledCapBatch, pulledCapsOn } from "./meshes/PulledCapBatch";
+import type { PulledCapBatch } from "./meshes/PulledCapBatch";
 import {
     CURVE_STRIDE,
     curvePathPoint,
@@ -79,7 +79,8 @@ import {
     routed,
     viaShare,
 } from "./meshes/pulledCurve";
-import { pulledHeadBatch, pulledHeadOf, roundRow } from "./meshes/pulledHead";
+import { type PulledHead, pulledHeadBatch, pulledHeadOf, roundRow } from "./meshes/pulledHead";
+import type { RestSource } from "./meshes/restPlacement";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -153,6 +154,11 @@ const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "b
 /** Line keys a pulled line draws exactly as the plain line does. */
 const PULLED_LINE_KEYS = new Set([
     "type",
+    // a dashed or dotted line's pattern, which a straight pulled line draws in its shader (`EdgeMesh.pulledPattern`)
+    "dashLength",
+    "dashGap",
+    "dashArray",
+    "patternCount",
     "animationSpeed",
     "width",
     "color",
@@ -199,9 +205,6 @@ export const pulledLooks = { judged: 0 };
  */
 const pulledLookOf = new WeakMap<EdgeStyleConfig, boolean>();
 
-/** {@link pulledLookOf} while `pulledCapsOn` is on, when a head drawn from the row table can be pulled too. */
-const pulledLookWithHeadsOf = new WeakMap<EdgeStyleConfig, boolean>();
-
 /**
  * The part of `Edge.pullsLine` that reads the style alone: it sets only keys a pulled line draws, a solid line,
  * no words, no band, no tail and no head but one drawn from the row table (`pulledHeadOf`).
@@ -209,20 +212,19 @@ const pulledLookWithHeadsOf = new WeakMap<EdgeStyleConfig, boolean>();
  * @returns True when the look can be pulled.
  */
 function pulledLook(style: EdgeStyleConfig): boolean {
-    const answers = pulledCapsOn.value ? pulledLookWithHeadsOf : pulledLookOf;
-    let pulls = answers.get(style);
+    let pulls = pulledLookOf.get(style);
     if (pulls === undefined) {
         pulledLooks.judged++;
         const line = style.line ?? {};
         pulls =
             setsOnly(style, PULLED_STYLE_KEYS) &&
             setsOnly(line, PULLED_LINE_KEYS) &&
-            (line.type ?? "solid") === "solid" &&
+            EdgeMesh.pulledPattern(style, line.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) !== null &&
             drawnText(style.label) === undefined &&
             (EdgeMesh.drawsNoCap(style.arrowHead) || pulledHeadOf(style) !== null) &&
             EdgeMesh.drawsNoCap(style.arrowTail) &&
             style.band?.color === undefined;
-        answers.set(style, pulls);
+        pulledLookOf.set(style, pulls);
     }
 
     return pulls;
@@ -3136,6 +3138,9 @@ export class Edge {
             !(EdgeMesh.drawsFlat(this.context.getScene()) && this.pullsCurve(style)) &&
             (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
             (!line.animationSpeed || this.pullsAnimated(style)) &&
+            // a pattern is drawn by a straight 3D line's shader only, never an animated one's
+            (EdgeMesh.pulledPattern(style, line.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) === undefined ||
+                (!this.pullsCurve(style) && !line.animationSpeed && !EdgeMesh.drawsFlat(this.context.getScene()))) &&
             // a head drawn from the row table: straight, in 3D, on round ends (`meshes/pulledHead.ts`)
             (EdgeMesh.drawsNoCap(style.arrowHead) || this.headPullable(style)) &&
             // a line through bends is pulled straight, not rounded or round a self-loop's ring
@@ -3263,11 +3268,10 @@ export class Edge {
             return { color: movingTexel(color), opacity, width: options.width / 40 };
         }
 
-        return {
-            color,
-            opacity,
-            width: EdgeMesh.drawsFlat(this.context.getScene()) ? options.width / 40 : options.width * 20,
-        };
+        // a pattern's width is in world units too (`EdgeMesh.pulledPattern`)
+        const world =
+            EdgeMesh.drawsFlat(this.context.getScene()) || EdgeMesh.pulledPattern(style, options.width) !== undefined;
+        return { color, opacity, width: world ? options.width / 40 : options.width * 20 };
     }
 
     /**
@@ -3288,6 +3292,13 @@ export class Edge {
             return null;
         }
 
+        const head = EdgeMesh.drawsNoCap(style.arrowHead) ? null : pulledHeadOf(style);
+        if (head !== null) {
+            // made before the line's batch, as an object edge makes its cap before its line: a head and the line
+            // under it are coplanar, and two opaque meshes draw in the order they were made
+            this.headBatchOf(head, rows);
+        }
+
         const batch = this.pulledBatchOf(options, style, rows);
         const look = this.pulledLook(options, style);
         const { opacity } = look;
@@ -3302,6 +3313,7 @@ export class Edge {
         }
 
         batch.setLook(piece, look.color, look.opacity, look.width);
+        batch.restFrom(this.restOf(rows));
         if (animationSpeed) {
             batch.setSpeed(piece, animationSpeed);
         }
@@ -3340,6 +3352,29 @@ export class Edge {
      * @param rows - The row table.
      * @returns The head's batch and slot, drawing nothing until {@link Edge.pullRows}; null with no head.
      */
+    /**
+     * What a pulled head and the line under it are placed from at rest (`restPlacement.ts`).
+     * @param rows - The row table.
+     * @returns The source.
+     */
+    private restOf(rows: RowTable): RestSource {
+        const { context } = this;
+        return {
+            rows,
+            settled: () => !context.isRunning() || context.getLayoutManager().layoutEngine?.isSettled !== false,
+        };
+    }
+
+    /**
+     * The batch a pulled head is drawn in.
+     * @param head - The head.
+     * @param rows - The row table.
+     * @returns The batch.
+     */
+    private headBatchOf(head: PulledHead, rows: RowTable): PulledCapBatch {
+        return pulledHeadBatch(head, this.context.getMeshCache(), this.context.getScene(), rows, this.restOf(rows));
+    }
+
     private pullHead(
         batch: PulledLineBatch,
         piece: number,
@@ -3351,10 +3386,10 @@ export class Edge {
             return null;
         }
 
-        batch.setCapBack(piece, head.lineStop);
-        const caps = pulledHeadBatch(head, this.context.getMeshCache(), this.context.getScene(), rows);
+        const caps = this.headBatchOf(head, rows);
+        batch.setCapBack(piece, head.lineStop, head.look, this.restOf(rows));
         const slot = caps.acquire();
-        caps.setCap(slot, { ...head.place, from: -1, head: -1 });
+        caps.setCap(slot, { ...head.place, from: -1, head: -1 }, head.look);
         return { batch: caps, slot, size: head.place.size };
     }
 

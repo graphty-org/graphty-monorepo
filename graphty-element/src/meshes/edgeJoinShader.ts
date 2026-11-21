@@ -381,6 +381,35 @@ const int PIECE_TEXELS = 4;
 #else
 const int PIECE_TEXELS = 2;
 ${PULLED_TRIM_GLSL}
+// A capped piece's ends placed on the CPU at rest (PulledLineBatch.placeEnds, restPlacement.ts), two texels a piece:
+// the source end and 1, then the line's end. Read only while endsPlaced is 1 and the piece's first w is 1.
+uniform highp sampler2D edgeEnds;
+uniform float endsPlaced;
+${pulledTexelGlsl("edgeEnds", "pulledEndsTexel")}
+// A patterned piece's pattern: element length, count and gap (-1 for none), and 1 for a pattern (0 for a solid line).
+uniform vec4 pulledPattern;
+// The spacing a placed piece's end carries (texel 2's w), or -1 for one the shader trims.
+float pulledPlacedSpacing = -1.0;
+// EdgeLineBatch's patternSpacing for a piece of one length, as PatternedLineMesh's discreteMeshCount counts elements.
+float pulledSpacing(float len) {
+    float e = pulledPattern.x;
+    if (pulledPattern.w < 0.5) {
+        return 0.0;
+    }
+    if (pulledPattern.z >= 0.0 && pulledPattern.y < 0.0) {
+        return max(e + pulledPattern.z, 1e-6);
+    }
+    float n;
+    if (pulledPattern.y >= 0.0) {
+        n = min(65536.0, max(2.0, floor(pulledPattern.y)));
+    } else {
+        float dynamicLength = len - 2.0 * e;
+        float period = e + e * 0.5;
+        float minSpacing = period - e;
+        n = dynamicLength < minSpacing ? 1.0 : min(65536.0, 2.0 + max(0.0, floor((dynamicLength - minSpacing) / period)));
+    }
+    return n < 2.0 ? 2.0 * (len + e) : max((len - e) / (n - 1.0), 1e-6);
+}
 #endif
 
 void pullEdge() {
@@ -452,7 +481,13 @@ void pullEdge() {
             pA = a.xyz;
             pB = b.xyz;
             // a straight piece's spare float: how far it stops before a head drawn from the row table
-            if (tint.a > 0.0) {
+            vec4 placedFrom = endsPlaced > 0.5 ? pulledEndsTexel(piece * 2) : vec4(0.0);
+            if (placedFrom.w > 0.5) {
+                vec4 placedTo = pulledEndsTexel(piece * 2 + 1);
+                pA = placedFrom.xyz;
+                pB = placedTo.xyz;
+                pulledPlacedSpacing = placedTo.w;
+            } else if (tint.a > 0.0) {
                 pulledCapTrim(int(rows.x + 0.5), int(rows.y + 0.5), a.w, b.w, tint.a, pA, pB);
             } else {
                 pulledTrim(int(rows.x + 0.5), int(rows.y + 0.5), a.w, b.w, pA, pB);
@@ -463,8 +498,12 @@ void pullEdge() {
     pPrev2 = pA;
     pNext = pB;
     pNext2 = pB;
+    // a patterned piece's spacing, as EdgeLineBatch.place gives a straight line's slot; 0 for a solid line
+    run = vec2(0.0, pulledPlacedSpacing >= 0.0 ? pulledPlacedSpacing : pulledSpacing(length(pB - pA)));
 #endif
+#ifdef EDGE_PULLED_CURVE
     run = vec2(0.0);
+#endif
 }
 #endif
 `;

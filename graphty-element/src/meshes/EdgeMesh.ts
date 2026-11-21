@@ -295,7 +295,7 @@ function openShape(
  */
 const CYTOSCAPE_HALF_TOP_STOP = (0.5 - 0.3) / 1.135;
 
-interface ArrowGeometry {
+export interface ArrowGeometry {
     /** Whether arrow uses center positioning (sphere-like) or tip positioning (triangular) */
     positioningMode: "center" | "tip";
     /** Whether arrow mesh needs rotation to align with edge direction */
@@ -612,6 +612,35 @@ export class EdgeMesh {
      * @param style - The resolved style.
      * @returns The dashes and gaps, or null where none is drawn.
      */
+    /**
+     * The pattern a pulled straight line draws in its shader (renderPath "batched"), as `lineBatch` gives the object
+     * path's joined line: a dash, dot, box, diamond or star line, or a dash array. Undefined for a solid line.
+     * @param style - The resolved style.
+     * @param width - The line's width, as `EdgeMeshOptions` has it.
+     * @returns The pattern, or null for a line type no joined line draws (one drawn as pattern elements).
+     */
+    static pulledPattern(style: EdgeStyleConfig, width: number): JoinedLineOptions["pattern"] | null {
+        const lineType = style.line?.type ?? "solid";
+        const dashArray = this.dashArrayOf(style);
+        const world = width / 40;
+        if (dashArray !== null) {
+            return {
+                kind: "dash",
+                elementLength: world * dashArray[0],
+                gap: world * (dashArray.reduce((a, b) => a + b, 0) - dashArray[0]),
+                dashes: dashArray.map((d) => d * world),
+            };
+        }
+
+        if (lineType === "solid") {
+            return undefined;
+        }
+
+        return Object.hasOwn(JOINED_PATTERN_KINDS, lineType)
+            ? this.joinedPattern(lineType as JoinedPatternKind, world, style)
+            : null;
+    }
+
     static dashArrayOf(style: EdgeStyleConfig): number[] | null {
         const text = style.line?.dashArray;
         if (text === undefined || !DASH_ARRAY_TYPES.has(style.line?.type ?? "solid")) {
@@ -704,6 +733,9 @@ export class EdgeMesh {
         edge: { loop?: boolean; route?: NonNullable<EdgeStyleConfig["line"]>["route"]; lean?: LeanLines } = {},
     ): PulledLineBatch {
         const { loop = false, route = style.line?.route, lean = false } = edge;
+        // a patterned line is a straight 3D line (`Edge.pullsLine`, `EdgeRowLines.drawsStyle`), never lean: the lean
+        // program draws no pattern
+        const pattern = this.pulledPattern(style, options.width) ?? undefined;
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
         // line (blending false) neither blends in place nor goes in the transparent pass.
         const pass = this.pulledPass(style);
@@ -716,7 +748,7 @@ export class EdgeMesh {
         const flat = this.drawsFlat(scene);
         // An unblended line (blending false) is painted at full alpha, which would throw the smoothed
         // edge away and leave the widened rectangle solid: it takes the plain lean program instead.
-        let leanLine: LeanLines = curve ? false : lean;
+        let leanLine: LeanLines = curve || pattern !== undefined ? false : lean;
         if (leanLine === "smooth" && pass === "unblended") {
             leanLine = true;
         }
@@ -730,11 +762,12 @@ export class EdgeMesh {
             suffix = `|${kind}`;
         }
 
-        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${suffix}${flat ? "|2d" : ""}`;
+        const patterned = pattern === undefined ? "" : `|pattern|${JSON.stringify(pattern)}`;
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${suffix}${flat ? "|2d" : ""}${patterned}`;
         return cache.getPulledBatch(key, () => {
             const mesh = flat
                 ? this.createFlatPulledLine(options, style, scene, leanLine)
-                : this.createStaticLine(options, style, scene, false, kind);
+                : this.createStaticLine(options, style, scene, false, kind, pattern);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
             return new PulledLineBatch(
@@ -743,7 +776,7 @@ export class EdgeMesh {
                 () => rows().positionTexture,
                 curve,
                 leanLine === false ? undefined : LEAN_TEMPLATE,
-                kind === true,
+                kind === true && pattern === undefined,
                 curve ? null : rows,
             );
         });
@@ -1148,12 +1181,16 @@ export class EdgeMesh {
         scene: Scene,
         widened = false,
         pulled: boolean | "curve" | "lean" | "smooth" = false,
+        pattern?: JoinedLineOptions["pattern"],
     ): Mesh {
         // A joined line: a straight edge is one piece with square ends, as it always was; a
         // curve's or a bent edge's pieces meet at their corners (design/edges/sharp-corners.md).
         return CustomLineRenderer.createJoinedLineMesh(
             {
-                width: options.width * 20, // Scale factor to match GreasedLine sizing
+                // a pattern's width is in world units, as `lineBatch` gives the object path's patterned line
+                width: pattern === undefined ? options.width * 20 : options.width / 40, // Scale factor to match GreasedLine sizing
+                worldWidth: pattern !== undefined,
+                pattern,
                 color: options.color,
                 opacity: this.opacityOf(style),
                 widened,

@@ -7,11 +7,12 @@ import type { RowTable } from "../render/RowTable";
 import { EdgeMesh } from "./EdgeMesh";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
 import type { MeshCache } from "./MeshCache";
-import { PulledCapBatch, type PulledCapPlace, pulledCapsOn } from "./PulledCapBatch";
+import type { RestSource } from "./restPlacement";
+import { PulledCapBatch, type PulledCapLook, type PulledCapPlace } from "./PulledCapBatch";
 
 /**
  * @file An arrowhead drawn from the row table (`PulledCapBatch`) at the target end of a straight pulled line, on
- * renderPath "batched", while `pulledCapsOn` is on: the head a row line (`EdgeRowLines`) or an `Edge`'s pulled line (`Edge.pullLine`) draws, so
+ * renderPath "batched": the head a row line (`EdgeRowLines`) or an `Edge`'s pulled line (`Edge.pullLine`) draws, so
  * neither a directed graph's default look nor an arrowhead restyle needs an object edge. The line stops at the head's
  * back (`PulledLineBatch.setCapBack`, `PULLED_TRIM_GLSL`'s `pulledCapTrim`), as `Edge.transformArrowCap` ends it.
  */
@@ -27,6 +28,8 @@ export interface PulledHead {
     readonly place: Omit<PulledCapPlace, "head" | "from">;
     /** How far before the target's outline the line stops, at node scale 1 (`Edge.capBack`). */
     readonly lineStop: number;
+    /** What the batch places the head by at rest (`PulledCapBatch.setCap`). */
+    readonly look: PulledCapLook;
 }
 
 /** The answer of {@link pulledHeadOf} for each style: a painted style is shared and never changed. */
@@ -41,10 +44,6 @@ const heads = new WeakMap<EdgeStyleConfig, PulledHead | null>();
  * @returns The head, or null for a head only an object edge draws.
  */
 export function pulledHeadOf(style: EdgeStyleConfig): PulledHead | null {
-    if (!pulledCapsOn.value) {
-        return null;
-    }
-
     let head = heads.get(style);
     if (head === undefined) {
         head = judge(style);
@@ -90,7 +89,11 @@ function judge(style: EdgeStyleConfig): PulledHead | null {
 
     const opacity = arrow.opacity ?? 1;
     const length = EdgeMesh.calculateArrowLength() * size;
-    const geometry = EdgeMesh.getArrowGeometry(type, { lineWidth: style.line?.width, size, breadth: arrow.width });
+    const geometry = EdgeMesh.getArrowGeometry(type, {
+        lineWidth: style.line?.width,
+        size: arrow.size,
+        breadth: arrow.width,
+    });
     // EdgeMesh.calculateArrowPosition: a round cap's center half its size behind the tip, any other by its offset
     const centreBack =
         geometry.positioningMode === "center"
@@ -109,6 +112,11 @@ function judge(style: EdgeStyleConfig): PulledHead | null {
             colour: arrow.color ?? style.line?.color ?? "#FFFFFF",
         },
         lineStop: EdgeMesh.lineStopOf(length, geometry),
+        look: {
+            size: length,
+            centreAt: (tip, direction, at) => EdgeMesh.calculateArrowPosition(tip, direction, at, geometry),
+            lineStopAt: (at) => EdgeMesh.lineStopOf(at, geometry),
+        },
     };
 }
 
@@ -118,9 +126,16 @@ function judge(style: EdgeStyleConfig): PulledHead | null {
  * @param cache - The mesh cache.
  * @param scene - The scene.
  * @param rows - The row table.
+ * @param rest - What the batch places its heads by at rest; see `PulledCapBatch.flush`.
  * @returns The batch.
  */
-export function pulledHeadBatch(head: PulledHead, cache: MeshCache, scene: Scene, rows: RowTable): PulledCapBatch {
+export function pulledHeadBatch(
+    head: PulledHead,
+    cache: MeshCache,
+    scene: Scene,
+    rows: RowTable,
+    rest: Omit<RestSource, "rows">,
+): PulledCapBatch {
     return cache.getPulledCapBatch(head.key, () => {
         const shape = EdgeMesh.billboardShape(head.shape, scene);
         if (shape === null) {
@@ -130,7 +145,10 @@ export function pulledHeadBatch(head: PulledHead, cache: MeshCache, scene: Scene
         const mesh = FilledArrowRenderer.applyPulledShader(shape.create(), head.opacity, scene);
         // The rows are in graph-root's space, as a pulled line's are (`EdgeMesh.pulledBatch`).
         mesh.parent = scene.getTransformNodeByName("graph-root");
-        return new PulledCapBatch(mesh, scene, () => ({ position: rows.positionTexture, extent: rows.extentTexture }));
+        return new PulledCapBatch(mesh, scene, () => ({ position: rows.positionTexture, extent: rows.extentTexture }), {
+            ...rest,
+            rows,
+        });
     });
 }
 

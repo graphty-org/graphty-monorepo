@@ -1,6 +1,6 @@
 /**
- * @file A pulled arrow cap (`CAP_PULLED`, `PulledCapBatch`, with `pulledCapsOn` turned on) draws
- * the pixels of the placed cap (`ArrowCapBatch`), but for a counted few one sample apart, stood where `Edge.placeArrowHead` stands it over the trim mirror's ends
+ * @file A pulled arrow cap (`CAP_PULLED`, `PulledCapBatch`) draws the pixels of the placed cap (`ArrowCapBatch`),
+ * stood where `Edge.placeArrowHead` stands it over the trim mirror's ends
  * (`trimEnds`), reads its place from the row table so a move uploads no cap byte, and draws nothing
  * once either end's row has w = 0 or the cap is handed back. Design:
  * `design/rendering/row-renderer.md`, section 4.3, stage 17.
@@ -9,10 +9,9 @@
 import { Color4, Constants, Engine, FreeCamera, Logger, RawTexture, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
-import { surfaceReach } from "../../src/meshes/edgeRoute";
 import { trimEnds } from "../../src/meshes/edgeTrim";
 import { FilledArrowRenderer } from "../../src/meshes/FilledArrowRenderer";
-import { PulledCapBatch, pulledCapsOn } from "../../src/meshes/PulledCapBatch";
+import { PulledCapBatch } from "../../src/meshes/PulledCapBatch";
 
 const SIZE = 240;
 const ROWS = 60;
@@ -20,17 +19,16 @@ const ROWS = 60;
 const CAPS = ROWS / 2;
 const ROW_TEXELS = 1024;
 /**
- * Pixels the pulled caps draw differently from the placed ones, each by one anti-aliasing sample:
- * the known result that keeps `pulledCapsOn` off (design section 10). Never widened to pass.
+ * Pixels the pulled caps draw differently from the placed ones. None: a pulled cap once lost a sample at its tip,
+ * because the unbound `arrowClip` attribute read 0 and clipped it there. Never widened to pass.
  */
-const KNOWN = { still: 3, moved: 1, hidden: 1 };
+const KNOWN = { still: 0, moved: 0, hidden: 0 };
 /** One sample of four, in levels, rounded up. */
 const ONE_SAMPLE = 64;
 
 let engine: Engine | undefined;
 
 afterEach(() => {
-    pulledCapsOn.value = false;
     engine?.dispose();
     engine = undefined;
     document.querySelectorAll("canvas[data-pulled-caps]").forEach((c) => c.remove());
@@ -52,7 +50,7 @@ function rng(seed: number): () => number {
 }
 
 describe("pulled arrow caps", () => {
-    test("draw the placed cap's pixels but for a counted few, upload nothing on a move, and go at a row of w = 0", async () => {
+    test("draw the placed cap's pixels, upload nothing on a move, and go at a row of w = 0", async () => {
         const canvas = document.createElement("canvas");
         canvas.dataset.pulledCaps = "";
         canvas.width = SIZE;
@@ -173,7 +171,6 @@ describe("pulled arrow caps", () => {
         );
         const placedMesh = placed[0].batchMesh;
         assert(placedMesh, "the placed caps' batch");
-        pulledCapsOn.value = true;
         const pulled = new PulledCapBatch(
             FilledArrowRenderer.applyPulledShader(FilledArrowRenderer.createTriangle(false, scene), 1, scene),
             scene,
@@ -198,12 +195,8 @@ describe("pulled arrow caps", () => {
                 });
                 const { scale } = rows[cap.head];
                 if (ends.src === null || ends.dst === null) {
-                    // Edge.placeArrowFromCentres: overlapping nodes, the tip at the target's box
-                    const direction = at(cap.head).subtract(at(cap.from)).normalize();
-                    const reach = surfaceReach(direction, end(cap.head, 0).half, null);
-                    const tip = at(cap.head).subtract(direction.scale(reach));
-                    placed[e].setScale(scale);
-                    placed[e].place(tip.subtract(direction.scale(cap.capGap + cap.centreBack * scale)), direction);
+                    // Edge.placeArrowFromCentres: two round ends that overlap have boxes that do too, so no head
+                    placed[e].setDrawn(false);
                     overlapping++;
                     return;
                 }
@@ -229,9 +222,6 @@ describe("pulled arrow caps", () => {
         const [still, stillPulled] = await both();
         assert.isAbove(ink(still), 500, "the placed caps draw");
         assert.isAbove(overlapping, 0, "some caps join overlapping nodes");
-        // Known, counted, not a pass: the GPU places in float32 and the CPU in float64, which moves one
-        // anti-aliasing sample on a cap's edge. Until the owner rules on it (design section 10), pulled
-        // caps stay switched off; a change in these counts is a change in the picture.
         assert.strictEqual(differing(still, stillPulled), KNOWN.still, "pixels differ at rest");
         assert.isAtMost(farthest(still, stillPulled), ONE_SAMPLE, "at rest, by one sample at most");
 

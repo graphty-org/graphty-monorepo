@@ -311,6 +311,30 @@ describe("pr-review.sh", () => {
     });
 
     // #5083: test-integrity findings are answered by this review, bound to the head, one marker per cleared finding.
+    it("reads Member answers written as list items or in bold, and still blocks not addressed or missing", () => {
+        group();
+        const answer = (lines) => run(["--proof", proof, "--again"], `${lines}\n\nBlocking findings: 0`);
+        let r = answer("Member #1234: addressed -- a\nMember #1: addressed -- b\nMember #2: addressed -- c");
+        assert.equal(r.code, 0, `plain: ${r.out}`);
+        r = answer("- Member #1234: addressed -- a\n* **Member #1:** addressed -- b\n1. **Member #2: addressed** -- c");
+        assert.equal(r.code, 0, `bullets: ${r.out}`);
+        assert.doesNotMatch(readFileSync(reportPath(), "utf8"), /member-not-addressed/);
+        r = answer(
+            "- Member #1234: addressed -- a\n- Member #1: addressed -- b\n- Member #2: not addressed -- untouched",
+        );
+        assert.equal(r.code, 3, `bullet not addressed: ${r.out}`);
+        assert.match(readFileSync(reportPath(), "utf8"), /^<!-- member-not-addressed 2 -->$/m);
+        r = answer(
+            "- **Member #1234:** addressed -- a\n- **Member #2:** **not addressed** -- c\n- Member #2: addressed",
+        );
+        assert.equal(r.code, 3, `bold not addressed: ${r.out}`);
+        r = answer("- Member #1234: addressed -- a\n- Member #2: addressed -- c");
+        assert.equal(r.code, 3, `missing member: ${r.out}`);
+        assert.match(readFileSync(reportPath(), "utf8"), /^<!-- member-not-addressed 1 -->$/m);
+        r = answer("-Member #1234: addressed\nx Member #1: addressed\nMember #2:addressed");
+        assert.equal(r.code, 3, `nothing looser: ${r.out}`);
+    });
+
     it("hands the reviewer each test-integrity finding and records the ones it cleared for this head", () => {
         git(work, "checkout", "-q", "master");
         const TEST = 'it("a", () => { expect(1).toBe(1); });\nit("b", () => { expect(2).toBe(2); });\n';

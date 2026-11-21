@@ -847,6 +847,27 @@ export type GraphtyErrorCode =
      */
     | "E_ROLE_TARGET_AMBIGUOUS"
     /**
+     * A draft of the sources and steps is open (`session.data.draft()`), so a data write, an undo
+     * or a redo would change what its commit replaces. `details.draft` names the draft. The caller
+     * commits or discards it first. Experimental: the source-steps experiment.
+     */
+    | "E_DRAFT_OPEN"
+    /**
+     * A draft's commit was refused because the committed sources and steps changed after the
+     * draft opened: a data write already on its way when it opened landed first, and the commit
+     * would have undone it. `details.draft` names the draft, which stays open. The caller discards
+     * it and opens a new one. Experimental: the source-steps experiment.
+     */
+    | "E_DRAFT_STALE"
+    /**
+     * A draft opened with `askOverlap` holds a key-overlap question nobody answered: a source it
+     * added meets nodes another source's node rows built (`W_SPACE_OVERLAP`). `details.space` and
+     * `details.source` name the space and the source. The caller answers it with
+     * `draft.answerOverlap(source, "merge" | "separate")` and commits again. Experimental: the
+     * source-steps experiment.
+     */
+    | "E_OVERLAP_UNANSWERED"
+    /**
      * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
      * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
      * an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
@@ -874,8 +895,10 @@ export type GraphtyWarningCode =
     /**
      * A source's keys meet nodes already in the id space it would join (`params.space`,
      * `params.count` of `params.of` keys; `params.other` names the other source for an untyped
-     * one). Kept in the source's own space unless the load asked `overlap: "merge"`.
-     * Experimental: the source-steps experiment.
+     * one). Kept in the source's own space unless the load asked `overlap: "merge"`. In a draft's
+     * preview `questions`, an open question a draft opened with `askOverlap` waits on:
+     * `params.source` is the source asked about and `params.sources` the sources whose node rows
+     * built the nodes it meets. Experimental: the source-steps experiment.
      */
     | "W_SPACE_OVERLAP"
     /**
@@ -905,6 +928,47 @@ export type GraphtyWarningCode =
      * source-steps experiment.
      */
     | "W_REFERENCE_UNBOUND"
+    /**
+     * Rows of a step name more than one element, so they join nothing (`params.step`,
+     * `params.rows`). Reported by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_FAN_OUT"
+    /**
+     * Rows of a step meet no element (`params.step`, `params.rows`). Reported by a draft's preview.
+     * Experimental: the source-steps experiment.
+     */
+    | "W_UNMATCHED"
+    /**
+     * Nodes of the space a merge folds into that no row reached (`params.step`, `params.nodes`).
+     * Reported by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_UNTOUCHED"
+    /**
+     * A step joins end pairs an earlier edge already joins (`params.step`, `params.pairs`). Reported
+     * by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_PARALLEL_EDGES"
+    /**
+     * A step makes edges whose two ends are one node (`params.step`, `params.count`). Reported by a
+     * draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_SELF_LOOPS"
+    /**
+     * Rows of one repeated key hold different values in a column (`params.step`, `params.column`,
+     * `params.keys`). Reported by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_ROWS_DIFFER"
+    /**
+     * A source's edges name nodes of its own space its node rows lack (`params.step`,
+     * `params.source`, `params.nodes`); a merge leaves them unmerged. Reported by a draft's preview.
+     * Experimental: the source-steps experiment.
+     */
+    | "W_NODE_NAMED_ONLY"
+    /**
+     * Edge ends of a step found no node in a space (`params.step`, `params.space`, `params.ends`).
+     * Reported by a draft's preview. Experimental: the source-steps experiment.
+     */
+    | "W_EDGE_END_MISSING"
     /** A run was still computing when the project was saved, so the file does not hold it. */
     | "W_RUN_PENDING"
     /**
@@ -1237,6 +1301,9 @@ const CODE_TABLE = {
     E_EDIT_ROLE_COLUMN: "E_EDIT_ROLE_COLUMN",
     E_CLASH_RULE_TYPE: "E_CLASH_RULE_TYPE",
     E_ROLE_TARGET_AMBIGUOUS: "E_ROLE_TARGET_AMBIGUOUS",
+    E_DRAFT_OPEN: "E_DRAFT_OPEN",
+    E_DRAFT_STALE: "E_DRAFT_STALE",
+    E_OVERLAP_UNANSWERED: "E_OVERLAP_UNANSWERED",
     E_UNKNOWN_DATASET: "E_UNKNOWN_DATASET",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",

@@ -755,6 +755,11 @@ const SOURCE_STEPS_WRITE = exempt(
     "Experimental (source-steps): refused with E_FEATURE_OFF while the experiment is off, as on every session " +
         "the door rows run on; with it on it dispatches the undoable data.steps-set, covered by GESTURE_DOORS.",
 );
+/** A source draft's act: held in the draft, which no project file saves, until its commit. */
+const DRAFT_ACT = exempt(
+    "Experimental (source-steps): changes only the draft, which no project file saves and no step records; " +
+        "its commit is the one step.",
+);
 const CAMERA = exempt("The camera is view state, not saved in a project file.");
 const XR = exempt("An XR device session is view state, not saved in a project file.");
 const SELECTION = exempt("Selection is not a step; undo and redo select what they changed instead.");
@@ -2886,6 +2891,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             removeStep: SOURCE_STEPS_WRITE,
             setStepOff: SOURCE_STEPS_WRITE,
             add: SOURCE_STEPS_WRITE,
+            draft: exempt(
+                "Experimental (source-steps): opens a draft, which no project file saves; refused with " +
+                    "E_FEATURE_OFF while the experiment is off, as on every session the door rows run on.",
+            ),
+            currentDraft: READ,
+            matchCounts: READ,
+            matchValues: READ,
             lineage: READ,
             values: READ,
             cell: READ,
@@ -3632,6 +3644,76 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             commit: calls([], [{ op: "algo.remove", runId: "degree" }]),
             discard: calls([], [{ op: "algo.remove", runId: "degree" }]),
             started: READ,
+        },
+    },
+    {
+        // Reached only through data.draft(), refused on every session the door rows run on; its
+        // rows are called with the experiment on by test/session/source-steps/drafts-session.test.ts.
+        name: "SourceDraft",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            id: READ,
+            open: READ,
+            stage: DRAFT_ACT,
+            import: DRAFT_ACT,
+            add: DRAFT_ACT,
+            answerOverlap: DRAFT_ACT,
+            merge: DRAFT_ACT,
+            connect: DRAFT_ACT,
+            extract: DRAFT_ACT,
+            moveColumns: DRAFT_ACT,
+            renameColumn: DRAFT_ACT,
+            declareType: DRAFT_ACT,
+            pick: DRAFT_ACT,
+            use: DRAFT_ACT,
+            editStep: DRAFT_ACT,
+            removeStep: DRAFT_ACT,
+            removeSource: DRAFT_ACT,
+            removeEdit: DRAFT_ACT,
+            setMapping: DRAFT_ACT,
+            undo: DRAFT_ACT,
+            steps: READ,
+            types: READ,
+            edits: READ,
+            matchCounts: READ,
+            matchValues: READ,
+            preview: READ,
+            pickAll: DRAFT_ACT,
+            clearPicks: DRAFT_ACT,
+            exclude: DRAFT_ACT,
+            include: DRAFT_ACT,
+            commit: SOURCE_STEPS_WRITE,
+            dispose: exempt("closes the draft, writing nothing"),
+            displayed: READ,
+            side: READ,
+            display: exempt(
+                "Experimental (source-steps): draws the draft on the graph, which is view state no project file saves.",
+            ),
+            show: exempt(
+                "Experimental (source-steps): picks the side of the commit a drawn draft shows, view state no project file saves.",
+            ),
+        },
+    },
+    {
+        // Returned by SourceDraft.preview(): what the draft would do, and the rows behind each count.
+        name: "SourceDraftPreview",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            draft: READ,
+            before: READ,
+            after: READ,
+            nodes: READ,
+            edges: READ,
+            steps: READ,
+            sources: READ,
+            edits: READ,
+            issues: READ,
+            questions: READ,
+            rows: READ,
+            elements: READ,
+            cells: READ,
         },
     },
     {
@@ -4669,8 +4751,9 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
     "data.steps-set":
         "Every data door that changes the graph (import, generate, loadDataset, loadExample, importColumns, a " +
         "draft's load and join, editJoin, addNodes and the other direct edits, stage, declareType, removeEdit, merge, " +
-        "connect, extract, moveColumns, a renameColumn naming a source, pick, use, removeStep, setStepOff, add, removeSource, " +
-        "replaceSource, reloadSource, a network refresh, settleEdit, resolveStep) while the " +
+        "connect, extract, moveColumns, a renameColumn naming a source, pick, use, removeStep, setStepOff, add, " +
+        "removeSource, replaceSource, reloadSource, a network refresh, settleEdit, resolveStep, a source draft's " +
+        "commit) while the " +
         "source-steps " +
         "experiment is on; the door rows here run with it off. Checked by test/session/source-steps/*.test.ts.",
     "data.expand":

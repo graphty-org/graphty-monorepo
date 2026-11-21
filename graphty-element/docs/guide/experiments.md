@@ -160,6 +160,75 @@ keeps the sources (their rows, or where a referenced one is read from) and the s
 project file's `graphty-sources` member, and opening the file rebuilds the same graph. With it
 off, loads, joins, removal, refresh and saved files are as before.
 
+#### Drafts and preview
+
+A draft tries acts on a copy of the sources and steps, so a reader can see what they would do
+before the graph changes. `data.draft()` opens one; it takes the same acts as the data doors
+(`stage`, `add`, `merge`, `connect`, `extract`, `pick`, `editStep`, `removeSource`, ...) and its
+own `undo()`. `commit()` applies all of them as one undo step, and `dispose()` leaves nothing.
+
+```ts
+const session = createGraphSession({ features: ["source-steps"] });
+const people = await session.data.stage(peopleCsv, { key: "badge", type: "person" });
+await session.data.add(people);
+const entries = await session.data.stage(entriesCsv, { key: "entry", type: "entry" });
+
+const draft = session.data.draft();
+const byBadge = { from: { source: entries, field: "badge" }, into: { source: people } };
+draft.matchCounts(byBadge); // { matched, only1, only2, repeated1, repeated2, ... }
+draft.connect({ ...byBadge, edgeType: "entered" });
+
+const preview = draft.preview();
+console.log(preview.after.edges - preview.before.edges); // edges the commit adds
+await draft.commit(); // one undo step: Undo puts the entries back to staged
+```
+
+`matchCounts` (also `data.matchCounts`) hashes the two fields without building anything:
+`matched`, `only1`, `only2`, `repeated1`, `repeated2`, `fanOut`, `textVersusNumber`, and how many
+more would match with `ignoreCase` or `ignoreSpaces` on. `matchValues` lists the values behind
+them, a page at a time.
+
+`preview()` compares the draft's graph with the committed one, counted over every row: totals and
+counts per type `before` and `after`; nodes and edges added, removed and changed; and for each
+step its counts (`buckets`) and their change from the committed ones:
+
+| Count                                                  | What it counts                                                           |
+| ------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `merged`                                               | nodes a merge folds into the node they matched                           |
+| `matched`, `unmatched`                                 | rows whose key found the element they write to, or none                  |
+| `fanOut`                                               | rows whose key names several elements, so they are left out              |
+| `untouched`                                            | nodes of the merged space no row reached                                 |
+| `typeDiffers`                                          | elements given another type than an earlier step gave them               |
+| `newNodes`, `newEdges`, `newNodeTypes`, `newEdgeTypes` | what the step makes, in all and per type                                 |
+| `namedOnly`                                            | nodes a source's edges name that its own node rows lack                  |
+| `valuesDiffer`                                         | cells, per column, where another source wrote a different value          |
+| `repeated1`, `repeated2`, `rowsDiffer`                 | keys repeated on either side, and those whose rows differ                |
+| `groups`                                               | how many nodes each merged node was made from, largest first             |
+| `parallelPairs`, `selfLoops`                           | end pairs an earlier edge already joins, and edges from a node to itself |
+| `endsMeet`, `endsMissing`                              | edge ends that found a node, or none, per id space                       |
+
+`preview.rows({ step, bucket })` lists the rows behind a count, with each row as read and the
+element's values before and after; `draft.exclude(step, keys)` leaves those rows out of the step.
+`preview.cells({ column })` lists the cells where sources disagree, each source's value, the value
+shown and whether a pick decided it; `editStep(step, { clash })` changes a column's rule and
+`pick` or `pickAll` decide cells. `draft.display(true)` draws the draft, where every element reads
+`graphty.draft` (`"merged"`, `"new"`, `"changed"`, `"removed"` or `"unchanged"`) for a style layer
+to show, and `draft.show("before" | "after")` switches between the graph as it is and as the
+commit would leave it. Each change fires `data:draft-changed` with a `reason` (`"opened"`,
+`"changed"`, `"committed"`, `"discarded"`).
+
+While a draft is open every other data write and `session.undo()` / `redo()` are refused with
+`E_DRAFT_OPEN { draft }`; views, styles, filters, selection and notes go ahead. A save writes the
+committed project and leaves the draft open; opening a project or `data.clear()` discards it.
+`data.draft({ askOverlap: true })` makes an add whose keys meet existing nodes ask instead of
+keeping the source separate: the question is in `preview().questions` (`W_SPACE_OVERLAP`), and
+`commit()` throws `E_OVERLAP_UNANSWERED { space, source }` until `answerOverlap(source, "merge" |
+"separate")`. The preview's `issues` report `W_FAN_OUT`, `W_UNMATCHED`, `W_UNTOUCHED`,
+`W_VALUES_DIFFER`, `W_ROWS_DIFFER`, `W_PARALLEL_EDGES`, `W_SELF_LOOPS`, `W_NODE_NAMED_ONLY`,
+`W_EDGE_END_MISSING`, `W_STEP_REMOVED`, `W_REFERENCE_UNBOUND` and `W_FILTER_HELD`, each with its
+parameters. With the experiment off, `data.draft()`, `data.matchCounts()`, `data.matchValues()`
+and `data.currentDraft()` throw `E_FEATURE_OFF`.
+
 ### `source-references`
 
 Saving a load as a **reference** instead of a copy: the project file says where to read the load

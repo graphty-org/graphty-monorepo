@@ -239,6 +239,8 @@ export interface Conflict {
     readonly ref: ElementRef;
     /** The step whose rule settles the cell. */
     readonly step: number;
+    /** The steps whose value differed from the one shown before it: the steps that count the cell. */
+    readonly steps: readonly number[];
     readonly column: string;
     readonly values: readonly { source: string; value: Value }[];
     readonly shown: Value | null;
@@ -250,6 +252,7 @@ export interface Conflict {
 
 /** Which conflicts to list. */
 export interface ConflictQuery {
+    /** Only cells this step counts (see {@link Conflict.steps}). */
     readonly step?: number;
     readonly column?: string;
     /** Only cells this source holds a value for. */
@@ -290,35 +293,40 @@ function conflictAt(el: BuiltNode | BuiltEdge, column: string): Conflict | null 
     const rule = el.rule?.[column] ?? "keep";
     const by = el.edited?.[column] ? READER_SOURCE : rule;
     const step = el.ruleStep?.[column] ?? Math.max(...el.touch.map((t) => t.step));
-    return { ref: refOf(el), step, column, values: list, shown: el.values[column] ?? null, by, rule };
+    const differAt = el.differAt?.[column] ?? [];
+    // a cell no step's value differed in (a computed value matched each one) counts under its rule's step
+    const steps = differAt.length > 0 ? [...differAt] : [step];
+    return { ref: refOf(el), step, steps, column, values: list, shown: el.values[column] ?? null, by, rule };
 }
 
 function wanted(c: Conflict, query: ConflictQuery): boolean {
     if (query.only !== undefined && (c.by === READER_SOURCE) !== (query.only === "decided")) {
         return false;
     }
-    if (query.step !== undefined && c.step !== query.step) {
+    if (query.step !== undefined && !c.steps.includes(query.step)) {
         return false;
     }
     return query.source === undefined || c.values.some((x) => x.source === query.source);
 }
 
 /**
- * The conflict report: one `W_VALUES_DIFFER` per step and column, counting its cells and those a
- * reader decision settles.
+ * The conflict report: one `W_VALUES_DIFFER` per step and column, counting the cells the step
+ * counts (see {@link Conflict.steps}) and those a reader decision settles.
  * @param result - A build.
  * @returns The report, in the order the conflicts are listed.
  */
 export function conflictReport(result: BuildResult): StepsOutcome[] {
     const per = new Map<string, { step: number; column: string; count: number; decided: number; rule: ClashRule }>();
     for (const c of conflicts(result)) {
-        const k = JSON.stringify([c.step, c.column]);
-        const r = per.get(k) ?? { step: c.step, column: c.column, count: 0, decided: 0, rule: c.rule };
-        r.count++;
-        if (c.by === READER_SOURCE) {
-            r.decided++;
+        for (const step of c.steps) {
+            const k = JSON.stringify([step, c.column]);
+            const r = per.get(k) ?? { step, column: c.column, count: 0, decided: 0, rule: c.rule };
+            r.count++;
+            if (c.by === READER_SOURCE) {
+                r.decided++;
+            }
+            per.set(k, r);
         }
-        per.set(k, r);
     }
     return [...per.values()].map((params) => ({ code: "W_VALUES_DIFFER", params }));
 }
@@ -539,6 +547,7 @@ const renameKeys = <T>(rec: Readonly<Record<string, T>>, from: string, to: strin
  * @param input - The build input.
  * @param copies - Each source's rows as read, by copy id.
  * @param r - The source, table and names.
+ * @param held - The build of `input` when the caller holds it; absent builds it.
  * @returns The new build input, `E_EDIT_ROLE_COLUMN` for a column a role, rule or step reads, or
  * `E_BAD_COMMAND` (`name-taken`) when the table already has a column of the new name.
  */
@@ -546,6 +555,7 @@ export function renameColumn(
     input: BuildInput,
     copies: ReadonlyMap<string, CopyTables>,
     r: Rename,
+    held?: BuildResult,
 ): BuildInput | StepsOutcome {
     const src = input.sources[r.source];
     if (readColumns(input, r.source).has(r.from)) {
@@ -560,7 +570,7 @@ export function renameColumn(
         };
     }
     const read = Object.entries(renamed).find(([, w]) => w === r.from)?.[0] ?? r.from;
-    const result = build(input, copies);
+    const result = held ?? build(input, copies);
     const col = (c: string): string => (c === r.from ? r.to : c);
     const filter = <F extends { column: string }>(f: F | undefined): F | undefined =>
         f && { ...f, column: col(f.column) };

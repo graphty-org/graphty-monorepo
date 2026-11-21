@@ -433,7 +433,6 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.meshDetail": "Mesh detail",
     "node.flat": "Flat shading",
     "node.unlit": "Unlit",
-    "node.marker": "Marker",
     "node.visible": "Show",
     "node.labelBackground": "Label background",
     "node.tooltipSize": "Tooltip size",

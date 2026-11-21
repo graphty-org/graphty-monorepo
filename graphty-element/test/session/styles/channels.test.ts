@@ -9,7 +9,6 @@ import {
     asColorValue,
     type AuthoredValue,
     CHANNEL_DESCRIPTORS,
-    type ChannelDescriptor,
     channelDescriptor,
     CHANNELS,
     channelsFor,
@@ -90,7 +89,6 @@ const DECLARED = [
     "node.meshDetail",
     "node.flat",
     "node.unlit",
-    "node.marker",
     "node.width",
     "node.height",
     "node.depth",
@@ -445,8 +443,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and twelve node channels and one hundred and seventy-seven edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 212);
+    it("splits into two hundred and eleven node channels and one hundred and seventy-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 211);
         assert.strictEqual(channelsFor("edge").length, 177);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -473,17 +471,10 @@ describe("the channel set", () => {
 });
 
 describe("what the element can really draw", () => {
-    it("draws every channel but the marker", () => {
+    it("draws every channel it publishes", () => {
         const unrenderable = CHANNELS.filter((channel) => !CHANNEL_DESCRIPTORS[channel].renderable);
 
-        assert.deepEqual(unrenderable, ["node.marker"]);
-    });
-
-    it("says why the marker draws nothing, rather than accepting a value and dropping it", () => {
-        const marker = CHANNEL_DESCRIPTORS["node.marker"];
-
-        assert.strictEqual(marker.accepts, "nothing");
-        assert.isDefined(marker.caveat);
+        assert.deepEqual(unrenderable, []);
     });
 
     it("records what the renderer narrows, on the channels it narrows", () => {
@@ -972,8 +963,6 @@ describe("what a style editor needs to draw a row", () => {
             assert.notProperty(CHANNEL_DESCRIPTORS[channel], "unsupportedReason", channel);
             assert.strictEqual(unsupported !== undefined, !renderable, channel);
         }
-
-        assert.deepEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupported, { code: "channel.not-drawn", params: {} });
     });
 });
 
@@ -1060,23 +1049,12 @@ describe("what each channel carries", () => {
         };
 
         assert.strictEqual(style["node.size"], 3);
-        assert.isUndefined(style["node.marker"]);
-    });
-
-    it("makes the marker unwritable rather than writable and ignored", () => {
-        // This line compiles only while the marker's value type is `never`, which is how a
-        // channel the element cannot draw stays unreachable instead of silently doing nothing.
-        const nothingFits: [PaintedValue<"node.marker">] extends [never] ? true : false = true;
-
-        assert.isTrue(nothingFits);
     });
 
     it("gives every descriptor a value kind a control can be built from", () => {
         const kinds: readonly ChannelValueKind[] = CHANNELS.map((channel) => CHANNEL_DESCRIPTORS[channel].accepts);
-        const drawn = (descriptor: ChannelDescriptor): boolean => descriptor.renderable;
 
-        assert.strictEqual(kinds.filter((kind) => kind === "nothing").length, 1);
-        assert.isFalse(drawn(CHANNEL_DESCRIPTORS["node.marker"]));
+        assert.strictEqual(kinds.filter((kind) => kind === "nothing").length, 0);
     });
 });
 

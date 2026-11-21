@@ -477,17 +477,6 @@ describe("a literal binding", () => {
 });
 
 describe("what a rule cannot be pointed at", () => {
-    it("refuses a channel the element draws nothing for", () => {
-        assert.strictEqual(
-            codeOf(() => prepare("node.marker", { by: "x" }, ["a"])),
-            "E_UNSUPPORTED",
-        );
-        assert.strictEqual(
-            codeOf(() => prepare("node.marker", { value: "a badge" })),
-            "E_UNSUPPORTED",
-        );
-    });
-
     it("refuses to bind a whole label style to a path, because no scale produces one", () => {
         assert.strictEqual(
             codeOf(() => prepare("node.labelStyle", { by: "x" }, ["a"])),

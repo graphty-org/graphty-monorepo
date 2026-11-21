@@ -131,8 +131,7 @@ type LiteralBinding = Extract<Binding, { value: ChannelValue }>;
  * What a prepared binding produces for one element.
  *
  * It is the union of every channel's value type, because a binding is prepared for one channel
- * and its caller already knows which. `node.marker` contributes `never`, which is how a channel
- * the element cannot draw stays unwritable.
+ * and its caller already knows which.
  */
 export type EncodedValue = ChannelValues[Channel];
 

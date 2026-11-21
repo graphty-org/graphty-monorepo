@@ -753,7 +753,6 @@ const CARD_COVERS: readonly Channel[] = [
     "node.borderWidth",
     "node.borderStyle",
     "node.cornerRadius",
-    "node.marker",
     "node.flat",
     "node.unlit",
     "node.wireframe",

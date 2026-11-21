@@ -52,7 +52,6 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.glow": at("Nodes, Shape, Glow"),
     "node.glowStrength": at("Nodes, Shape, Glow strength"),
     "node.flat": no('nothing draws it; Graph settings, Lighting "flat" gives the look'),
-    "node.marker": no("graphty-element refuses it"),
     "node.sizeMode": NOT_PLACED,
     "node.sizeSpace": NOT_PLACED,
     "node.labelFont": TEXT_FIELD,

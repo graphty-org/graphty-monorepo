@@ -858,19 +858,6 @@ describe("checking a layer before it is committed", () => {
         assert.deepStrictEqual(codesOf(result), ["E_BAD_LAYER"]);
     });
 
-    it("refuses a channel the element draws nothing for, and says what it is", () => {
-        const { styles } = makeStyles();
-        const result = styles.validate({
-            name: "Marker",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.marker": "star" },
-        });
-
-        assert.deepStrictEqual(codesOf(result), ["E_UNSUPPORTED"]);
-        assert.include(result.errors[0]?.message ?? "", "node.marker");
-    });
-
     it("refuses a scale nothing is registered under, and lists the ones that are", () => {
         const { styles } = makeStyles();
         const result = styles.validate({

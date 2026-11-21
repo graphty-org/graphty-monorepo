@@ -15,10 +15,6 @@
  * every entry below names the field of the parsed style it lands on. Several entries narrow that
  * claim, and every one of them says so in `caveat` rather than pretending:
  *
- * - `node.marker` draws nothing at all. `NodeStyle.texture.icon` is declared in the schema and
- *   no renderer reads it, and the badge vocabulary that does exist belongs to a label, not to a
- *   node. It is marked `renderable: false` and its value type is `never`, so writing it is a
- *   compile error rather than a silent no-op.
  * - `edge.curvature` is a switch, not an amount. The edge renderer offsets its control points by
  *   a fixed fraction of the edge length, so "curve this edge" is the only thing it can be told.
  * - `edge.patternCount` counts the elements of a PATTERNED line. A solid line has none to count,
@@ -373,10 +369,6 @@ const ARROW_SIDE_VALUES: readonly ("left" | "right")[] = ["left", "right"];
 
 /**
  * The value each channel carries once it has been resolved, which is what a repaint reads.
- *
- * `node.marker` is `never` because the element draws nothing for it. That is not a placeholder:
- * a channel whose only possible value is "no value" cannot be written by accident, and the
- * compiler says so at the line that tried rather than at a frame that came out looking wrong.
  */
 export interface ChannelValues {
     "node.color": ColorValue;
@@ -439,7 +431,6 @@ export interface ChannelValues {
     "node.meshDetail": NodeMeshDetailValue;
     "node.flat": boolean;
     "node.unlit": boolean;
-    "node.marker": never;
     "node.width": number;
     "node.height": number;
     "node.depth": number;
@@ -773,9 +764,9 @@ export interface ChannelValues {
 /**
  * The channels whose value is a colour, and which therefore accept a string when authored.
  *
- * Written out rather than derived, because `never` -- which is what `node.marker` carries --
- * extends every type and would quietly join any union derived by a conditional. The list is tied
- * to the table by {@link COLOR_CHANNELS} and asserted in the tests, so the two cannot drift.
+ * Written out rather than derived, so a channel whose value type widens never joins it by
+ * accident. The list is tied to the table by {@link COLOR_CHANNELS} and asserted in the tests, so
+ * the two cannot drift.
  */
 export type ColorChannel =
     | "node.color"
@@ -2862,20 +2853,6 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "An unlit node is drawn in its own color everywhere, with no light and no shade, so a " +
             "sphere reads as a flat dot. In 2D every node is drawn unlit already, so it changes " +
             "nothing there.",
-    },
-    "node.marker": {
-        channel: "node.marker",
-        target: "node",
-        plainName: "Node Marker",
-        shortName: "Marker",
-        group: "effects",
-        unsupported: { code: "channel.not-drawn", params: {} },
-        accepts: "nothing",
-        stylePath: "texture.icon",
-        renderable: false,
-        caveat:
-            "The element draws no marker. texture.icon is in the node schema and no renderer " +
-            "reads it, and the badge vocabulary belongs to a label rather than to a node.",
     },
     "node.width": extentChannel("width", "x"),
     "node.height": extentChannel("height", "y"),

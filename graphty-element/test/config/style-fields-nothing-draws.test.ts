@@ -36,9 +36,9 @@ describe("a style field nothing draws", () => {
         }
     });
 
-    it("leaves the node icon, which IS drawn, alone", () => {
-        const parsed = NodeStyle.parse({ texture: { icon: "star" } });
-
-        assert.strictEqual(parsed.texture?.icon, "star");
+    it("is not a node icon (texture.icon), which no renderer ever read", () => {
+        assert.throws(() => {
+            NodeStyle.parse({ texture: { icon: "star" } });
+        }, /icon/);
     });
 });

@@ -390,7 +390,6 @@ export const NodeStyle = z.strictObject({
     texture: z
         .strictObject({
             color: AdvancedColorStyle.or(ColorStyle).optional(),
-            icon: z.string().optional(),
             // `node.texture`: an image asset id or URL, drawn as a model's base color texture or a
             // built-in shape's surface (design/rendering/node-models.md section 2.8).
             image: z.string().optional(),

@@ -217,15 +217,6 @@ describe("the element's own layers", () => {
         harness.session.dispose();
     });
 
-    it("write no channel the element draws nothing for", () => {
-        const harness = harnessOf();
-
-        const [nodes] = harness.session.styles.list();
-
-        assert.notProperty(nodes?.set ?? {}, "node.marker");
-        harness.session.dispose();
-    });
-
     it("cannot be removed, edited or moved by a consumer", async () => {
         const harness = harnessOf();
         const [base] = harness.session.styles.list();

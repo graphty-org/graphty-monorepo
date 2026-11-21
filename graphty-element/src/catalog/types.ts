@@ -705,7 +705,6 @@ export type Channel =
     | "node.meshDetail"
     | "node.flat"
     | "node.unlit"
-    | "node.marker"
     | "node.width"
     | "node.height"
     | "node.depth"

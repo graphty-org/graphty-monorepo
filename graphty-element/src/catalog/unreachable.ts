@@ -263,16 +263,6 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     // Nodes
     // ------------------------------------------------------------------------------------------
     {
-        kind: "by-design",
-        target: "node",
-        path: "texture.icon",
-        reason:
-            "The `node.marker` channel exists for this and is published `renderable: false` with " +
-            "a value type of `never`, so writing it is a compile error rather than a silent " +
-            "no-op. Nothing draws a node icon; the badge vocabulary that does exist belongs to a " +
-            "label. This is the one case the package already handled honestly.",
-    },
-    {
         reason:
             "Pinned to a neutral white by the paint path: one material per colour would be one " +
             "source mesh per colour, so the colour a reader sees is written into the node's own " +

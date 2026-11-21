@@ -6138,7 +6138,6 @@ export const NodeStyle: z.ZodObject<{
             radius: z.ZodOptional<z.ZodNumber>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
-        icon: z.ZodOptional<z.ZodString>;
         image: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     effect: z.ZodOptional<z.ZodObject<{

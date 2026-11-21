@@ -74,7 +74,6 @@ export const BASE_CHANNELS: readonly string[] = [
     "node.meshDetail",
     "node.flat",
     "node.unlit",
-    "node.marker",
     "node.width",
     "node.height",
     "node.depth",

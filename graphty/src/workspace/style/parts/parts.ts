@@ -677,9 +677,7 @@ export function partsFor(side: "node" | "edge", off: ReadonlySet<Channel>): read
 }
 
 /** The channels the panel offers nowhere, and why. */
-export const NOT_OFFERED: Readonly<Partial<Record<Channel, string>>> = {
-    "node.marker": "graphty-element refuses it",
-};
+export const NOT_OFFERED: Readonly<Partial<Record<Channel, string>>> = {};
 
 /** Row words that replace a channel's short name where the short name does not read as a word label. */
 export const PART_WORDS: Readonly<Partial<Record<Channel, string>>> = {

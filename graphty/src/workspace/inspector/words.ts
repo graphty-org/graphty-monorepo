@@ -107,7 +107,6 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.meshDetail": "Mesh detail",
     "node.flat": "Flat",
     "node.unlit": "Unlit",
-    "node.marker": "Marker",
     "node.width": "Width",
     "node.height": "Height",
     "node.depth": "Depth",

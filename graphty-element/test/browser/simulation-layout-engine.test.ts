@@ -596,6 +596,26 @@ describe("the simulation layout bridge", () => {
         assert.notStrictEqual(rig.x(0), before, "and the CPU simulation that replaced it still steps");
     });
 
+    it("does not report a batch that rejects after the layout was disposed", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator();
+        graph.acceleration.setAccelerator(fake);
+        const rig = await bridge(graph);
+        assert.isTrue(rig.engine.isAccelerated);
+
+        // As at a graph's teardown: the layout goes first, then the device under the batch it left in flight.
+        fake.fail("E_DISPOSED");
+        rig.step();
+        rig.engine.dispose();
+        await drain(fake);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        assert.lengthOf(
+            rig.errors.filter((event) => event.context === "layout"),
+            0,
+        );
+    });
+
     it("a snapshot replacement reloads the same simulation with the new node count and reseeds only the new rows", async () => {
         const graph = await pathGraph(5);
         const fake = createFakeAccelerator();

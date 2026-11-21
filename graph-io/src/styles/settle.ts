@@ -612,6 +612,30 @@ function styleKeysOf(rule: StyleRule): string[] {
 }
 
 /**
+ * Whether a file states any style of its own. A file that states none (a NetworkX node-link document, a Cytoscape
+ * desktop export without a stylesheet, a GEXF file without `viz:` values) still has styles, its program's defaults
+ * and the values settling derives from them; this tells a consumer that wants to draw only what a file states that
+ * there is nothing to draw.
+ * @param extracted - the styles, settled or not
+ * @returns true when a rule, a note or a graph value comes from the file rather than its program's defaults, or the
+ * import was given program settings of its own (`gephiPreview`)
+ * @category Styles
+ */
+export function statesStyles(extracted: ExtractedStyles): boolean {
+    const { rules, notes, graph, source } = extracted.styles;
+    if (
+        source.settingsGiven === true ||
+        notes.length > 0 ||
+        rules.some((rule) => rule.origin !== "tool" && markOf(rule)?.derived !== true)
+    ) {
+        return true;
+    }
+    const defaults = (source.tool === null ? null : toolDefaults(source.tool)?.graph) as
+        Readonly<Record<string, { readonly value: unknown } | undefined>> | null | undefined;
+    return Object.entries(graph).some(([property, value]) => defaults?.[property]?.value !== value);
+}
+
+/**
  * Settles a file's styles: every decision that depends on the program that wrote the file is written onto the rules
  * as neutral properties, so a consumer draws them the same way whatever produced them. `extractStyles()` and
  * `importGraph()` return settled styles; settling them again changes nothing.

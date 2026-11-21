@@ -477,6 +477,53 @@ describe("the location map layout", () => {
         assert.isFalse(at("lost").x === 0 && at("lost").y === 0, "never at latitude 0, longitude 0");
     });
 
+    it("keeps nodes with no usable location off the canvas with unplaced: hide, still reporting them", async () => {
+        await graph.addNodes([
+            { id: "JFK", where: "40.64, -73.78" },
+            { id: "LHR", where: "51.47, -0.45" },
+            { id: "lost", where: "somewhere" },
+        ]);
+        await graph.addEdges([
+            { src: "JFK", dst: "LHR" },
+            { src: "JFK", dst: "lost" },
+        ]);
+        /** Whether the node and the edge to it are drawn, and the reported unplaced nodes. */
+        const seen = async (): Promise<{ node: boolean; edge: boolean; kept: boolean; unplaced: unknown }> => {
+            await settled();
+            await operationQueueOf(graph).waitForCompletion();
+            await drawnFrames(graph.getScene(), 1);
+            const edges = [...graph.getDataManager().edges.values()];
+            const toLost = edges.find((e) => e.dstId === "lost");
+            const kept = edges.find((e) => e.dstId === "LHR");
+            assert.isDefined(toLost);
+            assert.isDefined(kept);
+            return {
+                node: graph.getNode("lost")?.getRenderState() === "visible" && graph.getNode("lost")?.isDrawn === true,
+                edge: toLost.isRenderVisible(),
+                kept: kept.isRenderVisible() && graph.getNode("JFK")?.getRenderState() === "visible",
+                unplaced: graph.mapFrame?.unplaced,
+            };
+        };
+
+        // In the tray first, so the node has a place it would still be drawn at.
+        await graph.setLayout("location-map", { location: "where", unplaced: "tray" });
+        assert.deepEqual(await seen(), { node: true, edge: true, kept: true, unplaced: ["lost"] });
+        assert.isBelow(at("lost").y, Math.min(at("JFK").y, at("LHR").y));
+
+        warnings.length = 0;
+        await graph.setLayout("location-map", { location: "where", unplaced: "hide" });
+        assert.deepEqual(await seen(), { node: false, edge: false, kept: true, unplaced: ["lost"] });
+        const unparsed = warnings.find((w) => w.code === "W_LOCATION_UNPARSED");
+        assert.deepInclude(unparsed?.params, { unparsed: 1, unplaced: 1, total: 3 });
+
+        // Another layout draws it again.
+        await graph.setLayout("circular");
+        await settled();
+        await operationQueueOf(graph).waitForCompletion();
+        await drawnFrames(graph.getScene(), 1);
+        assert.strictEqual(graph.getNode("lost")?.getRenderState(), "visible");
+    });
+
     it("saves the map with the layout, and an undo brings back the map it replaced", async () => {
         await placeAirports();
         const session = graph.getSession();

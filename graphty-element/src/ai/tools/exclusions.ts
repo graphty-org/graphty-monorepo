@@ -46,7 +46,9 @@ type ExclusionReason =
     /** What a settings panel reads or arranges (folders, pins, hover): it paints nothing a reader asks about. */
     | "panel-state"
     /** The reader's own trust, which the assistant must never decide for them. */
-    | "reader-trust";
+    | "reader-trust"
+    /** Behind an experiment that is off by default; the assistant gets it when the experiment ships. */
+    | "experimental";
 
 /** One thing the assistant does not reach, and why. Names exactly one of root, door, op, catalog or option. */
 export interface Exclusion {
@@ -98,10 +100,12 @@ const CAMERA_VERBS: Readonly<Record<string, readonly string[]>> = {
         "setCameraPan",
         "zoomStep",
         "setCameraMode",
+        // The camera action applies a saved view's camera by name; view.restore brings back the
+        // rest it keeps too, a write.
+        "loadCameraPreset",
     ],
     "view.fit": ["resetCamera", "zoomToFit"],
     "view.zoom_to": ["zoomToSelection", "zoomToNodes"],
-    "view.restore": ["loadCameraPreset"],
 };
 
 /** The assistant's own connection on the graph and the element. */
@@ -220,6 +224,14 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         owner: "WAIVER_OWNER_UNASSIGNED",
         expires: "2027-01-11",
     },
+    // The table formats' missing-value texts are a list of strings, a type no option schema offers yet.
+    ...["json", "csv", "xlsx"].map((format): Exclusion => ({
+        option: `formats/${format}/missing`,
+        reason: "unoffered-type",
+        kind: "defect",
+        owner: "WAIVER_OWNER_UNASSIGNED",
+        expires: "2027-01-11",
+    })),
 
     // An annotation is a union of shapes (shape, text, arrow, picture) no tool schema offers yet; the
     // assistant reaches the annotations only through a load that writes a file's own.
@@ -395,6 +407,110 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "SessionDataApi", members: ["ignoreIssue"], reason: "covered-by", by: "issues.ignore", kind: BY_DESIGN },
+    // The source-steps experiment's op and doors: refused while the experiment is off, and not
+    // offered to the assistant until the experiment ships.
+    ...[
+        { op: "data.steps-set" },
+        {
+            root: "SessionDataApi",
+            members: [
+                "steps",
+                "spaces",
+                "types",
+                "edits",
+                "ref",
+                "stage",
+                "declareType",
+                "removeEdit",
+                "settleEdit",
+                "resolveStep",
+                "merge",
+                "connect",
+                "extract",
+                "moveColumns",
+                "pick",
+                "use",
+                "removeStep",
+                "setStepOff",
+                "add",
+                "lineage",
+                "values",
+                "cell",
+                "conflicts",
+                "draft",
+                "currentDraft",
+                "matchCounts",
+                "matchValues",
+            ],
+        },
+        {
+            root: "SourceDraft",
+            members: [
+                "id",
+                "open",
+                "stage",
+                "import",
+                "add",
+                "merge",
+                "connect",
+                "extract",
+                "moveColumns",
+                "renameColumn",
+                "declareType",
+                "pick",
+                "use",
+                "editStep",
+                "removeStep",
+                "removeSource",
+                "removeEdit",
+                "setMapping",
+                "undo",
+                "steps",
+                "types",
+                "edits",
+                "commit",
+                "dispose",
+                "matchCounts",
+                "matchValues",
+                "preview",
+                "pickAll",
+                "clearPicks",
+                "exclude",
+                "include",
+                "answerOverlap",
+                "displayed",
+                "side",
+                "display",
+                "show",
+            ],
+        },
+        {
+            root: "SourceDraftPreview",
+            members: [
+                "draft",
+                "before",
+                "after",
+                "nodes",
+                "edges",
+                "steps",
+                "sources",
+                "edits",
+                "issues",
+                "rows",
+                "elements",
+                "cells",
+                "questions",
+            ],
+        },
+        { root: "VisibilityApi", members: ["held"] },
+        { root: "SessionVisibilityApi", members: ["held"] },
+    ].map((row): Exclusion => ({
+        ...row,
+        reason: "experimental",
+        kind: "defect",
+        owner: "WAIVER_OWNER_UNASSIGNED",
+        expires: "2027-01-11",
+    })),
     {
         root: "SessionDataApi",
         members: [

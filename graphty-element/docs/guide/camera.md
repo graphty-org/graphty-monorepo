@@ -258,6 +258,7 @@ coded problem when it cannot be played, so this path needs no checks of its own.
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `views.save([{ name, camera?, follows?, key? }])` | Keeps a view, at the end of the order; no `camera` and no `follows` keeps the current one |
 | `views.setKey(name, key)`                         | Gives a view a key, taking it from any other view that holds it; null clears it           |
+| `views.open(name, { animate })`                   | Brings a view back: what it keeps beside the camera (one undo step), then the camera      |
 | `views.rename(from, to)`                          | Renames a view in its place, and every tour stop naming it follows                        |
 | `views.move(name, index)`                         | Puts a view at a 0-based place in the order                                               |
 | `views.remove([name])`                            | Forgets views; tour stops naming them stay, and `planTour` reports them                   |
@@ -300,6 +301,41 @@ it can no longer reach.
 
 **From a name to a pose.** `resolveCameraPreset(name)` answers where a camera view or a saved view
 (a following one recomputed now) would put the camera, without moving it.
+
+#### Views that keep more than the camera
+
+A view saved with `include` also keeps parts of the project, read at the save, and `views.open`
+brings them back as one undo step before it moves the camera:
+
+```ts
+import "@graphty/graphty-element";
+const g = document.querySelector("graphty-element")!;
+await g.waitForSettled();
+
+// Filter to the well-connected nodes and hide one, then keep it all as "Hubs".
+await g.session.visibility.setSteps([{ id: "hubs", on: true, rule: { kind: "degree", min: 3 } }]);
+await g.session.hidden.add(["n7"]);
+await g.session.views.save([{ name: "Hubs", include: ["filters", "layers", "hidden", "positions", "legend"] }]);
+
+// ...the reader changes things...
+await g.session.views.open("Hubs", { animate: true }); // all of it back; undo takes it out
+await g.session.views.rename("Hubs", "Hub nodes"); // one undo step
+```
+
+| Part        | What it keeps                                                       |
+| ----------- | ------------------------------------------------------------------- |
+| `filters`   | The filter steps and conditions (`session.visibility.conditions`)   |
+| `layers`    | The style layers (`session.styles.toDocument()`)                    |
+| `hidden`    | The nodes hidden from the drawing (`session.hidden`)                |
+| `positions` | Where every node is (`session.positions.snapshot()`)                |
+| `legend`    | Whether the element's legend is shown; not an undo step when opened |
+
+With no `include` a view keeps only the camera, as before. Each part can also be given as a value
+(`{ name, camera, hidden: ["n7"] }`). A node the graph no longer holds is skipped when positions
+come back. A part is a field of the saved view (`session.views.get(name)?.hidden`), and the project
+file saves it. A session that draws nothing (a `createGraphSession()` in Node) brings back every part
+but the camera, and keeps no `legend`. An unknown part is refused with `E_OPTION_RANGE`
+`{ option: "include", value }`.
 
 #### Keys
 

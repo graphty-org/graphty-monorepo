@@ -122,6 +122,8 @@ export interface OpenArrangement {
      * when a history call restores the lane.
      */
     readonly provisional: ArrangementCapture | null;
+    /** The number of the first step recorded after it opened. */
+    readonly since: number;
 }
 
 /** A step as the history publishes it. Frozen. */
@@ -197,7 +199,7 @@ export class History<P> {
      */
     private baseline: { capture: ArrangementCapture; owned: boolean } | null = null;
     /** The pending groups holding a before-arrangement, oldest first. */
-    private groups: { before: ArrangementCapture; provisional: ArrangementCapture | null }[] = [];
+    private groups: { before: ArrangementCapture; provisional: ArrangementCapture | null; since: number }[] = [];
     /** What the undos and redos since the last take restore, in order. */
     private arrangementOps: ArrangementOp[] = [];
     /** While above zero, a history move is under way and eviction waits for it to land. */
@@ -502,9 +504,24 @@ export class History<P> {
      * @returns Its handle; the dispatcher records `before` and `provisional` from it.
      */
     open(before: ArrangementCapture): OpenArrangement {
-        const group = { before, provisional: null };
+        const group = { before, provisional: null, since: this.nextId };
         this.groups.push(group);
         return group;
+    }
+
+    /**
+     * The rows the applied steps recorded since a group opened placed, written over its before:
+     * what a source draft's After writes after its before-arrangement when it comes off, so a node
+     * the reader moved meanwhile stays where that step put it.
+     * @param group - The group's handle.
+     * @returns The ops, oldest step first; empty when nothing was recorded since.
+     */
+    since(group: OpenArrangement): ArrangementOp[] {
+        return this.entries
+            .slice(0, this.cursor)
+            .flatMap((step, index) =>
+                Number(step.id.slice("step-".length)) >= group.since ? this.placedRows(index) : [],
+            );
     }
 
     /**
@@ -1066,6 +1083,17 @@ export class History<P> {
             values.set(this.valueAt(index, id, rows.rows[at]) ?? rows.values.subarray(6 * at, 6 * at + 3), 6 * at + 3);
         });
         return [{ patch: { ids: rows.ids, rows: rows.rows, values }, forward: true }];
+    }
+
+    /**
+     * The rows one step placed, without its before-arrangement: a capture taken mid-group would
+     * write a half-run layout over what the group puts back.
+     * @param index - The step.
+     * @returns The ops; empty when it placed no rows.
+     */
+    private placedRows(index: number): ArrangementOp[] {
+        const rows = this.rowsOf(this.entries[index]);
+        return rows === null ? [] : [{ patch: rows, forward: true }];
     }
 
     /**

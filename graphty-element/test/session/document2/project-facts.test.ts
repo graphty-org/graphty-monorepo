@@ -43,7 +43,7 @@ describe("project.describe", () => {
         assert.isFalse(results?.saved, "results are off by default");
         assert.isFalse(results?.required);
 
-        // A file read with no path cannot be referenced: the refusal a save would report.
+        // Rows handed over inline have no path, so cannot be referenced: the refusal a save would report.
         assert.lengthOf(facts.sources, 2);
         const [reader, source] = facts.sources;
         assert.strictEqual(reader.kind, "reader");
@@ -53,7 +53,7 @@ describe("project.describe", () => {
         assert.strictEqual(source.kind, "file");
         assert.strictEqual(source.storage, "embedded");
         assert.isFalse(source.referable);
-        assert.deepEqual(source.refused, { code: "W_SOURCE_NO_PATH", params: { source: source.id, reason: "file" } });
+        assert.deepEqual(source.refused, { code: "W_SOURCE_NO_PATH", params: { source: source.id, reason: "inline" } });
         const saved = await session.project.save({ format: 2, embed: { [source.id]: "referenced" } });
         assert.deepInclude(saved.report.leftOut, source.refused);
 

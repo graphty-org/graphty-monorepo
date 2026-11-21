@@ -35,8 +35,9 @@
  * - On read: only `join.add` builds (by key in the mapping's spaces), with its own `duplicateIds`;
  *   every other step that is not `off` (`join.merge`, `join.node-values`, `join.edge-values`,
  *   `join.edges`), a `join.add` with `columns`, and a second `join.add` of one source hold the
- *   section. A referenced source parsed again with a `pointer`, `sheet` or `missing` option holds
- *   it too: no parser here reads them. `repeatedEdges` reduces repeats of one pair and one type
+ *   section. A referenced source parsed again with a parse option its format does not read holds
+ *   it too: `pointer` is read by `json`, `missing` by `csv`, `json` and `xlsx`, and `sheet` by `xlsx`,
+ *   and a malformed value of any holds it as well. `repeatedEdges` reduces repeats of one pair and one type
  *   (spec 6.1), and becomes the session's setting; the writer writes the session's setting back. A
  *   node only edges name is supplied by their sources, not a row of their copies. A referenced `file` or `url` source is built from the rows an open read again
  *   (dataFetch.ts); one it could not read supplies nothing, is reported `W_SOURCE_UNAVAILABLE` with
@@ -51,8 +52,10 @@ import type { EdgeId, NodeId } from "../../../catalog/types";
 import { EDGE_ID_CEILING, edgeCounterOf } from "../../../data/edgeIdentity";
 import { GraphtyError } from "../../../errors/GraphtyError";
 import type { ColumnSettings } from "../../commands/data";
+import type { SessionData } from "../../data";
 import type { TransactionOptions } from "../../project/Dispatcher";
-import type { SourceRefreshReport } from "../../sources/types";
+import { SOURCE_ATTR } from "../../sources/ids";
+import type { SourceLoadRecord, SourceRefreshReport } from "../../sources/types";
 import type { GraphSession, LoadedSource, TransactionScope } from "../../types";
 import { token } from "../framing";
 import type {
@@ -154,8 +157,21 @@ const READ_SPACES = [
     ["target", "targetSpace"],
 ] as const;
 const DUPLICATE_IDS = new Set(["first", "merge", "refuse"]);
-/** Parse options this reader's parsers do not read (spec 4.1.2 rule 9): a source parsed again with one is held. */
-const UNREAD_OPTIONS = ["pointer", "sheet", "missing"];
+/**
+ * The parse options of spec 4.1.2 rule 9, the formats whose parser reads each, and the values it
+ * takes: a source parsed again with one its format does not read, or a malformed value, is held.
+ */
+const PARSE_OPTIONS: Readonly<Record<string, { formats: readonly string[]; valid: (value: unknown) => boolean }>> = {
+    pointer: {
+        formats: ["json"],
+        valid: (value) => typeof value === "string" && /^(?:\/(?:[^~/]|~[01])*)*$/.test(value),
+    },
+    sheet: { formats: ["xlsx"], valid: (value) => typeof value === "string" },
+    missing: {
+        formats: ["csv", "json", "xlsx"],
+        valid: (value) => Array.isArray(value) && value.every((text) => typeof text === "string"),
+    },
+};
 const SOURCE_MEMBERS = new Set([
     "id",
     "label",
@@ -868,8 +884,11 @@ function checked(body: Readonly<JsonObject>): Checked {
         const options = isPlainObject(record.options) ? record.options : {};
         // Parsed again with an option its parser does not read, it would build another graph.
         if (record.copy === undefined) {
-            for (const name of UNREAD_OPTIONS) {
-                need(!(name in options), `${pointer}/options/${name}`);
+            for (const [name, { formats, valid }] of Object.entries(PARSE_OPTIONS)) {
+                need(
+                    !(name in options) || (formats.includes(String(record.format)) && valid(options[name])),
+                    `${pointer}/options/${name}`,
+                );
             }
         }
     }
@@ -2148,6 +2167,45 @@ async function restoreSettings(built: Built, tx: TransactionScope): Promise<void
 }
 
 /**
+ * Each network source's request history, from its record's `origin.ledger` (spec 4.1.2 rule 7),
+ * keyed by its source id as the file writes it.
+ * @param built - The build.
+ * @returns The records, by source id.
+ */
+function ledgersOf(built: Built): Map<string, SourceLoadRecord> {
+    const kinds = new Map(built.kinds);
+    return new Map(
+        built.origins.flatMap(([id, origin]) => {
+            const { ledger } = origin;
+            return kinds.get(id) === "network" &&
+                isPlainObject(ledger) &&
+                typeof ledger.source === "string" &&
+                Array.isArray(ledger.expansions)
+                ? [[id, { ...(ledger as unknown as SourceLoadRecord), key: id }] as const]
+                : [];
+        }),
+    );
+}
+
+/**
+ * Give the session the loads as the file keeps them: each network source's request history, so a
+ * refresh replays it, and each source saved by reference (read again or held) kept as a reference,
+ * as `session.data.setCopy` keeps one.
+ * @param session - The session.
+ * @param built - The build.
+ * @param ledgers - The network sources' request histories.
+ */
+function keepSourceChoices(session: GraphSession, built: Built, ledgers: ReadonlyMap<string, SourceLoadRecord>): void {
+    const data = session.data as Partial<Pick<SessionData, "ledger" | "keepReferences">>;
+    if (ledgers.size > 0) {
+        data.ledger?.fromMember({ version: 1, loads: [...ledgers.values()] });
+    }
+
+    const referenced = [...built.referenced.map(([id]) => id), ...built.unavailable.map((record) => String(record.id))];
+    data.keepReferences?.(referenced);
+}
+
+/**
  * Put a build into the session through the open's transaction, replacing the open data.
  * @param built - The build.
  * @param context - The open's context.
@@ -2159,11 +2217,18 @@ async function apply(
     const { tx } = context;
     await tx.data.clear();
     assignIds(built.nodes);
+    // A network source's nodes name its load, as a load the session made does, so `data.refresh`
+    // replays the request history its record keeps (spec 4.1.2 rule 7).
+    const ledgers = ledgersOf(built);
+    const named = (element: { readonly loads: readonly string[] }): JsonObject => {
+        const keys = element.loads.filter((load) => ledgers.has(load));
+        return keys.length === 0 ? {} : { [SOURCE_ATTR.loads]: keys };
+    };
     await tx.execute({
         op: "data.apply",
         mutation: {
             kind: "add-nodes",
-            records: built.nodes.map((node) => ({ ...node.columns, id: node.id })),
+            records: built.nodes.map((node) => ({ ...node.columns, ...named(node), id: node.id })),
             idPath: "id",
         },
     });
@@ -2177,7 +2242,12 @@ async function apply(
         op: "data.apply",
         mutation: {
             kind: "add-edges",
-            records: built.edges.map((edge) => ({ ...edge.columns, source: edge.from.id, target: edge.to.id })),
+            records: built.edges.map((edge) => ({
+                ...edge.columns,
+                ...named(edge),
+                source: edge.from.id,
+                target: edge.to.id,
+            })),
             source: "source",
             target: "target",
             directed: built.directed,
@@ -2283,6 +2353,7 @@ async function apply(
     }
 
     await restoreSettings(built, tx);
+    keepSourceChoices(context.session, built, ledgers);
     rememberRead(context.session, {
         build: built.build,
         copies: built.copies,

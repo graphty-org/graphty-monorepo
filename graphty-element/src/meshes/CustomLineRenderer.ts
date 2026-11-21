@@ -157,6 +157,16 @@ function setPattern(material: ShaderMaterial, options: JoinedLineOptions): void 
     const dash = (i: number): number => dashes?.[i] ?? 0;
     material.setVector4("dashA", new Vector4(dash(0), dash(1), dash(2), dash(3)));
     material.setVector4("dashB", new Vector4(dash(4), dash(5), dash(6), dash(7)));
+    if (options.pulled === true && options.pulledCurve !== true) {
+        // the spacing rule a pulled piece's shader runs for its own length (`patternSpacing`): element length, count
+        // and gap (-1 for none), and 1 for a pattern
+        material.setVector4(
+            "pulledPattern",
+            pattern === undefined
+                ? new Vector4(0, -1, -1, 0)
+                : new Vector4(pattern.elementLength, pattern.count ?? -1, pattern.gap ?? -1, 1),
+        );
+    }
 }
 
 /**
@@ -684,17 +694,6 @@ void main(void) {
         material.setFloat("opacity", opacity);
         material.setFloat("miterLimit", EDGE_MITER_LIMIT);
         setPattern(material, options);
-        if (options.pulled === true && options.pulledCurve !== true) {
-            // the spacing rule a pulled piece's shader runs for its own length (`patternSpacing`): element length,
-            // count and gap (-1 for none), and 1 for a pattern
-            const { pattern } = options;
-            material.setVector4(
-                "pulledPattern",
-                pattern === undefined
-                    ? new Vector4(0, -1, -1, 0)
-                    : new Vector4(pattern.elementLength, pattern.count ?? -1, pattern.gap ?? -1, 1),
-            );
-        }
         // See create (issue #2894).
         material.blockDirtyMechanism = true;
         material.backFaceCulling = false;

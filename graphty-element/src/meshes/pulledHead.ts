@@ -7,8 +7,8 @@ import type { RowTable } from "../render/RowTable";
 import { EdgeMesh } from "./EdgeMesh";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
 import type { MeshCache } from "./MeshCache";
-import type { RestSource } from "./restPlacement";
 import { PulledCapBatch, type PulledCapLook, type PulledCapPlace } from "./PulledCapBatch";
+import type { RestSource } from "./restPlacement";
 
 /**
  * @file An arrowhead drawn from the row table (`PulledCapBatch`) at the target end of a straight pulled line, on

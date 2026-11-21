@@ -7,20 +7,19 @@ import type { Scene } from "@babylonjs/core/scene.js";
 
 import { GraphtyError } from "../errors/GraphtyError";
 import { DirtyRuns } from "./DirtyRuns";
-import { trimEnds } from "./edgeTrim";
-import { type EdgeLineMeta, patternSpacing } from "./EdgeLineBatch";
 import {
     JOIN_TEMPLATE_INDICES,
     JOIN_TEMPLATE_VERTICES,
     LEAN_TEMPLATE_INDICES,
     LEAN_TEMPLATE_OF,
 } from "./edgeJoinShader";
-import { markEdgeLineBatchMesh } from "./EdgeLineBatch";
+import { type EdgeLineMeta, markEdgeLineBatchMesh, patternSpacing } from "./EdgeLineBatch";
+import { trimEnds } from "./edgeTrim";
 import { batchUploadFrames } from "./FrameRoster";
 import { takePoolReserve } from "./poolReserve";
 import type { PulledCapLook } from "./PulledCapBatch";
-import { type RestSource, RestWatch, roundRowEnd, rowCapScale } from "./restPlacement";
 import { CURVE_STRIDE, curveShape, type CurveSpan } from "./pulledCurve";
+import { type RestSource, RestWatch, roundRowEnd, rowCapScale } from "./restPlacement";
 
 /**
  * @file Straight edges drawn from the row table: a piece is two row numbers, not twenty floats.

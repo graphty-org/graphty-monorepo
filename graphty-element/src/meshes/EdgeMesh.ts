@@ -557,15 +557,7 @@ export class EdgeMesh {
                             minScreenWidth: style.line?.minScreenWidth,
                             fade,
                             opaque,
-                            pattern:
-                                dashArray === null
-                                    ? this.joinedPattern(lineType as JoinedPatternKind, width, style)
-                                    : {
-                                          kind: "dash",
-                                          elementLength: width * dashArray[0],
-                                          gap: width * (dashArray.reduce((a, b) => a + b, 0) - dashArray[0]),
-                                          dashes: dashArray.map((d) => d * width),
-                                      },
+                            pattern: this.pulledPattern(style, options.width) ?? undefined,
                         },
                         scene,
                     ),
@@ -606,15 +598,8 @@ export class EdgeMesh {
     }
 
     /**
-     * A dashed, dotted or dash-dot line's own dash array (`line.dashArray`), in widths: an even count, at most 8, an
-     * odd count repeated once, as an SVG dash array is.
-     * ponytail: past 8 numbers the rest are dropped; the shader walks two vec4s.
-     * @param style - The resolved style.
-     * @returns The dashes and gaps, or null where none is drawn.
-     */
-    /**
-     * The pattern a pulled straight line draws in its shader (renderPath "batched"), as `lineBatch` gives the object
-     * path's joined line: a dash, dot, box, diamond or star line, or a dash array. Undefined for a solid line.
+     * The pattern a joined line draws in its shader: the object path's (`lineBatch`), and a pulled straight line's on
+     * renderPath "batched": a dash, dot, box, diamond or star line, or a dash array. Undefined for a solid line.
      * @param style - The resolved style.
      * @param width - The line's width, as `EdgeMeshOptions` has it.
      * @returns The pattern, or null for a line type no joined line draws (one drawn as pattern elements).
@@ -641,6 +626,13 @@ export class EdgeMesh {
             : null;
     }
 
+    /**
+     * A dashed, dotted or dash-dot line's own dash array (`line.dashArray`), in widths: an even count, at most 8, an
+     * odd count repeated once, as an SVG dash array is.
+     * ponytail: past 8 numbers the rest are dropped; the shader walks two vec4s.
+     * @param style - The resolved style.
+     * @returns The dashes and gaps, or null where none is drawn.
+     */
     static dashArrayOf(style: EdgeStyleConfig): number[] | null {
         const text = style.line?.dashArray;
         if (text === undefined || !DASH_ARRAY_TYPES.has(style.line?.type ?? "solid")) {

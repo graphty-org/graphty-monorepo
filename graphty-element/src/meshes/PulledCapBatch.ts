@@ -120,6 +120,7 @@ export class PulledCapBatch {
      * @param scene - The scene whose frames upload the buffers.
      * @param rowTextures - The row table's `rowPosition` and `rowExtent` textures, asked each frame:
      *     the row table replaces them when it grows.
+     * @param rest - What its caps are placed from at rest (`restPlacement.ts`); none leaves them to the shader.
      */
     constructor(
         mesh: Mesh,

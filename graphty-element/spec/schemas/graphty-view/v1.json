@@ -779,7 +779,8 @@
                         "minLength": 1
                     },
                     "params": {
-                        "type": "object"
+                        "type": "object",
+                        "description": "Every option the implementation declares with a default, at the value used (spec 9 rule 10). A reader applies its own default for an absent one."
                     },
                     "seed": {
                         "type": "integer",
@@ -1024,7 +1025,8 @@
                     "description": "The layout that draws it, as layout.set spells it."
                 },
                 "options": {
-                    "type": "object"
+                    "type": "object",
+                    "description": "Every option the implementation declares with a default, at the value used (spec 9 rule 10). A reader applies its own default for an absent one."
                 },
                 "dimension": {
                     "enum": [2, 3]

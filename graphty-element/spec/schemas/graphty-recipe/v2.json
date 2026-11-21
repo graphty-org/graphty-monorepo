@@ -96,7 +96,8 @@
                                     "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/runName"
                                 },
                                 "params": {
-                                    "type": "object"
+                                    "type": "object",
+                                    "description": "Every option the implementation declares with a default, at the value used (spec 9 rule 10). A reader applies its own default for an absent one."
                                 },
                                 "scope": {
                                     "oneOf": [
@@ -250,7 +251,8 @@
                                     "enum": [2, 3]
                                 },
                                 "options": {
-                                    "type": "object"
+                                    "type": "object",
+                                    "description": "Every option the implementation declares with a default, at the value used (spec 9 rule 10). A reader applies its own default for an absent one."
                                 },
                                 "description": {
                                     "type": "string"

@@ -14,6 +14,7 @@ import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
+import { engineOptionsOf } from "../../../src/catalog/layouts";
 import type { RuleTree, RunId } from "../../../src/catalog/types";
 import { dispatcherOf } from "../../../src/session/dispatchers";
 import { markRecipeRun } from "../../../src/session/document2/codecs/results";
@@ -194,6 +195,32 @@ async function open(
 }
 
 /**
+ * The options the force layout's default engine declares with a default, less `dim`.
+ * @param session - The session, for its catalog.
+ * @returns The option names.
+ */
+function defaultedForce(session: GraphSession): string[] {
+    const force = session.catalog.layouts().find((each) => each.id === "force");
+    assert.isDefined(force);
+    return engineOptionsOf(force, "ngraph")
+        .filter((option) => option.default !== undefined && option.default !== null && option.name !== "dim")
+        .map((option) => option.name);
+}
+
+/**
+ * The history steps an open of a view holding only a layout record adds that set the layout.
+ * @param session - The session.
+ * @param layout - The layout record.
+ * @returns How many of the open's steps set the layout.
+ */
+async function layoutStepsOpening(session: GraphSession, layout: JsonObject): Promise<number> {
+    const before = session.history.steps.length;
+    const section = { kind: "graphty-view", version: 1, bindsTo: { data: DATA_ID }, layout };
+    assert.deepEqual(await open(session, section), []);
+    return session.history.steps.slice(before).filter((step) => step.ops.includes("layout.set")).length;
+}
+
+/**
  * A session with something in every member the session holds state for.
  * @returns The session.
  */
@@ -297,7 +324,8 @@ const viewLayer = (id: string): JsonObject => ({
 describe("view codec: writing", () => {
     it("writes every member it holds as the schema allows", async () => {
         const problems: DocumentProblem[] = [];
-        const section = await save(await fullSession(), problems);
+        const session = await fullSession();
+        const section = await save(session, problems);
         assert.deepEqual(invalid(section), []);
         assert.deepEqual(problems, []);
         assert.deepEqual(Object.keys(section).slice(4), [
@@ -379,17 +407,27 @@ describe("view codec: writing", () => {
         });
         // The layout's name is `algorithm`; `engine` is EngineVersions, as in results.
         const layout = section.layout as JsonObject;
+        const { options, ...rest } = layout;
         assert.deepEqual(
-            { ...layout, engine: Object.keys(layout.engine as JsonObject) },
-            {
-                id: "force",
-                algorithm: "ngraph",
-                options: {},
-                dimension: 3,
-                engine: ["element", "algorithms", "layout"],
-            },
+            { ...rest, engine: Object.keys(layout.engine as JsonObject) },
+            { id: "force", algorithm: "ngraph", dimension: 3, engine: ["element", "algorithms", "layout"] },
         );
+        // Resolved: every option the engine declares with a default, less the dimension's own.
+        assert.sameMembers(Object.keys(options as JsonObject), defaultedForce(session));
         assert.deepEqual(section.hiddenColumns, [{ kind: "node", name: "group" }]);
+    });
+
+    it("opens a layout record that spells out the defaults in force without setting the layout again", async () => {
+        const session = await sessionWithData();
+        await session.layout.set("force", { options: { seed: 7 } });
+        const layout = (await save(session)).layout as JsonObject;
+        assert.include(Object.keys(layout.options as JsonObject), "springLength", "the record is resolved");
+        assert.strictEqual(await layoutStepsOpening(session, layout), 0);
+        // A terse record naming only the seed in force is the same layout too.
+        assert.strictEqual(await layoutStepsOpening(session, { ...layout, options: { seed: 7 } }), 0);
+        // A record that differs sets it, with the options as the file holds them.
+        assert.strictEqual(await layoutStepsOpening(session, { ...layout, options: { seed: 8 } }), 1);
+        assert.deepEqual(session.layout.options, { seed: 8 });
     });
 
     it("writes a run the visible graph narrowed as not replayable, and reports it", async () => {

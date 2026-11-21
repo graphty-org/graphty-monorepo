@@ -535,6 +535,42 @@ describe("a version 1 document of one kind, migrated", () => {
         session.dispose();
     });
 
+    it("carries terse run params and layout options as read; a save after the open writes them resolved", async () => {
+        const v1 = {
+            kind: "graphty-recipe",
+            version: 1,
+            commands: [
+                { op: "algo.run", algorithm: "pagerank", as: "rank", params: { dampingFactor: 0.5 } },
+                { op: "layout.set", id: "force", dimension: 3, options: { seed: 3 } },
+            ],
+        };
+        const v2 = migrateDocument1(structuredClone(v1), []);
+        const { recipe } = v2?.sections as Record<string, JsonObject>;
+        assert.deepStrictEqual(invalid(recipe), []);
+        const commands = recipe.commands as JsonObject[];
+        assert.deepStrictEqual(commands[0].params, { dampingFactor: 0.5 });
+        assert.deepStrictEqual(commands[1].options, { seed: 3 });
+
+        const session = await baseSession(["save-files-v2"]);
+        await session.recipes.apply(JSON.stringify(v1));
+        const saved = JSON.parse((await session.project.save({ format: 2, rewriteRecipe: true })).text) as JsonObject;
+        const sections = saved.sections as Record<string, JsonObject>;
+        const written = (sections.recipe.commands as JsonObject[]).filter((command) => command.op !== "graph.filter");
+        const rank = written.find((command) => command.op === "algo.run");
+        assert.deepStrictEqual(rank?.params, {
+            dampingFactor: 0.5,
+            directed: true,
+            maxIterations: 100,
+            tolerance: 0.000001,
+            useDelta: true,
+        });
+        const options = written.find((command) => command.op === "layout.set")?.options as JsonObject;
+        assert.strictEqual(options.seed, 3);
+        assert.include(Object.keys(options), "springLength", "the engine's defaults are written");
+        assert.notProperty(options, "dim", "the dimension says it");
+        session.dispose();
+    });
+
     it("leaves alone what it does not migrate: a data file, an unknown kind, a version 2 file, notes with no data", () => {
         assert.isUndefined(migrateDocument1({ nodes: [], links: [] }, []));
         assert.isUndefined(migrateDocument1({ kind: "com.example.thing", version: 1 }, []));

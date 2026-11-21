@@ -247,8 +247,9 @@ instead of failing.
 The schemas in `schemas/` are normative for the shape of each section; this section states the
 rules a schema cannot. The top level of every section is open: a reader MUST ignore a member it
 does not know, report `W_UNKNOWN_MEMBER` (params `{ section, pointer }`) and keep it on re-save.
-The closed objects of section 10 are the exceptions. Every default lives in the section's schema
-(9 rule 9).
+The closed objects of section 10 are the exceptions. A default the format owns is stated in this
+text or as a schema `default` keyword (9 rule 9). Option values, settings and style looks follow 9
+rule 10.
 
 ### 4.1 data
 
@@ -714,6 +715,10 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
    `{ "folder", "children" }`, each with optional `pin`, `locked` and `hidden`.
 8. `valueLabels` lists `{ path, value, label }`, `path` a value path (`data.<column>`,
    `results.<as>.<field>`).
+9. **Unset channels.** A channel no layer sets is drawn with the renderer's own look. That look is
+   informative, not part of the file's meaning, and may change with no version change. A file that
+   wants a fixed look sets the channel in a layer; the starting rows a new project writes are such
+   layers.
 
 ### 4.3 recipe
 
@@ -737,7 +742,9 @@ Every command MAY also carry `narrows` (only `false` is ever written), `extensio
    layer reads the run, in a style or view section, in the same file or not.
 4. Steps carry no algorithm or layout version; the version that ran is recorded in results and
    view. A recipe says what to run, not what ran: `layout.set` names the layout in `algorithm`
-   and has no `engine`.
+   and has no `engine`. `params` on `algo.run` and `options` on `layout.set` hold the value used
+   for every option the implementation declares with a default (9 rule 10). A hand-written command
+   may leave options out, and the reader applies its own current defaults.
 5. A recipe never names an element. A rule naming an element cannot be a recipe step: the writer
    leaves it out and reports it.
 6. **Applying under a namespace** writes each `set.define` id as `set_<namespace>.<ULID>` and
@@ -765,8 +772,9 @@ A settings section holds `settings` and `playback`.
    `results`. How what lies outside the time window draws is held by the style layers that select
    it, never here.
 3. Settings that name columns list them in `dependencies.columns`.
-4. Loading a settings section onto an open project sets only the keys it holds; an absent key
-   means its schema default only when a file is opened as a new session.
+4. Loading a settings section onto an open project sets only the keys it holds. An absent key
+   means the reader's own default, and only when a file is opened as a new session. A writer
+   writes every key this section holds that has a value in force (9 rule 10).
 
 ### 4.5 results
 
@@ -774,8 +782,9 @@ A results section holds `bindsTo` (REQUIRED, `{ data }` only), `runs` (REQUIRED)
 
 1. `runs` is an object keyed by run id. A recipe-made run writes `namespace` and `as`; a
    hand-started run writes neither, and its run id is its only name.
-2. A run holds what actually ran: `algorithm`, `params` (element-naming options as element
-   references), `engine` (graphty-element's `EngineVersions`: `element`, `algorithms`, `layout`,
+2. A run holds what actually ran: `algorithm`, `params` (every declared option's value as it ran,
+   9 rule 10, with element-naming options as element references), `engine` (graphty-element's
+   `EngineVersions`: `element`, `algorithms`, `layout`,
    and `plugins` when an extension computed it), `seed` (the seed it used, or `null`),
    `durationMs` (absent when the run was not timed, never 0), `bindsTo` (6.4), `fields` (`{ name, kind, type }`, `kind` being `node`, `edge` or
    `graph`), `caveats`, `graph` (graph-level values), and `nodes` and `edges` outputs.
@@ -787,7 +796,8 @@ A results section holds `bindsTo` (REQUIRED, `{ data }` only), `runs` (REQUIRED)
 4. Outputs are columns: `{ "refs": [<element references>], "columns": { <field>: [values] } }`,
    every column as long as `refs`.
 5. `layout` is the layout's record: `id`, the catalogue id; `algorithm`, the layout that drew it,
-   as `layout.set` spells it in `algorithm`; `dimension`; `options`; `seed`; `durationMs` (absent
+   as `layout.set` spells it in `algorithm`; `dimension`; `options` (every declared option's value
+   as it drew); `seed`; `durationMs` (absent
    when the layout was not timed, never 0, as for a run); `engine`
    (`EngineVersions`, as every run's); `bindsTo`; and `nodes: { refs, columns: { x, y, z } }`. It
    has no run id; one layout is in force at a time. In results, `engine` always means
@@ -852,8 +862,9 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    holds every keep, exclude and select condition as one plain list, element leaves as element
    references, with no nested `version`. `hidden` holds the nodes hidden from the drawing.
 5. **Run records.** Each carries its run `id`; a recipe-made run its `namespace` and `as`; the
-   reader's `name` when it has one; `algorithm`; `params` (element-naming options as element
-   references: a node as `{ "space", "key" }`); `seed`; `scope`; `"derived": true` when graphty-element minted the run's id, as
+   reader's `name` when it has one; `algorithm`; `params` (every declared option's value as it
+   ran, 9 rule 10; element-naming options as element references: a node as `{ "space", "key" }`);
+   `seed`; `scope`; `"derived": true` when graphty-element minted the run's id, as
    version 1 records it; and, when it cannot be replayed exactly, `"replayable": false`.
    A view run record has no `style`. `scope` is one of graphty-element's `Scope` forms:
    `"graph"`, `"largest-component"`, `{ "set" }`, `{ "where" }`, `{ "nodes": [<node ref>] }`,
@@ -869,6 +880,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    full set id.
 7. **Layout.** The layout record names the layout in `algorithm`, as `layout.set` spells it, and
    `engine` is graphty-element's `EngineVersions`, exactly as in results' `layout` and every run.
+   Its `options` hold every declared option's value (9 rule 10).
    A layout scope (`layoutScope`) is not saved, and the save reports it.
 8. **Collapsed groups.** A collapse replaces a group's members with one node standing in for them;
    it is the reader's decision, not data. The data section holds the graph expanded: every member,
@@ -1184,19 +1196,37 @@ While a section is held:
    core member is an ordinary additive change. There are no minor versions.
 4. A change of meaning bumps the major version and ships, in one change, a migration from the
    previous version, its JSON Schema and a sample file.
-5. **A change to a named built-in is a change of meaning.** Changing what a name in `builtins.md`
-   draws, or removing it, bumps the version of every section that can name it, and the migration
-   rewrites older files to keep their meaning. **Changing any default** is such a change: it bumps
-   the major version of every section that can hold the member, view run records included, and the
-   migration writes the old default into older files (an algorithm's or layout's option default
-   into every older recipe's `params` or `options` that did not give it).
+5. **Built-ins are immutable.** A name in `builtins.md` always means its normative definition. It
+   is never changed, reused or removed; a retired name is listed as deprecated and still drawn. A
+   different drawing gets a new name (`sinewave-2`), which is additive: an older reader fails that
+   channel entry alone (10). A row's informative part (segment, point, subdivision and particle
+   counts, and the mesh builder) may change in any release. An ordered list (the overflow
+   sequences, and a channel's list that a binding without choices walks) only gains names at its
+   end.
 6. A writer MUST write the lowest version that can express the content.
 7. A reader MUST read every version a release of graphty-element has written, upgrading an older
    one on read one step at a time, and report the upgrade (`W_SECTION_UPGRADED`, params
    `{ section, from, to }`).
 8. A section whose version is newer than the reader knows is skipped and held (8.4).
-9. **Defaults live in the schemas**, frozen for that section's major version. An absent member
-   means that default; an absent mapping role means none.
+9. **Who owns a default.**
+    - A **format default** is one this specification states for a member it defines, in text or as
+      a schema `default` keyword: `repeatedEdges`, a source's settings, the join step members of
+      4.1.8, `graph.filter`'s `on`, a note's `mediaType`, a view run's `replayable`. It is frozen
+      for the section's major version. Changing it is a change of meaning (rule 4), and that
+      version's migration writes the old default into older files. An absent mapping role means
+      none.
+    - Every **other default** belongs to code the format does not version: algorithm and layout
+      option defaults (the algorithms and layout packages, or a plugin), the settings defaults
+      (graphty-element's `CONFIG_KEYS`), parser defaults, and the renderer's look for unset
+      channels. Changing one never bumps a version and needs no migration.
+10. **Writers save resolved values.** A writer MUST write the value used for every option that a
+    run's algorithm or a layout's engine declares with a default: `algo.run` `params`, `layout.set`
+    `options`, results run `params` and `layout.options`, view run records and view
+    `layout.options`. It leaves out the options an engine derives from `dimension`, and a layout
+    option whose declared default is null (off unless asked), unless they were asked for. A run's
+    seed goes where 4.3 and 4.5 put it. A settings writer writes every key it holds that has a value
+    in force. A reader meeting an absent option or setting applies its own current default, and the
+    results it writes record the value used. Style is the exception (4.2 rule 9).
 
 ### 9.1 Version 1 files
 

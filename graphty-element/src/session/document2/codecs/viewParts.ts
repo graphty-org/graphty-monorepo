@@ -8,9 +8,12 @@
  */
 
 import type { CameraState } from "../../../camera/types";
+import { engineOptionsOf, layoutEntry } from "../../../catalog/layouts";
 import type { EdgeId, EdgeMember } from "../../../catalog/types";
+import { LayoutEngine } from "../../../layout/LayoutEngine";
 import { dispatcherOf } from "../../dispatchers";
 import { mintNoteId } from "../../notes/ids";
+import { canonicalizeParams } from "../../runs/runId";
 import type { GraphSession } from "../../types";
 import { projectMemory } from "../memory";
 import type { ElementRefs, JsonObject, ReadContext } from "../types";
@@ -420,4 +423,45 @@ export function viewRunRecord(context: ReadContext, id: string): JsonObject | un
     return Array.isArray(runs)
         ? (runs.find((record) => isObject(record) && record.id === id) as JsonObject)
         : undefined;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Layout options as a file writes them (spec 9 rule 10)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * A layout's options as a file writes them: every option its engine declares with a default, at
+ * the value in force, and every option asked for. The options an engine derives from the
+ * dimension, and the options whose default is null, are left out unless they were asked for, since `dimension` already says them: `dim`,
+ * as the catalog reads it (`arrangedDimension`), and whatever a registered engine class says it
+ * derives. A layout or engine the catalog does not know keeps the asked options alone.
+ * @param session - The session, for its catalog.
+ * @param layout - The layout: its id, its engine and the options asked for.
+ * @param layout.id - The layout's catalog id.
+ * @param layout.engine - The engine that draws it.
+ * @param layout.options - The options asked for.
+ * @returns The options, keys sorted.
+ */
+export function resolvedLayoutOptions(
+    session: GraphSession,
+    layout: { readonly id: string; readonly engine: string; readonly options: Readonly<Record<string, unknown>> },
+): JsonObject {
+    const descriptor = session.catalog.layouts().find((each) => each.id === layout.id);
+    const engines = layoutEntry(layout.id)?.implementations.map((each) => each.engine) ?? [descriptor?.engine];
+    if (descriptor === undefined || !engines.includes(layout.engine)) {
+        return { ...canonicalizeParams(layout.options, []) };
+    }
+
+    const derived = new Set(["dim"]);
+    for (const dimension of [2, 3] as const) {
+        for (const key of Object.keys(LayoutEngine.getOptionsForDimensionByType(layout.engine, dimension) ?? {})) {
+            derived.add(key);
+        }
+    }
+
+    // A null default (`clusterBy`, `nodeGap`) means the option is off unless asked: not written.
+    const declared = engineOptionsOf(descriptor, layout.engine).filter(
+        (option) => option.default !== null && !derived.has(option.name),
+    );
+    return { ...canonicalizeParams(layout.options, declared) };
 }

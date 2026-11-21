@@ -3,20 +3,21 @@
 This registry names and defines every code-backed built-in a graphty document may name: node
 shapes, arrowheads, line patterns, transitions, the fixed sequences an overflow policy steps
 through, label looks, and the closed choices of the style channels. A document that names one of
-these depends on its definition here; the specification (README.md, "Versions" rule 5) says what
-happens when a definition changes.
+these depends on its definition here; the specification (README.md, "Versions" rule 5) says that
+a definition never changes.
 
 Rules:
 
-1. A name is never reused for something else. Changing or removing a definition bumps the major
-   version of every section that can name it, and that version's migration rewrites older files so
-   they keep their meaning.
+1. A name always means its Definition column. It is never redefined, reused or removed: a changed
+   drawing is a new name, and a retired name is listed as deprecated and still drawn. A "Drawn
+   today" column is informative: it says how graphty-element draws the name now, and may change in
+   any release.
 2. Each list below is checked against graphty-element's source by `test/spec/schemas.test.ts`: the
    names in a list's table equal the names the cited source accepts, in the same order where the
    list is ordered.
 3. Every list is an open vocabulary within a major version (README.md, "Open vocabularies"): a
    later release may add a name, and a reader that does not know a name fails that channel entry or
-   layer alone.
+   layer alone. An ordered list gains names only at its end.
 4. Data built-ins are not here because a document carries them: palettes, color scales as stops,
    shaders (as source text), value labels and assets.
 
@@ -31,8 +32,8 @@ Each table's first column is the name a document writes; the rest is its definit
 
 Source: `src/config/NodeStyle.ts` (`NodeShapes`), drawn by `src/meshes/NodeMesh.ts` (solids) and
 `src/meshes/shapeOutlines.ts` (flat outlines). `S` is the node's size under `shape.sizeMode`
-"scale"; `phi` is 1.618. Solids named by a Babylon.js mesh builder use that builder's vertex data
-(Babylon.js 8, `MeshBuilder`) with the parameters given and its defaults for every other one.
+"scale"; `phi` is 1.618. Every solid scales linearly with `S`. graphty-element draws the solids with
+Babylon.js 8 `MeshBuilder` (informative).
 
 Aliases: graphty-element also accepts the hyphenated spellings `triangular-prism`,
 `pentagonal-prism`, `hexagonal-prism`, `square-pyramid`, `pentagonal-pyramid`,
@@ -42,64 +43,65 @@ writes the underscore spelling.
 
 <!-- registry: nodeShapes -->
 
-| Name                             | Definition                                                                                                                                           |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `box`                            | A cube of edge `S`.                                                                                                                                  |
-| `sphere`                         | A UV sphere of diameter `S`, 32 segments (`shape.detail` "low": an icosphere of radius `S/2`, 1 subdivision).                                        |
-| `cylinder`                       | A cylinder of diameter `S` and height `phi * S`, axis along y.                                                                                       |
-| `cone`                           | A cone of base diameter `S` and height `phi * S`, apex up (+y).                                                                                      |
-| `capsule`                        | A capsule `S` tall, caps included, of radius `0.25 * S`.                                                                                             |
-| `torus`                          | A torus whose center line has diameter `S`, tube thickness `0.5 * S`.                                                                                |
-| `torus-knot`                     | A (2, 3) torus knot of radius `0.3 * S` and tube radius `0.2 * S`, 128 radial segments.                                                              |
-| `tetrahedron`                    | The regular tetrahedron, Babylon.js polyhedron type 0, size `S`.                                                                                     |
-| `octahedron`                     | The regular octahedron, polyhedron type 1, size `S`.                                                                                                 |
-| `dodecahedron`                   | The regular dodecahedron, polyhedron type 2, size `S`.                                                                                               |
-| `icosahedron`                    | The regular icosahedron, polyhedron type 3, size `S`.                                                                                                |
-| `rhombicuboctahedron`            | The rhombicuboctahedron, polyhedron type 4, size `S`.                                                                                                |
-| `triangular_prism`               | The uniform triangular prism (Johnson-style, all edges equal), polyhedron type 5, size `S`.                                                          |
-| `pentagonal_prism`               | The uniform pentagonal prism, polyhedron type 6, size `S`.                                                                                           |
-| `hexagonal_prism`                | The uniform hexagonal prism, polyhedron type 7, size `S`.                                                                                            |
-| `square_pyramid`                 | The equilateral square pyramid (Johnson solid J1), polyhedron type 8, size `S`.                                                                      |
-| `pentagonal_pyramid`             | The pentagonal pyramid (J2), polyhedron type 9, size `S`.                                                                                            |
-| `triangular_dipyramid`           | The triangular bipyramid (J12), polyhedron type 10, size `S`.                                                                                        |
-| `pentagonal_dipyramid`           | The pentagonal bipyramid (J13), polyhedron type 11, size `S`.                                                                                        |
-| `elongated_square_dipyramid`     | The elongated square bipyramid (J15), polyhedron type 12, size `S`.                                                                                  |
-| `elongated_pentagonal_dipyramid` | The elongated pentagonal bipyramid (J16), polyhedron type 13, size `S`.                                                                              |
-| `elongated_pentagonal_cupola`    | The elongated pentagonal cupola (J20), polyhedron type 14, size `S`.                                                                                 |
-| `goldberg`                       | A Goldberg polyhedron, `MeshBuilder.CreateGoldberg` with size `S` and default m and n.                                                               |
-| `icosphere`                      | An icosphere of radius `0.75 * S`, 4 subdivisions (`shape.detail` "low": 1).                                                                         |
-| `geodesic`                       | A geodesic polyhedron, `MeshBuilder.CreateGeodesic` with size `S` and default m and n.                                                               |
-| `rectangle`                      | Flat. The box `(-1,-1) (1,-1) (1,1) (-1,1)`, stretched to the node's width and height.                                                               |
-| `round-rectangle`                | Flat. A rectangle whose four corners are quarter circles of radius `min(r, quarter of the shorter side)`; `r` is `shape.cornerRadius` (unset: none). |
-| `top-round-rectangle`            | Flat. As `round-rectangle`, only the top two corners rounded.                                                                                        |
-| `bottom-round-rectangle`         | Flat. As `round-rectangle`, only the bottom two corners rounded.                                                                                     |
-| `ellipse`                        | Flat. The ellipse filling the box, 32 points.                                                                                                        |
-| `diamond`                        | Flat. `(0,-1) (1,0) (0,1) (-1,0)`, stretched to the box.                                                                                             |
-| `triangle`                       | Flat. `(-1,-1) (1,-1) (0,1)`, stretched to the box.                                                                                                  |
-| `pentagon`                       | Flat. The regular pentagon with a corner straight up, stretched to the box.                                                                          |
-| `hexagon`                        | Flat. The regular hexagon with corners at 0 and 180 degrees, stretched to the box.                                                                   |
-| `octagon`                        | Flat. The regular octagon with its first corner at 22.5 degrees, stretched to the box.                                                               |
-| `parallelogram`                  | Flat. `(-1,-1) (0.5,-1) (1,1) (-0.5,1)`, stretched to the box.                                                                                       |
-| `trapezoid`                      | Flat. `(-1,-1) (1,-1) (0.5,1) (-0.5,1)`, stretched to the box.                                                                                       |
-| `star`                           | Flat. A five-pointed star, first point straight up, inner radius 0.38 of the outer, stretched to the box.                                            |
-| `vee`                            | Flat. `(0,-1) (1,1) (0,0.33) (-1,1)`, stretched to the box.                                                                                          |
-| `polygon`                        | Flat. The corners `shape.points` lists, as fractions of the half width and half height; without usable corners, the rectangle.                       |
-| `cross`                          | Flat. A plus sign whose arms are a third of the box wide: corners at +-1/3 and +-1.                                                                  |
-| `house`                          | Flat. `(-1,-1) (1,-1) (1,0.2) (0,1) (-1,0.2)`, stretched to the box.                                                                                 |
-| `man`                            | Flat. Pajek 6.02's man figure (its SVG export path, `PAJEK_MAN` in shapeOutlines.ts), fitted to the box.                                             |
-| `woman`                          | Flat. Pajek 6.02's woman figure (`PAJEK_WOMAN`), fitted to the box.                                                                                  |
-| `none`                           | No body: the node draws only its label, and its box (the rectangle) still bounds edges and the label.                                                |
-| `round-triangle`                 | Flat. `triangle` with each corner rounded by a circular arc of radius `min(tenth of the shorter side, shape.cornerRadius)`.                          |
-| `round-diamond`                  | Flat. `diamond`, corners rounded as `round-triangle`.                                                                                                |
-| `round-pentagon`                 | Flat. `pentagon`, corners rounded as `round-triangle`.                                                                                               |
-| `round-hexagon`                  | Flat. `hexagon`, corners rounded as `round-triangle`.                                                                                                |
-| `round-octagon`                  | Flat. `octagon`, corners rounded as `round-triangle`.                                                                                                |
-| `round-polygon`                  | Flat. `polygon`, corners rounded as `round-triangle`.                                                                                                |
-| `barrel`                         | Flat. A rectangle whose corners are cut by quadratic curves a quarter of the width in and a twentieth of the height down (Cytoscape.js barrel).      |
-| `database`                       | Flat. A cylinder seen from the side: straight sides, top and bottom the near halves of ellipses a third of the height tall (vis-network database).   |
+| Name                             | Definition                                                                                                                                           | Drawn today (informative)                                                       |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `box`                            | A cube of edge `S`.                                                                                                                                  |                                                                                 |
+| `sphere`                         | A sphere of diameter `S`.                                                                                                                            | 32 segments; `shape.detail` "low": an icosphere of radius `S/2`, 1 subdivision. |
+| `cylinder`                       | A cylinder of diameter `S` and height `phi * S`, axis along y.                                                                                       |                                                                                 |
+| `cone`                           | A cone of base diameter `S` and height `phi * S`, apex up (+y).                                                                                      |                                                                                 |
+| `capsule`                        | A capsule `S` tall, caps included, of radius `0.25 * S`.                                                                                             |                                                                                 |
+| `torus`                          | A torus whose center line has diameter `S`, tube thickness `0.5 * S`.                                                                                |                                                                                 |
+| `torus-knot`                     | A (2, 3) torus knot of radius `0.3 * S` and tube radius `0.2 * S`.                                                                                   | 128 radial segments.                                                            |
+| `tetrahedron`                    | The regular tetrahedron, size `S`.                                                                                                                   | Babylon.js polyhedron type 0.                                                   |
+| `octahedron`                     | The regular octahedron, size `S`.                                                                                                                    | Babylon.js polyhedron type 1.                                                   |
+| `dodecahedron`                   | The regular dodecahedron, size `S`.                                                                                                                  | Babylon.js polyhedron type 2.                                                   |
+| `icosahedron`                    | The regular icosahedron, size `S`.                                                                                                                   | Babylon.js polyhedron type 3.                                                   |
+| `rhombicuboctahedron`            | The rhombicuboctahedron, size `S`.                                                                                                                   | Babylon.js polyhedron type 4.                                                   |
+| `triangular_prism`               | The uniform triangular prism (Johnson-style, all edges equal), size `S`.                                                                             | Babylon.js polyhedron type 5.                                                   |
+| `pentagonal_prism`               | The uniform pentagonal prism, size `S`.                                                                                                              | Babylon.js polyhedron type 6.                                                   |
+| `hexagonal_prism`                | The uniform hexagonal prism, size `S`.                                                                                                               | Babylon.js polyhedron type 7.                                                   |
+| `square_pyramid`                 | The equilateral square pyramid (Johnson solid J1), size `S`.                                                                                         | Babylon.js polyhedron type 8.                                                   |
+| `pentagonal_pyramid`             | The pentagonal pyramid (J2), size `S`.                                                                                                               | Babylon.js polyhedron type 9.                                                   |
+| `triangular_dipyramid`           | The triangular bipyramid (J12), size `S`.                                                                                                            | Babylon.js polyhedron type 10.                                                  |
+| `pentagonal_dipyramid`           | The pentagonal bipyramid (J13), size `S`.                                                                                                            | Babylon.js polyhedron type 11.                                                  |
+| `elongated_square_dipyramid`     | The elongated square bipyramid (J15), size `S`.                                                                                                      | Babylon.js polyhedron type 12.                                                  |
+| `elongated_pentagonal_dipyramid` | The elongated pentagonal bipyramid (J16), size `S`.                                                                                                  | Babylon.js polyhedron type 13.                                                  |
+| `elongated_pentagonal_cupola`    | The elongated pentagonal cupola (J20), size `S`.                                                                                                     | Babylon.js polyhedron type 14.                                                  |
+| `goldberg`                       | The Goldberg polyhedron GP(1,0), size `S`.                                                                                                           | `MeshBuilder.CreateGoldberg` with size `S`, default m and n.                    |
+| `icosphere`                      | An icosphere of radius `0.75 * S`.                                                                                                                   | 4 subdivisions (`shape.detail` "low": 1).                                       |
+| `geodesic`                       | The geodesic polyhedron with m = 1, n = 0, size `S`.                                                                                                 | `MeshBuilder.CreateGeodesic` with size `S`, default m and n.                    |
+| `rectangle`                      | Flat. The box `(-1,-1) (1,-1) (1,1) (-1,1)`, stretched to the node's width and height.                                                               |                                                                                 |
+| `round-rectangle`                | Flat. A rectangle whose four corners are quarter circles of radius `min(r, quarter of the shorter side)`; `r` is `shape.cornerRadius` (unset: none). |                                                                                 |
+| `top-round-rectangle`            | Flat. As `round-rectangle`, only the top two corners rounded.                                                                                        |                                                                                 |
+| `bottom-round-rectangle`         | Flat. As `round-rectangle`, only the bottom two corners rounded.                                                                                     |                                                                                 |
+| `ellipse`                        | Flat. The ellipse filling the box.                                                                                                                   | 32 points.                                                                      |
+| `diamond`                        | Flat. `(0,-1) (1,0) (0,1) (-1,0)`, stretched to the box.                                                                                             |                                                                                 |
+| `triangle`                       | Flat. `(-1,-1) (1,-1) (0,1)`, stretched to the box.                                                                                                  |                                                                                 |
+| `pentagon`                       | Flat. The regular pentagon with a corner straight up, stretched to the box.                                                                          |                                                                                 |
+| `hexagon`                        | Flat. The regular hexagon with corners at 0 and 180 degrees, stretched to the box.                                                                   |                                                                                 |
+| `octagon`                        | Flat. The regular octagon with its first corner at 22.5 degrees, stretched to the box.                                                               |                                                                                 |
+| `parallelogram`                  | Flat. `(-1,-1) (0.5,-1) (1,1) (-0.5,1)`, stretched to the box.                                                                                       |                                                                                 |
+| `trapezoid`                      | Flat. `(-1,-1) (1,-1) (0.5,1) (-0.5,1)`, stretched to the box.                                                                                       |                                                                                 |
+| `star`                           | Flat. A five-pointed star, first point straight up, inner radius 0.38 of the outer, stretched to the box.                                            |                                                                                 |
+| `vee`                            | Flat. `(0,-1) (1,1) (0,0.33) (-1,1)`, stretched to the box.                                                                                          |                                                                                 |
+| `polygon`                        | Flat. The corners `shape.points` lists, as fractions of the half width and half height; without usable corners, the rectangle.                       |                                                                                 |
+| `cross`                          | Flat. A plus sign whose arms are a third of the box wide: corners at +-1/3 and +-1.                                                                  |                                                                                 |
+| `house`                          | Flat. `(-1,-1) (1,-1) (1,0.2) (0,1) (-1,0.2)`, stretched to the box.                                                                                 |                                                                                 |
+| `man`                            | Flat. Pajek 6.02's man figure (its SVG export path, `PAJEK_MAN` in shapeOutlines.ts), fitted to the box.                                             |                                                                                 |
+| `woman`                          | Flat. Pajek 6.02's woman figure (`PAJEK_WOMAN`), fitted to the box.                                                                                  |                                                                                 |
+| `none`                           | No body: the node draws only its label, and its box (the rectangle) still bounds edges and the label.                                                |                                                                                 |
+| `round-triangle`                 | Flat. `triangle` with each corner rounded by a circular arc of radius `min(tenth of the shorter side, shape.cornerRadius)`.                          |                                                                                 |
+| `round-diamond`                  | Flat. `diamond`, corners rounded as `round-triangle`.                                                                                                |                                                                                 |
+| `round-pentagon`                 | Flat. `pentagon`, corners rounded as `round-triangle`.                                                                                               |                                                                                 |
+| `round-hexagon`                  | Flat. `hexagon`, corners rounded as `round-triangle`.                                                                                                |                                                                                 |
+| `round-octagon`                  | Flat. `octagon`, corners rounded as `round-triangle`.                                                                                                |                                                                                 |
+| `round-polygon`                  | Flat. `polygon`, corners rounded as `round-triangle`.                                                                                                |                                                                                 |
+| `barrel`                         | Flat. A rectangle whose corners are cut by quadratic curves a quarter of the width in and a twentieth of the height down (Cytoscape.js barrel).      |                                                                                 |
+| `database`                       | Flat. A cylinder seen from the side: straight sides, top and bottom the near halves of ellipses a third of the height tall (vis-network database).   |                                                                                 |
 
 Every flat outline is extruded into a thin slab (`shape.depth` sets its thickness) and drawn 1.5
-scene units across per unit of size. Rounded arcs use 8 points per quarter turn.
+scene units across per unit of size. Rounded arcs are drawn with 8 points per quarter turn
+(informative).
 
 ## Arrowheads
 
@@ -189,15 +191,15 @@ else `1 - (2 - 2u)^3 / 2`. `win(t, s, l)` is `clamp((t - s) / l, 0, 1)`.
 
 <!-- registry: transitions -->
 
-| Name              | Definition                                                                                                                                                                                                                          |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `glide`           | Straight from old to new place, `easing` param: `linear`, `ease-in-out` (default, `ease`) or `spring` (`1 - e^(-6u) cos(4.5 pi u) (1 - u)`).                                                                                        |
-| `staggered-glide` | Each node glides as `glide` over a window of length `1 - 0.8 * stagger` (default stagger 0.5), starting at `order * (1 - length)`, where order is the node's distance from the center (`from` "center") or hops from the selection. |
-| `arc-move`        | The eased straight path bowed to the left of travel within the x-y plane by `length * height * sin(pi u)`, length the whole move's (default height 0.3).                                                                            |
-| `swirl`           | Turns about the z axis through the origin: the angle goes from the old bearing to the new, at least `abs(turns)` whole turns in the sign of `turns` (default 0.5; 0 the shorter way), radius and z blended, all eased.              |
-| `fade-through`    | Each node dissolves into a puff of 12 particles with no curl and moves inside it during `win(t, 0.3 + 0.15 seed, 0.25)`, eased.                                                                                                     |
-| `collapse-bloom`  | The old layout shrinks toward the origin to 4% of its size, holds for `hold` of the duration (default 0.1) while turning into the new layout at 4%, then blooms out (cubic ease out).                                               |
-| `particle-morph`  | Each node bursts into `particles` (default 24) particles that stream through curl noise (`curl`, default 1) while the node glides during `win(t, seed * 0.35, 0.65)`, eased.                                                        |
+| Name              | Definition                                                                                                                                                                                                                          | Drawn today (informative) |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `glide`           | Straight from old to new place, `easing` param: `linear`, `ease-in-out` (default, `ease`) or `spring` (`1 - e^(-6u) cos(4.5 pi u) (1 - u)`).                                                                                        |                           |
+| `staggered-glide` | Each node glides as `glide` over a window of length `1 - 0.8 * stagger` (default stagger 0.5), starting at `order * (1 - length)`, where order is the node's distance from the center (`from` "center") or hops from the selection. |                           |
+| `arc-move`        | The eased straight path bowed to the left of travel within the x-y plane by `length * height * sin(pi u)`, length the whole move's (default height 0.3).                                                                            |                           |
+| `swirl`           | Turns about the z axis through the origin: the angle goes from the old bearing to the new, at least `abs(turns)` whole turns in the sign of `turns` (default 0.5; 0 the shorter way), radius and z blended, all eased.              |                           |
+| `fade-through`    | Each node dissolves into a puff of particles with no curl and moves inside it during `win(t, 0.3 + 0.15 seed, 0.25)`, eased.                                                                                                        | 12 particles.             |
+| `collapse-bloom`  | The old layout shrinks toward the origin to 4% of its size, holds for `hold` of the duration (default 0.1) while turning into the new layout at 4%, then blooms out (cubic ease out).                                               |                           |
+| `particle-morph`  | Each node bursts into `particles` (default 24) particles that stream through curl noise (`curl`, default 1) while the node glides during `win(t, seed * 0.35, 0.65)`, eased.                                                        |                           |
 
 ## Overflow sequences
 
@@ -207,25 +209,25 @@ palette takes the next entry of these ordered lists.
 
 <!-- registry: overflowShapes -->
 
-| Name         | Definition                            |
-| ------------ | ------------------------------------- |
-| `icosphere`  | First cycle (the default node shape). |
-| `box`        | Second cycle.                         |
-| `octahedron` | Third cycle.                          |
-| `cylinder`   | Fourth cycle.                         |
-| `cone`       | Fifth cycle.                          |
-| `torus`      | Sixth cycle.                          |
+| Name         | Definition    |
+| ------------ | ------------- |
+| `icosphere`  | First cycle.  |
+| `box`        | Second cycle. |
+| `octahedron` | Third cycle.  |
+| `cylinder`   | Fourth cycle. |
+| `cone`       | Fifth cycle.  |
+| `torus`      | Sixth cycle.  |
 
 <!-- registry: overflowPatterns -->
 
-| Name       | Definition                         |
-| ---------- | ---------------------------------- |
-| `solid`    | First cycle (the default pattern). |
-| `dash`     | Second cycle.                      |
-| `dot`      | Third cycle.                       |
-| `dash-dot` | Fourth cycle.                      |
-| `sinewave` | Fifth cycle.                       |
-| `diamond`  | Sixth cycle.                       |
+| Name       | Definition    |
+| ---------- | ------------- |
+| `solid`    | First cycle.  |
+| `dash`     | Second cycle. |
+| `dot`      | Third cycle.  |
+| `dash-dot` | Fourth cycle. |
+| `sinewave` | Fifth cycle.  |
+| `diamond`  | Sixth cycle.  |
 
 ## Label looks
 
@@ -236,7 +238,7 @@ label's own values override it.
 
 | Name      | Definition                                                                                                                     |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `default` | No values: the label style's own defaults.                                                                                     |
+| `default` | No values: the label draws with the renderer's own look.                                                                       |
 | `card`    | font Verdana, sans-serif; color #1a1a1a; background #ffffff; padding 6; cornerRadius 6; borderWidth 1; borderColor #8a8a8a.    |
 | `dark`    | font Verdana, sans-serif; color #ffffff; background #222222; padding 6; cornerRadius 6.                                        |
 | `pill`    | font Verdana, sans-serif; color #ffffff; background #1f5fa8; padding 8; cornerRadius 24; weight bold.                          |
@@ -270,21 +272,21 @@ Choices a style channel accepts from a fixed list. Source: `src/config/NodeStyle
 
 <!-- registry: nodeBorderPositions -->
 
-| Name      | Definition                                         |
-| --------- | -------------------------------------------------- |
-| `outside` | Wholly outside the node's size (the default).      |
-| `center`  | Centered on the node's edge, half in and half out. |
-| `inside`  | Wholly inside the node's size.                     |
+| Name      | Definition                                                      |
+| --------- | --------------------------------------------------------------- |
+| `outside` | Wholly outside the node's size (drawn when unset; informative). |
+| `center`  | Centered on the node's edge, half in and half out.              |
+| `inside`  | Wholly inside the node's size.                                  |
 
 ### Node size modes (`NodeSizeModes`)
 
 <!-- registry: nodeSizeModes -->
 
-| Name       | Definition                                                                                              |
-| ---------- | ------------------------------------------------------------------------------------------------------- |
-| `scale`    | `shape.size` multiplies each shape's own geometry (the default).                                        |
-| `diameter` | `shape.size` is the drawn shape's largest width, height or depth, 1 scene unit per unit.                |
-| `uniform`  | Every shape covers the same extent across the view, 1.5 scene units per unit (the default icosphere's). |
+| Name       | Definition                                                                                               |
+| ---------- | -------------------------------------------------------------------------------------------------------- |
+| `scale`    | `shape.size` multiplies each shape's own geometry (drawn when unset; informative).                       |
+| `diameter` | `shape.size` is the drawn shape's largest width, height or depth, 1 scene unit per unit.                 |
+| `uniform`  | Every shape covers the same extent across the view, 1.5 scene units per unit (an icosphere's of size 1). |
 
 ### Node label fits (`NodeLabelFits`)
 
@@ -301,7 +303,7 @@ Choices a style channel accepts from a fixed list. Source: `src/config/NodeStyle
 
 | Name   | Definition                                                                               |
 | ------ | ---------------------------------------------------------------------------------------- |
-| `full` | The shape's own mesh (the default).                                                      |
+| `full` | The shape's own mesh (drawn when unset; informative).                                    |
 | `low`  | An icosphere of one subdivision for a sphere; 8 segments around every other round shape. |
 
 ### Node model up axes (`NodeModelUpAxes`)

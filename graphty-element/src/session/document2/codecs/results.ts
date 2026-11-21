@@ -27,7 +27,7 @@ import type {
     WriteContext,
 } from "../types";
 import { jsonSafe, numericCell } from "./dataRefs";
-import { mintUlid, rerunsOnOpen, viewRunRecord } from "./viewParts";
+import { mintUlid, rerunsOnOpen, resolvedLayoutOptions, viewRunRecord } from "./viewParts";
 
 /**
  * A value as a document holds it (spec 11), undefined as null so a column keeps its length.
@@ -420,12 +420,13 @@ function layoutOut(context: WriteContext, stamp: BuildStamp | undefined): JsonOb
     }
 
     const { layout } = session;
-    const { seed } = layout.options;
+    const options = resolvedLayoutOptions(session, layout);
+    const { seed } = options;
     return {
         id: layout.id,
         algorithm: layout.engine,
         dimension: layout.dimension === "2d" ? 2 : 3,
-        options: encode(layout.options),
+        options: encode(options),
         seed: Number.isInteger(seed) ? seed : null,
         // The session does not time a layout, so the record leaves `durationMs` out, never 0.
         engine: encode(ENGINE_VERSIONS),

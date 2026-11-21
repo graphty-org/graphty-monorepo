@@ -22,7 +22,7 @@
         },
         "settings": {
             "type": "object",
-            "description": "Keyed by config.set path, written flat (layoutBehavior.preSteps). Open: a key a reader does not know is kept. No data.* key is written here.",
+            "description": "Keyed by config.set path, written flat (layoutBehavior.preSteps). Every key the writer holds, at its value in force. Absent: the reader's own default (spec 4.4 rule 4). Open: a key a reader does not know is kept. No data.* key is written here.",
             "propertyNames": {
                 "pattern": "^[A-Za-z][A-Za-z0-9]*(\\.[A-Za-z][A-Za-z0-9]*)*$",
                 "not": {

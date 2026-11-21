@@ -21,11 +21,26 @@
         ]
     },
     "settings": {
+        "runAlgorithmsOnLoad": false,
         "background": {
             "backgroundType": "color",
-            "color": "#fafafa"
+            "color": "#FAFAFA"
         },
+        "selectionStyle": {
+            "color": "#0077BB",
+            "scale": 1.45,
+            "opacity": 1,
+            "edgeColor": "#0077BB",
+            "edgeScale": 2.5,
+            "edgeOpacity": 1
+        },
+        "timelineHiddenLook": "hidden",
+        "timelineHiddenAdded": false,
+        "startingCamerasWritten": false,
         "runPlacement": "beneath",
+        "layoutBehavior.preSteps": 0,
+        "layoutBehavior.stepMultiplier": 1,
+        "layoutBehavior.minDelta": 0,
         "layoutTransition": {
             "transition": "glide",
             "seconds": 0.8

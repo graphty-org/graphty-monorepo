@@ -11,9 +11,10 @@ import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
+import { engineOptionsOf } from "../../../src/catalog/layouts";
 import type { RunId } from "../../../src/catalog/types";
 import { recipeCodec } from "../../../src/session/document2/codecs/recipe";
-import { fileSetId } from "../../../src/session/document2/codecs/viewParts";
+import { fileSetId, resolvedLayoutOptions } from "../../../src/session/document2/codecs/viewParts";
 import type {
     DocumentProblem,
     DocumentSection,
@@ -221,13 +222,41 @@ function stateOf(session: GraphSession): unknown {
                 seed: run.record.seed,
                 scope: run.record.scope.spec,
             })),
+        // Resolved: a replayed `layout.set` asks for the defaults the saved one spelled out.
         layout: {
             id: session.layout.id,
             engine: session.layout.engine,
             dimension: session.layout.dimension,
-            options: session.layout.options,
+            options: resolvedLayoutOptions(session, session.layout),
         },
     };
+}
+
+/**
+ * The options a layout engine declares with a default, less the one it derives from the dimension.
+ * @param session - The session, for its catalog.
+ * @param id - The layout.
+ * @param engine - The engine.
+ * @returns The option names.
+ */
+function defaultedLayoutOptions(session: GraphSession, id: string, engine: string): string[] {
+    const descriptor = session.catalog.layouts().find((each) => each.id === id);
+    assert.isDefined(descriptor);
+    return engineOptionsOf(descriptor, engine)
+        .filter((option) => option.default !== undefined && option.default !== null && option.name !== "dim")
+        .map((option) => option.name);
+}
+
+/**
+ * The layout.set command a session writes.
+ * @param session - The session.
+ * @returns The command.
+ */
+async function layoutCommand(session: GraphSession): Promise<JsonObject> {
+    const commands = (await write(session)).written.body.commands as JsonObject[];
+    const command = commands.find((each) => each.op === "layout.set");
+    assert.isDefined(command);
+    return command;
 }
 
 /**
@@ -610,6 +639,54 @@ describe("the version 2 recipe codec", () => {
         assert.notStrictEqual(target.session.runs.painting("x__styled")?.state, "opted-out");
     });
 
+    it("writes the layout's options resolved: every defaulted engine option, less dim, and the seed", async () => {
+        const { session } = lab();
+        await addGraph(session);
+        await session.layout.set("force", { options: { seed: 7 } });
+        const command = await layoutCommand(session);
+        const options = command.options as JsonObject;
+        assert.sameMembers(Object.keys(options), [...defaultedLayoutOptions(session, "force", "ngraph"), "seed"]);
+        assert.strictEqual(options.seed, 7);
+        assert.deepEqual(
+            Object.keys(options),
+            [...Object.keys(options)].sort((a, b) => a.localeCompare(b)),
+            "keys sorted",
+        );
+        assert.deepEqual(invalid(asSection((await write(session)).written)), []);
+    });
+
+    it("writes a dimension option that was asked for", async () => {
+        const { session } = lab();
+        await addGraph(session);
+        await session.layout.setDimension("3d");
+        await session.layout.set("force", { options: { dim: 2 } });
+        const options = (await layoutCommand(session)).options as JsonObject;
+        assert.strictEqual(options.dim, 2);
+    });
+
+    it("re-saves a terse hand-written run with every declared option at the value it ran with", async () => {
+        const target = lab();
+        await addGraph(target.session);
+        const problems = await read(target, {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "terse",
+            commands: [
+                { op: "algo.run", algorithm: "pagerank", as: "rank", params: { dampingFactor: 0.5 }, style: false },
+            ],
+        });
+        assert.deepEqual(problems, []);
+        const commands = (await write(target.session, true)).written.body.commands as JsonObject[];
+        const run = commands.find((each) => each.op === "algo.run");
+        assert.deepEqual(run?.params, {
+            dampingFactor: 0.5,
+            directed: true,
+            maxIterations: 100,
+            tolerance: 0.000001,
+            useDelta: true,
+        });
+    });
+
     it("reads the specification's example recipe, reporting what this release cannot replay", async () => {
         const target = lab();
         await addGraph(target.session);
@@ -627,5 +704,11 @@ describe("the version 2 recipe codec", () => {
             target.session.visibility.steps.map((step) => step.rule),
             [{ kind: "edges", where: "data.time >= '2026-11-09'" }],
         );
+        // The example writes resolved values, so the session holds them as written.
+        const commands = example.commands as JsonObject[];
+        const pagerank = commands.find((each) => each.as === "pagerank");
+        assert.deepEqual(target.session.runs.get("card_testing__pagerank")?.record.params, pagerank?.params);
+        const layout = commands.find((each) => each.op === "layout.set");
+        assert.deepEqual(resolvedLayoutOptions(target.session, target.session.layout), layout?.options);
     });
 });

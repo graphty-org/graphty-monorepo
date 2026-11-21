@@ -50,6 +50,7 @@ import {
     type RefMapper,
     rerunsOnOpen,
     resetMemory,
+    resolvedLayoutOptions,
     type ViewMemory,
     writeMapper,
 } from "./viewParts";
@@ -492,11 +493,11 @@ function groupsJson(w: Writer): JsonObject[] {
  * @returns The record.
  */
 function layoutJson(session: GraphSession): JsonObject {
-    const { id, engine, options, dimension } = session.layout;
+    const { id, engine, dimension } = session.layout;
     return {
         id,
         algorithm: engine,
-        options: { ...options },
+        options: resolvedLayoutOptions(session, session.layout),
         dimension: dimension === "2d" ? 2 : 3,
         engine: { ...ENGINE_VERSIONS },
     };
@@ -1108,10 +1109,12 @@ async function readLayout(r: Reader, layout: JsonObject): Promise<void> {
     const options = isObject(layout.options) ? layout.options : {};
     // The layout's own name is `algorithm`; `engine` is the EngineVersions record, not read back.
     const engine = typeof layout.algorithm === "string" ? layout.algorithm : undefined;
+    // Compared resolved, so a file that spells out the defaults in force adds no layout step.
     const same =
         now.id === layout.id &&
         (engine === undefined || now.engine === engine) &&
-        canonical(now.options) === canonical(options);
+        canonical(resolvedLayoutOptions(r.context.session, now)) ===
+            canonical(resolvedLayoutOptions(r.context.session, { id: now.id, engine: now.engine, options }));
     try {
         if (!same && typeof layout.id === "string") {
             await tx.layout.set(layout.id, { ...(engine === undefined ? {} : { engine }), options });

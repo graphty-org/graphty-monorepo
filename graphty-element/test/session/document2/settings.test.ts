@@ -11,7 +11,8 @@ import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import { settingsCodec } from "../../../src/session/document2/codecs/settings";
+import { CONFIG_KEYS } from "../../../src/session/configKeys";
+import { SAVED_HERE, settingsCodec } from "../../../src/session/document2/codecs/settings";
 import { openDocument2, saveDocument2 } from "../../../src/session/document2/document";
 import { parseDocument, schemaUrl } from "../../../src/session/document2/framing";
 import type { CodecRegistry, DocumentProblem, JsonObject, SectionCodec } from "../../../src/session/document2/types";
@@ -144,6 +145,16 @@ describe("settings section", () => {
         assert.notProperty(section, "dependencies", "no key written here names a column");
     });
 
+    it("writes every key it holds that has a value in force, for a session that set nothing", async () => {
+        const settings = (await save(createGraphSession(ON))).settings as JsonObject;
+        // A key has a value in force when its schema gives one for an unset key.
+        const inForce = SAVED_HERE.filter(
+            (key) => CONFIG_KEYS.get(key)?.schema.safeParse(undefined).data !== undefined,
+        );
+        assert.isNotEmpty(inForce);
+        assert.deepEqual(Object.keys(settings), inForce);
+    });
+
     it("onto an open project sets only the keys the section holds", async () => {
         const session = createGraphSession(ON);
         await session.config.set({ background: { backgroundType: "color", color: "#000000" }, runPlacement: "top" });
@@ -262,9 +273,11 @@ describe("settings section", () => {
         assert.deepEqual(await open(session, example), []);
         assert.strictEqual(session.config.layoutTransition?.transition, "glide");
         assert.strictEqual(session.time.settings.missing, "outside");
-        // The header it was read with is kept on re-save (spec 8.1 rule 5).
+        // The header it was read with is kept on re-save (spec 8.1 rule 5), and the example writes
+        // every key in force, so it comes back as it is.
         const saved = await save(session);
         assert.deepEqual(saved.dependencies, example.dependencies);
+        assert.deepEqual(saved.settings, example.settings);
         assertValid(saved);
     });
 });

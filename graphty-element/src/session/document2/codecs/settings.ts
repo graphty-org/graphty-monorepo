@@ -32,7 +32,7 @@ const NOT_HERE: ReadonlySet<string> = new Set([
 ]);
 
 /** The `config.set` keys this section holds, in the order it writes them. */
-const SAVED_HERE: readonly string[] = [...CONFIG_KEYS.keys()].filter(
+export const SAVED_HERE: readonly string[] = [...CONFIG_KEYS.keys()].filter(
     (key) => !NOT_HERE.has(key) && !key.startsWith("data."),
 );
 

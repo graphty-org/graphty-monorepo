@@ -50,7 +50,7 @@ import {
     STYLE_PARTS,
 } from "./recipeCommands";
 import { markRecipeRun, restoredPositions } from "./results";
-import { fileIdsOf, fileSetId } from "./viewParts";
+import { fileIdsOf, fileSetId, resolvedLayoutOptions } from "./viewParts";
 
 /** The header members of an opened recipe that the session has no home for, kept for its re-save. */
 const IDENTITY = ["id", "name", "description", "authors", "license", "keywords", "language", "origin"];
@@ -352,12 +352,13 @@ function writeRecipe(context: WriteContext): SectionWrite {
     });
 
     const { layout } = session;
+    const layoutOptions = resolvedLayoutOptions(session, layout);
     const layoutCommand: JsonObject = {
         op: "layout.set",
         id: layout.id,
         algorithm: layout.engine,
         dimension: layout.dimension === "2d" ? 2 : 3,
-        ...(Object.keys(layout.options).length === 0 ? {} : { options: layout.options }),
+        ...(Object.keys(layoutOptions).length === 0 ? {} : { options: layoutOptions }),
     };
 
     // Run ids become the recipe's names; a run the recipe does not hold keeps its id.

@@ -13,6 +13,7 @@ import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
+import { engineOptionsOf } from "../../../src/catalog/layouts";
 import type { EdgeId, NodeId } from "../../../src/catalog/types";
 import { markRecipeRun, resultsCodec, runIdOf, runNameOf } from "../../../src/session/document2/codecs/results";
 import type {
@@ -304,6 +305,34 @@ describe("writing results", () => {
             ],
             columns: { x: [1, -1], y: [2, 0.5], z: [3, 0] },
         });
+    });
+
+    it("writes every declared option a run and the layout used, the layout's seed from its options", async () => {
+        const { session } = await withRuns();
+        await session.runs.start("pagerank", { dampingFactor: 0.5 }, { as: "rank", style: false });
+        await session.layout.set("force", { options: { seed: 9 } });
+        const section = await save(session);
+        assert.deepEqual(invalid(section), []);
+        const pagerank = session.catalog.algorithms().find((each) => each.key === "pagerank");
+        const declared = (pagerank?.options ?? []).filter((option) => option.default !== undefined);
+        assert.isNotEmpty(declared);
+        const params = runsOf(section).rank.params as JsonObject;
+        assert.sameMembers(
+            Object.keys(params),
+            declared.map((option) => option.name),
+        );
+        assert.strictEqual(params.dampingFactor, 0.5);
+
+        const layout = section.layout as JsonObject;
+        const options = layout.options as JsonObject;
+        const force = session.catalog.layouts().find((each) => each.id === "force");
+        assert.isDefined(force);
+        const engine = engineOptionsOf(force, "ngraph").filter(
+            (option) => option.default !== undefined && option.default !== null && option.name !== "dim",
+        );
+        assert.sameMembers(Object.keys(options), [...engine.map((option) => option.name), "seed"]);
+        assert.strictEqual(layout.seed, options.seed);
+        assert.strictEqual(layout.seed, 9);
     });
 
     it("writes NaN and -Infinity as strings too", async () => {

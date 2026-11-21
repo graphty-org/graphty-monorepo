@@ -973,6 +973,20 @@ export function layoutEntry(id: LayoutId): LayoutCatalogEntry | undefined {
 }
 
 /**
+ * The options a layout takes on one of its engines: each engine has its own vocabulary.
+ * @param descriptor - The layout.
+ * @param engine - The engine, or its default when absent.
+ * @returns The engine's options.
+ */
+export function engineOptionsOf(descriptor: LayoutDescriptor, engine?: string): readonly OptionDescriptor[] {
+    const wanted = engine ?? descriptor.engine;
+    return (
+        layoutEntry(descriptor.id)?.implementations.find((each) => each.engine === wanted)?.options ??
+        descriptor.options
+    );
+}
+
+/**
  * Find the public layout name an engine serves, which is the question a consumer holding a
  * 1.x engine name needs answered to migrate.
  * @param engine - A registered engine name, such as "ngraph".

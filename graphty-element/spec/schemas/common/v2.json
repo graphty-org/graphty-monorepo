@@ -665,7 +665,7 @@
         },
         "staticStyle": {
             "type": "object",
-            "description": "Channel values. Channel names are an open vocabulary; a reader fails an unknown channel alone. Values naming built-ins (node.shape, edge.style, arrowheads) are names from spec/builtins.md.",
+            "description": "Channel values. Channel names are an open vocabulary; a reader fails an unknown channel alone. Values naming built-ins (node.shape, edge.style, arrowheads) are names from spec/builtins.md. A channel no layer sets is drawn with the renderer's own look, which is not part of the file's meaning (spec 4.2 rule 9).",
             "propertyNames": {
                 "$ref": "#/$defs/channelName"
             },
@@ -725,6 +725,7 @@
             }
         },
         "binding": {
+            "description": "How a channel reads its value from the data. A channel no layer sets or binds is drawn with the renderer's own look, which is not part of the file's meaning (spec 4.2 rule 9).",
             "oneOf": [
                 {
                     "type": "object",

@@ -3,7 +3,8 @@
  * compiles, every example validates, every section file equals the matching section of the full
  * file, the schemas refuse the members the design removed, the worked example keeps the rules on
  * keys, build and copy ids and spaces, and the built-ins registry (spec/builtins.md) names exactly
- * what graphty-element's source accepts.
+ * what graphty-element's source accepts. The schemas hold defaults only for members the format
+ * owns, the built-ins never change a name's definition, and the examples write resolved values.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -12,7 +13,9 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
+import { algorithmKeyOf, BUILT_IN_ALGORITHMS } from "../../src/catalog/algorithms";
 import { LABEL_LOOKS } from "../../src/catalog/label-looks";
+import { layoutEntry } from "../../src/catalog/layouts";
 import { EdgeArrowTypes, EdgeLineTypes, EdgeOutlineTypes } from "../../src/config/EdgeStyle";
 import {
     NodeBorderPositions,
@@ -102,6 +105,81 @@ describe("the version 2 schemas", () => {
         ]) {
             assert.include(files, name);
         }
+    });
+});
+
+/**
+ * The current version's schema files: the newest version of each kind, not the older ones the
+ * migration reads.
+ * @returns The paths under spec/schemas/.
+ */
+function currentSchemaFiles(): string[] {
+    const newest = new Map<string, { file: string; version: number }>();
+    for (const file of schemaFiles()) {
+        const [kind, name] = file.split("/");
+        const version = Number(/^v(\d+)\.json$/.exec(name)?.[1]);
+        if ((newest.get(kind)?.version ?? 0) < version) {
+            newest.set(kind, { file, version });
+        }
+    }
+    return [...newest.values()].map((each) => each.file);
+}
+
+/**
+ * Every `default` keyword under a schema value, as `<file>#<pointer>` and its value.
+ * @param value - The schema value.
+ * @param at - Its pointer.
+ * @param found - Collects what is found.
+ */
+function defaultsIn(value: Json, at: string, found: [string, Json][]): void {
+    if (Array.isArray(value)) {
+        value.forEach((entry, index) => defaultsIn(entry, `${at}/${index}`, found));
+        return;
+    }
+
+    if (value === null || typeof value !== "object") {
+        return;
+    }
+
+    for (const [key, entry] of Object.entries(value)) {
+        const pointer = `${at}/${key.replaceAll("~", "~0").replaceAll("/", "~1")}`;
+        // A member named "default" under `properties` is a member, not the keyword.
+        if (key === "default" && !at.endsWith("/properties")) {
+            found.push([pointer, entry]);
+        } else {
+            defaultsIn(entry, pointer, found);
+        }
+    }
+}
+
+describe("defaults in the version 2 schemas", () => {
+    it("hold default keywords only for format-owned members", () => {
+        const found: [string, Json][] = [];
+        for (const file of currentSchemaFiles()) {
+            defaultsIn(readJson(new URL(`schemas/${file}`, SPEC)), file, found);
+        }
+
+        // Spec 9 rule 9: every other default belongs to code the format does not version.
+        assert.deepEqual(
+            new Map(found),
+            new Map<string, Json>([
+                ["common/v2.json/$defs/joinStep/properties/viaEnd/default", "target"],
+                ["common/v2.json/$defs/joinStep/properties/ignoreCase/default", false],
+                ["common/v2.json/$defs/joinStep/properties/ignoreSpaces/default", false],
+                ["common/v2.json/$defs/graphFilter/properties/on/default", "nodes"],
+                ["graphty-data/v2.json/properties/repeatedEdges/default", "keep"],
+                [
+                    "graphty-data/v2.json/properties/sources/items/else/properties/settings/properties/duplicateIds/default",
+                    "first",
+                ],
+                [
+                    "graphty-data/v2.json/properties/sources/items/else/properties/settings/properties/unmatched/default",
+                    "add",
+                ],
+                ["graphty-notes/v2.json/properties/notes/items/properties/mediaType/default", "text/plain"],
+                ["graphty-view/v1.json/properties/runs/items/properties/replayable/default", true],
+            ]),
+        );
     });
 });
 
@@ -544,13 +622,20 @@ describe("the schemas refuse what the design removed", () => {
     }
 });
 
+/** One row of a registry table: the name and its normative Definition column. */
+interface RegistryRow {
+    readonly name: string;
+    readonly definition: string;
+}
+
 /**
- * The names in each `<!-- registry: <list> -->` table of spec/builtins.md, in order.
+ * The rows of each `<!-- registry: <list> -->` table of spec/builtins.md, in order. The
+ * informative "Drawn today" column is not read.
  * @returns The lists, by name.
  */
-function registryLists(): Map<string, string[]> {
-    const lists = new Map<string, string[]>();
-    let current: string[] | undefined;
+function registryRows(): Map<string, RegistryRow[]> {
+    const lists = new Map<string, RegistryRow[]>();
+    let current: RegistryRow[] | undefined;
     for (const line of readFileSync(new URL("builtins.md", SPEC), "utf8").split("\n")) {
         const marker = /^<!-- registry: ([A-Za-z]+) -->$/.exec(line);
         if (marker !== null) {
@@ -558,14 +643,22 @@ function registryLists(): Map<string, string[]> {
             lists.set(marker[1], current);
             continue;
         }
-        const row = /^\| `([^`]+)` +\|/.exec(line);
+        const row = /^\| `([^`]+)` +\|(.*)\|$/.exec(line);
         if (row !== null) {
-            current?.push(row[1]);
+            current?.push({ name: row[1], definition: row[2].split(" | ")[0].trim() });
         } else if (line.startsWith("#")) {
             current = undefined;
         }
     }
     return lists;
+}
+
+/**
+ * The names in each registry table, in order.
+ * @returns The lists, by name.
+ */
+function registryLists(): Map<string, string[]> {
+    return new Map([...registryRows()].map(([list, rows]) => [list, rows.map((row) => row.name)]));
 }
 
 describe("the built-ins registry", () => {
@@ -594,5 +687,108 @@ describe("the built-ins registry", () => {
         for (const [list, names] of lists) {
             assert.deepEqual(names, [...CODE[list]], list);
         }
+    });
+
+    it("are immutable: every version 2 name keeps its place and its definition", () => {
+        // Spec 9 rule 5: a list only gains names at its end, and a name never changes meaning.
+        const frozen = readJson(new URL("builtins-v2.json", import.meta.url)) as unknown as Record<
+            string,
+            RegistryRow[]
+        >;
+        const lists = registryRows();
+        for (const [list, rows] of Object.entries(frozen)) {
+            const current = lists.get(list);
+            assert.isDefined(current, list);
+            assert.deepEqual(current.slice(0, rows.length), rows, list);
+        }
+    });
+});
+
+/**
+ * The options a declared option list gives a default, by name.
+ * @param options - The options.
+ * @param options.name - An option's name.
+ * @param options.default - Its default.
+ * @returns Their names.
+ */
+const defaulted = (options: readonly { name: string; default?: unknown }[]): string[] =>
+    options.filter((option) => option.default !== undefined).map((option) => option.name);
+
+/**
+ * The options an algorithm declares with a default, a legacy key (`dijkstra`) read as the
+ * algorithm it names.
+ * @param algorithm - The algorithm, as a file names it.
+ * @returns Their names.
+ */
+function algorithmDefaults(algorithm: Json | undefined): string[] {
+    const key = algorithmKeyOf(text(algorithm), BUILT_IN_ALGORITHMS)?.key;
+    const descriptor = BUILT_IN_ALGORITHMS.find((each) => each.key === key);
+    assert.isDefined(descriptor, text(algorithm));
+    return defaulted(descriptor.options);
+}
+
+/**
+ * The options a layout's engine declares with a default that a file writes: all but the one it
+ * derives from the dimension, and those whose default is null (off unless asked).
+ * @param layout - The layout record or command.
+ * @returns Their names.
+ */
+function layoutDefaults(layout: JsonObject): string[] {
+    const engine = layoutEntry(text(layout.id))?.implementations.find((each) => each.engine === layout.algorithm);
+    assert.isDefined(engine, text(layout.algorithm));
+    return defaulted(engine.options.filter((option) => option.default !== null && option.name !== "dim"));
+}
+
+describe("the examples write resolved values", () => {
+    const files = [
+        ...examples("").map((file) => `examples/${file}`),
+        ...examples("minimal").map((file) => `examples/minimal/${file}`),
+    ];
+    /** Every section an example holds, as a section file or inside a full file. */
+    const sections = files.flatMap((file): JsonObject[] => {
+        const doc = readJson(new URL(file, SPEC));
+        return doc.kind === "graphty-document" ? Object.values(sectionsOf(doc)) : [doc];
+    });
+    const ofKind = (kind: string): JsonObject[] => sections.filter((section) => section.kind === kind);
+
+    it("name every defaulted option in each run and layout", () => {
+        let checked = 0;
+        const check = (where: string, values: Json | undefined, wanted: string[]): void => {
+            const held = Object.keys((values ?? {}) as JsonObject);
+            for (const name of wanted) {
+                assert.include(held, name, where);
+            }
+            checked += 1;
+        };
+        for (const recipe of ofKind("graphty-recipe")) {
+            for (const command of recipe.commands as JsonObject[]) {
+                if (command.op === "algo.run") {
+                    check(`recipe ${text(command.as)}`, command.params, algorithmDefaults(command.algorithm));
+                } else if (command.op === "layout.set") {
+                    check("recipe layout.set", command.options, layoutDefaults(command));
+                }
+            }
+        }
+        for (const results of ofKind("graphty-results")) {
+            for (const [id, run] of Object.entries((results.runs ?? {}) as Record<string, JsonObject>)) {
+                check(`results ${id}`, run.params, algorithmDefaults(run.algorithm));
+            }
+            if (results.layout !== undefined) {
+                check(
+                    "results layout",
+                    (results.layout as JsonObject).options,
+                    layoutDefaults(results.layout as JsonObject),
+                );
+            }
+        }
+        for (const view of ofKind("graphty-view")) {
+            for (const run of (view.runs ?? []) as JsonObject[]) {
+                check(`view ${text(run.id)}`, run.params, algorithmDefaults(run.algorithm));
+            }
+            if (view.layout !== undefined) {
+                check("view layout", (view.layout as JsonObject).options, layoutDefaults(view.layout as JsonObject));
+            }
+        }
+        assert.isAbove(checked, 0);
     });
 });

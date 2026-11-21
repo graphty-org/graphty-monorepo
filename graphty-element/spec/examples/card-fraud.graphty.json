@@ -741,7 +741,11 @@
                     "algorithm": "pagerank",
                     "as": "pagerank",
                     "params": {
-                        "dampingFactor": 0.85
+                        "dampingFactor": 0.85,
+                        "directed": true,
+                        "maxIterations": 100,
+                        "tolerance": 0.000001,
+                        "useDelta": true
                     },
                     "style": false
                 },
@@ -750,7 +754,10 @@
                     "algorithm": "louvain",
                     "as": "communities",
                     "params": {
-                        "resolution": 1
+                        "maxIterations": 100,
+                        "resolution": 1,
+                        "tolerance": 0.000001,
+                        "useOptimized": true
                     },
                     "scope": {
                         "types": ["account", "device"]
@@ -785,7 +792,15 @@
                     "algorithm": "ngraph",
                     "dimension": 3,
                     "options": {
-                        "seed": 52211
+                        "clusterStrength": 1,
+                        "dragCoefficient": 0.9,
+                        "gravity": -12,
+                        "nodeGapFront": false,
+                        "seed": 52211,
+                        "springCoefficient": 0.8,
+                        "springLength": 10,
+                        "theta": 0.8,
+                        "timeStep": 0.5
                     }
                 }
             ]
@@ -813,11 +828,26 @@
                 ]
             },
             "settings": {
+                "runAlgorithmsOnLoad": false,
                 "background": {
                     "backgroundType": "color",
-                    "color": "#fafafa"
+                    "color": "#FAFAFA"
                 },
+                "selectionStyle": {
+                    "color": "#0077BB",
+                    "scale": 1.45,
+                    "opacity": 1,
+                    "edgeColor": "#0077BB",
+                    "edgeScale": 2.5,
+                    "edgeOpacity": 1
+                },
+                "timelineHiddenLook": "hidden",
+                "timelineHiddenAdded": false,
+                "startingCamerasWritten": false,
                 "runPlacement": "beneath",
+                "layoutBehavior.preSteps": 0,
+                "layoutBehavior.stepMultiplier": 1,
+                "layoutBehavior.minDelta": 0,
                 "layoutTransition": {
                     "transition": "glide",
                     "seconds": 0.8
@@ -848,7 +878,11 @@
                     "as": "pagerank",
                     "algorithm": "pagerank",
                     "params": {
-                        "dampingFactor": 0.85
+                        "dampingFactor": 0.85,
+                        "directed": true,
+                        "maxIterations": 100,
+                        "tolerance": 0.000001,
+                        "useDelta": true
                     },
                     "engine": {
                         "element": "3.40.0",
@@ -922,7 +956,10 @@
                     "as": "communities",
                     "algorithm": "louvain",
                     "params": {
-                        "resolution": 1
+                        "maxIterations": 100,
+                        "resolution": 1,
+                        "tolerance": 0.000001,
+                        "useOptimized": true
                     },
                     "engine": {
                         "element": "3.40.0",
@@ -992,6 +1029,10 @@
                 "route": {
                     "algorithm": "dijkstra",
                     "params": {
+                        "bidirectional": true,
+                        "direction": "all",
+                        "invertStrength": false,
+                        "method": "dijkstra",
                         "source": {
                             "space": "account",
                             "key": "acct-1002"
@@ -1000,7 +1041,7 @@
                             "space": "account",
                             "key": "acct-1003"
                         },
-                        "direction": "all"
+                        "timeOrder": null
                     },
                     "engine": {
                         "element": "3.40.0",
@@ -1058,7 +1099,15 @@
                 "algorithm": "ngraph",
                 "dimension": 3,
                 "options": {
-                    "seed": 52211
+                    "clusterStrength": 1,
+                    "dragCoefficient": 0.9,
+                    "gravity": -12,
+                    "nodeGapFront": false,
+                    "seed": 52211,
+                    "springCoefficient": 0.8,
+                    "springLength": 10,
+                    "theta": 0.8,
+                    "timeStep": 0.5
                 },
                 "seed": 52211,
                 "durationMs": 41,
@@ -1385,6 +1434,10 @@
                         "runId": "route",
                         "algorithm": "dijkstra",
                         "params": {
+                            "bidirectional": true,
+                            "direction": "all",
+                            "invertStrength": false,
+                            "method": "dijkstra",
                             "source": {
                                 "space": "account",
                                 "key": "acct-1002"
@@ -1393,7 +1446,7 @@
                                 "space": "account",
                                 "key": "acct-1003"
                             },
-                            "direction": "all"
+                            "timeOrder": null
                         }
                     }
                 }
@@ -1405,7 +1458,11 @@
                     "as": "pagerank",
                     "algorithm": "pagerank",
                     "params": {
-                        "dampingFactor": 0.85
+                        "dampingFactor": 0.85,
+                        "directed": true,
+                        "maxIterations": 100,
+                        "tolerance": 0.000001,
+                        "useDelta": true
                     },
                     "scope": "graph",
                     "replayable": false
@@ -1416,7 +1473,10 @@
                     "as": "communities",
                     "algorithm": "louvain",
                     "params": {
-                        "resolution": 1
+                        "maxIterations": 100,
+                        "resolution": 1,
+                        "tolerance": 0.000001,
+                        "useOptimized": true
                     },
                     "seed": 1873,
                     "scope": {
@@ -1429,6 +1489,10 @@
                     "name": "Ben Ode to Cy Lam",
                     "algorithm": "dijkstra",
                     "params": {
+                        "bidirectional": true,
+                        "direction": "all",
+                        "invertStrength": false,
+                        "method": "dijkstra",
                         "source": {
                             "space": "account",
                             "key": "acct-1002"
@@ -1437,7 +1501,7 @@
                             "space": "account",
                             "key": "acct-1003"
                         },
-                        "direction": "all"
+                        "timeOrder": null
                     },
                     "scope": "graph"
                 }
@@ -1446,7 +1510,15 @@
                 "id": "force",
                 "algorithm": "ngraph",
                 "options": {
-                    "seed": 52211
+                    "clusterStrength": 1,
+                    "dragCoefficient": 0.9,
+                    "gravity": -12,
+                    "nodeGapFront": false,
+                    "seed": 52211,
+                    "springCoefficient": 0.8,
+                    "springLength": 10,
+                    "theta": 0.8,
+                    "timeStep": 0.5
                 },
                 "dimension": 3,
                 "engine": {

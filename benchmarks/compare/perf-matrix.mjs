@@ -156,27 +156,33 @@ const median = (xs) => {
 };
 const hoverMs = (r) => median((r.hover?.latMs ?? []).map((v) => (typeof v === "number" ? v : 180000)));
 
-/** Each metric: how it is read from a row, and the slack added to the margin (noise at small values). */
+/**
+ * Each metric: how it is read from a row, and the slack added to the margin. The slack only covers the timer's
+ * resolution at small values; it is kept well under the margin of any value the matrix measures, so it never hides a
+ * regression of a fast metric (a 2 ms hover still fails at 1.6x).
+ */
 const METRICS = {
-    firstFrameMs: { read: (r) => r.load?.firstFrameMs, slack: 50 },
-    readyMs: { read: (r) => r.load?.readyMs, slack: 50 },
-    restyleMs: { read: (r) => r.restyle?.ms, slack: 50 },
-    stillMs: { read: (r) => r.still?.serial?.median, slack: 1 },
-    orbitMs: { read: (r) => r.orbit?.median, slack: 1 },
-    dragMs: { read: (r) => r.drag?.median, slack: 1 },
-    hoverMs: { read: hoverMs, slack: 10 },
-    editMs: { read: (r) => r.edit?.ms, slack: 50 },
-    layoutStartMs: { read: (r) => r.layoutRun?.firstLandingMs ?? r.layoutRun?.applyMs, slack: 50 },
-    layoutFrameMs: { read: (r) => r.layoutRun?.frame?.median, slack: 1 },
-    landingMs: { read: (r) => r.layoutRun?.landingIntervalMs, slack: 2 },
-    heapMB: { read: (r) => r.memory?.usedMB, slack: 20 },
+    firstFrameMs: { read: (r) => r.load?.firstFrameMs, slack: 5 },
+    readyMs: { read: (r) => r.load?.readyMs, slack: 5 },
+    restyleMs: { read: (r) => r.restyle?.ms, slack: 5 },
+    stillMs: { read: (r) => r.still?.serial?.median, slack: 0.3 },
+    orbitMs: { read: (r) => r.orbit?.median, slack: 0.3 },
+    dragMs: { read: (r) => r.drag?.median, slack: 0.3 },
+    hoverMs: { read: hoverMs, slack: 0.3 },
+    editMs: { read: (r) => r.edit?.ms, slack: 5 },
+    layoutStartMs: { read: (r) => r.layoutRun?.firstLandingMs ?? r.layoutRun?.applyMs, slack: 5 },
+    layoutFrameMs: { read: (r) => r.layoutRun?.frame?.median, slack: 0.3 },
+    landingMs: { read: (r) => r.layoutRun?.landingIntervalMs, slack: 0.3 },
+    heapMB: { read: (r) => r.memory?.usedMB, slack: 2 },
     // Counted, not timed: rows off the fast path after the load and the restyle. No margin.
     objectNodes: { read: (r) => lastCounts(r)?.objectNodes, slack: 0, counted: true },
     objectEdges: { read: (r) => lastCounts(r)?.objectEdges, slack: 0, counted: true },
 };
 const lastCounts = (r) => (r.renderPath === "batched" ? (r.restyle?.rowCounts ?? r.rowCounts) : undefined);
-/** How much worse a timed metric may get before the gate fails: 25%, or PERF_MARGIN. */
-const MARGIN = Number(process.env.PERF_MARGIN ?? 0.25);
+/** How much worse a timed metric's best run may get before the gate fails: 30%, or PERF_MARGIN. */
+const MARGIN = Number(process.env.PERF_MARGIN ?? 0.3);
+/** The runs of each gate-set scenario and path the gate needs, in the results and in the baseline. */
+const GATE_RUNS = 3;
 
 const keyOf = (r) => `${r.scenario}|${r.renderPath ?? "objects"}`;
 function readRows(file) {
@@ -187,20 +193,21 @@ function readRows(file) {
         .filter((r) => r.scenario && !r.void);
 }
 /**
- * One entry per scenario and path: each metric's median over its runs, its worst run (the gate's reference for a
- * timed metric, so the spread the baseline's own runs showed is not read as a regression), and the failures.
+ * One entry per scenario and path: each metric's median over its runs (for reading), its best run (what the gate
+ * compares: noise only ever adds time, so the fastest of three runs moves far less between runs of the same commit
+ * than the median or the worst does), and the failures.
  */
 function summarize(rows) {
     const by = new Map();
     for (const r of rows) (by.get(keyOf(r)) ?? by.set(keyOf(r), []).get(keyOf(r))).push(r);
     const out = {};
     for (const [key, rs] of by) {
-        const e = { runs: rs.length, metrics: {}, worst: {} };
+        const e = { runs: rs.length, metrics: {}, best: {} };
         for (const [name, { read }] of Object.entries(METRICS)) {
             const xs = rs.map((r) => read(r)).filter((x) => typeof x === "number" && Number.isFinite(x));
             if (!xs.length) continue;
             e.metrics[name] = median(xs);
-            e.worst[name] = Math.max(...xs);
+            e.best[name] = Math.min(...xs);
         }
         const failures = rs.map((r) => r.failure).filter(Boolean);
         if (failures.length) e.failures = failures.map((f) => f.slice(0, 160));
@@ -274,6 +281,9 @@ function runOne(s, path, results) {
                 BENCH_RENDER_PATH: path,
                 BENCH_SCENARIO: s.id,
                 BENCH_DEADLINE_S: String(s.deadline),
+                // Past the shipped 100k-node ceiling the batched path draws only when asked to (`limits`); objects
+                // keeps the shipped ceilings whatever is asked, so its 1M rows record the refusal.
+                ...(path === "batched" && s.n > 100000 ? { BENCH_LIMITS: JSON.stringify({ renderCeiling: s.n }) } : {}),
             },
         },
     );
@@ -295,10 +305,11 @@ function compareEntry(key, cur, b) {
         const metric = METRICS[name];
         if (!metric) continue;
         compared++;
-        const is = cur.metrics[name];
-        const limit = metric.counted ? was : (b.worst?.[name] ?? was) * (1 + MARGIN) + metric.slack;
-        if (is === undefined && !cur.failures) worse.push(`${key} ${name}: missing (was ${was})`);
-        else if (is > limit) worse.push(`${key} ${name}: ${is} > ${+limit.toFixed(2)} (baseline ${was})`);
+        const is = metric.counted ? cur.metrics[name] : cur.best?.[name];
+        const ref = metric.counted ? was : (b.best?.[name] ?? was);
+        const limit = metric.counted ? ref : ref * (1 + MARGIN) + metric.slack;
+        if (is === undefined && !cur.failures) worse.push(`${key} ${name}: missing (was ${ref})`);
+        else if (is > limit) worse.push(`${key} ${name}: ${+is.toFixed(2)} > ${+limit.toFixed(2)} (baseline ${ref})`);
     }
     return { compared, worse };
 }
@@ -309,6 +320,14 @@ function gate(results) {
     const now = summarize(readRows(results));
     const worse = [];
     let compared = 0;
+    // Every gate-set scenario the baseline has must be in the results, with its runs: a run that crashed, died before
+    // writing its row, or landed on another renderer (a void row) must fail the gate, not drop out of it.
+    for (const [key, b] of Object.entries(base.entries)) {
+        if (!GATE_SET.has(key.split("|")[0])) continue;
+        const runs = now[key]?.runs ?? 0;
+        if (runs < GATE_RUNS) worse.push(`${key}: ${runs} of the ${GATE_RUNS} runs the gate needs are in the results`);
+        if (b.runs < GATE_RUNS) worse.push(`${key}: the baseline has ${b.runs} runs, the gate needs ${GATE_RUNS}`);
+    }
     for (const [key, cur] of Object.entries(now)) {
         if (!base.entries[key]) continue;
         // Timings taken on other CPUs (reserved cores against the shared machine) are not comparable.
@@ -339,8 +358,9 @@ function baseline(results) {
     );
     const doc = {
         about:
-            "Medians per scenario and render path from benchmarks/compare/perf-matrix.mjs; `gate` fails when a timed " +
-            "metric is more than the margin (25%) plus its slack worse, or a counted one is any higher. RTX 4070 SUPER, " +
+            "Medians and best runs per scenario and render path from benchmarks/compare/perf-matrix.mjs; `gate` fails " +
+            "when a timed metric's best run is more than the margin (30%) plus its slack worse than the baseline's " +
+            "best run, a counted one is any higher, or a gate-set scenario is missing. RTX 4070 SUPER, " +
             "WebGL through ANGLE on Vulkan, Chromium from the checkout's Playwright.",
         written: new Date().toISOString(),
         entries: sorted,

@@ -23,12 +23,15 @@ the page and start it through servherd as sections 1 and 2 there say, then expor
 
 Left out at the large sizes, because they stress nothing the smaller sizes miss or cannot finish: the default
 look (every arrowed edge is an object on both paths, which at a million edges does not finish in ten minutes),
-every style but node color and curves, and every layout but the GPU force layout. Labels at 100k nodes can end the
+every style but node color and curves, and every layout but the GPU force layout. At 1M nodes the batched runs ask
+for a node ceiling of 1M (`limits.renderCeiling`), which the batched path honors; objects keeps the shipped
+100k-node ceiling whatever is asked, so its 1M rows record the refusal. Labels at 100k nodes can end the
 browser (RUNBOOK.md) and are measured at 50k instead.
 
 ## The metrics
 
-One row per run, one fresh browser per run. Each metric is the median over the runs of a scenario and path.
+One row per run, one fresh browser per run. The report shows each metric's median over the runs of a scenario and
+path; the gate compares best runs.
 
 | Metric                       | What it is                                                                                        |
 | ---------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -68,17 +71,23 @@ on the shared machine are not comparable.
 
     node perf-matrix.mjs gate ../results/<label>/gate.jsonl
 
-It fails (exit 1) when, for any scenario and path that is in both the results and the baseline:
+It fails (exit 1) when:
 
-- a timed metric's median is worse than the baseline's worst run by more than 25% (`PERF_MARGIN`) plus the metric's
-  slack (1 ms for a frame, 2 ms for a landing, 10 ms for hover, 50 ms for a load, restyle, edit or layout start,
-  20 MB of heap),
+- a timed metric's best run (the fastest of the results' runs) is slower than the baseline's best run by more than
+  30% (`PERF_MARGIN`) plus the metric's slack (0.3 ms for a frame, a landing or a hover, 5 ms for a load, restyle,
+  edit or layout start, 2 MB of heap),
 - a counted metric is higher at all,
-- a metric the baseline has is missing, or a run failed where the baseline's did not.
+- a metric the baseline has is missing, or a run failed where the baseline's did not,
+- a gate-set scenario the baseline has is missing from the results on either path, or has fewer than three runs
+  there: a run that crashed, died before writing its row, or landed on another renderer (a void row) fails the gate
+  instead of dropping out of it.
 
-Run the gate on three runs of the gate set, as above: one run is too noisy (on reserved cores a 10k first frame
-still varied by 40% between runs of the same commit). The baseline's worst run is the reference for the same reason,
-so the spread its own runs showed is never read as a regression.
+Run the gate on three runs of the gate set, as above. The best run is what is compared because noise only ever adds
+time: on reserved cores the median of one scenario moved by up to 2.9x between two sessions of the same commit, and
+the best of three by at most 1.26x. The margin sits just above that, so the same commit passes, and the slack only
+covers the timer's resolution at small values. Measured on two sessions' runs of the same commit, the gate fails a
+sustained slowdown of 2x on every timed metric of the gate set, of 1.5x on 229 of 252 and of 1.4x on 217; a
+slowdown of 1.3x or less is within the noise and is not reliably caught.
 
 When a change makes things faster, or the machine changes, write a new baseline from three runs of the gate set and
 commit it with the change: `node perf-matrix.mjs baseline <file>` (it replaces the entries the file has and keeps the
@@ -87,4 +96,4 @@ others).
 The gate runs only on this machine: it needs the RTX 4070 SUPER (a run on any other renderer is void), and CI has no
 GPU runner. The counted half runs everywhere: `graphty-element/test/browser/fast-path-counts.test.ts` checks the same
 styles, actions and layouts for the rows they leave off the batched fast path, in the `browser` and `forced-batched`
-test projects.
+test projects. `node --test perf-matrix.test.mjs` checks the gate itself and what each run is handed, with no GPU.

@@ -1,6 +1,6 @@
 /**
  * @file A vector figure of the graph as it is drawn now (issue #819): every visible node as a
- * filled shape where the canvas draws it, every visible edge as a line, every shown label as
+ * filled shape where the canvas draws it, every visible edge as a line, every shown label and node glyph as
  * text, and the key a screenshot draws, as an SVG or a PDF document. It reads the picture the last frame
  * drew -- the same screen positions `nodeScreenPosition` reports -- so the figure lines up with a
  * screenshot taken at the same moment.
@@ -17,6 +17,7 @@ import { type Edge, type EdgeCapEnd, edgeInternals } from "../Edge";
 import type { DrawnNodeSpot, Graph, NodeScreenPosition } from "../Graph";
 import { dataManagerInternals } from "../managers/DataManager";
 import type { ArrowCap } from "../meshes/ArrowCapBatch";
+import type { NodeDecorationMetadata } from "../meshes/NodeDecorationMesh";
 import type { PanelGradientShape, RichTextLabel } from "../meshes/RichTextLabel";
 import { pixelsPerUnit } from "../meshes/screenSize";
 import { convexHull, flatShapeOutline, isFlatShape, type Point2 } from "../meshes/shapeOutlines";
@@ -839,6 +840,62 @@ function nodeRings(graph: Graph, node: Node | null): FigureShape[] {
 }
 
 /**
+ * A node's glyph (`node.glyph`, a character or icon drawn on its face) as text where the canvas draws it: centered
+ * on the glyph's mesh, the font's size measured on screen from the mesh's own ink box.
+ * @param graph - The graph.
+ * @param node - The node.
+ * @returns The text, or undefined when the node draws no glyph.
+ */
+function nodeGlyph(graph: Graph, node: Node): FigureText | undefined {
+    const { decorations, drawnStyle } = nodeInternals.drawn(node);
+    const glyph = drawnStyle?.glyph;
+    const mesh = decorations.find((m) => m instanceof InstancedMesh && m.sourceMesh.name === "node-glyph");
+    const text = glyph?.text ?? "";
+    if (!(mesh instanceof InstancedMesh) || text === "" || !mesh.isEnabled() || !mesh.isVisible) {
+        return undefined;
+    }
+    const ink = (mesh.sourceMesh.metadata as Partial<NodeDecorationMetadata> | null)?.nodePieces?.[0]?.box;
+    if (ink === undefined) {
+        return undefined;
+    }
+    const world = mesh.computeWorldMatrix(true);
+    const z = mesh.sourceMesh.getVerticesData("position")?.[2] ?? 0;
+    const centre = graph.worldToScreen(Vector3.TransformCoordinates(new Vector3(0, 0, z), world));
+    const top = graph.worldToScreen(Vector3.TransformCoordinates(new Vector3(0, ink.y1, z), world));
+    const size = Math.hypot(top.x - centre.x, top.y - centre.y) * 2;
+    if (size <= 0) {
+        return undefined;
+    }
+    return {
+        x: centre.x,
+        y: centre.y,
+        lines: [text],
+        size,
+        font: glyph?.font ?? "sans-serif",
+        weight: String(glyph?.weight ?? 400),
+        style: "normal",
+        color: glyph?.color ?? "#000000",
+    };
+}
+
+/**
+ * A node's words: its glyph, then its label.
+ * @param graph - The graph.
+ * @param node - The node, or null for a row drawn with no `Node`, which draws neither.
+ * @param camera - The camera.
+ * @param css - CSS pixels per render pixel.
+ * @returns The texts it shows.
+ */
+function nodeTexts(graph: Graph, node: Node | null, camera: Camera, css: number): FigureText[] {
+    if (node === null) {
+        return [];
+    }
+    return [nodeGlyph(graph, node), labelText(node.label, graph, camera, css)].filter(
+        (t): t is FigureText => t !== undefined,
+    );
+}
+
+/**
  * Reads the picture the last frame drew into a {@link FigureDrawing}.
  * @param graph - The graph.
  * @param options - The figure's options.
@@ -878,10 +935,8 @@ function figureDrawing(graph: Graph, options: FigureOptions = {}): FigureDrawing
         for (const ring of nodeRings(graph, node)) {
             nodes.push({ depth, shape: ring });
         }
-        const words = node === null ? undefined : labelText(node.label, graph, camera, css);
-        if (words) {
-            texts.push(words);
-        }
+        // ponytail: a glyph is drawn with the labels, over every node, not under a nearer node that covers it.
+        texts.push(...nodeTexts(graph, node, camera, css));
     }
     // Far first, so a nearer node covers a farther one as it does on the canvas; a stable sort,
     // so a node's rings stay over it.

@@ -9,8 +9,7 @@ export const NOTICE_MS = 6000;
 /**
  * The one notice slot (tier1-design.md section 2.4): one notice at a time, centered above the
  * lowest bar of the canvas (or the foot of the start screen), gone after 6 s, the timer paused
- * while the pointer or the focus is on it. An error, a lasting notice or one with an action stays until it
- * is dismissed or acted on, as compact-mantine's toast keeps any toast with an action. Any
+ * while the pointer or the focus is on it. An error or lasting notice stays until it is dismissed. Any
  * package shows one with `store.set({ notice })`; a new notice replaces the old. Closing it from
  * the keyboard (its x or its action) takes the focused button away, so focus goes to `returnFocus`,
  * or to the drawing when none is given.
@@ -35,14 +34,7 @@ export function NoticeSlot({
     }
 
     useEffect(() => {
-        if (
-            notice === null ||
-            notice.error === true ||
-            notice.lasting === true ||
-            notice.action !== undefined ||
-            hovered ||
-            focused
-        ) {
+        if (notice === null || notice.error === true || notice.lasting === true || hovered || focused) {
             return undefined;
         }
         const timer = setTimeout(() => {

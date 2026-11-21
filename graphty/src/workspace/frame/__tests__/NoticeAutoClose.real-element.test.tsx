@@ -1,7 +1,7 @@
 /**
  * A confirmation with nothing to act on ("Selection cleared") goes on its own after a few
  * seconds on the REAL graphty-element, even after an earlier notice was closed from its x under
- * the pointer; a notice with an action (Undo) stays until it is acted on or dismissed.
+ * the pointer.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -40,7 +40,7 @@ describe("a notice's own timer", () => {
         vi.useRealTimers();
     });
 
-    it("takes Selection cleared down after a few seconds, and keeps a notice with an Undo action", async () => {
+    it("takes Selection cleared down after a few seconds", async () => {
         const { session, store } = await openWorkspace();
 
         // The reader closes an earlier notice from its x: the pointer stays where the notice was.
@@ -64,33 +64,9 @@ describe("a notice's own timer", () => {
         });
         assert.isNull(store.get().notice, "the confirmation went on its own");
         assert.isEmpty(screen.queryAllByTestId("toast"));
-
-        let undone = false;
-        act(() => {
-            store.set({
-                notice: {
-                    message: "Deleted 3 nodes",
-                    action: {
-                        label: "Undo",
-                        run: () => {
-                            undone = true;
-                        },
-                    },
-                },
-            });
-        });
-        act(() => {
-            vi.advanceTimersByTime(NOTICE_MS * 10);
-        });
-        assert.equal(store.get().notice?.message, "Deleted 3 nodes", "the notice with an action is still up");
         // Whatever the element queued on the fake clock runs before the real clock comes back.
         act(() => {
             vi.runOnlyPendingTimers();
         });
-        vi.useRealTimers();
-
-        await userEvent.click(screen.getByRole("button", { name: "Undo" }));
-        assert.isTrue(undone);
-        assert.isNull(store.get().notice);
     });
 });

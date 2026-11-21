@@ -343,6 +343,11 @@ function freshenWorldMatrix(mesh: AbstractMesh): void {
 
 interface EdgeOpts {
     metadata?: object;
+    /**
+     * When the edge arrived, by `performance.now()`, for an `Edge` built for a row stored earlier;
+     * now when absent.
+     */
+    arrivedAt?: number;
 }
 
 /** Most uses along one edge drawn at once; past it the highest are kept. */
@@ -1620,7 +1625,7 @@ export class Edge {
 
         // An edge arriving in a graph already drawing edge shaders plays the entrances it starts with.
         if (EdgeShaderDrawing.peek(this.context.getScene()) !== undefined) {
-            this.causedAt = performance.now();
+            this.causedAt = opts.arrivedAt ?? performance.now();
         }
 
         // create arrow mesh if needed

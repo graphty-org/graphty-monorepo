@@ -380,6 +380,9 @@ color, alpha included. On `node.glow` it fades the glow. An outline cannot be dr
 report it as a `W_ALPHA_IGNORED` warning, with `params.channel` and `params.path`. The selection
 halo's color (`setSelectionStyle`) works the same way, multiplied with its `opacity`.
 
+Every arrow is drawn at its edge's opacity (`edge.opacity`) times its own (`edge.arrowHeadOpacity`,
+`edge.arrowTailOpacity`), so fading an edge fades its arrows with it.
+
 On a dense graph, long edges cross the whole drawing and hide its structure. Two line options help,
 and both are off until you set them. Each is an ordinary channel, so a layer can give them to some
 edges and not others:

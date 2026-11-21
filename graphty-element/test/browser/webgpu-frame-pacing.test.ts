@@ -1,14 +1,14 @@
 /**
- * @file The render loop on WebGPU keeps one frame in flight under renderPath "batched".
+ * @file The render loop on WebGPU keeps at most three frames in flight under renderPath "batched".
  *
  * Without that, the loop queues a frame every tick however long the GPU takes to draw one, and a
  * backlog of many frames builds on the device queue. Everything that reads from the GPU waits
  * behind it: a buffer map, the node under the pointer, the GPU layout's position readback (so the
  * layout stops moving). SwiftShader draws a test scene far faster than a real card draws a million
  * rows, so the tests that need a backlog add a fixed compute pass to every frame drawn
- * ({@link loadEveryFrame}): unpaced, the device queue then runs many frames behind the page. Under renderPath "batched" the loop skips a tick while the last frame's
- * `queue.onSubmittedWorkDone()` is unresolved, the WebGPU twin of the WebGL frame fence; under
- * "objects" it draws as it always has.
+ * ({@link loadEveryFrame}): unpaced, the device queue then runs many frames behind the page. Under
+ * renderPath "batched" the loop skips a tick while three frames' `queue.onSubmittedWorkDone()` are
+ * unresolved, the WebGPU twin of the WebGL frame fences; under "objects" it draws as it always has.
  *
  * Runs only when `GRAPHTY_BROWSER_GPU` names a flag set (see `vitest.config.ts`); CI runs it with
  * `swiftshader-unthrottled`, the frame rate unlimited as on the benchmark's real card, because with
@@ -48,7 +48,7 @@ const HEAVY = 4000;
 /** Frames drawn within which a real pointer's hover must answer. */
 const HOVER_FRAMES = 8;
 
-/** Frames drawn within which two GPU layout batches must land: a readback waits for at most two. */
+/** Frames drawn within which two GPU layout batches must land: a readback waits for at most three. */
 const LAYOUT_FRAMES = 20;
 
 /** Loop count of the compute pass {@link loadEveryFrame} adds: on SwiftShader, many ticks of work. */
@@ -179,24 +179,81 @@ function holdWorkDone(graph: Graph): () => void {
     };
 }
 
+/**
+ * Makes the device's `onSubmittedWorkDone` answer two frames late: each answer comes when the
+ * frame after next asks, as Chromium's answer can come a refresh after the frame, with the GPU
+ * keeping up all the while.
+ * @param graph - The graph.
+ * @returns What puts the real call back.
+ */
+function answerTwoFramesLate(graph: Graph): () => void {
+    const { queue } = (graph.engine as WebGPUEngine)._device;
+    const real = queue.onSubmittedWorkDone.bind(queue);
+    const pending: (() => void)[] = [];
+    queue.onSubmittedWorkDone = (): Promise<undefined> =>
+        new Promise((resolve) => {
+            pending.push(() => {
+                resolve(undefined);
+            });
+            if (pending.length > 2) {
+                pending.shift()?.();
+            }
+        });
+    return () => {
+        queue.onSubmittedWorkDone = real;
+        for (const release of pending.splice(0)) {
+            release();
+        }
+    };
+}
+
 describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
-    it("draws no frame while the last one is unfinished under batched, and resumes once it is", async () => {
+    it("draws three frames while the first is unfinished under batched, none past three, and resumes", async () => {
         const graph = await open("batched");
         await drawn(graph, 3);
         const { ticks } = renderManagerOf(graph);
         const release = holdWorkDone(graph);
-        // The next frame drawn is the one whose work is held (the frame in flight before it finishes).
-        await drawn(graph, 1);
         const held = ticks.drawn;
-        // Ten of the loop's own ticks, each a chance to draw: unpaced, each draws a frame.
+        // Twelve of the loop's own ticks, each a chance to draw: unpaced, each draws a frame.
+        // The frame drawn before the hold may still wait on its real answer, so the last held frame
+        // can come late; a cap of ticks ends a loop that never draws it.
         const start = ticks.drawn + ticks.gpuBehind;
-        while (ticks.drawn + ticks.gpuBehind < start + 10) {
+        const passed = (): number => ticks.drawn + ticks.gpuBehind - start;
+        while ((passed() < 12 || ticks.drawn - held < 3) && passed() < 200) {
             await nextFrame();
         }
 
-        assert.strictEqual(ticks.drawn, held, "no frame is drawn while the last frame's work is unfinished");
+        assert.strictEqual(ticks.drawn - held, 3, "three frames are drawn before their unfinished work holds the loop");
         release();
         await drawn(graph, 2);
+    });
+
+    // A skipped tick draws nothing, so Chromium sends the next one only at its next refresh: with
+    // one frame allowed in flight, every batched WebGPU frame waited a whole refresh, about 18 ms,
+    // for an answer that came a refresh late (issue #9491). Answers two frames late cost no tick.
+    it("skips no tick under batched while each frame's answer comes two frames late", async () => {
+        const graph = await open("batched");
+        await drawn(graph, 3);
+        const { ticks } = renderManagerOf(graph);
+        const restore = answerTwoFramesLate(graph);
+        // Three frames drawn under the late answers: by then the frame drawn before them, which
+        // waits on the real GPU, has been answered, and every answer from here on is a late one.
+        // Bounded by ticks, so a loop that waits on every late answer fails rather than hanging.
+        const warmFrom = ticks.drawn;
+        const warmBehind = ticks.gpuBehind;
+        while (ticks.drawn < warmFrom + 3 && ticks.gpuBehind < warmBehind + 200) {
+            await nextFrame();
+        }
+
+        const drawnFrom = ticks.drawn;
+        const behindFrom = ticks.gpuBehind;
+        while (ticks.drawn < drawnFrom + 20 && ticks.gpuBehind < behindFrom + 20) {
+            await nextFrame();
+        }
+
+        restore();
+        assert.strictEqual(ticks.gpuBehind - behindFrom, 0, "no tick waited on a GPU that was not behind");
+        assert.isAtLeast(ticks.drawn - drawnFrom, 20, "the loop drew a frame every tick");
     });
 
     it("lets an on-demand loop go idle on a still graph under batched", async () => {
@@ -227,7 +284,7 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
         release();
     });
 
-    it("answers a 256-byte map within 2 frames once a still scene has had time to fill the queue", async () => {
+    it("answers a 256-byte map within 4 frames once a still scene has had time to fill the queue", async () => {
         const graph = await open("batched", false, HEAVY);
         loadEveryFrame(graph);
         // Unpaced, these frames sit on the device queue and a map waits for all of them (27 frames
@@ -247,7 +304,7 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
         const during = ticks.drawn - before;
         buffer.destroy();
         source.destroy();
-        assert.isAtMost(during, 2, "the map waited for at most the frame in flight and the next");
+        assert.isAtMost(during, 4, "the map waited for at most the three frames in flight and the next");
     });
 
     it("hovers a node with a real pointer on the still scene", async () => {

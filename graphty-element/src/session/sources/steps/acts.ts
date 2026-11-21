@@ -23,7 +23,7 @@ interface FieldRef {
  * The node 1 side of Merge or Make an edge: a source's key (or another field of it, translated
  * through the source's rows), or every node of an id space.
  */
-type JoinInto =
+export type JoinInto =
     | { readonly source: string; readonly field?: string; readonly space?: string }
     | { readonly space: string; readonly source?: undefined; readonly field?: undefined };
 
@@ -105,7 +105,7 @@ function refused(code: GraphtyErrorCode, message: string, details: Record<string
  * @param id - The source's id.
  * @returns The source.
  */
-function sourceOf(value: SourceSteps, id: string): StepsSource {
+export function sourceOf(value: SourceSteps, id: string): StepsSource {
     const src = value.sources[id] as StepsSource | undefined;
     if (src === undefined) {
         throw refused("E_LOAD_UNKNOWN", `No source has key ${JSON.stringify(id)}.`, {
@@ -146,7 +146,7 @@ function edgeMapping(value: SourceSteps, id: string): NonNullable<StepsSource["m
 }
 
 /** What an act needs to know of node 1. */
-interface NodeOne {
+export interface NodeOne {
     readonly space: string;
     /** Whether the field named is node 1's key, so no translation is needed. */
     readonly isKey: boolean;
@@ -162,7 +162,7 @@ interface NodeOne {
  * @returns What the act needs.
  * @throws A `GraphtyError` with `E_AMBIGUOUS_ID` when the field names no one end's nodes.
  */
-function nodeOne(value: SourceSteps, into: JoinInto): NodeOne {
+export function nodeOne(value: SourceSteps, into: JoinInto): NodeOne {
     if (into.source === undefined) {
         return { space: into.space, isKey: true };
     }
@@ -305,6 +305,22 @@ function defined<T extends Record<string, unknown>>(members: T): Partial<T> {
 }
 
 /**
+ * Refuse `repeated: "both"` off a `join.edges` step (3.3): only an edge step can keep two rows
+ * naming one key as two elements.
+ * @param op - The step's op.
+ * @param repeated - The `repeated` asked for.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`, reason `repeated-both`.
+ */
+export function refuseBoth(op: Step["op"], repeated: string | null | undefined): void {
+    if (repeated === "both" && op !== "join.edges") {
+        throw refused("E_BAD_COMMAND", `A ${op} step cannot keep repeated rows both.`, {
+            reason: "repeated-both",
+            op,
+        });
+    }
+}
+
+/**
  * Merge 2 into 1 (3.6): a staged source 2 is added in its own space first, then `join.merge` folds
  * each of its nodes into the node 1 its field names.
  * @param value - The value.
@@ -313,6 +329,7 @@ function defined<T extends Record<string, unknown>>(members: T): Partial<T> {
  * @returns The next value.
  */
 function merge(value: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
+    refuseBoth("join.merge", o.repeated);
     const s2 = nodeSource(value, copies, o.from.source);
     const n1 = nodeOne(value, o.into);
     let next = value;
@@ -352,7 +369,12 @@ function merge(value: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
  * @param clash - The step's rule, one for every column or one per column with `"*"` for the rest.
  * @throws A `GraphtyError` with `E_CLASH_RULE_TYPE { step, column, rule }`.
  */
-function checkClash(value: SourceSteps, copies: Copies, index: number, clash: NonNullable<MergeStep["clash"]>): void {
+export function checkClash(
+    value: SourceSteps,
+    copies: Copies,
+    index: number,
+    clash: NonNullable<MergeStep["clash"]>,
+): void {
     const result = buildOf(value, copies);
     const rules: Readonly<Record<string, ClashRule>> = typeof clash === "string" ? { "*": clash } : clash;
     const columns = new Set(conflicts(result, { step: index }).map((c) => c.column));
@@ -370,15 +392,19 @@ function checkClash(value: SourceSteps, copies: Copies, index: number, clash: No
 }
 
 /**
- * Make an edge (3.6): a staged source 2 is added in its own space (never node 1's), then
- * `join.edges` reads its node rows, one edge each, between node 1 and its node.
- * @param value - The value.
+ * Make an edge (3.6): a staged source 1 is added as `add-staged` adds it, a staged source 2 in its
+ * own space (never node 1's), then `join.edges` reads its node rows, one edge each, between node 1
+ * and its node.
+ * @param prior - The value.
  * @param copies - The rows as read.
  * @param o - The choices.
  * @returns The next value.
  * @throws A `GraphtyError` with `E_JOIN_SPACE_SAME` when source 2 would land in node 1's space.
  */
-function connect(value: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps {
+function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps {
+    const s1 = o.into.source;
+    const value =
+        s1 !== undefined && isStaged(prior, s1) ? addSource(prior, sourceOf(prior, s1), copies, undefined) : prior;
     let s2 = nodeSource(value, copies, o.from.source);
     const n1 = nodeOne(value, o.into);
     let next = value;
@@ -586,7 +612,7 @@ export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): Sou
             return moveColumns(value, act.source, act.options);
         case "rename": {
             sourceOf(value, act.rename.source);
-            const out = renameColumn(value, new Map(Object.entries(copies)), act.rename);
+            const out = renameColumn(value, new Map(Object.entries(copies)), act.rename, buildOf(value, copies));
             if (isOutcome(out)) {
                 throw refused(out.code as GraphtyErrorCode, `${out.code} for ${act.rename.from}.`, out.params);
             }

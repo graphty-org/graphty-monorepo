@@ -97,7 +97,7 @@ function installCalls(overrides: Parameters<typeof setAnalyticsCallsForTests>[0]
  */
 function site(analytics: SiteAnalytics): Promise<SiteConfig> {
     resetSiteConfig();
-    const file = { site: "production", features: ["usage-analytics"], analytics };
+    const file = { site: "production", analytics };
     return loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(file))}`);
 }
 

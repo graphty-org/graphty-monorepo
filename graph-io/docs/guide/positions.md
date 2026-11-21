@@ -86,16 +86,35 @@ snapshot is left as the importer read it; the conversion runs when you call `ext
 | --------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GEXF                              | the file's own                                                          | up                                                                                                                                                    |
 | GraphML from yEd                  | pixels                                                                  | down; the box's top-left corner is moved to its center                                                                                                |
+| GraphML from Gephi                | the file's own                                                          | up; its plain `x`, `y` (and `z`) keys, in a file whose nodes carry Gephi's `r`, `g`, `b` keys                                                         |
 | GML                               | pixels                                                                  | down, as the GML specification says, unless `Creator` names Gephi or Tulip                                                                            |
 | Pajek                             | the file's own                                                          | down; z is centered on 0.5, and a z of 0.5 on every vertex is a flat drawing                                                                          |
 | DOT                               | points when the root graph has `bb` (Graphviz output), inches otherwise | up                                                                                                                                                    |
 | XGMML, CX, CX2, Cytoscape session | the file's own (Cytoscape writes pixels)                                | already stored y up by the importer                                                                                                                   |
 | JSON                              | the file's own; graphology: fitted to the canvas (`viewerFit`)          | Cytoscape.js `elements`: already stored y up. Plain `x` / `y`: up, unless d3-force or vis.js keys mark them as screen coordinates and there is no `z` |
+| CSV                               | the file's own                                                          | up; numeric node columns named `x`, `y` (and `z`), in any case                                                                                        |
 
 When the file's y grows downward and it stores a real z, z is turned with y, so a 3D drawing is
 rotated half a turn, never mirrored. In a Pajek file that NetworkX wrote, two or more nodes at
 exactly (0, 0) count as unplaced when other nodes have positions, because NetworkX writes (0, 0)
 for a node it has no position for.
+
+CSV and a plain JSON node list say nothing about which columns are coordinates, so their `x` and `y`
+are recognized by name, and which way y grows is a guess: graph-io's own convention, y up. Such a
+file's positions carry the note `W_POSITIONS_GUESSED`, naming the columns. A column that holds
+anything other than numbers is never read as a coordinate.
+
+A role-`position` column whose coordinate system is geographic (`coordinateSystemOf(meta).kind` is
+`"geographic"`: longitude and latitude, such as a Neo4j WGS-84 point) holds places on the Earth,
+not a drawing, so `extractPositions()` does not read it; a map layout does.
+
+## Fixed nodes
+
+A node the file pins where it is, so a layout keeps it there, is read into a `bool` node column with
+the role `fixed`: DOT's `pin` attribute and a `pos` ending in `!`, and Cytoscape.js's `locked`. The
+other formats have no such flag (GEXF, GraphML, GML, Pajek, CSV, Neo4j, and Cytoscape's CX, CX2,
+XGMML and sessions, whose `locked` properties are style bypasses, not positions); their exporters
+write a `fixed` column as a plain attribute and say so with `W_ROLE_DROPPED`.
 
 ## Notes
 
@@ -108,6 +127,7 @@ for a node it has no position for.
 | `W_POSITION_ANCHOR_NO_SIZE` | A top-left coordinate has no width or height, so it was not moved to the center.      |
 | `W_POSITION_OTHER_VIEWS`    | The file holds more than one view (layout); only the first is used.                   |
 | `W_POSITIONS_NOT_READ`      | The file has position-like columns this format does not read (plain `x` / `y`).       |
+| `W_POSITIONS_GUESSED`       | Plain `x` / `y` (/ `z`) columns were read as the positions by their names.            |
 
 `POSITION_ISSUE` names them: `POSITION_ISSUE.PARTIAL` is `"W_POSITION_PARTIAL"`.
 

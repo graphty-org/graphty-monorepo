@@ -484,7 +484,10 @@ interface BuildOptions {
     readonly explicitScope?: boolean;
     /** Whether this build changes the layout, so the graph's `layoutTransition` moves the nodes. */
     readonly transition?: boolean;
-    /** A simulation starts from the seed, not from the element's arrangement: see `restart`. */
+    /**
+     * A seeded simulation starts from the seed, not from the element's arrangement: see `restart`,
+     * and every build a consumer asks for (issue #9292).
+     */
     readonly fromSeed?: boolean;
 }
 
@@ -1528,6 +1531,7 @@ export class LayoutManager implements Manager {
             // `onSnapshotReplaced` -- where an unrecorded driver would look like a decision that
             // had changed and start this rebuild over again.
             this.runningDriver = driver;
+            this.holdBeforeInit(engine, members);
             await engine.init();
             if (!how.live()) {
                 throw cancelledBuild();
@@ -2234,6 +2238,7 @@ export class LayoutManager implements Manager {
                 live: () => true,
                 explicitScope: scope !== undefined && this.carriedScope !== undefined,
                 transition: this.engine !== undefined,
+                fromSeed: true,
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -2386,6 +2391,7 @@ export class LayoutManager implements Manager {
                 // A first layout, a restore and a 2D/3D switch place the nodes in one frame.
                 transition:
                     !restoring && built !== null && this.layoutEngine !== undefined && !sameArrangement(built, choice),
+                fromSeed: !restoring,
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -2629,6 +2635,20 @@ export class LayoutManager implements Manager {
         }
 
         return [mask, rows];
+    }
+
+    /**
+     * Hand a new engine its hold before `init()` as well as after it, so a simulation starting from its seed
+     * keeps the held rows where they are (see `SimulationLayoutEngine.load`). `members` is recorded first: the
+     * freeze inside `init()` rebuilds the mask from it.
+     * @param engine - The engine about to be initialized.
+     * @param members - The members it lays out, or null when unscoped.
+     */
+    private holdBeforeInit(engine: LayoutEngine, members: ReadonlySet<NodeIdType> | null): void {
+        this.members = members;
+        if (members !== null) {
+            engine.setHoldMask(...this.holdMaskOf(members));
+        }
     }
 
     /**

@@ -63,6 +63,7 @@ import { expandedGraph, type SavedCollapse } from "./groups";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
 import type { NetworkApiInternal } from "./network";
+import { parentIdsExtension, withParentIds } from "./parentIds";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
@@ -1165,6 +1166,7 @@ export function dataMember(
         ...(source === null ? {} : { source: withoutSecrets(source) }),
         ...(sources.length === 0 ? {} : { sources: sources.map((each) => withoutSecrets(each)) }),
         ...(Object.keys(provenance).length === 0 ? {} : { provenance }),
+        ...parentIdsExtension(nodeRows),
     };
 }
 
@@ -1960,10 +1962,11 @@ function withoutTypes(graph: NodeLink, member: Record<string, unknown> | undefin
 
 /**
  * Check a data member before anything is changed.
- * @param member - The member.
+ * @param saved - The member as read; one saved before its records' parents were ids is read as if it were.
  * @returns Its graph.
  */
-function nodeLinkOf(member: Record<string, unknown>): NodeLink {
+function nodeLinkOf(saved: Record<string, unknown>): NodeLink {
+    const member = withParentIds(saved);
     if (member.dialect !== "node-link" || member.format !== "json") {
         throw new GraphtyError({
             code: "E_UNKNOWN_FORMAT",
@@ -3909,6 +3912,17 @@ export function projectOf(
     };
 
     /**
+     * Run a save's read on the committed project: a source draft's After drawn on the graph is not
+     * part of it.
+     * @param read - The read.
+     * @returns What it returned.
+     */
+    const committedOnly = <T>(read: () => T): T => {
+        const data = session.data as Partial<Pick<SessionData, "withoutDrawnDraft">>;
+        return data.withoutDrawnDraft === undefined ? read() : data.withoutDrawnDraft(read);
+    };
+
+    /**
      * Save the session as a version 2 document (the `save-files-v2` experiment).
      * @param options - The save's options.
      * @returns The file and its report.
@@ -4037,7 +4051,9 @@ export function projectOf(
      * @returns The file.
      */
     const saveNow = (options: ProjectSaveOptions, references?: LeaveOut): SavedProject => {
-        const { document, leftOut } = write({ session, dispatcher, isDerived }, options, references);
+        const { document, leftOut } = committedOnly(() =>
+            write({ session, dispatcher, isDerived }, options, references),
+        );
         return finishSave(
             document,
             (document.members as { kind: string }[]).map((member) => member.kind),
@@ -4117,7 +4133,7 @@ export function projectOf(
                     return Promise.reject(featureOff("save-files-v2", "project.save"));
                 }
 
-                return saveVersion2(options);
+                return committedOnly(() => saveVersion2(options));
             }
 
             const referenced = (session.data as Partial<Pick<SessionData, "referenceLoads">>).referenceLoads?.() ?? [];
@@ -4151,6 +4167,8 @@ export function projectOf(
             }
         },
         async open(source, options = {}) {
+            // A draft of the sources and steps drafts over the project this replaces.
+            (session.data as Partial<Pick<SessionData, "discardDraft">>).discardDraft?.();
             // Its place in the session's load line is taken now, before the file is read, so a
             // load asked for before the open lands before it, and one asked for after lands after
             // it, whichever read finishes first (issue #3525). The autosave restore opens here too.

@@ -80,6 +80,13 @@ ontology datasets are read from their published files (a Cytoscape session, a CX
 ontology) by `@graphty/graph-io`'s own importers; the drawn ones carry the saved `x` and `y`, with
 y growing upward.
 
+`openflights` and `wikipathways-senescence-autophagy` also come with a role-`position` node column
+that says what kind of positions they are, so a consumer finds them without knowing the dataset:
+`coordinateSystemOf(snapshot.nodes.byRole("position").meta)` from `@graphty/graph-format` gives
+`kind: "geographic"` (longitude, latitude in degrees on WGS 84) for openflights' airports and
+`kind: "cartesian"` with `yAxis: "up"` for the WikiPathways drawing. Their plain columns stay as
+they are.
+
 Each dataset also has a picture of itself, for a gallery or a menu: its metadata's `thumbnail`
 names a 480 x 300 WebP with a transparent background, published beside its file. A large dataset's
 picture is drawn from a sample of it, since the whole graph is too big to lay out in so small a

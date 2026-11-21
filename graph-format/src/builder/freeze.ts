@@ -18,8 +18,9 @@ import { AttributeTable, verifyUniqueColumns } from "../columns/table.js";
 import { INVALID_INDEX, MAX_COUNT } from "../constants.js";
 import { GraphFormatError } from "../errors.js";
 import { identityNodeIdMap, nodeIdMapFromIds } from "../ids/node-id-map.js";
-import { createSnapshot, type GraphSnapshot } from "../snapshot/graph-snapshot.js";
+import { createSnapshot, type GraphSnapshot, seedView } from "../snapshot/graph-snapshot.js";
 import { isIdentity } from "../snapshot/validate.js";
+import { edgeListViewOf } from "../snapshot/views.js";
 import {
     type Column,
     type ColumnDeclPatch,
@@ -971,6 +972,7 @@ export function runFreeze(ctx: FreezeContext, options: FreezeOptions): FreezeOut
         checksum: options.checksum === true,
     };
     const snapshot = createSnapshot(parts);
+    seedEdgeList(snapshot, options, policy, staging, core, edgeCount);
     if (options.prepare !== undefined && options.prepare.length > 0) {
         snapshot.prepare(options.prepare);
     }
@@ -992,6 +994,44 @@ export function runFreeze(ctx: FreezeContext, options: FreezeOptions): FreezeOut
                   result: firstSort,
               });
     return { snapshot, report, staging, sort };
+}
+
+/**
+ * Prepare the edge list from the staging the core was sorted from: under the "keep" policy edge `e` is
+ * staging row `e` in its declared orientation, so its ends are the staging's own, copied in two passes,
+ * where computing them walks every arc of the core (most of the edge list's cost at a million edges).
+ * Only when the freeze was asked to prepare it, kept every edge ("keep") and holds the permutation.
+ * @param snapshot - the snapshot just created
+ * @param options - the freeze options
+ * @param policy - the duplicate policy
+ * @param staging - the compacted staging its core was sorted from
+ * @param core - the core
+ * @param core.weights - its arc weights, or null
+ * @param core.edgeToArc - its edge-to-arc permutation, or null while lazy
+ * @param edgeCount - the edge count
+ */
+function seedEdgeList(
+    snapshot: GraphSnapshot,
+    options: FreezeOptions,
+    policy: DuplicatePolicy,
+    staging: Staging,
+    core: { readonly weights: F32 | null; readonly edgeToArc: U32 | null },
+    edgeCount: number,
+): void {
+    const { weights, edgeToArc } = core;
+    if (options.prepare?.includes("edgeList") !== true || policy !== "keep" || edgeToArc === null) {
+        return;
+    }
+    const src = staging.src.view().slice(0, edgeCount);
+    const dst = staging.dst.view().slice(0, edgeCount);
+    let edgeWeights: F32 | null = null;
+    if (weights !== null) {
+        edgeWeights = new Float32Array(edgeCount);
+        for (let e = 0; e < edgeCount; e++) {
+            edgeWeights[e] = weights[edgeToArc[e]];
+        }
+    }
+    seedView(snapshot, "edgeList", edgeListViewOf(snapshot, src, dst, edgeWeights));
 }
 
 /**

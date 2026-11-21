@@ -61,8 +61,7 @@ import { type DeclaredAlgorithm, detachedRunContext } from "../../../src/algorit
 import { SpectralClusteringAlgorithm } from "../../../src/algorithms/SpectralClusteringAlgorithm";
 import { StronglyConnectedComponentsAlgorithm } from "../../../src/algorithms/StronglyConnectedComponentsAlgorithm";
 import { algorithmByKey, BUILT_IN_ALGORITHMS } from "../../../src/catalog/algorithms";
-import type { Graph } from "../../../src/Graph";
-import { createMockGraph } from "../../helpers/mockGraph";
+import { createSessionGraph, type SessionGraph } from "../../helpers/session-graph";
 
 /** A connected, weighted graph with a triangle, so every method has something to find. */
 const FIXTURE = {
@@ -89,7 +88,7 @@ interface Case {
      * @param graph - The graph to run on.
      * @returns The published fields, written as "kind.name:type".
      */
-    readonly publish: (graph: Graph) => Promise<readonly string[]>;
+    readonly publish: (graph: SessionGraph) => Promise<readonly string[]>;
 }
 
 /**
@@ -108,7 +107,7 @@ function fieldKey(field: { name: string; kind: string; type: string }): string {
  * @param make - Builds the algorithm.
  * @returns The case.
  */
-function declared(name: string, key: string, make: (graph: Graph) => DeclaredAlgorithm): Case {
+function declared(name: string, key: string, make: (graph: SessionGraph) => DeclaredAlgorithm): Case {
     return {
         name,
         key,
@@ -128,7 +127,7 @@ function declared(name: string, key: string, make: (graph: Graph) => DeclaredAlg
  * @param make - Builds the metric.
  * @returns The case.
  */
-function metric(name: string, make: (graph: Graph) => MetricAlgorithm): Case {
+function metric(name: string, make: (graph: SessionGraph) => MetricAlgorithm): Case {
     return {
         name,
         key: name,
@@ -192,7 +191,7 @@ async function publishedFields(key: string): Promise<string[]> {
     const union = new Set<string>();
 
     for (const testCase of CASES.filter((candidate) => candidate.key === key)) {
-        const graph = await createMockGraph(FIXTURE);
+        const graph = await createSessionGraph(FIXTURE);
 
         for (const field of await testCase.publish(graph)) {
             union.add(field);

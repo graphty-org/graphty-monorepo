@@ -352,8 +352,15 @@ ${PULLED_TRIM_GLSL}
 #endif
 
 void pullEdge() {
+#ifdef EDGE_PULLED_CURVE
+    // an instance a draw slot, the join template drawn indexed as the object path's batch draws it: its 14 vertices
+    // run once each, not its 30 corners (#9486)
+    int slot = gl_InstanceID;
+    position = JOIN_TEMPLATE[gl_VertexID];
+#else
     int slot = gl_VertexID / PIECE_CORNERS;
     position = JOIN_TEMPLATE[CORNER_OF[gl_VertexID - slot * PIECE_CORNERS]];
+#endif
     int piece = pulledPiece(slot);
 #ifdef EDGE_PULLED_CURVE
     // the slot names its entry and the entry's piece; a free slot (name -2^23) draws nothing

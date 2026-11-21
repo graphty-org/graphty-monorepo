@@ -602,8 +602,9 @@ void main(void) {
         const mesh = new Mesh("joined-line", scene);
         const vertexData = new VertexData();
         vertexData.positions = [...JOIN_TEMPLATE_POSITIONS];
-        // a pulled batch draws unindexed (`PulledLineBatch`)
-        if (options.pulled !== true) {
+        // a straight pulled batch draws unindexed (`PulledLineBatch`); a curve batch draws the template indexed, an
+        // instance a piece, as the object path's batch does
+        if (options.pulled !== true || options.pulledCurve === true) {
             vertexData.indices = [...JOIN_TEMPLATE_INDICES];
         }
         vertexData.applyToMesh(mesh);

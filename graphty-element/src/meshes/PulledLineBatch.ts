@@ -375,7 +375,7 @@ export class PulledLineBatch {
         mesh: Mesh,
         private readonly scene: Scene,
         private readonly rowPositions: () => BaseTexture,
-        curve = false,
+        private readonly curve = false,
         private readonly template: { readonly indices: readonly number[]; readonly vertices: number } = JOIN_TEMPLATE,
         switches = false,
         private readonly rowShapes: PulledRowShapes | null = null,
@@ -387,7 +387,8 @@ export class PulledLineBatch {
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;
         mesh.alwaysSelectAsActiveMesh = true;
-        mesh.isUnIndexed = true;
+        // a curve batch draws the template indexed, an instance a slot (`setCount`)
+        mesh.isUnIndexed = !curve;
         const first = this.shape(TABLE_WIDTH);
         this.tableWidth = first.width;
         this.rows = this.emptyTable(first.texels / texels);
@@ -1216,8 +1217,17 @@ export class PulledLineBatch {
         this.setCount();
     }
 
-    /** Draw only the pieces handed out, a vertex a corner. */
+    /**
+     * Draw only the pieces handed out: a straight batch a vertex a corner, unindexed; a curve batch an instance a slot,
+     * the join template indexed, so the vertex stage runs each of its vertices once, not each of its corners (#9486).
+     * With no slot handed out it draws one instance, slot 0, which names nothing and draws nothing.
+     */
     private setCount(): void {
+        if (this.curve) {
+            this.mesh.forcedInstanceCount = this.highWater;
+            return;
+        }
+
         const [subMesh] = this.mesh.subMeshes;
         subMesh.verticesStart = 0;
         const corners = this.lean ? LEAN_TEMPLATE.indices.length : this.template.indices.length;

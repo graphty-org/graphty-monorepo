@@ -1421,6 +1421,7 @@ export class Graph implements GraphContext {
                 batched: () => this.#renderPath === "batched",
                 nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
                 darkScheme: () => this.#darkScheme,
+                layoutHidden: () => this.#layoutHidden,
             },
         );
 
@@ -3244,6 +3245,7 @@ export class Graph implements GraphContext {
                 this.#followedFrame = frame;
                 viewLog.info("map frame", frameFacts(frame));
                 this.#followFrame(frame);
+                this.#hideOffMap(frame);
             }
 
             this.#drawOverMap(frame);
@@ -6495,6 +6497,35 @@ export class Graph implements GraphContext {
 
     /** The frame the camera last followed; see {@link #followFrame}. */
     #followedFrame: LocationMapFrame | null = null;
+
+    /** The nodes the map layout keeps off the canvas (`unplaced: "hide"`), or null; see {@link #hideOffMap}. */
+    #layoutHidden: readonly NodeId[] | null = null;
+
+    /**
+     * Keep the nodes a map frame leaves unplaced off the canvas when it hides them (`unplaced:
+     * "hide"`), their edges with them, and paint again whenever that list changes.
+     * @param frame - The frame now active, or null.
+     */
+    #hideOffMap(frame: LocationMapFrame | null): void {
+        const next = frame?.hidesUnplaced === true && frame.unplacedIds.size > 0 ? [...frame.unplacedIds] : null;
+        const was = this.#layoutHidden;
+        if (next === null ? was === null : was?.length === next.length && next.every((id, at) => was[at] === id)) {
+            return;
+        }
+
+        this.#layoutHidden = next as readonly NodeId[] | null;
+        void this.operationQueue
+            .queueOperationAsync(
+                "style-apply",
+                async () => {
+                    await this.repaintFromSession();
+                },
+                { description: "Repainting for the map's unplaced nodes" },
+            )
+            .catch((error: unknown) => {
+                graphLogger.error("The repaint for the map's unplaced nodes failed.", asError(error));
+            });
+    }
 
     /**
      * The camera's rules on a map: the wheel zooms toward the pointer, and on a globe the camera

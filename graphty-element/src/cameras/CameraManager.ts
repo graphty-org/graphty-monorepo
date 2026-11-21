@@ -5,6 +5,7 @@ import { Scene } from "@babylonjs/core/scene.js";
 
 import type { ViewInsets } from "../camera/types";
 import type { FitBounds, FitInsets } from "../config/GraphBehavior";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import type { CameraGestureKind, GestureEndHooks } from "./gestureEnd";
 import type { FramingSpot } from "./OrbitCameraController";
 import type { XRPivotCameraController } from "./XRPivotCameraController";
@@ -213,7 +214,8 @@ export class CameraManager {
      * @returns Whether the camera moved, so the picture is not final yet.
      */
     public followPoint(point: Vector3, frames = 1, instant = this.#instantGlides): boolean {
-        const xr = this.scene.metadata?.xrCameraController as XRPivotCameraController | null | undefined;
+        const xr = (this.scene.metadata as GraphSceneMetadata | null)?.xrCameraController as
+            XRPivotCameraController | null | undefined;
         if (xr) {
             xr.pivotController.center = point;
             return false;

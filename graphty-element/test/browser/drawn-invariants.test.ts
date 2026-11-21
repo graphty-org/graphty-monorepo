@@ -25,7 +25,7 @@ import {
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
-import { MIN_RADIUS_PX } from "../../src/render/NodeIdTarget";
+import { HOVER_RADIUS_PX, MIN_RADIUS_PX } from "../../src/render/NodeIdTarget";
 import { strayInk, undrawnEdges, undrawnNodes } from "../helpers/drawn-invariants";
 import { click, hover, nodePoint } from "../helpers/real-input";
 
@@ -379,7 +379,15 @@ describe.each(
             selector: { match: "ids", nodes: [hub] },
             set: { "node.size": 8 },
         });
-        await element.session.data.addNodes([{ id: "leaf", position: { x: LINE / 2, y: 0, z: -8 } }]);
+        await settle(element);
+        // The leaf 8 units from the hub toward the camera, on the line of sight through the hub's
+        // center, wherever the camera looks from.
+        const { position } = element.graph.getCameraState();
+        assert.isDefined(position, "the 3D camera has a position");
+        const away = { x: position.x - LINE / 2, y: position.y, z: position.z };
+        const scale = 8 / Math.hypot(away.x, away.y, away.z);
+        const leafAt = { x: LINE / 2 + away.x * scale, y: away.y * scale, z: away.z * scale };
+        await element.session.data.addNodes([{ id: "leaf", position: leafAt }]);
         await element.session.styles.add({
             name: "Leaf",
             target: "node",
@@ -389,7 +397,7 @@ describe.each(
         await settle(element);
         assert.isBelow(
             element.nodeScreenPosition("leaf")?.radius ?? Infinity,
-            0.71,
+            HOVER_RADIUS_PX,
             "the leaf may cover no pixel center",
         );
         const point = nodePoint(element, "leaf");

@@ -67,6 +67,7 @@ import {
 import { DEFAULT_EDGE_WIDTH_RANGE, DEFAULT_SIZE_RANGE } from "./derive";
 import { overflowHalf, requireChannel, type RuleBinding, shaderParamDescriptor } from "./encoding";
 import { columnPaletteFor, sequentialSamples } from "./palettes";
+import { requireRun } from "./runLayers";
 import type { ScaleRegistry } from "./scales";
 
 // ---------------------------------------------------------------------------------------------
@@ -308,43 +309,6 @@ function defaultScale(field: FieldDescriptor, shape: ResultShape, accepts: Chann
  */
 function badEncoding(message: string, details: Readonly<Record<string, unknown>>): GraphtyError {
     return new GraphtyError({ code: "E_BAD_COMMAND", message, source: "style", details });
-}
-
-/**
- * The run id behind any of the three ways a caller names a run.
- * @param ref - The run, its result, or its id.
- * @returns The run id.
- */
-function runIdOf(ref: RunRef): RunId {
-    if (typeof ref === "string") {
-        return ref;
-    }
-
-    return "runId" in ref ? ref.runId : ref.id;
-}
-
-/**
- * Look the run up, or say which runs there are.
- * @param spec - The encoding, read for the run.
- * @param source - Where runs are looked up.
- * @returns The run.
- * @throws A `GraphtyError` with code `E_UNKNOWN_RUN`, carrying the nearest ids as candidates.
- */
-function requireRun(spec: EncodingSpec, source: EncodingSource): EncodingRun {
-    const found = source.run(spec.run);
-    if (found !== undefined) {
-        return found;
-    }
-
-    const wanted = runIdOf(spec.run);
-    const available = source.runIds();
-
-    throw new GraphtyError({
-        code: "E_UNKNOWN_RUN",
-        message: `There is no run called "${wanted}" in this session.`,
-        source: "style",
-        details: { run: wanted, available, candidates: nearestNames(wanted, available) },
-    });
 }
 
 /**
@@ -597,7 +561,7 @@ function requireEncodable(name: string): ChannelDescriptor {
  */
 export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerSpec {
     const descriptor = requireEncodable(spec.channel);
-    const run = requireRun(spec, source);
+    const run = requireRun(spec.run, source);
 
     const { primaryField } = resultShapeContract(run.shape);
     assertShapeEncodes(run, (spec.field ?? primaryField) === primaryField);

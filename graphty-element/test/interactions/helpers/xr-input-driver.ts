@@ -21,6 +21,7 @@ import type { XRPivotCameraController } from "../../../src/cameras/XRPivotCamera
 import type { XRInputConfig } from "../../../src/config/XRConfig";
 import { type Graph, operationQueueOf } from "../../../src/Graph";
 import type { Node } from "../../../src/Node";
+import type { GraphSceneMetadata } from "../../../src/types/sceneMetadata";
 import { installIWER, type IWERHandle } from "./iwer-setup";
 
 type Handedness = "left" | "right";
@@ -116,7 +117,8 @@ export async function createXRInputDriver(
     await element.setViewMode("vr");
 
     const controller = (): XRPivotCameraController => {
-        const found = graph.scene.metadata?.xrCameraController as XRPivotCameraController | null | undefined;
+        const found = (graph.scene.metadata as GraphSceneMetadata | null)?.xrCameraController as
+            XRPivotCameraController | null | undefined;
         assert.exists(found, "no XR camera controller");
         return found;
     };

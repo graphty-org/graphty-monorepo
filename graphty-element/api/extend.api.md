@@ -3446,9 +3446,7 @@ export interface SuggestedName {
 
 // @beta
 export interface TimeField {
-    // (undocumented)
     readonly edges?: TimeSource;
-    // (undocumented)
     readonly nodes?: TimeSource;
 }
 

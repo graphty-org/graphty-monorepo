@@ -919,6 +919,8 @@ export class Graph implements GraphContext {
     #thumbnailQueue: Promise<unknown> = Promise.resolve();
     /** Whether each model's template could be built, by digest and stand-ins (`checkModel`). */
     readonly #modelChecks = new Map<string, Promise<ModelCheck>>();
+    /** Where `checkModel` builds its templates; see {@link Graph.#checkScene}. */
+    #checkSceneHeld: Scene | null = null;
     /** Margins of the canvas something else covers, in CSS pixels; see {@link setViewInsets}. */
     #viewInsets: Required<ViewInsets> = fullInsets(undefined);
     skybox?: string;
@@ -8225,6 +8227,27 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The scene `checkModel` builds its templates in: a virtual scene of the graph's engine, which
+     * nothing draws. Built in the graph's own scene, a check's loading, meshes and shaders each
+     * made the graph draw a frame that showed nothing new, about ten per model -- under software
+     * WebGL on a busy machine, seconds of drawing for a dialog's check (#9219). Kept for the next
+     * check, so its environment loads once; the engine frees it with itself.
+     * @returns The scene.
+     */
+    #checkScene(): Scene {
+        const held = this.#checkSceneHeld;
+        if (held !== null && !held.isDisposed && held.getEngine() === this.engine) {
+            return held;
+        }
+
+        const scene = new Scene(this.engine, { virtual: true });
+        // Nothing is drawn or picked in it: the graph's canvas input stays the graph scene's alone.
+        scene.detachControl();
+        this.#checkSceneHeld = scene;
+        return scene;
+    }
+
+    /**
      * Whether a model can be drawn, without drawing it: its template is built once and freed. See
      * {@link ModelCheck}. Kept by the model's files, so asking again, or for every member of a set,
      * costs one build each.
@@ -8266,7 +8289,7 @@ export class Graph implements GraphContext {
         if (check === undefined) {
             check = this.#thumbnailQueue.then(async () => {
                 try {
-                    (await this.#modelTemplate(this.scene, ref, record, standIn, {})).dispose();
+                    (await this.#modelTemplate(this.#checkScene(), ref, record, standIn, {})).dispose();
                     return { drawable: true };
                 } catch (error) {
                     return failed(error);

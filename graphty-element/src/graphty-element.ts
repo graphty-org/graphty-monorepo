@@ -102,6 +102,7 @@ import { type RenderQuality, shadersControllerOf, type ShaderSettings } from "./
 import type { CodedFact, ProgressChange } from "./session/shared";
 import { attachCredentials } from "./session/sources/credentialLookup";
 import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
+import { compileRecords } from "./session/sources/steps/compile";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
@@ -2622,6 +2623,11 @@ export class Graphty extends LitElement {
             }
 
             const { nodes, nodeIdPath = "id", edges } = write.rows;
+            const derived = this.#derivedRecords({ nodes, edges }, state, asSetup);
+            if (derived !== null) {
+                return derived;
+            }
+
             if (nodes !== undefined && edges !== undefined) {
                 return replaceGraphCommand(state.nodes, [...state.edges.keys()], nodes, edges, nodeIdPath, asSetup);
             }
@@ -2644,6 +2650,40 @@ export class Graphty extends LitElement {
      * @param setup - Whether the page declared it before the first update, so it is baseline.
      * @returns Settles once the step is recorded, or failed and was reported.
      */
+    /**
+     * Under the source-steps experiment, `nodeData` or `edgeData` as the one derived source the
+     * pair owns (design 9.1); with it off, null, and the records replace the graph's as before.
+     * @param records - The records assigned: the nodes, the edges or both.
+     * @param records.nodes - The nodes.
+     * @param records.edges - The edges.
+     * @param state - The graph slice now.
+     * @param setup - Whether this is part of the element's setup.
+     * @returns The step, or null with the experiment off.
+     */
+    #derivedRecords(
+        records: {
+            readonly nodes?: readonly Record<string, unknown>[];
+            readonly edges?: readonly Record<string, unknown>[];
+        },
+        state: GraphSlice,
+        setup: boolean,
+    ): BatchCommand | null {
+        if (!this.session.features.has("source-steps")) {
+            return null;
+        }
+        const known = this.#graph.getStyles().config.data.knownFields;
+        return compileRecords(
+            records,
+            state.values,
+            {
+                nodeIdPath: known.nodeIdPath,
+                ...(known.edgeSrcIdPath === null ? {} : { source: known.edgeSrcIdPath }),
+                ...(known.edgeDstIdPath === null ? {} : { target: known.edgeDstIdPath }),
+            },
+            setup,
+        );
+    }
+
     #replaceData(build: (state: GraphSlice, setup: boolean) => BatchCommand, setup = this.#settingUp): Promise<void> {
         const dispatcher = dispatcherOf(this.#graph.getSession());
         const dispatch = (): Promise<unknown> => dispatcher.dispatch(build(dispatcher.state.graph, setup));

@@ -967,6 +967,8 @@ export function drawnPrimitives(
                     dash: dashed(e.style, d.pattern, d.dashPx ?? null),
                     dashClass,
                     gradient,
+                    // a line drawn as strands, side by side in the order drawn
+                    ...(d.strands !== undefined && d.strands.length >= 2 ? { strands: d.strands } : {}),
                 },
                 arrows,
                 outline: outlineOf(d.outline),
@@ -1039,6 +1041,7 @@ export function drawnPrimitives(
                     fill: a.fill ?? null,
                     stroke: null,
                     text: a.text ?? null,
+                    ...(a.label === true ? { label: true as const } : {}),
                 },
                 // an arrow's heads are shapes of their own to a reader, as the program's drawing has them (Cytoscape
                 // desktop's annotation arrows on the specimen-images-charts pages, 68 heads a page read as missing)

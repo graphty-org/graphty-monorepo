@@ -42,6 +42,10 @@ const KNOWN_CHANNELS: ReadonlySet<string> = new Set([
     "producthunt",
 ]);
 const CHANNEL_PARAMS = ["ref", "utm_source", "utm_medium", "utm_campaign"] as const;
+/** The address parameter that marks this browser's events as the people who build graphty testing. */
+const INTERNAL_PARAM = "internal";
+/** Where that mark is kept in this browser, so a page opened from history or a new tab keeps it. */
+const INTERNAL_KEY = "graphty.internal";
 
 /** The PostHog survey names the app looks for (the owner names the surveys exactly these). */
 export const SURVEY_NAMES = { useCase: "use_case", exportEase: "export_ease" } as const;
@@ -51,29 +55,36 @@ export const SURVEYS_KEY = "graphty.surveys.v1";
 const VISITS_KEY = "graphty.visits.v1";
 
 /** Each own event's allowed property keys (section 4). An unknown name is never sent. */
-const EVENT_KEYS: Readonly<Partial<Record<string, readonly string[]>>> = {
+export const EVENT_KEYS: Readonly<Partial<Record<string, readonly string[]>>> = {
     $pageview: [],
     first_visit: [],
     return_visit: ["days"],
     usage_data_shared: [],
-    sample_loaded: ["sample"],
-    own_file_opened: ["format", "via"],
+    sample_loaded: ["sample", "size"],
+    own_file_opened: ["format", "via", "size"],
     layout_changed: ["layout", "outcome"],
     algorithm_run: ["algorithm", "outcome", "code"],
     export_done: ["kind", "format", "destination"],
+    style_changed: ["op", "action", "suggested", "by"],
+    assistant_used: ["provider", "step", "voice", "outcome", "changed"],
+    view_mode: ["mode", "by"],
+    xr_entered: ["mode", "outcome", "code"],
+    camera_saved: [],
+    project_saved: ["kind", "as"],
+    timeline_played: [],
     command_run: ["command"],
     command_failed: ["command", "code"],
-    graph_action: ["kind", "op", "action", "suggested"],
+    graph_action: ["kind", "op", "suggested"],
     canvas_selected: ["target", "count", "via"],
     camera_used: ["kind"],
     nodes_dragged: [],
     source_expanded: ["outcome"],
     panel_opened: ["panel"],
-    project_reopened: [],
+    project_reopened: ["from"],
     load_failed: ["code", "task"],
 };
 /** The names counted in both modes (section 4.1); every other own name is the shared mode's only. */
-const COUNTED_NAMES: ReadonlySet<string> = new Set([
+export const COUNTED_NAMES: ReadonlySet<string> = new Set([
     "$pageview",
     "first_visit",
     "return_visit",
@@ -83,6 +94,16 @@ const COUNTED_NAMES: ReadonlySet<string> = new Set([
     "layout_changed",
     "algorithm_run",
     "export_done",
+    "style_changed",
+    "assistant_used",
+    "view_mode",
+    "xr_entered",
+    "camera_used",
+    "camera_saved",
+    "project_saved",
+    "project_reopened",
+    "load_failed",
+    "timeline_played",
 ]);
 /** PostHog's own events that may be sent; any other `$` name (or one a later defaults date adds) is dropped. */
 const DOLLAR_EVENTS: ReadonlySet<string> = new Set([
@@ -113,6 +134,7 @@ const BASE_KEYS: ReadonlySet<string> = new Set([
     "use_case",
     "tracking",
     "first_on_page",
+    "internal",
 ]);
 /**
  * The `$` keys an anonymous event keeps (section 5). `$cookieless_mode`, `$raw_user_agent`, `$host`
@@ -141,17 +163,11 @@ const ANONYMOUS_DOLLAR_KEYS: ReadonlySet<string> = new Set([
 
 /**
  * Journal ops sent as `graph_action` (section 4.2), each by name: a new op is excluded until listed.
+ * Style edits, 2D or 3D, VR or AR and saving a view are counted under names of their own (4.1).
  * The `data.*` loads (`data.import`, `data.import-source`) are left out: each load is counted once,
  * as `sample_loaded` or `own_file_opened` from `source:loaded`. Typed against the element's commands, so a renamed op fails to compile.
  */
 const GRAPH_ACTION_OPS: ReadonlySet<string> = new Set<SessionCommand["op"]>([
-    "style.encode",
-    "style.patch",
-    "style.template",
-    "shader.set",
-    "view.dimension",
-    "view.immersive",
-    "view.save",
     "view.remove",
     "note.add",
     "note.update",
@@ -263,6 +279,21 @@ export function sourceLoadedEvent(
 
 /** How an own file may be opened; a kind a later graphty-element adds is sent as "other". */
 const OPEN_VIA: ReadonlySet<string> = new Set<LoadedSourceKind>(["file", "url", "server", "join"]);
+/**
+ * A loaded graph's node count as its bucket.
+ * @param nodes - the nodes it holds.
+ * @returns "1-100", "101-1k", "1k-10k" or "10k+".
+ */
+export function graphSizeBucket(nodes: number): string {
+    if (nodes <= 100) {
+        return "1-100";
+    }
+    if (nodes <= 1000) {
+        return "101-1k";
+    }
+    return nodes <= 10_000 ? "1k-10k" : "10k+";
+}
+
 /** How a selection may be made; a way a later graphty-element adds is sent as "other". */
 export const SELECT_VIA: ReadonlySet<string> = new Set<NonNullable<SelectionDelta["via"]>>(["click", "box", "keys"]);
 
@@ -378,6 +409,8 @@ let channel: { path: string; params: Record<string, string> } | undefined;
 let counting = false;
 /** Section 4.1 names already sent on this page, in either mode (decision 14). */
 const sentOnPage = new Set<string>();
+/** The `internal` super property: true once `?internal=1` marked this browser (readInternal). */
+let internal = false;
 /** The `visit` super property: "first" or the return bucket; absent under DNT or GPC. */
 let visit: string | undefined;
 /** True while the reader shares: the shared mode is current. */
@@ -516,12 +549,34 @@ export function stripQueryForRecorders(): void {
     }
 }
 
-/** Removes the four channel parameters from the address bar, keeping the path, the hash and every other parameter. */
+/**
+ * Reads the internal mark at boot: `?internal=1` keeps it in this browser, `?internal=0` removes it.
+ * Only `internal: true` is ever sent; the stored key never leaves the device.
+ */
+function readInternal(): void {
+    const asked = bootQuery().get(INTERNAL_PARAM);
+    try {
+        if (asked === "1") {
+            localStorage.setItem(INTERNAL_KEY, "1");
+        } else if (asked === "0") {
+            localStorage.removeItem(INTERNAL_KEY);
+        }
+        internal = localStorage.getItem(INTERNAL_KEY) !== null;
+    } catch {
+        // Storage blocked: this page's address alone.
+        internal = asked === "1";
+    }
+}
+
+/** The address parameters removed at boot: the four channel ones and the internal mark. */
+const BOOT_PARAMS = [...CHANNEL_PARAMS, INTERNAL_PARAM];
+
+/** Removes the boot parameters from the address bar, keeping the path, the hash and every other parameter. */
 function removeChannelFromAddress(): void {
     const url = new URL(globalThis.location.href);
-    if (CHANNEL_PARAMS.some((name) => url.searchParams.has(name))) {
+    if (BOOT_PARAMS.some((name) => url.searchParams.has(name))) {
         snapshotBootQuery();
-        for (const name of CHANNEL_PARAMS) {
+        for (const name of BOOT_PARAMS) {
             url.searchParams.delete(name);
         }
         globalThis.history.replaceState(globalThis.history.state, "", url.pathname + url.search + url.hash);
@@ -730,6 +785,7 @@ export function startAnalyticsAtBoot(config: SiteConfig): void {
         return;
     }
     readChannel();
+    readInternal();
     startUsageDataIfShared();
     startPageCounts(config);
     calls.afterFirstPaint(() => {
@@ -1027,6 +1083,7 @@ function superProperties(mode: TrackingMode): Record<string, Value> {
         ...(params.utm_medium === undefined ? {} : { utm_medium: params.utm_medium }),
         ...(params.utm_campaign === undefined ? {} : { utm_campaign: params.utm_campaign }),
         ...(visit === undefined ? {} : { visit }),
+        ...(internal ? { internal: true } : {}),
         ...(useCase === undefined ? {} : { use_case: /^[\w-]{1,40}$/.test(useCase) ? useCase : "other" }),
         $geoip_disable: true,
     };
@@ -1661,6 +1718,7 @@ export function resetAnalyticsForTests(): void {
     channel = undefined;
     counting = false;
     sentOnPage.clear();
+    internal = false;
     visit = undefined;
     wanted = false;
     initialized = false;

@@ -122,6 +122,23 @@ describe("a label's picture", () => {
         assert.deepEqual([r > 200, a > 200], [true, true]);
     });
 
+    it("draws a label with no words at the scale of one with words", async () => {
+        const src = redPicture();
+        await loaded(src);
+        // the picture's height in the scene: the plane's height times its share of the canvas
+        const pictureInWorld = (label: RichTextLabel): number => {
+            const inner = labelInternals.drawn(label);
+            const mesh = label.labelMesh;
+            assert.isNotNull(mesh);
+            assert.isNotNull(inner.imageBox);
+            const plane = mesh.getBoundingInfo().boundingBox.extendSize.y * 2 * mesh.scaling.y;
+            return (plane * inner.imageBox.height) / inner.actualDimensions.height;
+        };
+        const options = { image: src, imageWidth: 120, imageHeight: 30 };
+        const words = pictureInWorld(make({ text: "Hi", ...options }));
+        assert.closeTo(pictureInWorld(make({ text: "", ...options })), words, words * 1e-6);
+    });
+
     it("draws the label on its own canvas, not from the glyph atlas", async () => {
         const src = redPicture();
         await loaded(src);

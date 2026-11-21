@@ -174,6 +174,7 @@ describe("a session without its data service", () => {
         const service: DataService = {
             apply: () => undefined,
             import: () => Promise.resolve(null),
+            direct: () => undefined,
         };
         dispatcher.services.data = service;
 
@@ -194,6 +195,7 @@ describe("a session without its data service", () => {
         dispatcher.services.data = {
             apply: () => undefined,
             import: () => Promise.resolve(null),
+            direct: () => undefined,
             values: (values) => {
                 written.push(values);
             },

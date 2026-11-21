@@ -1731,6 +1731,8 @@ export interface DrawnEdge {
      * as a share of the pieces' length, then 1 (`shares`, one more than the colors; equal shares without it), or null for none.
      */
     gradient: { kind: "linear" | "radial"; colors: readonly string[]; shares?: readonly number[] } | null;
+    /** The colors of the parallel strands its line is drawn as (`line.strands`), first on the right; none otherwise. */
+    strands?: readonly string[];
 }
 
 /**
@@ -2028,7 +2030,10 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         taper = asked !== undefined && asked !== 1 && batch.widened ? asked : undefined;
         const askedSource = internal.drawnStyle?.line?.taperSource;
         taperSource = askedSource !== undefined && askedSource !== 1 && batch.widened ? askedSource : undefined;
-        const styled = own?.alpha ?? meta?.lineOpacity;
+        // a line drawn as strands is drawn clear under them: its ink is its strands'
+        const strand = internal.strandRuns[0];
+        const strandInk = strand === undefined ? null : readBand(strand.batch, strand.slots, p);
+        const styled = strandInk?.opacity ?? own?.alpha ?? meta?.lineOpacity;
         // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
         // it sets only to be drawn in the transparent pass, so the visibility is not ink.
         const visibility = meta?.joinedLine === true ? 1 : batch.mesh.visibility;
@@ -2175,6 +2180,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
                       colors: edge.drawnGradient,
                       shares: gradientShares(internal),
                   },
+        strands: edge.drawnStrands,
     };
 }
 
@@ -2207,6 +2213,8 @@ export interface DrawnAnnotation {
     heads?: ScreenBox[];
     /** A piece over a node's face: its color. */
     fill?: string;
+    /** A picture drawn in a node's label (yEd's label icon), not over its face. */
+    label?: true;
 }
 
 /**
@@ -2281,7 +2289,9 @@ export function readDrawn(graph: Graph): DrawnGraph {
         ...shown.flatMap((n) => n.pieces),
         ...shown.flatMap((n) => (n.shadow === undefined ? [] : [{ kind: "image" as const, box: n.shadow }])),
         // and so is the picture in its label (yEd's label icon)
-        ...shown.flatMap((n) => (n.label?.image === undefined ? [] : [{ kind: "image" as const, box: n.label.image }])),
+        ...shown.flatMap((n) =>
+            n.label?.image === undefined ? [] : [{ kind: "image" as const, box: n.label.image, label: true as const }],
+        ),
         // and so are the shapes it draws beneath and over itself (Cytoscape.js's underlay and overlay)
         ...shown.flatMap((n) => (n.halos ?? []).map((h) => ({ kind: "shape" as const, ...h }))),
     ];

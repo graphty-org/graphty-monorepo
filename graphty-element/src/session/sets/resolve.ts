@@ -142,6 +142,8 @@ export interface ResolveContext {
     readonly values?: FilterValueSource;
     /** What each load supplied. Absent refuses a rule's `source` leaf. */
     readonly supplied?: FilterSources["supplied"];
+    /** Whether the source-steps experiment is on; see {@link FilterSources.sourceSteps}. */
+    readonly sourceSteps?: FilterSources["sourceSteps"];
     /** The hovered node, else a lone selected node. Absent refuses a step's `"hovered-or-selected"`. */
     readonly focus?: FilterSources["focus"];
     /** Whether an element is in a state. Absent refuses a `state` leaf. */
@@ -620,6 +622,7 @@ export function filterSourcesIn(context: ResolveContext, seen: readonly SetId[] 
         ...(context.matchEdges === undefined ? {} : { matchEdges: context.matchEdges }),
         ...(context.values === undefined ? {} : { values: context.values }),
         ...(context.supplied === undefined ? {} : { supplied: context.supplied }),
+        ...(context.sourceSteps === undefined ? {} : { sourceSteps: context.sourceSteps }),
         ...(context.focus === undefined ? {} : { focus: context.focus }),
         ...(context.inState === undefined ? {} : { inState: context.inState }),
         ...(context.steps === undefined ? {} : { steps: context.steps }),

@@ -3,7 +3,8 @@
  * Text "+" Label adds a further label once one is drawn, as an entry of `node.labels` with an id from
  * `styles.newLabelId`; it is its own row with its own source and settings; the two rows read "Node id, above"
  * while they share a source and sit in one place; moving the further label below draws a second label; and a
- * Hubs layer over one node restyles that label by its id, from its own row, without touching the other label.
+ * Hubs layer over one node, which sets no label, picks that label from its own Text "+" and restyles it by id,
+ * by real clicks alone, without touching the other label.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -156,18 +157,33 @@ describe("several labels per node", () => {
         assert.isAbove(second.count, 0, "the second label is drawn");
         assert.isAbove(second.meanY, first.meanY, "the second label is drawn below the first");
 
-        // A Hubs layer over node a restyles the second label by its id.
+        // A Hubs layer over node a, which sets no label: its Text "+" offers the label Key people added, by number.
         const hubs = await session.styles.add({
             name: "Hubs",
             target: "node",
             selector: { match: "ids", nodes: ["a"] },
-            set: { "node.labels": [{ id: expected, style: { color: "#000000" } }] },
+            set: { "node.color": "#00ff00" },
         });
         await session.styles.settled();
         const hubTab = await openStyle("Hubs");
+        assert.isNull(sectionOf(hubTab, "node-text").querySelector(`[data-label-entry="${expected}"]`));
+        await userEvent.click(
+            within(sectionOf(hubTab, "node-text")).getByRole("button", { name: /^Add to node text/ }),
+        );
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Label 2" }));
         const hubRow = await entryRow(hubTab, expected);
+        // It reads the words Key people gives it, so no source list opens.
+        await waitFor(() => {
+            assert.isNotNull(within(hubRow).queryByRole("button", { name: /^Node label 2 source, Node id/ }));
+        });
+        await userEvent.click(within(hubRow).getByRole("button", { name: /^Node label 2 settings/ }));
+        const hubPop = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+            assert.isNotNull(found);
+            return found;
+        });
         const color = await waitFor(() => {
-            const found = hubRow.querySelector<HTMLElement>(`.ws-row[data-line="node.labels.${expected}.color"]`);
+            const found = hubPop.querySelector<HTMLElement>(`.ws-row[data-line="node.labels.${expected}.color"]`);
             assert.isNotNull(found);
             return found;
         });
@@ -176,11 +192,16 @@ describe("several labels per node", () => {
         await userEvent.click(within(color).getByRole("textbox"));
         await userEvent.keyboard("{Control>}a{/Control}FF0000{Enter}");
         await waitFor(() => {
-            const [entry] = entries(session, hubs.id);
-            assert.equal(String(entry?.style?.color).toUpperCase(), "#FF0000", "Hubs restyles the label by id");
-            assert.isUndefined(entry?.text, "and writes no words of its own");
+            const hub = entries(session, hubs.id);
+            assert.deepEqual(
+                hub.map((entry) => ({ ...entry, style: { color: String(entry.style?.color).toUpperCase() } })),
+                [{ id: expected, style: { color: "#FF0000" } }],
+                "Hubs writes only the label's id and its new color",
+            );
             assert.isUndefined(written(session, hubs.id, "node.labelStyle"), "nor the first label's style");
+            assert.isUndefined(session.styles.get(hubs.id)?.encode?.[`node.labels.${expected}.text`], "nor its words");
         });
+        await userEvent.keyboard("{Escape}");
         await session.styles.settled();
         assert.isAbove(pixelsApart(before, await picture(element)), 0, "the hub's second label is redrawn red");
     });

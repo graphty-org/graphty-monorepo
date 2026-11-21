@@ -34,7 +34,7 @@ import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { viewDim } from "./drawn";
 import { replaceUse } from "./families";
 import { kindGroupOf, type KindMember, kindsShown, kindStarts, lineWidthOf, ownsOf, PLAIN_LOOK } from "./kindGroups";
-import { entryIds, freshEntryId, listChannel, writeEntry } from "./labelEntries";
+import { entryIds, entryNumber, freshEntryId, labelsBeneath, listChannel, writeEntry } from "./labelEntries";
 import { TEXT_THINGS } from "./labelRubric";
 import { drawnItems, firstColors, ITEM_LISTS, LISTS } from "./lists";
 import { PlusList, PlusListKind } from "./PlusList";
@@ -293,7 +293,7 @@ function waitKeyOf({ thing, kind, entry }: ThingRowOf): string {
 
 /**
  * A Label's rows: the main label's (by kind), when the row sets it or "+" added it, then one per further label
- * (labelEntries.ts) the row sets or "+" added and waits on, each numbered from 2.
+ * (labelEntries.ts) the row sets or "+" added and waits on, each numbered from 2 as on every layer.
  * @param ctx - the row.
  * @param thing - the Label thing.
  * @param channels - its channels.
@@ -317,10 +317,10 @@ function labelRowsOf(
     const words = TEXT_THINGS[ctx.side].label?.words;
     return [
         ...main,
-        ...ids.map((id, at) => ({
+        ...ids.map((id) => ({
             thing,
             channels: words === undefined ? [] : [words],
-            entry: { id, n: at + 2 },
+            entry: { id, n: entryNumber(ctx, ids, id) },
         })),
     ];
 }
@@ -478,9 +478,26 @@ function ThingSection({
             }),
         ),
     ];
-    // Label's "+" also adds a label in each look but the plain one, which Label adds (E196): never a Glyph.
+    // Label's "+" also adds a label in each look but the plain one, which Label adds (E196): never a Glyph. It
+    // also offers, by number, each further label a layer beneath draws, to restyle that label here (E263, E265).
+    const shownIds = [
+        ...entryIds(ctx),
+        ...waiting.filter((key) => key.startsWith(ENTRY_WAIT)).map((key) => key.slice(ENTRY_WAIT.length)),
+    ];
+    const beneathOptions = (label: AddOption): AddOption[] =>
+        labelsBeneath(ctx)
+            .filter((id) => !shownIds.includes(id))
+            .map((id) => ({
+                ...label,
+                key: `${ENTRY_WAIT}${id}`,
+                label: `${label.label} ${String(entryNumber(ctx, shownIds, id))}`,
+                dimmed: undefined,
+                hint: undefined,
+            }));
     const plus = groups.map((group) =>
-        group.flatMap((option) => (option.key === "label" ? [option, ...lookOptions(ctx, option)] : [option])),
+        group.flatMap((option) =>
+            option.key === "label" ? [option, ...lookOptions(ctx, option), ...beneathOptions(option)] : [option],
+        ),
     );
     const options = plus.flat().filter((option) => option.disabled !== true);
     // A Label already drawn adds a further label (labelEntries.ts), waiting for its source as the first does.
@@ -493,6 +510,9 @@ function ThingSection({
         }
         const taken = waiting.filter((key) => key.startsWith(ENTRY_WAIT)).map((key) => key.slice(ENTRY_WAIT.length));
         const entry = freshEntryId(ctx, taken);
+        if (entry === undefined) {
+            return false;
+        }
         setWaiting((now) => [...now, `${ENTRY_WAIT}${entry}`]);
         // A look's label is written at once, so its row shows its look while it waits for its source.
         if (look !== undefined) {
@@ -514,6 +534,11 @@ function ThingSection({
         setMenu(false);
         if (id === "shader") {
             shaders.openGallery();
+            return;
+        }
+        if (id.startsWith(ENTRY_WAIT)) {
+            // A label a layer beneath draws: its row, waiting for the first thing the reader changes on it.
+            setWaiting((now) => (now.includes(id) ? now : [...now, id]));
             return;
         }
         const [thingId, look] = id.split(LOOK_SEP) as [string, LabelLookId | undefined];

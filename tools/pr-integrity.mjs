@@ -274,8 +274,29 @@ export function closedIssues(text = "") {
 }
 
 /**
- * Every issue a known-failure reason cites at a commit, read as fidelity-issues.ts reads them (floors.ts
- * citedIssues: `#N` not inside a word, an entity or `##`).
+ * The issues a known-failures file's listed elements cite, read as fidelity-issues.ts reads them (floors.ts
+ * untrackedKnown and citedIssues: `#N` not inside a word, an entity or `##`). A reason's issues count only while at
+ * least one element it added is still listed under `known` for the same key and property: the ratchet takes elements
+ * off but keeps the reason, and a reason with nothing left listed tracks nothing, so closing its issue cannot fail
+ * fidelity:issues (#9354).
+ * @param records a parsed known-failures file (`{ known, reasons }`)
+ * @returns a Set of issue numbers
+ */
+export function listedIssues(records) {
+    const cited = new Set();
+    const known = records.known ?? {};
+    for (const { reason, added } of records.reasons ?? []) {
+        const listed = Object.entries(added ?? {}).some(([key, props]) =>
+            Object.entries(props).some(([property, ids]) => ids.some((id) => known[key]?.[property]?.includes(id))),
+        );
+        if (!listed) continue;
+        for (const m of String(reason).matchAll(/(?<![\w&#])#(\d{1,5})(?!\w)/gu)) cited.add(Number(m[1]));
+    }
+    return cited;
+}
+
+/**
+ * Every issue the known-failure records at a commit still cite for a listed element (listedIssues, per file).
  * @param cwd the repository
  * @param rev the commit
  * @returns a Set of issue numbers
@@ -285,9 +306,7 @@ export function knownFailureIssues(cwd, rev) {
     for (const f of KNOWN_FAILURE_FILES) {
         const text = tryGit(cwd, ["show", `${rev}:graphty-element/${f}`]);
         if (text === null) continue;
-        for (const { reason } of JSON.parse(text).reasons ?? []) {
-            for (const m of String(reason).matchAll(/(?<![\w&#])#(\d{1,5})(?!\w)/gu)) cited.add(Number(m[1]));
-        }
+        for (const n of listedIssues(JSON.parse(text))) cited.add(n);
     }
     return cited;
 }

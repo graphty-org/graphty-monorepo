@@ -1,0 +1,223 @@
+{
+    "fix/8198-gexf-labels-left": {
+        "head": "ba4eca5dcb",
+        "issue": 8198,
+        "files": {
+            "test/fidelity/oracle-known-failures.json": {
+                "known": {
+                    "gexf-specimen-labels-p11": {
+                        "label.backgroundBox": []
+                    },
+                    "gexf-specimen-labels-p11@matched": {
+                        "label.backgroundBox": []
+                    },
+                    "gexf-specimen-labels-p12": {
+                        "label.backgroundBox": []
+                    },
+                    "gexf-specimen-labels-p12@matched": {
+                        "label.backgroundBox": []
+                    },
+                    "gexf-specimen-labels-p13": {
+                        "label.backgroundBox": []
+                    },
+                    "gexf-specimen-labels-p13@matched": {
+                        "label.backgroundBox": []
+                    },
+                    "gexf-specimen-labels-p20": {
+                        "label.backgroundBox": []
+                    },
+                    "gexf-specimen-labels-p20@matched": {
+                        "label.backgroundBox": []
+                    },
+                    "gexf-specimen-labels-p21": {
+                        "label.backgroundBox": []
+                    },
+                    "gexf-specimen-labels-p21@matched": {
+                        "label.backgroundBox": []
+                    },
+                    "gexf-sigma-ediaspora": {
+                        "edge.route": []
+                    },
+                    "gexf-sigma-ediaspora@matched": {
+                        "edge.route": []
+                    },
+                    "gexf-specimen-arrows-p2": {
+                        "edge.route": [],
+                        "edge.curve": []
+                    },
+                    "gexf-specimen-arrows-p2@matched": {
+                        "edge.route": [],
+                        "edge.curve": []
+                    },
+                    "gml-specimen-edges-lines-p4": {
+                        "edge.dashPeriod": []
+                    },
+                    "gml-specimen-edges-lines-p4@matched": {
+                        "edge.dashPeriod": []
+                    },
+                    "gml-specimen-labels": {
+                        "stray.present": []
+                    },
+                    "gml-specimen-labels@matched": {
+                        "stray.present": []
+                    },
+                    "json-graphology-synth": {
+                        "stray.extra": []
+                    },
+                    "json-graphology-synth@matched": {
+                        "stray.extra": []
+                    }
+                },
+                "reasons": [
+                    {
+                        "date": "2026-11-18",
+                        "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
+                        "added": {
+                            "gexf-specimen-labels-p11": {
+                                "label.backgroundBox": ["label-entity"]
+                            },
+                            "gexf-specimen-labels-p11@matched": {
+                                "label.backgroundBox": ["label-entity"]
+                            },
+                            "gexf-specimen-labels-p12": {
+                                "label.backgroundBox": ["label-entity"]
+                            },
+                            "gexf-specimen-labels-p12@matched": {
+                                "label.backgroundBox": ["label-entity"]
+                            },
+                            "gexf-specimen-labels-p13": {
+                                "label.backgroundBox": ["label-entity"]
+                            },
+                            "gexf-specimen-labels-p13@matched": {
+                                "label.backgroundBox": ["label-entity"]
+                            },
+                            "gexf-specimen-labels-p20": {
+                                "label.backgroundBox": ["label-entity"]
+                            },
+                            "gexf-specimen-labels-p20@matched": {
+                                "label.backgroundBox": ["label-entity"]
+                            },
+                            "gexf-specimen-labels-p21": {
+                                "label.backgroundBox": ["label-entity"]
+                            },
+                            "gexf-specimen-labels-p21@matched": {
+                                "label.backgroundBox": ["label-entity"]
+                            }
+                        },
+                        "sources": {
+                            "unclassified": 10
+                        }
+                    },
+                    {
+                        "date": "2026-11-15",
+                        "reason": "tracked by #8198: Gephi, sigma.js and OGDF samples fail strays and edge routes. Re-cited 2026-11-15, as the reasons that listed these cited no open issue (#7015); the element lists are unchanged",
+                        "added": {
+                            "gexf-sigma-ediaspora": {
+                                "edge.route": ["112->141#0", "141->112#0", "63->66#0", "66->63#0"]
+                            },
+                            "gexf-sigma-ediaspora@matched": {
+                                "edge.route": ["112->141#0", "141->112#0", "63->66#0", "66->63#0"]
+                            },
+                            "gexf-specimen-arrows-p2": {
+                                "edge.route": ["weight-4-s->weight-4-t#0"],
+                                "edge.curve": ["weight-4-s->weight-4-t#0"]
+                            },
+                            "gexf-specimen-arrows-p2@matched": {
+                                "edge.route": ["weight-4-s->weight-4-t#0"],
+                                "edge.curve": ["weight-4-s->weight-4-t#0"]
+                            },
+                            "gml-specimen-edges-lines-p4": {
+                                "edge.dashPeriod": ["stipple-dot-s->stipple-dot-t#g0"]
+                            },
+                            "gml-specimen-edges-lines-p4@matched": {
+                                "edge.dashPeriod": ["stipple-dot-s->stipple-dot-t#g0"]
+                            },
+                            "gml-specimen-labels": {
+                                "stray.present": [
+                                    "rect@1039,470,1095,483",
+                                    "rect@463,470,550,483",
+                                    "rect@653,470,733,483",
+                                    "text@1024,470,1109,481",
+                                    "text@461,470,553,481",
+                                    "text@653,470,734,481"
+                                ]
+                            },
+                            "gml-specimen-labels@matched": {
+                                "stray.present": [
+                                    "rect@1039,470,1095,483",
+                                    "rect@463,470,550,483",
+                                    "rect@653,470,733,483",
+                                    "text@1024,470,1109,481",
+                                    "text@461,470,553,481",
+                                    "text@653,470,734,481"
+                                ]
+                            },
+                            "json-graphology-synth": {
+                                "stray.extra": [
+                                    "graphty:text#0",
+                                    "graphty:text#2",
+                                    "graphty:text#3",
+                                    "graphty:text#4",
+                                    "graphty:text#5"
+                                ]
+                            },
+                            "json-graphology-synth@matched": {
+                                "stray.extra": [
+                                    "graphty:text#0",
+                                    "graphty:text#2",
+                                    "graphty:text#3",
+                                    "graphty:text#4",
+                                    "graphty:text#5"
+                                ]
+                            }
+                        },
+                        "sources": {
+                            "unclassified": 72
+                        }
+                    }
+                ]
+            },
+            "test/fidelity/baseline-scores.json": {
+                "known": {},
+                "reasons": []
+            }
+        }
+    },
+    "fix/9149-covered-rule-both-sides": {
+        "head": "aacea5acee",
+        "issue": 9149,
+        "files": {
+            "test/fidelity/oracle-known-failures.json": {
+                "known": {
+                    "pajek-1crn": {
+                        "node.extra": ["graphty:27"]
+                    },
+                    "pajek-1crn@matched": {
+                        "node.extra": ["graphty:27"]
+                    }
+                },
+                "reasons": [
+                    {
+                        "date": "2026-11-20",
+                        "reason": "pajek-1crn v1 sits at the half-pixel cover boundary once graphty draws Pajek samples on Pajek's own 500 x 500 canvas: covered on the oracle's side, shown on graphty's, though neither drawing shows a pixel of it (#9149)",
+                        "added": {
+                            "pajek-1crn": {
+                                "node.extra": ["graphty:1"]
+                            },
+                            "pajek-1crn@matched": {
+                                "node.extra": ["graphty:1"]
+                            }
+                        },
+                        "sources": {
+                            "unclassified": 2
+                        }
+                    }
+                ]
+            },
+            "test/fidelity/baseline-scores.json": {
+                "known": {},
+                "reasons": []
+            }
+        }
+    }
+}

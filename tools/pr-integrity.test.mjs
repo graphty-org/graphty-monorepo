@@ -18,6 +18,7 @@ import {
     hasProof,
     isBreaking,
     KNOWN_FAILURE_FILES,
+    listedIssues,
     masterBaselineCheck,
     ownerApproved,
     patchId,
@@ -372,8 +373,15 @@ describe("prIntegrity", () => {
 });
 
 describe("known failures (#8888)", () => {
+    // each issue's reason adds one element that is still listed
     const known = (...issues) =>
-        JSON.stringify({ reasons: issues.map((n) => ({ reason: `scene drift tracked by #${n}`, added: {} })) });
+        JSON.stringify({
+            known: Object.fromEntries(issues.map((n) => [`s${n}`, { "node.present": ["a"] }])),
+            reasons: issues.map((n) => ({
+                reason: `scene drift tracked by #${n}`,
+                added: { [`s${n}`]: { "node.present": ["a"] } },
+            })),
+        });
 
     it("closedIssues reads GitHub's closing keywords and forms, not Refs", () => {
         assert.deepEqual(
@@ -402,6 +410,86 @@ describe("known failures (#8888)", () => {
         assert.equal(problems.length, 2, problems.join("\n"));
         assert.match(problems[0], /closes #7, which .* still cite.*Refs #7.*fidelity:ratchet/u);
         assert.match(problems[1], /closes #8,/u);
+    });
+
+    it("counts a reason's issues only while one of its elements is still listed, as fidelity:issues does (#9354)", () => {
+        const reason = (added) => ({ reason: "drift, tracked by #7 (color #505050)", added });
+        // the ratchet took every element off: nothing left for #7 to track
+        assert.deepEqual(
+            [
+                ...listedIssues({
+                    known: { s: { "node.present": ["b"] } },
+                    reasons: [reason({ s: { "node.present": ["a"] } })],
+                }),
+            ],
+            [],
+        );
+        // listed under another property or key does not count
+        assert.deepEqual(
+            [
+                ...listedIssues({
+                    known: { s: { "edge.arrow": ["a"] }, t: { "node.present": ["a"] } },
+                    reasons: [reason({ s: { "node.present": ["a"] } })],
+                }),
+            ],
+            [],
+        );
+        // one element left still tracks #7
+        assert.deepEqual(
+            [
+                ...listedIssues({
+                    known: { s: { "node.present": ["a", "b"] } },
+                    reasons: [reason({ s: { "node.present": ["a", "c"] } })],
+                }),
+            ],
+            [7],
+        );
+        assert.deepEqual([...listedIssues({})], []);
+    });
+
+    it("passes Fixes for an issue whose reasons have no element left, and refuses it while one is", () => {
+        const r = repo();
+        r.git("checkout", "-q", "-b", "fix/7-x");
+        const records = (listed) =>
+            JSON.stringify({
+                known: { s: { "node.present": listed } },
+                reasons: [{ reason: "drift, tracked by #7", added: { s: { "node.present": ["a"] } } }],
+            });
+        const body = "Fixes #7\n\n## Proof\n\nok\n";
+        r.commit("fix(tools): all fixed", {
+            "graphty-element/test/fidelity/oracle-known-failures.json": records(["b"]),
+        });
+        assert.deepEqual(prIntegrity(r.dir, pr(r, { body })).problems, []);
+        r.commit("fix(tools): one back", {
+            "graphty-element/test/fidelity/oracle-known-failures.json": records(["a"]),
+        });
+        const { problems } = prIntegrity(r.dir, pr(r, { body }));
+        assert.equal(problems.length, 1, problems.join("\n"));
+        assert.match(problems[0], /closes #7,/u);
+    });
+
+    it("passes the real records of fix/8198-gexf-labels-left and fix/9149-covered-rule-both-sides", () => {
+        // their reasons citing the issue, and what is listed at the keys and properties those reasons added to
+        const branches = JSON.parse(readFileSync(join(ROOT, "tools/fixtures/known-failure-reasons-9354.json"), "utf8"));
+        assert.deepEqual(Object.keys(branches), ["fix/8198-gexf-labels-left", "fix/9149-covered-rule-both-sides"]);
+        for (const [branch, { issue, files }] of Object.entries(branches)) {
+            const reasons = Object.values(files).flatMap((f) => f.reasons);
+            assert.ok(reasons.length > 0 && reasons.every((x) => x.reason.includes(`#${issue}`)), branch);
+            for (const records of Object.values(files)) assert.ok(!listedIssues(records).has(issue), branch);
+            const r = repo();
+            r.git("checkout", "-q", "-b", branch);
+            r.commit(
+                `fix(tools): x\n\nFixes #${issue}`,
+                Object.fromEntries(
+                    Object.entries(files).map(([f, rec]) => [`graphty-element/${f}`, JSON.stringify(rec)]),
+                ),
+            );
+            assert.deepEqual(
+                prIntegrity(r.dir, pr(r, { body: `Fixes #${issue}\n\n## Proof\n\nok\n` })).problems,
+                [],
+                branch,
+            );
+        }
     });
 
     it("passes Refs for a cited issue and Fixes for one no record cites", () => {

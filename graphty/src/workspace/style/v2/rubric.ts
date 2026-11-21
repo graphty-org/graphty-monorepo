@@ -4,7 +4,7 @@
  * Main lines and the sub-groups its "+" adds, and for each line which control it draws. Keyed by
  * graphty-element channel ids; what a channel accepts, its limits and its own value names are
  * read from the element's descriptors and `channelValues`. The app's part is only presentation:
- * where a setting sits, what it is called, and the display name or glyph of an option where the
+ * where a setting sits, what it is called, and the display name of an option where the
  * element's own name is not what the panel shows (a unit "Graph", an icon segment).
  */
 
@@ -67,38 +67,36 @@ export interface ThingRubric {
     readonly groups?: readonly SubGroup[];
 }
 
-/** An option's display name and glyph, where the element's own name is not what the panel shows. */
+/** An option's display name, where the element's own name is not what the panel shows. */
 export interface OptionName {
     readonly name: string;
-    readonly glyph?: keyof typeof GLYPHS;
 }
 
 /**
- * The option-name table: every option of every R8 line, by channel and value id. A line whose
- * options all have a glyph draws icon segments (design 6, "Pictured"), else words. The widths test
- * checks that its ids are the element's values and that each line fits where it sits.
+ * The option-name table: every option of every R8 line, by channel and value id. Every one draws
+ * as a value list (ia-design principle 4). The widths test checks that its ids are the element's values.
  */
 export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<string, OptionName>>>>> = {
     "node.borderPosition": {
-        inside: { name: "Inside", glyph: "borderInside" },
-        center: { name: "Center", glyph: "borderCenter" },
-        outside: { name: "Outside", glyph: "borderOutside" },
+        inside: { name: "Inside" },
+        center: { name: "Center" },
+        outside: { name: "Outside" },
     },
     "node.stripeDirection": {
-        down: { name: "Down", glyph: "stripesDown" },
-        right: { name: "Right", glyph: "stripesRight" },
+        down: { name: "Down" },
+        right: { name: "Right" },
     },
     "node.imageRepeat": {
-        "no-repeat": { name: "None", glyph: "repeatNone" },
-        repeat: { name: "Both", glyph: "repeatBoth" },
-        "repeat-x": { name: "Across", glyph: "repeatAcross" },
-        "repeat-y": { name: "Down", glyph: "repeatDown" },
+        "no-repeat": { name: "None" },
+        repeat: { name: "Both" },
+        "repeat-x": { name: "Across" },
+        "repeat-y": { name: "Down" },
     },
     "node.imageClip": { node: { name: "Node" }, none: { name: "None" } },
     "node.imageAutoSize": { proportional: { name: "Proportional" }, natural: { name: "Natural" } },
     "node.gradientKind": {
-        linear: { name: "Linear", glyph: "gradientLinear" },
-        radial: { name: "Radial", glyph: "gradientRadial" },
+        linear: { name: "Linear" },
+        radial: { name: "Radial" },
     },
     "node.sizeSpace": { scene: { name: "Graph" }, pivot: { name: "Pivot" }, screen: { name: "Screen" } },
     "node.sizeMode": { scale: { name: "Scale" }, diameter: { name: "Diameter" }, uniform: { name: "Uniform" } },
@@ -108,16 +106,16 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
     "node.labelFit": { inside: { name: "Inside" }, bounds: { name: "Bounds" } },
     "node.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
     "edge.gradientKind": {
-        linear: { name: "Linear", glyph: "gradientLinear" },
-        radial: { name: "Radial", glyph: "gradientRadial" },
-        none: { name: "None", glyph: "gradientNone" },
+        linear: { name: "Linear" },
+        radial: { name: "Radial" },
+        none: { name: "None" },
     },
     "edge.supportScale": { unit: { name: "Unit" }, drawing: { name: "Drawing" } },
     "edge.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
     ...Object.fromEntries(
         (["arrowHead", "arrowTail", "arrowMiddleHead", "arrowMiddleTail"] as const).map((end) => [
             `edge.${end}Side`,
-            { left: { name: "Left", glyph: "sideLeft" }, right: { name: "Right", glyph: "sideRight" } },
+            { left: { name: "Left" }, right: { name: "Right" } },
         ]),
     ),
 };
@@ -751,32 +749,6 @@ export function rubricChannels(rubric: ThingRubric): readonly Channel[] {
         ...(rubric.groups ?? []).flatMap((group) => group.lines),
     ];
     return [...new Set(lines.flatMap((line) => lineChannels(line)))];
-}
-
-/** The width of a line's control slot, by where it sits (design 2.2). */
-export const LINE_WIDTHS = { panelNamed: 96, panelFull: 176, popoverNamed: 120, popoverFull: 200 } as const;
-
-/**
- * The width a segment line needs (design 6): 28 px an icon, else 7 px a letter plus 16, at least 40.
- * @param options - its options.
- * @returns the width.
- */
-export function segmentsWidth(options: readonly OptionName[]): number {
-    const pictured = isPictured(options);
-    const words = (option: OptionName): number => Math.max(40, option.name.length * 7 + 16);
-    return options.reduce((sum, option) => sum + (pictured && option.glyph !== undefined ? 28 : words(option)), 0);
-}
-
-/**
- * Whether a segment line draws icons (design 6, "Pictured"): every option has a glyph, or every
- * one but a last "Auto", which stays a word.
- * @param options - its options.
- * @returns true when it draws icons.
- */
-export function isPictured(options: readonly OptionName[]): boolean {
-    const last = options.at(-1);
-    const icons = last?.glyph === undefined && last?.name === "Auto" ? options.slice(0, -1) : options;
-    return icons.length > 0 && icons.every((option) => option.glyph !== undefined);
 }
 
 /**

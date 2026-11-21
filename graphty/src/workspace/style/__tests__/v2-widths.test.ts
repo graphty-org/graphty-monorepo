@@ -1,6 +1,6 @@
 /**
  * Style panel v2's rubric (style/v2/rubric.ts, design/ui/style-panel-v2/design.md section 6): every
- * segment line's options are the element's values, and its segments fit the width where it sits;
+ * segment line's options are the element's values (each draws as a value list);
  * no sub-group passes 8 lines and no "+" menu 12 sub-groups; no name says "Scene" or "World". Node
  * and edge things alike. The
  * label rubric (style/v2/labelRubric.ts, design 7.3) is held to the same.
@@ -10,15 +10,7 @@ import { channelDescriptor, LABEL_STYLE_FIELDS } from "@graphty/graphty-element/
 import { assert, describe, it } from "vitest";
 
 import { LABEL_OPTION_NAMES, LABEL_RUBRIC, labelFieldDescriptor, labelLineFields } from "../v2/labelRubric";
-import {
-    EDGE_RUBRIC,
-    LINE_WIDTHS,
-    type LineSpec,
-    NODE_RUBRIC,
-    OPTION_NAMES,
-    segmentOptions,
-    segmentsWidth,
-} from "../v2/rubric";
+import { EDGE_RUBRIC, NODE_RUBRIC, OPTION_NAMES, segmentOptions } from "../v2/rubric";
 
 /** Every node and edge thing's rubric, by "node:thing" or "edge:thing". */
 const RUBRICS = [
@@ -37,20 +29,6 @@ const LINES = RUBRICS.flatMap(([thing, rubric]) => [
     })),
 ]);
 
-/**
- * The width a line's control has where it sits.
- * @param line - the line.
- * @param place - the panel or a pop-over.
- * @returns the width.
- */
-function widthAt(line: LineSpec, place: "panel" | "popover"): number {
-    const full = line.name === null || line.rule === "R8f";
-    if (place === "panel") {
-        return full ? LINE_WIDTHS.panelFull : LINE_WIDTHS.panelNamed;
-    }
-    return full ? LINE_WIDTHS.popoverFull : LINE_WIDTHS.popoverNamed;
-}
-
 describe("Style panel v2's control rubric", () => {
     it("every line's channel is one graphty-element offers", () => {
         for (const { thing, line } of LINES) {
@@ -62,7 +40,7 @@ describe("Style panel v2's control rubric", () => {
         }
     });
 
-    it("every segment line names the element's values and fits where it sits", () => {
+    it("every segment line names the element's values", () => {
         const segments = LINES.filter(
             ({ line }) => line.unit !== undefined || line.rule === "R8" || line.rule === "R8f",
         );
@@ -79,8 +57,6 @@ describe("Style panel v2's control rubric", () => {
             }
             const options = segmentOptions(line, values);
             assert.isDefined(options, `${thing}: ${line.channel} has a name for every option`);
-            const width = segmentsWidth(options ?? []);
-            assert.isAtMost(width, widthAt(line, place), `${thing}: ${line.channel} (${String(width)} px)`);
             if (line.rule === "R8f") {
                 assert.equal(place, "popover", `${thing}: ${line.channel} R8f sits only in a pop-over`);
             }
@@ -132,12 +108,12 @@ describe("Style panel v2's label rubric", () => {
         }
     });
 
-    it("every segment line names the element's values and fits where it sits", () => {
+    it("every segment line names the element's values", () => {
         const segments = lines.filter(
             ({ line }) => line.unit !== undefined || line.rule === "R8" || line.rule === "R8f",
         );
         assert.isAbove(segments.length, 8);
-        for (const { line, place } of segments) {
+        for (const { line } of segments) {
             const values = line.unit === undefined ? (labelFieldDescriptor(line.field)?.values ?? []) : [];
             if (line.unit === undefined) {
                 assert.sameMembers(Object.keys(LABEL_OPTION_NAMES[line.field] ?? {}), [...values], line.field);
@@ -147,25 +123,14 @@ describe("Style panel v2's label rubric", () => {
                     ? segmentOptions({ channel: line.field }, values, LABEL_OPTION_NAMES)
                     : line.unit.map((unit) => ({ name: unit.name }));
             assert.isDefined(options, `${line.field} has a name for every option`);
-            const width = segmentsWidth(options ?? []);
-            const full = line.name === null || line.rule === "R8f";
-            const room =
-                place === "panel"
-                    ? LINE_WIDTHS[full ? "panelFull" : "panelNamed"]
-                    : LINE_WIDTHS[full ? "popoverFull" : "popoverNamed"];
-            assert.isAtMost(width, room, `${line.field} (${String(width)} px)`);
         }
     });
 
-    it("a location (R2) draws its Outside / Inside / Auto segments on a full unnamed line", () => {
+    it("a location (R2) sits only in a pop-over", () => {
         const locations = lines.filter(({ line }) => line.rule === "R2");
         assert.isAbove(locations.length, 0);
-        const width = segmentsWidth(["Outside", "Inside", "Auto"].map((name) => ({ name })));
         for (const { place } of locations) {
             assert.equal(place, "popover");
-            // R2 is R8f (design 6): a full popover line whatever the line's name.
-            assert.isAbove(width, LINE_WIDTHS.popoverNamed, "the words need more than a named slot");
-            assert.isAtMost(width, LINE_WIDTHS.popoverFull, `location (${String(width)} px)`);
         }
     });
 

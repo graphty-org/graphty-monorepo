@@ -176,7 +176,6 @@ export function SegmentsLine({
     options: readonly {
         readonly value: string;
         readonly name: string;
-        readonly glyph?: keyof typeof GLYPHS;
         readonly disabled?: boolean;
     }[];
     value: string;

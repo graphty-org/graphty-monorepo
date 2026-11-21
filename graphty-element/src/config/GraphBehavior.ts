@@ -186,8 +186,9 @@ const CameraBehaviorOpts = z
         /**
          * What zoom-to-fit fits into view in 3D.
          *
-         * "box" BY DEFAULT: every corner of the box around the nodes and labels, as seen from
-         * the front. "turning" fits the nodes and labels themselves at every angle the view turns
+         * "box" BY DEFAULT: as far out as every corner of the box around the nodes and labels
+         * needs, as seen from the front, with the nodes and labels drawn in the middle of the
+         * canvas. "turning" fits the nodes and labels themselves at every angle the view turns
          * to about the graph's vertical axis -- as `autoRotate` and a sideways drag turn it -- so
          * a turning graph stays in the frame and is not drawn smaller to make room for the empty
          * corners of its box. 2D always fits the box.

@@ -5934,7 +5934,8 @@ const START: ReadonlyMap<string, ChannelScalar> = new Map<Channel, ChannelScalar
 const STARTS_WITH: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, readonly ChannelNeed[]>([
     // A plate behind the node starts as a card, never as a ring the node's own shape (ia-design 2).
     ["node.underlayColor", [{ channel: "node.underlayShape", value: "round-rectangle" }]],
-    // A plate over the node draws at padding 0, exactly over it; a tenth of the node past it reads as larger.
+    // A plate over the node draws at padding 0, exactly over it; 0.1 past it reads as larger. Padding is in the
+    // per-size units every plate and border width uses (NodeMesh.extentPerSize): a tenth of a size-1 node.
     ["node.overlayColor", [{ channel: "node.overlayPadding", value: 0.1 }]],
 ]);
 

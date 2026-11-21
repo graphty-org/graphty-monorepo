@@ -2,8 +2,8 @@
  * Style panel v2's Align line on the REAL graphty-element and real input (E672: "changing alignment on labels didn't
  * have any visual effect on the screen"): on every text kind that shows Align, a reader opens the row's settings and
  * picks Left, Center and Right, and each draws a one-line text in a different place. The panel writes the box
- * graphty-element says alignment needs (`LabelStyleFieldDescriptor.needs`: a box as wide as the node, or as an edge's
- * line is long), since a one-line text's own box is its words and lines nothing up.
+ * graphty-element says alignment needs (`LabelStyleFieldDescriptor.needs`: a box as wide as the node, or for edge
+ * text a band six of its own line heights wide), since a one-line text's own box is its words and lines nothing up.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.

@@ -10,10 +10,11 @@ import { groupsAnnouncement, pathAnnouncement, topAnnouncement } from "../analyz
 import { GLYPHS } from "../glyphs";
 import { runFailureWords, selectedNameWords } from "../inspector/words";
 import { layoutWarningWords } from "../layout/refusalWords";
+import { RenderCount } from "../renderCount";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
-import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
+import { dataBlocks, isEffectBlock, keyBlocks, keyNames } from "./legendWords";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -63,6 +64,9 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
         let load: ProgressChange | null = null;
         // A run that ends after the session changed must not post a notice for the old session.
         let live = true;
+        // What the last read gave, so a read that gives the same draws nothing again: a style
+        // update the key does not show (an animation's, once a frame) redrew the card (#9423).
+        let last: string | null = null;
         const read = (): void => {
             // While the selection workspace draws its own key the canvas key is not drawn: it is
             // read again when the workspace closes, not on every edit (ws-polish 2).
@@ -72,6 +76,20 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
             const { nodeCount, edgeCount } = session.data.statistics();
             const totalNodes = session.data.statistics({ scope: "all" }).nodeCount;
             const blocks = keyBlocks(dataBlocks(session));
+            // The card names each block from the session (a layer's or a run's name), so the
+            // names are part of what it draws: a rename changes no block.
+            const names = keyNames(session);
+            const words = blocks.map((block) => [
+                names.row(block),
+                names.entry(block),
+                (block.layers ?? [block.layerId]).map((id) => names.layer?.(id)),
+                names.covers?.(block),
+            ]);
+            const key = JSON.stringify([blocks, words, nodeCount, edgeCount, totalNodes, load]);
+            if (key === last) {
+                return;
+            }
+            last = key;
             setReading({ blocks, nodeCount, edgeCount, totalNodes, load });
             // An effect is listed in a key that shows, and never opens it: a style write of an
             // effect is no reason for the key to appear.
@@ -395,13 +413,15 @@ export function CanvasOverlays(): React.JSX.Element | null {
     }
 
     return (
-        <>
-            {/* Asked for over nothing, the card says nothing is styled yet. */}
-            {/* While a selection is picked, the selection workspace draws its own key at its preview. */}
-            {legendShown && !workspaceOpen && (keyed || legendAsked) ? (
-                <LegendCard blocks={blocks} session={session} />
-            ) : null}
-            {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
-        </>
+        <RenderCount id="canvas-overlays">
+            <>
+                {/* Asked for over nothing, the card says nothing is styled yet. */}
+                {/* While a selection is picked, the selection workspace draws its own key at its preview. */}
+                {legendShown && !workspaceOpen && (keyed || legendAsked) ? (
+                    <LegendCard blocks={blocks} session={session} />
+                ) : null}
+                {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
+            </>
+        </RenderCount>
     );
 }

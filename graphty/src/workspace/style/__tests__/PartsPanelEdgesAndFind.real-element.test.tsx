@@ -238,13 +238,14 @@ describe("each part's settings page", () => {
         assert.include(found(results), "node.sizeMode");
     });
 
-    it("the label's sliders page has Type, Box, Place, Wrap and View pages", async () => {
+    it("the label's sliders page has Type, Box, Place, Wrap, View and Glyph pages", async () => {
         await openProject([every("Key", "node", { "node.label": "Hello" })]);
         const tab = await openStyle("Key");
         const page = await openPage(tab, "Node text settings");
         const pages = within(page).getByRole("radiogroup", { name: "Label settings page" });
-        assert.strictEqual(within(pages).getAllByRole("radio").length, 5);
-        for (const name of ["Type", "Box", "Place", "Wrap", "View"]) {
+        // Glyph is the Label's own page, never a style of its own (E275, 5408d796e9).
+        assert.strictEqual(within(pages).getAllByRole("radio").length, 6);
+        for (const name of ["Type", "Box", "Place", "Wrap", "View", "Glyph"]) {
             within(pages).getByRole("radio", { name });
         }
         await userEvent.click(within(pages).getByText("Place"));

@@ -10,11 +10,14 @@ import { channelDescriptor, LABEL_STYLE_FIELDS } from "@graphty/graphty-element/
 import { assert, describe, it } from "vitest";
 
 import {
+    LABEL_COVERED,
     LABEL_OPTION_NAMES,
     LABEL_RUBRIC,
     type LabelField,
     labelFieldDescriptor,
+    labelGroupFields,
     labelLineFields,
+    type LabelLineSpec,
 } from "../v2/labelRubric";
 import {
     EDGE_RUBRIC,
@@ -170,6 +173,156 @@ describe("Style panel v2's label rubric", () => {
         }
     });
 
+    it("holds ia-design's label groups: their fields, their order and a divider after Position and Box stroke", () => {
+        const fields = (lines: readonly LabelLineSpec[]): readonly LabelField[] => [
+            ...new Set(lines.flatMap((line) => labelLineFields(line))),
+        ];
+        assert.sameMembers([...fields(LABEL_RUBRIC.common)], ["size", "sizePx", "letterSize", "color"], "the row");
+        assert.sameMembers(
+            [...fields(LABEL_RUBRIC.main)],
+            // the Size unit line writes Screen's sizeMode with sizePx; the look is a kind of the row (E196)
+            [
+                "enabled",
+                "font",
+                "weight",
+                "italic",
+                "textAlign",
+                "location",
+                "sizeMode",
+                "size",
+                "sizePx",
+                "letterSize",
+            ],
+            "Main",
+        );
+        // Show, Font, Weight, Italic on its own line, Align, Location, then the size unit's segments.
+        assert.deepEqual(
+            LABEL_RUBRIC.main.map((line) => (line.unit === undefined ? line.name : "size unit")),
+            ["Show", "Font", "Weight", "Italic", "Align", "Location", "size unit"],
+        );
+        const IA: readonly (readonly [string, readonly LabelField[]])[] = [
+            [
+                "Position",
+                [
+                    "attachOffset",
+                    "offsetX",
+                    "offsetY",
+                    "box",
+                    "onTop",
+                    "shiftX",
+                    "shiftY",
+                    "shiftOf",
+                    "gapOf",
+                    "keepInView",
+                ],
+            ],
+            ["Letters", ["opacity", "lineHeight", "rotation", "runAlign", "outline", "outlineWidth", "outlineOpacity"]],
+            [
+                "Wrap",
+                [
+                    "wrapWidth",
+                    "maxLines",
+                    "wrapAnywhere",
+                    "wrapEllipsis",
+                    "maxLinesEllipsis",
+                    "keepBlankLines",
+                    "wrapTrailingSpace",
+                    "wrapSkipEndSpace",
+                    "wrapSpaceCount",
+                ],
+            ],
+            [
+                "Background",
+                [
+                    "background",
+                    "backgroundOpacity",
+                    "backgroundShape",
+                    "cornerRadius",
+                    "padding",
+                    "boxPadding",
+                    "gradient",
+                    "gradientType",
+                    "gradientColors",
+                    "gradientDirection",
+                ],
+            ],
+            [
+                "Box stroke",
+                [
+                    "borderWidth",
+                    "borderColor",
+                    "borderOpacity",
+                    "borderAlign",
+                    "lineBox",
+                    "marginTop",
+                    "marginRight",
+                    "marginBottom",
+                    "marginLeft",
+                ],
+            ],
+            [
+                "Label shadow",
+                [
+                    "shadow",
+                    "shadowColor",
+                    "shadowBlur",
+                    "shadowOffsetX",
+                    "shadowOffsetY",
+                    "panelShadow",
+                    "panelShadowColor",
+                    "panelShadowBlur",
+                    "panelShadowOffsetX",
+                    "panelShadowOffsetY",
+                ],
+            ],
+            [
+                "Callout",
+                ["pointer", "pointerDirection", "pointerWidth", "pointerHeight", "pointerOffset", "pointerCurve"],
+            ],
+            ["Badge", ["badge", "icon", "iconPosition", "progress", "maxNumber", "overflowSuffix", "smartOverflow"]],
+            [
+                "Behavior",
+                [
+                    "minScreenSize",
+                    "declutter",
+                    "minNodeScreenSize",
+                    "depthFade",
+                    "depthFadeNear",
+                    "depthFadeFar",
+                    "animation",
+                    "animationSpeed",
+                    "pickable",
+                    "closeButton",
+                ],
+            ],
+        ];
+        assert.deepEqual(
+            LABEL_RUBRIC.groups.map((group) => group.name),
+            IA.map(([name]) => name),
+        );
+        for (const [name, members] of IA) {
+            const group = LABEL_RUBRIC.groups.find((each) => each.name === name);
+            assert.sameMembers([...new Set(labelGroupFields(group ?? { name, lines: [] }))], [...members], name);
+        }
+        assert.deepEqual(
+            LABEL_RUBRIC.groups.filter((group) => group.divider === true).map((group) => group.name),
+            ["Position", "Box stroke"],
+        );
+        // Every one of graphty-element's 90 label fields has its one place.
+        assert.sameMembers([...LABEL_COVERED], [...LABEL_STYLE_FIELDS]);
+        const names = (group: string): readonly (string | null | undefined)[] =>
+            LABEL_RUBRIC.groups.find((each) => each.name === group)?.lines.map((line) => line.name) ?? [];
+        assert.includeMembers(
+            [...names("Letters")],
+            ["Letter outline", "Letter outline width", "Letter outline opacity"],
+        );
+        assert.includeMembers(
+            [...names("Label shadow")],
+            ["Text shadow", "Text shadow color", "Box shadow", "Box shadow color"],
+        );
+        assert.includeMembers([...names("Badge")], ["Icon beside text", "Icon side"]);
+    });
+
     it("a location (R2) draws its Outside / Inside / Auto segments on a full unnamed line", () => {
         const locations = lines.filter(({ line }) => line.rule === "R2");
         assert.isAbove(locations.length, 0);
@@ -182,13 +335,12 @@ describe("Style panel v2's label rubric", () => {
         }
     });
 
-    it("Main and every sub-group hold at most 8 lines, '+' holds 12, and nothing says Scene or World", () => {
+    it("Main holds at most 8 lines, the nine groups at most 10 each, and nothing says Scene or World", () => {
         assert.isAtMost(LABEL_RUBRIC.common.length, 2);
         assert.isAtMost(LABEL_RUBRIC.main.length, 8);
-        // Design 7.3's twelve, with Gradient and Margin, whose label fields had no line (round 5, task 5.6).
-        assert.equal(LABEL_RUBRIC.groups.length, 14, "design 7.3's twelve sub-groups, Gradient and Margin");
+        assert.equal(LABEL_RUBRIC.groups.length, 9, "ia-design's nine label groups");
         for (const group of LABEL_RUBRIC.groups) {
-            assert.isAtMost(group.lines.length, 8, group.name);
+            assert.isAtMost(group.lines.length, 10, group.name);
         }
         const names = [
             ...Object.values(LABEL_OPTION_NAMES).flatMap((options) => Object.values(options ?? {}).map((o) => o.name)),

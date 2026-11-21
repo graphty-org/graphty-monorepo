@@ -172,10 +172,32 @@ describe("Style panel v2's Text section", () => {
             assert.isNotNull(found);
             return found;
         });
+        // ia-design's nine groups, in their tiers: a divider after Position and after Box stroke.
+        await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
+        const menu = await screen.findByRole("menu");
+        const order = [...menu.querySelectorAll('[role="menuitem"], .mantine-Menu-divider')].map((item) =>
+            item.getAttribute("role") === "menuitem" ? (item.textContent ?? "") : "|",
+        );
+        assert.deepEqual(order, [
+            "Position",
+            "|",
+            "Letters",
+            "Wrap",
+            "Background",
+            "Box stroke",
+            "|",
+            "Label shadow",
+            "Callout",
+            "Badge",
+            "Behavior",
+        ]);
+        await userEvent.keyboard("{Escape}");
         for (const group of LABEL_RUBRIC.groups) {
             await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: group.name }));
             const legend = await within(pop).findByRole("group", { name: group.name });
+            // Each of its lines is drawn under its legend.
+            assert.isAtLeast(legend.querySelectorAll(".ws-row[data-line]").length, group.lines.length, group.name);
             if (group.on !== undefined) {
                 await waitFor(() => {
                     assert.isTrue(labelStyle(session, id)[group.on ?? ""], `${group.name} switches on`);
@@ -292,7 +314,7 @@ describe("Style panel v2's Text section", () => {
         });
         const pop = await popoverOf(row);
         await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Margin" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Box stroke" }));
         const margin = await lineOf(pop, "node.labelStyle.marginTop");
         assert.isTrue(margin.hasAttribute("data-dimmed"), "dimmed while box padding is set");
         assert.match(margin.getAttribute("title") ?? "", /Box padding|padding/i, "its tooltip names what it waits on");

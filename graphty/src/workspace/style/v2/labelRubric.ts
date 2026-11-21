@@ -53,6 +53,8 @@ export interface LabelGroup {
     readonly name: string;
     /** The field that switches it on: adding the sub-group writes it true. */
     readonly on?: LabelField;
+    /** A divider follows it in the "+" menu: the next group is of a rarer tier (ia-design.md). */
+    readonly divider?: true;
     readonly lines: readonly LabelLineSpec[];
 }
 
@@ -129,73 +131,15 @@ export const LABEL_RUBRIC: LabelRubric = {
         // Italic is a line of its own, as every other switch is: no glyph beside Weight (E674).
         { field: "italic", name: "Italic" },
         { field: "textAlign", name: "Align", rule: "R8" },
-        { field: "size", name: null, rule: "R8f", unit: SIZE_UNIT },
         { field: "location", name: "Location", rule: "R2" },
+        // Its segments read "Node label size unit".
+        { field: "size", name: null, rule: "R8f", unit: SIZE_UNIT },
     ],
+    // ia-design.md "Label settings groups": nine groups by how often files vary them, a divider between tiers.
     groups: [
         {
-            name: "Letters",
-            lines: [
-                { field: "lineHeight", name: "Line height" },
-                { field: "rotation", name: "Rotation" },
-                { field: "opacity", name: "Opacity" },
-                { field: "runAlign", name: null, rule: "R8f" },
-            ],
-        },
-        {
-            name: "Background",
-            lines: [
-                { field: "background", name: null },
-                { field: "backgroundOpacity", name: "Opacity" },
-                { field: "cornerRadius", name: "Corners" },
-                { field: "padding", name: "Padding", units: ["boxPadding"] },
-                { field: "padding", name: "Unit", rule: "R8", unit: PADDING_UNIT },
-                { field: "backgroundShape", name: "Shape", rule: "R8" },
-            ],
-        },
-        {
-            name: "Gradient",
-            on: "gradient",
-            lines: [
-                { field: "gradientType", name: "Kind", rule: "R8" },
-                { field: "gradientColors", name: "Colors" },
-                { field: "gradientDirection", name: null, rule: "R8f" },
-            ],
-        },
-        {
-            name: "Margin",
-            lines: [
-                {
-                    field: "marginTop",
-                    name: "Margin",
-                    sides: ["marginTop", "marginRight", "marginBottom", "marginLeft"],
-                },
-            ],
-        },
-        {
-            name: "Border",
-            lines: [
-                { field: "borderWidth", name: "Width" },
-                { field: "borderColor", name: null },
-                { field: "borderOpacity", name: "Opacity" },
-                { field: "borderAlign", name: "Align", rule: "R8" },
-                { field: "lineBox", name: null, rule: "R8f" },
-            ],
-        },
-        {
-            name: "Badge",
-            lines: [
-                { field: "badge", name: "Badge", rule: "R9" },
-                { field: "icon", name: "Icon", rule: "R14" },
-                { field: "iconPosition", name: "Icon side", rule: "R8" },
-                { field: "progress", name: "Progress" },
-                { field: "maxNumber", name: "Max number" },
-                { field: "overflowSuffix", name: "Suffix", rule: "R14" },
-                { field: "smartOverflow", name: "Shorten large numbers" },
-            ],
-        },
-        {
             name: "Position",
+            divider: true,
             lines: [
                 { field: "attachOffset", name: "Distance" },
                 { field: "offsetX", name: "Offset", pair: "offsetY", letters: XY },
@@ -204,16 +148,20 @@ export const LABEL_RUBRIC: LabelRubric = {
                 { field: "shiftX", name: "Shift", pair: "shiftY", letters: XY },
                 { field: "shiftOf", name: "Shift of", rule: "R8" },
                 { field: "gapOf", name: "Gap of", rule: "R8" },
+                { field: "keepInView", name: "Keep in view" },
             ],
         },
         {
-            name: "Pointer",
-            on: "pointer",
+            name: "Letters",
             lines: [
-                { field: "pointerDirection", name: null, rule: "R8f" },
-                { field: "pointerWidth", name: "Size", pair: "pointerHeight", letters: ["W", "H"] },
-                { field: "pointerOffset", name: "Offset" },
-                { field: "pointerCurve", name: "Curved" },
+                { field: "opacity", name: "Opacity" },
+                { field: "lineHeight", name: "Line height" },
+                { field: "rotation", name: "Rotation" },
+                { field: "runAlign", name: null, rule: "R8f" },
+                // The letters' own stroke; the box's is Box stroke (ia-design: no look has two homes).
+                { field: "outline", name: "Letter outline" },
+                { field: "outlineWidth", name: "Letter outline width" },
+                { field: "outlineOpacity", name: "Letter outline opacity" },
             ],
         },
         {
@@ -230,49 +178,85 @@ export const LABEL_RUBRIC: LabelRubric = {
             ],
         },
         {
-            name: "Small",
+            name: "Background",
+            lines: [
+                { field: "background", name: null },
+                { field: "backgroundOpacity", name: "Opacity" },
+                { field: "backgroundShape", name: "Shape", rule: "R8" },
+                { field: "cornerRadius", name: "Corners" },
+                { field: "padding", name: "Padding", units: ["boxPadding"] },
+                { field: "padding", name: "Unit", rule: "R8", unit: PADDING_UNIT },
+                { field: "gradient", name: "Gradient" },
+                { field: "gradientType", name: "Gradient kind", rule: "R8" },
+                { field: "gradientColors", name: "Gradient colors" },
+                { field: "gradientDirection", name: null, rule: "R8f" },
+            ],
+        },
+        {
+            name: "Box stroke",
+            divider: true,
+            lines: [
+                { field: "borderWidth", name: "Width" },
+                { field: "borderColor", name: null },
+                { field: "borderOpacity", name: "Opacity" },
+                { field: "borderAlign", name: "Align", rule: "R8" },
+                { field: "lineBox", name: null, rule: "R8f" },
+                // Margin is the space outside the stroke, so it sits with it.
+                {
+                    field: "marginTop",
+                    name: "Margin",
+                    sides: ["marginTop", "marginRight", "marginBottom", "marginLeft"],
+                },
+            ],
+        },
+        {
+            name: "Label shadow",
+            lines: [
+                { field: "shadow", name: "Text shadow" },
+                { field: "shadowColor", name: "Text shadow color" },
+                { field: "shadowBlur", name: "Text shadow blur" },
+                { field: "shadowOffsetX", name: "Text shadow offset", pair: "shadowOffsetY", letters: XY },
+                { field: "panelShadow", name: "Box shadow" },
+                { field: "panelShadowColor", name: "Box shadow color" },
+                { field: "panelShadowBlur", name: "Box shadow blur" },
+                { field: "panelShadowOffsetX", name: "Box shadow offset", pair: "panelShadowOffsetY", letters: XY },
+            ],
+        },
+        {
+            name: "Callout",
+            on: "pointer",
+            lines: [
+                { field: "pointer", name: "Pointer" },
+                { field: "pointerDirection", name: null, rule: "R8f" },
+                { field: "pointerWidth", name: "Size", pair: "pointerHeight", letters: ["W", "H"] },
+                { field: "pointerOffset", name: "Offset" },
+                { field: "pointerCurve", name: "Curved" },
+            ],
+        },
+        {
+            name: "Badge",
+            lines: [
+                { field: "badge", name: "Badge", rule: "R9" },
+                { field: "icon", name: "Icon beside text", rule: "R14" },
+                { field: "iconPosition", name: "Icon side", rule: "R8" },
+                { field: "progress", name: "Progress" },
+                { field: "maxNumber", name: "Max number" },
+                { field: "overflowSuffix", name: "Suffix", rule: "R14" },
+                { field: "smartOverflow", name: "Shorten large numbers" },
+            ],
+        },
+        {
+            name: "Behavior",
             lines: [
                 { field: "minScreenSize", name: "Min size" },
                 { field: "declutter", name: "Declutter", rule: "R8" },
                 { field: "minNodeScreenSize", name: "Min node" },
-                { field: "keepInView", name: "Keep in view" },
-            ],
-        },
-        {
-            name: "Outline",
-            lines: [
-                { field: "outline", name: null },
-                { field: "outlineWidth", name: "Width" },
-                { field: "outlineOpacity", name: "Opacity" },
-            ],
-        },
-        {
-            name: "Text shadow",
-            on: "shadow",
-            lines: [
-                { field: "shadowColor", name: null },
-                { field: "shadowBlur", name: "Blur" },
-                { field: "shadowOffsetX", name: "Offset", pair: "shadowOffsetY", letters: XY },
-            ],
-        },
-        {
-            name: "Box shadow",
-            on: "panelShadow",
-            lines: [
-                { field: "panelShadowColor", name: null },
-                { field: "panelShadowBlur", name: "Blur" },
-                { field: "panelShadowOffsetX", name: "Offset", pair: "panelShadowOffsetY", letters: XY },
-            ],
-        },
-        {
-            name: "Motion",
-            lines: [
+                { field: "depthFade", name: "Depth fade" },
+                { field: "depthFadeNear", name: "Fade", pair: "depthFadeFar" },
                 { field: "animation", name: "Animation", rule: "R9" },
                 { field: "animationSpeed", name: "Speed" },
                 { field: "pickable", name: "Pickable" },
                 { field: "closeButton", name: "Close button" },
-                { field: "depthFade", name: "Depth fade" },
-                { field: "depthFadeNear", name: "Fade", pair: "depthFadeFar" },
             ],
         },
     ],

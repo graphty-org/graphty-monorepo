@@ -78,7 +78,7 @@ describe("Style panel v2 splits a padding into its sides from a line of its own"
         });
         const pop = await popoverOf(row, /^Node label settings/);
         await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Margin" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Box stroke" }));
         const margin = await lineOf(pop, "node.labelStyle.marginTop");
         assert.lengthOf(inputsOf(margin), 1, "one number while the sides are joined");
 

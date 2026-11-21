@@ -26,8 +26,14 @@ const BY_DATA = "By data";
 /** Combine's options, in today's words. */
 const COMBINE_OPTIONS = Object.entries(COMBINE_WORDS).map(([value, { word }]) => ({ value, name: word }));
 
+/** A sub-group "+" can add: its name, and whether a divider follows it in the menu (a rarer tier next). */
+interface ShellGroup {
+    readonly name: string;
+    readonly divider?: true;
+}
+
 /** Props for PopoverShell. */
-interface PopoverShellProps<G extends { readonly name: string }> {
+interface PopoverShellProps<G extends ShellGroup> {
     readonly ctx: RowContext;
     /** The thing's name with its kind ("Node border"). */
     readonly title: string;
@@ -73,7 +79,7 @@ interface PopoverShellProps<G extends { readonly name: string }> {
  * @param props.dimmedOf - see PopoverShellProps
  * @returns The contents
  */
-export function PopoverShell<G extends { readonly name: string }>({
+export function PopoverShell<G extends ShellGroup>({
     ctx,
     title,
     groups,
@@ -102,7 +108,19 @@ export function PopoverShell<G extends { readonly name: string }>({
             <AddButton
                 kind={ctx.side}
                 title={`${title.replace(/^(Node|Edge) /, "")} settings`}
-                groups={[addable.map((group) => ({ key: group.name, label: group.name, dimmed: dimmedOf?.(group) }))]}
+                groups={groups
+                    .reduce<G[][]>(
+                        (tiers, group) => {
+                            tiers.at(-1)?.push(group);
+                            return group.divider === true ? [...tiers, []] : tiers;
+                        },
+                        [[]],
+                    )
+                    .map((tier) =>
+                        tier
+                            .filter((group) => addable.includes(group))
+                            .map((group) => ({ key: group.name, label: group.name, dimmed: dimmedOf?.(group) })),
+                    )}
                 alwaysMenu
                 onAdd={(name) => {
                     setAdded((now) => [...now, name]);

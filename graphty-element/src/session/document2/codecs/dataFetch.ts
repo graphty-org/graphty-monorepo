@@ -14,10 +14,12 @@ import { sha256HexSync } from "@graphty/graph-io";
 
 import { fetchBytes } from "../../../data/source-bytes";
 import { isGraphtyError } from "../../../errors/GraphtyError";
+import { readAsLoaded, type ReadCause } from "../../sources/references";
 import type { GraphSession, LoadChoices, TableMapping } from "../../types";
 import type { JsonObject, SourceUnavailableReason } from "../types";
 import { copyTables, isPlainObject, isReserved, repeatedEdgeRows } from "./dataRefs";
 import { fileOf, handleOf } from "./fileHandles";
+import { mintUlid } from "./viewParts";
 
 /**
  * Why a referenced source supplied nothing: not found, no location to read it from, unreadable,
@@ -37,7 +39,12 @@ export type Refetched =
           /** Its node rows repeat a key, which `duplicateIds: "refuse"` leaves the source out for. */
           readonly repeats?: true;
       }
-    | { readonly unavailable: UnavailableReason; readonly size?: number };
+    | {
+          readonly unavailable: UnavailableReason;
+          readonly size?: number;
+          /** What a failed read threw, for a network source read again. */
+          readonly cause?: ReadCause;
+      };
 
 /** What an open gives the fetch. */
 export interface RefetchOptions {
@@ -328,16 +335,70 @@ async function reimport(
 }
 
 /**
+ * Read a network source again by the request history its `origin.ledger` records (spec 4.1.2 rule
+ * 7), as the session reads a load it keeps as a reference: its source, params, endpoint and
+ * recorded options, in a scratch session. Every read is a new copy, with a new copy id.
+ * @param record - The network source's record.
+ * @param how - The refresh's options.
+ * @returns The rows, or why there are none: `needs-file` when the record holds no ledger.
+ */
+async function networkRead(record: JsonObject, how: RefetchOptions): Promise<Refetched> {
+    const { ledger } = record.origin as JsonObject;
+    if (!isPlainObject(ledger) || typeof ledger.source !== "string") {
+        return { unavailable: "needs-file" };
+    }
+
+    const { mode: _mode, ...options } = isPlainObject(ledger.options) ? ledger.options : {};
+    const read = await readAsLoaded(
+        {
+            kind: "server",
+            config: isPlainObject(ledger.config) ? ledger.config : {},
+            network: {
+                source: ledger.source,
+                endpoint: typeof ledger.endpoint === "string" ? ledger.endpoint : null,
+                options,
+            },
+        },
+        how.scratch,
+        undefined,
+    );
+    if ("reason" in read) {
+        const unavailable = read.reason === "not-found" ? read.reason : "read";
+        return read.cause === undefined ? { unavailable } : { unavailable, cause: read.cause };
+    }
+
+    return {
+        copyId: mintUlid(),
+        ...copyTables(
+            read.nodes.map((node) => ownColumns(node)),
+            read.edges.map((edge) => ownColumns(edge)),
+        ),
+    };
+}
+
+/**
  * Read one referenced record again, remembering what it gave: bytes that changed since the save
- * hold it (`copy-changed`) unless the caller accepts them.
+ * hold it (`copy-changed`) unless the caller accepts them. A network source is read by its ledger,
+ * and only when the caller accepts a new copy (a refresh).
  * @param record - The record.
  * @param how - The open's options.
  * @param duplicateIds - The `duplicateIds` of the `join.add` that builds it, if it carries one.
+ * @param read - Its bytes, when another source over the same bytes already reads them.
  */
-export async function refetch(record: JsonObject, how: RefetchOptions, duplicateIds?: unknown): Promise<void> {
+export async function refetch(
+    record: JsonObject,
+    how: RefetchOptions,
+    duplicateIds?: unknown,
+    read?: ReturnType<typeof bytesOf>,
+): Promise<void> {
+    if (record.kind === "network") {
+        REFETCHED.set(record, how.accept === true ? await networkRead(record, how) : { unavailable: "copy-changed" });
+        return;
+    }
+
     let bytes: Awaited<ReturnType<typeof bytesOf>>;
     try {
-        bytes = await bytesOf(record, how);
+        bytes = await (read ?? bytesOf(record, how));
     } catch (error) {
         how.signal?.throwIfAborted();
         const large = isGraphtyError(error) && error.code === "E_TOO_LARGE";
@@ -404,5 +465,41 @@ export async function refetchSources(value: JsonObject, how: RefetchOptions): Pr
         return;
     }
 
-    await Promise.all(referenced.map((record) => refetch(record, how, own.get(record.id))));
+    // Sources over one file's bytes (one copy id at one address: one collection or sheet each)
+    // read them once, so they are refreshed together; a file picked for any of them serves them all.
+    const groups = new Map<string, JsonObject[]>();
+    for (const record of referenced) {
+        const key = sharedBytesKey(record);
+        if (key !== null) {
+            groups.set(key, [...(groups.get(key) ?? []), record]);
+        }
+    }
+    const reads = new Map<string, ReturnType<typeof bytesOf>>();
+    const readOf = (record: JsonObject): ReturnType<typeof bytesOf> => {
+        const key = sharedBytesKey(record);
+        if (key === null) {
+            return bytesOf(record, how);
+        }
+
+        let read = reads.get(key);
+        if (read === undefined) {
+            const members = groups.get(key) ?? [record];
+            read = bytesOf(members.find((member) => how.files?.[String(member.id)] !== undefined) ?? record, how);
+            reads.set(key, read);
+        }
+
+        return read;
+    };
+    await Promise.all(referenced.map((record) => refetch(record, how, own.get(record.id), readOf(record))));
+}
+
+/**
+ * What a referenced source's bytes are shared by: its copy id and its address.
+ * @param record - The record.
+ * @returns The key, or null for a source with no copy id or no `url` or `path`.
+ */
+function sharedBytesKey(record: JsonObject): string | null {
+    const origin = record.origin as JsonObject;
+    const where = [origin.url, origin.path].find((each): each is string => typeof each === "string");
+    return typeof origin.copy === "string" && where !== undefined ? `${origin.copy}\n${where}` : null;
 }

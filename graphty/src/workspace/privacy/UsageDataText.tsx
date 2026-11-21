@@ -10,7 +10,7 @@ const OWNER_HEADLINE = "Your data is yours, but please help us.";
 const OWNER_TEXT =
     "We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions.";
 
-/** What is collected, with the usage-analytics experiment off. */
+/** What is collected where the page sends PostHog nothing. */
 const COLLECTED = [
     "A replay of the moments before an error, with every node name, attribute value, label and file content masked.",
     "Anonymous task events with their timings: file loaded, first graph drawn, measure run, result read, style added, export, undo.",
@@ -18,10 +18,10 @@ const COLLECTED = [
     "A feedback widget.",
 ];
 
-/** What Share usage data adds to the anonymous counts everyone sends, with the usage-analytics experiment on. */
+/** What Share usage data adds to the anonymous counts everyone sends, where the page sends PostHog. */
 const ANALYTICS_COLLECTED = [
     "A replay of some sessions, with all text, typing, labels, file names and the graph hidden (PostHog).",
-    "Which buttons, panels, commands and steps you use, by id only, and how you use the canvas: selecting, dragging, zooming (PostHog).",
+    "Which buttons, panels, commands and steps you use, by id only, and how you use the canvas: selecting and dragging (PostHog).",
     "Page speed.",
     "Your answers to a short survey, if you answer it, including any text you type in its Other box.",
     "Error reports, with a masked replay of the moments before the error (Sentry).",

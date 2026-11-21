@@ -313,6 +313,13 @@ export type GraphtyErrorCode =
      */
     | "E_PARSE_FAILED"
     /**
+     * A workbook source's `sheet` option names no sheet of the workbook. `details` are
+     * `{ sheet, available }`: the name asked for, and every sheet's name in tab order. The file
+     * itself was read fine. The caller loads again naming one of the available sheets, or leaves
+     * `sheet` out to read the first.
+     */
+    | "E_SHEET_NOT_FOUND"
+    /**
      * A graphty project or document file (one `session.project.save` writes) was handed to a data
      * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
      * opened. `details` are `{ kind, use: "project.open" }`: the document's `kind`, and the verb
@@ -1209,6 +1216,10 @@ export type GraphtyWarningCode =
      * reference back as they were), or a save kept it as a copy. `params.source` is the load's key
      * and `params.reason` is `not-found`, `denied` or `unreadable`. On an open, `params.name` (its
      * name, when it has one) and `params.url` (its address, for a URL load) say which it was.
+     * When the read threw, `params.cause` is what it threw: the error's code (a `GraphtyErrorCode`,
+     * or `unknown` for an error that is not a `GraphtyError`), and `params["cause.<name>"]` each
+     * plain value of its `details` (`cause.status`, `cause.url`, ...; `cause.name`, the error's
+     * name, for `unknown`). Absent when nothing was thrown (`denied`, or a copy that changed).
      */
     | "W_SOURCE_UNAVAILABLE"
     /**
@@ -1324,6 +1335,7 @@ const CODE_TABLE = {
     E_LOCKED: "E_LOCKED",
     E_FETCH_FAILED: "E_FETCH_FAILED",
     E_PARSE_FAILED: "E_PARSE_FAILED",
+    E_SHEET_NOT_FOUND: "E_SHEET_NOT_FOUND",
     E_PROJECT_FILE_AS_DATA: "E_PROJECT_FILE_AS_DATA",
     E_EDGE_ENDPOINTS_UNRESOLVED: "E_EDGE_ENDPOINTS_UNRESOLVED",
     E_ID_MISSING: "E_ID_MISSING",

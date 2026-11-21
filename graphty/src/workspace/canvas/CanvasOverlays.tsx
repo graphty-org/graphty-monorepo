@@ -141,7 +141,7 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
                     if (groups !== null) {
                         store.set({ announcement: groups });
                     }
-                    const notice = runNotice(session, change.run.id);
+                    const notice = runNotice(session, change.run.id, name);
                     if (notice !== null) {
                         store.set({ notice });
                     }

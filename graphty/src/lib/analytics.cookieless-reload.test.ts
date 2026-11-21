@@ -46,7 +46,6 @@ describe("a sharing reader's reload", () => {
     it("keeps the shared id when the anonymous instance is created first", async () => {
         const site = {
             site: "production",
-            features: ["usage-analytics"],
             analytics: { posthogKey: KEY, posthogHost: "https://us.i.posthog.com" },
         };
         const config = await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);

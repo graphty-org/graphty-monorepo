@@ -14,6 +14,7 @@ import { Scene } from "@babylonjs/core/scene.js";
 import type { NodeStyleConfig } from "../config";
 import { GraphtyLogger, type Logger } from "../logging";
 import { DEFAULT_GLOW_COLOR, DEFAULT_OUTLINE_COLOR } from "../session/styles/channels";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import type { MeshCache } from "./MeshCache";
 import { readColor } from "./readColor";
 
@@ -85,7 +86,7 @@ const GRAPH_RENDERING_GROUP = 0;
  * Babylon writes every highlighted mesh's opacity as 1; the per-mesh opacity is set just before
  * each mesh is drawn into the glow map, which is the one hook the layer offers for it.
  */
-class NodeGlowLayer extends HighlightLayer {
+export class NodeGlowLayer extends HighlightLayer {
     /** The opacity each glowing source mesh is drawn at, by uniqueId. */
     readonly alphas = new Map<number, number>();
 
@@ -140,11 +141,11 @@ export class NodeEffects {
         scene.metadata ??= {};
         // Only inside the main pass: a render target drawn before it (the layers' own glow maps)
         // and the next frame's clear keep the full write mask.
-        let main = scene.metadata.stencilMainPass as { on: boolean } | undefined;
+        let main = (scene.metadata as GraphSceneMetadata).stencilMainPass;
         if (main === undefined) {
             const state = { on: false };
             main = state;
-            scene.metadata.stencilMainPass = state;
+            (scene.metadata as GraphSceneMetadata).stencilMainPass = state;
             scene.onBeforeDrawPhaseObservable.add(() => {
                 state.on = true;
                 engine.setStencilMask(0x00);
@@ -194,7 +195,7 @@ export class NodeEffects {
      */
     static setOutlineWidth(scene: Scene, width: number | undefined): void {
         scene.metadata ??= {};
-        scene.metadata.outlineWidth = width;
+        (scene.metadata as GraphSceneMetadata).outlineWidth = width;
         const outer = this.ringOuterOf(this.outlineWidthOf(scene, undefined));
         for (const mesh of scene.meshes) {
             if (
@@ -215,7 +216,7 @@ export class NodeEffects {
      * @returns The width, as a multiple of the ring's own.
      */
     static outlineWidthOf(scene: Scene, width: number | undefined): number {
-        const shared: unknown = scene.metadata?.outlineWidth;
+        const shared: unknown = (scene.metadata as GraphSceneMetadata | null)?.outlineWidth;
         return width ?? (typeof shared === "number" ? shared : 1);
     }
 
@@ -471,7 +472,7 @@ export class NodeEffects {
      * @returns The glow layer for the scene
      */
     private static getOrCreateGlowLayer(scene: Scene): NodeGlowLayer {
-        const existingLayer = scene.metadata?.glowLayer as NodeGlowLayer | undefined;
+        const existingLayer = (scene.metadata as GraphSceneMetadata | null)?.glowLayer;
         if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
             return existingLayer;
         }
@@ -479,7 +480,7 @@ export class NodeEffects {
         const glowLayer = new NodeGlowLayer(this.GLOW_LAYER_NAME, scene);
 
         scene.metadata ??= {};
-        scene.metadata.glowLayer = glowLayer;
+        (scene.metadata as GraphSceneMetadata).glowLayer = glowLayer;
 
         // Strengths are re-shared every frame, not only when a glow is applied: a node that
         // moves to another source mesh (a strength edit) leaves the old one with no instances,
@@ -558,7 +559,7 @@ export class NodeEffects {
             // NO LAYER IS CREATED HERE. Asking a node not to glow must not cost a full-screen
             // post-process, which is what calling getOrCreateGlowLayer in this branch would do --
             // and it would do it for every node of every graph, since most nodes have no glow.
-            const existingLayer = scene.metadata?.glowLayer as NodeGlowLayer | undefined;
+            const existingLayer = (scene.metadata as GraphSceneMetadata | null)?.glowLayer;
             if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
                 this.glowStrengths(scene).delete(renderedMesh);
                 existingLayer.alphas.delete(renderedMesh.uniqueId);
@@ -575,9 +576,9 @@ export class NodeEffects {
      */
     private static glowStrengths(scene: Scene): Map<Mesh, { strength: number; alpha: number }> {
         scene.metadata ??= {};
-        scene.metadata.glowStrengths ??= new Map<Mesh, { strength: number; alpha: number }>();
+        (scene.metadata as GraphSceneMetadata).glowStrengths ??= new Map<Mesh, { strength: number; alpha: number }>();
 
-        return scene.metadata.glowStrengths as Map<Mesh, { strength: number; alpha: number }>;
+        return (scene.metadata as GraphSceneMetadata).glowStrengths as Map<Mesh, { strength: number; alpha: number }>;
     }
 
     /**
@@ -661,14 +662,14 @@ export class NodeEffects {
      * @param scene - The Babylon.js scene
      */
     static disposeGlowLayer(scene: Scene): void {
-        const existingLayer = scene.metadata?.glowLayer as NodeGlowLayer | undefined;
+        const existingLayer = (scene.metadata as GraphSceneMetadata | null)?.glowLayer;
         if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
             existingLayer.dispose();
         }
 
         if (scene.metadata) {
-            scene.metadata.glowLayer = undefined;
-            scene.metadata.glowStrengths = undefined;
+            (scene.metadata as GraphSceneMetadata).glowLayer = undefined;
+            (scene.metadata as GraphSceneMetadata).glowStrengths = undefined;
         }
     }
 }

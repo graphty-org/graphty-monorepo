@@ -330,3 +330,28 @@ export async function touchDragCancelled(element: Element, distance: number): Pr
     await session.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
     await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
 }
+
+/**
+ * Drags a file from outside the window over the middle of an element and holds it there, as a
+ * reader brings a file in from the desktop.
+ * @param element - What the drag is over.
+ * @param file - The file's path on disk.
+ */
+export async function dragFileOver(element: Element, file: string): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const at = middleOf(element);
+    const data = { items: [], files: [file], dragOperationsMask: 1 };
+    await session.send("Input.dispatchDragEvent", { type: "dragEnter", ...at, data });
+    await session.send("Input.dispatchDragEvent", { type: "dragOver", ...at, data });
+}
+
+/**
+ * Lets go of a file dragged over an element with `dragFileOver`, dropping it there.
+ * @param element - Where it is dropped.
+ * @param file - The file's path on disk.
+ */
+export async function dropFileOn(element: Element, file: string): Promise<void> {
+    const session = cdp() as unknown as { send: Send };
+    const data = { items: [], files: [file], dragOperationsMask: 1 };
+    await session.send("Input.dispatchDragEvent", { type: "drop", ...middleOf(element), data });
+}

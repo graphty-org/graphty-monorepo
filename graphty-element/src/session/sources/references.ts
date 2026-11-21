@@ -17,10 +17,11 @@ import { sha256Hex } from "@graphty/graph-io";
 import type { GeneratorParams } from "@graphty/graph-samples/generators";
 
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
+import type { GraphtyErrorCode } from "../../errors/codes";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { NetworkApiInternal } from "../network";
 import { pairKey } from "../replace";
-import type { CodedFact } from "../shared";
+import type { CodedFact, CodedFactParam } from "../shared";
 import type { DataSourceInput, GraphSession, LoadChoices, LoadedSource, SourceNoPathReason } from "../types";
 import { type LoadFacts, paramsOf, redactUrl, type ReferenceEntry, type RemovedRows, sampleAddress } from "./member";
 import type { SourceLoadRecord } from "./types";
@@ -36,6 +37,40 @@ type ReferenceProblem = CodedFact<"W_SOURCE_UNAVAILABLE" | "W_SOURCE_CHANGED">;
 
 /** Why a reference could not be read again. */
 type UnavailableReason = "not-found" | "denied" | "unreadable";
+
+/**
+ * What a failed read threw, as facts: a `GraphtyError`'s code and the plain values of its
+ * `details`, or `unknown` and the error's `name` for anything else.
+ */
+export interface ReadCause {
+    readonly code: GraphtyErrorCode | "unknown";
+    readonly params: Readonly<Record<string, CodedFactParam>>;
+}
+
+/** A read that failed: why, and what it threw (absent when the network gate refused it). */
+export interface ReadFailure {
+    readonly reason: UnavailableReason;
+    readonly cause?: ReadCause;
+}
+
+/**
+ * A failed read's cause as `W_SOURCE_UNAVAILABLE` params: `cause` is its code and
+ * `cause.<name>` each of its params.
+ * @param cause - The cause, or undefined.
+ * @returns The params, empty without one.
+ */
+export function causeParams(cause: ReadCause | undefined): Record<string, CodedFactParam> {
+    if (cause === undefined) {
+        return {};
+    }
+
+    const out: Record<string, CodedFactParam> = { cause: cause.code };
+    for (const [name, value] of Object.entries(cause.params)) {
+        out[`cause.${name}`] = value;
+    }
+
+    return out;
+}
 
 /**
  * Whether a value is a plain JSON object.
@@ -200,18 +235,18 @@ function pageOrigin(): string | undefined {
  * @param network - The gate, or undefined to fetch without asking (the page's own load).
  * @returns The records, or why they could not be read.
  */
-async function readAsLoaded(
+export async function readAsLoaded(
     how: LoadHow,
     scratch: () => GraphSession,
     network: NetworkApiInternal | undefined,
-): Promise<ReadRows | UnavailableReason> {
+): Promise<ReadRows | ReadFailure> {
     const url = await fetchedUrl(how);
     // The page's own origin is never asked about, as the page's own sample loads are not: a fetch
     // there tells no other site anything.
     if (network !== undefined && url !== undefined && url.origin !== pageOrigin()) {
         const allowed = await network.ask({ url, kind: "data", by: "file", layerIds: [] });
         if (!allowed) {
-            return "denied";
+            return { reason: "denied" };
         }
     }
 
@@ -223,7 +258,7 @@ async function readAsLoaded(
         const sha256 = await sha256Hex(new TextEncoder().encode(JSON.stringify({ nodes, edges })));
         return { nodes, edges, directed: session.status.directed, sha256 };
     } catch (error) {
-        return unavailableReason(error);
+        return readFailure(error);
     } finally {
         session.dispose();
     }
@@ -268,17 +303,40 @@ async function loadInto(session: GraphSession, how: LoadHow): Promise<void> {
 }
 
 /**
- * Why a read failed: the address answered that nothing is there, or anything else.
- * @param error - What the read threw.
- * @returns The reason.
+ * Whether a value can be a coded fact's param.
+ * @param value - The value.
+ * @returns True for a plain value or a list of them.
  */
-function unavailableReason(error: unknown): UnavailableReason {
+function isParam(value: unknown): value is CodedFactParam {
+    const plain = (v: unknown): boolean =>
+        v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean";
+    return plain(value) || (Array.isArray(value) && value.every((v) => plain(v)));
+}
+
+/**
+ * Why a read failed: the address answered that nothing is there, or anything else; and what it threw.
+ * @param error - What the read threw.
+ * @returns The failure.
+ */
+function readFailure(error: unknown): ReadFailure {
     if (!(error instanceof GraphtyError)) {
-        return "unreadable";
+        const name = error instanceof Error ? error.name : typeof error;
+        return { reason: "unreadable", cause: { code: "unknown", params: { name } } };
     }
 
-    const { status } = (error.details ?? {}) as { status?: unknown };
-    return error.code === "E_UNKNOWN_DATASET" || status === 404 || status === 410 ? "not-found" : "unreadable";
+    const details = error.details ?? {};
+    // A fetched address can carry a credential in its query, so it is redacted as an entry writes it.
+    const params = Object.fromEntries(
+        Object.entries(details)
+            .filter(([, value]) => isParam(value))
+            .map(([name, value]) => [
+                name,
+                name === "url" && typeof value === "string" ? redactUrl(value).address : value,
+            ]),
+    ) as Record<string, CodedFactParam>;
+    const { status } = details as { status?: unknown };
+    const notFound = error.code === "E_UNKNOWN_DATASET" || status === 404 || status === 410;
+    return { reason: notFound ? "not-found" : "unreadable", cause: { code: error.code, params } };
 }
 
 /**
@@ -501,8 +559,11 @@ export async function planLeaveOut(
     const problems: ReferenceProblem[] = [];
     for (const { key, how, ask } of input.loads) {
         const read = await readAsLoaded(how, input.scratch, ask ? input.network : undefined);
-        if (typeof read === "string") {
-            problems.push({ code: "W_SOURCE_UNAVAILABLE", params: { source: key, reason: read } });
+        if ("reason" in read) {
+            problems.push({
+                code: "W_SOURCE_UNAVAILABLE",
+                params: { source: key, reason: read.reason, ...causeParams(read.cause) },
+            });
             continue;
         }
 
@@ -675,7 +736,7 @@ async function readEntries(
     for (const entry of entries) {
         const id = String(entry.id);
         const read = await readAsLoaded(howOf(entry, input.data), input.scratch, input.network);
-        if (typeof read === "string") {
+        if ("reason" in read) {
             unread.add(id);
             // The load is not in the opened graph, so its name and address come with the fact.
             const url = addressOf(entry);
@@ -683,7 +744,8 @@ async function readEntries(
                 code: "W_SOURCE_UNAVAILABLE",
                 params: {
                     source: id,
-                    reason: read,
+                    reason: read.reason,
+                    ...causeParams(read.cause),
                     ...(typeof entry.name === "string" ? { name: entry.name } : {}),
                     ...(url === undefined ? {} : { url }),
                 },

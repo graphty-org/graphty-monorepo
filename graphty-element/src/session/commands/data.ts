@@ -284,8 +284,11 @@ export interface DataImportCommand {
     readonly source: ImportSource;
     /** `"replace"` (the default) empties the graph first, in the same step; `"merge"` adds to it. */
     readonly mode?: "replace" | "merge";
-    /** `"recommended"` also chooses a layout for what was loaded, in the same step. */
-    readonly layout?: "recommended" | "keep";
+    /**
+     * `"recommended"` also chooses a layout for what was loaded, in the same step; `"placed"` draws
+     * it where its data placed every node (the fixed layout), else leaves the layout as it is.
+     */
+    readonly layout?: "recommended" | "placed" | "keep";
     /** Rows a draft already read: loaded in place of reading the source again, on redo too. */
     readonly held?: HeldRows;
     /** An edge naming a node no node record holds: made (the default), or left out. */
@@ -1017,15 +1020,15 @@ export function importFact(command: DataImportCommand): CodedFact<"data.import">
  * The import's `layout` choice: the command's own, else the one its source config names (a load
  * call's options and `dataSourceConfig` carry it there, beside the reader's options).
  * @param command - the import
- * @returns `"recommended"` or `"keep"`
+ * @returns `"recommended"`, `"placed"` or `"keep"`
  * @throws A `GraphtyError` with `E_BAD_COMMAND` when the config names any other value.
  */
-function layoutChoiceOf(command: DataImportCommand): "recommended" | "keep" {
+function layoutChoiceOf(command: DataImportCommand): "recommended" | "placed" | "keep" {
     const layout = command.layout ?? command.source.config?.layout ?? "keep";
-    if (layout !== "recommended" && layout !== "keep") {
+    if (layout !== "recommended" && layout !== "placed" && layout !== "keep") {
         throw new GraphtyError({
             code: "E_BAD_COMMAND",
-            message: `A load's layout is "recommended" or "keep", not ${JSON.stringify(layout)}.`,
+            message: `A load's layout is "recommended", "placed" or "keep", not ${JSON.stringify(layout)}.`,
             source: "data",
             details: { reason: "bad-layout-choice", layout: JSON.stringify(layout) },
         });
@@ -1058,8 +1061,9 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         // The scene units one unit of the file's lengths is drawn as, once its styles are drawn:
         // the stored drawing a recommended fixed layout keeps takes the same unit (issue #2322).
         let sceneScale: number | null = null;
-        if (layoutChoiceOf(command) === "recommended") {
-            adviseLayout(ctx, () => sceneScale);
+        const choice = layoutChoiceOf(command);
+        if (choice !== "keep") {
+            adviseLayout(ctx, () => sceneScale, choice === "placed");
         }
 
         const replacing = command.mode !== "merge" && command.measure === undefined;
@@ -1083,7 +1087,7 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
             await settleEarlierLayers(earlier, ctx);
         }
 
-        if (layoutChoiceOf(command) === "recommended") {
+        if (choice !== "keep") {
             // Whether a Graphviz engine can draw the file is a question for a Worker, so it is
             // asked here, before the step seals and the recommendation is read.
             await ctx.services.layoutPrepare?.();
@@ -1192,12 +1196,14 @@ async function repickEdges(picked: readonly PickedEdges[], ctx: UndoableContext)
  * @param ctx - The import's context.
  * @param sceneScale - The scene units one unit of the file's lengths was drawn as, read once the
  *     import is done: a fixed layout draws the file's stored positions in the same unit.
+ * @param placedOnly - Apply only the fixed layout, which keeps where the data placed every node;
+ *     any other advice leaves the layout as it is.
  */
-function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): void {
+function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null, placedOnly: boolean): void {
     const advise = ctx.services.layoutAdvice;
     ctx.after("layout:recommended", (dispatch) => {
         const advice = advise?.();
-        if (advice === undefined) {
+        if (advice === undefined || (placedOnly && advice.id !== "fixed")) {
             return;
         }
 

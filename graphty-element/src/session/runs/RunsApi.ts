@@ -1787,6 +1787,7 @@ class Runs implements SessionRunsApi {
             },
             entry: () => this.dispatcher.state.runs.get(id),
             numberedAfter: () => this.sameQuestion(id)?.result,
+            keptLayers: () => this.bindings(id),
         };
         const run = new ManagedRun<RunResult>(definition, surroundings);
 

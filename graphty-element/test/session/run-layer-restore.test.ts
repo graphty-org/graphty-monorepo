@@ -113,4 +113,39 @@ describe("a run whose layer was deleted", () => {
         assert.lengthOf(session.runs.layers(run.runId)?.present ?? [], 1);
         session.dispose();
     });
+
+    it("a re-run with other settings says it drew with the layer as it stands", async () => {
+        const { session } = await leiden();
+        const first = session.runs.start("leiden", { resolution: 1 }, { as: "groups" });
+        await first;
+        await session.styles.settled();
+        const layer = session.runs.layers(first.id)?.present[0] ?? "";
+        assert.notInclude(
+            first.caveats.facts.map((fact) => fact.code),
+            "layers.kept",
+            "a first completion paints",
+        );
+
+        const again = session.runs.start("leiden", { resolution: 2 }, { as: "groups" });
+        await again;
+        await session.styles.settled();
+        assert.deepInclude(again.caveats.facts, { code: "layers.kept", params: { layers: [layer] } });
+        session.dispose();
+    });
+
+    it("a re-run that puts a deleted layer back reports nothing kept", async () => {
+        const { session } = await leiden();
+        const run = session.runs.start("leiden", { resolution: 1 }, { as: "groups" });
+        await run;
+        await session.styles.settled();
+        await session.styles.remove(session.runs.layers(run.id)?.present[0] ?? "");
+
+        const again = session.runs.start("leiden", { resolution: 2 }, { as: "groups", restoreLayer: true });
+        await again;
+        assert.notInclude(
+            again.caveats.facts.map((fact) => fact.code),
+            "layers.kept",
+        );
+        session.dispose();
+    });
 });

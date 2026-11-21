@@ -213,7 +213,14 @@ import {
     writeSourcesMember,
 } from "./sources/member";
 import { pendingSourceLoads, targetOf } from "./sources/pending";
-import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
+import {
+    heldCounts,
+    type Provenance,
+    PROVENANCE_VALUE,
+    provenanceIndex,
+    withoutSource,
+    withSupplied,
+} from "./sources/provenance";
 import { type LoadHow, type NetworkRecord, refusalOf } from "./sources/references";
 import { refreshReport } from "./sources/refreshReport";
 import { rowsCopies, type StepsAct } from "./sources/steps/acts";
@@ -3827,7 +3834,6 @@ export class SessionData implements SessionDataApi {
         const records = new Map(this.ledger.loads().map((record) => [record.key, record]));
         const catalog = new Map(sourceDescriptors().map((entry) => [entry.id, entry.features]));
 
-        const space = edgeSpaceOf(snapshot);
         // Each load belongs to one entry: a node two loads share names both, or only the first.
         const taken = new Set<string>();
         // An entry saved before loads had keys gets one by its place in the list.
@@ -3868,14 +3874,7 @@ export class SessionData implements SessionDataApi {
                     ...(loadKey === undefined ? {} : { loadKey }),
                     ...loadFacts(records.get(loadKey ?? ""), catalog),
                     ...addressOf(kind, each.config, records.get(loadKey ?? "")),
-                    counts: Object.freeze(
-                        supplied === undefined
-                            ? { ...each.added }
-                            : {
-                                  nodes: supplied.nodes.filter((id) => snapshot.ids.has(id)).length,
-                                  edges: supplied.edges.filter((id) => space.indexOf(id) !== INVALID_INDEX).length,
-                              },
-                    ),
+                    counts: Object.freeze(supplied === undefined ? { ...each.added } : heldCounts(supplied, snapshot)),
                 });
             }),
         );
@@ -6341,6 +6340,22 @@ export class SessionData implements SessionDataApi {
         const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
             ?.input;
         return (token === undefined ? undefined : this.kept.get(token)) ?? this.openedInputs.get(key);
+    }
+
+    /**
+     * Keep the loads an opened version 2 file saved by reference as references, as
+     * {@link SessionData.setCopy} would, so `copies()` and `sources()` list them so and a save keeps
+     * them so. Internal: the version 2 data section calls it as it builds the open data.
+     * @param keys - The loads' keys (their source ids).
+     */
+    keepReferences(keys: Iterable<SourceKey>): void {
+        for (const key of keys) {
+            const facts = this.loadFacts.get(key) ?? { loadedAt: new Date().toISOString(), mode: "merge" as const };
+            // Read from a file, as a version 1 open's facts are: a fetch of it asks the network gate.
+            this.loadFacts.set(key, { ...facts, copy: "reference", opened: true });
+        }
+
+        this.copyTick++;
     }
 
     /**

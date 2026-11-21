@@ -14,7 +14,7 @@ import { sha256HexSync } from "@graphty/graph-io";
 
 import { fetchBytes } from "../../../data/source-bytes";
 import { isGraphtyError } from "../../../errors/GraphtyError";
-import { readAsLoaded } from "../../sources/references";
+import { readAsLoaded, type ReadCause } from "../../sources/references";
 import type { GraphSession, LoadChoices, TableMapping } from "../../types";
 import type { JsonObject, SourceUnavailableReason } from "../types";
 import { copyTables, isPlainObject, isReserved, repeatedEdgeRows } from "./dataRefs";
@@ -39,7 +39,12 @@ export type Refetched =
           /** Its node rows repeat a key, which `duplicateIds: "refuse"` leaves the source out for. */
           readonly repeats?: true;
       }
-    | { readonly unavailable: UnavailableReason; readonly size?: number };
+    | {
+          readonly unavailable: UnavailableReason;
+          readonly size?: number;
+          /** What a failed read threw, for a network source read again. */
+          readonly cause?: ReadCause;
+      };
 
 /** What an open gives the fetch. */
 export interface RefetchOptions {
@@ -357,8 +362,9 @@ async function networkRead(record: JsonObject, how: RefetchOptions): Promise<Ref
         how.scratch,
         undefined,
     );
-    if (typeof read === "string") {
-        return { unavailable: read === "not-found" ? read : "read" };
+    if ("reason" in read) {
+        const unavailable = read.reason === "not-found" ? read.reason : "read";
+        return read.cause === undefined ? { unavailable } : { unavailable, cause: read.cause };
     }
 
     return {

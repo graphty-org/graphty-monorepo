@@ -134,6 +134,32 @@ describe("the Path popover, on the real element", () => {
         });
     });
 
+    it("a path from a node to itself marks that node, and a re-run says it kept the layer's style", async () => {
+        const { session, element } = await openFriends();
+        element.focus();
+        await userEvent.keyboard("p");
+        let form = await pathForm();
+        await userEvent.type(within(form).getByRole("combobox", { name: "From node" }), "Ava");
+        await userEvent.click(await within(form).findByRole("option", { name: "Ava" }));
+        await userEvent.type(within(form).getByRole("combobox", { name: "To node" }), "Lee");
+        await userEvent.click(await within(form).findByRole("option", { name: "Lee" }));
+        await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+        await screen.findByText("Shortest path added: Ava to Lee, 2 hops");
+
+        await userEvent.keyboard("p");
+        form = await pathForm();
+        const to = within(form).getByRole("combobox", { name: "To node" });
+        await userEvent.clear(to);
+        await userEvent.type(to, "Ava");
+        await userEvent.click(await within(form).findByRole("option", { name: "Ava" }));
+        await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+        await screen.findByText("Shortest path updated, layer style kept: Ava to Ava, 0 hops");
+        const run = session.runs.list().find((r) => r.algorithm === "shortest-path");
+        assert.equal(run?.params.target, "Ava");
+        assert.deepInclude(run?.result?.node("Ava"), { onPath: true, order: 0 });
+        assert.deepInclude(run?.result?.node("Lee"), { onPath: false });
+    });
+
     it("Enter on a typed name picks it and moves on: From to To, To to Find path", async () => {
         const { element } = await openFriends();
         element.focus();
@@ -216,7 +242,7 @@ describe("the Path popover, on the real element", () => {
         form = await pathForm();
         assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "All" }).checked);
         await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
-        await screen.findByText("Shortest path added: Lee to Dev, 3 hops", undefined);
+        await screen.findByText("Shortest path updated, layer style kept: Lee to Dev, 3 hops", undefined);
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
         const madeWith = within(await inspector.findByRole("group", { name: "Made with" }));
         const row = madeWith.getByText("Follow").parentElement;

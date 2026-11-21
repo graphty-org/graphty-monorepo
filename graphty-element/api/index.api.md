@@ -9305,7 +9305,7 @@ export class UpdateManager implements Manager {
     get awaitsLanding(): boolean;
     bindViewMasks(masks: ViewMasks | null): void;
     // @internal
-    buildPlainRow(id: NodeIdType_2): void;
+    buildPlainRows(ids: readonly NodeIdType_2[]): void;
     cameraHeld: boolean;
     // @internal
     columnFraming(): ColumnFraming | undefined;

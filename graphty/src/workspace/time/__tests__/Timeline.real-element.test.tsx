@@ -160,11 +160,13 @@ function readout(dock: HTMLElement): string {
     return within(dock).getByTestId("time-readout").textContent ?? "";
 }
 
-describe("the timeline on the real element", () => {
-    beforeAll(async () => {
-        await page.viewport(1366, 768);
-    });
+// Both blocks: in the project's default 1200 x 900 frame the side panels cover the canvas toolbar's
+// Timeline button, so a test of the second block run alone (-t) never landed its click (#9650).
+beforeAll(async () => {
+    await page.viewport(1366, 768);
+});
 
+describe("the timeline on the real element", () => {
     it("designates the time field from the Data place's Fields, and the dock shows the data's span", async () => {
         const { session } = await open();
         assert.isNull(screen.queryByRole("region", { name: "Timeline" }));

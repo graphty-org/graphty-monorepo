@@ -19,16 +19,13 @@ import {
 import type { RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 
-/** One number of each item: its list channel, its name, and whether it reads as a percent. */
+/**
+ * One number of each item: its list channel and its name. Whether an item is a fraction or a share of the whole is
+ * graphty-element's fact (`ChannelDescriptor.listItems`); a fraction reads as a percent.
+ */
 export interface ListNumber {
     readonly channel: Channel;
     readonly name: string;
-    readonly percent?: boolean;
-    /**
-     * A share of the whole (a pie's slice, a stripe's band): a fraction graphty-element caps at what the items
-     * before it left, read as a percent; an item left unset splits what remains evenly.
-     */
-    readonly share?: boolean;
 }
 
 /** A list thing's list: the legend, the colors (one an item) and each item's numbers. */
@@ -47,8 +44,8 @@ export const LISTS: Readonly<Record<string, ListSpec>> = {
         item: "Slice",
         colors: "node.pieColors",
         numbers: [
-            { channel: "node.pieSizes", name: "Share", percent: true, share: true },
-            { channel: "node.pieOpacities", name: "Opacity", percent: true },
+            { channel: "node.pieSizes", name: "Share" },
+            { channel: "node.pieOpacities", name: "Opacity" },
         ],
     },
     stripes: {
@@ -56,8 +53,8 @@ export const LISTS: Readonly<Record<string, ListSpec>> = {
         item: "Stripe",
         colors: "node.stripeColors",
         numbers: [
-            { channel: "node.stripeSizes", name: "Share", percent: true, share: true },
-            { channel: "node.stripeOpacities", name: "Opacity", percent: true },
+            { channel: "node.stripeSizes", name: "Share" },
+            { channel: "node.stripeOpacities", name: "Opacity" },
         ],
     },
     chart: {

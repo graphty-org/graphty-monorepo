@@ -1017,6 +1017,14 @@ export interface ChannelDescriptor {
      */
     readonly listOf?: "color" | "number";
     /**
+     * The range of each item of a number list (`listOf` `"number"`) whose items are fractions: 0 to 1 for a
+     * gradient's stops and a pie's or stripes' opacities. With `share`, each item is that share of the whole (a
+     * pie's slice, a stripe's band): capped at what the items before it left, and an item left unset splits what
+     * remains evenly. Absent on every other channel.
+     * @since 3.65.0
+     */
+    readonly listItems?: { readonly min: number; readonly max: number; readonly share?: true };
+    /**
      * The values of another channel this one is drawn with, on a channel that does something only
      * while that channel holds one of them: a gradient's direction only on a linear gradient, a
      * dash's length only on a dashed or dotted line. An unset `channel` counts as its `default`. A
@@ -5589,6 +5597,18 @@ const LIST_OF: ReadonlyMap<string, "color" | "number"> = new Map<string, "color"
     ["edge.gradientStops", "number"],
 ]);
 
+/** The range of each item of a list of fractions: see {@link ChannelDescriptor.listItems}. */
+const FRACTION: NonNullable<ChannelDescriptor["listItems"]> = { min: 0, max: 1 };
+const SHARE: NonNullable<ChannelDescriptor["listItems"]> = { min: 0, max: 1, share: true };
+const ITEM_RANGES: ReadonlyMap<string, NonNullable<ChannelDescriptor["listItems"]>> = new Map([
+    ["node.gradientStops", FRACTION],
+    ["node.pieSizes", SHARE],
+    ["node.pieOpacities", FRACTION],
+    ["node.stripeSizes", SHARE],
+    ["node.stripeOpacities", FRACTION],
+    ["edge.gradientStops", FRACTION],
+]);
+
 /** Which channels are drawn only with some values of another: see {@link ChannelDescriptor.appliesWhen}. */
 const APPLIES_WHEN: ReadonlyMap<string, NonNullable<ChannelDescriptor["appliesWhen"]>> = new Map([
     ["node.gradientDirection", { channel: "node.gradientKind", values: ["linear"] }],
@@ -6002,6 +6022,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         const step = descriptor.step ?? stepOf(descriptor);
         const modifies = MODIFIES.get(descriptor.channel);
         const listOf = LIST_OF.get(descriptor.channel);
+        const listItems = ITEM_RANGES.get(descriptor.channel);
         const appliesWhen = APPLIES_WHEN.get(descriptor.channel);
         const needs = NEEDS.get(descriptor.channel);
         const start = START.get(descriptor.channel);
@@ -6020,6 +6041,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(suggestedMax === undefined ? {} : { suggestedMax }),
                 ...(modifies === undefined ? {} : { modifies }),
                 ...(listOf === undefined ? {} : { listOf }),
+                ...(listItems === undefined ? {} : { listItems }),
                 ...(appliesWhen === undefined ? {} : { appliesWhen }),
                 ...(drawnWhen.length === 0 ? {} : { drawnWhen: Object.freeze(drawnWhen) }),
                 ...(needs === undefined ? {} : { needs }),

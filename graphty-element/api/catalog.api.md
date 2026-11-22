@@ -653,6 +653,11 @@ export interface ChannelDescriptor {
     readonly follows?: Channel;
     readonly group: ChannelGroup;
     readonly integer?: boolean;
+    readonly listItems?: {
+        readonly min: number;
+        readonly max: number;
+        readonly share?: true;
+    };
     readonly listOf?: "color" | "number";
     readonly max?: number;
     readonly min?: number;

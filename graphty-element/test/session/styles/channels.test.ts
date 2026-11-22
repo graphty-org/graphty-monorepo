@@ -1359,6 +1359,13 @@ describe("ChannelDescriptor.drawnWhen", () => {
         }
     });
 
+    it("says which list items are fractions, and which are shares of the whole", () => {
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.pieSizes"].listItems, { min: 0, max: 1, share: true });
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.stripeSizes"].listItems, { min: 0, max: 1, share: true });
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.stripeOpacities"].listItems, { min: 0, max: 1 });
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.chartValues"].listItems, "a chart's values are any numbers");
+    });
+
     it("says which channels draw in one view only, and that an animated edge is a straight solid line", () => {
         assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.zIndex"].drawnWhen, [{ dimension: "2d" }]);
         assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.unlit"].drawnWhen, [{ dimension: "3d" }]);

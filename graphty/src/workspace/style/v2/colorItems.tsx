@@ -14,19 +14,20 @@ import React from "react";
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
 import { writeIn } from "../row";
-import { drawnItems, type ListNumber, type ListSpec, nextColor, writeList } from "./lists";
+import { drawnItems, type ListSpec, nextColor, writeList } from "./lists";
 import { LineFrame, NumberLine } from "./RubricLine";
 
 /**
- * A number descriptor for one item of a number list.
+ * A number descriptor for one item of a number list: graphty-element's item range (`listItems`), a fraction
+ * stepping by hundredths.
  * @param descriptor - the list channel.
- * @param number - the number's spec.
  * @returns the descriptor a number field reads.
  */
-function itemDescriptor(descriptor: ChannelDescriptor, number: ListNumber): ChannelDescriptor {
-    return number.percent === true
-        ? { ...descriptor, accepts: "number", min: 0, max: 1, step: 0.01 }
-        : { ...descriptor, accepts: "number", min: 0 };
+function itemDescriptor(descriptor: ChannelDescriptor): ChannelDescriptor {
+    const range = descriptor.listItems;
+    return range === undefined
+        ? { ...descriptor, accepts: "number", min: 0 }
+        : { ...descriptor, accepts: "number", min: range.min, max: range.max, step: 0.01 };
 }
 
 /**
@@ -123,13 +124,18 @@ export function colorItems({
                                     return null;
                                 }
                                 const items = numbers[number.channel];
-                                const fill = number.percent === true && number.share !== true ? 1 : 1 / colors.length;
+                                const range = descriptor.listItems;
+                                // An unset share splits what is left evenly, so a new item starts at an even split;
+                                // a fraction (an opacity) starts at its top.
+                                const fill =
+                                    range !== undefined && range.share !== true ? range.max : 1 / colors.length;
+                                const percent = range?.max === 1;
                                 return (
                                     <NumberLine
                                         key={number.channel}
-                                        descriptor={itemDescriptor(descriptor, number)}
+                                        descriptor={itemDescriptor(descriptor)}
                                         label={`${name} ${number.name.toLowerCase()}`}
-                                        percent={number.percent === true}
+                                        percent={percent}
                                         value={at < items.length ? Number(items[at]) : undefined}
                                         onWrite={(next) => {
                                             setNumber(number.channel, at, next, fill);

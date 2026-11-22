@@ -132,7 +132,9 @@ export interface TimeSource {
  * @beta
  */
 export interface TimeField {
+    /** The nodes' time column; absent when nodes carry no designated time. */
     readonly nodes?: TimeSource;
+    /** The edges' time column; absent when edges carry no designated time. */
     readonly edges?: TimeSource;
 }
 
@@ -173,8 +175,11 @@ export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.uni
  * @beta
  */
 export interface TimeFieldResult {
+    /** The field now designated; null when none is. */
     readonly field: TimeField | null;
+    /** How many nodes have a usable time; absent when the field is not on nodes. */
     readonly nodes?: TimeCounts;
+    /** How many edges have a usable time; absent when the field is not on edges. */
     readonly edges?: TimeCounts;
     /**
      * `time.unparsed` (`{ path, count, examples }`; in a column mostly of date text, a bare number
@@ -193,9 +198,13 @@ export interface TimeFieldResult {
  * @beta
  */
 export interface TimeExtent {
+    /** The first instant, in milliseconds since the epoch (or ordinal units for ordinal time). */
     readonly from: number;
+    /** Just past the last instant, in the same units as `from`. */
     readonly to: number;
+    /** How many nodes have a usable time. */
     readonly nodes: TimeCounts;
+    /** How many edges have a usable time. */
     readonly edges: TimeCounts;
 }
 
@@ -205,9 +214,13 @@ export interface TimeExtent {
  * @beta
  */
 export interface TimeBin {
+    /** Where the bar starts, inclusive, in the units of {@link TimeExtent.from}. */
     readonly start: number;
+    /** Where the bar ends, exclusive. */
     readonly end: number;
+    /** How many nodes count in the bar. */
     readonly nodes: number;
+    /** How many edges count in the bar. */
     readonly edges: number;
     /** The bins' width, when they were made by a step or a `maxCount` budget. */
     readonly step?: TimeStep;
@@ -243,8 +256,11 @@ export interface TimeBinsOptions {
      * edges at the given nodes count too, so a node selection over edge time shows its edges' activity.
      */
     readonly of?: {
+        /** The nodes to count. */
         readonly nodes?: readonly NodeId[];
+        /** The edges to count. */
         readonly edges?: readonly EdgeId[];
+        /** Whether the edges at the given nodes count too. */
         readonly incident?: boolean;
     };
     /** The IANA zone calendar bins align in; default the current window's, else the setting's. */
@@ -256,7 +272,9 @@ export interface TimeBinsOptions {
  * @beta
  */
 export interface TimeIds {
+    /** The node ids. */
     readonly nodes: readonly NodeId[];
+    /** The edge ids. */
     readonly edges: readonly EdgeId[];
 }
 
@@ -265,7 +283,9 @@ export interface TimeIds {
  * @beta
  */
 export interface TimeChanges {
+    /** What came into the window. */
     readonly entered: TimeIds;
+    /** What went out of the window. */
     readonly left: TimeIds;
 }
 
@@ -274,7 +294,9 @@ export interface TimeChanges {
  * @beta
  */
 export interface TimeCountPair {
+    /** How many nodes. */
     readonly nodes: number;
+    /** How many edges. */
     readonly edges: number;
 }
 
@@ -285,11 +307,15 @@ export interface TimeCountPair {
 export interface TimeStepEvent {
     /** Step number from the start of the data, by the window's step. */
     readonly index: number;
+    /** Where the window now starts, inclusive, in the units of {@link TimeExtent.from}. */
     readonly from: number;
+    /** Where the window now ends, exclusive. */
     readonly to: number;
     /** What every filter keeps inside the window: what is drawn as in it, never a visibility count. */
     readonly visible: TimeCountPair;
+    /** How many came into the window on this move. */
     readonly entered: TimeCountPair;
+    /** How many went out of the window on this move. */
     readonly left: TimeCountPair;
     /** Elements of a timed kind with no usable time: kept in every window unless `missing` is `"outside"`. */
     readonly untimed: TimeCountPair;
@@ -308,8 +334,11 @@ export interface TimeStepEvent {
  * @beta
  */
 export type TimeWindowInput = Omit<TimeWindow, "attribute" | "from" | "to"> & {
+    /** The attribute carrying the instant; absent, the designated field's. */
     readonly attribute?: Path;
+    /** The first instant inside the window: a number, or a string `Date.parse` understands. */
     readonly from?: number | string;
+    /** The first instant past the window, in the same form as `from`. */
     readonly to?: number | string;
 };
 
@@ -486,7 +515,12 @@ export interface TimeApi {
         readonly nodes?: readonly NodeId[];
         readonly edges?: readonly EdgeId[];
         readonly incident?: boolean;
-    }): { readonly from: number; readonly to: number } | null;
+    }): {
+        /** Where the span starts, inclusive. */
+        readonly from: number;
+        /** Just past where the span ends. */
+        readonly to: number;
+    } | null;
     /**
      * The ids that entered and left the visible graph on the last move made through this API.
      * @returns The ids; empty before the first move.

@@ -60,6 +60,7 @@ import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ImportReport, LoadReport } from "../data/report";
+import { readAxes } from "../data/seedPosition";
 import {
     DETECTION_SAMPLE,
     fetchBytes,
@@ -1154,6 +1155,9 @@ const ROLE_FIELDS: Readonly<Record<"node" | "edge", Partial<Readonly<Record<Colu
         weight: "nodeWeightPath",
         time: "nodeTimePath",
         ...LOCATION_KIND_FIELDS,
+        x: "nodeXPath",
+        y: "nodeYPath",
+        z: "nodeZPath",
     },
     edge: {
         source: "edgeSrcIdPath",
@@ -7578,6 +7582,9 @@ export class SessionData implements SessionDataApi {
         for (const kind of LOCATION_KINDS) {
             add("node", kind, knownFields[LOCATION_KIND_FIELDS[kind]]);
         }
+        add("node", "x", knownFields.nodeXPath);
+        add("node", "y", knownFields.nodeYPath);
+        add("node", "z", knownFields.nodeZPath);
 
         // A field the configuration names outright (a `setRole`) wins over what the last load
         // read; one left at its default reads as the load did.
@@ -7794,6 +7801,7 @@ export class SessionData implements SessionDataApi {
         const steps: SessionCommand[] = [
             ...(target === null ? [] : [{ op: "data.steps-set" as const, edit: target }]),
             { op: "config.set", values: { data: { knownFields: patch } } },
+            ...this.placedBy(kind, { ...knownFields, ...patch }, role),
         ];
         await this.send(
             {
@@ -7804,6 +7812,32 @@ export class SessionData implements SessionDataApi {
             },
             "give a column a role",
         );
+    }
+
+    /**
+     * The step placing every node at the position its x, y and z columns give, when a role change
+     * on a node column gives one of those roles, so the rows already loaded are placed as a load
+     * places them (`readSeedPosition`): scene units, the file's scaled by `positionScale`.
+     * @param kind - The column's kind.
+     * @param known - `data.knownFields` as the role change leaves it.
+     * @param role - The role given.
+     * @returns The `positions.set` step, or none.
+     */
+    private placedBy(
+        kind: "node" | "edge",
+        known: Readonly<Record<string, unknown>>,
+        role: ColumnRole | null,
+    ): SessionCommand[] {
+        if (kind !== "node" || (role !== "x" && role !== "y" && role !== "z")) {
+            return [];
+        }
+        const axes = known as { nodeXPath?: string | null; nodeYPath?: string | null; nodeZPath?: string | null };
+        const scale = typeof known.positionScale === "number" ? known.positionScale : 1;
+        const entries = this.nodes({ scope: "graph" }).flatMap((row) => {
+            const at = readAxes(row, axes);
+            return at === null ? [] : [{ id: row.id, x: at[0] * scale, y: at[1] * scale, z: at[2] * scale }];
+        });
+        return entries.length === 0 ? [] : [{ op: "positions.set", entries }];
     }
 
     /**

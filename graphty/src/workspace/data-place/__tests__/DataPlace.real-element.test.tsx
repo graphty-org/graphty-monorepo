@@ -13,6 +13,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import football from "../../../../public/samples/football.gml?raw";
+import { openColumnMenu } from "../../../test/column-header";
 import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
@@ -254,6 +255,30 @@ describe("the Data place's sidebar on the real element", () => {
             1,
         );
         await userEvent.keyboard("{Escape}");
+    });
+
+    it("places the nodes from the columns given the X and Y roles in the header's Role menu", async () => {
+        const session = await openDataPlace();
+        drop(new File(["id,px,py\nalpha,1,2\nbeta,3,4\n"], "points.csv"));
+        await waitFor(() => {
+            assert.lengthOf(session.data.nodes(), 2);
+        });
+        for (const [column, role] of [
+            ["px", "X"],
+            ["py", "Y"],
+        ] as const) {
+            await openColumnMenu("node", column);
+            await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+            await userEvent.click(await screen.findByRole("menuitemradio", { name: role }));
+        }
+        await waitFor(() => {
+            const known = session.config.data.knownFields as Record<string, unknown>;
+            assert.strictEqual(known.nodeXPath, "px");
+            assert.strictEqual(known.nodeYPath, "py");
+            const out = { x: 0, y: 0, z: 0 };
+            session.positions.read(session.snapshot().ids.indexOf("beta"), out);
+            assert.deepEqual([out.x, out.y], [3, 4]);
+        });
     });
 
     it("offers only number columns as the weight", async () => {

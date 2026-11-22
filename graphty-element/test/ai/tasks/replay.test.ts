@@ -9,7 +9,7 @@ import { assert, describe, it } from "vitest";
 
 import { ScriptedAssistant } from "../../helpers/assistant";
 import { STAND_IN_RENDERER } from "../../helpers/llm-regression-harness";
-import { type Driver, resultsOf, runTask, taskSession } from "./kit";
+import { type Call, type Driver, resultsOf, runTask, taskSession } from "./kit";
 import { TASKS } from "./tasks";
 
 describe("assistant tasks, replayed", () => {
@@ -17,15 +17,16 @@ describe("assistant tasks, replayed", () => {
         assert.strictEqual(new Set(TASKS.map((task) => task.id)).size, TASKS.length);
     });
 
-    it("minimum-spanning-tree takes the tree shown by a filter as shown", async () => {
-        // A real model's answer (#7699): show only the tree's roads instead of painting them.
-        const task = TASKS.find((each) => each.id === "minimum-spanning-tree")!;
+    /**
+     * Plays one message's calls for a task through the scripted engine and runs the task's check.
+     * @param id - The task id.
+     * @param calls - The calls a real model sent, one per turn.
+     * @returns The task's metrics.
+     */
+    async function replay(id: string, calls: Call[]): Promise<Awaited<ReturnType<typeof runTask>>> {
+        const task = TASKS.find((each) => each.id === id)!;
         const session = await taskSession(task.dataset);
         const assistant = new ScriptedAssistant(session, { graph: STAND_IN_RENDERER });
-        const calls = [
-            { tool: "run_algorithm", args: { name: "kruskal", options: { weight: "data.weight" } } },
-            { tool: "filter", args: { action: "show_only", on: "edge", where: "results.kruskal.in == true" } },
-        ];
         const driver: Driver = async (prompt) => {
             const { result } = await assistant.say(prompt, ...calls.map((call) => [call]));
             return {
@@ -39,17 +40,22 @@ describe("assistant tasks, replayed", () => {
                 turns: calls.length + 1,
             };
         };
-        const metrics = await runTask(task, driver, session);
+        return runTask(task, driver, session);
+    }
+
+    it("minimum-spanning-tree takes the tree shown by a filter as shown", async () => {
+        // A real model's answer (#7699): show only the tree's roads instead of painting them.
+        const metrics = await replay("minimum-spanning-tree", [
+            { tool: "run_algorithm", args: { name: "kruskal", options: { weight: "data.weight" } } },
+            { tool: "filter", args: { action: "show_only", on: "edge", where: "results.kruskal.in == true" } },
+        ]);
         assert.isTrue(metrics.success, metrics.failure);
         assert.strictEqual(metrics.wrongTools, 0, metrics.calls.join(", "));
     });
 
     it("style-a-typed-subset takes a blue other than #0000ff", async () => {
         // A real model's answer (#8836): the servers painted #2563EB, a blue.
-        const task = TASKS.find((each) => each.id === "style-a-typed-subset")!;
-        const session = await taskSession(task.dataset);
-        const assistant = new ScriptedAssistant(session, { graph: STAND_IN_RENDERER });
-        const calls = [
+        const metrics = await replay("style-a-typed-subset", [
             {
                 tool: "style",
                 args: {
@@ -59,21 +65,26 @@ describe("assistant tasks, replayed", () => {
                     where: "data.type == 'server'",
                 },
             },
-        ];
-        const driver: Driver = async (prompt) => {
-            const { result } = await assistant.say(prompt, calls);
-            return {
-                prompt,
-                calls,
-                results: [],
-                text: "",
-                code: result.code ?? "",
-                inputTokens: 0,
-                outputTokens: 0,
-                turns: 2,
-            };
-        };
-        const metrics = await runTask(task, driver, session);
+        ]);
+        assert.isTrue(metrics.success, metrics.failure);
+    });
+
+    it("highlight-only-the-path takes a red other than #ff0000", async () => {
+        // A real model's answer (#9510): the path highlighted #e41a1c, the Set1 red.
+        const metrics = await replay("highlight-only-the-path", [
+            {
+                tool: "run_algorithm",
+                args: { name: "shortest-path", exact: true, options: { source: "Medici", target: "Strozzi" } },
+            },
+            {
+                tool: "style",
+                args: {
+                    action: "highlight",
+                    run: "latest",
+                    values: { "edge.width": 3, "edge.color": "#e41a1c", "node.color": "#e41a1c" },
+                },
+            },
+        ]);
         assert.isTrue(metrics.success, metrics.failure);
     });
 

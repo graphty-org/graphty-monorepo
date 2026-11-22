@@ -36,6 +36,7 @@ import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
 import { respelledPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -2212,40 +2213,45 @@ function graphExtraText(snapshot: GraphSnapshot, key: string): string | null {
  * The GEXF exporter; `capabilities` describes the default 1.3 output.
  * @category Built-in formats
  */
-export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
-    format: GEXF_FORMAT,
-    options: Object.freeze(["version"]),
-    capabilities: CAPABILITIES_1_3,
-    styles: Object.freeze({ capabilities: GEXF_STYLE_CAPABILITIES }),
-    /**
-     * Pre-flight: what export() would lose.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the loss notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: GexfWriteOptions): readonly LossNote[] {
-        const styled = gexfStyledExport(snapshot, options?.styles);
-        return Object.freeze([...planExport(styled?.snapshot ?? snapshot, options).notes, ...(styled?.notes ?? [])]);
-    },
-    /**
-     * Write the snapshot as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: GexfWriteOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(writeGexf(snapshot, options));
-    },
-    /**
-     * Write the snapshot as one string.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the document
-     */
-    async exportToString(snapshot: GraphSnapshot, options?: GexfWriteOptions): Promise<string> {
-        return joinText(writeGexf(snapshot, options));
-    },
-});
+export const gexfExporter: GraphExporter<GexfExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: GEXF_FORMAT,
+        options: Object.freeze(["version"]),
+        capabilities: CAPABILITIES_1_3,
+        styles: Object.freeze({ capabilities: GEXF_STYLE_CAPABILITIES }),
+        /**
+         * Pre-flight: what export() would lose.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the loss notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: GexfWriteOptions): readonly LossNote[] {
+            const styled = gexfStyledExport(snapshot, options?.styles);
+            return Object.freeze([
+                ...planExport(styled?.snapshot ?? snapshot, options).notes,
+                ...(styled?.notes ?? []),
+            ]);
+        },
+        /**
+         * Write the snapshot as UTF-8 chunks.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the chunks
+         */
+        export(snapshot: GraphSnapshot, options?: GexfWriteOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(writeGexf(snapshot, options));
+        },
+        /**
+         * Write the snapshot as one string.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the document
+         */
+        async exportToString(snapshot: GraphSnapshot, options?: GexfWriteOptions): Promise<string> {
+            return joinText(writeGexf(snapshot, options));
+        },
+    }),
+);
 
 /**
  * The capabilities of a 1.2 export, for callers that pass `version: "1.2"`.

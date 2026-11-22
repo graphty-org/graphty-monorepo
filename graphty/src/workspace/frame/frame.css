@@ -11,7 +11,9 @@ body {
     display: flex;
     flex-direction: column;
     /* Fills #root, which is the visible height (100dvh less the safe areas): iPad Safari's 100vh is
-       taller than what it shows, which put the toolbar and the settings button below the screen. */
+       taller than what it shows, which put the toolbar and the settings button below the screen.
+       The 100dvh is for a host that is no flex column (a story, a test): in #root it shrinks to fit. */
+    height: 100dvh;
     flex: 1 1 auto;
     min-height: 0;
     /* Clipped, not hidden: a hidden box is still a scroller a wheel or focus can move. */

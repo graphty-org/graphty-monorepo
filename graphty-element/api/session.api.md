@@ -7072,6 +7072,10 @@ export interface SessionEventMap {
     };
     "visibility:changed": VisibilityChange;
     // @beta
+    "visibility:draft-changed": {
+        readonly open: readonly string[];
+    };
+    // @beta
     "visibility:not-drawn-changed": {
         readonly notDrawn: readonly HiddenNotDrawn[];
     };

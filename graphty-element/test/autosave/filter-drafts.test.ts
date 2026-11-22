@@ -35,7 +35,11 @@ it("open drafts come back after a restore, uncommitted, and commit as the reader
 
     const second = await baseSession();
     const reader = new Autosaver({ key: KEY, session: second, store, clock: new FakeClock(), locks: new FakeLocks() });
+    // A view of the open drafts hears that autosave opened them again.
+    const heard: (readonly string[])[] = [];
+    second.on("visibility:draft-changed", ({ open }) => heard.push(open));
     await reader.restore(id, true);
+    assert.deepStrictEqual(heard.at(-1), ["dept", "new"]);
     const { visibility } = second;
 
     assert.deepStrictEqual(

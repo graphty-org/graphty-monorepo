@@ -958,6 +958,12 @@ export interface VisibilitySources extends FilterSources {
      * @param notDrawn - What is not drawn now.
      */
     readonly onNotDrawn?: (notDrawn: readonly HiddenNotDrawn[]) => void;
+    /**
+     * Told when a filter draft opens, changes, is committed or canceled, with the ids of the
+     * conditions the open drafts hold.
+     * @param open - The ids.
+     */
+    readonly onDraftsChanged?: (open: readonly string[]) => void;
 }
 
 /** The selection as select conditions reach it. */
@@ -2422,6 +2428,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         draftsChanged.forEach((listener) => {
             listener();
         });
+        sources.onDraftsChanged?.([...drafts.keys()].map((each) => each.condition.id));
     };
     /** The selection before a filter change dropped what it hides, by the visibility it reached. */
     const droppedFrom = new WeakMap<

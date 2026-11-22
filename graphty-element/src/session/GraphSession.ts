@@ -4195,6 +4195,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         onNotDrawn: (notDrawn) => {
             publish(watchers, "visibility:not-drawn-changed", { notDrawn });
         },
+        onDraftsChanged: (open) => {
+            publish(watchers, "visibility:draft-changed", { open });
+        },
         // Not behind the experiment: a saved window's bounds are instants of the parsed column.
         instants: (path: Path) => timeInternals?.instants(path) ?? null,
         boundZone,

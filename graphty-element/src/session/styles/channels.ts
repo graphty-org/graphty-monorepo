@@ -5682,6 +5682,8 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     // "In 2D every node is drawn unlit already, so it changes nothing there."
     ["node.unlit", [ONLY_3D]],
     ["node.flat", [ONLY_3D]],
+    // The 2D view looks straight down on the layout, so a node's depth is never seen there.
+    ["node.depth", [ONLY_3D]],
     // "Drawn only for a flat layout in the 3D view."
     ["edge.lift", [ONLY_3D]],
     // "An edge animates only where it is a straight solid line."

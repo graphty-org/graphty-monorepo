@@ -1381,8 +1381,10 @@ export class Node implements ModelUser {
         }
 
         const tolerance = radius * 0.01;
+        // The 2D view looks straight down: a sphere of any depth is a circle there, and its edges stop at that circle.
+        const flat = this.context.is2D();
 
-        if (Math.abs(extendSize.y - radius) > tolerance || Math.abs(extendSize.z - radius) > tolerance) {
+        if (Math.abs(extendSize.y - radius) > tolerance || (!flat && Math.abs(extendSize.z - radius) > tolerance)) {
             return null;
         }
 
@@ -1394,7 +1396,7 @@ export class Node implements ModelUser {
 
         const { scaling } = this.#anchor;
 
-        if (Math.abs(scaling.x - scaling.y) > 1e-6 || Math.abs(scaling.x - scaling.z) > 1e-6) {
+        if (Math.abs(scaling.x - scaling.y) > 1e-6 || (!flat && Math.abs(scaling.x - scaling.z) > 1e-6)) {
             return null;
         }
 

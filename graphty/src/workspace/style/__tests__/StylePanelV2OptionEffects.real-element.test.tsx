@@ -3,7 +3,7 @@
  * option that would change nothing is never offered as if it did. An unset choice shows the value drawn now, so
  * picking it is never mistaken for an option that does nothing; a value graphty-element draws only in the other
  * view (`valueViews`), a Combine mode that paints what Replace does (`combineDrawn`), a Combine over a 2D-only value
- * in 3D (`drawnWhen`) are each dimmed from graphty-element's own facts; and a border's
+ * in 3D and a node depth in 2D (`drawnWhen`) are each dimmed from graphty-element's own facts; and a border's
  * Center and Inside move the ring on a solid drawn at its own proportions (the default icosphere), as on a flat shape.
  */
 
@@ -71,7 +71,7 @@ function lineDim(pop: HTMLElement, line: string): string | undefined {
 describe("Style panel v2: options that would change nothing", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("the Size pop-over shows the drawn choice and dims Pivot and Multiply where they draw nothing", async () => {
+    it("the Size pop-over shows the drawn choice and dims Pivot, Multiply and Depth where they draw nothing", async () => {
         const { session, id } = await openProject();
         await session.styles.update(id, { set: { "node.color": "#E8590C", "node.size": 2 } });
         await session.styles.settled();
@@ -98,11 +98,13 @@ describe("Style panel v2: options that would change nothing", () => {
         assert.isUndefined(optionDim(pop, "Node size space", "Screen"));
         assert.match(optionDim(pop, "Combine", "Multiply") ?? "", /^Same as Replace over a .+ of 1$/);
         assert.isUndefined(optionDim(pop, "Combine", "Add"), "Add adds to the size beneath");
+        assert.equal(lineDim(pop, "node.depth"), "3D only");
         await userEvent.keyboard("{Escape}");
 
         await switchView("3D");
         const again = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
         assert.isUndefined(optionDim(again, "Node size space", "Pivot"), "Pivot draws in 3D");
+        assert.isUndefined(lineDim(again, "node.depth"), "so does depth");
         await userEvent.keyboard("{Escape}");
     });
 

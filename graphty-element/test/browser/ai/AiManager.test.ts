@@ -3,21 +3,29 @@
  * @module test/ai/AiManager.test
  */
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 
 import { AiConfigError } from "../../../src/ai/agents";
 import { AiManager } from "../../../src/ai/AiManager";
 import type { Graph } from "../../../src/Graph";
-import { createMockGraphContext } from "../../helpers/mock-graph-context";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 
 describe("AiManager", () => {
     let manager: AiManager;
-    let mockGraph: Graph;
+    let graph: Graph;
+
+    // A real graph: the manager reads the element it is handed, not a copy of its members.
+    beforeAll(async () => {
+        graph = await createTestGraph();
+    });
+
+    afterAll(() => {
+        cleanupTestGraph(graph);
+    });
 
     beforeEach(() => {
-        mockGraph = createMockGraphContext({ nodeCount: 10, edgeCount: 15 });
         manager = new AiManager();
-        manager.init(mockGraph, { provider: "mock" });
+        manager.init(graph, { provider: "mock" });
     });
 
     afterEach(() => {
@@ -34,7 +42,7 @@ describe("AiManager", () => {
 
         it("initializes with the generated tools under toolset: generated", () => {
             const generated = new AiManager();
-            generated.init(mockGraph, { provider: "mock", toolset: "generated" });
+            generated.init(graph, { provider: "mock", toolset: "generated" });
             const commands = generated.getRegisteredCommands();
             assert.ok(commands.includes("query"), "should include the query tool");
             assert.ok(commands.includes("layout"), "should include the layout tool");
@@ -50,7 +58,7 @@ describe("AiManager", () => {
         it("rejects helpers that cannot run before building anything, as enableAiControl does", () => {
             const another = new AiManager();
             assert.throws(() => {
-                another.init(mockGraph, {
+                another.init(graph, {
                     provider: "mock",
                     agents: [{ name: "counter", purpose: "Count nodes.", commands: ["paint"] }],
                 });
@@ -62,7 +70,7 @@ describe("AiManager", () => {
             const anotherManager = new AiManager();
             // Note: In real usage, you'd need API keys for non-mock providers
             // For this test, we just verify the manager accepts the provider type
-            anotherManager.init(mockGraph, { provider: "mock" });
+            anotherManager.init(graph, { provider: "mock" });
             assert.strictEqual(anotherManager.getStatus().state, "ready");
             anotherManager.dispose();
         });
@@ -85,7 +93,7 @@ describe("AiManager", () => {
     describe("API key management", () => {
         it("keeps every key the page gave out of a saved conversation, a replaced one too", async () => {
             const remembering = new AiManager();
-            remembering.init(createMockGraphContext({ nodeCount: 3, edgeCount: 2 }), {
+            remembering.init(graph, {
                 provider: "mock",
                 history: "memory",
             });

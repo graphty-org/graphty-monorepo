@@ -4,15 +4,15 @@
  * table says where each field sits (the row's common lines, the pop-over's Main, the sub-groups
  * its "+" adds), which control it draws and the display name or glyph of an option where the
  * element's own name is not what the panel shows. What a field takes is read from graphty-element's
- * `LABEL_STYLE_DESCRIPTORS`; the channel that varies a field by data from its `labelFieldOf`.
+ * `LABEL_STYLE_DESCRIPTORS`; the channel that varies a field by data from its `textFieldOf`.
  */
 
 import {
     type Channel,
     channelsFor,
     LABEL_STYLE_DESCRIPTORS,
-    labelFieldOf,
     type LabelStyleFieldDescriptor,
+    textFieldOf,
 } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
 
@@ -397,7 +397,7 @@ const FLATS = new Map<Channel, ReadonlyMap<LabelField, Channel>>();
 
 /**
  * The channel that writes one field of a label style on its own, and that a field varies through
- * (`node.labelColor` for `node.labelStyle`'s color), from graphty-element's `labelFieldOf`.
+ * (`node.labelColor` for `node.labelStyle`'s color), from graphty-element's `textFieldOf`.
  * @param side - nodes or edges.
  * @param style - the label style channel.
  * @param field - the field.
@@ -408,11 +408,54 @@ export function flatOf(side: "node" | "edge", style: Channel, field: LabelField)
     if (fields === undefined) {
         fields = new Map(
             channelsFor(side).flatMap(({ channel }) => {
-                const found = labelFieldOf(channel);
+                const found = textFieldOf(channel);
                 return found?.into === style ? [[found.field, channel] as const] : [];
             }),
         );
         FLATS.set(style, fields);
     }
     return fields.get(field);
+}
+
+/**
+ * The fields a label line's by-data link binds, each through its own channel (`node.labelColor` for `color`,
+ * graphty-element's `textFieldOf`): the field it edits (or its first other unit with a channel), then its
+ * pair's. A field with no channel of its own does not vary by data in graphty-element, and a Unit line edits no
+ * value. Shared by the line and the style inventory test.
+ * @param side - nodes or edges.
+ * @param style - the text kind's label style channel.
+ * @param line - the line.
+ * @param editing - the field the line edits now, when one of its units holds the value.
+ * @returns each field and its channel.
+ */
+export function linkedFields(
+    side: "node" | "edge",
+    style: Channel,
+    line: LabelLineSpec,
+    editing: LabelField = line.field,
+): readonly { readonly field: LabelField; readonly channel: Channel }[] {
+    if (line.unit !== undefined) {
+        return [];
+    }
+    const units = [editing, ...[line.field, ...(line.units ?? [])].filter((each) => each !== editing)];
+    return [...units, ...(line.pair === undefined ? [] : [line.pair])].flatMap((field) => {
+        const channel = flatOf(side, style, field);
+        return channel === undefined ? [] : [{ field, channel }];
+    });
+}
+
+/**
+ * Every field of a text kind that varies by data from a line's by-data link: `linkedFields` over every line of
+ * the label rubric.
+ * @param side - nodes or edges.
+ * @param style - the text kind's label style channel.
+ * @returns the fields.
+ */
+export function varyingFields(side: "node" | "edge", style: Channel): ReadonlySet<LabelField> {
+    const lines = [
+        ...LABEL_RUBRIC.common,
+        ...LABEL_RUBRIC.main,
+        ...LABEL_RUBRIC.groups.flatMap((group) => group.lines),
+    ];
+    return new Set(lines.flatMap((line) => linkedFields(side, style, line).map(({ field }) => field)));
 }

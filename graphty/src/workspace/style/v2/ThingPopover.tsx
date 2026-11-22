@@ -10,18 +10,15 @@ import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import React, { useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
-import { Field, type RowContext, VarySlot } from "../PropertyRow";
+import { Field, type RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 import { AddButton } from "../Section";
-import { COMBINE_WORDS, failureWords, takesBinding } from "../words";
+import { COMBINE_WORDS, failureWords } from "../words";
 import { dimOf } from "./drawn";
 import { groupSet, unsetIn } from "./lineWrites";
 import { PlusList } from "./PlusList";
-import { lineChannels, type ThingRubric } from "./rubric";
+import { lineChannels, type LineSpec, type ThingRubric } from "./rubric";
 import { LineFrame, RemoveButton, RubricLine, SegmentsLine } from "./RubricLine";
-
-/** The By data line's name. */
-const BY_DATA = "By data";
 
 /** Combine's options, in today's words. */
 const COMBINE_OPTIONS = Object.entries(COMBINE_WORDS).map(([value, { word }]) => ({ value, name: word }));
@@ -51,7 +48,7 @@ interface PopoverShellProps<G extends ShellGroup> {
     readonly others: readonly ChannelDescriptor[];
     /** A sub-group's lines. */
     readonly linesOf: (group: G) => React.ReactNode;
-    /** Lines above Main (design 2.6): Switch to, By data, Combine. */
+    /** Lines above Main (design 2.6): Combine. */
     readonly first?: React.ReactNode;
     /** More lines at the end of Main (a replace shader's parameters). */
     readonly extra?: React.ReactNode;
@@ -175,9 +172,10 @@ export function PopoverShell<G extends ShellGroup>({
  * @param props.title - the thing's name with its kind ("Node border")
  * @param props.rubric - the thing's rubric
  * @param props.others - set lines of the thing its rubric has no line for, drawn as today's fields
- * @param props.first - lines above Main: Switch to, By data, Combine
+ * @param props.first - lines above Main: Combine
  * @param props.extra - more lines at the end of Main
  * @param props.after - a sub-group always shown after Main (a list thing's list)
+ * @param props.head - the row's main value's line, Main's first
  * @returns The contents
  */
 export function ThingPopover({
@@ -188,6 +186,7 @@ export function ThingPopover({
     first,
     extra,
     after,
+    head,
 }: Readonly<{
     ctx: RowContext;
     title: string;
@@ -196,8 +195,13 @@ export function ThingPopover({
     first?: React.ReactNode;
     extra?: React.ReactNode;
     after?: React.ReactNode;
+    head?: LineSpec;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
+    // Main starts with the row's main value, which binds from its by-data link like every line (design 2.6).
+    const lines = [...(rubric.common ?? []), ...rubric.main];
+    const mainLines =
+        head === undefined || lines.some((line) => line.channel === head.channel) ? lines : [head, ...lines];
     return (
         <PopoverShell
             ctx={ctx}
@@ -220,7 +224,7 @@ export function ThingPopover({
                 });
             }}
             // The row's common lines lead Main: under the row only once set, here always (design 2.5).
-            main={[...(rubric.common ?? []), ...rubric.main].map((line) => (
+            main={mainLines.map((line) => (
                 <RubricLine key={`main-${line.channel}-${line.name ?? ""}`} ctx={ctx} line={line} />
             ))}
             others={others}
@@ -232,35 +236,19 @@ export function ThingPopover({
 }
 
 /**
- * A pop-over's lines above Main (design 2.6): By data for the main value,
- * while it holds no binding (a bound value is the row's own field, which opens its binding); and
- * Combine, on a number the layer sets.
+ * A pop-over's line above Main (design 2.6): Combine, on a number the layer sets. There is no By data line:
+ * the main value binds from its own line's by-data link, Main's first.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.main - the row's main value
- * @returns The lines
+ * @returns The line
  */
 export function FirstLines({ ctx, main }: Readonly<{ ctx: RowContext; main: ChannelDescriptor }>): React.JSX.Element {
     const { store } = useWorkspace();
     const own = lineIn(ctx, main.channel);
-    const bound = own?.binding !== undefined || own?.template !== undefined;
-    // A shown / hidden row (Visibility) varies by data too (design 7.1): the element binds booleans.
-    const bindable = takesBinding(main) || main.accepts === "boolean";
     const number = main.accepts === "number" && typeof own?.value === "number" ? own.value : undefined;
     return (
         <>
-            {bound || !bindable ? null : (
-                <LineFrame
-                    line={`by-data:${main.channel}`}
-                    name={BY_DATA}
-                    set={false}
-                    rule="R12"
-                    control={<VarySlot ctx={ctx} descriptor={main} anyKind={bindable} />}
-                    modifier={null}
-                    removeName={undefined}
-                    onRemove={() => undefined}
-                />
-            )}
             {number === undefined ? null : (
                 <LineFrame
                     line={`combine:${main.channel}`}

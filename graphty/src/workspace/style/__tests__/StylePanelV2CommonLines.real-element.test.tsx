@@ -9,14 +9,21 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { channelDescriptor, LABEL_STYLE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+import { type Channel, channelDescriptor, LABEL_STYLE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor } from "../../../test/test-utils";
+import { flatOf, type LabelField } from "../v2/labelRubric";
 import { showKind } from "./kindTab";
 import { openGraph, openStyle } from "./v2Harness";
+
+/** A line's by-data link (design 2.6, E551). */
+const LINK = 'button[aria-label$=" by attribute"]';
+
+/** The kinds of value graphty-element binds to data. */
+const BINDABLE = new Set(["color", "number", "enum", "text", "boolean"]);
 
 /** What a value control is made of, beyond its scrub slot: each widget one word. */
 const WIDGETS = 'svg, button, [role="switch"], [role="radio"], [role="combobox"], input[type="checkbox"]';
@@ -42,7 +49,9 @@ function widgetsOf(line: Element): string[] {
                     each.tagName.toLowerCase() === "svg" && each.closest('[class*="SegmentedControl-control"]') !== null
                 ) &&
                 each.closest('button[aria-label^="Remove "]') === null &&
-                each.closest('button[aria-label$=" settings"]') === null,
+                each.closest('button[aria-label$=" settings"]') === null &&
+                // the by-data link every line carries (design 2.6), checked on its own below
+                each.closest(LINK) === null,
         )
         .map((each) => each.getAttribute("role") ?? each.tagName.toLowerCase())
         .sort();
@@ -74,13 +83,50 @@ interface Line {
     readonly widgets: readonly string[];
 }
 
+/** The lines that bind a value of their own, where met ("sidebar" or "pop-over"), and whether each has its link. */
+type Links = Map<string, boolean>;
+
+/**
+ * Whether a line edits one value graphty-element binds to data, so it carries a by-data link: not a view
+ * line (Separate sides, a Combine strip, a frame's second line), not a Unit line (a strip over a number),
+ * not a thing row (its slot is its "..."), and not a label field with no channel of its own to vary through
+ * (graphty-element's `labelFieldOf`).
+ * @param line - the line.
+ * @returns whether it should carry the link.
+ */
+function bindsOwnValue(line: HTMLElement): boolean {
+    const address = line.dataset.line ?? "";
+    const rule = line.dataset.rule ?? "";
+    if (/:(sides|bottom|unit)$/.test(address) || address.startsWith("combine:")) {
+        return false;
+    }
+    // A thing's row (its first line) holds its "..." there; its main value binds from the pop-over's first line.
+    const thing = line.closest("[data-thing]");
+    if (line.querySelector('button[aria-label$=" settings"]') !== null || thing?.querySelector(".ws-row") === line) {
+        return false;
+    }
+    const kind = kindOf(address);
+    if (/^R8/.test(rule) && /number$/.test(kind)) {
+        return false;
+    }
+    const parts = address.split(".");
+    if (kind.startsWith("label ")) {
+        const field = parts.at(-1) as LabelField;
+        const side = parts[0] as "node" | "edge";
+        const style = (parts[1] === "labels" ? `${side}.labelStyle` : `${side}.${parts[1]}`) as Channel;
+        return flatOf(side, style, field) !== undefined;
+    }
+    return BINDABLE.has(kind);
+}
+
 /**
  * Every line shown: the sidebar's, and each row's settings pop-over's, opened by a real click one at a time.
  * @param tab - the Style tab.
  * @param seen - the lines read so far, by address, with their kind and widgets.
+ * @param links - the lines that bind a value of their own, and whether each has its link.
  */
-async function readLines(tab: HTMLElement, seen: Map<string, Line>): Promise<void> {
-    const take = (root: ParentNode): void => {
+async function readLines(tab: HTMLElement, seen: Map<string, Line>, links: Links): Promise<void> {
+    const take = (root: ParentNode, where: string): void => {
         for (const line of root.querySelectorAll<HTMLElement>(".ws-row[data-line]")) {
             // A Unit line shares its channel's address with the number line it picks the unit of.
             const address = `${line.dataset.line ?? ""}${/^R8/.test(line.dataset.rule ?? "") ? " (strip)" : ""}`;
@@ -89,6 +135,9 @@ async function readLines(tab: HTMLElement, seen: Map<string, Line>): Promise<voi
                 kind: `${kindOf(line.dataset.line ?? "")} ${line.dataset.rule ?? ""}`.trim(),
                 widgets: widgetsOf(line),
             });
+            if (bindsOwnValue(line)) {
+                links.set(`${where} ${line.dataset.line ?? ""}`, line.querySelector(LINK) !== null);
+            }
             const slot = line.querySelector(".cm-scrub-slot");
             // A number's field has its scrub slot; a Unit line (R8) picks a unit, it is no number field.
             if (/number$/.test(kindOf(line.dataset.line ?? "")) && !/^R8/.test(line.dataset.rule ?? "")) {
@@ -100,7 +149,7 @@ async function readLines(tab: HTMLElement, seen: Map<string, Line>): Promise<voi
             }
         }
     };
-    take(tab);
+    take(tab, "sidebar");
     const buttons = [...tab.querySelectorAll<HTMLElement>("[data-style-panel-v2] button")].filter((button) =>
         / settings$/.test(button.getAttribute("aria-label") ?? ""),
     );
@@ -111,7 +160,7 @@ async function readLines(tab: HTMLElement, seen: Map<string, Line>): Promise<voi
             assert.isNotNull(found);
             return found;
         });
-        take(pop);
+        take(pop, "pop-over");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(document.querySelector("[data-thing-popover]"));
@@ -163,11 +212,12 @@ describe("Style panel v2's lines are one common pattern (E674)", () => {
         });
         await session.styles.settled();
         const seen = new Map<string, Line>();
+        const links: Links = new Map();
         const tab = await openStyle("Key people");
-        await readLines(tab, seen);
+        await readLines(tab, seen, links);
         await openStyle("Links");
         await showKind("edge");
-        await readLines(await screen.findByTestId("style-tab"), seen);
+        await readLines(await screen.findByTestId("style-tab"), seen, links);
         assert.isAbove(seen.size, 20, "the walk reached the lines");
         // Every kind of line is walked, a channel's and a label field's.
         const kinds = new Set([...seen.keys()].map((line) => kindOf(line.replace(/ \(strip\)$/, ""))));
@@ -198,6 +248,17 @@ describe("Style panel v2's lines are one common pattern (E674)", () => {
             }
         }
         assert.deepEqual(special, [], "lines with a widget their kind's other lines lack");
+        // Every line of a value graphty-element binds carries its by-data link, sidebar and pop-over (design 2.6).
+        assert.isAbove(links.size, 20, "the walk met lines that bind");
+        assert.isTrue(
+            [...links.keys()].some((line) => line.startsWith("sidebar ")),
+            "the walk met sidebar lines that bind",
+        );
+        assert.deepEqual(
+            [...links].filter(([, linked]) => !linked).map(([line]) => line),
+            [],
+            "lines without their by-data link",
+        );
         // The lines that once carried a toggle are walked, and their modifiers are lines of their own (design 2.6).
         for (const line of ["node.labelPaddingX", "node.imageWidth", "node.imageAspect", "node.labelPaddingX:sides"]) {
             assert.isTrue(seen.has(line), `the walk reached ${line}`);

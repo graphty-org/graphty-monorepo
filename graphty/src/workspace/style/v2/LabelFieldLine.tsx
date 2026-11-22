@@ -13,6 +13,7 @@ import {
     type ChannelDescriptor,
     LABEL_LOCATION_PLACES,
     LABEL_LOOKS,
+    type LabelFieldAddress,
     type LabelLocation,
     type LabelLocationPlace,
 } from "@graphty/graphty-element/catalog";
@@ -20,11 +21,13 @@ import type { LabelStyle } from "@graphty/graphty-element/schema";
 import { Checkbox, Group, Stack } from "@mantine/core";
 import React from "react";
 
+import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
 import { GradientBar } from "../parts/GradientRow";
-import { Field, type RowContext } from "../PropertyRow";
+import { BoundValue, Field, type RowContext, type VaryTarget } from "../PropertyRow";
+import { lineIn, propose, removeLine, writeIn } from "../row";
 import { ValueField } from "../ValueField";
-import { enumWords, positionWord } from "../words";
+import { enumWords, failureWords, positionWord } from "../words";
 import { labelDimOf } from "./drawn";
 import {
     flatOf,
@@ -33,10 +36,19 @@ import {
     labelFieldDescriptor,
     labelLineFields,
     type LabelLineSpec,
+    linkedFields,
     type TextThing,
 } from "./labelRubric";
 import { segmentOptions } from "./rubric";
-import { FontSelect, LineFrame, NumberLine, PresetLine, SegmentsLine, SeparateSidesLine } from "./RubricLine";
+import {
+    ByDataLink,
+    FontSelect,
+    LineFrame,
+    NumberLine,
+    PresetLine,
+    SegmentsLine,
+    SeparateSidesLine,
+} from "./RubricLine";
 import { setOn } from "./things";
 
 /** A write to a label style: each field's new value, undefined taking the field off. */
@@ -455,10 +467,134 @@ function flatHeld(label: LabelLineContext, line: LabelLineSpec): ChannelDescript
         return undefined;
     }
     const { ctx, kind } = label;
+    // A further label's fields vary at their address in the list (`BoundAtLine`), never through the channels,
+    // which are the label's own.
+    if (label.address !== undefined) {
+        return undefined;
+    }
     const flat = [line.field, ...(line.units ?? [])]
         .map((field) => flatOf(ctx.side, kind.style, field))
         .find((channel): channel is Channel => channel !== undefined && setOn(ctx, channel));
     return flat === undefined ? undefined : shownChannel(ctx.session, ctx.side, flat, true);
+}
+
+/**
+ * A label line's by-data link: see `linkedFields`. A further label's field binds at its address in the list
+ * (`node.labels.<id>.<field>`), the label's own at its channel.
+ * @param label - the line's context.
+ * @param line - the line.
+ * @param editing - the field the line edits now.
+ * @returns the link, or nothing.
+ */
+function labelLink(label: LabelLineContext, line: LabelLineSpec, editing: LabelField): React.JSX.Element | null {
+    const { ctx } = label;
+    const targets = linkedFields(ctx.side, fieldsStyle(label), line, editing).flatMap(
+        ({ field, channel }): VaryTarget[] => {
+            const descriptor = shownChannel(ctx.session, ctx.side, channel, setOn(ctx, channel));
+            if (descriptor === undefined) {
+                return [];
+            }
+            const letter = line.letters?.[field === line.pair ? 1 : 0];
+            const name = letter ?? labelFieldDescriptor(field)?.plainName ?? field;
+            const to = label.address === undefined ? undefined : (`${label.address}.${field}` as LabelFieldAddress);
+            return [{ name, descriptor, to }];
+        },
+    );
+    return <ByDataLink ctx={ctx} targets={targets} />;
+}
+
+/**
+ * The label style whose field channels a label's fields bind as: its own, or for a further label (whose kind is
+ * its list) its side's label style, as graphty-element's label field addresses bind (`labelFieldChannel`).
+ * @param label - the line's context.
+ * @returns the label style channel.
+ */
+function fieldsStyle(label: LabelLineContext): Channel {
+    return label.address === undefined ? label.kind.style : (`${label.ctx.side}.labelStyle` as Channel);
+}
+
+/**
+ * A further label's field bound to data at its address in the list (`node.labels.<id>.<field>`), if any.
+ * @param label - the line's context.
+ * @param line - the line.
+ * @returns the field, its channel and where it is bound, or undefined.
+ */
+function boundAt(
+    label: LabelLineContext,
+    line: LabelLineSpec,
+): { readonly field: LabelField; readonly channel: Channel; readonly address: LabelFieldAddress } | undefined {
+    if (label.address === undefined) {
+        return undefined;
+    }
+    return linkedFields(label.ctx.side, fieldsStyle(label), line)
+        .filter(({ field }) => field !== line.pair)
+        .map((each) => ({ ...each, address: `${String(label.address)}.${each.field}` as LabelFieldAddress }))
+        .find(({ address }) => lineIn(label.ctx, address)?.binding !== undefined);
+}
+
+/**
+ * A further label's line whose field varies by data: its name, the binding (the column, opening its settings)
+ * and its minus, which stops it varying.
+ * @param props - Component props
+ * @param props.label - the line's context
+ * @param props.name - the line's name
+ * @param props.bound - the field, its channel and its address
+ * @returns The line
+ */
+function BoundAtLine({
+    label,
+    name,
+    bound,
+}: Readonly<{
+    label: LabelLineContext;
+    name: string;
+    bound: { readonly field: LabelField; readonly channel: Channel; readonly address: LabelFieldAddress };
+}>): React.JSX.Element | null {
+    const { store } = useWorkspace();
+    const { ctx } = label;
+    const own = lineIn(ctx, bound.address);
+    const descriptor = shownChannel(ctx.session, ctx.side, bound.channel, true);
+    if (own?.binding === undefined || descriptor === undefined) {
+        return null;
+    }
+    const fail = (error: unknown): void => {
+        store.set({ notice: { message: failureWords(name, "changed", error), error: true } });
+    };
+    const write = (next: Parameters<typeof writeIn>[2]): void => {
+        writeIn(ctx, bound.address, next).catch(fail);
+    };
+    const { layer, binding } = own;
+    return (
+        <LineFrame
+            line={bound.address}
+            name={name}
+            set
+            rule="bound"
+            control={
+                <BoundValue
+                    ctx={ctx}
+                    descriptor={descriptor}
+                    source={{
+                        kind: "data",
+                        layer,
+                        binding,
+                        write,
+                        bind: (choice) => {
+                            const proposal = propose(ctx.session, choice, bound.address);
+                            if (proposal.ok) {
+                                write({ binding: proposal.binding });
+                            }
+                        },
+                    }}
+                />
+            }
+            modifier={null}
+            removeName={`Remove ${name.toLowerCase()}`}
+            onRemove={() => {
+                removeLine(ctx.session, layer, bound.address).catch(fail);
+            }}
+        />
+    );
 }
 
 /**
@@ -476,6 +612,36 @@ export function LabelFieldLine({
 }: Readonly<{ label: LabelLineContext; line: LabelLineSpec; named?: boolean }>): React.JSX.Element | null {
     // R6 sides: split by its Separate sides line, or because the sides already differ.
     const [splitAsked, setSplit] = React.useState(false);
+    // A pair one of whose values is the field's own channel's (varying by data) is two lines, each value's own.
+    const { pair } = line;
+    const held = (field: LabelField): boolean =>
+        flatHeld(label, { field }) !== undefined || boundAt(label, { field }) !== undefined;
+    if (pair !== undefined && [line.field, pair].some((each) => held(each))) {
+        const half = (field: LabelField, letter: string | undefined): LabelLineSpec => ({
+            field,
+            name:
+                letter === undefined || line.name === undefined
+                    ? (labelFieldDescriptor(field)?.plainName ?? field)
+                    : `${line.name} ${letter}`,
+            ...(line.under === undefined ? {} : { under: line.under }),
+        });
+        return (
+            <>
+                <LabelFieldLine label={label} line={half(line.field, line.letters?.[0])} named={alwaysNamed} />
+                <LabelFieldLine label={label} line={half(pair, line.letters?.[1])} named={alwaysNamed} />
+            </>
+        );
+    }
+    const at = boundAt(label, line);
+    if (at !== undefined) {
+        return (
+            <BoundAtLine
+                label={label}
+                name={line.name ?? labelFieldDescriptor(at.field)?.plainName ?? at.field}
+                bound={at}
+            />
+        );
+    }
     const flat = flatHeld(label, line);
     if (flat !== undefined) {
         const word =
@@ -514,7 +680,7 @@ export function LabelFieldLine({
             set={set}
             rule={rule}
             control={control}
-            modifier={null}
+            modifier={labelLink(label, line, field)}
             removeName={set ? `Remove ${(line.fullName ?? shownName).toLowerCase()}` : undefined}
             onRemove={() => {
                 write(Object.fromEntries(fields.map((each) => [each, undefined])));

@@ -1,4 +1,11 @@
-import { ComboInput, CompactColorInput, Popout, PopoutButton, VariablePill } from "@graphty/compact-mantine";
+import {
+    ComboInput,
+    CompactColorInput,
+    Popout,
+    PopoutButton,
+    SegmentedControl,
+    VariablePill,
+} from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, HistoryStepId, Layer, LayerGroup, LegendBlock } from "@graphty/graphty-element/session";
@@ -1554,15 +1561,17 @@ export function Field({
  * @param props.label - the glyph's name, when the property has no channel word
  * @param props.onFail - says a refused binding
  * @param props.anyKind - offers a binding whatever the channel's kind
+ * @param props.which - a line of two values (a pair, "Offset X Y"): each value, the first the descriptor's
  * @returns The column, empty when the channel takes no binding
  */
 export function VarySlot({
     ctx,
-    descriptor,
-    to = descriptor.channel,
+    descriptor: first,
+    to: firstTo = first.channel,
     label,
     onFail,
     anyKind = false,
+    which,
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
@@ -1574,9 +1583,15 @@ export function VarySlot({
     label?: string;
     /** Says a refused binding, when the property has no channel word. */
     onFail?: (error: unknown) => void;
+    /** A line of two values: each one's name ("X") and where it is bound; the list opens with a choice of which. */
+    which?: readonly VaryTarget[];
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     const [open, setOpen] = useState(false);
+    const [picked, setPicked] = useState(0);
+    const chosen = which?.[picked];
+    const descriptor = chosen?.descriptor ?? first;
+    const to = chosen?.to ?? (chosen === undefined ? firstTo : descriptor.channel);
     const bind = (choice: DataChoice): void => {
         const proposal = propose(ctx.session, choice, to);
         if (!proposal.ok) {
@@ -1603,10 +1618,31 @@ export function VarySlot({
                     onPick={bind}
                     open={open}
                     onOpenChange={setOpen}
+                    which={
+                        which === undefined || which.length < 2 ? undefined : (
+                            <SegmentedControl
+                                label="Which value"
+                                fullWidth
+                                size="xs"
+                                value={String(picked)}
+                                onChange={(next) => {
+                                    setPicked(Number(next));
+                                }}
+                                data={which.map((each, at) => ({ value: String(at), label: each.name }))}
+                            />
+                        )
+                    }
                 />
             )}
         </span>
     );
+}
+
+/** One value of a line VarySlot binds: its name on the line ("X") and its channel, or where it is bound. */
+export interface VaryTarget {
+    readonly name: string;
+    readonly descriptor: ChannelDescriptor;
+    readonly to?: EncodeKey;
 }
 
 /**
@@ -1620,6 +1656,7 @@ export function VarySlot({
  * @param props.onLayer - several layers: gives each its own value
  * @param props.open - whether the picker is open
  * @param props.onOpenChange - opens or closes it
+ * @param props.which - a pair's choice of which value the list binds, drawn above it
  * @returns The button and its pop-out
  */
 function VaryButton({
@@ -1631,7 +1668,10 @@ function VaryButton({
     onLayer,
     open,
     onOpenChange: setOpen,
+    which,
 }: Readonly<{
+    /** A pair's choice of which value the list binds. */
+    which?: React.ReactNode;
     ctx: RowContext;
     descriptor: ChannelDescriptor;
     /** Where the binding is written, when not the descriptor's channel: a shader parameter's address. */
@@ -1677,6 +1717,7 @@ function VaryButton({
                 header={{ variant: "title", title: label }}
                 closeLabel={`Close ${label}`}
             >
+                {which}
                 <ValuePicker
                     title={label}
                     target={ctx.side}
@@ -1723,7 +1764,7 @@ function VaryButton({
  * What a bound field reads: one layer's binding of a value of the data, or several layers each
  * holding its own plain value (the Layer source, while they are edited together).
  */
-type BoundSource =
+export type BoundSource =
     | {
           readonly kind: "data";
           /** The layer that holds the binding. */
@@ -1755,7 +1796,7 @@ type BoundSource =
  * @param props.source - what it reads
  * @returns The pill and its popover
  */
-function BoundValue({
+export function BoundValue({
     ctx,
     descriptor,
     source,

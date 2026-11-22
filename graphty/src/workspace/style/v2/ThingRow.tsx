@@ -471,7 +471,7 @@ export function ThingRow({
         listed === undefined ? undefined : (
             <ItemListEditor ctx={ctx} channel={main.channel} list={listed} legend="group" />
         );
-    // Every thing's pop-over holds at least By data (a shown / hidden row's too, design 7.1).
+    // Every thing's pop-over holds at least its main value's line, which varies by data (design 2.6, 7.1).
     const settings = (
         <RowSettings label={`${title} settings`} title={title} changed={changed} opened={open} onOpenChange={setOpen}>
             {rubric === undefined ? (
@@ -483,6 +483,7 @@ export function ThingRow({
                     rubric={rubric}
                     others={others}
                     first={<FirstLines ctx={ctx} main={main} />}
+                    head={rubric.row ?? { channel: main.channel }}
                     extra={replacing === undefined ? undefined : <ReplaceParams ctx={ctx} />}
                     after={popoverList}
                 />

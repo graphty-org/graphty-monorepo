@@ -12,8 +12,11 @@ import {
     EDGE_LINE_DESCRIPTORS,
     type GlyphDescriptor,
     type KNOWN_PALETTE_IDS,
+    LABEL_STYLE_DESCRIPTORS,
+    type LabelFieldAddress,
     type ListItemAddress,
     NODE_SHAPE_DESCRIPTORS,
+    parseLabelFieldAddress,
     parseListItemAddress,
     type ShaderDescriptor,
     type ShaderInput,
@@ -821,10 +824,10 @@ export function settingWord(style: Channel, setting: Channel): string {
 }
 
 /**
- * What a binding is written under in a layer's `encode`: a channel, a shader parameter's address, or one
- * item of a list channel (`node.pieColors.1`).
+ * What a binding is written under in a layer's `encode`: a channel, a shader parameter's address, one
+ * item of a list channel (`node.pieColors.1`), or one field of one label of a label list (`node.labels.top.color`).
  */
-export type EncodeKey = Channel | ShaderParamAddress | ListItemAddress;
+export type EncodeKey = Channel | ShaderParamAddress | ListItemAddress | LabelFieldAddress;
 
 /**
  * Whether a key is a shader parameter's address (`node.shaders.<shader>.<parameter>`); every
@@ -833,7 +836,16 @@ export type EncodeKey = Channel | ShaderParamAddress | ListItemAddress;
  * @returns whether it is an address.
  */
 export function isShaderParam(key: EncodeKey): key is ShaderParamAddress {
-    return key.split(".").length > 2 && !isListItem(key);
+    return key.split(".").length > 2 && !isListItem(key) && !isLabelField(key);
+}
+
+/**
+ * Whether a key is one field of one label of a label list (`node.labels.top.color`).
+ * @param key - the key.
+ * @returns whether it is.
+ */
+export function isLabelField(key: EncodeKey): key is LabelFieldAddress {
+    return parseLabelFieldAddress(key) !== null;
 }
 
 /**
@@ -851,7 +863,7 @@ export function isListItem(key: EncodeKey): key is ListItemAddress {
  * @param key - the key.
  * @returns whether it is an address.
  */
-export function isAddress(key: EncodeKey): key is ShaderParamAddress | ListItemAddress {
+export function isAddress(key: EncodeKey): key is ShaderParamAddress | ListItemAddress | LabelFieldAddress {
     return key.split(".").length > 2;
 }
 
@@ -866,6 +878,12 @@ export function channelPhrase(channel: EncodeKey): string {
     if (isListItem(channel)) {
         const item = parseListItemAddress(channel);
         return item === null ? channel : `${channelPhrase(item.channel)} ${String(item.index + 1)}`;
+    }
+    // One field of a further label goes by its kind and the field ("node label color").
+    if (isLabelField(channel)) {
+        const [target, , , field] = channel.split(".");
+        const word = LABEL_STYLE_DESCRIPTORS.find((each) => each.field === field)?.plainName ?? field;
+        return `${target} label ${word.toLowerCase()}`;
     }
     const name = isShaderParam(channel) ? shaderParamChannel(channel).plainName : fieldName(channel);
     return name.charAt(0).toLowerCase() + name.slice(1);

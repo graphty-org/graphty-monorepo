@@ -159,7 +159,7 @@ export function entryOf(ctx: RowContext, id: string): LabelEntry | undefined {
  * @returns the line, or undefined when it draws the main label's words.
  */
 export function entryWords(ctx: RowContext, id: string): Line | undefined {
-    const bound = lineIn(ctx, labelFieldAddress(ctx.side, id, "text") as Channel);
+    const bound = lineIn(ctx, labelFieldAddress(ctx.side, id, "text"));
     if (bound !== undefined) {
         return bound;
     }
@@ -173,7 +173,7 @@ export function entryWords(ctx: RowContext, id: string): Line | undefined {
     const text = drawnBeneath(ctx).get(id)?.text;
     const bottom = beneath.at(-1);
     return (
-        lineOf(beneath, labelFieldAddress(ctx.side, id, "text") as Channel) ??
+        lineOf(beneath, labelFieldAddress(ctx.side, id, "text")) ??
         (text === undefined || bottom === undefined ? undefined : { layer: bottom, value: text })
     );
 }

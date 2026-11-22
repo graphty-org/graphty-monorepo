@@ -492,9 +492,15 @@ export const BASE_LABEL_FIELDS: readonly (keyof LabelStyle)[] = [
 /**
  * The look of a text a file's styles switch on where graphty-element had no such text at the merge base: an edge's
  * tooltip, whose words graph-io reads from Cytoscape's `EDGE_TOOLTIP` and Graphviz's `edgetooltip` (`edge.tooltip`
- * is in `fileStyleChannels()`). It is styled as the node's tooltip is (ia-design 5, fix 2).
+ * is in `fileStyleChannels()`). It is styled as the node's tooltip is (ia-design 5, fix 2): its style, and the
+ * channels its Size, Color and Background vary by data through, as the node tooltip's do.
  */
-export const FILE_TEXT_LOOKS: readonly Channel[] = ["edge.tooltipStyle"];
+export const FILE_TEXT_LOOKS: readonly Channel[] = [
+    "edge.tooltipStyle",
+    "edge.tooltipSize",
+    "edge.tooltipColor",
+    "edge.tooltipBackground",
+];
 
 /** One style the owner asked for by name. */
 interface Requested {

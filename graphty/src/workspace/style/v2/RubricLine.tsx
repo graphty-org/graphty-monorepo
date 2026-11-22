@@ -20,10 +20,10 @@ import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
 import { ValueListbox } from "../parts/ValueListbox";
-import { Field, FieldLine, type RowContext } from "../PropertyRow";
+import { Field, FieldLine, type RowContext, VarySlot, type VaryTarget } from "../PropertyRow";
 import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
-import { channelWord, failureWords, fieldName, FONTS, isPercent, scrubLetter } from "../words";
+import { channelWord, failureWords, fieldName, FONTS, isPercent, scrubLetter, takesBinding } from "../words";
 import { dimOf } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
@@ -572,7 +572,7 @@ function SidesLines({
                 set={set}
                 rule="R17"
                 control={pair(0, 1)}
-                modifier={null}
+                modifier={<ByDataLink ctx={ctx} targets={[{ name, descriptor }]} />}
                 removeName={set ? `Remove ${name.toLowerCase()}` : undefined}
                 onRemove={() => {
                     write(undefined);
@@ -691,6 +691,116 @@ function keptField(
     );
 }
 
+/**
+ * A line's by-data link in its second trailing slot (design 2.6, E551): binds the line's value to data. A line
+ * of two values (a pair) binds either, from the list's choice of which. Graphty-element binds a color, number,
+ * choice, words or switch; a line of nothing it binds draws an empty slot.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.targets - each value of the line
+ * @returns The link, or nothing
+ */
+export function ByDataLink({
+    ctx,
+    targets,
+}: Readonly<{ ctx: RowContext; targets: readonly VaryTarget[] }>): React.JSX.Element | null {
+    const bindable = targets.filter(
+        ({ descriptor }) => takesBinding(descriptor) || (descriptor.renderable && descriptor.accepts === "boolean"),
+    );
+    const [first] = bindable;
+    if (first === undefined) {
+        return null;
+    }
+    return (
+        <VarySlot
+            ctx={ctx}
+            descriptor={first.descriptor}
+            to={first.to}
+            anyKind
+            which={bindable.length > 1 ? bindable : undefined}
+        />
+    );
+}
+
+/**
+ * A line's second trailing slot: a thing row's settings "...", else its by-data link.
+ * @param ctx - the row.
+ * @param line - the line.
+ * @param row - drawn as a thing's row.
+ * @param channel - the channel it edits.
+ * @returns the slot's contents.
+ */
+function slotOf(ctx: RowContext, line: LineSpec, row: RowSlots | undefined, channel: Channel): React.ReactNode {
+    return row?.slot ?? <ByDataLink ctx={ctx} targets={linkTargets(ctx, line, channel)} />;
+}
+
+/**
+ * Each value of a line, for its by-data link: its channel, and its pair's with their letters ("X", "Y").
+ * @param ctx - the row.
+ * @param line - the line.
+ * @param channel - the channel it edits (one of its units).
+ * @returns the values.
+ */
+function linkTargets(ctx: RowContext, line: LineSpec, channel: Channel): readonly VaryTarget[] {
+    // A Unit line picks which unit a number is in: no value of its own to bind.
+    if (line.unit !== undefined) {
+        return [];
+    }
+    const [a, b] = line.letters ?? [channelWord(channel), line.pair === undefined ? "" : channelWord(line.pair)];
+    return [
+        [channel, a],
+        [line.pair, b],
+    ].flatMap(([each, name]) => {
+        const descriptor =
+            each === undefined
+                ? undefined
+                : shownChannel(ctx.session, ctx.side, each as Channel, setOn(ctx, each as Channel));
+        return descriptor === undefined ? [] : [{ name: name ?? "", descriptor }];
+    });
+}
+
+/**
+ * Whether the row binds a channel to data.
+ * @param ctx - the row.
+ * @param channel - the channel.
+ * @returns whether it varies by data.
+ */
+function boundIn(ctx: RowContext, channel: Channel): boolean {
+    const own = lineIn(ctx, channel);
+    return own?.binding !== undefined || own?.template !== undefined;
+}
+
+/**
+ * A pair one of whose values varies by data, as two lines, each value's own (its bound field, or its number).
+ * @param ctx - the row.
+ * @param line - the line.
+ * @param row - drawn as a thing's row, which is never split.
+ * @param named - always draws its names.
+ * @returns the two lines, or undefined for a line that is no such pair.
+ */
+function boundPair(
+    ctx: RowContext,
+    line: LineSpec,
+    row: RowSlots | undefined,
+    named: boolean,
+): React.JSX.Element | undefined {
+    const { pair } = line;
+    if (row !== undefined || pair === undefined || ![line.channel, pair].some((each) => boundIn(ctx, each))) {
+        return undefined;
+    }
+    const [a, b] = line.letters ?? [undefined, undefined];
+    const half = (channel: Channel, letter: string | undefined): LineSpec => ({
+        channel,
+        name: letter === undefined || typeof line.name !== "string" ? channelWord(channel) : `${line.name} ${letter}`,
+    });
+    return (
+        <>
+            <RubricLine ctx={ctx} line={half(line.channel, a)} named={named} />
+            <RubricLine ctx={ctx} line={half(pair, b)} named={named} />
+        </>
+    );
+}
+
 /** Props for RubricLine. */
 interface RubricLineProps {
     readonly ctx: RowContext;
@@ -711,7 +821,10 @@ interface RubricLineProps {
  * @returns The line, or nothing where the element offers none of its channels
  */
 export function RubricLine(props: RubricLineProps): React.JSX.Element | null {
-    return props.line.choices === undefined ? <OneLine {...props} /> : <ChoiceLine {...props} />;
+    if (props.line.choices !== undefined) {
+        return <ChoiceLine {...props} />;
+    }
+    return boundPair(props.ctx, props.line, props.row, props.named === true) ?? <OneLine {...props} />;
 }
 
 /**
@@ -803,7 +916,7 @@ function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps
             set={set}
             rule={frameRule(line, rule)}
             control={control}
-            modifier={row?.slot ?? null}
+            modifier={slotOf(ctx, line, row, channel)}
             removeName={set || row !== undefined ? removeName : undefined}
             onRemove={onRemove}
             dimmed={dimmed}

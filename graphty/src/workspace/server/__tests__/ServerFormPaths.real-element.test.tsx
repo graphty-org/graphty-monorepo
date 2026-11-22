@@ -1,5 +1,5 @@
 /**
- * The network data form's less travelled paths on the REAL graphty-element: a Limit of 0, an enum
+ * The network data form's less traveled paths on the REAL graphty-element: a Limit of 0, an enum
  * set back to Default, a decimal param, a required API key, a Start the app has no word for, Test
  * with a typed endpoint and key, Expand switched off, a second load into a graph that holds one,
  * Test and Load pressed again while a read runs, an edit that keeps or renames its source, a list

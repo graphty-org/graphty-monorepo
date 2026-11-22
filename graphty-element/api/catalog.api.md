@@ -55,7 +55,7 @@ export const AI_PROVIDER_IDS: readonly ["openai", "anthropic", "google", "webllm
 export const AI_REASONING_EFFORTS: readonly ["minimal", "low", "medium", "high"];
 
 // @public
-export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_NO_PREVIOUS_COMMAND", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED", "AI_CONFIRMATION_NEEDED", "AI_ROLLBACK_PARTIAL", "AI_APPROVAL_STALE", "AI_APPROVAL_DENIED", "AI_TOOL_DENIED_BY_POLICY", "AI_TOOL_NOT_RUN", "AI_HISTORY_UNAVAILABLE", "AI_HISTORY_NEWER_FORMAT", "AI_STORAGE_FAILED", "AI_QUESTION_ASKED", "AI_ANSWER_INVALID", "AI_CONFIG_INVALID", "AI_HOSTED_TOOL_UNSUPPORTED", "AI_PROVIDER_PAUSED", "AI_VOICE_UNAVAILABLE"];
+export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_NO_PREVIOUS_COMMAND", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED", "AI_CONFIRMATION_NEEDED", "AI_ROLLBACK_PARTIAL", "AI_APPROVAL_STALE", "AI_APPROVAL_DENIED", "AI_TOOL_DENIED_BY_POLICY", "AI_TOOL_NOT_RUN", "AI_HISTORY_UNAVAILABLE", "AI_HISTORY_NEWER_FORMAT", "AI_STORAGE_FAILED", "AI_QUESTION_ASKED", "AI_ANSWER_INVALID", "AI_CONFIG_INVALID", "AI_HOSTED_TOOL_UNSUPPORTED", "AI_PROVIDER_PAUSED", "AI_VOICE_UNAVAILABLE"];
 
 // @public
 export const AI_STAGES: readonly ["processing", "generating", "executing"];
@@ -315,6 +315,7 @@ export interface AlgorithmDescriptor {
     description: string;
     descriptionId?: string;
     fields: readonly FieldDescriptor[];
+    formerKeys?: readonly LegacyAlgorithmKey[];
     key: AlgorithmKey;
     // @beta
     keywords?: readonly string[];
@@ -987,7 +988,7 @@ export type GraphtyErrorCode =
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-* @beta
+* Beta: may change in a minor release.
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -1016,20 +1017,20 @@ export type GraphtyErrorCode =
 /**
 * A layer names a shader the catalog does not list, in a use on `node.shaders` or
 * `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER"
 /**
 * A layer names a shader where it cannot draw: an edge shader on `node.shaders`
 * (`shader.target-mismatch`), or a use at a place the shader does not allow
 * (`shader.place-unsupported`); the refused problem's `fact` carries the code.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_SHADER_KIND"
 /**
 * A layer sets or binds a parameter the shader does not declare, or binds one per element
 * that it does not declare `varies`. `details.candidates` lists the declared parameters.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER_PARAM"
 /**
@@ -1082,7 +1083,7 @@ export type GraphtyErrorCode =
 * A graph was constructed with the id of a page element that the document does not hold, so
 * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
 * or passes the element itself.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_HOST_NOT_FOUND"
 /**
@@ -1683,14 +1684,14 @@ export type GraphtyErrorCode =
 * stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
 * background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
 * it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_CAPTURE_FAILED"
 /**
 * A screenshot waited for the layout to stop moving and it was still moving when the wait ran
 * out. `details.timeoutMs` is the wait. The caller captures again later, raises
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_NOT_SETTLED"
 /**
@@ -1751,7 +1752,7 @@ export type GraphtyErrorCode =
 /**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
-* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+* an `AnimationCanceledError`, a `GraphtyError` with this code. Added in 3.58.0.
 */
 | "E_CANCELED" | "E_INTERNAL";
 
@@ -2294,6 +2295,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     // @deprecated
     description?: string;
     descriptionId?: string;
+    formerNames?: readonly string[];
     group?: string;
     internal?: boolean;
     max?: number | string | OptionBound;

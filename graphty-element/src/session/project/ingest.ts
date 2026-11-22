@@ -615,7 +615,7 @@ export function progressSource(opts: object, name: string | undefined): Progress
  */
 export function failedEnd(error: unknown, signal: AbortSignal | undefined): Pick<ProgressChange, "outcome" | "error"> {
     if (signal?.aborted === true) {
-        return { outcome: "cancelled" };
+        return { outcome: "canceled" };
     }
 
     return isGraphtyError(error)

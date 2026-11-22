@@ -413,7 +413,7 @@ describe("the queue a consumer shows", () => {
         assert.deepStrictEqual(runs.queue, []);
     });
 
-    it("drops a cancelled run out of the queue and rejects it", async () => {
+    it("drops a canceled run out of the queue and rejects it", async () => {
         const { runs, queue } = harness();
         queue.paused = true;
 
@@ -427,7 +427,7 @@ describe("the queue a consumer shows", () => {
 
         try {
             await second;
-            assert.fail("a cancelled run must not resolve");
+            assert.fail("a canceled run must not resolve");
         } catch (error) {
             assert.strictEqual((error as DOMException).name, "AbortError");
         }
@@ -627,7 +627,7 @@ describe("batches", () => {
         assert.isNull(result.label, "an unnamed batch is not given words of the element's");
     });
 
-    it("keeps the members that finished when it is cancelled", async () => {
+    it("keeps the members that finished when it is canceled", async () => {
         const held = heldExecutor();
         const { runs } = harness(held.execute);
         const batch = runs.batch([
@@ -718,7 +718,7 @@ describe("sweeps", () => {
         assert.isNull(sweep.label);
     });
 
-    it("is cancelled as one unit and keeps the values that finished", async () => {
+    it("is canceled as one unit and keeps the values that finished", async () => {
         const held = heldExecutor();
         const { runs } = harness(held.execute);
         const sweep = runs.sweep("k-core", "k", [1, 2, 3]);

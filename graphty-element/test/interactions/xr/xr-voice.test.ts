@@ -356,7 +356,7 @@ describe("the microphone", () => {
         await element.setViewMode("3d");
         await vi.waitFor(() => {
             assert.strictEqual(liveTracks(), 0, "leaving XR left the microphone open");
-            assert.deepEqual(voiceEnds, ["AI_CANCELLED"]);
+            assert.deepEqual(voiceEnds, ["AI_CANCELED"]);
         });
         assert.strictEqual(finished, 0, "leaving XR sent the utterance");
     });

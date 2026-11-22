@@ -33,7 +33,7 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | `layout-changed`                                               | A new layout is now running                                                                                                                                                                                                                                         | `{ layoutType, options }`                                        |
 | `layout-updated`                                               | The running layout moved the nodes after nodes were added                                                                                                                                                                                                           | `{ nodeCount }`                                                  |
 | `layout-warning`                                               | A layout could not place every node (`W_NO_POSITION`) or ignored options (`W_UNKNOWN_OPTION`), a 2D view replaced `dim` (`W_DIMENSION_OVERRIDDEN`), or an edge weight's meaning was assumed or unreadable (`W_WEIGHT_MEANING_ASSUMED`, `W_WEIGHT_MEANING_MISMATCH`) | `{ layoutType, code, params }`                                   |
-| `operation-cancelled`                                          | A queued operation was aborted: the whole queue was cleared (`queue-cleared`) or this one operation was cancelled (`cancelled`)                                                                                                                                     | `{ id, code }`                                                   |
+| `operation-canceled`                                           | A queued operation was aborted: the whole queue was cleared (`queue-cleared`) or this one operation was canceled (`canceled`)                                                                                                                                       | `{ id, code }`                                                   |
 | `stats-update`                                                 | Every 60 graph updates, with the performance counters                                                                                                                                                                                                               | `{ totalUpdates, stats }`                                        |
 | `input-enabled-changed`                                        | `setInputEnabled()` switched canvas input on or off                                                                                                                                                                                                                 | `{ enabled }`                                                    |
 | `xr-session-started`                                           | A VR or AR session started                                                                                                                                                                                                                                          | `{ mode, requestedReferenceSpace, referenceSpace }`              |
@@ -55,8 +55,8 @@ or removed the rows: `"undo"`, `"redo"`, `"restore"` or `"rollback"`. A listener
 when data arrives should skip those, or it starts the work again on every undo. See
 [Undo and History](./undo#following-changes).
 
-`code` on `operation-cancelled` says why the operation stopped: `"queue-cleared"` or
-`"cancelled"`. Write the words you show from it.
+`code` on `operation-canceled` says why the operation stopped: `"queue-cleared"` or
+`"canceled"`. Write the words you show from it.
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
 with a serializable detail, when edge picking lands.

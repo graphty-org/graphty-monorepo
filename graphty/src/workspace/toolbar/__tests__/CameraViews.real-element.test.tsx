@@ -329,14 +329,14 @@ describe("the toolbar while a tour plays", () => {
         assert.closeTo(between, gap, 0.5, "a tour playing: still one flex gap");
         await userEvent.click(stop);
         await waitFor(() => {
-            assert.deepEqual(ended, ["cancelled"]);
+            assert.deepEqual(ended, ["canceled"]);
             assert.isNotNull(within(toolbar()).queryByRole("button", { name: "Camera" }));
         });
 
         await play();
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.deepEqual(ended, ["cancelled", "cancelled"]);
+            assert.deepEqual(ended, ["canceled", "canceled"]);
             assert.isNull(within(toolbar()).queryByRole("button", { name: "Stop tour" }));
         });
     });

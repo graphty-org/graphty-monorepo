@@ -548,10 +548,6 @@ export interface GraphtyElementJSXProps {
      */
     "onai-command-canceled"?: (event: CustomEvent<EventOfType<"ai-command-canceled">>) => void;
     /**
-     * The British spelling of `ai-command-canceled`, emitted right after it with the same fields.
-     */
-    "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
-    /**
      * Emitted when an AI command completes successfully
      */
     "onai-command-complete"?: (event: CustomEvent<EventOfType<"ai-command-complete">>) => void;
@@ -576,7 +572,7 @@ export interface GraphtyElementJSXProps {
      */
     "onai-hosted-tool-result"?: (event: CustomEvent<EventOfType<"ai-hosted-tool-result">>) => void;
     /**
-     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), canceled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
+     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), canceled (`AI_CANCELED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
      */
     "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
     /**
@@ -631,10 +627,6 @@ export interface GraphtyElementJSXProps {
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */
     "onanimation-canceled"?: (event: CustomEvent<EventOfType<"animation-canceled">>) => void;
-    /**
-     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
-     */
-    "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
     /**
      * Emitted while `captureAnimation` records: how far the recording has got, from 0 to 100. A tour recording follows the tour's own clock, so it reaches 100 only with the tour.
      */
@@ -899,10 +891,6 @@ export interface GraphtyElementJSXProps {
      * Emitted when a queued operation is aborted before it finished.
      */
     "onoperation-canceled"?: (event: CustomEvent<EventOfType<"operation-canceled">>) => void;
-    /**
-     * The British spelling of `operation-canceled`: emitted right after it for every aborted operation, with `"cancelled"` where that one says `"canceled"`.
-     */
-    "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
     /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */

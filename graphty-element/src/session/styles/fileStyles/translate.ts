@@ -1390,6 +1390,7 @@ const TABLE_LENGTHS = [
     "padding",
     "imagePixel",
     "textPixel",
+    "radius",
 ] as const;
 
 /**

@@ -521,6 +521,7 @@ export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iter
 
 // @public
 export interface Caveats {
+    readonly accelerator?: ComputeBackend;
     readonly componentScope?: "all" | "largest";
     readonly converged?: boolean;
     readonly direction: RunDirection;
@@ -762,6 +763,9 @@ export interface ComponentStatistics {
 }
 
 // @public
+export type ComputeBackend = "cpu" | "webgpu" | (string & {});
+
+// @public
 export type Condition<F extends ConditionField = ConditionField> = {
     readonly type: "number";
     readonly key: string;
@@ -865,14 +869,14 @@ export interface CostBasis {
 }
 
 // @public
-export type CostConfidence = "measured" | "calibrated" | "modelled" | "unknown";
+export type CostConfidence = "measured" | "calibrated" | "modeled" | "unknown";
 
 // @public
 export interface CostEstimate {
     readonly available: boolean;
     readonly basisFacts: CostBasis;
     readonly blocksFrame: boolean;
-    readonly cancellable: boolean;
+    readonly cancelable: boolean;
     readonly confidence: CostConfidence;
     readonly costClass: CostClass;
     readonly refusal?: CodedFact<EstimateRefusalCode>;
@@ -1049,7 +1053,7 @@ export interface DocumentBindFacts {
 }
 
 // @beta
-export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_OPTION_NOT_SAVED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_ENGINE_CHANGED" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED" | "W_LAYOUT_ENGINE_UNAVAILABLE" | "W_LAYOUT_OPTION_NOT_APPLIED" | "W_NAME_UPGRADED";
 
 // @beta
 export interface DocumentHeldFacts {
@@ -1290,10 +1294,9 @@ export type EndpointSpelling = "source/target" | "src/dst" | "from/to" | "declar
 
 // @public
 export interface EngineVersions {
-    readonly algorithms: string;
-    readonly element: string;
-    readonly layout: string;
-    readonly plugins?: Readonly<Record<string, string>>;
+    readonly accelerator?: ComputeBackend;
+    readonly method?: string;
+    readonly packages: Readonly<Record<string, string>>;
 }
 
 // @public
@@ -1747,6 +1750,10 @@ export interface GraphAccelerator {
         reason: string;
     }>;
     readonly name: string;
+    readonly package?: {
+        readonly name: string;
+        readonly version: string;
+    };
     readonly precision?: AccelerationPrecision;
     verify?(): Promise<void>;
 }
@@ -1957,7 +1964,7 @@ export type GraphtyErrorCode =
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-* @beta
+* Beta: may change in a minor release.
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -1986,20 +1993,20 @@ export type GraphtyErrorCode =
 /**
 * A layer names a shader the catalog does not list, in a use on `node.shaders` or
 * `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER"
 /**
 * A layer names a shader where it cannot draw: an edge shader on `node.shaders`
 * (`shader.target-mismatch`), or a use at a place the shader does not allow
 * (`shader.place-unsupported`); the refused problem's `fact` carries the code.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_SHADER_KIND"
 /**
 * A layer sets or binds a parameter the shader does not declare, or binds one per element
 * that it does not declare `varies`. `details.candidates` lists the declared parameters.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER_PARAM"
 /**
@@ -2052,7 +2059,7 @@ export type GraphtyErrorCode =
 * A graph was constructed with the id of a page element that the document does not hold, so
 * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
 * or passes the element itself.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_HOST_NOT_FOUND"
 /**
@@ -2653,14 +2660,14 @@ export type GraphtyErrorCode =
 * stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
 * background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
 * it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_CAPTURE_FAILED"
 /**
 * A screenshot waited for the layout to stop moving and it was still moving when the wait ran
 * out. `details.timeoutMs` is the wait. The caller captures again later, raises
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_NOT_SETTLED"
 /**
@@ -2721,7 +2728,7 @@ export type GraphtyErrorCode =
 /**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
-* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+* an `AnimationCanceledError`, a `GraphtyError` with this code. Added in 3.58.0.
 */
 | "E_CANCELED" | "E_INTERNAL";
 
@@ -2922,20 +2929,20 @@ export type GraphtyWarningCode =
 * A saved filter condition this reader cannot read (an effect it does not know, or a malformed
 * condition) was skipped; the rest were read, and what the file hides was read from its
 * filter steps. `params.slice` is `"visibility"`, `params.id` the condition's id when it has one.
-* @since 3.32.0
+* Since 3.32.0.
 */
 | "W_FILTER_CONDITION_SKIPPED"
 /**
 * A project's filter conditions are of a version this reader does not know, or are not a
 * list: they were read from the file's filter steps instead. `params.slice` is `"visibility"`,
 * `params.version` the version found.
-* @since 3.32.0
+* Since 3.32.0.
 */
 | "W_FILTER_CONDITIONS_UNREADABLE"
 /**
 * A project's filter steps and the keep and exclude filter conditions it also holds disagree
 * (a tool edited only one of them): the conditions were read. `params.slice` is `"visibility"`.
-* @since 3.32.0
+* Since 3.32.0.
 */
 | "W_FILTER_STEPS_DIFFER"
 /**
@@ -2953,7 +2960,7 @@ export type GraphtyWarningCode =
 /**
 * The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
 * shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
-* @experimental cosmograph
+* Experimental: may change in a minor release.
 */
 | "W_LIMITS_IGNORED"
 /**
@@ -2961,7 +2968,7 @@ export type GraphtyWarningCode =
 * than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
 * plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
 * many asked, `params.cap` the budget.
-* @experimental cosmograph
+* Experimental: may change in a minor release.
 */
 | "W_OBJECT_CAP"
 /**
@@ -3351,7 +3358,7 @@ export type HistoryOutcome = {
     readonly kind: "undone" | "redone" | "restored";
     readonly steps: readonly HistoryStep[];
 } | {
-    readonly kind: "cancelled";
+    readonly kind: "canceled";
     readonly pending: readonly PendingStep[];
 } | {
     readonly kind: "nothing";
@@ -3913,6 +3920,7 @@ export interface LegendSwatch {
 // @public
 export interface Limits {
     edgesDrawn: number;
+    fullDetailTriangleBudget: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
     objectEdges: number;
@@ -3922,7 +3930,7 @@ export interface Limits {
 }
 
 // @public
-export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges">>;
+export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges" | "fullDetailTriangleBudget">>;
 
 // @public
 export function listAutosaves(key: string, options?: AutosaveLookupOptions): Promise<readonly AutosaveEntry[]>;
@@ -4878,7 +4886,7 @@ export interface ProgressChange {
         readonly details: Readonly<Record<string, unknown>>;
     };
     readonly fraction: number | null;
-    readonly outcome?: "succeeded" | "failed" | "cancelled";
+    readonly outcome?: "succeeded" | "failed" | "canceled";
     readonly phase: "progress" | "end";
     readonly run?: RunId;
     readonly source?: {
@@ -5461,6 +5469,9 @@ export interface RemoveSourceResult {
 export function renamePaths(where: Query, rename: (path: Path) => Query | undefined): Query;
 
 // @public
+export function renameRunPaths(where: Query, rename: (run: string) => string | undefined): Query;
+
+// @public
 export interface RenderQuality {
     readonly code?: RenderQualityCode;
     readonly heavy: "on" | "off";
@@ -5925,7 +5936,7 @@ export function ruleValuePath(rule: RuleTree): Path | undefined;
 export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly algorithm: AlgorithmKey;
     cancel(reason?: string): void;
-    readonly cancellable: boolean;
+    readonly cancelable: boolean;
     readonly caveats: Caveats;
     readonly determinate: boolean;
     readonly distinguishedBy: RunDistinction | null;
@@ -7137,6 +7148,7 @@ export interface SessionLayout {
     readonly options: Readonly<Record<string, unknown>>;
     pause(): Promise<void>;
     play(): Promise<void>;
+    readonly provenance: EngineVersions;
     rerun(): Promise<void>;
     set(id: LayoutId, options?: {
         readonly engine?: string;
@@ -7994,7 +8006,7 @@ export interface SourceElementsFilter {
 }
 
 // @beta
-export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind";
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind" | "options";
 
 // @public
 export interface SourceEndOption {
@@ -8638,7 +8650,7 @@ export interface SourceTypeRule {
 }
 
 // @beta
-export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind";
+export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind" | "copy-form" | "options" | "ledger";
 
 export { SourceValidators }
 

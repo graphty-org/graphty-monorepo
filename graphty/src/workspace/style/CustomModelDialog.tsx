@@ -1266,7 +1266,7 @@ export function CustomModelDialog({
         let loadedLine = kept.length > 1 ? CUSTOM_MODEL.loadedMany(kept.length) : CUSTOM_MODEL.loaded(shownName);
         // Cancel load while only its pictures downloaded: the model stays, without them.
         if (stopPictures?.aborted === true) {
-            loadedLine = CUSTOM_MODEL.cancelled(shownName);
+            loadedLine = CUSTOM_MODEL.canceled(shownName);
             setStopped(loadedLine);
         }
         say([loadedLine, ...out.map((r) => CUSTOM_MODEL.ofSet(r.name, refusalLine(r.problem)))].join(". "));
@@ -1314,8 +1314,8 @@ export function CustomModelDialog({
         if (loading !== null) {
             loading.controller.abort();
             setLoading(null);
-            setStopped(CUSTOM_MODEL.cancelled(loading.name));
-            say(CUSTOM_MODEL.cancelled(loading.name));
+            setStopped(CUSTOM_MODEL.canceled(loading.name));
+            say(CUSTOM_MODEL.canceled(loading.name));
         }
     };
     const supply = async (answer: PartAnswer): Promise<readonly CodedFact[]> => {

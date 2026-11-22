@@ -237,7 +237,7 @@ export function summarizeRun(session: Pick<GraphSession, "data" | "runs">, run: 
         ...(run.status === "running" || run.status === "queued"
             ? {
                   progress: toJson(run.progress),
-                  cancellable: run.cancellable,
+                  cancelable: run.cancelable,
                   queuePosition: run.queuePosition,
                   startedAt: run.startedAt,
               }

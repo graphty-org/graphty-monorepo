@@ -4038,6 +4038,7 @@ export class SessionData implements SessionDataApi {
      * @param source - What `import` takes.
      * @param options - Its key, type, space and edge ends, and how to guess the ones left out.
      * @returns The new source's id.
+     * @throws A `GraphtyError` with `E_EMPTY_LOAD` when the source holds no rows.
      */
     async stage(source: DataSourceInput, options: StageOptions = {}): Promise<string> {
         this.requireSteps("stage");
@@ -4055,7 +4056,8 @@ export class SessionData implements SessionDataApi {
      * @param source - What `import` takes.
      * @param options - Its key, type, space and edge ends.
      * @param options.guess - How the roles it leaves out are guessed.
-     * @returns The source and its rows as read, or null when the read held no rows.
+     * @returns The source and its rows as read, or null when the read made no import.
+     * @throws A `GraphtyError` with `E_EMPTY_LOAD` when the source holds no rows.
      */
     private async readStaged(
         source: DataSourceInput,
@@ -4085,10 +4087,11 @@ export class SessionData implements SessionDataApi {
                     const load = (command.op === "batch" ? command.steps.at(-1) : command) as DataImportCommand;
                     const compiled = compileImport(withDigest(load, digest), options, this.readConfig().knownFields);
                     if (compiled !== null) {
-                        read = {
-                            source: { ...compiled.edit.source, read: facts },
-                            copies: compiled.copies ?? EMPTY_COPIES,
-                        };
+                        const copies = compiled.copies ?? EMPTY_COPIES;
+                        if (!Object.values(copies).some((tables) => hasRows(tables))) {
+                            throw emptyCopy(load.source.type ?? source.type);
+                        }
+                        read = { source: { ...compiled.edit.source, read: facts }, copies };
                     }
                     return Promise.resolve();
                 },
@@ -5360,6 +5363,9 @@ export class SessionData implements SessionDataApi {
             }
             const raw = await readWithProgress(source, undefined, () => undefined);
             const rows = raw.tables.flatMap((held) => held.rows) as readonly Row[];
+            if (rows.length === 0) {
+                throw emptyCopy(source.type);
+            }
             const tables: CopyTables = src.mapping.edges === undefined ? { nodes: rows } : { edges: rows };
             const counts = await this.swapStepsCopy(key, tables, {
                 label: source.name ?? src.label,
@@ -5376,13 +5382,8 @@ export class SessionData implements SessionDataApi {
         const compiled =
             captured === undefined ? null : compileImport(captured, options, this.readConfig().knownFields);
         const tables = compiled?.copies?.[copyKey(compiled.edit.source)];
-        if (compiled === null || tables === undefined) {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: "The newer copy holds no rows to replace the load with.",
-                source: "data",
-                details: { reason: "no-rows", key },
-            });
+        if (compiled === null || !hasRows(tables)) {
+            throw emptyCopy(captured?.source.type ?? source.type);
         }
         const counts = await this.swapStepsCopy(key, tables, {
             label: compiled.edit.source.label ?? src.label,
@@ -9645,6 +9646,30 @@ function readChoicesOf(src: StepsSource): ImportOptions {
 
 /** No copies: before the first load under the source-steps experiment. */
 const EMPTY_COPIES: Copies = Object.freeze({});
+
+/**
+ * Whether a copy holds any rows.
+ * @param tables - The copy's rows.
+ * @returns True when it holds a node row or an edge row.
+ */
+function hasRows(tables: CopyTables | undefined): tables is CopyTables {
+    return (tables?.nodes?.length ?? 0) + (tables?.edges?.length ?? 0) > 0;
+}
+
+/**
+ * The refusal of a source that holds no rows, as a load with the source-steps experiment off
+ * refuses it.
+ * @param format - The format the source was read as.
+ * @returns A `GraphtyError` with `E_EMPTY_LOAD`.
+ */
+function emptyCopy(format: string | undefined): GraphtyError {
+    return new GraphtyError({
+        code: "E_EMPTY_LOAD",
+        message: `The ${String(format)} source held no nodes and no edges, so there was nothing to load.`,
+        source: "data",
+        details: { format, rowErrors: 0 },
+    });
+}
 
 /**
  * The source-steps choices of a load, for the command that carries them to the compile.

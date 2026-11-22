@@ -254,7 +254,7 @@ export class FakeEngine implements AiEngine {
     scriptLive(failure?: Exclude<LiveOpened, { code: "AI_COMPLETED" }>): void {
         this.openLive = (options, signal) => {
             if (signal.aborted) {
-                return Promise.resolve({ code: "AI_CANCELLED", params: {} });
+                return Promise.resolve({ code: "AI_CANCELED", params: {} });
             }
 
             if (failure !== undefined) {
@@ -278,7 +278,7 @@ export class FakeEngine implements AiEngine {
     /**
      * Play the next scripted turn, recording the request.
      * @param request - The turn.
-     * @param signal - Ends the turn with `AI_CANCELLED` when it fires.
+     * @param signal - Ends the turn with `AI_CANCELED` when it fires.
      * @yields The scripted events; a coded error for a script that threw.
      */
     async *turn(request: TurnRequest, signal: AbortSignal): AsyncIterable<TurnEvent> {

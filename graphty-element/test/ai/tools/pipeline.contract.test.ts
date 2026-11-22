@@ -160,7 +160,7 @@ describe("a batch runs all or nothing", () => {
         assert.exists(session.data.node("f"));
     });
 
-    it("leaves nothing behind when the message is cancelled while the model thinks", async () => {
+    it("leaves nothing behind when the message is canceled while the model thinks", async () => {
         const session = await assistantSession();
         const assistant = new ScriptedAssistant(session);
         const before = await digest(session);
@@ -193,7 +193,7 @@ describe("a batch runs all or nothing", () => {
         assert.exists(session.data.node("f"), "the first batch is in");
         assistant.controller.cancel();
         const result = await running;
-        assert.strictEqual(result.code, "AI_CANCELLED");
+        assert.strictEqual(result.code, "AI_CANCELED");
         assert.strictEqual(await digest(session), before);
     });
 });
@@ -307,7 +307,7 @@ describe("large, slow, replacing and irreversible changes wait for the host", ()
         assert.strictEqual(late.code, "AI_APPROVAL_STALE");
     });
 
-    it("holds emptying the graph, a slow run and cancelling the reader's own run; runs them with the gate off", async () => {
+    it("holds emptying the graph, a slow run and canceling the reader's own run; runs them with the gate off", async () => {
         const session = await assistantSession();
         const readerRun = session.runs.start("degree");
         await readerRun;

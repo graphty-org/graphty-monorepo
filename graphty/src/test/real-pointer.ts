@@ -315,7 +315,7 @@ export async function inBrowserZone(zone: string, run: () => Promise<void>): Pro
  * @param element - Where the finger goes down.
  * @param distance - How far the finger moves down before the cancel, in CSS pixels.
  */
-export async function touchDragCancelled(element: Element, distance: number): Promise<void> {
+export async function touchDragCanceled(element: Element, distance: number): Promise<void> {
     const session = cdp() as unknown as { send: Send };
     const { x, y } = middleOf(element);
     const steps = 10;

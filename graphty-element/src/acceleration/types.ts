@@ -143,6 +143,17 @@ export interface GraphAccelerator {
     /** The hardware, when the backend can describe it. */
     readonly device?: AcceleratorDeviceInfo;
     /**
+     * The package that implements it and its version, read from the package itself. A run or a
+     * layout this accelerator computed lists it among the packages that produced it
+     * (spec/README.md 4.5 rule 6). Absent, none is listed.
+     */
+    readonly package?: {
+        /** The package name, such as `"@graphty/webgpu-graph-algorithms"`. */
+        readonly name: string;
+        /** Its version. */
+        readonly version: string;
+    };
+    /**
      * Resolves when the underlying device is lost and this accelerator stops working.
      *
      * The element awaits it, reports `state: "error"` with `E_DEVICE_LOST`, and attempts to
@@ -288,18 +299,25 @@ export interface AccelerationStatus {
 /**
  * The numbers that govern how much the element will attempt.
  *
- * They are shipped defaults (`DEFAULT_LIMITS`); `renderCeiling`, `edgesDrawn`, `objectRows` and
- * `objectEdges` can be set through the `limits` option. `session.calibrate()` measures this
- * machine's throughput for the cost estimates and does not change them.
+ * They are shipped defaults (`DEFAULT_LIMITS`); `renderCeiling`, `edgesDrawn`, `objectRows`,
+ * `objectEdges` and `fullDetailTriangleBudget` can be set through the `limits` option.
+ * `session.calibrate()` measures this machine's throughput for the cost estimates and does not
+ * change them.
  */
 export interface Limits {
     /**
-     * Above this node count the element draws less visual detail: a round node shape no style layer
-     * gives a `node.meshDetail` is drawn `"low"`, and `session.recommendLayout()` scatters the graph
-     * at random rather than settling a force simulation. A layer that sets `node.meshDetail`
-     * (`"full"` included) keeps it at any size. Nothing to do with acceleration.
+     * Above this node count `session.recommendLayout()` scatters the graph at random rather than
+     * settling a force simulation. Nothing to do with acceleration.
      */
     largeGraphThreshold: number;
+    /**
+     * How many triangles the nodes may draw at full detail (default 1,000,000, measured; issue
+     * #9548). Each node counts as the default shape's 320; once the graph's nodes pass the budget
+     * (3,125 nodes at the default), a round node shape no style layer gives a `node.meshDetail` is
+     * drawn `"low"`. A layer that sets `node.meshDetail` (`"full"` included) keeps it at any size.
+     * Raise it through the `limits` option for full detail on a larger graph.
+     */
+    fullDetailTriangleBudget: number;
     /** The most nodes this machine will render at an interactive frame rate. */
     renderCeiling: number;
     /** How much memory the element is willing to hold for one graph. */
@@ -424,8 +442,9 @@ export type AccelerationCapabilities = Pick<Capabilities, "acceleration">;
  * At or above this node count, a run or a layout that has an accelerated implementation uses
  * the accelerator; below it the element takes the CPU path even though an accelerator is
  * attached, and the state reads `"idle"`. It is the only threshold that governs acceleration,
- * and it is a different number from `largeGraphThreshold`, which decides how much visual detail
- * to draw and has nothing to say about where a computation runs.
+ * and it is a different number from `largeGraphThreshold` and `fullDetailTriangleBudget`, which
+ * decide the layout recommendation and how much visual detail to draw and have nothing to say
+ * about where a computation runs.
  */
 export const ACCELERATION_MIN_NODES_KEY = "acceleration.minNodes";
 

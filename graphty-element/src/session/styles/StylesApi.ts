@@ -126,11 +126,11 @@ import { resultPath, type RunRef } from "../results/types";
 import {
     type Caveats,
     deriveRunId,
-    ENGINE_VERSIONS,
     type EngineVersions,
     ManagedRun,
     type ResolvedScope,
     type Run,
+    RUN_ENGINE,
     type RunBody,
     type RunDefinition,
     type RunOptions,
@@ -189,11 +189,13 @@ import {
 } from "./EncodingSpec";
 import {
     type AgreementElements,
+    createSelectorMatches,
     type ExplainSources,
     explainStyle,
     type ExplainTarget,
     read as readAt,
     resolveToStatic as resolveRule,
+    type SelectorMatches,
     type StyleAgreement,
     styleAgreement,
     type StyleCounts,
@@ -290,6 +292,7 @@ import {
     foldPatch,
     groupsOf,
     type LayerGroup,
+    type ScaleRead,
     type ValueCategory,
     valueEntriesPatch,
     valueEntryPatch,
@@ -2145,7 +2148,7 @@ function layerIn(state: ProjectState, id: LayerId): Layer | undefined {
  *     malformed, which is a bug in the element rather than in the call.
  */
 export function createStylesApi(sources: StylesSources): SessionStylesApi {
-    const engine = sources.engine ?? ENGINE_VERSIONS;
+    const engine = sources.engine ?? RUN_ENGINE;
     const scales = sources.scales ?? createScaleRegistry();
     const dispatcher = sources.dispatcher ?? new Dispatcher({ definitions: STYLE_DEFINITIONS });
 
@@ -2227,6 +2230,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
               ];
     /** A reading of the stack, kept while nothing it reads changes (see `readingCache.ts`). */
     const kept = createReadingCache(readingToken);
+    /** The selector answers of one moment, kept apart from the readings: a reading asks for them mid-read. */
+    const keptMatches = createReadingCache(readingToken);
 
     /** One disabled stand-in per element base layer, so a repaint sees the same object each time. */
     const baseStandIns = new WeakMap<CompiledLayer, CompiledLayer>();
@@ -2450,6 +2455,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * The scale the last paint read each channel of one layer through, for a value-table edit that
+     * names the scale a binding left to its column.
+     * @param layerId - The layer.
+     * @returns The lookup by channel.
+     */
+    const scaleReadOf =
+        (layerId: LayerId): ScaleRead =>
+        (channel) =>
+            encodingOf(layerId).find((each) => each.channel === channel)?.scale;
+
+    /**
      * What a layer was last painted with, for the group reads: between an edit of a layer and the
      * repaint that follows it the layer has no prepared bindings, and `groups` and `categories`
      * would answer "none" for that moment -- a group editor reading them on the edit's change
@@ -2470,7 +2486,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * What a layer's counts are read from: the stack's own layers, never a branches view's.
      * @returns The sources.
      */
-    const countSources = (): ExplainSources => ({ ...explainSources, stack: () => basePainting(current()) });
+    const countSources = (): ExplainSources => ({
+        ...explainSources,
+        stack: () => basePainting(current()),
+        matches: selectorMatches(),
+    });
+
+    /**
+     * Which elements each selector matches, kept while the reading token stands: the several
+     * readings a panel takes after one filter change test each selector on each element once.
+     * @returns The selector answers of this moment.
+     */
+    const selectorMatches = (): SelectorMatches => keptMatches("selectorMatches", createSelectorMatches);
 
     /** What an explanation, an unbound report and a resolved rule are read from. */
     const explainSources: ExplainSources = {
@@ -4523,7 +4550,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const { below, over } = options;
         // Read through the stack's own layers, never a branches view's: which layer decides a
         // value does not change while a selection is being picked.
-        const read = below === undefined ? countSources() : { ...explainSources, stack: () => stackBelow(below) };
+        const read =
+            below === undefined
+                ? countSources()
+                : { ...explainSources, stack: () => stackBelow(below), matches: selectorMatches() };
+        const matches = read.matches ?? createSelectorMatches();
         if (over === undefined) {
             return styleAgreement(shownElementsOf(scope), read, channel);
         }
@@ -4537,7 +4568,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             indices.filter((index) =>
                 parts.some(
                     ({ layer, selector }) =>
-                        layer.target === target && (selector.test === null || selector.test(index)),
+                        layer.target === target && (selector.test === null || matches(selector.test, index)),
                 ),
             );
         const matched = { nodes: within("node", nodes), edges: within("edge", edges) };
@@ -5141,7 +5172,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     op: "style.patch",
                     action: "update",
                     id,
-                    patch: valueEntriesPatch(layerIn(state, id), by, writes),
+                    patch: valueEntriesPatch(layerIn(state, id), by, writes, scaleReadOf(id)),
                 }),
                 options,
             );
@@ -5182,7 +5213,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     op: "style.patch",
                     action: "update",
                     id,
-                    patch: valueEntryPatch(layerIn(state, id), channel, value, entry),
+                    patch: valueEntryPatch(layerIn(state, id), channel, value, entry, scaleReadOf(id)),
                 }),
                 options,
             );

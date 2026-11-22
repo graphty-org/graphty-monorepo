@@ -6,7 +6,7 @@
  * things about it -- degree, PageRank, communities, shortest routes -- and publishes an
  * extension point so a third party can add a computation of their own. The element is meant to
  * treat that computation exactly as it treats its own: list it among the things a reader can
- * run, start it as a watchable, cancellable piece of work, check the reader's parameters before
+ * run, start it as a watchable, cancelable piece of work, check the reader's parameters before
  * any work begins, quote what it would cost before the click, turn what it produces into a
  * ranking, a distribution, a summary and a sentence of plain language, and derive a picture from
  * it -- all without the extension author writing a line of statistics, progress or styling code.
@@ -246,7 +246,7 @@ const probe = {
     /** Called by the extension the first time it reaches a yield point. Reset per test. */
     begun: (): void => undefined,
     /** Whether the extension waits at each yield point until it is canceled, so a cancel lands mid-run. */
-    holdUntilCancelled: false,
+    holdUntilCanceled: false,
     /** Whether the extension's own signal was aborted when it stopped. */
     stoppedBySignal: false,
 };
@@ -350,7 +350,7 @@ class HopReach extends DeclaredAlgorithm<HopReachOptions> {
 
                 await context.yieldNow();
 
-                if (probe.holdUntilCancelled && !context.signal.aborted) {
+                if (probe.holdUntilCanceled && !context.signal.aborted) {
                     await new Promise<void>((settle) => {
                         context.signal.addEventListener(
                             "abort",
@@ -868,7 +868,7 @@ describe("an algorithm written outside this package", () => {
 
     beforeEach(async () => {
         probe.begun = (): void => undefined;
-        probe.holdUntilCancelled = false;
+        probe.holdUntilCanceled = false;
         probe.stoppedBySignal = false;
         faulty.plain = false;
 
@@ -1040,13 +1040,13 @@ describe("an algorithm written outside this package", () => {
         assert.strictEqual(last.fraction, 1);
     });
 
-    it("stops when the run is cancelled", async () => {
+    it("stops when the run is canceled", async () => {
         const started = deferred();
 
         probe.begun = started.resolve;
         // The extension holds between steps until it is canceled, so the cancel below lands while
         // its own loop is running, rather than before the work ever started.
-        probe.holdUntilCancelled = true;
+        probe.holdUntilCanceled = true;
 
         const run = graph.run("hop-reach");
 

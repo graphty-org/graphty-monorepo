@@ -997,11 +997,11 @@ describe("measure steps and runs", () => {
         });
         assert.strictEqual(computing.branches[0].steps[0].reason?.code, "computing");
 
-        const cancelled = await nextReading(session, rule, () => {
+        const canceled = await nextReading(session, rule, () => {
             session.scope.cancelRun(rule, step.id);
         });
-        assert.strictEqual(cancelled.branches[0].steps[0].reason?.code, "run-needed");
-        assert.isNumber(cancelled.branches[0].steps[0].reason?.params.estimateMs, "a cancelled run keeps its estimate");
+        assert.strictEqual(canceled.branches[0].steps[0].reason?.code, "run-needed");
+        assert.isNumber(canceled.branches[0].steps[0].reason?.params.estimateMs, "a canceled run keeps its estimate");
         executions.release?.();
     });
 

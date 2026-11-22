@@ -68,13 +68,13 @@ export function isTourPause(stop: AnyStop): stop is TourPause {
 }
 
 /**
- * Why a tour ended: `"finished"` the last hold ended; `"cancelled"` its `signal` aborted or
+ * Why a tour ended: `"finished"` the last hold ended; `"canceled"` its `signal` aborted or
  * `cancelCameraAnimation()` was called; `"interrupted"` the reader moved the camera or pressed the
  * canvas; `"replaced"` another tour, a recording, `setCameraState`, `applyCameraView`, the
  * `view.camera` op or a screenshot with a `camera` moved the camera; `"mode-changed"` the drawing
  * mode switched (2D, 3D or immersive).
  */
-export type TourEndReason = "finished" | "cancelled" | "interrupted" | "replaced" | "mode-changed";
+export type TourEndReason = "finished" | "canceled" | "interrupted" | "replaced" | "mode-changed";
 
 /** One stop of a {@link TourPlan}. */
 export interface TourPlanStop {

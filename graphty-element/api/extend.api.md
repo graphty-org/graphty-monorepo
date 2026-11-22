@@ -196,6 +196,8 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     }): AcceleratedAlgorithmRun;
     // @deprecated
     protected algorithmGraph(mode: AlgorithmGraphMode): Graph_2;
+    // @internal
+    protected forgetReachedAccelerator(): void;
     static get(g: AlgorithmHost | GraphSession, namespace: string, type: string, options?: Record<string, unknown>): Algorithm_2 | null;
     static getClass(namespace: string, type: string): (AlgorithmClass & AlgorithmStatics) | null;
     // @deprecated
@@ -224,6 +226,8 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     // @internal
     static parallelEdges?: SimplifyPolicy;
     publishResult(_context: RunControls, runId: string, _fields?: readonly FieldDescriptor[]): Promise<RunResult | undefined>;
+    // @internal
+    reachedAccelerator: GraphAccelerator | null;
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
     // (undocumented)
@@ -287,6 +291,7 @@ export interface AlgorithmDescriptor {
     description: string;
     descriptionId?: string;
     fields: readonly FieldDescriptor[];
+    formerKeys?: readonly LegacyAlgorithmKey[];
     key: AlgorithmKey;
     // @beta
     keywords?: readonly string[];
@@ -427,10 +432,8 @@ export { AwsCredentials }
 
 // @public
 export interface BaseDataSourceConfig {
-    // (undocumented)
     chunkSize?: number;
     data?: SourceData;
-    // (undocumented)
     errorLimit?: number;
     file?: File;
     graphIndex?: number;
@@ -524,6 +527,7 @@ export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iter
 
 // @public
 export interface Caveats {
+    readonly accelerator?: ComputeBackend;
     readonly componentScope?: "all" | "largest";
     readonly converged?: boolean;
     readonly direction: RunDirection;
@@ -637,11 +641,9 @@ export abstract class DataSource {
     protected declareRequestedLayout(layout: RequestedLayout | null): void;
     // @beta
     protected declareTime(field: TimeField): void;
-    // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;
     static detect?: (sample: string) => boolean;
-    // (undocumented)
     edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
@@ -667,25 +669,20 @@ export abstract class DataSource {
     static getRegisteredTypes(): string[];
     protected graphChoice(): GraphChoiceOptions;
     static listGraphs?: GraphLister;
-    // (undocumented)
     nodeSchema: z.core.$ZodObject | null;
     static register<T extends DataSourceClass>(cls: T, options?: RegisterOptions): T;
     get requestedLayout(): RequestedLayout | null;
     protected resolveOptions(passed: object): Record<string, unknown>;
-    // (undocumented)
     abstract sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown>;
     static toRecord(fields: Readonly<Record<string, unknown>>): AdHocData;
     static toRecords(records: readonly Readonly<Record<string, unknown>>[]): AdHocData[];
-    // (undocumented)
     static readonly type: string;
     get type(): string;
 }
 
-// @public (undocumented)
+// @public
 export interface DataSourceChunk {
-    // (undocumented)
     edges: AdHocData[];
-    // (undocumented)
     nodes: AdHocData[];
 }
 
@@ -1098,6 +1095,10 @@ export interface GraphAccelerator {
         reason: string;
     }>;
     readonly name: string;
+    readonly package?: {
+        readonly name: string;
+        readonly version: string;
+    };
     readonly precision?: AccelerationPrecision;
     verify?(): Promise<void>;
 }
@@ -1239,7 +1240,7 @@ export type GraphtyErrorCode =
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-* @beta
+* Beta: may change in a minor release.
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -1268,20 +1269,20 @@ export type GraphtyErrorCode =
 /**
 * A layer names a shader the catalog does not list, in a use on `node.shaders` or
 * `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER"
 /**
 * A layer names a shader where it cannot draw: an edge shader on `node.shaders`
 * (`shader.target-mismatch`), or a use at a place the shader does not allow
 * (`shader.place-unsupported`); the refused problem's `fact` carries the code.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_SHADER_KIND"
 /**
 * A layer sets or binds a parameter the shader does not declare, or binds one per element
 * that it does not declare `varies`. `details.candidates` lists the declared parameters.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER_PARAM"
 /**
@@ -1334,7 +1335,7 @@ export type GraphtyErrorCode =
 * A graph was constructed with the id of a page element that the document does not hold, so
 * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
 * or passes the element itself.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_HOST_NOT_FOUND"
 /**
@@ -1935,14 +1936,14 @@ export type GraphtyErrorCode =
 * stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
 * background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
 * it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_CAPTURE_FAILED"
 /**
 * A screenshot waited for the layout to stop moving and it was still moving when the wait ran
 * out. `details.timeoutMs` is the wait. The caller captures again later, raises
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_NOT_SETTLED"
 /**
@@ -2003,7 +2004,7 @@ export type GraphtyErrorCode =
 /**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
-* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+* an `AnimationCanceledError`, a `GraphtyError` with this code. Added in 3.58.0.
 */
 | "E_CANCELED" | "E_INTERNAL";
 
@@ -2693,6 +2694,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     // @deprecated
     description?: string;
     descriptionId?: string;
+    formerNames?: readonly string[];
     group?: string;
     internal?: boolean;
     max?: number | string | OptionBound;

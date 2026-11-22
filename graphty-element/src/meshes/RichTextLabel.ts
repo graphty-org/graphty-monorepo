@@ -33,7 +33,7 @@ import { closeGlyphRect, closeHitFractions, closeReserve, drawCloseGlyph, markCl
 import { keepOnEyeLine } from "./labelEyeLine";
 import { fontFamilies, noteLabelFont } from "./labelFonts";
 import { fitToScreen, type LabelPlacement, type PlacementBounds } from "./labelScreenFit";
-import { type LabelTable, layoutLabelTable, readLabelTable, type TableDrawing } from "./labelTable";
+import { type LabelTable, layoutLabelTable, readLabelTable, roundedBoxOutline, type TableDrawing } from "./labelTable";
 import { LabelTexture } from "./LabelTexture";
 import { fitTexturesToScreen } from "./labelTextureFit";
 import { labelBoxOf } from "./NodeShapeGeometry";
@@ -1103,6 +1103,10 @@ export class RichTextLabel {
         const inset = Math.min(Math.max(0, this.table.border ?? 0), this.totalBorderWidth);
         this.tableDrawing = drawn;
         this.tableInset = inset;
+        // a rounded table's outline is the panel's border, rounded as the table is in the middle of its border
+        if (drawn.radius > 0 && this.options.cornerRadius === 0) {
+            this.options.cornerRadius = drawn.radius + Math.max(0, this.table.border ?? 0) / 2;
+        }
         this.contentArea = {
             x: this.totalBorderWidth,
             y: this.totalBorderWidth,
@@ -1138,16 +1142,36 @@ export class RichTextLabel {
         const x0 = this.contentArea.x - this.tableInset;
         const y0 = this.contentArea.y - this.tableInset;
         ctx.save();
+        const outline = (box: { x: number; y: number; width: number; height: number }, radius = 0): void => {
+            ctx.beginPath();
+            for (const [x, y] of roundedBoxOutline({ ...box, x: x0 + box.x, y: y0 + box.y }, radius)) {
+                ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+        };
         for (const f of drawn.fills) {
             ctx.fillStyle = f.color;
-            ctx.fillRect(x0 + f.x, y0 + f.y, f.width, f.height);
+            if (f.gradient !== undefined) {
+                // from the box's middle out half its width and height along the angle, as a node's gradient runs
+                const a = (f.gradient.angle * Math.PI) / 180;
+                const [cx, cy] = [x0 + f.x + f.width / 2, y0 + f.y + f.height / 2];
+                const [dx, dy] = [(Math.cos(a) * f.width) / 2, (Math.sin(a) * f.height) / 2];
+                const ramp = ctx.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
+                ramp.addColorStop(0, f.color);
+                ramp.addColorStop(1, f.gradient.to);
+                ctx.fillStyle = ramp;
+            }
+            outline(f, f.radius);
+            ctx.fill();
         }
 
         ctx.strokeStyle = this.tableLineColor;
         // each cell's outline drawn inside its box, as Graphviz strokes it
         for (const f of drawn.frames.filter((frame) => frame.border > 0)) {
             ctx.lineWidth = f.border;
-            ctx.strokeRect(x0 + f.x + f.border / 2, y0 + f.y + f.border / 2, f.width - f.border, f.height - f.border);
+            const i = f.border / 2;
+            outline({ x: f.x + i, y: f.y + i, width: f.width - f.border, height: f.height - f.border }, f.radius);
+            ctx.stroke();
         }
 
         ctx.lineWidth = drawn.frames[0]?.border ?? 1;

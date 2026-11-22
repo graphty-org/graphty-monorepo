@@ -90,6 +90,15 @@ async function typeDegreeFrom(value: string): Promise<void> {
     await userEvent.type(from, `${value}{Enter}`);
 }
 
+/**
+ * Waits for the first card's count to read what was typed, so what the reader sees is settled
+ * before the page reloads: Les Miserables has 41 nodes of degree 5 or more and 22 of 10 or more.
+ * @param count - the count the card shows.
+ */
+async function cardCounts(count: number): Promise<void> {
+    await screen.findByRole("region", { name: `A, ${String(count)} of 77 nodes` });
+}
+
 /** Opens the Data place's Filters, with the sample's load drawn. */
 async function openDataPlace(): Promise<void> {
     await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
@@ -119,7 +128,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
         it("a style layer's Which nodes reopens on that layer with the step added", async () => {
             const before = await openAutosaved("Les Miserables");
             const session = await sessionNow();
-            await session.styles.add({
+            const layer = await session.styles.add({
                 name: "Busy",
                 target: "node",
                 selector: { match: "everything" },
@@ -132,9 +141,10 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await ws();
             await pickValue("Degree");
             await typeDegreeFrom("5");
+            await cardCounts(41);
             await waitFor(() => {
-                const layer = session.styles.list().find((each) => each.name === "Busy");
-                assert.include(JSON.stringify(layer?.selector), '"min":5', "the step is written to the layer");
+                const selector = session.styles.get(layer.id)?.selector;
+                assert.include(JSON.stringify(selector), '"min":5', "the step is written to the layer");
             });
 
             const after = await reload(before, { lostSession });
@@ -152,6 +162,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await ws();
             await pickValue("Degree");
             await typeDegreeFrom("5");
+            await cardCounts(41);
             assert.lengthOf(session.visibility.conditions, 0, "nothing is written before Done");
 
             const after = await reload(before, { lostSession });
@@ -178,6 +189,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             const modal = await ws();
             await pickValue("Degree");
             await typeDegreeFrom("5");
+            await cardCounts(41);
             await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
             await waitFor(() => {
                 assert.isNull(document.querySelector(".sel-ws"), "Done closes it");
@@ -187,6 +199,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await userEvent.click(list.querySelector<HTMLElement>(".dp-filter-name") ?? document.body);
             await ws();
             await typeDegreeFrom("10");
+            await cardCounts(22);
             assert.strictEqual(writtenFrom(session), "5", "the change is a draft");
 
             const after = await reload(before, { lostSession });

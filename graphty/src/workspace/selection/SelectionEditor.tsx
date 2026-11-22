@@ -93,6 +93,11 @@ const TITLE = "title";
 /** Props of the editor. */
 interface SelectionEditorProps {
     readonly session: GraphSession;
+    /**
+     * What the editor is, the same on every mount (`selector:<layer id>:<side>`,
+     * `filter:<condition id>`): the open workspace is kept under it, so a reload reopens it.
+     */
+    readonly workspaceKey: string;
     /** The selection as the host holds it. */
     readonly rule: UnionLeaf;
     readonly host: Host;
@@ -134,6 +139,11 @@ interface SelectionEditorProps {
      * an empty name goes back to the one its cards give it.
      */
     readonly onRename?: (name: string | undefined) => void;
+    /**
+     * The selection the host held before an edit that a reload brought back (a filter card's
+     * draft, reopened by graphty-element's autosave): Cancel goes back to it.
+     */
+    readonly restoredFrom?: UnionLeaf;
 }
 
 /** The rule kinds a step takes with no test: picking one applies it, and the pane shows no test. */
@@ -205,6 +215,8 @@ function cameraRefused(error: unknown): void {
  * @param props.onEmptyCancel - a new selection goes (left with no step, or Cancel on it)
  * @param props.titleOff - the host's on box is off
  * @param props.onRename - renames the selection, from the title bar
+ * @param props.workspaceKey - what the editor is, the same on every mount
+ * @param props.restoredFrom - what Cancel goes back to after a reload brought an edit back
  * @returns The editor
  */
 export function SelectionEditor({
@@ -227,13 +239,15 @@ export function SelectionEditor({
     onEmptyCancel,
     titleOff = false,
     onRename,
+    workspaceKey: owner,
+    restoredFrom,
 }: SelectionEditorProps): React.JSX.Element {
     const { store, element } = useWorkspace();
-    const owner = useId();
     // The one workspace is this editor's while the store names it (spec 3.0). An opening draws the
     // workspace's header ("Drawing") in the frame of its click or key, and names it in the store, which
     // the panels around it follow, after that frame is painted.
     const named = useWorkspaceState((state) => state.selectionWorkspace?.owner === owner);
+    // on reload: fresh: in flight: an opening under way
     const [opening, setOpening] = useState(false);
     const open = named || opening;
     // An empty selection (All, no condition) opens as one empty card that holds nothing, "0 of N"
@@ -241,6 +255,7 @@ export function SelectionEditor({
     // with no value keeps All.
     const converted = open && isEmptyAll(given);
     // That empty card's All nodes, chosen on its start button: nothing is written, so the card remembers it.
+    // on reload: fresh: in flight: a start chosen on an empty card, nothing written until a value is picked
     const [startsAll, setStartsAll] = useState(false);
     const reading = useSteps(session, converted && !startsAll ? asNone(given) : given);
     // Whether the host holds a rule now: what it was given, read as the element holds it.
@@ -249,9 +264,11 @@ export function SelectionEditor({
     // The element's canonical form: every group and step has its id and color.
     // An edit is handed to the host after the frame of its input is painted (see afterPaint); until
     // then the outline shows it, and the next edit builds on it, never on the rule before it.
+    // on reload: fresh: in flight: an edit waiting for its frame to paint
     const [waiting, setWaiting] = useState<UnionLeaf | null>(null);
     const waitingNow = useRef<UnionLeaf | null>(null);
     // The input that started the work says "Drawing" in its own frame, until the work is handed on.
+    // on reload: fresh: in flight: the work an input started
     const [starting, setStarting] = useState(false);
     const rule = waiting ?? reading.rule;
     const onChange = (next: UnionLeaf): void => {
@@ -284,13 +301,19 @@ export function SelectionEditor({
             mounted.current = false;
         };
     }, []);
-    // The row whose pane the workspace shows; null at rest, and after a delete.
-    const [selected, setSelected] = useState<string | null>(null);
+    // The row whose pane the workspace shows; null at rest, and after a delete. Kept with the open
+    // workspace in the store (selectionWorkspace.selected), so a reload reopens on it.
+    // on reload: fresh: derived: read back from the kept selectionWorkspace when the editor mounts
+    const [selected, setSelected] = useState<string | null>(() => {
+        const kept = store.get().selectionWorkspace;
+        return kept?.owner === owner ? (kept.selected ?? null) : null;
+    });
     // Whether the last key was Escape: a picker it closed on a selection with no step takes a new
     // filter card back (spec 25); a click elsewhere only closes the picker.
     const escaped = useRef(false);
     // `open`: its value picker is open; `back`: the row that was selected before, selected again
     // if the step is not added.
+    // on reload: fresh: pointer: a step being added, its value picker open
     const [adding, setAdding] = useState<{
         branch: string;
         op: Verb;
@@ -300,10 +323,13 @@ export function SelectionEditor({
     // The step being added as the last render drew it: a picker that closes twice takes it back once.
     const addingNow = useRef(adding);
     addingNow.current = adding;
+    // on reload: gap #9662: a group renamed in place
     const [renaming, setRenaming] = useState<string | null>(null);
     // The selection's own name being typed in the title bar (a filter card's).
+    // on reload: gap #9662: the selection renamed in place
     const [renamingTitle, setRenamingTitle] = useState(false);
     // The cards folded to their header line; a new group folds every card before it.
+    // on reload: fresh: pointer: cards folded for a look
     const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
     const fold = (id: string, to: boolean): void => {
         setFolded((was) => {
@@ -316,9 +342,12 @@ export function SelectionEditor({
             return next;
         });
     };
+    // on reload: fresh: pointer: a view switch for this visit
     const [colors, setColors] = useState(groupColors[host]);
+    // on reload: fresh: pointer: a view switch for this visit
     const [strip, setStrip] = useState(stripShown[host]);
     // Where the workspace lies over the frame, once measured (below).
+    // on reload: fresh: derived: measured from the frame
     const [wsPlace, setPlace] = useState<React.CSSProperties | null>(null);
     const box = useRef<HTMLDivElement>(null);
     const wsBox = useRef<HTMLElement>(null);
@@ -493,8 +522,10 @@ export function SelectionEditor({
     // graphty-element has painted the result, so the canvas never shows the preview look without
     // "Drawing" beside it. Where the repaint does not block, that is the next frame. An edit still
     // waiting is handed on first.
+    // on reload: fresh: in flight: a close under way
     const [closing, setClosing] = useState(false);
     // The preview ends while the workspace is still open, as the first part of closing it.
+    // on reload: fresh: in flight: a close under way
     const [ending, setEnding] = useState(false);
     const closingNow = useRef(false);
     const handBackRef = useRef<(how: "done" | "cancel") => void>(() => undefined);
@@ -544,6 +575,10 @@ export function SelectionEditor({
             return;
         }
         arrived.current = true;
+        if (named) {
+            // A workspace a reload kept opens as it was (above), not as a new arrival.
+            return;
+        }
         const first = rule.branches.at(0);
         const firstStep = first?.steps.at(0)?.id;
         if (openPicker && first !== undefined) {
@@ -563,6 +598,31 @@ export function SelectionEditor({
             }
         }
     });
+    // The workspace a reload kept, named in the store before anything here opened it: it opens
+    // again quietly on the step it showed, as an opening would, so Done, Cancel and the visit work.
+    useEffect(() => {
+        if (!named || openings.current > 0) {
+            return;
+        }
+        openings.current += 1;
+        openedIn.current = store.get().place;
+        openedWith.current = restoredFrom ?? reading.rule;
+        visit.current ??= session.scope.edit();
+        opener.current = TITLE;
+        // A new filter card a reload brought back still goes on Cancel: it was never written.
+        openedNew.current = onEmptyCancel !== undefined;
+        const kept = store.get().selectionWorkspace?.selected ?? null;
+        setSelected(kept);
+        focusAfter.current =
+            kept === null ? [`[data-row="${TITLE}"]`] : [`[data-row="${CSS.escape(kept)}"]`, `[data-row="${TITLE}"]`];
+    }, [named, store, restoredFrom, reading.rule, session.scope, onEmptyCancel]);
+    // The step shown is kept with the open workspace.
+    useEffect(() => {
+        const was = store.get().selectionWorkspace;
+        if (was?.owner === owner && (was.selected ?? null) !== selected) {
+            store.set({ selectionWorkspace: { ...was, selected } });
+        }
+    }, [store, owner, selected, named]);
     // Leaving the place it was opened in is Done.
     useEffect(() => {
         if (open && place !== openedIn.current) {
@@ -596,6 +656,7 @@ export function SelectionEditor({
     const viewKey = JSON.stringify(reading.rule);
     // The workspace's first frame is drawn before the work its opening starts (the preview, the
     // strip's and the table's readings, the canvas's framing), so it says "Drawing" first.
+    // on reload: fresh: in flight: the first frame being drawn
     const [warm, setWarm] = useState(false);
     useEffect(() => {
         if (!open) {
@@ -637,6 +698,7 @@ export function SelectionEditor({
     // While graphty-element still applies the preview's paint (a large graph repaints over many
     // frames), the header says "Drawing" beside the count, so the count is not read as the
     // canvas's; it clears once the element has drawn the last batch (ws-polish 3).
+    // on reload: fresh: in flight: a repaint under way
     const [drawing, setDrawing] = useState(false);
     useEffect(() => {
         if (!open || element === null) {
@@ -1893,8 +1955,10 @@ function NewStepPane({
     onPick: (stepRule: RuleTree) => void;
     onCancel: () => void;
 }>): React.JSX.Element {
+    // on reload: fresh: pointer: a value picker open
     const [open, setOpen] = useState(openAtFirst);
     // A letter typed on the closed field opens the picker with it in the search (ws-polish 3).
+    // on reload: fresh: pointer: a letter typed to open the picker
     const [seed, setSeed] = useState("");
     const picked = useRef(false);
     // A press on the field itself closes the open list as a click outside it does; the step stays,
@@ -2077,6 +2141,7 @@ function AddCard({
     most: number;
     onPick: (stepRule: RuleTree) => void;
 }>): React.JSX.Element {
+    // on reload: fresh: pointer: a menu open for a look
     const [open, setOpen] = useState(false);
     const full = left === 0;
     const choose = (stepRule: RuleTree): void => {

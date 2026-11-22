@@ -121,7 +121,13 @@ export function reopenOwn(store: WorkspaceStore, entry: AutosaveEntry): void {
     reopen(
         store,
         entry,
-        (name) => {
+        (name, stashed) => {
+            // Safari can end a background tab and load it again with this tab's session storage
+            // emptied (issue #9655): the place then comes back from the one stashed with the work.
+            if (Object.keys(where).length === 0) {
+                store.set({ ...stashed, announcement: reopenedTabSentence(name) });
+                return;
+            }
             // The row is put back once the data is in, so it exists; a reader who went somewhere
             // meanwhile (a rail click while the work reopened) stays there.
             const { page, place, inspected } = store.get();

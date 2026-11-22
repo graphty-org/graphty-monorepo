@@ -301,13 +301,20 @@ export interface WorkspaceState {
     /**
      * The selection editor whose workspace is open over the canvas column
      * (design/ui/selection-groups/spec.md, section 3.0): one at a time, so opening another
-     * switches it. Null while it is closed.
+     * switches it. Null while it is closed. Kept across a reload: the editor that mounts under the
+     * same key reopens it, and a filter card's unwritten edits come back from graphty-element's
+     * autosave (its open filter drafts).
      */
     readonly selectionWorkspace: {
-        /** The editor that opened it: only it draws the workspace, and only it clears it. */
+        /**
+         * The editor that opened it, by its workspace key (`selector:<layer id>:<side>`,
+         * `filter:<condition id>`): only it draws the workspace, and only it clears it.
+         */
         readonly owner: string;
         /** Its host: a style layer's selector covers the left panel, a filter card the inspector. */
         readonly host: "selector" | "filter";
+        /** The row whose pane it shows (a step's id, or the title), or null. */
+        readonly selected?: string | null;
     } | null;
     /**
      * A new filter card to open once the Filters section shows it: on a field
@@ -585,7 +592,7 @@ export const ON_RELOAD = {
     dockIssue: "fresh: request: a one-time request the dock clears",
     dockRows: "fresh: request: a one-time request the dock clears",
     editingSelection: "fresh: derived: the selection editor that reopens writes it again",
-    selectionWorkspace: "gap #9655: names an editor by React's useId, which a reload gives anew",
+    selectionWorkspace: "kept",
     filterDraft: "fresh: request: a one-time request the Filters section clears",
     fieldsEntry: "fresh: request: a one-time request Fields clears",
     dockMaximized: "kept",

@@ -26,7 +26,7 @@ const ITEM = "app.graphty.workspace.place";
  * The most fields a reload may still lose that the reader made, each `gap #<issue>`: a ratchet,
  * lowered when a gap is fixed and never raised.
  */
-const MAX_GAPS = 22;
+const MAX_GAPS = 21;
 
 /** What is saved beside the kept fields, about the project. */
 const PROJECT_FIELDS = ["name", "blank", "opened", "entry"];
@@ -55,7 +55,7 @@ describe("what a reload of this tab puts back", () => {
     });
 
     it("keeps the open selection workspace (issue #9655)", () => {
-        assert.strictEqual(ON_RELOAD.selectionWorkspace as string, "kept");
+        assert.strictEqual(ON_RELOAD.selectionWorkspace, "kept");
     });
 
     it("saves exactly the kept fields while a project is open, and forgets them once none is", () => {

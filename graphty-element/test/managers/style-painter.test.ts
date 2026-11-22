@@ -424,6 +424,23 @@ describe("StylePainter channels", () => {
         assert.isTrue(paint?.style.label?.enabled, "a label nobody switched on is never drawn");
     });
 
+    it("switches an edge label on when a layer paints its table, which is drawn in place of the words", async () => {
+        const held = harness();
+        const table = '{"rows":[{"cells":[{"lines":[{"text":"Hi"}]}]}]}';
+        await held.styles.add({
+            name: "record",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.labelTable": table },
+        });
+        await held.paintAll();
+
+        const paint = held.painter.edgePaint(0);
+
+        assert.strictEqual(paint?.style.label?.table, table);
+        assert.isTrue(paint?.style.label?.enabled, "a table nobody switched on is never drawn");
+    });
+
     it("switches an arrow caption on beside its words, not on the arrow the words hang from", async () => {
         // THE DEFECT THIS CLOSES, and it was silent. A layer that writes a text channel also
         // writes the `enabled` flag of the block the words land in, because text nobody switched

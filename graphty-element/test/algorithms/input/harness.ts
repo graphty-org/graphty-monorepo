@@ -1,14 +1,12 @@
 /**
- * @file A store-backed stand-in for the graph an algorithm runs on, whose data can change between
- * runs: the two data-manager members the input accessor reads, the acceleration controller a real
- * `Graph` builds, and scopes resolved as bitmaps over the current snapshot. Also the built-ins that
- * compute over their scope with the declaration taken off, to test the whole-graph route a plugin
- * that declares nothing takes.
+ * @file A real headless session holding a graph an algorithm runs on, whose data a test can grow
+ * between runs through `session.data.addNodes` and `addEdges`, with scopes resolved as bitmaps
+ * over the current snapshot. Also the built-ins that compute over their scope with the declaration
+ * taken off, to test the whole-graph route a plugin that declares nothing takes.
  */
 
 import { type GraphSnapshot, makeMask, maskCount, maskSet, type U32 } from "@graphty/graph-format";
 
-import { AccelerationController, AcceleratorRegistry } from "../../../src/acceleration";
 import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
 import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
 import { DegreeAlgorithm } from "../../../src/algorithms/DegreeAlgorithm";
@@ -16,127 +14,91 @@ import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
 import type { ResolvedInputScope } from "../../../src/algorithms/input/ScopedInput";
 import { KruskalAlgorithm } from "../../../src/algorithms/KruskalAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
-import { GraphStore } from "../../../src/data/GraphStore";
-import type { Graph } from "../../../src/Graph";
-import { ingestEdge, ingestNode } from "../../helpers/rawIngest";
+import { storeOfSession } from "../../../src/session/dispatchers";
+import { createSessionGraph, type SessionGraph } from "../../helpers/session-graph";
 
-/** One edge to add: source, target and an optional weight. */
+/** One edge to add: source, target and an optional weight (1 when absent). */
 export type EdgeSpec = readonly [string, string, number?];
 
-/** A graph whose store a test can grow between runs. */
-export class InputGraph {
-    readonly store: GraphStore;
-    readonly acceleration = new AccelerationController({
-        policy: "auto",
-        minNodes: 0,
-        registry: new AcceleratorRegistry(),
-    });
-    readonly nodes = new Map<string, { id: string }>();
-    readonly edges = new Map<
-        string,
-        { id: string; srcId: string; dstId: string; index: number; data?: Record<string, unknown> }
-    >();
-
+/** A session holding a graph, which a test can grow between runs. */
+export type InputGraph = SessionGraph & {
+    /** The session's store, the identity a scope's resolution and the shared inputs are keyed by. */
+    readonly store: object;
+    /** The session's current snapshot. */
+    snapshot(): GraphSnapshot;
     /**
-     * A graph over some records.
-     * @param nodes - Node ids, in insertion order.
-     * @param edges - Edges, in insertion order.
-     * @param directed - The direction policy.
+     * Add records through the session; the next snapshot read freezes them. The `nodes` and
+     * `edges` records stay those the graph was built with.
      */
-    constructor(nodes: readonly string[], edges: readonly EdgeSpec[], directed: boolean | "auto" = "auto") {
-        this.store = new GraphStore({
-            directed,
-            positionScale: () => 1,
-            onNodeRemap: () => undefined,
-            onEdgeRemap: () => undefined,
-            onReplaced: () => undefined,
-        });
-        this.add(nodes, edges);
-    }
-
-    /**
-     * Add records; the next snapshot read freezes them.
-     * @param nodes - Node ids.
-     * @param edges - Edges.
-     */
-    add(nodes: readonly string[], edges: readonly EdgeSpec[] = []): void {
-        for (const id of nodes) {
-            ingestNode(this.store, id, {});
-            this.nodes.set(id, { id });
-        }
-
-        for (const [srcId, dstId, weight] of edges) {
-            const { index } = ingestEdge(this.store, srcId, dstId, weight ?? 1);
-            const id = String(this.edges.size);
-            this.edges.set(id, { id, srcId, dstId, index });
-        }
-    }
-
-    /**
-     * The current snapshot.
-     * @returns It.
-     */
-    snapshot(): GraphSnapshot {
-        return this.store.getSnapshot();
-    }
-
-    /**
-     * What an algorithm reads through `getDataManager()`.
-     * @returns The members it reads.
-     */
-    getDataManager(): {
-        nodes: Map<string, { id: string }>;
-        edges: Map<string, { id: string; srcId: string; dstId: string; index: number; data?: Record<string, unknown> }>;
-        getSnapshot: () => GraphSnapshot;
-        undirected: GraphStore["undirected"];
-    } {
-        return {
-            nodes: this.nodes,
-            edges: this.edges,
-            getSnapshot: () => this.store.getSnapshot(),
-            undirected: (snapshot) => this.store.undirected(snapshot),
-        };
-    }
-
-    /**
-     * This object as the `Graph` an algorithm's constructor takes.
-     * @returns It.
-     */
-    asGraph(): Graph {
-        return this as unknown as Graph;
-    }
-
+    add(nodes: readonly string[], edges?: readonly EdgeSpec[]): Promise<void>;
     /**
      * A scope over the current snapshot: the named nodes, and of the edges between them those the
      * filter keeps (all of them, the induced reading, when there is no filter).
-     * @param nodeIds - The nodes.
-     * @param keepEdge - Which induced edges stay, by `[source, target]` id.
-     * @returns The scope.
      */
     scope(
         nodeIds: readonly string[],
         keepEdge?: (source: string, target: string, index: number) => boolean,
-    ): ResolvedInputScope {
-        return scopeOver(this.snapshot(), this.store, nodeIds, keepEdge);
-    }
+    ): ResolvedInputScope;
+    /** The whole graph as a scope. */
+    everything(): ResolvedInputScope;
+};
 
-    /**
-     * The whole graph as a scope.
-     * @returns The scope.
-     */
-    everything(): ResolvedInputScope {
-        const graph = this.snapshot();
+/**
+ * An edge as the session loads it: with no weight column the store reads the legacy "value" key.
+ * @param edge - The edge.
+ * @returns The record.
+ */
+function edgeRecord(edge: EdgeSpec): { srcId: string; dstId: string; value: number } {
+    const [srcId, dstId, weight] = edge;
 
-        return {
-            graph,
-            resolution: resolutionOver(
-                graph,
-                makeMask(graph.nodeCount, true),
-                makeMask(graph.edgeCount, true),
-                this.store,
-            ),
-        };
-    }
+    return { srcId, dstId, value: weight ?? 1 };
+}
+
+/**
+ * A real headless session holding some records.
+ * @param nodes - Node ids, in insertion order.
+ * @param edges - Edges, in insertion order.
+ * @param directed - The direction policy; `"auto"` leaves the graph directed.
+ * @returns The graph.
+ */
+export async function inputGraph(
+    nodes: readonly string[],
+    edges: readonly EdgeSpec[],
+    directed: boolean | "auto" = "auto",
+): Promise<InputGraph> {
+    const graph = await createSessionGraph({
+        nodes: nodes.map((id) => ({ id })),
+        edges: edges.map(edgeRecord),
+        directed: directed === "auto" ? undefined : directed,
+    });
+    const store = storeOfSession(graph.session);
+    // The test's own reads, held apart from the data manager an algorithm is handed.
+    const data = graph.getDataManager();
+    const snapshot = (): GraphSnapshot => data.getSnapshot();
+
+    return Object.assign(graph, {
+        store,
+        snapshot,
+        add: async (more: readonly string[], moreEdges: readonly EdgeSpec[] = []): Promise<void> => {
+            await graph.session.data.addNodes(more.map((id) => ({ id })));
+            await graph.session.data.addEdges(moreEdges.map(edgeRecord));
+        },
+        scope: (nodeIds: readonly string[], keepEdge?: (source: string, target: string, index: number) => boolean) =>
+            scopeOver(snapshot(), store, nodeIds, keepEdge),
+        everything: (): ResolvedInputScope => {
+            const current = snapshot();
+
+            return {
+                graph: current,
+                resolution: resolutionOver(
+                    current,
+                    makeMask(current.nodeCount, true),
+                    makeMask(current.edgeCount, true),
+                    store,
+                ),
+            };
+        },
+    });
 }
 
 /**

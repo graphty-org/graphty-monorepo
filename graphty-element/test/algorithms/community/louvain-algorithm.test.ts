@@ -2,7 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { LouvainAlgorithm } from "../../../src/algorithms/LouvainAlgorithm";
-import { asNumber, createSessionGraph, getGraphResult, getNodeResult } from "../../helpers/session-graph";
+import { asNumber, createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
 
 describe("LouvainAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -22,7 +22,7 @@ describe("LouvainAlgorithm", () => {
            requirement of EVERY grouping method, so the run publishes both as graph
            results. These two boards are what stop them being dropped again. */
         it("publishes the group count as a graph result", async () => {
-            const graph = await createSessionGraph({ dataPath: "./data4.json" });
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
             const algo = new LouvainAlgorithm(graph);
 
             await algo.run();
@@ -34,7 +34,7 @@ describe("LouvainAlgorithm", () => {
         });
 
         it("publishes the modularity the method reported, not a recomputed one", async () => {
-            const graph = await createSessionGraph({ dataPath: "./data4.json" });
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
             const algo = new LouvainAlgorithm(graph);
 
             await algo.run();
@@ -49,7 +49,7 @@ describe("LouvainAlgorithm", () => {
         });
 
         it("counts the groups it actually assigned nodes to", async () => {
-            const graph = await createSessionGraph({ dataPath: "./data4.json" });
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
             const algo = new LouvainAlgorithm(graph);
 
             await algo.run();

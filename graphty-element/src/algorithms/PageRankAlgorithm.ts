@@ -4,11 +4,10 @@ import { z } from "zod";
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type InferOptions, parseOptions } from "../config";
 import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
+import type { Graph } from "../Graph";
 import type { ResultElementValues } from "../session/results";
 import { caveat, noted } from "../session/runs/caveatFacts";
-import type { GraphSession } from "../session/types";
 import { Algorithm } from "./Algorithm";
-import type { AlgorithmHost } from "./host";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
@@ -197,10 +196,10 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
 
     /**
      * Creates a new PageRank algorithm instance
-     * @param g - The graph to run the algorithm on, or a session
+     * @param g - The graph to run the algorithm on
      * @param options - Optional configuration options
      */
-    constructor(g: AlgorithmHost | GraphSession, options?: Partial<PageRankOptions>) {
+    constructor(g: Graph, options?: Partial<PageRankOptions>) {
         super(g, options);
         // Use new Zod-based validation for schema options
         this.zodOptions = parseOptions(pageRankOptionsSchema, options ?? {});

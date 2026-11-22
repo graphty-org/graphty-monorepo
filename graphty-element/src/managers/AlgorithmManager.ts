@@ -137,11 +137,11 @@ export class AlgorithmManager implements Manager {
     /**
      * Run one algorithm on behalf of the session's run machinery.
      *
-     * This is the seam that keeps the session free of the renderer. An algorithm reads its graph
-     * through an `AlgorithmHost` -- this `Graph`, or a session's data surface -- but the run
-     * machinery around it (the legacy dispatch, the caveats appended here) is the element's, so
-     * the session, which must resolve in Node with no Babylon.js, Lit or DOM anywhere in its import
-     * graph, is handed this function, and what comes back is a plain result object.
+     * This is the seam that keeps the session free of the renderer. Every algorithm this package
+     * ships is constructed from a `Graph` and reads the graph through its data manager, so the
+     * session -- which must resolve in Node with no Babylon.js, Lit or DOM anywhere in its import
+     * graph -- cannot build one. It is handed this function instead, and what comes back is a
+     * plain result object.
      *
      * What it does NOT do is write `algorithmResults`. The algorithm's own entry point publishes
      * the result and projects the 1.10 view from it, in the one place that projection lives.

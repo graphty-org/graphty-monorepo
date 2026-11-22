@@ -7,7 +7,7 @@ import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
 import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { OptionValidationError } from "../../../src/algorithms/types/OptionSchema";
-import { createSessionGraph, getGraphResult, getNodeResult } from "../../helpers/session-graph";
+import { createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
 
 describe("Traversal & Path Algorithm Options", () => {
     describe("BFSAlgorithm", () => {
@@ -27,7 +27,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("option defaults", () => {
             it("uses first node as source when none provided", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
@@ -45,7 +45,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("option validation", () => {
             it("accepts valid string source", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }],
                     edges: [{ srcId: "A", dstId: "B" }],
                 });
@@ -53,7 +53,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("accepts valid number source", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: 1 }, { id: 2 }],
                     edges: [{ srcId: 1, dstId: 2 }],
                 });
@@ -61,7 +61,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("rejects invalid source type", async () => {
-                const graph = await createSessionGraph();
+                const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
                     () => new BFSAlgorithm(graph, { source: { invalid: true } }),
@@ -73,7 +73,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("custom options in run()", () => {
             it("uses custom source node", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
@@ -96,7 +96,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("backward compatibility", () => {
             it("configure() method still works", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
@@ -141,7 +141,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("option defaults", () => {
             it("uses first node as source when none provided", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
@@ -159,7 +159,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("option validation", () => {
             it("accepts valid string source", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }],
                     edges: [{ srcId: "A", dstId: "B" }],
                 });
@@ -167,7 +167,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("accepts valid number source", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: 1 }, { id: 2 }],
                     edges: [{ srcId: 1, dstId: 2 }],
                 });
@@ -175,7 +175,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("rejects invalid source type", async () => {
-                const graph = await createSessionGraph();
+                const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
                     () => new DFSAlgorithm(graph, { source: { invalid: true } }),
@@ -187,7 +187,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("custom options in run()", () => {
             it("uses custom source node", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
@@ -206,7 +206,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("backward compatibility", () => {
             it("configure() method still works", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
@@ -259,7 +259,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("option defaults", () => {
             it("uses first and last nodes when none provided", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
@@ -281,7 +281,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("option validation", () => {
             it("accepts valid string source and target", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }],
                     edges: [{ srcId: "A", dstId: "B" }],
                 });
@@ -289,7 +289,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("accepts valid number source and target", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: 1 }, { id: 2 }],
                     edges: [{ srcId: 1, dstId: 2 }],
                 });
@@ -297,7 +297,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("rejects invalid source type", async () => {
-                const graph = await createSessionGraph();
+                const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
                     () => new DijkstraAlgorithm(graph, { source: { invalid: true } }),
@@ -307,7 +307,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("rejects invalid target type", async () => {
-                const graph = await createSessionGraph();
+                const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
                     () => new DijkstraAlgorithm(graph, { target: { invalid: true } }),
@@ -319,7 +319,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("custom options in run()", () => {
             it("uses custom source and target", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
@@ -349,7 +349,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("backward compatibility", () => {
             it("configure() method still works", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
@@ -403,7 +403,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("option defaults", () => {
             it("uses first and last nodes when none provided", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B", value: 5 },
@@ -425,7 +425,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("option validation", () => {
             it("accepts valid string source and sink", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }],
                     edges: [{ srcId: "A", dstId: "B" }],
                 });
@@ -433,7 +433,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("accepts valid number source and sink", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: 1 }, { id: 2 }],
                     edges: [{ srcId: 1, dstId: 2 }],
                 });
@@ -441,7 +441,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("rejects invalid source type", async () => {
-                const graph = await createSessionGraph();
+                const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
                     () => new MaxFlowAlgorithm(graph, { source: { invalid: true } }),
@@ -451,7 +451,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("rejects invalid sink type", async () => {
-                const graph = await createSessionGraph();
+                const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
                     () => new MaxFlowAlgorithm(graph, { sink: { invalid: true } }),
@@ -463,7 +463,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("custom options in run()", () => {
             it("uses custom source and sink", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B", value: 5 },
@@ -483,7 +483,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("backward compatibility", () => {
             it("configure() method still works", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B", value: 5 },
@@ -545,7 +545,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("option defaults", () => {
             it("uses global min cut when no source/sink provided", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
                     edges: [
                         { srcId: "A", dstId: "B", value: 5 },
@@ -565,7 +565,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("option validation", () => {
             it("accepts valid string source and sink", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }],
                     edges: [{ srcId: "A", dstId: "B" }],
                 });
@@ -573,7 +573,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("accepts valid number source and sink", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: 1 }, { id: 2 }],
                     edges: [{ srcId: 1, dstId: 2 }],
                 });
@@ -581,12 +581,12 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("accepts useGlobalMinCut boolean", async () => {
-                const graph = await createSessionGraph();
+                const graph = await createMockGraph();
                 assert.doesNotThrow(() => new MinCutAlgorithm(graph, { useGlobalMinCut: true }));
             });
 
             it("rejects invalid source type", async () => {
-                const graph = await createSessionGraph();
+                const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
                     () => new MinCutAlgorithm(graph, { source: { invalid: true } }),
@@ -596,7 +596,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("rejects invalid sink type", async () => {
-                const graph = await createSessionGraph();
+                const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
                     () => new MinCutAlgorithm(graph, { sink: { invalid: true } }),
@@ -606,7 +606,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("rejects invalid useGlobalMinCut type", async () => {
-                const graph = await createSessionGraph();
+                const graph = await createMockGraph();
                 assert.throws(
                     // @ts-expect-error Testing invalid type
                     () => new MinCutAlgorithm(graph, { useGlobalMinCut: "yes" }),
@@ -618,7 +618,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("custom options in run()", () => {
             it("uses custom source and sink for s-t cut", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B", value: 5 },
@@ -635,7 +635,7 @@ describe("Traversal & Path Algorithm Options", () => {
             });
 
             it("uses global min cut when explicitly set", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
                     edges: [
                         { srcId: "A", dstId: "B", value: 5 },
@@ -654,7 +654,7 @@ describe("Traversal & Path Algorithm Options", () => {
 
         describe("backward compatibility", () => {
             it("configure() method still works", async () => {
-                const graph = await createSessionGraph({
+                const graph = await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B", value: 5 },

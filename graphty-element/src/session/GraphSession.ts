@@ -82,13 +82,7 @@ import {
     type MachineCalibration,
 } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
-import {
-    dispatcherOf,
-    registerDispatcher,
-    registerSessionData,
-    registerSessionPlacement,
-    registerSessionRuns,
-} from "./dispatchers";
+import { dispatcherOf, registerDispatcher, registerSessionData, registerSessionRuns } from "./dispatchers";
 import { FILES_API, type FilesApi } from "./files/kindOf";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
@@ -564,10 +558,9 @@ type Watchers = Map<keyof SessionEventMap, Set<(detail: never) => void>>;
  * The executor a session that was handed none runs on.
  *
  * It refuses rather than doing nothing, because a run that resolved with an empty result would
- * publish a graph-wide answer of "nothing" that a style layer would happily paint. The run
- * machinery that queues and publishes an algorithm is the element's, so a session with no element
- * behind it and no executor handed in cannot run one -- and saying so with a code is the honest
- * form of that.
+ * publish a graph-wide answer of "nothing" that a style layer would happily paint. Every algorithm
+ * this package ships is built from the renderer's `Graph`, so a session with no renderer behind it
+ * genuinely cannot run one -- and saying so with a code is the honest form of that.
  * @param context - What the run handed the work.
  * @returns Never; it always rejects.
  */
@@ -848,7 +841,6 @@ class Session implements ElementSession {
         };
         registerDispatcher(this, this.dispatcher);
         LANES.set(this, this.store);
-        registerSessionPlacement(this, this.store, this.controller);
         registerSessionRuns(this, this.sessionRuns);
         registerSessionData(this, parts.data);
         this.history = historyOf(this.dispatcher, () => version);

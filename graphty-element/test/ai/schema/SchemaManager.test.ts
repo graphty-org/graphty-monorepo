@@ -6,15 +6,15 @@
 import { assert, beforeEach, describe, it } from "vitest";
 
 import { SchemaManager } from "../../../src/ai/schema/SchemaManager";
-import type { GraphSession } from "../../../src/session/types";
+import type { Graph } from "../../../src/Graph";
 import { createSchemaTestGraph } from "../../helpers/schema-test-graph";
 
 describe("SchemaManager", () => {
-    let graph: GraphSession;
+    let graph: Graph;
     let schemaManager: SchemaManager;
 
-    beforeEach(async () => {
-        graph = await createSchemaTestGraph({ nodeCount: 30 });
+    beforeEach(() => {
+        graph = createSchemaTestGraph({ nodeCount: 30 });
         schemaManager = new SchemaManager(graph);
     });
 
@@ -109,8 +109,8 @@ describe("SchemaManager", () => {
     });
 
     describe("empty graph handling", () => {
-        it("handles empty graphs gracefully", async () => {
-            const emptyGraph = await createSchemaTestGraph({ empty: true });
+        it("handles empty graphs gracefully", () => {
+            const emptyGraph = createSchemaTestGraph({ empty: true });
             const emptyManager = new SchemaManager(emptyGraph);
 
             const schema = emptyManager.extract();
@@ -121,8 +121,8 @@ describe("SchemaManager", () => {
             assert.deepStrictEqual(schema.edgeProperties, []);
         });
 
-        it("formats empty schema without error", async () => {
-            const emptyGraph = await createSchemaTestGraph({ empty: true });
+        it("formats empty schema without error", () => {
+            const emptyGraph = createSchemaTestGraph({ empty: true });
             const emptyManager = new SchemaManager(emptyGraph);
 
             const formatted = emptyManager.getFormattedSchema();
@@ -133,8 +133,8 @@ describe("SchemaManager", () => {
     });
 
     describe("options pass-through", () => {
-        it("passes options to SchemaExtractor", async () => {
-            const graphWithManyNodes = await createSchemaTestGraph({ nodeCount: 100 });
+        it("passes options to SchemaExtractor", () => {
+            const graphWithManyNodes = createSchemaTestGraph({ nodeCount: 100 });
             const limitedManager = new SchemaManager(graphWithManyNodes, { maxSampleSize: 10 });
 
             const schema = limitedManager.extract();

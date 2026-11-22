@@ -17,7 +17,8 @@ import {
 } from "../../../extend";
 import { detachedRunContext } from "../../../src/algorithms/results";
 import { Graph as LegacyGraph } from "../../../src/algorithms/utils/legacyGraph";
-import { createSessionGraph, type SessionGraph } from "../../helpers/session-graph";
+import type { Graph } from "../../../src/Graph";
+import { createMockGraph } from "../../helpers/mockGraph";
 
 /** A helper of the plugin's own that names the element's input type, as 3.0.0 allowed. */
 function neighbourCounts(graph: AlgorithmGraphView): Map<string | number, number> {
@@ -49,8 +50,8 @@ class NeighbourCount extends DeclaredAlgorithm {
 }
 
 /** A triangle, declared one way round: A -> B -> C -> A. */
-async function triangle(): Promise<SessionGraph> {
-    return createSessionGraph({
+async function triangle(): Promise<Graph> {
+    return createMockGraph({
         nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
         edges: [
             { srcId: "A", dstId: "B", value: 2 },
@@ -82,7 +83,7 @@ describe("deprecated Algorithm.algorithmGraph()", () => {
     });
 
     it("undirected collapses a reciprocal pair into one edge", async () => {
-        const graph = await createSessionGraph({
+        const graph = await createMockGraph({
             nodes: [{ id: "A" }, { id: "B" }],
             edges: [
                 { srcId: "A", dstId: "B" },
@@ -107,7 +108,7 @@ describe("deprecated Algorithm.algorithmGraph()", () => {
     });
 
     it("includes an edge whose endpoint never arrived as a node record", async () => {
-        const graph = await createSessionGraph({ nodes: [{ id: "A" }], edges: [{ srcId: "A", dstId: "ghost" }] });
+        const graph = await createMockGraph({ nodes: [{ id: "A" }], edges: [{ srcId: "A", dstId: "ghost" }] });
         const built = new NeighbourCount(graph).read("undirected");
 
         assert.strictEqual(built.nodeCount, 2);

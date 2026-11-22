@@ -42,8 +42,9 @@ import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
 import { type DeclaredAlgorithm, detachedRunContext } from "../../../src/algorithms/results";
 import { SpectralClusteringAlgorithm } from "../../../src/algorithms/SpectralClusteringAlgorithm";
 import { StronglyConnectedComponentsAlgorithm } from "../../../src/algorithms/StronglyConnectedComponentsAlgorithm";
+import type { Graph } from "../../../src/Graph";
 import type { Caveats } from "../../../src/session/runs/types";
-import { createSessionGraph, type SessionGraph } from "../../helpers/session-graph";
+import { createMockGraph } from "../../helpers/mockGraph";
 
 const GOLDEN_PATH = new URL("caveat-facts.golden.json", import.meta.url);
 
@@ -74,10 +75,10 @@ const SPLIT = {
 interface Case {
     readonly name: string;
     readonly fixture?: typeof FIXTURE & { readonly directed?: boolean };
-    readonly caveats: (graph: SessionGraph) => Promise<Caveats>;
+    readonly caveats: (graph: Graph) => Promise<Caveats>;
 }
 
-function declared(name: string, make: (graph: SessionGraph) => DeclaredAlgorithm, fixture?: Case["fixture"]): Case {
+function declared(name: string, make: (graph: Graph) => DeclaredAlgorithm, fixture?: Case["fixture"]): Case {
     return {
         name,
         fixture,
@@ -90,7 +91,7 @@ function declared(name: string, make: (graph: SessionGraph) => DeclaredAlgorithm
     };
 }
 
-function metric(name: string, make: (graph: SessionGraph) => MetricAlgorithm): Case {
+function metric(name: string, make: (graph: Graph) => MetricAlgorithm): Case {
     return {
         name,
         caveats: async (graph) => {
@@ -197,7 +198,7 @@ const CASES: readonly Case[] = [
 async function runAll(): Promise<Map<string, Caveats>> {
     const said = new Map<string, Caveats>();
     for (const testCase of CASES) {
-        said.set(testCase.name, await testCase.caveats(await createSessionGraph(testCase.fixture ?? FIXTURE)));
+        said.set(testCase.name, await testCase.caveats(await createMockGraph(testCase.fixture ?? FIXTURE)));
     }
 
     return said;

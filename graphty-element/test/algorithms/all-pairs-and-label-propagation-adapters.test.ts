@@ -15,11 +15,12 @@ import { FloydWarshallAlgorithm } from "../../src/algorithms/FloydWarshallAlgori
 import { LabelPropagationAlgorithm } from "../../src/algorithms/LabelPropagationAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/results";
 import { isGraphtyError } from "../../src/errors";
+import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
-import { createSessionGraph, type SessionGraph, type SessionGraphOpts } from "../helpers/session-graph";
+import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
 
 /** A weighted path A -1- B -2- C -3- D. */
-const PATH: SessionGraphOpts = {
+const PATH: MockGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
     edges: [
         { srcId: "A", dstId: "B", weight: 1 },
@@ -29,7 +30,7 @@ const PATH: SessionGraphOpts = {
 };
 
 /** Two triangles and a node on its own: three groups, whatever the seed. */
-const TWO_TRIANGLES: SessionGraphOpts = {
+const TWO_TRIANGLES: MockGraphOpts = {
     nodes: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "x" }, { id: "y" }, { id: "z" }, { id: "alone" }],
     edges: [
         { srcId: "a", dstId: "b", weight: 1 },
@@ -42,7 +43,7 @@ const TWO_TRIANGLES: SessionGraphOpts = {
 };
 
 /** A ring of eight: every node ties between its two neighbors, so the seed decides the groups. */
-const RING: SessionGraphOpts = {
+const RING: MockGraphOpts = {
     nodes: Array.from({ length: 8 }, (_, i) => ({ id: `n${String(i)}` })),
     edges: Array.from({ length: 8 }, (_, i) => ({
         srcId: `n${String(i)}`,
@@ -79,9 +80,9 @@ function nodeValues(output: AlgorithmOutput): Map<unknown, Record<string, unknow
  * @returns The graph and the call counts.
  */
 async function withImplementingAccelerator(
-    opts: SessionGraphOpts,
+    opts: MockGraphOpts,
     policy: "auto" | "required" = "auto",
-): Promise<{ graph: SessionGraph; calls: { allPairsShortestPath: number; labelPropagation: number } }> {
+): Promise<{ graph: Graph; calls: { allPairsShortestPath: number; labelPropagation: number } }> {
     const calls = { allPairsShortestPath: 0, labelPropagation: 0 };
     const fake = createFakeAccelerator({
         members: {
@@ -95,7 +96,7 @@ async function withImplementingAccelerator(
             },
         },
     });
-    const graph = await createSessionGraph(opts);
+    const graph = await createMockGraph(opts);
     // A controller with the built-in floors in force: the mock's own sets its threshold to 0.
     (graph as unknown as { acceleration: AccelerationController }).acceleration = new AccelerationController({
         policy,
@@ -107,7 +108,7 @@ async function withImplementingAccelerator(
 
 describe("FloydWarshallAlgorithm through accelerated()", () => {
     it("publishes each node's eccentricity and the graph's diameter and radius", async () => {
-        const output = await computed(new FloydWarshallAlgorithm(await createSessionGraph(PATH)));
+        const output = await computed(new FloydWarshallAlgorithm(await createMockGraph(PATH)));
 
         const values = nodeValues(output);
         assert.deepStrictEqual(
@@ -121,7 +122,7 @@ describe("FloydWarshallAlgorithm through accelerated()", () => {
     it("measures across the cheapest of a group of parallel edges", async () => {
         const output = await computed(
             new FloydWarshallAlgorithm(
-                await createSessionGraph({
+                await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B", weight: 1 },
@@ -141,7 +142,7 @@ describe("FloydWarshallAlgorithm through accelerated()", () => {
     it("skips unreachable nodes, so a graph in pieces keeps a finite diameter", async () => {
         const output = await computed(
             new FloydWarshallAlgorithm(
-                await createSessionGraph({
+                await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [{ srcId: "A", dstId: "B", weight: 2 }],
                 }),
@@ -160,7 +161,7 @@ describe("FloydWarshallAlgorithm through accelerated()", () => {
         // refuses. The element reads such a weight as it reads an infinite one: as no weight, 1.
         const output = await computed(
             new FloydWarshallAlgorithm(
-                await createSessionGraph({
+                await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B", weight: 1 },
@@ -177,7 +178,7 @@ describe("FloydWarshallAlgorithm through accelerated()", () => {
         // An undirected edge of negative weight is a negative cycle: cross it and come back.
         const output = await computed(
             new FloydWarshallAlgorithm(
-                await createSessionGraph({
+                await createMockGraph({
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B", weight: -1 },
@@ -223,7 +224,7 @@ describe("FloydWarshallAlgorithm through accelerated()", () => {
 
 describe("LabelPropagationAlgorithm through accelerated()", () => {
     it("groups two triangles and a lone node into three communities", async () => {
-        const output = await computed(new LabelPropagationAlgorithm(await createSessionGraph(TWO_TRIANGLES)));
+        const output = await computed(new LabelPropagationAlgorithm(await createMockGraph(TWO_TRIANGLES)));
 
         const group = nodeValues(output);
         assert.strictEqual(group.size, 7);
@@ -241,7 +242,7 @@ describe("LabelPropagationAlgorithm through accelerated()", () => {
     });
 
     it("gives one partition per seed", async () => {
-        const graph = await createSessionGraph(TWO_TRIANGLES);
+        const graph = await createMockGraph(TWO_TRIANGLES);
         const first = await computed(new LabelPropagationAlgorithm(graph, { randomSeed: 7 }));
         const second = await computed(new LabelPropagationAlgorithm(graph, { randomSeed: 7 }));
 
@@ -250,7 +251,7 @@ describe("LabelPropagationAlgorithm through accelerated()", () => {
     });
 
     it("hands the seed to the run, so a different seed can give a different partition", async () => {
-        const graph = await createSessionGraph(RING);
+        const graph = await createMockGraph(RING);
         const groups = async (randomSeed: number): Promise<unknown[]> =>
             (await computed(new LabelPropagationAlgorithm(graph, { randomSeed }))).nodes?.map(
                 (node) => node.values.group,
@@ -263,7 +264,7 @@ describe("LabelPropagationAlgorithm through accelerated()", () => {
 
     it("hands maxIterations to the run, so a capped run stops there unconverged", async () => {
         const output = await computed(
-            new LabelPropagationAlgorithm(await createSessionGraph(RING), { maxIterations: 1, randomSeed: 42 }),
+            new LabelPropagationAlgorithm(await createMockGraph(RING), { maxIterations: 1, randomSeed: 42 }),
         );
 
         assert.strictEqual(output.caveats.iterations, 1);

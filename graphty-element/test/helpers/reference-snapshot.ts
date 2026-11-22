@@ -12,18 +12,18 @@
 
 import type { GraphSnapshot, NodeId } from "@graphty/graph-format";
 
-import type { AlgorithmData } from "../../src/algorithms/host";
 import { createScopedInput, orientationOf, type ScopedInput } from "../../src/algorithms/input/ScopedInput";
+import type { DataManager } from "../../src/managers/DataManager";
 
 /**
  * The snapshot of one input.
- * @param data - The data an algorithm reads: a session's, or the element's data manager.
+ * @param data - The element's data manager.
  * @param mode - `"directed"` or `"undirected"`.
  * @param input - The input; the whole graph, simplified by "sum", when absent.
  * @returns The snapshot an adapter reads.
  */
 export function referenceSnapshot(
-    data: AlgorithmData,
+    data: DataManager,
     mode: "directed" | "undirected",
     input: ScopedInput = createScopedInput(data, orientationOf(mode)),
 ): GraphSnapshot {

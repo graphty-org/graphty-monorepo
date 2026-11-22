@@ -4,9 +4,9 @@ import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { EigenvectorCentralityAlgorithm } from "../../../src/algorithms/EigenvectorCentralityAlgorithm";
 import { detachedRunContext } from "../../../src/algorithms/results/types";
 import { isGraphtyError } from "../../../src/errors";
-import { asNumber, createSessionGraph, getNodeResult, type SessionGraph } from "../../helpers/session-graph";
+import { asNumber, createMockGraph, getNodeResult, type MockGraph } from "../../helpers/mockGraph";
 
-const mockGraph = createSessionGraph;
+const mockGraph = createMockGraph;
 
 describe("EigenvectorCentralityAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -63,7 +63,7 @@ describe("EigenvectorCentralityAlgorithm", () => {
          * A 30x30 grid, which power iteration needs several hundred passes for (networkx too).
          * @returns the mock graph
          */
-        async function grid(): Promise<SessionGraph> {
+        async function grid(): Promise<MockGraph> {
             const nodes = [];
             const edges = [];
             for (let row = 0; row < 30; row++) {
@@ -83,7 +83,7 @@ describe("EigenvectorCentralityAlgorithm", () => {
                     }
                 }
             }
-            return createSessionGraph({ nodes, edges });
+            return createMockGraph({ nodes, edges });
         }
 
         it("a run that reaches maxIterations without converging fails with E_NOT_CONVERGED", async () => {
@@ -125,7 +125,7 @@ describe("EigenvectorCentralityAlgorithm", () => {
 
     describe("direction on a directed graph", () => {
         /** a -> b -> c -> a, and d -> a: nothing points at d, and d points at a. */
-        async function directed(): Promise<SessionGraph> {
+        async function directed(): Promise<MockGraph> {
             const nodes = ["a", "b", "c", "d"].map((id) => ({ id }));
             const edges = [
                 ["a", "b"],
@@ -133,7 +133,7 @@ describe("EigenvectorCentralityAlgorithm", () => {
                 ["c", "a"],
                 ["d", "a"],
             ].map(([srcId, dstId]) => ({ srcId, dstId }));
-            return createSessionGraph({ nodes, edges, directed: true });
+            return createMockGraph({ nodes, edges, directed: true });
         }
 
         async function run(mode: "in" | "out" | "total"): Promise<{ d: number; direction: string }> {

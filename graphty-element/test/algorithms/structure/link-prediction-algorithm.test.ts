@@ -2,7 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { LinkPredictionAlgorithm } from "../../../src/algorithms/LinkPredictionAlgorithm";
-import { createSessionGraph } from "../../helpers/session-graph";
+import { createMockGraph } from "../../helpers/mockGraph";
 
 /** A square a-b-c-d with e hanging off a. */
 const NODES = ["a", "b", "c", "d", "e"].map((id) => ({ id }));
@@ -26,7 +26,7 @@ interface Pair {
  * @returns The published pairs.
  */
 async function pairsOf(options: Record<string, unknown> = {}): Promise<Pair[]> {
-    const algo = new LinkPredictionAlgorithm(await createSessionGraph({ nodes: NODES, edges: EDGES }), options);
+    const algo = new LinkPredictionAlgorithm(await createMockGraph({ nodes: NODES, edges: EDGES }), options);
     await algo.run();
 
     assert.strictEqual(algo.result?.shape, "pair-list");
@@ -76,7 +76,7 @@ describe("LinkPredictionAlgorithm", () => {
         // The path 0-1-2-3: 0 and 2 share 1, and 1 and 3 share 2.
         const nodes = [0, 1, 2, 3].map((id) => ({ id }));
         const edges = [0, 1, 2].map((id) => ({ srcId: id, dstId: id + 1 }));
-        const algo = new LinkPredictionAlgorithm(await createSessionGraph({ nodes, edges }), {
+        const algo = new LinkPredictionAlgorithm(await createMockGraph({ nodes, edges }), {
             method: "common-neighbors",
         });
         await algo.run();

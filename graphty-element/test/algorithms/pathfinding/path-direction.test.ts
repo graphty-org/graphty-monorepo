@@ -2,7 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
 import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
-import { createSessionGraph } from "../../helpers/session-graph";
+import { createMockGraph } from "../../helpers/mockGraph";
 
 const chain = {
     nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
@@ -23,7 +23,7 @@ for (const [Algo, type] of [
      * @returns The route length and whether the a -> b edge is on it, from the run's result.
      */
     async function route(direction?: "out" | "in" | "all", directed = true): Promise<{ length: number; ab: unknown }> {
-        const graph = await createSessionGraph({ ...chain, directed });
+        const graph = await createMockGraph({ ...chain, directed });
         const algo = new Algo(graph, { source: "c", target: "a", ...(direction ? { direction } : {}) });
         await algo.run();
         const ab = [...graph.getDataManager().edges.values()].find((edge) => edge.srcId === "a");

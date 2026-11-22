@@ -286,9 +286,7 @@ class Peeker extends Algorithm {
      * @returns How many nodes each said.
      */
     peek(): [number, number] {
-        // The element's data manager, which a plugin can still reach past the host's type.
-        const around = this.graph.getDataManager() as unknown as { readonly nodes: ReadonlyMap<unknown, unknown> };
-        return [this.input("declared").nodeCount, around.nodes.size];
+        return [this.input("declared").nodeCount, this.graph.getDataManager().nodes.size];
     }
 }
 

@@ -6,15 +6,15 @@
 import { assert, beforeEach, describe, it } from "vitest";
 
 import { SchemaExtractor } from "../../../src/ai/schema/SchemaExtractor";
-import type { GraphSession } from "../../../src/session/types";
+import type { Graph } from "../../../src/Graph";
 import { createSchemaTestGraph } from "../../helpers/schema-test-graph";
 
 describe("SchemaExtractor", () => {
-    let graph: GraphSession;
+    let graph: Graph;
     let extractor: SchemaExtractor;
 
-    beforeEach(async () => {
-        graph = await createSchemaTestGraph();
+    beforeEach(() => {
+        graph = createSchemaTestGraph();
         extractor = new SchemaExtractor(graph);
     });
 
@@ -63,9 +63,9 @@ describe("SchemaExtractor", () => {
     });
 
     describe("type inference", () => {
-        it("handles mixed types for same property", async () => {
+        it("handles mixed types for same property", () => {
             // Create graph with mixed types for a property
-            const mixedGraph = await createSchemaTestGraph({ mixedTypes: true });
+            const mixedGraph = createSchemaTestGraph({ mixedTypes: true });
             const mixedExtractor = new SchemaExtractor(mixedGraph);
             const schema = mixedExtractor.extract();
 
@@ -74,9 +74,9 @@ describe("SchemaExtractor", () => {
             assert.strictEqual(mixedProperty.type, "mixed");
         });
 
-        it("identifies enum-like strings (<=10 unique values)", async () => {
+        it("identifies enum-like strings (<=10 unique values)", () => {
             // Need enough samples to trigger enum detection (default requires 25)
-            const enumGraph = await createSchemaTestGraph({ nodeCount: 30 });
+            const enumGraph = createSchemaTestGraph({ nodeCount: 30 });
             // Use lower threshold for test
             const enumExtractor = new SchemaExtractor(enumGraph, { enumMinSampleSize: 5 });
             const schema = enumExtractor.extract();
@@ -88,9 +88,9 @@ describe("SchemaExtractor", () => {
             assert.ok(typeProperty.enumValues.length <= 10);
         });
 
-        it("does not set enumValues for strings with >10 unique values", async () => {
+        it("does not set enumValues for strings with >10 unique values", () => {
             // Create graph with many unique string values
-            const manyValuesGraph = await createSchemaTestGraph({ manyUniqueStrings: true });
+            const manyValuesGraph = createSchemaTestGraph({ manyUniqueStrings: true });
             const manyExtractor = new SchemaExtractor(manyValuesGraph);
             const schema = manyExtractor.extract();
 
@@ -117,8 +117,8 @@ describe("SchemaExtractor", () => {
     });
 
     describe("edge cases", () => {
-        it("handles empty graphs gracefully", async () => {
-            const emptyGraph = await createSchemaTestGraph({ empty: true });
+        it("handles empty graphs gracefully", () => {
+            const emptyGraph = createSchemaTestGraph({ empty: true });
             const emptyExtractor = new SchemaExtractor(emptyGraph);
             const schema = emptyExtractor.extract();
 
@@ -128,8 +128,8 @@ describe("SchemaExtractor", () => {
             assert.deepStrictEqual(schema.edgeProperties, []);
         });
 
-        it("handles null/undefined values", async () => {
-            const nullGraph = await createSchemaTestGraph({ nullValues: true });
+        it("handles null/undefined values", () => {
+            const nullGraph = createSchemaTestGraph({ nullValues: true });
             const nullExtractor = new SchemaExtractor(nullGraph);
             const schema = nullExtractor.extract();
 
@@ -195,9 +195,9 @@ describe("SchemaExtractor", () => {
     });
 
     describe("performance constraints", () => {
-        it("limits analysis to configurable sample size", async () => {
+        it("limits analysis to configurable sample size", () => {
             // Create a large graph
-            const largeGraph = await createSchemaTestGraph({ nodeCount: 100, edgeCount: 200 });
+            const largeGraph = createSchemaTestGraph({ nodeCount: 100, edgeCount: 200 });
             const limitedExtractor = new SchemaExtractor(largeGraph, { maxSampleSize: 50 });
             const schema = limitedExtractor.extract();
 

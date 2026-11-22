@@ -367,15 +367,6 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             attributes: () => [],
             snapshot: () => ({ nodeCount, ids: { idOf: (index: number) => nodeId(index) } }),
             fingerprint: () => `mock:${String(nodeCount)}:${String(edgeCount)}`,
-            // The records, as `session.data.nodes()` and `edges()` give them: what the schema reads.
-            nodes: () => [...mockNodes.values()].map((node) => ({ ...node.data, id: node.id })),
-            edges: () =>
-                [...mockEdges.values()].map((edge) => ({
-                    ...edge.data,
-                    id: edge.id,
-                    source: edge.srcId,
-                    target: edge.dstId,
-                })),
         },
         runs: { list: () => [] },
         catalog: SESSION_CATALOG_TABLES,

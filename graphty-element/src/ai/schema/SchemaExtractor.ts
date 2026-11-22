@@ -7,7 +7,7 @@
  */
 
 import type { Graph } from "../../Graph";
-import type { GraphSession } from "../../session/types";
+import { shownIdsOf } from "../commands/selectors";
 import { type InferredSchema, inferSchema } from "./inferSchema";
 import type { PropertySummary, PropertyType, SchemaExtractorOptions, SchemaSummary } from "./types";
 
@@ -122,40 +122,49 @@ class EnumTracker {
  * Capital One's enum detection algorithm.
  */
 export class SchemaExtractor {
-    private readonly session: GraphSession;
+    private readonly graph: Graph;
     private readonly options: Required<SchemaExtractorOptions>;
 
     /**
      * Creates a new SchemaExtractor instance.
-     * @param graph - The graph to extract schema from: a session, or the element's `Graph`, whose
-     *   session is read
+     * @param graph - The graph to extract schema from
      * @param options - Optional extraction options
      */
-    constructor(graph: Graph | GraphSession, options: SchemaExtractorOptions = {}) {
-        this.session = "getSession" in graph ? graph.getSession() : graph;
+    constructor(graph: Graph, options: SchemaExtractorOptions = {}) {
+        this.graph = graph;
         this.options = { ...DEFAULT_OPTIONS, ...options };
     }
 
     /**
-     * Extract schema from the graph: the session's node and edge records, only what is shown
-     * while the session reads the working graph.
+     * Extract schema from the graph.
      * @returns SchemaSummary with node and edge property information
      */
     extract(): SchemaSummary {
-        const { data } = this.session;
-        const nodeData: Record<string, unknown>[] = [...data.nodes()];
-        // The endpoints are the edge's structure, which the record names `source` and `target`
-        // whatever the data called them; the schema describes the attributes the data carried.
-        const edgeData = data.edges().map((edge) => {
-            const { source: _source, target: _target, ...attributes } = edge;
-            return attributes;
-        });
+        const dataManager = this.graph.getDataManager();
+        // While the session reads the working graph, only what is shown.
+        const shown = shownIdsOf(this.graph);
+
+        // Extract node data
+        const nodeData = Array.from(dataManager.nodes.values())
+            .filter((n) => shown === null || shown.nodes.has(String(n.id)))
+            .map((n) => (n as { data?: Record<string, unknown> }).data)
+            .filter((d): d is Record<string, unknown> => d !== undefined);
+
+        // Extract edge data
+        const edgeData = Array.from(dataManager.edges.values())
+            .filter((e) => shown === null || shown.edges.has(e.id))
+            .map((e) => (e as { data?: Record<string, unknown> }).data)
+            .filter((d): d is Record<string, unknown> => d !== undefined);
+
+        // Get counts
+        const nodeCount = shown === null ? this.graph.getNodeCount() : shown.nodes.size;
+        const edgeCount = shown === null ? this.graph.getEdgeCount() : shown.edges.size;
 
         return {
             nodeProperties: this.extractFromCollection(nodeData),
             edgeProperties: this.extractFromCollection(edgeData),
-            nodeCount: nodeData.length,
-            edgeCount: edgeData.length,
+            nodeCount,
+            edgeCount,
         };
     }
 

@@ -44,10 +44,11 @@ import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/r
 import { StronglyConnectedComponentsAlgorithm } from "../../src/algorithms/StronglyConnectedComponentsAlgorithm";
 import type { NodeId } from "../../src/catalog/types";
 import { GraphtyError, isGraphtyError } from "../../src/errors";
+import type { Graph } from "../../src/Graph";
 import type { Caveats } from "../../src/session/runs/types";
 import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
+import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
 import { byId, edgeEnds, idsOf, referenceSnapshot } from "../helpers/reference-snapshot";
-import { createSessionGraph, type SessionGraph, type SessionGraphOpts } from "../helpers/session-graph";
 
 /**
  * The facts an algorithm's caveats carry, empty when its output states none.
@@ -67,7 +68,7 @@ function factsOf(caveats: Caveats | Omit<Caveats, "facts">): Caveats["facts"] {
  * cheapest route are each the only one of their cost and a tie-break cannot make two correct
  * implementations disagree.
  */
-const FIXTURE: SessionGraphOpts = {
+const FIXTURE: MockGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }, { id: "E" }],
     edges: [
         { srcId: "A", dstId: "B", weight: 1 },
@@ -90,7 +91,7 @@ const FIXTURE: SessionGraphOpts = {
  * flagged, because a style layer bound to the run would otherwise paint one of two coincident
  * lines and leave the other bare.
  */
-const PARALLEL: SessionGraphOpts = {
+const PARALLEL: MockGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
     edges: [
         { srcId: "A", dstId: "B", weight: 1 },
@@ -100,7 +101,7 @@ const PARALLEL: SessionGraphOpts = {
 };
 
 /** Two pieces, so a partition has something to partition. */
-const TWO_PIECES: SessionGraphOpts = {
+const TWO_PIECES: MockGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "X" }, { id: "Y" }],
     edges: [
         { srcId: "A", dstId: "B", weight: 1 },
@@ -116,12 +117,8 @@ const TWO_PIECES: SessionGraphOpts = {
  * @param policy - The acceleration policy, when the case wants one other than `"auto"`.
  * @returns The graph.
  */
-async function graphWith(
-    opts: SessionGraphOpts,
-    fake?: FakeAccelerator,
-    policy?: "off" | "required",
-): Promise<SessionGraph> {
-    const graph = await createSessionGraph(opts);
+async function graphWith(opts: MockGraphOpts, fake?: FakeAccelerator, policy?: "off" | "required"): Promise<Graph> {
+    const graph = await createMockGraph(opts);
 
     if (policy !== undefined) {
         graph.acceleration.setPolicy(policy);
@@ -562,7 +559,7 @@ describe("the adapters that run through accelerated()", () => {
  * edges were declared, so a walk that tried them in node order would reach them in another order.
  * Every weight differs, so a tree and a route are each the only one of their cost.
  */
-const DECLARED_ORDER: SessionGraphOpts = {
+const DECLARED_ORDER: MockGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }, { id: "E" }, { id: "F" }],
     edges: [
         { srcId: "A", dstId: "D", weight: 1 },
@@ -576,7 +573,7 @@ const DECLARED_ORDER: SessionGraphOpts = {
 };
 
 /** Two strongly connected pieces and a loner, declared out of node order. */
-const STRONG: SessionGraphOpts = {
+const STRONG: MockGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }, { id: "E" }, { id: "F" }],
     edges: [
         { srcId: "C", dstId: "A" },
@@ -611,7 +608,7 @@ const SCC_EXPECTED = {
 };
 
 /** A reciprocal pair the undirected view merges into one edge, and one more edge. */
-const RECIPROCAL: SessionGraphOpts = {
+const RECIPROCAL: MockGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
     edges: [
         { srcId: "A", dstId: "B", weight: 1 },
@@ -621,7 +618,7 @@ const RECIPROCAL: SessionGraphOpts = {
 };
 
 /** A directed graph with a dangling node, D, so PageRank's redistribution rule is exercised. */
-const DANGLING: SessionGraphOpts = {
+const DANGLING: MockGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
     edges: [
         { srcId: "A", dstId: "B", weight: 1 },
@@ -661,7 +658,7 @@ function called(fake: FakeAccelerator, member: string): number {
  * @param field - The edge field to read.
  * @returns One value per declared edge.
  */
-function edgeFlags(graph: SessionGraph, output: AlgorithmOutput, field: string): unknown[] {
+function edgeFlags(graph: Graph, output: AlgorithmOutput, field: string): unknown[] {
     const values = valuesOf(output.edges);
     return [...graph.getDataManager().edges.values()].map((edge) => values.get(edge.id)?.[field]);
 }

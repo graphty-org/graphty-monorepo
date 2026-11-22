@@ -10,20 +10,21 @@ import type { MetricAlgorithm } from "../../../src/algorithms/metrics/MetricAlgo
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { BUILT_IN_ALGORITHMS } from "../../../src/catalog/algorithms";
 import type { NodeId } from "../../../src/catalog/types";
+import type { Graph } from "../../../src/Graph";
 import { checkShapeContract, type RunResult } from "../../../src/session/results";
 import { bindResultPath } from "../../../src/session/results/types";
-import { createSessionGraph, type SessionGraph } from "../../helpers/session-graph";
+import { createMockGraph } from "../../helpers/mockGraph";
 
 /** The seven metrics this file covers, with the catalog key each one must agree with. */
 const METRICS = [
-    { key: "degree", make: (g: SessionGraph): MetricAlgorithm => new DegreeAlgorithm(g) },
-    { key: "betweenness", make: (g: SessionGraph): MetricAlgorithm => new BetweennessCentralityAlgorithm(g) },
-    { key: "closeness", make: (g: SessionGraph): MetricAlgorithm => new ClosenessCentralityAlgorithm(g) },
-    { key: "pagerank", make: (g: SessionGraph): MetricAlgorithm => new PageRankAlgorithm(g) },
-    { key: "eigenvector", make: (g: SessionGraph): MetricAlgorithm => new EigenvectorCentralityAlgorithm(g) },
+    { key: "degree", make: (g: Graph): MetricAlgorithm => new DegreeAlgorithm(g) },
+    { key: "betweenness", make: (g: Graph): MetricAlgorithm => new BetweennessCentralityAlgorithm(g) },
+    { key: "closeness", make: (g: Graph): MetricAlgorithm => new ClosenessCentralityAlgorithm(g) },
+    { key: "pagerank", make: (g: Graph): MetricAlgorithm => new PageRankAlgorithm(g) },
+    { key: "eigenvector", make: (g: Graph): MetricAlgorithm => new EigenvectorCentralityAlgorithm(g) },
     // Below 1 / lambda_max of the fixture: at the default 0.1 it diverges.
-    { key: "katz", make: (g: SessionGraph): MetricAlgorithm => new KatzCentralityAlgorithm(g, { alpha: 0.02 }) },
-    { key: "hits", make: (g: SessionGraph): MetricAlgorithm => new HITSAlgorithm(g) },
+    { key: "katz", make: (g: Graph): MetricAlgorithm => new KatzCentralityAlgorithm(g, { alpha: 0.02 }) },
+    { key: "hits", make: (g: Graph): MetricAlgorithm => new HITSAlgorithm(g) },
 ] as const;
 
 /** Every graph-level field the node-metric shape promises. */
@@ -34,8 +35,8 @@ const GRAPH_FIELDS = ["min", "max", "median", "mean", "measured", "normalization
  * @param make - Builds the algorithm.
  * @returns The result.
  */
-async function runMetric(make: (g: SessionGraph) => MetricAlgorithm): Promise<RunResult> {
-    const graph = await createSessionGraph({ dataPath: "./data4.json" });
+async function runMetric(make: (g: Graph) => MetricAlgorithm): Promise<RunResult> {
+    const graph = await createMockGraph({ dataPath: "./data4.json" });
     const algorithm = make(graph);
     await algorithm.run();
 
@@ -161,7 +162,7 @@ describe("metric results", () => {
         });
 
         it("eigenvector states that nothing scaled it when asked not to normalize", async () => {
-            const graph = await createSessionGraph({ dataPath: "./data4.json" });
+            const graph = await createMockGraph({ dataPath: "./data4.json" });
             const algorithm = new EigenvectorCentralityAlgorithm(graph, { normalized: false });
             await algorithm.run();
 
@@ -190,7 +191,7 @@ describe("metric results", () => {
             // method. Every route now runs one power iteration, and says so.
             const nodes = Array.from({ length: 150 }, (unused, index) => ({ id: `n${String(index)}` }));
             const edges = nodes.slice(1).map((node, index) => ({ srcId: nodes[index].id, dstId: node.id }));
-            const graph = await createSessionGraph({ nodes, edges });
+            const graph = await createMockGraph({ nodes, edges });
             const personalization = new Map(nodes.map((node) => [node.id, 1 / nodes.length]));
             const algorithm = new PageRankAlgorithm(graph, { personalization });
             await algorithm.run();
@@ -210,7 +211,7 @@ describe("metric results", () => {
                so both figures are measurements, and no note talks about a delta method. */
             const nodes = Array.from({ length: 150 }, (unused, index) => ({ id: `n${String(index)}` }));
             const edges = nodes.slice(1).map((node, index) => ({ srcId: nodes[index].id, dstId: node.id }));
-            const graph = await createSessionGraph({ nodes, edges });
+            const graph = await createMockGraph({ nodes, edges });
             const algorithm = new PageRankAlgorithm(graph);
             await algorithm.run();
 
@@ -267,7 +268,7 @@ describe("metric results", () => {
         });
 
         it("pagerank names the weight attribute it read: the loaded one, unless told none", async () => {
-            const graph = await createSessionGraph({ dataPath: "./data4.json", loadedWeight: "value" });
+            const graph = await createMockGraph({ dataPath: "./data4.json", loadedWeight: "value" });
             const loaded = new PageRankAlgorithm(graph);
             await loaded.run();
             const none = new PageRankAlgorithm(graph, { weight: null });
@@ -292,7 +293,7 @@ describe("metric results", () => {
         });
 
         it("publishes nothing when there is nothing to measure", async () => {
-            const graph = await createSessionGraph();
+            const graph = await createMockGraph();
             const algorithm = new DegreeAlgorithm(graph);
             await algorithm.run();
 
@@ -343,7 +344,7 @@ describe("metric results", () => {
             directed: boolean,
             options?: { direction: "total" | "in" | "out" },
         ): Promise<RunResult> {
-            const algorithm = new DegreeAlgorithm(await createSessionGraph({ nodes, edges, directed }), options);
+            const algorithm = new DegreeAlgorithm(await createMockGraph({ nodes, edges, directed }), options);
             await algorithm.run();
             assert.isDefined(algorithm.result);
             return algorithm.result;
@@ -389,7 +390,7 @@ describe("metric results", () => {
         });
 
         it("refuses a direction it does not know", async () => {
-            const graph = await createSessionGraph({ nodes, edges });
+            const graph = await createMockGraph({ nodes, edges });
             assert.throws(() => new DegreeAlgorithm(graph, { direction: "sideways" as "in" }));
         });
     });
@@ -409,7 +410,7 @@ describe("metric results", () => {
  */
 describe("what the top-ranked elements are called", () => {
     it("prints the id when nothing has named a label attribute", async () => {
-        const graph = await createSessionGraph({ dataPath: "./data4.json" });
+        const graph = await createMockGraph({ dataPath: "./data4.json" });
         const algorithm = new DegreeAlgorithm(graph);
         await algorithm.run();
 
@@ -430,7 +431,7 @@ describe("what the top-ranked elements are called", () => {
             ["n2", { id: "n2", data: { name: "Chonky Boy" } }],
             ["n3", { id: "n3", data: { name: "Tiny" } }],
         ]);
-        const graph = await createSessionGraph({
+        const graph = await createMockGraph({
             nodes: [
                 { id: "n1", name: "Mr Whiskers" },
                 { id: "n2", name: "Chonky Boy" },
@@ -446,7 +447,7 @@ describe("what the top-ranked elements are called", () => {
         const labelled = {
             getDataManager: () => Object.assign(manager, { getNode: (id: NodeId) => records.get(id) }),
             styles: { config: { data: { knownFields: { nodeLabelPath: "name" } } } },
-        } as unknown as SessionGraph;
+        } as unknown as Graph;
 
         const algorithm = new DegreeAlgorithm(labelled);
         await algorithm.run();

@@ -43,9 +43,8 @@
  * worth knowing before you reach for them: the scope and filter shapes that need a query engine
  * -- `{ where }`, a `text` selection target, an `expression` filter -- are REFUSED with
  * `E_UNSUPPORTED` rather than quietly matching nothing; a session with no element behind it has
- * no algorithm executor -- the algorithms read a session's data, but the run machinery that
- * queues and publishes them is the element's -- so `runs.start` on a standalone session answers
- * `E_UNSUPPORTED` unless one was handed in; and the
+ * no algorithm executor -- every algorithm this package ships is built from the renderer -- so
+ * `runs.start` on a standalone session answers `E_UNSUPPORTED` unless one was handed in; and the
  * style stack resolves what every element shows without anything yet DRAWING it, so a layer
  * added here changes the model and does not change the screen. The catalog is here with its
  * five static tables and `metrics()`, which says which metrics this graph can support, what each

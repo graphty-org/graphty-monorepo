@@ -2,9 +2,9 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { ClosenessCentralityAlgorithm } from "../../../src/algorithms/ClosenessCentralityAlgorithm";
-import { asNumber, createSessionGraph, getNodeResult } from "../../helpers/session-graph";
+import { asNumber, createMockGraph, getNodeResult } from "../../helpers/mockGraph";
 
-const mockGraph = createSessionGraph;
+const mockGraph = createMockGraph;
 
 describe("ClosenessCentralityAlgorithm", () => {
     describe("Algorithm Registration", () => {

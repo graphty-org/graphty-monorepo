@@ -2,17 +2,17 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
-import { createSessionGraph, getEdgeResult, getNodeResult, type SessionGraph } from "../../helpers/session-graph";
+import { createMockGraph, getEdgeResult, getNodeResult, type MockGraph } from "../../helpers/mockGraph";
 
-const mockGraph = createSessionGraph;
+const mockGraph = createMockGraph;
 
 /**
  * A graph with a negative cycle: A --1--> B --2--> C ---(-4)--> A, total weight -1.
  * @returns the mock graph
  */
 
-async function mockGraphWithNegativeCycle(): Promise<SessionGraph> {
-    return createSessionGraph({
+async function mockGraphWithNegativeCycle(): Promise<MockGraph> {
+    return createMockGraph({
         nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
         edges: [
             { srcId: "A", dstId: "B", value: 1 },

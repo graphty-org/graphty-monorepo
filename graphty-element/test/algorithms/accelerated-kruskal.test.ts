@@ -17,9 +17,10 @@ import {
 } from "../../src/acceleration/types";
 import { KruskalAlgorithm } from "../../src/algorithms/KruskalAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/results";
+import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
+import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
 import { referenceSnapshot } from "../helpers/reference-snapshot";
-import { createSessionGraph, type SessionGraph, type SessionGraphOpts } from "../helpers/session-graph";
 
 const floor = ACCELERATION_MIN_NODES_BY_CAPABILITY.minimumSpanningTree ?? NaN;
 const unweightedFloor = ACCELERATION_MIN_NODES_UNWEIGHTED_BY_CAPABILITY.minimumSpanningTree ?? NaN;
@@ -29,7 +30,7 @@ const unweightedFloor = ACCELERATION_MIN_NODES_UNWEIGHTED_BY_CAPABILITY.minimumS
  * @param n - The node count.
  * @returns The records.
  */
-function ring(n: number): SessionGraphOpts {
+function ring(n: number): MockGraphOpts {
     const nodes = Array.from({ length: n }, (_, i) => ({ id: `n${String(i)}` }));
     return {
         nodes,
@@ -42,7 +43,7 @@ function ring(n: number): SessionGraphOpts {
  * @param n - The node count.
  * @returns The records.
  */
-function bareRing(n: number): SessionGraphOpts {
+function bareRing(n: number): MockGraphOpts {
     const { nodes, edges } = ring(n);
     return { nodes, edges: (edges ?? []).map(({ srcId, dstId }) => ({ srcId, dstId })) };
 }
@@ -53,8 +54,8 @@ function bareRing(n: number): SessionGraphOpts {
  * @param fake - The accelerator, or none.
  * @returns The graph.
  */
-async function graphWith(opts: SessionGraphOpts, fake?: FakeAccelerator): Promise<SessionGraph> {
-    const graph = await createSessionGraph(opts);
+async function graphWith(opts: MockGraphOpts, fake?: FakeAccelerator): Promise<Graph> {
+    const graph = await createMockGraph(opts);
     (graph as unknown as { acceleration: AccelerationController }).acceleration = new AccelerationController({
         policy: "auto",
         registry: new AcceleratorRegistry(),
@@ -88,7 +89,7 @@ function mstFake(): { fake: FakeAccelerator; handed: GraphSnapshot[] } {
  * @param graph - The graph.
  * @returns Its output.
  */
-async function computed(graph: SessionGraph): Promise<AlgorithmOutput> {
+async function computed(graph: Graph): Promise<AlgorithmOutput> {
     const output = await new KruskalAlgorithm(graph).compute(detachedRunContext());
     assert.isNotNull(output);
     return output;

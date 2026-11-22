@@ -2,7 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { type OptionsSchema, OptionValidationError } from "../../../src/algorithms/types/OptionSchema";
-import { createSessionGraph } from "../../helpers/session-graph";
+import { createMockGraph } from "../../helpers/mockGraph";
 
 /**
  * Test algorithm with options
@@ -77,7 +77,7 @@ Algorithm.register(TestAlgorithmWithoutOptions);
 describe("Algorithm Options", () => {
     describe("Algorithm with options schema", () => {
         it("uses default options when none provided", async () => {
-            const graph = await createSessionGraph();
+            const graph = await createMockGraph();
             const algo = new TestAlgorithmWithOptions(graph);
 
             const opts = algo.getOptions();
@@ -87,7 +87,7 @@ describe("Algorithm Options", () => {
         });
 
         it("accepts valid custom options", async () => {
-            const graph = await createSessionGraph();
+            const graph = await createMockGraph();
             const algo = new TestAlgorithmWithOptions(graph, {
                 dampingFactor: 0.9,
                 maxIterations: 50,
@@ -100,7 +100,7 @@ describe("Algorithm Options", () => {
         });
 
         it("rejects invalid options at construction", async () => {
-            const graph = await createSessionGraph();
+            const graph = await createMockGraph();
 
             assert.throws(
                 () => new TestAlgorithmWithOptions(graph, { dampingFactor: 1.5 }),
@@ -110,7 +110,7 @@ describe("Algorithm Options", () => {
         });
 
         it("rejects invalid option types", async () => {
-            const graph = await createSessionGraph();
+            const graph = await createMockGraph();
 
             assert.throws(
                 // @ts-expect-error - intentionally passing wrong type
@@ -121,7 +121,7 @@ describe("Algorithm Options", () => {
         });
 
         it("options are used in run()", async () => {
-            const graph = await createSessionGraph({
+            const graph = await createMockGraph({
                 nodes: [{ id: "A" }],
                 edges: [],
             });
@@ -142,7 +142,7 @@ describe("Algorithm Options", () => {
 
     describe("Algorithm without options schema", () => {
         it("works with empty options", async () => {
-            const graph = await createSessionGraph();
+            const graph = await createMockGraph();
             // Should not throw
             const algo = new TestAlgorithmWithoutOptions(graph);
             assert.isDefined(algo);
@@ -173,7 +173,7 @@ describe("Algorithm Options", () => {
 
     describe("Algorithm.get factory", () => {
         it("creates algorithm instance via registry", async () => {
-            const graph = await createSessionGraph();
+            const graph = await createMockGraph();
             const algo = Algorithm.get(graph, "test", "with-options");
 
             assert.isNotNull(algo);

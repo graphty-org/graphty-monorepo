@@ -5,7 +5,7 @@ import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { detachedRunContext } from "../../../src/algorithms/results";
 import { GraphtyError } from "../../../src/errors";
 import type { Caveats } from "../../../src/session/runs/types";
-import { createSessionGraph } from "../../helpers/session-graph";
+import { createMockGraph } from "../../helpers/mockGraph";
 
 /**
  * The facts an algorithm's caveats carry, empty when its output states none.
@@ -57,7 +57,7 @@ describe("MinCutAlgorithm", () => {
     describe("Source and sink", () => {
         for (const option of ["source", "sink"] as const) {
             it(`rejects a ${option} that is not in the graph with E_OPTION_RANGE`, async () => {
-                const graph = await createSessionGraph(PATH);
+                const graph = await createMockGraph(PATH);
                 const algo = new MinCutAlgorithm(graph, { source: "A", sink: "C", [option]: "nope" });
 
                 const error = await algo.compute(detachedRunContext()).then(
@@ -72,7 +72,7 @@ describe("MinCutAlgorithm", () => {
         }
 
         it("rejects a source and sink that are one node with E_OPTION_RANGE", async () => {
-            const graph = await createSessionGraph(PATH);
+            const graph = await createMockGraph(PATH);
             const algo = new MinCutAlgorithm(graph, { source: "B", sink: "B" });
 
             const error = await algo.compute(detachedRunContext()).then(
@@ -86,7 +86,7 @@ describe("MinCutAlgorithm", () => {
         });
 
         it("says how many nodes the cut puts on each side", async () => {
-            const graph = await createSessionGraph(PATH);
+            const graph = await createMockGraph(PATH);
             const output = await new MinCutAlgorithm(graph, { source: "A", sink: "C" }).compute(detachedRunContext());
 
             assert.ok(output);
@@ -100,7 +100,7 @@ describe("MinCutAlgorithm", () => {
         });
 
         it("says when one end was chosen automatically", async () => {
-            const graph = await createSessionGraph(PATH);
+            const graph = await createMockGraph(PATH);
             const output = await new MinCutAlgorithm(graph, { source: "A" }).compute(detachedRunContext());
 
             assert.ok(output);

@@ -36,7 +36,17 @@ describe("rules per column (3.10)", () => {
         const rep = conflictReport(r);
         assert.deepEqual(
             rep.find((x) => x.params.column === "name"),
-            { code: "W_VALUES_DIFFER", params: { step: 1, column: "name", count: 1, decided: 0, rule: "keep" } },
+            {
+                code: "W_VALUES_DIFFER",
+                params: {
+                    step: 1,
+                    column: "name",
+                    count: 1,
+                    decided: 0,
+                    rule: "keep",
+                    rules: ["keep", "overwrite", "both", "vote"],
+                },
+            },
         );
         const amt = rep.find((x) => x.params.column === "amt");
         assert.equal(amt?.code === "W_VALUES_DIFFER" ? amt.params.count : -1, 2);

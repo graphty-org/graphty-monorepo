@@ -58,7 +58,7 @@ interface Founding {
 async function founding(): Promise<Founding> {
     const session = createGraphSession({ features: ["source-steps"] });
     await session.data.import(PEOPLE, { key: "badge", type: "person" });
-    const people = session.data.sources()[0]?.key ?? "";
+    const people = session.data.sources({ staged: true })[0]?.key ?? "";
     const buildings = await session.data.stage(BUILDINGS, { key: "door", type: "building" });
     await session.data.add(buildings);
     const entries = await session.data.stage(ENTRIES, { key: "entry", type: "entry" });
@@ -73,7 +73,7 @@ async function founding(): Promise<Founding> {
  * @returns Each source's state.
  */
 function states(session: GraphSession): Record<string, string | undefined> {
-    return Object.fromEntries(session.data.sources().map((s) => [s.key, s.state]));
+    return Object.fromEntries(session.data.sources({ staged: true }).map((s) => [s.key, s.state]));
 }
 
 /**

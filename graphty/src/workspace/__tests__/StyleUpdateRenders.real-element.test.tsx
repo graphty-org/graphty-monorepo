@@ -74,7 +74,9 @@ async function openRing(): Promise<{ element: GraphElement; session: GraphSessio
         selector: { match: "everything" },
         set: { "edge.opacity": 1, "edge.animationSpeed": 1 },
     });
-    await found.waitForSettled();
+    // The layout converged too, not only the queue: its rest point publishes a history change
+    // (the step's held arrangement), which a slow machine reached inside the counted updates (#9600).
+    await found.waitForStableFrame();
     await screen.findByRole("region", { name: "Legend" });
     return { element: found, session, fade: fade.id };
 }
@@ -118,10 +120,11 @@ async function animate(
     });
     const before = { ...counts };
     // The history merges each later update into the first one's step, with no clock (#9493), so
-    // Undo keeps its name and the header draws nothing.
+    // Undo keeps its name and the header draws nothing. Only a record adds a step: a size change
+    // (an arrangement sealed into the step, a cache) or a pending-list change adds none (#9600).
     let steps = 0;
     const offSteps = session.on("history:changed", ({ reason }) => {
-        if (reason !== "merge") {
+        if (reason === "record") {
             steps++;
         }
     });

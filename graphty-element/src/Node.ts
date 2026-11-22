@@ -1211,8 +1211,10 @@ export class Node implements ModelUser {
         // decided the zoom: the same file drew two pictures. The cameras' fit padding covers the
         // few pixels.
         const reach = this.sceneBorderReach;
+        // In single precision, as the row table holds a batched row's half extents: counted in double, a graph
+        // loaded as objects framed its camera a float's step from the same graph loaded batched (issue #9626).
         const along = (axis: "x" | "y" | "z", grown: number): number =>
-            ((box.extendSize[axis] * Math.abs(scale[axis])) / grown + reach) * Math.abs(root?.[axis] ?? 1);
+            Math.fround((box.extendSize[axis] * Math.abs(scale[axis])) / grown + reach) * Math.abs(root?.[axis] ?? 1);
         const half = new Vector3(along("x", far), along("y", far), along("z", 1));
         return { min: box.centerWorld.subtract(half), max: box.centerWorld.add(half) };
     }

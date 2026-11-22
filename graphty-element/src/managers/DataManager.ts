@@ -983,7 +983,7 @@ export class DataManager implements Manager {
 
     /**
      * Goes up on every edge added or removed, so a cache over the edge set knows it is stale. Most
-     * changes also say which pair of nodes they touched ({@link edgeSetChangesSince}).
+     * changes also say which pair of nodes they touched (`edgeSetChangesSince`).
      */
     edgeVersion = 0;
 

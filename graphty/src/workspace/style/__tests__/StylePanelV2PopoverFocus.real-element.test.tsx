@@ -24,10 +24,10 @@ interface Case {
     readonly set: Readonly<Record<string, unknown>>;
     readonly settings: string;
     readonly group: string;
-    readonly first: string;
-    readonly next: string;
-    /** The channel the first field writes, and the one the next field writes. */
-    readonly writes: readonly [string, string];
+    /** The fields tabbed through in order: the first is clicked, each later one must have focus. */
+    readonly fields: readonly string[];
+    /** The channel each field writes. */
+    readonly writes: readonly string[];
 }
 
 const CASES: readonly Case[] = [
@@ -37,8 +37,7 @@ const CASES: readonly Case[] = [
         set: {},
         settings: "Edge line settings",
         group: "Fade",
-        first: "Edge fade start",
-        next: "Edge fade end",
+        fields: ["Edge fade start", "Edge fade end"],
         writes: ["edge.fadeStart", "edge.fadeEnd"],
     },
     {
@@ -48,9 +47,17 @@ const CASES: readonly Case[] = [
         set: { "edge.curvature": true },
         settings: "Edge route settings",
         group: "Ports",
-        first: "Edge source port x",
-        next: "Edge source port y",
+        fields: ["Edge source port x", "Edge source port y"],
         writes: ["edge.sourcePort", "edge.sourcePort"],
+    },
+    {
+        name: "target port y",
+        view: "2D",
+        set: { "edge.curvature": true },
+        settings: "Edge route settings",
+        group: "Ports",
+        fields: ["Edge target port x", "Edge target port y"],
+        writes: ["edge.targetPort", "edge.targetPort"],
     },
     {
         name: "force curves springs in 3D",
@@ -58,9 +65,18 @@ const CASES: readonly Case[] = [
         set: { "edge.curvature": true, "edge.supportModel": "barnesHut" },
         settings: "Edge force curves settings",
         group: "Springs",
-        first: "Edge support spring length",
-        next: "Edge support spring constant",
-        writes: ["edge.supportSpringLength", "edge.supportSpringConstant"],
+        fields: [
+            "Edge support spring length",
+            "Edge support spring constant",
+            "Edge support repulsion",
+            "Edge support central gravity",
+        ],
+        writes: [
+            "edge.supportSpringLength",
+            "edge.supportSpringConstant",
+            "edge.supportRepulsion",
+            "edge.supportCentralGravity",
+        ],
     },
 ];
 
@@ -74,6 +90,19 @@ async function popover(): Promise<HTMLElement> {
         assert.isNotNull(found, "the pop-over is open");
         return found;
     });
+}
+
+/**
+ * Tabs past the pop-over's buttons (a remove button between two lines) to its next field.
+ */
+async function skipButtons(): Promise<void> {
+    for (let at = 0; at < 3; at++) {
+        const active = document.activeElement;
+        if (!(active instanceof HTMLButtonElement) || active.closest("[data-thing-popover]") === null) {
+            return;
+        }
+        await userEvent.keyboard("{Tab}");
+    }
 }
 
 describe("Style panel v2: a pop-over field tabbed past keeps focus in the pop-over", () => {
@@ -94,27 +123,34 @@ describe("Style panel v2: a pop-over field tabbed past keeps focus in the pop-ov
                 within(pop).getByRole("button", { name: `Add to ${each.settings.replace(/^E/, "e")}` }),
             );
             await userEvent.click(await screen.findByRole("menuitem", { name: each.group }));
-            await userEvent.click(await within(pop).findByLabelText(each.first, { selector: "input" }));
+            await userEvent.click(await within(pop).findByLabelText(each.fields[0], { selector: "input" }));
             await userEvent.keyboard("{Control>}a{/Control}0.4{Tab}");
             await waitFor(() => {
-                assert.isDefined(written(session, edges, each.writes[0]), `${each.first} writes`);
+                assert.isDefined(written(session, edges, each.writes[0]), `${each.fields[0]} writes`);
             });
-            await session.styles.settled();
-            await waitFor(() => {
-                const next = document.querySelector(`[data-thing-popover] input[aria-label="${each.next}"]`);
-                assert.isNotNull(next, `${each.next} is still in the pop-over`);
-                const active = document.activeElement;
-                assert.strictEqual(
-                    active,
-                    next,
-                    `focus is on ${active?.getAttribute("aria-label") ?? active?.tagName ?? "nothing"}`,
-                );
-            });
-            const before = written(session, edges, each.writes[1]);
-            await userEvent.keyboard("{Control>}a{/Control}0.6{Tab}");
-            await waitFor(() => {
-                assert.notDeepEqual(written(session, edges, each.writes[1]), before, `${each.next} writes`);
-            });
+            for (const [at, field] of each.fields.entries()) {
+                if (at === 0) {
+                    continue;
+                }
+                await session.styles.settled();
+                // A pair of lines shares one remove button (the springs' length and constant), next in tab order.
+                await skipButtons();
+                await waitFor(() => {
+                    const next = document.querySelector(`[data-thing-popover] input[aria-label="${field}"]`);
+                    assert.isNotNull(next, `${field} is still in the pop-over`);
+                    const active = document.activeElement;
+                    assert.strictEqual(
+                        active,
+                        next,
+                        `focus is on ${active?.getAttribute("aria-label") ?? active?.tagName ?? "nothing"}`,
+                    );
+                });
+                const before = written(session, edges, each.writes[at]);
+                await userEvent.keyboard(`{Control>}a{/Control}0.${String(5 + at)}{Tab}`);
+                await waitFor(() => {
+                    assert.notDeepEqual(written(session, edges, each.writes[at]), before, `${field} writes`);
+                });
+            }
             await userEvent.keyboard("{Escape}");
         });
     }

@@ -3920,6 +3920,7 @@ export interface LegendSwatch {
 // @public
 export interface Limits {
     edgesDrawn: number;
+    fullDetailTriangleBudget: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
     objectEdges: number;
@@ -3929,7 +3930,7 @@ export interface Limits {
 }
 
 // @public
-export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges">>;
+export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges" | "fullDetailTriangleBudget">>;
 
 // @public
 export function listAutosaves(key: string, options?: AutosaveLookupOptions): Promise<readonly AutosaveEntry[]>;

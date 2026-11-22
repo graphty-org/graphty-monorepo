@@ -5778,6 +5778,7 @@ export const LIGHTING_VALUES: readonly ["studio", "headlight", "matte", "flat"];
 // @public
 export interface Limits {
     edgesDrawn: number;
+    fullDetailTriangleBudget: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
     objectEdges: number;

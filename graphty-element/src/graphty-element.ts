@@ -7591,6 +7591,11 @@ export class Graphty extends LitElement {
      * may be drawn as objects of their own, for a look no batch draws (a border, an arrow head).
      * Past either, later rows draw as plain bodies and plain lines, and `limits-warning` says so
      * with `W_OBJECT_CAP` (`{ of, wanted, cap }`).
+     *
+     * `fullDetailTriangleBudget` (default 1,000,000, honored on both render paths) is how many
+     * triangles the nodes may draw at full detail, each node counted as the default shape's 320.
+     * Past it a node no style layer gives a `node.meshDetail` is drawn `"low"`; a layer that sets
+     * one keeps it. Raise it for full detail on a larger graph on a fast GPU, lower it for a slow one.
      * @returns The limits asked for.
      * @experimental cosmograph
      * @example

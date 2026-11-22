@@ -320,7 +320,7 @@ import {
     workingGraphOfSession,
 } from "./session/GraphSession";
 import { ISSUES_VALUE } from "./session/issues";
-import { DEFAULT_LIMITS, type LimitsOption, RenderLimits } from "./session/limits";
+import { DEFAULT_LIMITS, fullDetailOverBudget, type LimitsOption, RenderLimits } from "./session/limits";
 import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
@@ -1107,8 +1107,16 @@ export class Graph implements GraphContext {
 
     /** The running pass repainted the whole graph, so it needs a frame whatever keys it wrote. */
     #passRepainted = false;
-    /** Whether the last whole-graph paint drew a graph past `largeGraphThreshold` (low node detail). */
+    /** Whether the last whole-graph paint drew a graph past `fullDetailTriangleBudget` (low node detail). */
     #paintedLarge = false;
+
+    /**
+     * Whether the graph's nodes at full detail would draw past `fullDetailTriangleBudget`.
+     * @returns True when a node no layer gives a detail is drawn low.
+     */
+    #overDetailBudget(): boolean {
+        return fullDetailOverBudget(this.dataManager.nodes.size, this.#limits.effective.fullDetailTriangleBudget);
+    }
 
     /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
     readonly #teardown = new AbortController();
@@ -1327,7 +1335,7 @@ export class Graph implements GraphContext {
             () => this.session.config.minMarkSize,
             // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
             (model) => this.session.assets.find(model)?.defaults,
-            () => this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold,
+            () => this.#overDetailBudget(),
             () => this.#darkScheme,
         );
 
@@ -5240,7 +5248,7 @@ export class Graph implements GraphContext {
             // A forward add over a picture that is current names what it changed; undo, redo
             // and a paint an earlier write left owed have no such list.
             // Crossing `largeGraphThreshold` changes every node's detail, not only the rows it touched.
-            const large = this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold;
+            const large = this.#overDetailBudget();
             const flipped = large !== this.#paintedLarge;
             this.#paintedLarge = large;
             const changed = cause === "command" && !dispatcher.paintOwed && !flipped ? dirty : null;
@@ -5469,6 +5477,12 @@ export class Graph implements GraphContext {
         this.#warnLimitsIgnored();
         // A row drawn plain past an object budget is painted again, so a raised budget gives it its object.
         this.updateManager.limitsChanged();
+        // A budget that moves the graph across it changes every node's detail.
+        if (this.#overDetailBudget() !== this.#paintedLarge) {
+            this.#paintedLarge = !this.#paintedLarge;
+            void this.repaintFromSession();
+        }
+
         this.renderManager.requestFrame();
     }
 

@@ -61,7 +61,9 @@ export interface Fixture {
      *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), `list` (`1`: report
      *   `listAutosaves` before the element mounts, as `listed`), and for a page
      *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending);
-     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle.
+     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle;
+     *   `detail` (`low`: a layer draws every node at low detail, so a benchmark compares the same
+     *   geometry at every size whatever `fullDetailTriangleBudget` chooses).
      */
     url(params: Record<string, string | number>): string;
     /** The reports of one tab. */
@@ -247,6 +249,22 @@ const summary = (r) => r && { revision: r.revision, entry: r.entry.id, wasDiscar
 const ready = el.autosaver.ready.then(async (restored) => {
     if (params.get("rows") === "late") rows();
     await el.waitForSettled();
+    // detail=low: every node drawn at low detail, the same geometry at every size.
+    // On a large graph the new meshes land over many frames: wait for them, then check the frame
+    // drew every node at 20 triangles, so a write is never timed beside a half-drawn scene (#9632).
+    // The edge batches are thin-instance meshes, left out of the count.
+    if (params.get("detail") === "low") {
+        await el.session.styles.add({ name: "Low detail", target: "node", selector: { match: "everything" }, set: { "node.meshDetail": "low" } });
+        await el.waitForPainted();
+        await el.waitForStableFrame();
+        const active = el.graph.scene.getActiveMeshes();
+        let triangles = 0;
+        for (let i = 0; i < active.length; i++) if (!active.data[i].hasThinInstances) triangles += active.data[i].getTotalIndices() / 3;
+        if (triangles !== n * 20) {
+            report("not-ready", { triangles, expected: n * 20, n });
+            throw new Error("drew " + triangles + " node triangles of " + n * 20);
+        }
+    }
     const { nodeCount, edgeCount } = el.session.data.snapshot();
     if (nodeCount < n || edgeCount < n) {
         report("not-ready", { nodeCount, edgeCount, n });

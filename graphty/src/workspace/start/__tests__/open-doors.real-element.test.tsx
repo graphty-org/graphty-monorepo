@@ -14,10 +14,14 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../samples";
+
+// A second file opens the join screen and the Replace offer only with sources and steps off: on, it is staged.
+withoutFeatures(["source-steps"]);
 
 declare module "vitest/browser" {
     interface BrowserCommands {

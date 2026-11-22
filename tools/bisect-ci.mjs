@@ -307,11 +307,16 @@ function shortPoints(s, results) {
 /**
  * The command that runs some targets of one shard: its failing files, or the whole shard when none is named.
  * The matrix and the selector are the point's own (BISECT_ROOT), so an older point may lack either.
+ * With the failing tests' names, a vitest command runs only those tests (`-t`), not every test in their files:
+ * render-parity's one file is every story, a 25-minute run whole on the WebGPU engine, and the confirm on the red
+ * commit lost its hosted runner partway through that run before the point wrote a result, so the bisect never
+ * bisected (#9580). A name a point lacks matches nothing there and passes, as a missing file does.
  * @param shard the shard's name
  * @param files its failing files
+ * @param [names] its failing tests' names (`describe > test`); empty runs the files whole
  * @returns arguments for tools/run-tests.sh, or null when the shard does not exist at the point
  */
-export async function runArgs(shard, files) {
+export async function runArgs(shard, files, names = []) {
     const at = (f) => import(pathToFileURL(join(ROOT, f)).href).catch(() => ({}));
     const { SHARDS = [] } = await at("tools/ci-test-matrix.mjs");
     if (shard === "llm-regression") {
@@ -332,8 +337,23 @@ export async function runArgs(shard, files) {
         (files.length ? SHARDS.find((x) => familyOf(x.shard) === familyOf(shard)) : undefined);
     if (!entry) return null;
     // a point older than the selector runs the whole shard
-    const command = files.length && selectedCommand ? selectedCommand(ROOT, entry, files) : null;
+    const selected = files.length && selectedCommand ? selectedCommand(ROOT, entry, files) : null;
+    const command = withNames(selected ?? (names.length ? entry["test-command"] : null), names);
     return command ? ["--command", entry.shard, command] : [entry.shard];
+}
+
+/**
+ * A single vitest run narrowed to the named tests. vitest matches `-t` against a test's suites and name joined by
+ * spaces, after the file's path; the names are `describe > test`, as the full run's JUnit gives them.
+ * @param command a shard's command, or null
+ * @param names the tests' names
+ * @returns the command, with `-t` when it is one vitest run and names are given
+ */
+export function withNames(command, names) {
+    if (!command || !names.length || command.split("vitest run").length !== 2) return command;
+    const one = (n) => n.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`).replaceAll(" > ", " ") + "$";
+    const pattern = "(?:" + names.map((n) => one(n)).join("|") + ")";
+    return `${command} -t ${quote(pattern)}`;
 }
 
 // One run of tools/run-tests.sh, stopped after `ms`. coreutils timeout signals the run's whole process group
@@ -391,7 +411,8 @@ export async function runPoint(
     for (let i = 0; i < runs; i++) {
         const failed = {};
         for (const [shard, ts] of byShard) {
-            const args = await runArgs(shard, [...new Set(ts.map((t) => t.file).filter(Boolean))]);
+            const names = ts.every((t) => t.name) ? [...new Set(ts.map((t) => t.name))] : [];
+            const args = await runArgs(shard, [...new Set(ts.map((t) => t.file).filter(Boolean))], names);
             if (!args) continue;
             const left = deadline - now() - KILL_AFTER_MS;
             const cut = left < laneMs;

@@ -1,0 +1,331 @@
+/**
+ * A second source arrives staged, on the REAL graphty-element with the source-steps experiment on
+ * (design/data/multiple-data-sources-design.md, sections 5.1 and 5.5), driven by drops, clicks and
+ * keys: it waits in its own section drawing nothing; Add adds it; a source whose keys meet people
+ * already there asks "Same person?" and holds Commit until it is answered; Remove takes it away and
+ * Undo brings it back; a save and reopen keeps it staged.
+ */
+
+// Registers the real <graphty-element>, as main.tsx does.
+import "@graphty/graphty-element";
+
+import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
+import { assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
+
+import { withFeatures } from "../../../test/features";
+import { screen, waitFor, within } from "../../../test/test-utils";
+import type { WorkspaceStore } from "../../state/store";
+import { choose, drop, emptyProject } from "./sourceSteps";
+
+withFeatures(["source-steps"]);
+
+const PEOPLE = "badge,name,dept\nB1,Ann,Ops\nB2,Bo,Lab\nB3,Cy,Sales";
+const BUILDINGS = "door,building\nD1,North\nD2,South";
+/** V1 is new; B1 is a person already. */
+const VISITORS = "badge,name\nB1,Ann\nV1,Val";
+
+/**
+ * A project whose first file, people.csv, was dropped and drawn.
+ * @returns the store and the session.
+ */
+async function withPeopleDropped(): Promise<{ store: WorkspaceStore; session: GraphSession }> {
+    const project = await emptyProject();
+    drop("people.csv", PEOPLE);
+    await waitFor(() => {
+        assert.strictEqual(project.session.data.nodes().length, 3);
+    });
+    project.store.set({ dockOpen: false, dockMaximized: false });
+    return project;
+}
+
+/**
+ * Drops a file and waits for its staged section.
+ * @param name - the file's name.
+ * @param text - its contents.
+ * @returns the section.
+ */
+async function stage(name: string, text: string): Promise<HTMLElement> {
+    drop(name, text);
+    return screen.findByRole("region", { name });
+}
+
+describe("a second source arrives staged (source-steps)", () => {
+    it("stages buildings.csv drawing nothing, then Add previews it and Commit adds it as one more source", async () => {
+        const { session } = await withPeopleDropped();
+        const section = await stage("buildings.csv", BUILDINGS);
+        assert.strictEqual(session.data.nodes().length, 3, "a staged source draws nothing");
+        assert.isNull(screen.queryByRole("region", { name: "Join buildings.csv" }), "no join screen");
+        assert.include(within(section).getByLabelText("File").textContent, "2 rows");
+        assert.strictEqual(
+            within(section).getByRole<HTMLInputElement>("combobox", { name: "Key" }).value,
+            "door",
+            "keyed by its door column, as a first source would be",
+        );
+
+        await userEvent.click(within(section).getByRole("button", { name: /^Add/ }));
+        const card = await within(section).findByRole("form", { name: "Add" });
+        const preview = within(card).getByRole("region", { name: "Preview" });
+        assert.strictEqual(within(preview).getByLabelText("Nodes after").textContent, "3 -> 5");
+        assert.strictEqual(within(preview).getByLabelText("Edges after").textContent, "no change");
+        const buckets = within(preview).getByLabelText("Buckets");
+        assert.include(buckets.textContent, "new");
+        assert.include(buckets.textContent, "keys repeat");
+        assert.notInclude(buckets.textContent, "ends meet", "no door is in the graph yet");
+        // The draft is drawn: Before / After (B) flips the canvas between the two.
+        const side = await screen.findByRole("radiogroup", { name: "Before / After" });
+        assert.isNotNull(side);
+        assert.strictEqual(session.data.staged()[0]?.name, "buildings.csv", "nothing is added before the commit");
+
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "buildings.csv" }));
+        });
+        assert.isNull(screen.queryByRole("radiogroup", { name: "Before / After" }), "the draft is gone");
+        assert.deepStrictEqual(
+            session.data
+                .nodes()
+                .map((node) => String(node.id))
+                .sort(),
+            ["B1", "B2", "B3", "D1", "D2"],
+            "three people and two buildings, D1 and D2",
+        );
+        const list = screen.getByRole("list", { name: "Data sources" });
+        assert.isNotNull(within(list).getByRole("listitem", { name: "buildings.csv" }));
+    });
+
+    it("asks Same person? for visitors.csv and holds Commit until it is answered", async () => {
+        const { session } = await emptyProject();
+        await session.data.import(
+            { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
+            { key: "badge", type: "person" },
+        );
+        const section = await stage("visitors.csv", VISITORS);
+        await choose(section, "Key", "badge");
+        const type = within(section).getByRole("combobox", { name: "Type" });
+        await userEvent.click(type);
+        await userEvent.keyboard("person{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(
+                session.data.sourceTable(session.data.staged()[0]?.key ?? "").summary().mapping.type,
+                "person",
+            );
+        });
+        // Distinct and Repeats read the key's profile.
+        assert.strictEqual(within(section).getByLabelText("Distinct").textContent, "2 keys");
+
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("{Shift>}D{/Shift}");
+        const card = await within(section).findByRole("form", { name: "Add" });
+        assert.include(card.textContent, "Same person?");
+        assert.include(card.textContent, "1 of 2");
+        const commit = within(card).getByRole("button", { name: /^Commit/ });
+        assert.isTrue(commit.hasAttribute("disabled"), "Commit waits for an answer");
+
+        const preview = within(card).getByRole("region", { name: "Preview" });
+        assert.isNotNull(await screen.findByRole("radiogroup", { name: "Before / After" }));
+
+        await userEvent.click(within(card).getByRole("radio", { name: "Merge" }));
+        await waitFor(() => {
+            assert.isFalse(commit.hasAttribute("disabled"));
+        });
+        // The preview counts what Merge does: B1 meets a person, V1 is new.
+        await waitFor(() => {
+            assert.strictEqual(within(preview).getByLabelText("Nodes after").textContent, "3 -> 4");
+        });
+        assert.include(within(preview).getByLabelText("Buckets").textContent, "ends meet person");
+        await userEvent.click(within(card).getByRole("radio", { name: "Keep separate" }));
+        await waitFor(() => {
+            assert.strictEqual(within(preview).getByLabelText("Nodes after").textContent, "3 -> 5");
+        });
+        await userEvent.click(within(card).getByRole("radio", { name: "Merge" }));
+        await waitFor(() => {
+            assert.strictEqual(within(preview).getByLabelText("Nodes after").textContent, "3 -> 4");
+        });
+        await userEvent.click(commit);
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 4, "B1 merged, V1 added");
+        });
+        assert.isNull(screen.queryByRole("region", { name: "visitors.csv" }));
+    });
+
+    it("Cancel (Esc) closes the Add card and leaves the source staged", async () => {
+        const { session } = await emptyProject();
+        await session.data.import(
+            { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
+            { key: "badge", type: "person" },
+        );
+        await session.data.stage(
+            { type: "csv", config: { data: VISITORS }, name: "visitors.csv" },
+            {
+                key: "badge",
+                type: "person",
+            },
+        );
+        const section = await screen.findByRole("region", { name: "visitors.csv" });
+        await userEvent.click(within(section).getByRole("button", { name: /^Add/ }));
+        await within(section).findByRole("form", { name: "Add" });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(within(section).queryByRole("form", { name: "Add" }));
+        });
+        assert.isNull(session.data.currentDraft(), "the draft is discarded");
+        assert.strictEqual(session.data.staged()[0]?.name, "visitors.csv");
+        assert.strictEqual(session.data.nodes().length, 3);
+    });
+
+    it("Remove in the section menu takes it away, and Undo brings it back", async () => {
+        await withPeopleDropped();
+        const section = await stage("buildings.csv", BUILDINGS);
+        await userEvent.click(within(section).getByRole("button", { name: "buildings.csv menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "buildings.csv" }));
+        });
+
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await screen.findByRole("region", { name: "buildings.csv" });
+    });
+
+    it("stays staged through a save and reopen", async () => {
+        const { session } = await withPeopleDropped();
+        await stage("buildings.csv", BUILDINGS);
+        const { text } = await session.project.save();
+        await session.project.open(text, { discard: true });
+        const section = await screen.findByRole("region", { name: "buildings.csv" });
+        assert.strictEqual(session.data.nodes().length, 3);
+        assert.isNotNull(within(section).getByRole("button", { name: /^Add/ }));
+    });
+
+    it("keeps the first file of a project saved without the experiment when a second one is staged", async () => {
+        const off = createGraphSession({ features: [] });
+        const draft = await off.data.prepare(
+            { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
+            { guess: "values" },
+        );
+        await draft.load({ mapping: { rowsAre: "nodes" } });
+        const { text } = await off.project.save();
+        off.dispose();
+        const { session } = await emptyProject();
+        await session.project.open(text, { discard: true });
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 3);
+        });
+        await stage("buildings.csv", BUILDINGS);
+        assert.deepStrictEqual(
+            session.data.sources({ staged: true }).map((each) => each.name),
+            ["people.csv", "buildings.csv"],
+        );
+        const list = screen.getByRole("list", { name: "Data sources" });
+        assert.isNotNull(within(list).getByRole("listitem", { name: "people.csv" }));
+        const saved = await session.project.save();
+        await session.project.open(saved.text, { discard: true });
+        await screen.findByRole("region", { name: "buildings.csv" });
+        assert.deepStrictEqual(
+            session.data.sources({ staged: true }).map((each) => each.name),
+            ["people.csv", "buildings.csv"],
+        );
+    });
+
+    it("asks again after a save and reopen: a picked Space comes back as a proposal, and Add holds Commit for an answer", async () => {
+        const { session } = await withPeopleDropped();
+        const section = await stage("visitors.csv", VISITORS);
+        await userEvent.click(within(section).getByRole("combobox", { name: "Space" }));
+        await userEvent.keyboard("{Control>}{ArrowDown}{/Control}");
+        await userEvent.click(await screen.findByRole("option", { name: "people.csv" }));
+        await waitFor(() => {
+            const key = session.data.staged()[0]?.key ?? "";
+            assert.isDefined(session.data.sourceTable(key).summary().mapping.space, "the Space is picked");
+        });
+
+        const { text } = await session.project.save();
+        await session.project.open(text, { discard: true });
+        const reopened = await screen.findByRole("region", { name: "visitors.csv" });
+        assert.strictEqual(
+            within(reopened).getByRole<HTMLInputElement>("combobox", { name: "Space" }).value,
+            "",
+            "the saved Space is only a proposal",
+        );
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("{Shift>}D{/Shift}");
+        const card = await within(reopened).findByRole("form", { name: "Add" });
+        assert.include(card.textContent, "Same people.csv?");
+        assert.include(card.textContent, "1 of 2");
+        assert.isTrue(
+            within(card)
+                .getByRole("button", { name: /^Commit/ })
+                .hasAttribute("disabled"),
+            "Commit waits for an answer",
+        );
+        assert.strictEqual(session.data.staged()[0]?.name, "visitors.csv", "nothing is added before the answer");
+    });
+
+    it("lists a staged source nowhere outside its section: the inspector's graph header names one file", async () => {
+        await withPeopleDropped();
+        await stage("buildings.csv", BUILDINGS);
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        await waitFor(() => {
+            assert.isNotNull(inspector.getByRole("button", { name: "From people.csv" }));
+        });
+    });
+
+    it("Rows are Edges with no ends picked holds Add: the button is disabled and Shift+D adds nothing", async () => {
+        const { session, store } = await emptyProject();
+        await session.data.import(
+            { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
+            { key: "badge", type: "person" },
+        );
+        const section = await stage("visitors.csv", VISITORS);
+        // The radio itself is visually hidden: a reader clicks its label.
+        const rows = within(section).getByRole("radiogroup", { name: "Rows are" });
+        await userEvent.click(within(rows).getByText("Edges"));
+        await within(section).findByRole("combobox", { name: "From" });
+        const add = within(section).getByRole("button", { name: /^Add/ });
+        assert.isTrue(add.hasAttribute("disabled"), "Add waits for both ends");
+
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("{Shift>}D{/Shift}");
+        assert.isNull(store.get().sourceCard, "no Add card opened");
+        assert.isNull(session.data.currentDraft(), "no draft opened");
+        assert.strictEqual(session.data.staged()[0]?.name, "visitors.csv", "still staged");
+        assert.strictEqual(session.data.nodes().length, 3);
+        assert.strictEqual(session.data.edges().length, 0);
+
+        await choose(section, "From", "badge");
+        await choose(section, "To", "name");
+        await waitFor(() => {
+            assert.strictEqual(
+                session.data.sourceTable(session.data.staged()[0]?.key ?? "").summary().mapping.rows,
+                "edges",
+            );
+        });
+        assert.isFalse(within(section).getByRole("button", { name: /^Add/ }).hasAttribute("disabled"));
+    });
+
+    it("names a source's own space by the source, never by its id", async () => {
+        await withPeopleDropped();
+        const section = await stage("buildings.csv", BUILDINGS);
+        const space = within(section).getByRole("combobox", { name: "Space" });
+        await userEvent.click(space);
+        await userEvent.keyboard("{Control>}{ArrowDown}{/Control}");
+        const names = (await screen.findAllByRole("option")).map((option) => option.textContent ?? "");
+        assert.include(names, "people.csv");
+        assert.isFalse(
+            names.some((name) => name.startsWith("source:")),
+            `no internal id: ${names.join(", ")}`,
+        );
+    });
+
+    it("fits Rows are's three choices inside the staged section at the default panel width", async () => {
+        await withPeopleDropped();
+        const section = await stage("buildings.csv", BUILDINGS);
+        const { right } = section.getBoundingClientRect();
+        const group = within(section).getByRole("radiogroup", { name: "Rows are" });
+        assert.isAtMost(group.getBoundingClientRect().right, right, "the control ends inside the section");
+        for (const name of ["Nodes", "Edges", "Nodes + edges"]) {
+            const label = within(group).getByText(name);
+            assert.isAtMost(label.scrollWidth, label.clientWidth, `${name} is not cut`);
+            assert.isAtMost(label.getBoundingClientRect().right, right, `${name} ends inside the section`);
+        }
+    });
+});

@@ -35,8 +35,18 @@ export type StepsOutcome =
       }
     | {
           readonly code: "W_VALUES_DIFFER";
-          readonly params: { step: number; column: string; count: number; decided: number; rule: ClashRule };
+          readonly params: {
+              step: number;
+              column: string;
+              count: number;
+              decided: number;
+              rule: ClashRule;
+              rules: readonly ClashRule[];
+          };
       };
+
+/** Every clash rule, in the order a consumer lists them. */
+const CLASH_RULES: readonly ClashRule[] = ["keep", "overwrite", "both", "min", "max", "mean", "vote"];
 
 const isNodeRef = (ref: ElementRef): ref is NodeRef => "space" in ref;
 
@@ -317,7 +327,15 @@ function wanted(c: Conflict, query: ConflictQuery): boolean {
  */
 export function conflictReport(result: BuildResult): StepsOutcome[] {
     const per = new Map<string, { step: number; column: string; count: number; decided: number; rule: ClashRule }>();
+    // The rules a column takes are those `checkClashRule` lets through: every rule that fits each
+    // of the column's conflicts, whatever step counts them.
+    const rules = new Map<string, ClashRule[]>();
     for (const c of conflicts(result)) {
+        const values = c.values.map((x) => x.value);
+        rules.set(
+            c.column,
+            (rules.get(c.column) ?? CLASH_RULES).filter((rule) => ruleFits(rule, values)),
+        );
         for (const step of c.steps) {
             const k = JSON.stringify([step, c.column]);
             const r = per.get(k) ?? { step, column: c.column, count: 0, decided: 0, rule: c.rule };
@@ -328,7 +346,10 @@ export function conflictReport(result: BuildResult): StepsOutcome[] {
             per.set(k, r);
         }
     }
-    return [...per.values()].map((params) => ({ code: "W_VALUES_DIFFER", params }));
+    return [...per.values()].map((params) => ({
+        code: "W_VALUES_DIFFER",
+        params: { ...params, rules: rules.get(params.column) ?? CLASH_RULES },
+    }));
 }
 
 // ---------------------------------------------------------------- clash rules (3.10)

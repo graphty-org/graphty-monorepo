@@ -179,4 +179,63 @@ describe("a source draft on a real canvas", () => {
         );
         assert.strictEqual(session.history.steps.length, steps + 1, "one step for the commit");
     });
+
+    test("an exclude and an include while After shows redraw the graph the commit lands", async () => {
+        const container = document.createElement("div");
+        container.style.width = "320px";
+        container.style.height = "240px";
+        document.body.appendChild(container);
+        containers.push(container);
+        const graph = new Graph(container);
+        graphs.push(graph);
+        featuresFrom(graph, () => ["source-steps"]);
+        await graph.init();
+        const session = graph.getSession();
+        await session.data.import(
+            {
+                type: "csv",
+                config: { data: "entry,badge\nE1,B1\nE2,B1\nE3,B2\nE4,X9\nE6,B2\nE7,T0" },
+                name: "entries.csv",
+            },
+            { key: "entry", type: "entry" },
+        );
+        await operationQueueOf(graph).waitForCompletion();
+        const entries = session.data.sources()[0]?.key ?? "";
+        const draft = session.data.draft();
+        const people = await draft.stage(
+            { type: "csv", config: { data: "badge,name\nB1,Ann\nB2,Bo\nB3,Cy\nT0,Test badge" }, name: "people.csv" },
+            { key: "badge", type: "person" },
+        );
+        draft.connect({ from: { source: entries, field: "badge" }, into: { source: people }, edgeType: "by" });
+        const step = draft.preview().steps.find((s) => s.op === "join.edges")?.index ?? -1;
+        await draft.display(true);
+        await graph.waitForStableFrame();
+        const nodes = (): string[] =>
+            session.data
+                .nodes()
+                .map((n) => `${String(n.id)}:${JSON.stringify(n.name ?? "")}`)
+                .sort();
+        const full = nodes();
+        assert.lengthOf(full, 10, "six entries and four people");
+
+        draft.exclude(step, ["E7"]);
+        await draft.show("after");
+        await graph.waitForStableFrame();
+        assert.deepStrictEqual(nodes(), full, "an excluded edge leaves every node and value drawn");
+        assert.strictEqual(session.data.statistics().nodeCount, draft.preview().after.nodes);
+
+        draft.include(step, ["E7"]);
+        await draft.show("after");
+        await graph.waitForStableFrame();
+        assert.deepStrictEqual(nodes(), full, "including it again draws the same nodes");
+
+        draft.exclude(step, ["E7"]);
+        await draft.show("after");
+        await graph.waitForStableFrame();
+        const edges = session.data.edges().length;
+        await draft.commit();
+        await operationQueueOf(graph).waitForCompletion();
+        assert.deepStrictEqual(nodes(), full, "the commit lands the nodes After drew");
+        assert.strictEqual(session.data.edges().length, edges, "and the edges");
+    });
 });

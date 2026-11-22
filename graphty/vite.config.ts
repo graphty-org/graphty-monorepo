@@ -216,6 +216,21 @@ export default defineConfig(({ mode }) => {
                                 test: /\/node_modules\/@babylonjs\//,
                                 priority: 1,
                             },
+                            // The rest of what the start page loads before any import(), in a few
+                            // chunks instead of about 70 (#8523). Each is a request on the start
+                            // page's critical path. `$initial` alone over-reaches: it follows the
+                            // static imports of re-export barrels (graph-io's, graphty-element's)
+                            // that tree-shaking drops, and one such group put graph-io's importers
+                            // back in the first load. `entriesAware` keeps the bundler's own split
+                            // by which entries use a module, and the threshold (source bytes) merges
+                            // the small pieces. Above about 300 KB it merges a lazy-only piece into
+                            // the start page (+450 KiB gzip); check-size.mjs's budgets catch that.
+                            {
+                                name: "start",
+                                tags: ["$initial"],
+                                entriesAware: true,
+                                entriesAwareMergeThreshold: 200_000,
+                            },
                         ],
                     },
                 },

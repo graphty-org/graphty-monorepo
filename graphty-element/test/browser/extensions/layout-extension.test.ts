@@ -1001,6 +1001,9 @@ describe("a third party's layout engine", () => {
             });
             const engine = await useLayout<LiftedRingLayout>("test-lifted-ring");
             await graph.waitForSettled();
+            assert.isAbove(engine.edgeReads, 0, "the element asked the engine where the edges are");
+            const rowLines = graph.getEdgeRowLines()?.rows() ?? [];
+            assert.lengthOf(rowLines, 0, "no edge is drawn straight between its nodes' rows");
 
             for (const edge of graph.getDataManager().edges.values()) {
                 const { src, dst } = engine.getEdgePosition(edge);

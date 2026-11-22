@@ -14,6 +14,7 @@ import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge, pulledLines } from "../Edge";
 import { drawnCurveInWorld } from "../edgeWorldCurve";
+import { laysEdgeRoutes } from "../layout/LayoutEngine";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
@@ -1843,9 +1844,9 @@ export class UpdateManager implements Manager {
     private mapArcedRows = false;
 
     /**
-     * Paint every row line again when the layout's map starts arcing edges (a map layout in the 3D view arrives, or
-     * the view turns 3D under one), so each is drawn by an `Edge` that lays its arc ({@link unbuiltEdgePainted}): a
-     * row line runs straight between its nodes, and nothing else paints it when only the layout changed.
+     * Paint every row line again when the layout starts laying edges itself (a map layout in the 3D view arrives, or
+     * the view turns 3D under one; a layout that reports edge ends arrives), so each is drawn by an `Edge` that lays
+     * its route ({@link unbuiltEdgePainted}): a row line runs straight between its nodes, and nothing else paints it when only the layout changed.
      * @param painter - Where the rows are queued.
      */
     private repaintRowLinesForMap(painter: StylePainter | undefined): void {
@@ -2024,12 +2025,18 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Whether the layout's map raises edges in arcs (`Edge.routeOf`): a map layout drawn in the 3D view.
+     * Whether the layout lays edges somewhere other than straight between their nodes' rows: its map raises them in
+     * arcs (`Edge.routeOf`, a map layout drawn in the 3D view), or it reports their ends itself (`laysEdgeRoutes`,
+     * Graphviz's splines or a third party's `getEdgePosition`). A row line cannot follow either.
      * @returns True when it does.
      */
     private mapArcsEdges(): boolean {
-        const engine = this.graphContext.getLayoutManager().layoutEngine as { geoFrame?: unknown } | undefined;
-        return (engine?.geoFrame ?? null) !== null && !this.graphContext.is2D();
+        const engine = this.graphContext.getLayoutManager().layoutEngine;
+        if (laysEdgeRoutes(engine)) {
+            return true;
+        }
+
+        return ((engine as { geoFrame?: unknown } | undefined)?.geoFrame ?? null) !== null && !this.graphContext.is2D();
     }
 
     /**

@@ -645,7 +645,7 @@ function stopDownload(entry: Entry, name: string): AssetRecord | undefined {
     const downloading = entry.fetch;
     const isDownloading = (p: CodedFact): boolean =>
         p.code === "E_MODEL_MISSING_FILE" && p.params.downloading === true && String(p.params.name) === name;
-    if (downloading === undefined || !entry.record.problems.some(isDownloading)) {
+    if (downloading === undefined || !entry.record.problems.some((problem) => isDownloading(problem))) {
         return undefined;
     }
 

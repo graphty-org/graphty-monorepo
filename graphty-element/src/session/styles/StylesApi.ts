@@ -83,8 +83,7 @@ import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 import { drawnDefault } from "../../catalog/drawnWhen";
 import { styleFamily, type StyleFamilyDescriptor, type StyleFamilyId } from "../../catalog/families";
 import { type LabelEntry, MAIN_LABEL_ID } from "../../catalog/label-style";
-import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
-import { isShaderId, type ShaderProblem, type ShaderUse } from "../../catalog/shaders";
+import type { ShaderProblem } from "../../catalog/shaders";
 import type {
     AttributeDescriptor,
     Binding,

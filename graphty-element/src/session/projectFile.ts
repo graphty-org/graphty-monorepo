@@ -2830,7 +2830,7 @@ async function readProject(
         run.live === undefined &&
         run.ranOn !== undefined &&
         sameCount(run.ranOn, opening.scopeCountOf(remap(run).scope));
-    const before = new Set(runs.filter(ranBefore));
+    const before = new Set(runs.filter((run) => ranBefore(run)));
     for (const run of before) {
         await attempt(opening, "runs", () => readRun(opening, run, remap, () => Promise.resolve()), run.id);
     }

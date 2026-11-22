@@ -64,10 +64,10 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import { englishReading, type ReadingOptions, type RunResult } from "./src/session/results";
 import type { SelectionOp } from "./src/session/selection";
 
-export type { FramingExtent } from "./src/config/Framing";
 export type { EasingName, Tour, TourPause, TourStop } from "./src/camera/tour";
 export type { CameraGestureKind } from "./src/cameras/gestureEnd";
 export { CAMERA_GESTURE_KINDS } from "./src/cameras/gestureEnd";
+export type { FramingExtent } from "./src/config/Framing";
 export type { FeatureId } from "./src/features/registry";
 export type { EnabledFeatures } from "./src/features/resolve";
 export type {

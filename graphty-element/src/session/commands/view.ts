@@ -66,13 +66,15 @@ interface ViewRemoveCommand {
     readonly names: readonly string[];
 }
 
-/** `view.camera`: move the camera to a named view, or to a position and target. */
+/** `view.camera`: move the camera to a named view, to a camera state, or to a position and target. */
 interface ViewCameraCommand {
     readonly op: "view.camera";
     /** A camera view or a saved view, by name. Wins over `position` and `target`. */
     readonly preset?: string;
     readonly position?: Vec3;
     readonly target?: Vec3;
+    /** A whole camera state, as `setCameraState` takes it. Wins over `position` and `target`; `preset` wins over it. */
+    readonly camera?: CameraState;
     /** Animate the move instead of jumping. */
     readonly animate?: boolean;
 }

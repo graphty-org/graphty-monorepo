@@ -19,6 +19,7 @@ import type { GraphSession, LoadChoices, TableMapping } from "../../types";
 import type { JsonObject, SourceUnavailableReason } from "../types";
 import { copyTables, isPlainObject, isReserved, repeatedEdgeRows } from "./dataRefs";
 import { fileOf, handleOf } from "./fileHandles";
+import { configOf } from "./parseOptions";
 import { mintUlid } from "./viewParts";
 
 /**
@@ -277,10 +278,11 @@ async function reimport(
 ): Promise<{ tables: JsonObject; columns: JsonObject; repeats: boolean }> {
     const scratch = how.scratch();
     try {
-        const options = isPlainObject(record.options) ? record.options : {};
+        const parser = typeof record.format === "string" ? record.format : undefined;
+        const options = configOf(parser, isPlainObject(record.options) ? record.options : {});
         const draft = await scratch.data.prepare(
             {
-                ...(typeof record.format === "string" ? { type: record.format } : {}),
+                ...(parser === undefined ? {} : { type: parser }),
                 config: { ...options, data: bytes },
             },
             how.signal === undefined ? {} : { signal: how.signal },
@@ -337,7 +339,7 @@ async function reimport(
 /**
  * Read a network source again by the request history its `origin.ledger` records (spec 4.1.2 rule
  * 7), as the session reads a load it keeps as a reference: its source, params, endpoint and
- * recorded options, in a scratch session. Every read is a new copy, with a new copy id.
+ * limits, in a scratch session. Every read is a new copy, with a new copy id.
  * @param record - The network source's record.
  * @param how - The refresh's options.
  * @returns The rows, or why there are none: `needs-file` when the record holds no ledger.
@@ -348,11 +350,11 @@ async function networkRead(record: JsonObject, how: RefetchOptions): Promise<Ref
         return { unavailable: "needs-file" };
     }
 
-    const { mode: _mode, ...options } = isPlainObject(ledger.options) ? ledger.options : {};
+    const options = isPlainObject(ledger.limits) ? { limits: ledger.limits } : {};
     const read = await readAsLoaded(
         {
             kind: "server",
-            config: isPlainObject(ledger.config) ? ledger.config : {},
+            config: isPlainObject(ledger.params) ? ledger.params : {},
             network: {
                 source: ledger.source,
                 endpoint: typeof ledger.endpoint === "string" ? ledger.endpoint : null,

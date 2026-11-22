@@ -355,6 +355,9 @@ const PLAIN_STRING_MEMBERS = new Set([
     "DocumentSectionAbout.uri",
     // a catalog id: the algorithm or layout a saved run names
     "ProjectFileRun.algorithm",
+    // an identifier of the code that consumed a seed: a layout engine's name or a run's method
+    // (spec 4.5 rule 6 of graphty-element/spec/README.md), as Caveats.method is
+    "EngineVersions.method",
     "TourStop.view",
     "TourRenameCommand.from",
     "TourRenameCommand.to",

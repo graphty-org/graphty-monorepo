@@ -135,3 +135,23 @@ describe("arithmetic in the expression language", () => {
         session.dispose();
     });
 });
+
+describe("ordering two strings in the expression language", () => {
+    const matches = (where: string, row: Row): boolean => compileExpressionPredicate(where, columns([row])).test(0);
+
+    it("orders an ISO time against a date by code point", () => {
+        assert.isTrue(matches("data.time >= '2026-11-09'", { "data.time": "2026-11-10T09:14:00Z" }));
+        assert.isFalse(matches("data.time >= '2026-11-09'", { "data.time": "2026-11-08T23:59:59Z" }));
+    });
+
+    it("does not order a number against a string", () => {
+        assert.isFalse(matches("data.n > '5'", { "data.n": 6 }));
+        assert.isFalse(matches("data.n <= '5'", { "data.n": 6 }));
+    });
+
+    it("orders by code point where UTF-16 code units would not", () => {
+        // U+1F600 is stored as the surrogate pair D83D DE00, which code units put below U+FFFF.
+        assert.isTrue(matches('data.a > `"\\uffff"`', { "data.a": "\u{1F600}" }));
+        assert.isFalse(matches('data.a < `"\\uffff"`', { "data.a": "\u{1F600}" }));
+    });
+});

@@ -17,7 +17,7 @@
     ],
     "entryPointStrategy": "resolve",
     "out": "./docs/api/generated",
-    "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
+    "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme", "./scripts/typedoc-zod-enum-plugin.mjs"],
     "readme": "none",
     "excludePrivate": true,
     "excludeProtected": true,

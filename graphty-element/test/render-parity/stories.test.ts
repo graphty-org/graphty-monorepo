@@ -83,7 +83,19 @@ antialiasDefault.value = ANTIALIAS;
 
 const modules = import.meta.glob<Record<string, unknown>>("../../stories/**/*.stories.ts");
 
+/**
+ * The hosts the stories drew in. A composed story keeps the context of its last run, and the story's
+ * hooks keep every run's, each with its canvas element, for the rest of the file; a host left holding
+ * its element kept the graph too, and on WebGPU the destroyed device under it: about 15 MB a load in
+ * the GPU process, 14 GB by the end of the file, and the hosted runner was lost (#9586). Emptied, a
+ * host keeps nothing.
+ */
+const hosts: HTMLElement[] = [];
+
 afterEach(() => {
+    for (const host of hosts.splice(0)) {
+        host.replaceChildren();
+    }
     renderPathDefault.value = "objects";
     pulledEdgesDefault.value = false;
     document.body.replaceChildren();
@@ -103,6 +115,7 @@ async function picture(story: Composed, path: "objects" | "batched", pulled = fa
     host.style.width = "800px";
     host.style.height = "600px";
     document.body.append(host);
+    hosts.push(host);
     await story.run({ canvasElement: host }).catch((error: unknown) => {
         throw new Error(`on ${path}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
     });

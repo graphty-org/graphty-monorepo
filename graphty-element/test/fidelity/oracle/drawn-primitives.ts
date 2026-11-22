@@ -11,6 +11,7 @@ import type { DrawnEdge, DrawnGraph, DrawnLabel, DrawnNode } from "../drawn-scen
 import { borderInset } from "../extract-scene";
 import { extendToTip, measureArrow, mergeTexts, stackedOn, withinShape } from "./associate";
 import { legiblePx } from "./compare-oracle";
+import { underCovers } from "./hidden-heads";
 import {
     type ArrowShape,
     boxOfPoints,
@@ -707,6 +708,39 @@ function faceLines(
 }
 
 /**
+ * Whether an arrowhead lies wholly under round or square nodes graphty fills opaquely, one or several together
+ * (`underCovers`; no group's box, which is drawn behind the edges): graphty draws its nodes over its edges, so such a
+ * head is drawn under the node and seen nowhere, as the program's head under a node drawn after it is
+ * (cx2-signor-aml's heads under node 8, PML-RARalpha, which both drawings hide). The edge's own end nodes can be left out: the oracle's reader still gives an edge the
+ * head drawn under its own end node.
+ * @param scene - the scene
+ * @param drawn - `readDrawn` of the same frame
+ * @returns the test, true for a cap drawn under a node other than `ends`
+ */
+function capUnderNode(scene: Scene, drawn: DrawnGraph): (c: DrawnCap, ends?: readonly string[]) => boolean {
+    // a group's box is drawn behind the edges, and only a round or a square node fills its box's shape
+    const groups = new Set(scene.groups.map((g) => g.id));
+    const opaque = scene.nodes.flatMap((n) => {
+        const d = drawn.nodes.get(n.id);
+        return d !== undefined &&
+            d.visible &&
+            !groups.has(n.id) &&
+            (n.shape === "ellipse" || n.shape === "rect") &&
+            d.fillDrawn !== null &&
+            d.fillOpacity >= 0.99
+            ? [{ id: n.id, box: d.box, ellipse: n.shape === "ellipse" }]
+            : [];
+    });
+    return (c, ends = []) =>
+        c.outline !== null &&
+        c.outline.length > 0 &&
+        underCovers(
+            boxOfPoints(c.outline),
+            opaque.filter((n) => !ends.includes(n.id)),
+        );
+}
+
+/**
  * The arrowheads graphty draws on edges it draws no line for (Gephi's swallowed curved edge keeps its arrowhead,
  * `gexf-sigma-ediaspora`), as free shapes: no line carries them on either side, so the oracle's are strays, and each
  * is judged against graphty's by its box (stray.present, stray.extra). One wholly inside an opaque node is drawn under
@@ -909,6 +943,7 @@ export function drawnPrimitives(
         });
     }
     const ends = shownEnds(scene, new Set(nodes.map((n) => n.id)));
+    const underNode = capUnderNode(scene, drawn);
     const edges = scene.edges.flatMap((e) => {
         const d = drawn.edges.get(e.id);
         if (d === undefined || !d.shown || e.points.length < 2 || e.width <= 0 || e.opacity <= 0) {
@@ -919,12 +954,15 @@ export function drawnPrimitives(
         // a slash's middle is off a bent line, where it is read off the bend, so how far back it stands is not judged
         const standsBack = (c: DrawnCap, k: number): boolean =>
             !c.name.includes("slash") && d.caps.slice(0, k).some((s) => s.end === c.end && isStem(s));
-        // a stem is a length of the line, no arrow: what stands behind it is
-        const arrows: PArrow[] = d.caps.flatMap((c, k) =>
-            c.opacity > 0 && c.sizePx > 0 && !isStem(c)
-                ? [drawnArrow(c, d.points, d.lineEnds, standsBack(c, k), scene.background ?? undefined)]
-                : [],
-        );
+        // a stem is a length of the line, no arrow: what stands behind it is; a head under a third node is marked
+        // hidden, and left out only where the oracle's head at the same end is hidden too (`withoutHiddenInBoth`)
+        const arrows: PArrow[] = d.caps.flatMap((c, k) => {
+            if (c.opacity <= 0 || c.sizePx <= 0 || isStem(c)) {
+                return [];
+            }
+            const a = drawnArrow(c, d.points, d.lineEnds, standsBack(c, k), scene.background ?? undefined);
+            return [underNode(c, [e.source, e.target]) ? { ...a, hidden: true } : a];
+        });
         // a cap that reaches past the end the edge reports (a circle or an inverted triangle placed by its middle)
         // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip) -- except
         // an open half circle standing off its node (a gap, Cytoscape's OPEN_HALF_CIRCLE): the line stops at the arc's

@@ -1,5 +1,6 @@
 // Node steps in the build (design design/data/multiple-data-sources-design.md, 3.2 to 3.6 and 4.3):
 // empty keys, repeats, merges, translations and removing a source.
+import { sha256HexSync } from "@graphty/graph-io";
 import { assert, describe, it } from "vitest";
 
 import { nodeId, resolveNode } from "../../../src/session/sources/steps/build";
@@ -16,7 +17,8 @@ describe("keys (4.3)", () => {
         assert.deepEqual(r.issues, [{ code: "W_KEY_EMPTY", params: { source: a, column: "id", rows: 1 } }]);
         const b = f.import({ nodes: csv("x\n1\n2\n") }, { mapping: { nodes: {} } });
         r = f.built();
-        assert.isNotNull(resolveNode(r, `source:${b}`, `${f.sources[b].origin.copy}#0`));
+        // keyed by content: the first 32 hex digits of the SHA-256 of {"x":"1"}, and its count
+        assert.isNotNull(resolveNode(r, `source:${b}`, `${sha256HexSync('{"x":"1"}').slice(0, 32)}#1`));
     });
 });
 

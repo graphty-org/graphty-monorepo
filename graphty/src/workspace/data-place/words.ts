@@ -792,7 +792,9 @@ export function methodsWords(session: GraphSession, run: Run): string {
     const withSettings = settings.length === 0 ? "" : `, with ${settings.join(", ")}`;
     const lines = [
         `${name} was computed over ${over}${withSettings}.`,
-        `Computed by graphty-element ${run.engine.element} with @graphty/algorithms ${run.engine.algorithms}.`,
+        `Computed by ${Object.entries(run.engine.packages)
+            .map(([name, version]) => `${name} ${version}`)
+            .join(", ")}.`,
     ];
     if (run.record.seed !== null) {
         lines.push(`Seed: ${String(run.record.seed)}.`);

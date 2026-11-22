@@ -147,6 +147,20 @@ describe("labelFitExtent", () => {
         assert.deepEqual(fitted, { width: 100, height: 40 });
     });
 
+    it("keeps a node with nothing to fit round at its own size, whatever its padding", () => {
+        const none = { width: 0, height: 0 };
+        const shape = {
+            type: "rectangle" as const,
+            labelFit: "inside" as const,
+            labelPaddingX: 5,
+            labelPaddingY: 5,
+            size: 1,
+        };
+        assert.isNull(labelFitExtent(shape, none));
+        // a picture it is not asked to hold is nothing to fit either
+        assert.isNull(labelFitExtent(shape, none, { width: 24, height: 24 }));
+    });
+
     it("never shrinks a node below its own size for a short label", () => {
         assert.deepEqual(labelFitExtent({ type: "ellipse", labelFit: "inside", width: 54, height: 36 }, box), {
             width: 54,

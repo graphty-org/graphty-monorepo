@@ -66,14 +66,14 @@ const SIDES: ReadonlyMap<string, number> = new Map([
  * @param shape - The node's shape block.
  * @param box - Its label's box, in the units of its size.
  * @param picture - Its picture's own width and height in pixels, when it has one and it is known.
- * @returns The width and height, or null when the node does not grow to hold its label.
+ * @returns The width and height, or null when the node does not grow to hold its label (or has nothing to hold).
  */
 export function labelFitExtent(
     shape: NodeStyleConfig["shape"],
     box: LabelBox,
     picture: LabelBox | null = null,
 ): { width: number; height: number } | null {
-    if (shape?.labelFit === undefined) {
+    if (shape?.labelFit === undefined || nothingToFit(shape, box, picture)) {
         return null;
     }
 
@@ -135,6 +135,18 @@ export function imageAspectExtent(
     const [width, height] = [shape.width ?? size, shape.height ?? size];
     const f = Math.max(width / picture.width, height / picture.height);
     return { width: picture.width * f, height: picture.height * f };
+}
+
+/**
+ * Whether a node has nothing to fit round: no words, no table and no picture it is asked to hold. It then keeps its
+ * own size, padding or not.
+ * @param shape - The node's shape block.
+ * @param box - Its label's box.
+ * @param picture - Its picture's own width and height in pixels, or null.
+ * @returns True when there is nothing to fit.
+ */
+function nothingToFit(shape: NonNullable<NodeStyleConfig["shape"]>, box: LabelBox, picture: LabelBox | null): boolean {
+    return box.width <= 0 && box.height <= 0 && (picture === null || (shape.labelFitImage ?? 0) <= 0);
 }
 
 /**

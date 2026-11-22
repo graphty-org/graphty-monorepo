@@ -5898,6 +5898,8 @@ const APPLIES_WHEN: ReadonlyMap<string, NonNullable<ChannelDescriptor["appliesWh
     // A dash length or gap of its own is a dashed or dotted line's (EdgeMesh.joinedPattern).
     ["edge.dashLength", { channel: "edge.style", values: ["dash", "dot"] }],
     ["edge.dashGap", { channel: "edge.style", values: ["dash", "dot"] }],
+    // A dash array is drawn in place of a dashed, dotted or dash-dot line's own elements (EdgeMesh.DASH_ARRAY_TYPES).
+    ["edge.dashArray", { channel: "edge.style", values: ["dash", "dot", "dash-dot"] }],
     ["edge.waveAmplitude", { channel: "edge.style", values: ["sinewave", "zigzag"] }],
     ["edge.wavePeriod", { channel: "edge.style", values: ["sinewave", "zigzag"] }],
 ] satisfies [Channel, NonNullable<ChannelDescriptor["appliesWhen"]>][]);

@@ -3,7 +3,7 @@
  * patch that switches the layer to another member (`STYLE_FAMILIES` in the catalog).
  *
  * A node's shape is a basic shape, a model or a shader drawn in its place; its fill a flat color,
- * a gradient or a picture; an edge's line a flat color or a gradient. A style editor that offers
+ * a gradient or a picture; an edge's line a flat color, a gradient or strands. A style editor that offers
  * "switch to" asks the element which member a layer draws and hands it the member to draw; the
  * element takes the leaving member's own settings off and keeps what belongs to the thing as a
  * whole, so no editor copies channel lists or shader places of its own.

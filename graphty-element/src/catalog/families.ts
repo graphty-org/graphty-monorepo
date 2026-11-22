@@ -2,7 +2,7 @@
  * @file Style families: things the element draws one way at a time in one slot.
  *
  * A node's shape is a basic shape, a 3D model or a shader drawn in its place; its fill is a flat
- * color, a gradient or a picture; an edge's line is a flat color or a gradient. The element draws
+ * color, a gradient or a picture; an edge's line is a flat color, a gradient or strands. The element draws
  * one member of each family at a time, so a style editor that offers "switch to" needs to know,
  * for each family, which settings belong to one member (and go when another is chosen) and which
  * belong to the thing as a whole (and stay through every switch). This is that data, so an editor
@@ -170,12 +170,14 @@ export const STYLE_FAMILIES: readonly StyleFamilyDescriptor[] = Object.freeze([
         target: "edge",
         plainName: "Line",
         members: [
-            { id: "solid", plainName: "Solid", owns: ["edge.color"] },
+            // A solid line's color, or the end node's it is drawn in (`edge.colorFrom`).
+            { id: "solid", plainName: "Solid", owns: ["edge.color", "edge.colorFrom"] },
             {
                 id: "gradient",
                 plainName: "Gradient",
                 owns: ["edge.gradientColors", "edge.gradientStops", "edge.gradientKind"],
             },
+            { id: "strands", plainName: "Strands", owns: ["edge.strandColors", "edge.strandSpacing"] },
         ],
         shared: ["edge.width", "edge.opacity", "edge.style", "edge.fadeStart", "edge.fadeEnd", "edge.fadeOpacity"],
     },

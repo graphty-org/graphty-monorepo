@@ -1290,6 +1290,13 @@ describe("ChannelDescriptor.appliesWhen", () => {
         });
         assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.gradientRadius"].appliesWhen?.values, ["radial"]);
     });
+
+    it("draws a dash array only on a dashed, dotted or dash-dot line", () => {
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["edge.dashArray"].appliesWhen, {
+            channel: "edge.style",
+            values: ["dash", "dot", "dash-dot"],
+        });
+    });
 });
 
 describe("ChannelDescriptor.drawnWhen", () => {
@@ -1394,7 +1401,6 @@ describe("ChannelDescriptor.drawnWhen", () => {
         "edge.nodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
         "edge.sourceNodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
         "edge.targetNodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
-        "edge.dashArray": "replaces the line's own dash length and gap, on whichever dashed line draws it",
     };
 
     it("covers every caveat that says a channel is ignored somewhere", () => {

@@ -219,6 +219,9 @@ const ROLE_ORDER: readonly ColumnRole[] = [
     "country",
     "region",
     "city",
+    "x",
+    "y",
+    "z",
 ];
 
 /**
@@ -253,6 +256,9 @@ export const ROLE_WORDS: Readonly<Record<string, string>> = {
     country: "Country",
     region: "Region",
     city: "City",
+    x: "X",
+    y: "Y",
+    z: "Z",
     edgeId: "Id",
 };
 

@@ -77,7 +77,6 @@ function setup(options: Partial<HistoryOptions<FakePatch>> = {}): {
 
             return { entries };
         },
-        now: time.now,
         ...options,
     });
 
@@ -166,7 +165,7 @@ describe("History: record, undo, redo", () => {
 });
 
 describe("History: coalescing", () => {
-    it("merges equal keys within the window, keeping the first prior and the last value", () => {
+    it("merges consecutive equal keys, keeping the first prior and the last value", () => {
         const { store, history, time } = setup();
         history.record({ label: "base", patch: store.write({ c: 0 }) });
         history.record({ label: "colour", key: "k", ops: ["style.patch"], patch: store.write({ c: 1 }) });
@@ -183,22 +182,44 @@ describe("History: coalescing", () => {
         assert.deepEqual(store.snapshot(), { c: 3 });
     });
 
-    it("does not merge after the window expires", () => {
-        const { store, history, time } = setup();
-        history.record({ label: "a", key: "k", patch: store.write({ c: 1 }) });
-        time.advance(1000);
-        history.record({ label: "a", key: "k", patch: store.write({ c: 2 }) });
-        assert.lengthOf(history.steps, 2);
+    it("merges the same edits into the same steps however much time passes between them (#9488)", () => {
+        const run = (gap: number): string[] => {
+            const { store, history, time } = setup();
+            for (let edit = 0; edit < 12; edit++) {
+                history.record({ label: "drag", key: "k", patch: store.write({ c: edit }) });
+                time.advance(gap);
+            }
+            history.record({ label: "other", key: "j", patch: store.write({ d: 1 }) });
+            history.record({ label: "drag", key: "k", patch: store.write({ c: 99 }) });
+            return history.steps.map((step) => String(step.fact.params.label));
+        };
+
+        const steps = run(0);
+        assert.deepEqual(steps, ["drag", "other", "drag"]);
+        for (const gap of [16, 999, 1000, 5000, 60_000]) {
+            assert.deepEqual(run(gap), steps, `a ${String(gap)} ms gap`);
+        }
     });
 
-    it("ends a merge chain once it spans five seconds, however close together its edits are", () => {
-        const { store, history, time } = setup();
-        for (let edit = 0; edit < 12; edit++) {
-            history.record({ label: "drag", key: "k", patch: store.write({ c: edit }) });
-            time.advance(900);
-        }
+    it("does not merge an edit of a channel the step does not change", () => {
+        const { store, history } = setup();
+        const update = (channel: string, value: number): void => {
+            history.record({
+                label: channel,
+                key: "style:layer:set",
+                fact: { code: "style.update-layer", params: { layerId: "layer", channels: [channel] } },
+                patch: store.write({ [channel]: value }),
+            });
+        };
+        update("node.color", 1);
+        update("node.color", 2);
+        update("node.size", 3);
+        update("node.size", 4);
 
-        assert.lengthOf(history.steps, 2, "the first 5 s is one step, the rest another");
+        assert.deepEqual(
+            history.steps.map((step) => step.fact.params.channels),
+            [["node.color"], ["node.size"]],
+        );
     });
 
     it("names a merged step for the newest edit it took", () => {
@@ -393,13 +414,12 @@ describe("History: a random-sequence model", () => {
                 let position = 0;
                 let mergeable = false;
                 let lastKey: string | null = null;
-                let lastAt = 0;
 
                 for (const next of actions) {
                     if (next.kind === "record") {
                         const key = next.coalesce ? `key:${next.key}` : null;
                         history.record({ label: next.key, key, patch: store.write({ [next.key]: next.value }) });
-                        const merge = key !== null && mergeable && key === lastKey && time.now() - lastAt < 1000;
+                        const merge = key !== null && mergeable && key === lastKey;
                         states = states.slice(0, position + 1);
                         if (merge) {
                             states[position] = store.snapshot();
@@ -410,7 +430,6 @@ describe("History: a random-sequence model", () => {
 
                         mergeable = true;
                         lastKey = key;
-                        lastAt = time.now();
                         // Eviction to 90% of the step limit keeps the newest steps' states.
                         const steps = states.length - 1;
                         if (steps > limitSteps) {

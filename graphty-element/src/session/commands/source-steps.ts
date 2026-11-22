@@ -548,9 +548,10 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         const priorCopies = valueOf<Copies>(ctx, SOURCE_COPIES_VALUE, {});
         const edgeIds = valueOf<Readonly<Record<string, EdgeId>>>(ctx, SOURCE_EDGE_IDS_VALUE, {});
         const all = command.copies === undefined ? priorCopies : { ...priorCopies, ...command.copies };
-        const edited = applyEdit(prior, command.edit, all);
+        const known = ctx.services.config?.().data.knownFields;
+        const edited = withRepeated(applyEdit(prior, command.edit, all), known?.repeatedEdges);
         const copies = copiesOf(edited, all);
-        const idPath = ctx.services.config?.().data.knownFields.nodeIdPath ?? "id";
+        const idPath = known?.nodeIdPath ?? "id";
         const after = projectBuild(buildOf(edited, copies), edited, idPath);
         const { edit } = command;
         // A restore starts from the graph a project file embedded, matched to the build; every
@@ -603,6 +604,17 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         refreshDerivedAfter(ctx);
     },
 };
+
+/**
+ * The value carrying the graph's `repeatedEdges`, which the build reduces repeated edges by, as a load
+ * without the experiment does.
+ * @param value - The edited value.
+ * @param repeatedEdges - The setting.
+ * @returns The value, the same one when it already carries the setting.
+ */
+function withRepeated(value: SourceSteps, repeatedEdges: SourceSteps["repeatedEdges"]): SourceSteps {
+    return value.repeatedEdges === repeatedEdges ? value : { ...value, repeatedEdges };
+}
 
 /**
  * The direction declared by the first source a step reads now that none read before.

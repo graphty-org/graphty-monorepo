@@ -16,7 +16,9 @@ export const GEOGRAPHIC_AXES: Readonly<Partial<Record<string, "lat" | "lon" | "a
 
 /** The latitude, longitude and altitude columns {@link geographicColumnNames} found. */
 export interface GeographicColumnNames {
+    /** The latitude column, as spelled in the names given. */
     readonly latitude: string;
+    /** The longitude column, as spelled in the names given. */
     readonly longitude: string;
     /** The altitude column, or null when there is none. */
     readonly altitude: string | null;

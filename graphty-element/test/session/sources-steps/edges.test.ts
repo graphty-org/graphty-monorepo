@@ -147,7 +147,7 @@ describe("edge keys (section 10 item 4)", () => {
         assert.deepEqual(used.map((e) => e.key).sort(), ["1/gi\\|7\\|sp|F", "1/gi\\|7|sp\\|F"]);
     });
 
-    it("keys a join.edges row with no edge id and no `repeated` <part>/<copy id>#<row>", () => {
+    it("keys a join.edges row with no edge id and no `repeated` <part>/<from>|<to>#<n>", () => {
         const { f, t } = phase1([10000, 10001]);
         const part = f.mint(t);
         f.steps.push({
@@ -163,11 +163,50 @@ describe("edge keys (section 10 item 4)", () => {
             },
             columns: [],
         });
-        const { copy } = f.sources[t].origin;
-        assert.isNotNull(resolveEdge(f.built(), t, `${part}/${copy}#0`));
+        assert.isNotNull(resolveEdge(f.built(), t, `${part}/A-10000|D-0#1`));
     });
 
-    it("keys every row of a join.edges step with repeated both <part>/<copy id>#<row>, one edge per row", () => {
+    it("keeps a join.edges step's keyless keys when its rows are re-sorted", () => {
+        const ends = (text: string): (string | undefined)[] => {
+            const f = new Fixture();
+            f.import({ nodes: csv("id\na\nb\n") }, { key: "id", type: "person" });
+            const links = f.stage({ edges: csv(text) }, {});
+            const part = f.mint(links);
+            f.steps.push({
+                op: "join.edges",
+                source: links,
+                part,
+                read: { table: "edges", source: "from", sourceSpace: "person", target: "to", targetSpace: "person" },
+            });
+            const r = f.built();
+            return [`${part}/a|b#1`, `${part}/b|a#1`].map((key) => {
+                const e = resolveEdge(r, links, key);
+                return e === null ? undefined : `${e.from}>${e.to}`;
+            });
+        };
+        const before = ends("from,to\na,b\nb,a\n");
+        assert.notInclude(before, undefined);
+        assert.deepEqual(ends("from,to\nb,a\na,b\n"), before);
+    });
+
+    it("counts the rows a join.edges step leaves out by `rows` toward a keyless key's number", () => {
+        const f = new Fixture();
+        f.import({ nodes: csv("id\na\nb\n") }, { key: "id", type: "person" });
+        const links = f.stage({ edges: csv("from,to,k\na,b,x\na,b,y\n") }, {});
+        const part = f.mint(links);
+        f.steps.push({
+            op: "join.edges",
+            source: links,
+            part,
+            read: { table: "edges", source: "from", sourceSpace: "person", target: "to", targetSpace: "person" },
+            rows: { column: "k", values: ["y"] },
+        });
+        const r = f.built();
+        assert.isNull(resolveEdge(r, links, `${part}/a|b#1`), "the first row is not read");
+        assert.isNotNull(resolveEdge(r, links, `${part}/a|b#2`));
+    });
+
+    it("keys every row of a join.edges step with repeated both <part>/<from>|<to>#<n>, one edge per row", () => {
         const f = new Fixture();
         f.import({ nodes: csv("id\np1\np2\n") }, { key: "id", type: "person" });
         const calls = f.import({ nodes: csv("call,a,b\nc1,p1,p2\nc2,p1,p2\n") }, { key: "call", type: "call" });
@@ -180,9 +219,8 @@ describe("edge keys (section 10 item 4)", () => {
             repeated: "both",
         });
         const r = f.built();
-        const { copy } = f.sources[calls].origin;
-        assert.isNotNull(resolveEdge(r, calls, `${part}/${copy}#0`));
-        assert.isNotNull(resolveEdge(r, calls, `${part}/${copy}#1`));
+        assert.isNotNull(resolveEdge(r, calls, `${part}/p1|p2#1`));
+        assert.isNotNull(resolveEdge(r, calls, `${part}/p1|p2#2`));
         assert.isNull(resolveEdge(r, calls, `${part}/p1|p2`), "no pair key: the step reduces nothing");
         assert.equal(edgesOf(r).filter((e) => e.key.startsWith(`${part}/`)).length, 2);
     });

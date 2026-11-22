@@ -273,8 +273,11 @@ export interface RunsApiOptions {
     readonly setName?: (id: SetId) => string | undefined;
     /** The thing that actually runs an algorithm. */
     readonly execute: RunExecutor;
-    /** Which versions are producing the numbers. */
-    readonly engine: EngineVersions;
+    /**
+     * Which code is producing the numbers, or a function read each time a run is defined, so a run
+     * records the accelerator attached when it ran.
+     */
+    readonly engine: EngineVersions | (() => EngineVersions);
     /** What a call that names no scope gets. Defaults to the visible graph. */
     readonly defaultScope?: Scope;
     /**
@@ -682,20 +685,31 @@ function formatParamValue(value: unknown): string {
 }
 
 /**
- * The versions to record on a run, with the registered algorithm's own version beside them.
+ * The engine one run records: the session's, plus the version a registered extension declares.
  *
- * A run records the versions of the code that produced its numbers, and the three fixed fields
- * name the element and its two sibling packages -- which says nothing at all about a third
- * party's algorithm. The version is read from an optional `static version` on the registered
- * class, so an algorithm that declares none leaves the record exactly as it was.
+ * A run records the packages whose code produced its numbers, and the element's own say nothing at
+ * all about a third party's algorithm. The version is read from an optional `static version` on
+ * the registered class and listed under the run's catalog key, so an algorithm that declares none
+ * leaves the record exactly as it was.
  * @param key - The catalog key the run was started by.
- * @param base - The element's own versions.
- * @returns The versions to record on this run.
+ * @param base - The session's engine.
+ * @returns The engine to record on this run.
  */
 function engineVersionsFor(key: AlgorithmKey, base: EngineVersions): EngineVersions {
     const version = registeredAlgorithmByKey(key)?.version;
 
-    return version === undefined ? base : Object.freeze({ ...base, plugins: Object.freeze({ [key]: version }) });
+    return version === undefined
+        ? base
+        : Object.freeze({ ...base, packages: Object.freeze({ ...base.packages, [key]: version }) });
+}
+
+/**
+ * The session's engine as it stands now.
+ * @param engine - The engine, or the function that reads it.
+ * @returns The engine.
+ */
+function engineNow(engine: EngineVersions | (() => EngineVersions)): EngineVersions {
+    return typeof engine === "function" ? engine() : engine;
 }
 
 /**
@@ -1219,7 +1233,7 @@ class Runs implements SessionRunsApi {
             style: false,
             shape: "fact",
             fields: [],
-            engine: this.options.engine,
+            engine: engineNow(this.options.engine),
             caveats: this.defaultCaveats,
             execute: async (context) => {
                 const outcome = await execute(context);
@@ -1768,7 +1782,7 @@ class Runs implements SessionRunsApi {
             style: options.style ?? true,
             shape: descriptor.shape,
             fields: descriptor.fields,
-            engine: engineVersionsFor(descriptor.key, this.options.engine),
+            engine: engineVersionsFor(descriptor.key, engineNow(this.options.engine)),
             caveats: this.caveatsFor(identity, descriptor),
             execute: this.options.execute,
             ...(options.signal === undefined ? {} : { signal: options.signal }),

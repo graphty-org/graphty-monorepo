@@ -92,9 +92,9 @@ const ZOOM_STEP_FACTOR = 1.25;
 const MAP_CLEARANCE = 1e-4;
 
 import { measureBounds } from "./camera/bounds.js";
-import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
 import { cameraRefusal, stateProblem } from "./camera/mode.js";
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "./camera/orbit.js";
 import { orientationOf } from "./camera/orientation.js";
 import type { GraphOverview, OverviewOptions } from "./camera/overview.js";
 import { presetsOf, type SkippedPreset, splitPresetImport } from "./camera/presets.js";
@@ -185,6 +185,7 @@ import {
 import { attachRegionGesture } from "./input/RegionSelectGesture";
 import { FixedLayout } from "./layout/FixedLayoutEngine";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
+import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import {
     type AddEdgesOptions,
     AlgorithmManager,
@@ -1668,16 +1669,19 @@ export class Graph implements GraphContext {
                 }
                 return this.getCameraState();
             },
-            move: (command) =>
-                this.setCameraState(
-                    command.preset === undefined
+            move: (command) => {
+                const state =
+                    command.camera === undefined
                         ? {
                               ...(command.position === undefined ? {} : { position: { ...command.position } }),
                               ...(command.target === undefined ? {} : { target: { ...command.target } }),
                           }
-                        : { preset: command.preset },
+                        : { ...command.camera };
+                return this.setCameraState(
+                    command.preset === undefined ? state : { preset: command.preset },
                     command.animate === true ? { animate: true } : undefined,
-                ),
+                );
+            },
             state: () => this.getCameraState(),
         };
 
@@ -1772,6 +1776,10 @@ export class Graph implements GraphContext {
             },
             immersive: (mode) => this.setImmersive(mode),
             followsFilters: () => this.followsShown(workingGraphOfSession(this.session)),
+            accelerator: () => {
+                const engine = this.layoutManager.layoutEngine;
+                return engine instanceof SimulationLayoutEngine ? engine.accelerator : "cpu";
+            },
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;

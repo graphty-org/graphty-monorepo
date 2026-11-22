@@ -1413,6 +1413,81 @@ function recordOf(raw: Record<string, unknown>): SourceLoadRecord {
     }) as unknown as SourceLoadRecord;
 }
 
+/** The integer limits a version 2 ledger keeps (spec/README.md 4.1.2 rule 7). */
+const LEDGER_LIMITS = ["maxNodes", "maxEdges", "maxBytes", "maxRequests", "timeoutMs"] as const;
+
+/**
+ * A network load's request history as a version 2 data section writes it (`origin.ledger`, spec
+ * 4.1.2 rule 7): its driver, version, endpoint, params without what marks a credential, limits,
+ * pages, cursor, validators, expand behavior without its trigger, and its expansions with their
+ * seeds as node references. No credential, time of its own, count or key of the session's.
+ * @param record - The load's record.
+ * @param refOf - Each seed's node reference; a seed no node holds gives undefined and is left out.
+ * @returns The ledger: an expansion with no seed left is left out.
+ */
+export function ledgerOf(record: SourceLoadRecord, refOf: (id: NodeId) => unknown): Record<string, unknown> {
+    const {
+        id,
+        credentialSlot: _slot,
+        expand,
+        expansions,
+        ...rest
+    } = sourcePart(record, record.key, undefined, new Map(), new Set());
+    const held = isObject(record.options.limits) ? record.options.limits : {};
+    const limits = Object.fromEntries(
+        LEDGER_LIMITS.flatMap((name) =>
+            Number.isInteger(held[name]) && (held[name] as number) >= 1 ? [[name, held[name]]] : [],
+        ),
+    );
+    const { pages, next, validators, ...head } = rest;
+    return defined({
+        source: id,
+        ...head,
+        limits: Object.keys(limits).length === 0 ? undefined : limits,
+        pages,
+        next,
+        validators,
+        expand: expandOf(expand),
+        expansions: (expansions as Record<string, unknown>[]).flatMap(({ id: _id, ids, ...each }) => {
+            const seeds = (ids as NodeId[]).map((seed) => refOf(seed)).filter((ref) => ref !== undefined);
+            return seeds.length === 0 ? [] : [{ seeds, ...each }];
+        }),
+    });
+}
+
+/**
+ * The session's record of a network load from a version 2 ledger (spec 4.1.2 rule 7), keyed by
+ * its source id, so a refresh replays the request. It names no credential and no totals.
+ * @param key - The source id, the load's key.
+ * @param ledger - The ledger, checked.
+ * @param loadedAt - When the copy was read: the record's `loaded`.
+ * @param idOf - Each seed's node id; a seed no node holds gives undefined and is left out.
+ * @returns The record.
+ */
+export function recordOfLedger(
+    key: string,
+    ledger: Readonly<Record<string, unknown>>,
+    loadedAt: string,
+    idOf: (ref: unknown) => NodeId | undefined,
+): SourceLoadRecord {
+    const { source, limits, expansions, ...rest } = ledger;
+    return recordOf({
+        id: key,
+        source: {
+            ...rest,
+            id: source,
+            expansions: (expansions as Record<string, unknown>[]).map(({ seeds, ...each }, at) => ({
+                ...each,
+                id: `${key}/x${String(at + 1)}`,
+                ids: (seeds as unknown[]).map((seed) => idOf(seed)).filter((id) => id !== undefined),
+            })),
+        },
+        mode: "replace",
+        options: limits === undefined ? {} : { limits },
+        loadedAt,
+    });
+}
+
 /**
  * An entry's members that every kind shares: what an entry of a later kind is checked by.
  * @param raw - The entry.

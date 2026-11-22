@@ -2,15 +2,16 @@
  * @file The `settings` section codec, version 1: project settings no other section holds, and timeline playback (spec 4.4).
  * Experimental (`save-files-v2`).
  *
- * Placement of the `config.set` keys (spec 4.4 rule 1, spec 5 rule 7):
- * - here: `runAlgorithmsOnLoad`, `background`, `selectionStyle`, `pinnedStyle`, `runPlacement`,
- *   `layoutTransition` and every `layoutBehavior.*` key;
+ * `settings` is keyed by the names the spec's settings table gives (spec 4.4 rule 1), never by
+ * graphty-element's `config.set` paths: `SETTINGS` maps each name to the config path it reads and
+ * writes. The `config.set` keys it leaves out (spec 5 rule 7):
  * - in view: `viewRotation`, `framing`;
  * - in the data section (the direction, a mapping role, `repeatedEdges`, the key rule): the
  *   `data.*` keys with a home there, never written here;
  * - refused on save and reported (`NO_HOME`): the `data.*` keys with no home, when not at their
  *   default;
- * - never saved: `author`, `name`, `startingRows`, `editableBase`.
+ * - never saved: `author`, `name`, `startingRows`, `editableBase`, and the per-project bookkeeping
+ *   `timelineHiddenAdded` and `startingCamerasWritten`, worked out when a file opens (spec 8.2 rule 2).
  */
 
 import { GraphtyError } from "../../../errors/GraphtyError";
@@ -21,20 +22,42 @@ import type { SessionVisibilityApi } from "../../visibility/VisibilityApi";
 import { projectMemory } from "../memory";
 import type { JsonObject, ReadContext, ReadSection, SectionCodec, SectionWrite, WriteContext } from "../types";
 
-/** The `config.set` keys another section holds (view) or no section saves. */
-const NOT_HERE: ReadonlySet<string> = new Set([
+/**
+ * The settings table (spec 4.4 rule 1): each setting's name in a file, and the `config.set` path
+ * it reads and writes, in the order the section writes them. Written by hand from the spec, which
+ * owns the names; a test checks every `CONFIG_KEYS` key is here, in `NOT_SETTINGS` or `data.*`.
+ */
+export const SETTINGS: readonly (readonly [name: string, configPath: string])[] = [
+    ["runAlgorithmsOnLoad", "runAlgorithmsOnLoad"],
+    ["runPlacement", "runPlacement"],
+    ["layoutTransition", "layoutTransition"],
+    ["layoutStepsBeforeDraw", "layoutBehavior.preSteps"],
+    ["layoutStepsPerFrame", "layoutBehavior.stepMultiplier"],
+    ["layoutSettleDelta", "layoutBehavior.minDelta"],
+    ["background", "background"],
+    ["selectionStyle", "selectionStyle"],
+    ["pinnedStyle", "pinnedStyle"],
+    ["timelineHiddenLook", "timelineHiddenLook"],
+    ["minMarkSize", "minMarkSize"],
+];
+
+/** Each setting's `config.set` path, by its name in a file. */
+const PATH_OF: ReadonlyMap<string, string> = new Map(SETTINGS);
+
+/**
+ * The `config.set` keys that are never settings (spec 4.4 rule 1): view holds two, and the rest
+ * are never saved. Found in a file's `settings`, one is reported and dropped.
+ */
+export const NOT_SETTINGS: ReadonlySet<string> = new Set([
     "viewRotation",
     "framing",
     "author",
     "name",
     "startingRows",
     "editableBase",
+    "timelineHiddenAdded",
+    "startingCamerasWritten",
 ]);
-
-/** The `config.set` keys this section holds, in the order it writes them. */
-const SAVED_HERE: readonly string[] = [...CONFIG_KEYS.keys()].filter(
-    (key) => !NOT_HERE.has(key) && !key.startsWith("data."),
-);
 
 /**
  * The `data.*` keys no section can hold (spec 5 rule 7): a value other than the default is
@@ -127,10 +150,10 @@ function playbackOf(context: WriteContext, kept: Kept | undefined): JsonObject |
 function write(context: WriteContext): Promise<SectionWrite> {
     const kept = KEPT.get(context.session);
     const settings: JsonObject = {};
-    for (const key of SAVED_HERE) {
-        const value = valueAt(context.session.config, key);
+    for (const [name, path] of SETTINGS) {
+        const value = valueAt(context.session.config, path);
         if (value !== undefined) {
-            settings[key] = value;
+            settings[name] = value;
         }
     }
 
@@ -164,8 +187,9 @@ function bad(context: ReadContext, pointer: string): void {
 }
 
 /**
- * The flat settings as a nested `config.set` patch, every known key checked against its schema.
- * Unknown keys are reported and returned to keep; bad and misplaced ones are reported and dropped.
+ * The settings as a nested `config.set` patch, every known setting checked against its config
+ * key's schema. Unknown keys are reported and returned to keep; bad ones, and a key that is never a
+ * setting, are reported and dropped.
  * @param settings - The `settings` member.
  * @param pointer - Its JSON pointer.
  * @param context - The open.
@@ -181,11 +205,12 @@ function patchOf(
     let count = 0;
     for (const [key, value] of Object.entries(settings)) {
         const at = `${pointer}/${token(key)}`;
-        const known = CONFIG_KEYS.get(key);
-        if (known === undefined || NOT_HERE.has(key) || key.startsWith("data.")) {
+        const path = PATH_OF.get(key);
+        const known = path === undefined ? undefined : CONFIG_KEYS.get(path);
+        if (path === undefined || known === undefined) {
             context.problems.push({ code: "W_UNKNOWN_MEMBER", params: { section: "settings", pointer: at } });
             // A key of another section, or one never saved, is not written back here.
-            if (known === undefined) {
+            if (!NOT_SETTINGS.has(key) && !key.startsWith("data.")) {
                 unknown[key] = value;
             }
             continue;
@@ -196,7 +221,7 @@ function patchOf(
             continue;
         }
 
-        setAt(patch, key, value);
+        setAt(patch, path, value);
         count++;
     }
 
@@ -314,7 +339,7 @@ async function readSettings(settings: unknown, at: string, context: ReadContext,
 }
 
 /**
- * Write a value into a nested patch at a dotted config key, making the objects on the way.
+ * Write a value into a nested patch at a dotted config path, making the objects on the way.
  * @param patch - The patch.
  * @param key - The dotted key.
  * @param value - The value.
@@ -338,13 +363,13 @@ function setAt(patch: JsonObject, key: string, value: unknown): void {
  */
 function defaultsFor(settings: JsonObject): JsonObject {
     const patch: JsonObject = {};
-    for (const key of SAVED_HERE) {
-        const unset = CONFIG_KEYS.get(key)?.schema.safeParse(undefined);
-        if (key in settings || unset?.success !== true || unset.data === undefined) {
+    for (const [name, path] of SETTINGS) {
+        const unset = CONFIG_KEYS.get(path)?.schema.safeParse(undefined);
+        if (name in settings || unset?.success !== true || unset.data === undefined) {
             continue;
         }
 
-        setAt(patch, key, unset.data);
+        setAt(patch, path, unset.data);
     }
 
     return patch;

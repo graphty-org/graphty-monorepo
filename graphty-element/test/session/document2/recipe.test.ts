@@ -11,9 +11,10 @@ import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
+import { engineOptionsOf, FORCE_SAVED_OPTIONS } from "../../../src/catalog/layouts";
 import type { RunId } from "../../../src/catalog/types";
 import { recipeCodec } from "../../../src/session/document2/codecs/recipe";
-import { fileSetId } from "../../../src/session/document2/codecs/viewParts";
+import { fileSetId, resolvedLayoutOptions } from "../../../src/session/document2/codecs/viewParts";
 import type {
     DocumentProblem,
     DocumentSection,
@@ -221,13 +222,41 @@ function stateOf(session: GraphSession): unknown {
                 seed: run.record.seed,
                 scope: run.record.scope.spec,
             })),
+        // Resolved: a replayed `layout.set` asks for the defaults the saved one spelled out.
         layout: {
             id: session.layout.id,
             engine: session.layout.engine,
             dimension: session.layout.dimension,
-            options: session.layout.options,
+            options: resolvedLayoutOptions(session, session.layout),
         },
     };
+}
+
+/**
+ * The options a layout engine declares with a default, less the one it derives from the dimension.
+ * @param session - The session, for its catalog.
+ * @param id - The layout.
+ * @param engine - The engine.
+ * @returns The option names.
+ */
+function defaultedLayoutOptions(session: GraphSession, id: string, engine: string): string[] {
+    const descriptor = session.catalog.layouts().find((each) => each.id === id);
+    assert.isDefined(descriptor);
+    return engineOptionsOf(descriptor, engine)
+        .filter((option) => option.default !== undefined && option.default !== null && option.name !== "dim")
+        .map((option) => option.name);
+}
+
+/**
+ * The layout.set command a session writes.
+ * @param session - The session.
+ * @returns The command.
+ */
+async function layoutCommand(session: GraphSession): Promise<JsonObject> {
+    const commands = (await write(session)).written.body.commands as JsonObject[];
+    const command = commands.find((each) => each.op === "layout.set");
+    assert.isDefined(command);
+    return command;
 }
 
 /**
@@ -249,7 +278,24 @@ async function analysis(): Promise<Lab> {
         { name: "Hubs" },
     );
     await session.layout.setDimension("2d");
+    await session.layout.set("force", { engine: "d3", options: { clusterStrength: 2, alphaDecay: 0.05 } });
     return source;
+}
+
+/**
+ * Open one hand-written layout.set over a fresh graph.
+ * @param command - The command.
+ * @returns The lab and what the open reported.
+ */
+async function readLayout(command: JsonObject): Promise<{ target: Lab; problems: DocumentProblem[] }> {
+    const target = lab();
+    await addGraph(target.session);
+    const problems = await read(target, {
+        kind: "graphty-recipe",
+        version: 2,
+        commands: [{ op: "layout.set", dimension: 3, ...command }],
+    });
+    return { target, problems };
 }
 
 describe("the version 2 recipe codec", () => {
@@ -462,7 +508,8 @@ describe("the version 2 recipe codec", () => {
                 },
                 "/commands/0/scope/of",
             ],
-            [{ op: "graph.filter", where: "data.score > `1`", narrows: false }, "/commands/0/narrows"],
+            [{ op: "graph.filter", where: "data.score > `1`", ignorable: "dropIsolated" }, "/commands/0/ignorable"],
+            [{ op: "graph.filter", where: "data.score > `1`", extensions: [] }, "/commands/0/extensions"],
         ] as const) {
             const target = lab();
             await addGraph(target.session);
@@ -481,6 +528,106 @@ describe("the version 2 recipe codec", () => {
             );
             assert.deepEqual(target.computed, []);
         }
+    });
+
+    it("stops at a command holding a refused expression or an unknown rule tree leaf", async () => {
+        for (const [command, pointer] of [
+            [{ op: "graph.filter", where: "data.a > 5" }, "/commands/0/where"],
+            [
+                { op: "set.define", id: "set_01JCBP1C9E2G4J6M8N0Q3S5V7Y", where: { kind: "future-leaf", x: 1 } },
+                "/commands/0/where",
+            ],
+            [
+                { op: "algo.run", algorithm: "degree", as: "one", style: false, scope: { where: "length(data.a)" } },
+                "/commands/0/scope/where",
+            ],
+        ] as const) {
+            const target = lab();
+            await addGraph(target.session);
+            const problems = await read(target, {
+                kind: "graphty-recipe",
+                version: 2,
+                namespace: "x",
+                commands: [command, { op: "algo.run", algorithm: "degree", as: "later", style: false }],
+            });
+            assert.deepEqual(problems[0], { code: "E_UNKNOWN_OPTION", params: { section: "recipe", pointer } });
+            assert.deepInclude(problems, { code: "W_RUN_NOT_RUN", params: { run: "x__later" } });
+            assert.deepEqual(target.computed, []);
+        }
+    });
+
+    it("runs a command whose unknown member ignorable names, and stops at one it does not", async () => {
+        const run = { op: "algo.run", algorithm: "degree", as: "one", style: false, accelerator: "any" };
+        const ignored = lab();
+        await addGraph(ignored.session);
+        const problems = await read(ignored, {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "x",
+            commands: [{ ...run, ignorable: ["accelerator"] }],
+        });
+        assert.deepEqual(problems, [
+            { code: "W_UNKNOWN_MEMBER", params: { section: "recipe", pointer: "/commands/0/accelerator" } },
+        ]);
+        assert.deepEqual(ignored.computed, ["x__one"]);
+
+        const stopped = lab();
+        await addGraph(stopped.session);
+        const refused = await read(stopped, {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "x",
+            commands: [run, { op: "algo.run", algorithm: "degree", as: "later", style: false }],
+        });
+        assert.deepEqual(refused, [
+            { code: "E_UNKNOWN_OPTION", params: { section: "recipe", pointer: "/commands/0/accelerator" } },
+            { code: "W_RUN_NOT_RUN", params: { run: "x__one" } },
+            { code: "W_RUN_NOT_RUN", params: { run: "x__later" } },
+        ]);
+        assert.deepEqual(stopped.computed, []);
+    });
+
+    it("runs a command and a scope carrying extensions, and a known op saying narrows: false, silently", async () => {
+        const target = lab();
+        await addGraph(target.session);
+        const extensions = { "org.example.audit": { ticket: 42 } };
+        const recipe = {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "x",
+            commands: [
+                {
+                    op: "algo.run",
+                    algorithm: "degree",
+                    as: "one",
+                    scope: { where: "data.score > `1`", extensions },
+                    style: false,
+                    extensions,
+                },
+                { op: "graph.filter", where: "data.score > `1`", narrows: false },
+            ],
+        };
+        assert.isTrue(validateRecipe(asSection({ body: recipe })), "the schema accepts it");
+        assert.deepEqual(await read(target, recipe), []);
+        assert.deepEqual(target.computed, ["x__one"]);
+    });
+
+    it("keeps an unknown op saying narrows: false byte for byte when the recipe is written back as read", async () => {
+        const command = { op: "org.example.motif-census", as: "motifs", narrows: false, params: { size: 3 } };
+        const target = lab();
+        await addGraph(target.session);
+        await read(
+            target,
+            {
+                kind: "graphty-recipe",
+                version: 2,
+                namespace: "x",
+                commands: [command, { op: "algo.run", algorithm: "degree", as: "one", style: false }],
+            },
+            { apply: false },
+        );
+        const written = (await write(target.session)).written.body.commands as JsonObject[];
+        assert.strictEqual(JSON.stringify(written[0]), JSON.stringify(command));
     });
 
     it("with rerun off, restores runs from waiting outcomes and lists the rest as not run", async () => {
@@ -535,6 +682,115 @@ describe("the version 2 recipe codec", () => {
         assert.notStrictEqual(target.session.runs.painting("x__styled")?.state, "opted-out");
     });
 
+    it("writes the layout's options resolved: every defaulted engine option, less dim, and the seed", async () => {
+        const { session } = lab();
+        await addGraph(session);
+        await session.layout.set("force", { options: { seed: 7 } });
+        const command = await layoutCommand(session);
+        const options = command.options as JsonObject;
+        const drawnBy = command.drawnBy as JsonObject;
+        assert.strictEqual(drawnBy.engine, "ngraph");
+        assert.isUndefined(command.algorithm);
+        const engines = drawnBy.options as JsonObject;
+        assert.sameMembers(
+            [...Object.keys(options), ...Object.keys(engines)],
+            [...defaultedLayoutOptions(session, "force", "ngraph"), "seed"],
+        );
+        assert.includeMembers([...FORCE_SAVED_OPTIONS], Object.keys(options), "the arrangement's own options");
+        assert.strictEqual(options.seed, 7);
+        assert.deepEqual(
+            Object.keys(options),
+            [...Object.keys(options)].sort((a, b) => a.localeCompare(b)),
+            "keys sorted",
+        );
+        assert.deepEqual(invalid(asSection((await write(session)).written)), []);
+    });
+
+    it("names the arrangement in id and the engine, with the options only it takes, in drawnBy", async () => {
+        const { session } = await analysis();
+        const command = await layoutCommand(session);
+        assert.isUndefined(command.algorithm);
+        assert.strictEqual(command.id, "force");
+        assert.strictEqual(command.dimension, 2);
+        const options = command.options as JsonObject;
+        assert.strictEqual(options.clusterStrength, 2);
+        assert.includeMembers([...FORCE_SAVED_OPTIONS], Object.keys(options));
+        const drawnBy = command.drawnBy as JsonObject;
+        assert.strictEqual(drawnBy.engine, "d3");
+        const engines = drawnBy.options as JsonObject;
+        assert.strictEqual(engines.alphaDecay, 0.05);
+        assert.sameMembers(
+            [...Object.keys(options), ...Object.keys(engines)],
+            [...new Set([...defaultedLayoutOptions(session, "force", "d3"), "clusterStrength", "alphaDecay"])],
+        );
+    });
+
+    it("draws with the default engine, reporting it, when drawnBy names one this release lacks", async () => {
+        const { target, problems } = await readLayout({
+            id: "force",
+            options: { seed: 7 },
+            drawnBy: { engine: "com.example.gone", options: { warp: 1 } },
+        });
+        assert.deepEqual(problems, [
+            {
+                code: "W_LAYOUT_ENGINE_UNAVAILABLE",
+                params: { section: "recipe", pointer: "/commands/0", layout: "force", engine: "com.example.gone" },
+            },
+        ]);
+        const { layout } = target.session;
+        assert.deepEqual([layout.id, layout.engine, layout.options.seed], ["force", "ngraph", 7]);
+    });
+
+    it("leaves out, reporting it, an option the arrangement does not list, and still sets the layout", async () => {
+        const { target, problems } = await readLayout({ id: "force", options: { seed: 7, warp: 1 } });
+        assert.deepEqual(problems, [
+            {
+                code: "W_LAYOUT_OPTION_NOT_APPLIED",
+                params: {
+                    section: "recipe",
+                    pointer: "/commands/0",
+                    layout: "force",
+                    engine: "ngraph",
+                    option: "warp",
+                },
+            },
+        ]);
+        const { layout } = target.session;
+        assert.deepEqual([layout.id, layout.options.seed, layout.options.warp], ["force", 7, undefined]);
+    });
+
+    it("writes a dimension option that was asked for", async () => {
+        const { session } = lab();
+        await addGraph(session);
+        await session.layout.setDimension("3d");
+        await session.layout.set("force", { options: { dim: 2 } });
+        const options = (await layoutCommand(session)).options as JsonObject;
+        assert.strictEqual(options.dim, 2);
+    });
+
+    it("re-saves a terse hand-written run with every declared option at the value it ran with", async () => {
+        const target = lab();
+        await addGraph(target.session);
+        const problems = await read(target, {
+            kind: "graphty-recipe",
+            version: 2,
+            namespace: "terse",
+            commands: [
+                { op: "algo.run", algorithm: "pagerank", as: "rank", params: { dampingFactor: 0.5 }, style: false },
+            ],
+        });
+        assert.deepEqual(problems, []);
+        const commands = (await write(target.session, true)).written.body.commands as JsonObject[];
+        const run = commands.find((each) => each.op === "algo.run");
+        assert.deepEqual(run?.params, {
+            dampingFactor: 0.5,
+            directed: true,
+            maxIterations: 100,
+            tolerance: 0.000001,
+            useDelta: true,
+        });
+    });
+
     it("reads the specification's example recipe, reporting what this release cannot replay", async () => {
         const target = lab();
         await addGraph(target.session);
@@ -552,5 +808,16 @@ describe("the version 2 recipe codec", () => {
             target.session.visibility.steps.map((step) => step.rule),
             [{ kind: "edges", where: "data.time >= '2026-11-09'" }],
         );
+        // The example writes resolved values, so the session holds them as written.
+        const commands = example.commands as JsonObject[];
+        const pagerank = commands.find((each) => each.as === "pagerank");
+        assert.deepEqual(target.session.runs.get("card_testing__pagerank")?.record.params, pagerank?.params);
+        const layout = commands.find((each) => each.op === "layout.set") as JsonObject;
+        const drawnBy = layout.drawnBy as JsonObject;
+        assert.strictEqual(target.session.layout.engine, drawnBy.engine);
+        assert.deepEqual(resolvedLayoutOptions(target.session, target.session.layout), {
+            ...(layout.options as JsonObject),
+            ...(drawnBy.options as JsonObject),
+        });
     });
 });

@@ -553,11 +553,15 @@ export class ArrowCapBatch {
 
         const at = index * BILLBOARD_BUFFERS.arrowColor;
         const colours = billboard.arrowColor;
-        scratchRow[0] = rgb.r;
-        scratchRow[1] = rgb.g;
-        scratchRow[2] = rgb.b;
-        if (colours[at] !== scratchRow[0] || colours[at + 1] !== scratchRow[1] || colours[at + 2] !== scratchRow[2]) {
-            colours.set(scratchRow.subarray(0, 3), at);
+        // as float32 holds them, written in place: a restyle writes a hundred thousand slots, and a view per slot
+        // was most of the cost
+        const r = Math.fround(rgb.r);
+        const g = Math.fround(rgb.g);
+        const b = Math.fround(rgb.b);
+        if (colours[at] !== r || colours[at + 1] !== g || colours[at + 2] !== b) {
+            colours[at] = r;
+            colours[at + 1] = g;
+            colours[at + 2] = b;
             this.written("arrowColor", index);
         }
 

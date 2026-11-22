@@ -8,7 +8,7 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
@@ -323,5 +323,49 @@ describe.each(RENDERERS)("two 2D heads of different colors meeting on %s", (rend
         const batched = await meeting("batched");
         assert.equal(batched.graph.rowCounts.objectEdges, 0);
         assert.equal(pixelsOverBar(want, await readCanvas(batched.graph)), 0);
+    });
+});
+
+// A batch that drew pulled heads placed its pieces' ends on the CPU at every rest, in a table of 32 bytes a piece, and
+// kept both after every head was gone: about 40 MB at a million edges drawn with none.
+describe("a batched row line batch whose arrowheads all come off", () => {
+    it("places no ends at rest and gives its placed-ends table back", async () => {
+        const count = 1500;
+        const element = document.createElement("graphty-element");
+        element.renderPath = "batched";
+        element.style.display = "block";
+        element.style.width = "400px";
+        element.style.height = "300px";
+        document.body.appendChild(element);
+        await element.updateComplete;
+        await element.session.data.addNodes(
+            Array.from({ length: count }, (_, id) => ({ id, position: { x: id % 40, y: Math.floor(id / 40), z: 0 } })),
+        );
+        await element.graph.setLayout("fixed", { dim: 3 });
+        await element.session.data.addEdges(
+            Array.from({ length: count }, (_, id) => ({ src: id, dst: (id + 1) % count })),
+        );
+        await settled(element);
+        type Placing = { ends: Float32Array; placeEnds: () => void };
+        const batches = (): Placing[] => (element.graph.getEdgeRowLines() as unknown as { batches: Placing[] }).batches;
+        const placedBytes = (): number => batches().reduce((sum, batch) => sum + batch.ends.byteLength, 0);
+        assert.isAbove(placedBytes(), count * 32, "a placed end for every piece under a head");
+
+        await element.session.styles.add({
+            name: "plain",
+            target: "edge",
+            selector: everything,
+            set: { "edge.arrowHead": "none" },
+        } as never);
+        await settled(element);
+        const placing = batches().map((batch) => vi.spyOn(batch, "placeEnds"));
+        await element.session.positions.set([{ id: 0, x: -5, y: -5, z: 0 }]);
+        await settled(element);
+        assert.strictEqual(
+            placing.reduce((sum, spy) => sum + spy.mock.calls.length, 0),
+            0,
+            "no ends placed at rest",
+        );
+        assert.isAtMost(placedBytes(), batches().length * 1024 * 4 * 4, "each table back at its first size");
     });
 });

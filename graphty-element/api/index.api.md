@@ -9376,12 +9376,15 @@ export class UpdateManager implements Manager {
     nodeRowSelected(row: number): boolean;
     // @internal
     nodeRowsMoved(remap: ArrayLike<number>): void;
-    noteEndsChanged(): void;
+    // @internal
+    noteEndsChanged(row: number): void;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
     readonly pending: PendingWork;
     picturesLoading: (() => boolean) | null;
+    // @internal
+    placeBuiltNode(node: Node_2): void;
     // @internal
     placeEdgesOfNode(node: Node_2): void;
     // @internal

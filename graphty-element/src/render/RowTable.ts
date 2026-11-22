@@ -755,9 +755,15 @@ export class RowTable {
                 this.heldExact = grown;
             }
 
-            this.heldExact[row * 3] = x;
-            this.heldExact[row * 3 + 1] = y;
-            this.heldExact[row * 3 + 2] = z;
+            const exact = this.heldExact;
+            if (exact[row * 3] !== x || exact[row * 3 + 1] !== y || exact[row * 3 + 2] !== z) {
+                // the place the CPU stands it at rest moved, if by less than a float32 step
+                this.drawnWrites++;
+            }
+
+            exact[row * 3] = x;
+            exact[row * 3 + 1] = y;
+            exact[row * 3 + 2] = z;
         }
         if ((flags & (HIDDEN | SHRUNK)) === 0) {
             this.writeW(row, 1);

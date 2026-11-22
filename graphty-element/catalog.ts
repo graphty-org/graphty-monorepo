@@ -261,7 +261,7 @@ export {
 // Whether a channel or a label style field changes the picture where it is set (its `drawnWhen`),
 // read the one way: an unset channel counts as its default.
 export type { DrawnResult, DrawnView } from "./src/catalog/drawnWhen";
-export { channelDrawn, combineDrawn, drawnDefault, labelFieldDrawn } from "./src/catalog/drawnWhen";
+export { channelDrawn, combineDrawn, drawnDefault, labelFieldDrawn, valueDrawn } from "./src/catalog/drawnWhen";
 // Every value of an enum channel with a default name and picture (`catalog.channelValues`), and the
 // one reader and writer of a list channel's items (`ChannelDescriptor.listOf`).
 export type { ChannelValueDescriptor } from "./src/catalog/channelValues";

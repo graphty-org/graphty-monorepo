@@ -683,6 +683,7 @@ export interface ChannelDescriptor {
         readonly code: "channel.not-drawn";
         readonly params: Readonly<Record<string, never>>;
     };
+    readonly valueDrawnWhen?: Readonly<Record<string, readonly ChannelCondition[]>>;
     readonly values?: readonly string[];
     readonly valueViews?: Readonly<Record<string, readonly ("2d" | "3d")[]>>;
 }
@@ -3668,6 +3669,9 @@ export interface UnservedLayout {
     // (undocumented)
     reason: string;
 }
+
+// @public
+export function valueDrawn(channel: Channel, value: string, read: (other: Channel) => unknown, dimension: DrawnView): DrawnResult<ChannelCondition>;
 
 // @beta
 export type ValueKind = "number" | "time" | "ordered" | "category" | "tags" | "flag" | "text";

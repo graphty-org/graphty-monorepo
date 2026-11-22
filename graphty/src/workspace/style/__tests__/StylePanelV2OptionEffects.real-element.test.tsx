@@ -98,6 +98,9 @@ describe("Style panel v2: options that would change nothing", () => {
         assert.isUndefined(optionDim(pop, "Node size space", "Screen"));
         assert.match(optionDim(pop, "Combine", "Multiply") ?? "", /^Same as Replace over a .+ of 1$/);
         assert.isUndefined(optionDim(pop, "Combine", "Add"), "Add adds to the size beneath");
+        // Uniform draws the default icosphere at the extent Scale draws it at already (valueDrawn).
+        assert.match(optionDim(pop, "Node size mode", "Uniform") ?? "", /^Only when /);
+        assert.isUndefined(optionDim(pop, "Node size mode", "Diameter"));
         assert.equal(lineDim(pop, "node.depth"), "3D only");
         await userEvent.keyboard("{Escape}");
 
@@ -105,6 +108,13 @@ describe("Style panel v2: options that would change nothing", () => {
         const again = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
         assert.isUndefined(optionDim(again, "Node size space", "Pivot"), "Pivot draws in 3D");
         assert.isUndefined(lineDim(again, "node.depth"), "so does depth");
+        await userEvent.keyboard("{Escape}");
+
+        // A box is drawn at its own extent under Scale: Uniform changes it.
+        await session.styles.update(id, { set: { "node.color": "#E8590C", "node.size": 2, "node.shape": "box" } });
+        await session.styles.settled();
+        const box = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
+        assert.isUndefined(optionDim(box, "Node size mode", "Uniform"), "Uniform draws a box anew");
         await userEvent.keyboard("{Escape}");
     });
 

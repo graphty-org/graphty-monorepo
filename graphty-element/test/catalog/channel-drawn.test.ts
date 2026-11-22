@@ -5,7 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { channelDrawn, combineDrawn, drawnDefault, labelFieldDrawn } from "../../src/catalog/drawnWhen";
+import { channelDrawn, combineDrawn, drawnDefault, labelFieldDrawn, valueDrawn } from "../../src/catalog/drawnWhen";
 import { formatShaderText, parseShaderText } from "../../src/catalog/shaderText";
 import { NODE_SHAPE_DESCRIPTORS } from "../../src/catalog/shapes";
 import type { Channel, LabelStyle } from "../../src/catalog/types";
@@ -18,6 +18,29 @@ import type { Channel, LabelStyle } from "../../src/catalog/types";
 function reading(values: Partial<Record<string, unknown>>): (other: Channel | keyof LabelStyle) => unknown {
     return (other) => values[other];
 }
+
+describe("valueDrawn", () => {
+    it("draws a uniform size only where scale does not draw the same: an unfitted solid other than an icosphere", () => {
+        // the default icosphere is drawn at the uniform extent already
+        assert.isFalse(valueDrawn("node.sizeMode", "uniform", reading({}), "2d").drawn);
+        assert.isFalse(valueDrawn("node.sizeMode", "uniform", reading({ "node.shape": "icosphere" }), "3d").drawn);
+        assert.isTrue(valueDrawn("node.sizeMode", "uniform", reading({ "node.shape": "box" }), "3d").drawn);
+        // scale fits a flat shape, and a node with its own width or planar, to the same extent
+        assert.isFalse(valueDrawn("node.sizeMode", "uniform", reading({ "node.shape": "ellipse" }), "2d").drawn);
+        assert.isFalse(
+            valueDrawn("node.sizeMode", "uniform", reading({ "node.shape": "box", "node.width": 2 }), "2d").drawn,
+        );
+        assert.isFalse(
+            valueDrawn("node.sizeMode", "uniform", reading({ "node.shape": "box", "node.planar": true }), "2d").drawn,
+        );
+        // a value with no condition draws; a view-only value is read from valueViews
+        assert.isTrue(valueDrawn("node.sizeMode", "diameter", reading({}), "2d").drawn);
+        assert.deepEqual(valueDrawn("node.sizeSpace", "pivot", reading({}), "2d"), {
+            drawn: false,
+            unmet: { dimension: "3d" },
+        });
+    });
+});
 
 describe("channelDrawn", () => {
     it("draws a curve's circle and fan only without force curves: a support point wins over both", () => {

@@ -175,6 +175,45 @@ export function channelDrawn(
     return unmet === undefined ? { drawn: true } : { drawn: false, unmet };
 }
 
+/**
+ * Whether one value of an enum channel draws anything other than what its default draws: its view (`valueViews`) and
+ * every condition of its `valueDrawnWhen` hold. `node.sizeMode` "uniform" draws what "scale" draws for an icosphere,
+ * so a style editor dims it there.
+ * @param channel - The enum channel.
+ * @param value - The value.
+ * @param read - What another channel holds, as {@link channelDrawn} reads it.
+ * @param dimension - The view, as {@link channelDrawn} reads it.
+ * @returns `{ drawn: true }`, or `{ drawn: false, unmet }` naming the first condition that fails.
+ * @since 3.66.0
+ * @example
+ * ```ts
+ * import { valueDrawn } from "@graphty/graphty-element/catalog";
+ *
+ * valueDrawn("node.sizeMode", "uniform", () => undefined, "3d"); // { drawn: false, unmet: { channel: "node.shape", ... } }
+ * valueDrawn("node.sizeMode", "uniform", (c) => (c === "node.shape" ? "box" : undefined), "3d"); // { drawn: true }
+ * ```
+ */
+export function valueDrawn(
+    channel: Channel,
+    value: string,
+    read: (other: Channel) => unknown,
+    dimension: DrawnView,
+): DrawnResult<ChannelCondition> {
+    const descriptor = CHANNEL_DESCRIPTORS[channel];
+    const views = descriptor.valueViews?.[value];
+    const conditions: ChannelCondition[] = [
+        ...(views?.length === 1 ? [{ dimension: views[0] }] : []),
+        ...(descriptor.valueDrawnWhen?.[value] ?? []),
+    ];
+    const unmet = firstUnmet<ChannelCondition>(
+        conditions,
+        dimension,
+        (condition) => ("channel" in condition ? read(condition.channel) : undefined),
+        (condition) => ("channel" in condition ? drawnDefault(condition.channel, read) : undefined),
+    );
+    return unmet === undefined ? { drawn: true } : { drawn: false, unmet };
+}
+
 /** Each label style field's descriptor, by field. */
 const FIELDS = new Map(LABEL_STYLE_DESCRIPTORS.map((descriptor) => [descriptor.field, descriptor]));
 

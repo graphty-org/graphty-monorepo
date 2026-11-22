@@ -1051,6 +1051,15 @@ export interface ChannelDescriptor {
      */
     readonly valueViews?: Readonly<Record<string, readonly ("2d" | "3d")[]>>;
     /**
+     * What must hold for an enum value to draw anything other than the channel's default, for a value that draws the
+     * same as the default in some states: `node.sizeMode` "uniform" draws a node at the default icosphere's extent,
+     * which is what "scale" draws already for an icosphere, a flat shape, or a node with its own width, height, depth
+     * or `planar`. Evaluate it with `valueDrawn` from the `./catalog` entry. A value not listed draws whenever the
+     * channel does.
+     * @since 3.66.0
+     */
+    readonly valueDrawnWhen?: Readonly<Record<string, readonly ChannelCondition[]>>;
+    /**
      * Other channels a layer must also write for this one to draw, each with the value to write:
      * a border color needs a border width above 0, a shadow color an opacity and an offset, a
      * wireframe a low mesh detail. Write a partner only where what lies beneath draws nothing for
@@ -2711,6 +2720,20 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "enum",
         values: NODE_SIZE_MODE_VALUES,
         stylePath: "shape.sizeMode",
+        // "uniform" fits every node to the default icosphere's extent, which "scale" already draws for an icosphere
+        // and for every node it fits (NodeMesh.isFitted): a flat shape, or one with a width, height, depth or planar.
+        valueDrawnWhen: {
+            uniform: [
+                {
+                    channel: "node.shape",
+                    values: NODE_SHAPE_VALUES.filter((shape) => !isFlatShape(shape) && shape !== "icosphere"),
+                },
+                { channel: "node.width", unset: true },
+                { channel: "node.height", unset: true },
+                { channel: "node.depth", unset: true },
+                { channel: "node.planar", values: ["false"] },
+            ],
+        },
         renderable: true,
     },
     "node.sizeSpace": {

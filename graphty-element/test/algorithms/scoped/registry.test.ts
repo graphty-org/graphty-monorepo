@@ -56,6 +56,8 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:pagerank": "on",
     "graphty:prim": "on",
     "graphty:removal-impact": "on",
+    "graphty:articulation-points": "on",
+    "graphty:bridges": "on",
     "graphty:scc": "on",
     "graphty:spectral-clustering": "on",
 };
@@ -284,7 +286,9 @@ class Peeker extends Algorithm {
      * @returns How many nodes each said.
      */
     peek(): [number, number] {
-        return [this.input("declared").nodeCount, this.graph.getDataManager().nodes.size];
+        // The element's data manager, which a plugin can still reach past the host's type.
+        const around = this.graph.getDataManager() as unknown as { readonly nodes: ReadonlyMap<unknown, unknown> };
+        return [this.input("declared").nodeCount, around.nodes.size];
     }
 }
 

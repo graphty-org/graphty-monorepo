@@ -45,6 +45,9 @@ describe("one role list", () => {
             "Country",
             "Region",
             "City",
+            "X",
+            "Y",
+            "Z",
         ]);
         assert.deepEqual(words("edge"), ["Source", "Target", "Id", "Kind", "Weight", "Time"]);
         // A load that cannot be read again offers only the roles a column takes in place, as

@@ -106,7 +106,7 @@ describe("xr.input.zAxisAmplification", () => {
     });
 
     test("in XR, the default amplifies only Z, 10x", () => {
-        graph.scene.metadata.xrHelper = { baseExperience: { state: IN_XR } };
+        (graph.scene.metadata as Record<string, unknown>).xrHelper = { baseExperience: { state: IN_XR } };
         assertNear(
             drag(...steps(new Vector3(0.1, 0.2, 0.3), 10)),
             new Vector3(0.1, 0.2, 3),
@@ -120,7 +120,7 @@ describe("the XR tracking-glitch guard", () => {
     const FRAME_MS = 1000 / 90;
 
     beforeEach(() => {
-        graph.scene.metadata.xrHelper = { baseExperience: { state: IN_XR } };
+        (graph.scene.metadata as Record<string, unknown>).xrHelper = { baseExperience: { state: IN_XR } };
     });
 
     test("a move faster than a hand within one frame leaves the node where it is, and the drag carries on after it", () => {
@@ -152,7 +152,7 @@ describe("the XR tracking-glitch guard", () => {
     });
 
     test("on the desktop, a large pointer move is followed", () => {
-        graph.scene.metadata.xrHelper = undefined;
+        (graph.scene.metadata as Record<string, unknown>).xrHelper = undefined;
         assertNear(drag(new Vector3(50, 0, 0)), new Vector3(50, 0, 0), "the node follows the pointer");
     });
 });

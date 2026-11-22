@@ -14,20 +14,37 @@ import { sha256HexSync } from "@graphty/graph-io";
 
 import { fetchBytes } from "../../../data/source-bytes";
 import { isGraphtyError } from "../../../errors/GraphtyError";
+import { readAsLoaded, type ReadCause } from "../../sources/references";
 import type { GraphSession, LoadChoices, TableMapping } from "../../types";
-import type { JsonObject } from "../types";
+import type { JsonObject, SourceUnavailableReason } from "../types";
 import { copyTables, isPlainObject, isReserved, repeatedEdgeRows } from "./dataRefs";
+import { fileOf, handleOf } from "./fileHandles";
+import { mintUlid } from "./viewParts";
 
 /**
- * Why a referenced source supplied nothing: unreachable, no location to read it from, unreadable,
- * over the open's size limit, or a fetch the caller did not allow.
+ * Why a referenced source supplied nothing: not found, no location to read it from, unreadable,
+ * over the open's size limit, a fetch the caller did not allow, or bytes changed since the save.
  */
-export type UnavailableReason = "unreachable" | "needs-file" | "read" | "too-large" | "consent";
+type UnavailableReason = Exclude<SourceUnavailableReason, "kind">;
 
-/** A referenced source read again: its tables in copy form and its bytes' digest, or why not. */
+/**
+ * A referenced source read again: its tables in copy form and its bytes' digest, or why not (with
+ * the new byte count when its copy changed).
+ */
 export type Refetched =
-    | { readonly copyId: string; readonly tables: JsonObject; readonly columns: JsonObject }
-    | { readonly unavailable: UnavailableReason };
+    | {
+          readonly copyId: string;
+          readonly tables: JsonObject;
+          readonly columns: JsonObject;
+          /** Its node rows repeat a key, which `duplicateIds: "refuse"` leaves the source out for. */
+          readonly repeats?: true;
+      }
+    | {
+          readonly unavailable: UnavailableReason;
+          readonly size?: number;
+          /** What a failed read threw, for a network source read again. */
+          readonly cause?: ReadCause;
+      };
 
 /** What an open gives the fetch. */
 export interface RefetchOptions {
@@ -47,10 +64,39 @@ export interface RefetchOptions {
     readonly builds: () => boolean;
     /** A scratch session to read a source in, disposed by the caller of this module. */
     readonly scratch: () => GraphSession;
+    /**
+     * Whether bytes that changed since the save are read (a refresh); otherwise the source is held
+     * (`copy-changed`) and nothing is parsed.
+     */
+    readonly accept?: boolean;
 }
 
 /** Each referenced record read again, by the record object the codec sees. */
 const REFETCHED = new WeakMap<object, Refetched>();
+
+/** Where an open read referenced sources from, the files the caller picked and how far it read. */
+type OpenedHow = Pick<RefetchOptions, "location" | "limit" | "files">;
+
+/** How the last version 2 open of each session read its referenced sources. */
+const OPENED = new WeakMap<GraphSession, OpenedHow>();
+
+/**
+ * Remember where and how far an open read a session's referenced sources, for `data.refresh`.
+ * @param session - The session.
+ * @param how - The open's location, the files the caller picked and the size limit.
+ */
+export function rememberRefetch(session: GraphSession, how: OpenedHow): void {
+    OPENED.set(session, how);
+}
+
+/**
+ * Where and how far the last open read a session's referenced sources.
+ * @param session - The session.
+ * @returns The location and limit, or undefined when no version 2 open ran.
+ */
+export function refetchOptionsOf(session: GraphSession): OpenedHow | undefined {
+    return OPENED.get(session);
+}
 
 /**
  * What a referenced source record was read again as, if an open fetched it.
@@ -62,17 +108,42 @@ export function refetchedOf(record: object): Refetched | undefined {
 }
 
 /**
+ * The bytes of a file source referenced by a browser file handle (saved with no `path`): the one
+ * this browser keeps for its copy. An open only checks the permission; a refresh asks for it.
+ * @param record - The record.
+ * @param how - The open's options.
+ * @returns The bytes, `needs-file` when this browser keeps no handle, `needs-permission`, or
+ *     `too-large`.
+ */
+async function handleBytes(
+    record: JsonObject,
+    how: RefetchOptions,
+): Promise<Uint8Array | "needs-file" | "too-large" | "needs-permission"> {
+    const handle = await handleOf(String(record.id), String((record.origin as JsonObject).copy));
+    if (handle === undefined) {
+        return "needs-file";
+    }
+
+    const file = await fileOf(handle, how.fetch && how.accept === true);
+    if (file === "needs-permission") {
+        return file;
+    }
+
+    return file.size > how.limit ? "too-large" : new Uint8Array(await file.arrayBuffer());
+}
+
+/**
  * The bytes of a referenced source: a file the caller picked, else its `url`, else its `path`,
  * each resolved against the location of the file being opened.
  * @param record - The record.
  * @param how - The open's options.
  * @returns The bytes, `needs-file` when nothing says where they are, `too-large` for a picked
- *     file over the limit, or `consent` for a fetch the caller did not allow.
+ *     file over the limit, or `needs-permission` for a fetch the caller did not allow.
  */
 async function bytesOf(
     record: JsonObject,
     how: RefetchOptions,
-): Promise<Uint8Array | "needs-file" | "too-large" | "consent"> {
+): Promise<Uint8Array | "needs-file" | "too-large" | "needs-permission"> {
     const picked = how.files?.[String(record.id)];
     if (picked !== undefined) {
         return picked.size > how.limit ? "too-large" : new Uint8Array(await picked.arrayBuffer());
@@ -80,6 +151,10 @@ async function bytesOf(
 
     const origin = record.origin as JsonObject;
     const where = [origin.url, origin.path].find((each): each is string => typeof each === "string");
+    if (where === undefined && record.kind === "file") {
+        return handleBytes(record, how);
+    }
+
     let resolved: URL;
     try {
         // A relative address with no location to resolve against throws, and so needs a file.
@@ -93,7 +168,7 @@ async function bytesOf(
         return "needs-file";
     }
 
-    return how.fetch ? fetchBytes(resolved.href, how.signal, how.limit) : "consent";
+    return how.fetch ? fetchBytes(resolved.href, how.signal, how.limit) : "needs-permission";
 }
 
 /**
@@ -183,11 +258,14 @@ class RolesGone extends Error {}
 /**
  * Read a referenced source's bytes as its load read them: in a scratch session, with the record's
  * format, options (the style choices among them) and roles, into an empty graph, as a copy writes
- * the rows that load made.
+ * the rows that load made. Repeated keys follow the building step's `duplicateIds`, else the
+ * record's, as they do for an embedded copy; under `"refuse"` the rows are read and their repeats
+ * told, so the build leaves the source out as it does a copy's.
  * @param record - The record.
  * @param bytes - Its bytes.
  * @param how - The open's options.
- * @returns The tables and their declarations.
+ * @param duplicateIds - The building step's own `duplicateIds`, if any.
+ * @returns The tables, their declarations and whether the node rows repeat a key under `"refuse"`.
  * @throws {RolesGone} When the bytes parse but the saved roles do not read them; what the
  *     parse throws when they do not parse.
  */
@@ -195,7 +273,8 @@ async function reimport(
     record: JsonObject,
     bytes: Uint8Array,
     how: RefetchOptions,
-): Promise<{ tables: JsonObject; columns: JsonObject }> {
+    duplicateIds?: unknown,
+): Promise<{ tables: JsonObject; columns: JsonObject; repeats: boolean }> {
     const scratch = how.scratch();
     try {
         const options = isPlainObject(record.options) ? record.options : {};
@@ -210,11 +289,19 @@ async function reimport(
         const mapping = isPlainObject(record.mapping) ? record.mapping : {};
         // A graph file's format sets its roles; a table's are the record's.
         const fixed = draft.tables.every((table) => table.fixed);
+        const policy = (duplicateIds ?? settings.duplicateIds) as LoadChoices["duplicateIds"];
+        const choices: LoadChoices = {
+            ...(fixed ? {} : { mapping: tableMappingOf(mapping) }),
+            ...(settings as Pick<LoadChoices, "unmatched">),
+            duplicateIds: policy === "refuse" ? "first" : policy,
+        };
+        let repeats = false;
         try {
-            await draft.load({
-                ...(fixed ? {} : { mapping: tableMappingOf(mapping) }),
-                ...(settings as Pick<LoadChoices, "unmatched" | "duplicateIds">),
-            });
+            if (policy === "refuse") {
+                repeats = (await draft.report({ ...choices, duplicateIds: "refuse" })).duplicates.rows > 0;
+            }
+
+            await draft.load(choices);
         } catch {
             how.signal?.throwIfAborted();
             throw new RolesGone();
@@ -226,8 +313,8 @@ async function reimport(
         const edges = isPlainObject(mapping.edges) ? mapping.edges : {};
         const edgeId = typeof edges.edgeId === "string" ? edges.edgeId : undefined;
         const edgeRows = scratch.data.edges({ scope: "graph" }).map(({ id: _id, ...edge }) => ownColumns(edge));
-        const repeated = repeatedEdgeRows(edgeRows, edgeId, settings.duplicateIds === "merge");
-        return copyTables(
+        const repeated = repeatedEdgeRows(edgeRows, edgeId, policy === "merge");
+        const copied = copyTables(
             withSavedNames(
                 scratch.data.nodes({ scope: "graph" }).map((node) => ownColumns(node)),
                 columns.nodes,
@@ -241,24 +328,81 @@ async function reimport(
                 format,
             ),
         );
+        return { ...copied, repeats };
     } finally {
         scratch.dispose();
     }
 }
 
 /**
- * Read one referenced record again, remembering what it gave.
+ * Read a network source again by the request history its `origin.ledger` records (spec 4.1.2 rule
+ * 7), as the session reads a load it keeps as a reference: its source, params, endpoint and
+ * recorded options, in a scratch session. Every read is a new copy, with a new copy id.
+ * @param record - The network source's record.
+ * @param how - The refresh's options.
+ * @returns The rows, or why there are none: `needs-file` when the record holds no ledger.
+ */
+async function networkRead(record: JsonObject, how: RefetchOptions): Promise<Refetched> {
+    const { ledger } = record.origin as JsonObject;
+    if (!isPlainObject(ledger) || typeof ledger.source !== "string") {
+        return { unavailable: "needs-file" };
+    }
+
+    const { mode: _mode, ...options } = isPlainObject(ledger.options) ? ledger.options : {};
+    const read = await readAsLoaded(
+        {
+            kind: "server",
+            config: isPlainObject(ledger.config) ? ledger.config : {},
+            network: {
+                source: ledger.source,
+                endpoint: typeof ledger.endpoint === "string" ? ledger.endpoint : null,
+                options,
+            },
+        },
+        how.scratch,
+        undefined,
+    );
+    if ("reason" in read) {
+        const unavailable = read.reason === "not-found" ? read.reason : "read";
+        return read.cause === undefined ? { unavailable } : { unavailable, cause: read.cause };
+    }
+
+    return {
+        copyId: mintUlid(),
+        ...copyTables(
+            read.nodes.map((node) => ownColumns(node)),
+            read.edges.map((edge) => ownColumns(edge)),
+        ),
+    };
+}
+
+/**
+ * Read one referenced record again, remembering what it gave: bytes that changed since the save
+ * hold it (`copy-changed`) unless the caller accepts them. A network source is read by its ledger,
+ * and only when the caller accepts a new copy (a refresh).
  * @param record - The record.
  * @param how - The open's options.
+ * @param duplicateIds - The `duplicateIds` of the `join.add` that builds it, if it carries one.
+ * @param read - Its bytes, when another source over the same bytes already reads them.
  */
-async function refetch(record: JsonObject, how: RefetchOptions): Promise<void> {
+export async function refetch(
+    record: JsonObject,
+    how: RefetchOptions,
+    duplicateIds?: unknown,
+    read?: ReturnType<typeof bytesOf>,
+): Promise<void> {
+    if (record.kind === "network") {
+        REFETCHED.set(record, how.accept === true ? await networkRead(record, how) : { unavailable: "copy-changed" });
+        return;
+    }
+
     let bytes: Awaited<ReturnType<typeof bytesOf>>;
     try {
-        bytes = await bytesOf(record, how);
+        bytes = await (read ?? bytesOf(record, how));
     } catch (error) {
         how.signal?.throwIfAborted();
         const large = isGraphtyError(error) && error.code === "E_TOO_LARGE";
-        REFETCHED.set(record, { unavailable: large ? "too-large" : "unreachable" });
+        REFETCHED.set(record, { unavailable: large ? "too-large" : "not-found" });
         return;
     }
 
@@ -268,16 +412,22 @@ async function refetch(record: JsonObject, how: RefetchOptions): Promise<void> {
     }
 
     const copyId = `sha256:${sha256HexSync(bytes)}`;
+    const changed = copyId !== (record.origin as JsonObject).copy;
+    if (changed && how.accept !== true) {
+        REFETCHED.set(record, { unavailable: "copy-changed", size: bytes.length });
+        return;
+    }
+
     try {
-        const { tables, columns } = await reimport(record, bytes, how);
-        REFETCHED.set(record, { copyId, tables, columns });
+        const { tables, columns, repeats } = await reimport(record, bytes, how, duplicateIds);
+        REFETCHED.set(record, { copyId, tables, columns, ...(repeats ? { repeats } : {}) });
     } catch (error) {
         how.signal?.throwIfAborted();
-        // Bytes that changed since the save and parse, but lack the columns the saved roles name,
-        // are a refresh that supplied no rows (spec 8.3 rules 1 and 2): reported changed, every
-        // saved column left out. The same bytes unreadable, or bytes that do not parse, are `read`.
-        const changed = error instanceof RolesGone && copyId !== (record.origin as JsonObject).copy;
-        REFETCHED.set(record, changed ? { copyId, tables: {}, columns: {} } : { unavailable: "read" });
+        // A refresh whose bytes parse but lack the columns the saved roles name supplies no rows
+        // (spec 8.3 rule 1 reports every saved column). The same bytes unreadable, or bytes that do
+        // not parse, are `read`.
+        const empty = error instanceof RolesGone && changed;
+        REFETCHED.set(record, empty ? { copyId, tables: {}, columns: {} } : { unavailable: "read" });
     }
 }
 
@@ -296,9 +446,17 @@ export async function refetchSources(value: JsonObject, how: RefetchOptions): Pr
         return;
     }
 
+    // Only a source a step builds is read again; a staged one is written back as read (spec 4.1.8).
+    const steps = (Array.isArray(body.joins) ? (body.joins as unknown[]) : []).filter(
+        (step): step is JsonObject => isPlainObject(step) && step.off !== true,
+    );
+    const built = new Set(steps.map((step) => step.source));
+    // The `duplicateIds` each source's own `join.add` carries, which its read follows.
+    const own = new Map(steps.flatMap((step) => (step.op === "join.add" ? [[step.source, step.duplicateIds]] : [])));
     const referenced = (body.sources as unknown[]).filter(
         (record): record is JsonObject =>
             isPlainObject(record) &&
+            built.has(record.id) &&
             record.copy === undefined &&
             (record.kind === "file" || record.kind === "url") &&
             isPlainObject(record.origin),
@@ -307,5 +465,41 @@ export async function refetchSources(value: JsonObject, how: RefetchOptions): Pr
         return;
     }
 
-    await Promise.all(referenced.map((record) => refetch(record, how)));
+    // Sources over one file's bytes (one copy id at one address: one collection or sheet each)
+    // read them once, so they are refreshed together; a file picked for any of them serves them all.
+    const groups = new Map<string, JsonObject[]>();
+    for (const record of referenced) {
+        const key = sharedBytesKey(record);
+        if (key !== null) {
+            groups.set(key, [...(groups.get(key) ?? []), record]);
+        }
+    }
+    const reads = new Map<string, ReturnType<typeof bytesOf>>();
+    const readOf = (record: JsonObject): ReturnType<typeof bytesOf> => {
+        const key = sharedBytesKey(record);
+        if (key === null) {
+            return bytesOf(record, how);
+        }
+
+        let read = reads.get(key);
+        if (read === undefined) {
+            const members = groups.get(key) ?? [record];
+            read = bytesOf(members.find((member) => how.files?.[String(member.id)] !== undefined) ?? record, how);
+            reads.set(key, read);
+        }
+
+        return read;
+    };
+    await Promise.all(referenced.map((record) => refetch(record, how, own.get(record.id), readOf(record))));
+}
+
+/**
+ * What a referenced source's bytes are shared by: its copy id and its address.
+ * @param record - The record.
+ * @returns The key, or null for a source with no copy id or no `url` or `path`.
+ */
+function sharedBytesKey(record: JsonObject): string | null {
+    const origin = record.origin as JsonObject;
+    const where = [origin.url, origin.path].find((each): each is string => typeof each === "string");
+    return typeof origin.copy === "string" && where !== undefined ? `${origin.copy}\n${where}` : null;
 }

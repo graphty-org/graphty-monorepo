@@ -285,7 +285,10 @@ const GraphLayoutOpts = z.strictObject({
      * LEFT UNSET ON PURPOSE by default, because the right answer depends on the graph in front of
      * the reader rather than on the host: a simulation resolves it at every load from
      * `stepMultiplier`, raising it fourfold once the graph is large enough that one round trip per
-     * iteration costs more than the arithmetic. Setting it here pins the count whatever the size.
+     * iteration costs more than the arithmetic. On a hardware accelerator each frame's batch then ramps up
+     * from that count (1, 1, 2, 4, ... up to 128, fewer on a graph of more than 31,250 nodes), so a
+     * large graph settles in seconds rather than at one iteration per frame. Setting it here pins
+     * the count whatever the size and whatever the hardware.
      *
      * It reaches nothing but a simulation layout -- `forceatlas2`, `spring` and `spring-electrical`
      * -- because no other engine computes in batches.
@@ -369,6 +372,14 @@ export const GraphBehaviorOpts = z.strictObject({
     fetchNodes: z.optional(z.instanceof(Function)),
     /** A host function that returns the edges of a node (see `FetchEdgesFn`). */
     fetchEdges: z.optional(z.instanceof(Function)),
+    /**
+     * A host function that returns the edges of the nodes an expansion just fetched (see
+     * `FetchNeighborEdgesFn`). Unset BY DEFAULT, so an expansion adds the expanded node's own
+     * edges and its neighbors and nothing else. Set, an expansion also hands it the ids of the
+     * nodes it fetched and adds the edges it returns whose ends are both in the graph or just
+     * fetched, in the same step.
+     */
+    fetchNeighborEdges: z.optional(z.instanceof(Function)),
 });
 
 /* ******* REFACTOR EVERYTHING BELOW THIS LINE *********/
@@ -397,3 +408,9 @@ interface EdgeObjectType {
 
 export type FetchNodesFn = (nodeIds: Set<NodeIdType>, g: Graph) => Set<NodeObjectType>;
 export type FetchEdgesFn = (node: GraphNode, g: Graph) => Set<EdgeObjectType>;
+/**
+ * The edges of the nodes an expansion just fetched, so a fresh neighborhood is drawn with the
+ * edges among its members and to the nodes already in the graph, rather than as a star. An edge
+ * whose other end is neither in the graph nor just fetched is left out.
+ */
+export type FetchNeighborEdgesFn = (nodeIds: Set<NodeIdType>, g: Graph) => Iterable<EdgeObjectType>;

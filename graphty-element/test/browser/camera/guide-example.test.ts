@@ -69,7 +69,7 @@ describe("the camera guide's saved views and tours example", () => {
         });
 
         // The constructor of every async function, this test's own included: it builds one from source text.
-        const AsyncFunction = Object.getPrototypeOf(runExample).constructor as new (
+        const AsyncFunction = (Object.getPrototypeOf(runExample) as { constructor: unknown }).constructor as new (
             ...args: string[]
         ) => (g: Graphty) => Promise<void>;
         await new AsyncFunction("g", exampleBody())(element);

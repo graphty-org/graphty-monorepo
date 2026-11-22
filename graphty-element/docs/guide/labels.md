@@ -242,6 +242,27 @@ Louvain numbers its groups by id, not from 1, so `rank` and `count` are what giv
 `<bold>` shows the tag, and only the template's own markup is read. Templates work on `node.label`,
 `edge.label` (where `count` and `rank` are taken across the edges) and `node.tooltip`.
 
+A `format` on the template writes every number a `{path}` reads the way `Intl.NumberFormat`
+would. Name on one line, PageRank below it with two decimals and thousands grouped:
+
+```typescript
+await element.session.styles.add({
+    name: "Name and rank",
+    target: "node",
+    selector: { match: "everything" },
+    encode: {
+        "node.label": {
+            template: ["{data.name}", "{results.pagerank.value}"],
+            format: { maximumFractionDigits: 2, useGrouping: true, locale: "en-US" },
+        },
+    },
+});
+```
+
+The lines are one label: they are drawn stacked, never overlapping, and decluttered together. Text,
+`count` and `rank` are written as before; `locale` chooses the decimal and grouping marks, the
+runtime's own when absent. The same `format` works on a `by` binding to a text channel.
+
 ## One node's label
 
 `element.labelOf(id)` returns the label of one node as the element draws it: `{ text, drawn }`, or

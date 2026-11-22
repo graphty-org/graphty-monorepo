@@ -43,8 +43,9 @@
  * worth knowing before you reach for them: the scope and filter shapes that need a query engine
  * -- `{ where }`, a `text` selection target, an `expression` filter -- are REFUSED with
  * `E_UNSUPPORTED` rather than quietly matching nothing; a session with no element behind it has
- * no algorithm executor -- every algorithm this package ships is built from the renderer -- so
- * `runs.start` on a standalone session answers `E_UNSUPPORTED` unless one was handed in; and the
+ * no algorithm executor -- the algorithms read a session's data, but the run machinery that
+ * queues and publishes them is the element's -- so `runs.start` on a standalone session answers
+ * `E_UNSUPPORTED` unless one was handed in; and the
  * style stack resolves what every element shows without anything yet DRAWING it, so a layer
  * added here changes the model and does not change the screen. The catalog is here with its
  * five static tables and `metrics()`, which says which metrics this graph can support, what each
@@ -64,9 +65,12 @@ import { englishReading, type ReadingOptions, type RunResult } from "./src/sessi
 import type { SelectionOp } from "./src/session/selection";
 
 export type { EasingName, Tour, TourPause, TourStop } from "./src/camera/tour";
+export type { CameraGestureKind } from "./src/cameras/gestureEnd";
+export { CAMERA_GESTURE_KINDS } from "./src/cameras/gestureEnd";
 export type { FeatureId } from "./src/features/registry";
 export type { EnabledFeatures } from "./src/features/resolve";
 export type {
+    ByTableMapping,
     ColumnHistogram,
     ColumnRole,
     CommandOutcome,
@@ -122,6 +126,7 @@ export type {
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,
+    JoinClashRule,
     JoinKey,
     JoinLink,
     JoinLookup,
@@ -138,6 +143,7 @@ export type {
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
+    LoadedChoices,
     LoadedSource,
     LoadedSourceKind,
     LoadedWeight,
@@ -165,10 +171,13 @@ export type {
     PageColumn,
     PendingId,
     PendingStep,
+    PositionAxis,
     PositionEntry,
+    PreparePageControl,
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    ReaderEditRow,
     RecordMatch,
     RecordMatchRank,
     RecordPage,
@@ -188,6 +197,8 @@ export type {
     RowUpdate,
     RunPlacement,
     SavedView,
+    SavedViewInput,
+    SavedViewPart,
     ScoreTerm,
     SessionAnnotations,
     SessionAttributes,
@@ -208,6 +219,80 @@ export type {
     SessionViews,
     SettingEffect,
     SettingEffectCode,
+    SideMapping,
+    SourceBuildState,
+    SourceCellState,
+    SourceCellValue,
+    SourceCellValues,
+    SourceClashRule,
+    SourceClearPicksOptions,
+    SourceConflict,
+    SourceConflictQuery,
+    SourceConnectOptions,
+    SourceCopy,
+    SourceCopyChoice,
+    SourceDraft,
+    SourceDraftBucket,
+    SourceDraftCell,
+    SourceDraftCells,
+    SourceDraftCellsQuery,
+    SourceDraftChange,
+    SourceDraftElementsQuery,
+    SourceDraftOptions,
+    SourceDraftPreview,
+    SourceDraftPreviewChanges,
+    SourceDraftPreviewIssue,
+    SourceDraftPreviewSource,
+    SourceDraftPreviewStep,
+    SourceDraftPreviewTotals,
+    SourceDraftRow,
+    SourceDraftRows,
+    SourceDraftRowsQuery,
+    SourceEdgeRef,
+    SourceEditChoice,
+    SourceElementRef,
+    SourceElementsFilter,
+    SourceEndOption,
+    SourceExtractOptions,
+    SourceField,
+    SourceHubValue,
+    SourceJoinInto,
+    SourceLineage,
+    SourceLoaded,
+    SourceMappingPatch,
+    SourceMatchCounts,
+    SourceMatchOptions,
+    SourceMatchPair,
+    SourceMatchValue,
+    SourceMatchValues,
+    SourceMatchValuesOptions,
+    SourceMergeOptions,
+    SourceMoveColumnsOptions,
+    SourceNodeRef,
+    SourceNoPathReason,
+    SourceOverlapQuestion,
+    SourcePickAllOptions,
+    SourceRefreshIssue,
+    SourceRoleName,
+    SourceRoleOptions,
+    SourceRolePatch,
+    SourceRowFilter,
+    SourceSpaceName,
+    SourceSpaceOverlap,
+    SourceSpaceRow,
+    SourceStepByName,
+    SourceStepCounts,
+    SourceStepCountsChange,
+    SourceStepNumber,
+    SourceStepOp,
+    SourceStepPatch,
+    SourceStepResolution,
+    SourceStepRow,
+    SourceTypeEntry,
+    SourceTypeName,
+    SourceTypeRule,
+    SourceValue,
+    SourceValuesDiffer,
     StartingCamera,
     StyleProblem,
     TableMapping,
@@ -223,6 +308,9 @@ export type { DrawnAnnotation, DrawnAnnotations } from "./src/session";
 export type { KeymapOptions, KeymapReport, KeymapRoot, KeymapSession } from "./src/session";
 export { createGraphSession } from "./src/session";
 export { attachKeymap } from "./src/session";
+// The recording formats, here too so a consumer can read them without loading the element.
+export type { VideoFormat } from "./src/video/VideoCapture";
+export { VIDEO_FORMATS } from "./src/video/VideoCapture";
 
 /**
  * What the element has to say about a load, once the load is over: which record keys named the
@@ -245,6 +333,7 @@ export type {
     TooLargeDetails,
 } from "./src/data/report";
 export { IMPORT_ROWS_KEPT } from "./src/data/report";
+export type { SessionGraph, SessionGraphCreateOptions, SessionGraphs } from "./src/session/graphs/GraphsApi";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
 export type {
     RecipeColumn,
@@ -383,6 +472,8 @@ export type {
     RunStatus,
     RunStyle,
     RunWindow,
+    StabilityOptions,
+    StabilityResult,
     StaleNote,
     StaleReason,
     StartOptions,
@@ -532,23 +623,43 @@ export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "
 export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./src/session";
 export { browserProjects } from "./src/session";
 export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./src/session";
+export type { FileKind, FilesApi } from "./src/session/files/kindOf";
 export type {
     AssetStorage,
+    DocumentBindFacts,
     DocumentCode,
+    DocumentHeldFacts,
+    DocumentHeldReason,
     DocumentSection,
+    DocumentSectionAbout,
+    DocumentSectionFacts,
+    DocumentSectionNeed,
     ProjectApi,
     ProjectAssetChoice,
+    ProjectFileFacts,
+    ProjectFileHandle,
+    ProjectFileRun,
+    ProjectFileSection,
+    ProjectFileSource,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,
+    ProjectSaveFacts,
     ProjectSaveOptions,
     ProjectSaveReport,
+    ProjectSaveSection,
     ProjectSource,
+    ProjectSourceChoice,
+    ProjectSourceKind,
     ProjectStatus,
     SavedProject,
+    SectionBinding,
+    SourceEmbeddedReason,
     SourceStorage,
+    SourceUnavailableReason,
 } from "./src/session/projectFile";
-export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+export { DOCUMENT_SECTIONS, PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+export type { RecipesApi } from "./src/session/recipes/RecipesApi";
 // Autosaved work read and deleted without an element (a start screen that offers it first).
 export type { AutosaveLookupOptions } from "./src/autosave/elementAutosave";
 export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";
@@ -571,6 +682,7 @@ export type {
     SelectionStatisticsOptions,
     SelectionTarget,
     SelectionTextMode,
+    SelectionVia,
     UnknownRulePath,
 } from "./src/session/selection";
 export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
@@ -610,6 +722,7 @@ export type {
     FilterResult,
     FilterSelectWithin,
     FilterStep,
+    FilterStepCount,
     HiddenNotDrawn,
     RuleTree,
     StepCounts,

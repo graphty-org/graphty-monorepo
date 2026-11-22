@@ -131,6 +131,32 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "xlabel", snapshot)[snapshot.ids.indexOf("three")]).toBe("b");
     });
 
+    it("reads a second label in its own color and font, placed by the internal model when yEd stored only its size", async () => {
+        // graphml-synthetic-nodes label-corners-sw: "second label" in #990000 at internal b, its box 96 x 18
+        const attrs = (at: string): string =>
+            `fontSize="12" height="18.0" width="96" modelName="internal" modelPosition="${at}"`;
+        const doc = [
+            YED_HEAD,
+            '<node id="n"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>',
+            `<y:NodeLabel ${attrs("t")} fontFamily="Dialog" fontStyle="plain" textColor="#000000">a</y:NodeLabel>`,
+            `<y:NodeLabel ${attrs("b")} fontFamily="Courier New" fontStyle="bolditalic" textColor="#990000">b</y:NodeLabel>`,
+            "</y:ShapeNode></data></node>",
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        const of = (property: StyleProperty): unknown => resolveStyles(styles, "node", property, snapshot)[0];
+        expect(of("xlabel")).toBe("b");
+        // 4 in from the bottom: 30 - 4 - 9 = 17 down from the top, 2 below the middle
+        expect(of("xlabelOffsetX")).toBe(0);
+        expect(of("xlabelOffsetY")).toBe(2);
+        expect(of("xlabelColor")).toBe("#990000");
+        expect(of("xlabelFont")).toMatch(/^Courier New/);
+        expect(of("xlabelWeight")).toBe("bold");
+        expect(of("xlabelItalic")).toBe(true);
+        expect(of("labelColor")).toBe("#000000");
+        expect(styles.styles.notes.some((n) => n.code === "W_STYLE_EXTRA_LABELS")).toBe(false);
+    });
+
     it("keeps a preserved label's leading line break, which yEd draws as a blank first line", async () => {
         // graphml-stm32-func n30: "\nCS" is stored two Times New Roman lines tall (35.0 = 2 x 15.5 + 4), and yEd
         // draws "CS" on the second line; a trailing break adds no line (crocs-muni scrutiny "User's\nprofile\n" is

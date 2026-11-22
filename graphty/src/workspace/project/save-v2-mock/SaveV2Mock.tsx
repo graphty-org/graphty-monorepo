@@ -23,13 +23,14 @@ import {
 } from "@mantine/core";
 import React, { useState } from "react";
 
+import { FileForm, ReportTable } from "../SaveFilesV2Dialogs";
+import type { ReportLine } from "../saveV2Words";
 import {
     BIND_NONE,
     BIND_PARTIAL,
     type BindRow,
     MAPPING_ROWS,
     PRESETS,
-    type ReportLine,
     type RunRecord,
     RUNS,
     SECTION_LABELS,
@@ -110,35 +111,6 @@ function SectionChecks({
 }
 
 /**
- * The save report: each thing a save left out, moved or kept, and why.
- * @param props - Component props
- * @param props.lines - the report's lines.
- * @returns the table.
- */
-function ReportTable({ lines }: Readonly<{ lines: readonly ReportLine[] }>): React.JSX.Element {
-    return (
-        <Table fz="sm" verticalSpacing={4}>
-            <Table.Thead>
-                <Table.Tr>
-                    <Table.Th>Item</Table.Th>
-                    <Table.Th>Result</Table.Th>
-                    <Table.Th>Why</Table.Th>
-                </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-                {lines.map((line) => (
-                    <Table.Tr key={line.item}>
-                        <Table.Td>{line.item}</Table.Td>
-                        <Table.Td>{line.outcome}</Table.Td>
-                        <Table.Td c={SECONDARY}>{line.reason}</Table.Td>
-                    </Table.Tr>
-                ))}
-            </Table.Tbody>
-        </Table>
-    );
-}
-
-/**
  * Save as... for version 2: which sections, a preset per use case, embed or reference for each
  * data source, and the file form.
  * @param props - Component props
@@ -212,17 +184,7 @@ export function SaveDialogMock({ preset = "everything" }: Readonly<{ preset?: st
                         ))}
                     </Stack>
                 ) : null}
-                <SegmentedControl
-                    label="File"
-                    value={sectionFile ? "section" : "full"}
-                    data={[
-                        { value: "full", label: "Full file" },
-                        { value: "section", label: "Section file", disabled: one === null },
-                    ]}
-                    onChange={(value) => {
-                        setForm(value === "section" ? "section" : "full");
-                    }}
-                />
+                <FileForm sectionFile={sectionFile} oneSection={one !== null} onChange={setForm} />
                 <Text size="sm" ff="monospace" c={SECONDARY}>
                     {fileName(name, sectionFile ? one : null)}
                 </Text>

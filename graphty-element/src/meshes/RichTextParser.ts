@@ -49,6 +49,14 @@ export class RichTextParser {
         );
     }
 
+    /**
+     * One line with no letters in the default style, which measures one line of the label's font tall.
+     * @returns The line.
+     */
+    blankLine(): TextSegment[] {
+        return [{ text: "", style: { ...this.defaultStyle } }];
+    }
+
     private parseLine(line: string): TextSegment[] {
         const segments: TextSegment[] = [];
         let currentPos = 0;

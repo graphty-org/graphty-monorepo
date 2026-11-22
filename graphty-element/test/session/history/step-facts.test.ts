@@ -16,7 +16,7 @@ import type { CodedFact } from "../../../src/session/shared";
 import type { HistoryCode, HistoryStep } from "../../../src/session/types";
 import { fileStylesOn } from "../../helpers/file-styles-on";
 import { fixtureSession } from "./fixture-session";
-import { FIXTURES } from "./fixtures";
+import { FIXTURES, withFixtureFeatures } from "./fixtures";
 
 fileStylesOn();
 
@@ -63,6 +63,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "data.import": ["data.import"],
     "data.issues": ["data.issues"],
     "data.import-source": ["data.import-source"],
+    "data.steps-set": ["data.steps-set"],
     "data.expand": ["data.expand"],
     "data.source-expand": ["data.source-expand"],
     "data.collapse": ["data.collapse"],
@@ -88,6 +89,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
         "style.lock-row",
         "style.hide-row",
         "style.delete-row",
+        "style.duplicate-row",
         "style.add-default-rows",
     ],
     "style.encode": ["style.encode"],
@@ -170,6 +172,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.merge-nodes": ["count"],
     "data.import": ["name", "type"],
     "data.import-source": ["name", "source"],
+    "data.steps-set": ["kind", "name", "source"],
     "data.expand": ["node"],
     "data.source-expand": ["edges", "nodes", "seeds"],
     "data.collapse": ["node", "nodes"],
@@ -189,13 +192,13 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.derive": ["column", "kind"],
     "annotations.set": ["count"],
     "annotations.patch": ["action", "id"],
-    "style.add-layer": ["layer"],
-    "style.update-layer": ["channels", "layer"],
-    "style.remove-layer": ["layer"],
-    "style.move-layer": ["layer"],
+    "style.add-layer": ["layer", "layerId"],
+    "style.update-layer": ["channels", "layer", "layerId"],
+    "style.remove-layer": ["layer", "layerId"],
+    "style.move-layer": ["layer", "layerId"],
     "style.remove-layers": ["count"],
     "style.highlight": ["run"],
-    "style.fix-channel": ["channel", "layer"],
+    "style.fix-channel": ["channel", "layer", "layerId"],
     "style.encode": ["channel", "run"],
     "style.template": [],
     "shader.add": ["id", "layer"],
@@ -203,13 +206,14 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "shader.replace": ["id"],
     "shader.remove": ["id"],
     "style.suggested": ["algorithms"],
-    "style.add-folder": ["name"],
-    "style.rename-row": ["name", "row"],
-    "style.move-row": ["row"],
-    "style.pin-row": ["pin", "row"],
-    "style.lock-row": ["locked", "row"],
-    "style.hide-row": ["hidden", "row"],
-    "style.delete-row": ["row"],
+    "style.add-folder": ["name", "rowId"],
+    "style.rename-row": ["name", "row", "rowId"],
+    "style.move-row": ["row", "rowId"],
+    "style.pin-row": ["pin", "row", "rowId"],
+    "style.lock-row": ["locked", "row", "rowId"],
+    "style.hide-row": ["hidden", "row", "rowId"],
+    "style.delete-row": ["row", "rowId"],
+    "style.duplicate-row": ["copyId", "row", "rowId"],
     "style.add-default-rows": [],
     "visibility.filter": ["kind"],
     "visibility.clear-filter": [],
@@ -246,6 +250,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "view.save": ["names"],
     "view.remove": ["names"],
     "view.rename": ["from", "to", "tours"],
+    "view.open": ["name", "parts"],
     "view.move": ["name", "index"],
     "view.key": ["name", "key", "from"],
     "view.starting": ["names"],
@@ -310,23 +315,25 @@ describe("history step facts", () => {
     });
 
     for (const fixture of FIXTURES.filter((each) => each.tags.includes("session"))) {
-        it(fixture.name, async () => {
-            const session = await fixtureSession();
-            await fixture.before?.(session);
-            const before = session.history.steps.at(session.history.position - 1);
+        it(fixture.name, () =>
+            withFixtureFeatures(fixture, async () => {
+                const session = await fixtureSession();
+                await fixture.before?.(session);
+                const before = session.history.steps.at(session.history.position - 1);
 
-            await session.execute(fixture.command);
+                await session.execute(fixture.command);
 
-            const step = topOf(session.history.steps, session.history.position);
-            assert.notStrictEqual(step, before, "the command recorded a step of its own");
-            assertDocumented(step.fact, fixture.name);
-            assert.include(
-                CODES_BY_OP[fixture.command.op as UndoableOp],
-                step.fact.code,
-                `${fixture.command.op} carries a code listed for it`,
-            );
-            session.dispose();
-        });
+                const step = topOf(session.history.steps, session.history.position);
+                assert.notStrictEqual(step, before, "the command recorded a step of its own");
+                assertDocumented(step.fact, fixture.name);
+                assert.include(
+                    CODES_BY_OP[fixture.command.op as UndoableOp],
+                    step.fact.code,
+                    `${fixture.command.op} carries a code listed for it`,
+                );
+                session.dispose();
+            }),
+        );
     }
 
     it("says what was done with its values, not words", async () => {
@@ -382,12 +389,18 @@ describe("history step facts", () => {
         await session.styles.update(layer.id, { name: "Renamed" });
         const renamed = topOf(session.history.steps, session.history.position).fact;
 
-        assert.deepEqual(sized, { code: "style.update-layer", params: { layer: "Mine", channels: ["node.size"] } });
-        assert.deepEqual(renamed, { code: "style.update-layer", params: { layer: "Mine", channels: [] } });
+        assert.deepEqual(sized, {
+            code: "style.update-layer",
+            params: { layer: "Mine", layerId: "mine_1", channels: ["node.size"] },
+        });
+        assert.deepEqual(renamed, {
+            code: "style.update-layer",
+            params: { layer: "Mine", layerId: "mine_1", channels: [] },
+        });
         session.dispose();
     });
 
-    it("names every channel of layer updates merged into one step", async () => {
+    it("names every channel of layer updates merged into one step, and keeps another channel's edit apart", async () => {
         const session = await fixtureSession({ now: () => 0 });
         const layer = await session.styles.add({
             name: "Mine",
@@ -396,14 +409,23 @@ describe("history step facts", () => {
             set: { "node.color": "#ff0000", "node.size": 1 },
         });
         const before = session.history.steps.length;
-        await session.styles.update(layer.id, { set: { "node.color": "#00ff00", "node.size": 1 } });
         await session.styles.update(layer.id, { set: { "node.color": "#00ff00", "node.size": 2 } });
+        await session.styles.update(layer.id, { set: { "node.color": "#0000ff", "node.size": 2 } });
 
         assert.equal(session.history.steps.length, before + 1);
         assert.deepEqual(topOf(session.history.steps, session.history.position).fact, {
             code: "style.update-layer",
-            params: { layer: "Mine", channels: ["node.color", "node.size"] },
+            params: { layer: "Mine", layerId: "mine_1", channels: ["node.color", "node.size"] },
         });
+
+        // The whole set again, as a panel writes it, changing only the size: a channel the step
+        // already changes, so it merges.
+        await session.styles.update(layer.id, { set: { "node.color": "#0000ff", "node.size": 3 } });
+        assert.equal(session.history.steps.length, before + 1);
+        await session.styles.update(layer.id, {
+            set: { "node.color": "#0000ff", "node.size": 3, "node.opacity": 0.5 },
+        });
+        assert.equal(session.history.steps.length, before + 2, "a new channel is a step of its own");
         session.dispose();
     });
 

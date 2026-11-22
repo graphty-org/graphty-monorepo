@@ -31,6 +31,7 @@ import type { RequestedLayout } from "@graphty/graph-io";
 
 import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
+import type { RepeatGroup } from "../../data/edgeIdentity";
 import { searchRecord } from "../../data/endpoints";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
@@ -52,9 +53,10 @@ import type { Selector } from "../styles/selector";
 import { columnsOf, layersAReloadReplaces } from "../styles/staleLayers";
 import { designateDeclaredTime } from "../time/declared";
 import type {
+    DraftTable,
     HistoryCode,
     JoinRecord,
-    LoadChoices,
+    LoadedChoices,
     LoadedSource,
     LoadedSourceKind,
     LoadMappingRead,
@@ -282,8 +284,11 @@ export interface DataImportCommand {
     readonly source: ImportSource;
     /** `"replace"` (the default) empties the graph first, in the same step; `"merge"` adds to it. */
     readonly mode?: "replace" | "merge";
-    /** `"recommended"` also chooses a layout for what was loaded, in the same step. */
-    readonly layout?: "recommended" | "keep";
+    /**
+     * `"recommended"` also chooses a layout for what was loaded, in the same step; `"placed"` draws
+     * it where its data placed every node (the fixed layout), else leaves the layout as it is.
+     */
+    readonly layout?: "recommended" | "placed" | "keep";
     /** Rows a draft already read: loaded in place of reading the source again, on redo too. */
     readonly held?: HeldRows;
     /** An edge naming a node no node record holds: made (the default), or left out. */
@@ -295,13 +300,14 @@ export interface DataImportCommand {
     /**
      * Count the load instead of refusing it: a limit it passes is recorded in the report, and
      * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
-     * `pairs` holds the graph's edges as `pairKey(source, target)` (both ways on an undirected
-     * graph), so a record repeating one is counted as the real merge counts it.
+     * `pairs` holds the graph's edges by `pairKey(source, target)` (both ways on an undirected
+     * graph), each with its type and weight meaning, so a record repeating one is counted as the
+     * real merge counts it.
      */
     readonly measure?: {
         readonly nodes: ReadonlySet<NodeId>;
         readonly edges: number;
-        readonly pairs?: ReadonlySet<string>;
+        readonly pairs?: ReadonlyMap<string, readonly RepeatGroup[]>;
     };
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
@@ -316,6 +322,8 @@ export interface DataImportCommand {
     readonly tables?: readonly string[];
     /** What each of `tables` held, in the same order, kept with the load in `data.sources()`. */
     readonly tableRows?: readonly ("nodes" | "edges")[];
+    /** How a CSV load's file was split into columns, kept with the load in `data.sources()`. */
+    readonly delimiter?: DraftTable["delimiter"];
     /**
      * `"file"` draws the file's own styles as layers, in the same step; `"none"` leaves them out.
      * Absent, the source's `styles` option decides, and without one the file's styles are left out.
@@ -336,7 +344,7 @@ export interface DataImportCommand {
     /** The load's key, in place of the next one: a next page or refresh adds to its entry, an edited join keeps it. */
     readonly key?: SourceKey;
     /** The choices the rows were read with, kept with the load in `data.sources()`. */
-    readonly choices?: LoadChoices;
+    readonly choices?: LoadedChoices;
     /** The roles each table was read with, the element's own reading included, kept with the load. */
     readonly mapping?: LoadMappingRead;
     /**
@@ -561,12 +569,26 @@ export interface DataService {
         after?: UndoableContext["after"],
     ): Promise<ImportOutcome | null | undefined>;
     /**
+     * The weight meaning an edge was stored under, for a draft's report of a merge.
+     * @param counter - The edge's counter.
+     * @returns The meaning, or undefined when unknown.
+     */
+    edgeMeaning?(counter: number): string | null | undefined;
+    /**
      * Set graph-level values through `draft`: what a plugin algorithm wrote to `graphResults`, or
      * the data source's new name.
      * @param values - The values by name.
      * @param draft - The command's draft.
      */
     values?(values: Readonly<Record<string, unknown>>, draft: Draft): void;
+    /**
+     * Take the direction a file declares, as an import of it does: kept only while the graph holds
+     * no edges and the configuration has not settled one.
+     * @param directed - Whether the file declares a directed graph.
+     * @param statedBy - The part of the file that said so.
+     * @param draft - The command's draft.
+     */
+    direct(directed: boolean, statedBy: string, draft: Draft): void;
 }
 
 /** A session's stable edge identity, read from its current snapshot. */
@@ -837,7 +859,7 @@ function sizeOf(mutation: Exclude<DataMutation, { kind: "clear" }>): number {
  * @param mutation - The mutation.
  * @returns "Added 3 nodes" and the like.
  */
-function labelOf(mutation: DataMutation): string {
+export function labelOf(mutation: DataMutation): string {
     if (mutation.kind === "clear") {
         return "Cleared the graph";
     }
@@ -862,7 +884,7 @@ function labelOf(mutation: DataMutation): string {
  * @param mutation - The mutation.
  * @returns `data.add-nodes` with its count, and the like.
  */
-function factOf(mutation: DataMutation): CodedFact<HistoryCode> {
+export function factOf(mutation: DataMutation): CodedFact<HistoryCode> {
     if (mutation.kind === "clear") {
         return { code: "data.clear", params: {} };
     }
@@ -998,15 +1020,15 @@ export function importFact(command: DataImportCommand): CodedFact<"data.import">
  * The import's `layout` choice: the command's own, else the one its source config names (a load
  * call's options and `dataSourceConfig` carry it there, beside the reader's options).
  * @param command - the import
- * @returns `"recommended"` or `"keep"`
+ * @returns `"recommended"`, `"placed"` or `"keep"`
  * @throws A `GraphtyError` with `E_BAD_COMMAND` when the config names any other value.
  */
-function layoutChoiceOf(command: DataImportCommand): "recommended" | "keep" {
+function layoutChoiceOf(command: DataImportCommand): "recommended" | "placed" | "keep" {
     const layout = command.layout ?? command.source.config?.layout ?? "keep";
-    if (layout !== "recommended" && layout !== "keep") {
+    if (layout !== "recommended" && layout !== "placed" && layout !== "keep") {
         throw new GraphtyError({
             code: "E_BAD_COMMAND",
-            message: `A load's layout is "recommended" or "keep", not ${JSON.stringify(layout)}.`,
+            message: `A load's layout is "recommended", "placed" or "keep", not ${JSON.stringify(layout)}.`,
             source: "data",
             details: { reason: "bad-layout-choice", layout: JSON.stringify(layout) },
         });
@@ -1039,8 +1061,9 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         // The scene units one unit of the file's lengths is drawn as, once its styles are drawn:
         // the stored drawing a recommended fixed layout keeps takes the same unit (issue #2322).
         let sceneScale: number | null = null;
-        if (layoutChoiceOf(command) === "recommended") {
-            adviseLayout(ctx, () => sceneScale);
+        const choice = layoutChoiceOf(command);
+        if (choice !== "keep") {
+            adviseLayout(ctx, () => sceneScale, choice === "placed");
         }
 
         const replacing = command.mode !== "merge" && command.measure === undefined;
@@ -1064,7 +1087,7 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
             await settleEarlierLayers(earlier, ctx);
         }
 
-        if (layoutChoiceOf(command) === "recommended") {
+        if (choice !== "keep") {
             // Whether a Graphviz engine can draw the file is a question for a Worker, so it is
             // asked here, before the step seals and the recommendation is read.
             await ctx.services.layoutPrepare?.();
@@ -1173,12 +1196,14 @@ async function repickEdges(picked: readonly PickedEdges[], ctx: UndoableContext)
  * @param ctx - The import's context.
  * @param sceneScale - The scene units one unit of the file's lengths was drawn as, read once the
  *     import is done: a fixed layout draws the file's stored positions in the same unit.
+ * @param placedOnly - Apply only the fixed layout, which keeps where the data placed every node;
+ *     any other advice leaves the layout as it is.
  */
-function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): void {
+function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null, placedOnly: boolean): void {
     const advise = ctx.services.layoutAdvice;
     ctx.after("layout:recommended", (dispatch) => {
         const advice = advise?.();
-        if (advice === undefined) {
+        if (advice === undefined || (placedOnly && advice.id !== "fixed")) {
             return;
         }
 

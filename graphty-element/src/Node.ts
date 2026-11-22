@@ -122,6 +122,23 @@ const logger = GraphtyLogger.getLogger(["graphty", "node"]);
  */
 export const SELECTION_HALO_MESH = "graphty-selection-halo";
 
+/**
+ * A style less its halo. A built `Node` draws its halo as an overlay of its own, hung from its anchor, whatever
+ * draws its body -- as it does for a selection drawn without the starting rows -- so a halo keeps its body on
+ * the batch. Counted as unbatchable, one selected node put every row of its look back on an instance mesh,
+ * and each such row needed a `Node` built for it (issue #9164).
+ * @param style - The style.
+ * @returns It, without `effect.halo`.
+ */
+function withoutHalo(style: NodeStyleConfig): NodeStyleConfig {
+    if (style.effect?.halo === undefined) {
+        return style;
+    }
+
+    const { halo: _halo, ...effect } = style.effect;
+    return { ...style, effect };
+}
+
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
 
@@ -2130,7 +2147,7 @@ export class Node implements ModelUser {
             !this.drawnAsGroup &&
             this.drawnModel === null &&
             this.shaderPath === null &&
-            batchableOf({ style }, view)
+            batchableOf({ style: withoutHalo(style) }, view)
         );
     }
 

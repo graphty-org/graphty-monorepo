@@ -14,11 +14,13 @@
 import "@babylonjs/core/Culling/ray.js";
 
 import type { PickingInfo } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Ray } from "@babylonjs/core/Culling/ray.core.js";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
+import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId } from "../catalog/types";
 import type { Edge } from "../Edge";
@@ -201,6 +203,8 @@ const STOP_PAST_BEST = 0.001;
 export interface ScannedTable {
     readonly rows: number;
     readonly rowBounds: Float32Array;
+    /** One row's center, read without bringing every row up to a landing the lane owes. */
+    centerOf(row: number): Vector3;
 }
 
 /** What the scan reads of a row's node, for a candidate only. */
@@ -212,6 +216,9 @@ export interface ScannedRow {
     readonly drawnScaling: Readonly<Vector3>;
     readonly drawnByRowScan: boolean;
 }
+
+/** What a ray against one row reads of what draws it. */
+export type RowShape = Pick<ScannedRow, "drawnByRowScan" | "drawnSourceMesh" | "drawnScaling">;
 
 /** A row a ray hit. */
 export interface RowHit {
@@ -282,12 +289,15 @@ export class RowScan {
      * @param table - The rows.
      * @param nodeAt - A row's node.
      * @param root - What rows are placed inside, or null when they are in the world.
+     * @param shapeAt - What draws a row, for testing a ray against it: a row drawn with no `Node` answers from its
+     *     row, so a ray that only passes near rows builds no `Node` for them (issue #9166). By default, its node.
      */
     constructor(
         private readonly scene: Scene,
         private readonly table: ScannedTable,
         private readonly nodeAt: (row: number) => ScannedRow | undefined,
         private readonly root: TransformNode | null,
+        private readonly shapeAt: (row: number) => RowShape | undefined = nodeAt,
     ) {}
 
     /**
@@ -320,16 +330,19 @@ export class RowScan {
      * whose ray starts inside one node and may cross others on its way.
      * @param row - The row.
      * @param ray - The ray.
+     * @param drawn - What draws the row, when the caller has it: a row drawn with no `Node` passes its own source
+     *     mesh, so asking where a ray meets it builds no `Node` (issue #9166).
      * @returns The point, or null for a miss.
      */
-    rowRayHitOn(row: number, ray: Ray): Vector3 | null {
+    rowRayHitOn(row: number, ray: Ray, drawn: RowShape | undefined = this.shapeAt(row)): Vector3 | null {
         const root = this.root?.computeWorldMatrix() ?? this.identity;
         // a closed convex shape (box, cylinder, cone, polyhedron) is met from its face planes, as a node's own mesh is
-        const node = this.nodeAt(row);
         const convex =
-            node?.drawnByRowScan === true ? convexRayHit(node.drawnSourceMesh, ray, this.rowWorld(row, root)) : null;
+            drawn?.drawnByRowScan === true
+                ? convexRayHit(drawn.drawnSourceMesh, ray, this.rowWorld(row, root, drawn))
+                : null;
         return convex === undefined
-            ? (this.narrow(row, root, (world) => this.rayInRow(ray, world))?.pickedPoint ?? null)
+            ? (this.narrow(row, root, (world) => this.rayInRow(ray, world), drawn)?.pickedPoint ?? null)
             : convex;
     }
 
@@ -339,12 +352,8 @@ export class RowScan {
      * @returns The point.
      */
     worldCenter(row: number): Vector3 {
-        const { rowBounds: bounds } = this.table;
-        const at = row * 4;
-        return Vector3.TransformCoordinates(
-            new Vector3(bounds[at], bounds[at + 1], bounds[at + 2]),
-            this.root?.computeWorldMatrix() ?? this.identity,
-        );
+        // one row, so a landing the lane owes is read for this row alone, not written for every row
+        return Vector3.TransformCoordinates(this.table.centerOf(row), this.root?.computeWorldMatrix() ?? this.identity);
     }
 
     /**
@@ -378,8 +387,9 @@ export class RowScan {
         const root = this.rootMatrix();
         // Root, then view (for the depth) and view and projection (for the screen), as
         // `screenProjector` and `pickEdgeAt` take them.
-        const view = root.multiply(this.scene.getViewMatrix()).m;
-        const clip = root.multiply(this.scene.getViewMatrix().multiply(this.scene.getProjectionMatrix())).m;
+        // The camera's matrices, not the scene's: the scene's are unset until its first frame.
+        const view = root.multiply(camera.getViewMatrix()).m;
+        const clip = root.multiply(camera.getViewMatrix().multiply(camera.getProjectionMatrix())).m;
         const engine = this.scene.getEngine();
         const css = engine.getHardwareScalingLevel();
         const halfWidth = 0.5 * engine.getRenderWidth() * css;
@@ -544,16 +554,21 @@ export class RowScan {
      * @param row - The row.
      * @param root - The matrix rows are placed under.
      * @param rayFor - The ray for a world matrix.
+     * @param node - What draws the row.
      * @returns What Babylon found, or null for a row the scan leaves to Babylon.
      */
-    private narrow(row: number, root: Matrix, rayFor: (world: Matrix) => Ray): PickingInfo | null {
-        const node = this.nodeAt(row);
+    private narrow(
+        row: number,
+        root: Matrix,
+        rayFor: (world: Matrix) => Ray,
+        node: RowShape | undefined = this.shapeAt(row),
+    ): PickingInfo | null {
         if (node?.drawnByRowScan !== true) {
             return null;
         }
 
         return node.drawnSourceMesh.intersects(
-            rayFor(this.rowWorld(row, root)),
+            rayFor(this.rowWorld(row, root, node)),
             false,
             undefined,
             false,
@@ -566,10 +581,10 @@ export class RowScan {
      * Where a row's node is drawn in the world: its bound's center and its scaling, under graph-root.
      * @param row - The row.
      * @param root - {@link RowScan.rootMatrix}.
+     * @param node - What draws the row.
      * @returns The matrix, which the next call overwrites.
      */
-    private rowWorld(row: number, root: Matrix): Matrix {
-        const node = this.nodeAt(row);
+    private rowWorld(row: number, root: Matrix, node: RowShape | undefined = this.shapeAt(row)): Matrix {
         const { rowBounds: bounds } = this.table;
         const at = row * 4;
         const { x, y, z } = node?.drawnScaling ?? { x: 1, y: 1, z: 1 };
@@ -658,14 +673,16 @@ const rowScans = new WeakMap<Scene, RowScan>();
  * @param table - The rows.
  * @param nodeAt - A row's node.
  * @param root - What rows are placed inside.
+ * @param shapeAt - What draws a row, without building a `Node` for a row drawn with none.
  */
 export function openRowScan(
     scene: Scene,
     table: ScannedTable,
     nodeAt: (row: number) => ScannedRow | undefined,
     root: TransformNode,
+    shapeAt?: (row: number) => RowShape | undefined,
 ): void {
-    rowScans.set(scene, new RowScan(scene, table, nodeAt, root));
+    rowScans.set(scene, new RowScan(scene, table, nodeAt, root, shapeAt));
 }
 
 /**
@@ -815,13 +832,16 @@ function distanceToSegment(x: number, y: number, a: { x: number; y: number }, b:
  * canvas's top-left corner. `Graph.worldToScreen` is this; a walk takes it once so each point costs
  * no matrix product.
  * @param scene - The scene.
+ * @param camera - The camera it is seen through (the scene's active camera). Its matrices are
+ *   read, not the scene's, which are unset until the scene's first frame.
  * @returns The projection.
  */
 export function screenProjector(
     scene: Scene,
+    camera: Camera,
 ): (point: { x: number; y: number; z: number }) => { x: number; y: number } {
     const engine = scene.getEngine();
-    const viewProjection = scene.getViewMatrix().multiply(scene.getProjectionMatrix());
+    const viewProjection = camera.getViewMatrix().multiply(camera.getProjectionMatrix());
     // The canvas may be drawn at a higher pixel ratio (`pixelRatio`), which the hardware scaling level undoes.
     const css = engine.getHardwareScalingLevel();
     const width = engine.getRenderWidth();
@@ -887,7 +907,7 @@ export function pickEdgeAt(
             found = id;
         }
     };
-    const project = rowEnds === undefined ? toScreen : screenProjector(scene);
+    const project = rowEnds === undefined ? toScreen : screenProjector(scene, camera);
 
     // ponytail: a linear walk over every edge per pick; a spatial index if picking huge graphs on hover.
     for (const edge of edges) {
@@ -939,13 +959,15 @@ export function pickEdgeId(
     const root = scan.rootMatrix();
     const ends: [Vector3, Vector3] = [new Vector3(), new Vector3()];
     return pickEdgeAt(scene, edges, x, y, toScreen, (edge) => {
-        const { srcNode, dstNode } = edge;
-        if (!srcNode.drawnInBatch || !dstNode.drawnInBatch || edge.drawnCurve !== null) {
+        // Rows, not Nodes: measuring every edge must build no Node for an end drawn without one (issue #9166).
+        const src = edge.batchEndRow("source");
+        const dst = src === INVALID_INDEX ? INVALID_INDEX : edge.batchEndRow("target");
+        if (dst === INVALID_INDEX || edge.drawnCurve !== null) {
             return null;
         }
 
-        scan.worldCenterToRef(srcNode.index, root, ends[0]);
-        scan.worldCenterToRef(dstNode.index, root, ends[1]);
+        scan.worldCenterToRef(src, root, ends[0]);
+        scan.worldCenterToRef(dst, root, ends[1]);
         return ends;
     });
 }

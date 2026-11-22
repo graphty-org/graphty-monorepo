@@ -85,7 +85,7 @@ describe("Export opens on Data where a table is showing (R14)", () => {
 });
 
 describe("Export: a camera exports images and a tour videos", () => {
-    it("opens Ctrl+E on the nodes' Data, and neither the main menu nor Quick actions has Export image or video", async () => {
+    it("opens Ctrl+E on the nodes' Data with Image listed, and neither the main menu nor Quick actions has Export image or video", async () => {
         await page.viewport(1440, 900);
         const session = await open();
         await session.data.addNodes(NODES);
@@ -96,7 +96,7 @@ describe("Export: a camera exports images and a tour videos", () => {
         assert.isNotNull(within(dialog).getByRole("heading", { name: "Data" }));
         assert.strictEqual(within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Table" }).value, "Nodes");
         const outputs = within(dialog).getByRole("grid", { name: "What to export" });
-        assert.isNull(within(outputs).queryByText("Image"));
+        assert.isNotNull(within(outputs).queryByText("Image"));
         assert.isNull(within(outputs).queryByText("Video"));
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -213,10 +213,10 @@ describe("the Data output's format list and losses (R14)", () => {
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         await userEvent.click(within(dialog).getByRole("combobox", { name: "Format" }));
         await userEvent.click(await screen.findByRole("option", { name: "GEXF" }));
-        const note = await within(dialog).findByRole("note", {});
+        const note = await within(dialog).findByRole("status", {});
         const details = within(note).getByRole("button", { name: "Details" });
         assert.strictEqual(details.getAttribute("aria-expanded"), "false");
-        assert.match(note.textContent, /^Lost in GEXF: node label color not writtenDetails$/);
+        assert.match(note.textContent, /^Not in GEXF: node label color not writtenDetails$/);
         assert.isNull(within(note).queryByRole("list"));
 
         await userEvent.click(details);

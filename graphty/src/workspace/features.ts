@@ -29,3 +29,25 @@ export function fileStylesOn(session: GraphSession | null | undefined): boolean 
     const features = new Set<string>(session?.features.enabled ?? []);
     return features.has("file-styles");
 }
+
+/**
+ * Whether the source references experiment is on (issue #8813). On, Save as offers to keep each
+ * data source as a copy or a reference, and the Data sources list marks a referenced source; off,
+ * nothing of it is shown.
+ * @param session - the element's session, or null before it comes up.
+ * @returns true when the element switched the experiment on.
+ */
+export function sourceReferencesOn(session: GraphSession | null | undefined): boolean {
+    return (session?.features.enabled ?? []).includes("source-references");
+}
+
+/**
+ * Whether version 2 save files are on (issue #8029). On, Save as asks which sections to save and
+ * whether to copy or reference each source, Save keeps a version 2 file in this browser, and opening
+ * a version 2 file asks which sections to load first; off, saving and opening are as before.
+ * @param session - the element's session, or null before it comes up.
+ * @returns true when the element switched the experiment on.
+ */
+export function saveFilesV2On(session: GraphSession | null | undefined): boolean {
+    return (session?.features.enabled ?? []).includes("save-files-v2");
+}

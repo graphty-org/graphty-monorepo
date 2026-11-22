@@ -577,8 +577,12 @@ const EXPLAINS: ReadonlyMap<string, Explains> = new Map<string, Explains>([
     // roles and names
     ["W_ROLE_DROPPED", { column: ROLE_CLASS }],
     ["W_CSV_ROLE_NAME", { column: ROLE_CLASS }],
-    // CX: a graph column "name" or "description" takes the graph's own name or description (meta, not a column)
-    ["W_ROLE_ASSUMED", { global: ["graph.name:missing", "graph.description:missing"], column: ROLE_CLASS }],
+    // CX: a graph column "name" or "description" takes the graph's own name or description (meta, not a column);
+    // CSV and JSON: a plain latitude and longitude pair reads back with a geographic position column built from it
+    [
+        "W_ROLE_ASSUMED",
+        { global: ["graph.name:missing", "graph.description:missing", "nodes.position:extra"], column: ROLE_CLASS },
+    ],
     ["W_COLUMN_NAME_CHANGED", { column: RENAME_CLASS }],
     ["W_ROLE_SHAPE", { column: [...ROLE_CLASS, ...DTYPE_CLASS] }],
     ["W_POSITION_Z_DROPPED", { column: ["value"] }],

@@ -532,6 +532,39 @@ describe("a layer row's Values tab on the real element", () => {
         assert.deepEqual(values, [findName(session, layer.row ?? layer.id)]);
     });
 
+    it("Everything's Values tab reads the element's defaults, then the tree's row that paints every node", async () => {
+        const { session, store } = await open();
+        const values = async (): Promise<HTMLElement> => {
+            store.set({ inspected: { kind: "everything-row" } });
+            const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+            await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+            return inspector;
+        };
+        const matched = async (inspector: HTMLElement): Promise<(string | null)[]> => {
+            const covers = await within(inspector).findByRole("group", { name: "Covers" });
+            return [...covers.querySelectorAll("[data-testid=data-row-value]")].map((v) => v.textContent);
+        };
+        const all = String(session.data.nodes().length);
+
+        // No row of the tree paints every node: the element's own defaults do.
+        assert.isTrue(session.styles.list().some((layer) => layer.selector.match === "everything"));
+        assert.include(await matched(await values()), all, "the defaults match every node");
+
+        // A row of the tree that paints every node: its own counts, and where its color shows.
+        const whole = await session.styles.add({
+            name: "Whole graph",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#0072B2" },
+        });
+        await session.styles.settled();
+        const inspector = await values();
+        assert.include(await matched(inspector), all);
+        await waitFor(() => {
+            assertPainted(session, inspector, whole);
+        });
+    });
+
     it("a rerun that finds a new group says so under the run's groups", async () => {
         const { session, store } = await open();
         const { runId, layer } = await runLayer(session, "louvain");

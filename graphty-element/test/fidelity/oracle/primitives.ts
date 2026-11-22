@@ -226,6 +226,8 @@ export interface PStroke {
     line?: number;
     /** A stroke painted with a gradient (its first stop is also its `color`), or null for a flat color. */
     gradient?: PGradient | null;
+    /** A line drawn as parallel strands side by side: their colors, in the order drawn. */
+    strands?: readonly string[];
     /** How its corners are joined, where not mitered (SVG's default): what a thick-stroked arrowhead's tip reaches. */
     join?: "round" | "bevel";
 }
@@ -570,6 +572,8 @@ export interface PStray {
     text: string | null;
     /** Words a program drew as glyph outlines (`isLettering`), whose words it does not say. */
     lettering?: true;
+    /** A picture graphty draws in a node's label (yEd's label icon). */
+    label?: true;
 }
 
 /** One side's drawing, associated with graph elements. */

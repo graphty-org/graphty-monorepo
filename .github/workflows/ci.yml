@@ -126,9 +126,9 @@ env:
 
 jobs:
     # The cap on concurrent pull request runs (tools/ci-run-cap.mjs). On a pull request it waits, on one small
-    # runner, while earlier pull request runs hold CI_PR_JOB_BUDGET (a repository variable, default 150) or more
-    # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a release.yml run waits for a
-    # runner, so the full run goes first. Every other job needs the Build job, which needs this one, so a waiting
+    # runner, while earlier pull request runs hold CI_PR_JOB_BUDGET (a repository variable, default 120) or more
+    # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a master push build or a
+    # release.yml run waits for a runner, so master's build and the full run go first (#9153). Every other job needs the Build job, which needs this one, so a waiting
     # run holds nothing else. It never fails the run: an API error proceeds, and the wait ends (the run proceeds)
     # at the script's MAX_WAIT_MINUTES, before this job's timeout, since a timed-out job is canceled and that
     # skips Build and every job after it (#8219). A push to master, a dispatch and the release train's call
@@ -147,12 +147,17 @@ jobs:
             contents: read
             actions: read
             checks: read
+            # a red fix skips the wait: its commits and the open alarm issues they name (#9473)
+            pull-requests: read
+            issues: read
         steps:
             - uses: actions/checkout@v7
               if: github.event_name == 'pull_request'
               with:
                   ref: ${{ inputs.ref }}
-                  sparse-checkout: tools/ci-run-cap.mjs
+                  sparse-checkout: |
+                      tools/ci-run-cap.mjs
+                      tools/lib/github.mjs
                   sparse-checkout-cone-mode: false
             # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
             - name: Use the workflow's own tools and actions
@@ -1155,13 +1160,16 @@ jobs:
             # lint targets; a local lint never caches). Master's full lint fills it and saves it; a pull request restores the newest one, so ESLint
             # re-lints only the files whose content differs from master's (graphty-element took about 300 s here,
             # beside two other packages on the runner's 4 cores). The key holds what changes a rule's verdict on an
-            # unchanged file -- the lockfile, the ESLint configs and rules, the tsconfigs -- so a change to any of
-            # them lints everything. An unchanged file that a pull request's type change makes fail a type-aware
+            # unchanged file -- the resolved versions of eslint, its plugins and parsers, typescript and globals
+            # (tools/eslint-cache-key.mjs reads them from the lockfile; hashing the whole lockfile made every
+            # dependency bump lint from a cold cache, #9541), the ESLint configs and rules, the tsconfigs -- so a
+            # change to any of them misses the exact key. The prefix restore-key still restores the newest cache on
+            # a miss (ESLint re-checks each restored entry against its own config hash). An unchanged file that a pull request's type change makes fail a type-aware
             # rule is caught by master's and the full run's lint, which never restore the cache. The key's last part
             # is the day, so master saves one cache a day (about 3 MB), not one per commit.
             - name: Key the ESLint caches
               id: eslint-cache
-              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v1-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.js', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
+              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v2-$(node tools/eslint-cache-key.mjs | cut -c1-16)-${{ hashFiles('eslint.config.js', 'graphty-element/test/saved-format/eslint-saved-format.js', 'graphty-element/working-graph-whole-readers.json', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
 
             - name: Restore the ESLint caches (PR)
               if: needs.packages.outputs.full == 'false'
@@ -1734,7 +1742,7 @@ jobs:
             # most 6, 30 runners in all, so the full run never starves pull requests of runners (#3448); the
             # Run cap lets pull requests go once the full run holds that share (RELEASE_SHARE in
             # tools/ci-run-cap.mjs), and the default pull request job budget is the ~180-runner ceiling less
-            # it: 150 (CI_PR_JOB_BUDGET overrides it). At 14 its Test jobs ended at about 66 minutes; 24 brings
+            # it and master's share: 120 (CI_PR_JOB_BUDGET overrides it). At 14 its Test jobs ended at about 66 minutes; 24 brings
             # that to about 35-38 (#7849). A pull request keeps 40. The features-on shards come last in the matrix
             # (tools/ci-test-matrix.mjs), so the Off shards start first and the On ones queue behind them.
             max-parallel: ${{ github.event_name == 'pull_request' && 40 || 24 }}

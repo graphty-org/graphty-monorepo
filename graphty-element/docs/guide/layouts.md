@@ -399,9 +399,11 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
   draws a glow of air around the globe's rim, clears the canvas to a color while the globe is drawn,
   and lights one side from where the sun is overhead. Each part is off unless set; a view
   setting, not saved with the project.
-- **No location.** A node with no usable location goes to a row below the map (`unplaced: "tray"`)
-  or stays where it was (`"leave"`), never to latitude 0, longitude 0, and the element emits a
-  `layout-warning` with code `W_LOCATION_UNPARSED` and `params: { missing, unparsed, total, samples }`.
+- **No location.** A node with no usable location goes to a row below the map (`unplaced: "tray"`),
+  stays where it was (`"leave"`), or is not drawn, with its edges, while the map is the layout
+  (`"hide"`); never to latitude 0, longitude 0. Whichever you choose, `element.mapFrame.unplaced`
+  lists those nodes and the element emits a `layout-warning` with code `W_LOCATION_UNPARSED` and
+  `params: { missing, unparsed, unplaced, total, samples }`.
 - **The map.** The layout's `map` option picks the picture, on the 2D map and wrapped onto the
   globe alike: unset (`null`), the bundled Natural Earth world image (no network);
   `{ source: "openstreetmap" }` or another named keyless source (`BASEMAP_SOURCE_DESCRIPTORS` in

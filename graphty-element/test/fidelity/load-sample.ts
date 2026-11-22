@@ -6,6 +6,7 @@
  */
 import "../../src/graphty-element";
 
+import samplePictures from "../../../graph-io/test/fidelity/pictures/pictures.json";
 import type { Scene } from "../../../graph-io/test/fidelity/scene";
 import type { Graphty } from "../../index.js";
 import packageJson from "../../package.json";
@@ -26,9 +27,36 @@ function hex(bytes: ArrayBuffer): string {
     return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** The committed copies of the pictures samples name on the internet, by file name, as the build serves them. */
+const PICTURE_COPIES = import.meta.glob<string>("../../../graph-io/test/fidelity/pictures/*.png", {
+    query: "?url",
+    import: "default",
+    eager: true,
+});
+
+/**
+ * Each internet picture a sample names (graph-io/test/fidelity/pictures/pictures.json), mapped to where the page
+ * serves its committed copy.
+ * @returns the internet URL to the served copy's absolute URL
+ */
+export function samplePictureUrls(): Map<string, string> {
+    const urls = new Map<string, string>();
+    for (const [url, file] of Object.entries(samplePictures)) {
+        const served = Object.entries(PICTURE_COPIES).find(([p]) => p.endsWith(`/${file}`))?.[1];
+        if (served === undefined) {
+            throw new Error(`no committed copy of ${url}: graph-io/test/fidelity/pictures/${file} is missing`);
+        }
+        urls.set(url, new URL(served, document.baseURI).href);
+    }
+    return urls;
+}
+
 /**
  * A sample file's sha256 as stored, and its bytes as the element should see them: gunzipped when
- * stored compressed, since nothing in graphty-element unzips a `.gz`.
+ * stored compressed, since nothing in graphty-element unzips a `.gz`, and with every picture it names
+ * on the internet pointed at its committed copy. A picture loaded from the internet made the drawing
+ * depend on that host answering: raw.githubusercontent.com answering 503 once left the cytoscape.js
+ * logo out of one of two captures of the same story (#9247).
  * @param stored - the file's bytes as stored
  * @param gzipped - whether the file is stored compressed
  * @returns the stored file's hash and the bytes to load
@@ -40,7 +68,17 @@ export async function sampleData(
     const sha256 = hex(await crypto.subtle.digest("SHA-256", stored));
     const blob = new Blob([stored]);
     const data = gzipped ? await new Response(blob.stream().pipeThrough(new DecompressionStream("gzip"))).blob() : blob;
-    return { sha256, data };
+    let text: string;
+    try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(await data.arrayBuffer());
+    } catch {
+        return { sha256, data }; // not text (a .cys zip): nothing to point elsewhere
+    }
+    let local = text;
+    for (const [url, copy] of samplePictureUrls()) {
+        local = local.replaceAll(url, copy);
+    }
+    return { sha256, data: local === text ? data : new Blob([local]) };
 }
 
 /**

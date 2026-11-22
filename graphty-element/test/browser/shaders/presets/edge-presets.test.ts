@@ -549,6 +549,17 @@ describe("edge change", () => {
     }
 
     it("draws nothing at rest and asks for no frame once its layer is added", async () => {
+        // A graph drawn with the effect once already, so the next one's first painted edge brings
+        // the shader drawing at once. Then the clock stands still, as on a machine that mounts the
+        // graph and adds the layer well inside the 0.4 s an arrival plays its entrance in: on
+        // "batched" the second edge's `Edge` is built by the layer's style pass after the drawing
+        // exists, and that build must not count as the edge arriving (issue #9438).
+        (await changing()).remove();
+        const now = performance.now();
+        const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+        cleanups.push(() => {
+            clock.mockRestore();
+        });
         const element = await changing();
         await drawnFrames(element.graph.getScene(), 3);
         assert.strictEqual(everyFrameAnimationsOn(element.graph.getScene()), 0);
@@ -612,5 +623,36 @@ describe("edge change", () => {
         assert.isAbove(deadlines[0], 400, "kept for the exit, not cut short");
         await until(element, "the exit ends and its slot is handed back", () => slots(element).exiting === 0);
         assert.strictEqual(slots(element).live, 1);
+    });
+
+    it("plays each time set by hand, whatever the edge's other clocks say", async () => {
+        const element = await changing();
+        // The clock stands still, so the change below stays at its first instant: its own front has
+        // drawn none of the line yet, and the times set by hand alone decide what a frame shows.
+        const now = performance.now();
+        const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+        cleanups.push(() => {
+            clock.mockRestore();
+        });
+        const [edge] = edgesOf(element);
+        await element.session.data.updateEdges([{ id: edge.id, values: { weight: 3 } }]);
+        await operationQueueOf(element.graph).waitForCompletion();
+        const [layer] = element.session.styles.list().filter((each) => each.name === "Changes");
+        // Along a to b, a horizontal line at y = 2 from x = -6: a quarter of the way, and its middle.
+        const quarter = { x: -3, y: 2, z: 0 };
+        const middle = { x: 0, y: 2, z: 0 };
+        const playing = async (params: ShaderParams, at = quarter): Promise<number> => {
+            await element.session.styles.update(layer.id, {
+                set: { "edge.shaders": [{ shader: presetId("edge-change"), params }] },
+            });
+            await operationQueueOf(element.graph).waitForCompletion();
+            return differing(await pixelsAround(element, at, 1), [0x33, 0x66, 0xcc]);
+        };
+
+        assert.strictEqual(await playing({}), 0, "the change has just begun: its front has not reached there");
+        assert.isAbove(await playing({ arriveTime: 0.15 }), 0, "an arrive time set by hand draws its front");
+        assert.isAbove(await playing({ changeTime: 0.15 }), 0, "a change time set by hand draws its front");
+        assert.isAbove(await playing({ leaveTime: 0.4 }, middle), 0, "a leave time set by hand reddens what is left");
+        assert.strictEqual(await playing({ arriveTime: 0.5, changeTime: 0.5 }), 0, "a play at its end draws nothing");
     });
 });

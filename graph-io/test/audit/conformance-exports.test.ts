@@ -309,7 +309,7 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         expect(typeof root.createRegistry).toBe("function");
         expect(typeof root.childrenCsr).toBe("function");
         expect(root.registry.formats()).toEqual([...root.GRAPH_FORMATS]);
-        expect(new Set(root.GRAPH_FORMATS)).toEqual(new Set(FORMATS));
+        expect(new Set(root.GRAPH_FORMATS)).toEqual(new Set([...FORMATS, "xlsx"]));
     });
 
     it("registers one importer and one exporter per format, each typed by the 12.4 contract", () => {
@@ -342,7 +342,7 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
             ([key]) => key !== "./sources" && !key.startsWith("./sources/"),
         );
         expect(formatExports.map(([key]) => key).sort()).toEqual(
-            [".", ...FORMATS.map((f) => `./${f}`), "./styles", "./positions"].sort(),
+            [".", ...FORMATS.map((f) => `./${f}`), "./xlsx", "./styles", "./positions"].sort(),
         );
         for (const [key, entry] of formatExports) {
             const name = key === "." ? "graph-io" : key.slice(2);

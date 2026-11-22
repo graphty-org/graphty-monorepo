@@ -4,7 +4,13 @@
  * carry every data field across.
  */
 
-import { type Column, type ColumnInput, fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
+import {
+    type Column,
+    type ColumnInput,
+    coordinateSystemOf,
+    fromEdgeArrays,
+    type GraphSnapshot,
+} from "@graphty/graph-format";
 import { writtenPositions } from "@graphty/graph-io/positions";
 import type { Collection, ElementDefinition } from "cytoscape";
 
@@ -45,7 +51,9 @@ interface RenamedColumn {
  * Cytoscape element definitions for a snapshot. Node ids are the snapshot's ids as strings. Every node and edge
  * column becomes a data field of the same name, except that one named `id`, `source`, `target` or `parent` (which
  * Cytoscape reserves) becomes `<name>#<the attribute's id in the file>`, or `<name>#2` when it has none, and:
- * - a node column with the role "position" becomes the node's position (x and y; a z is dropped);
+ * - a node column with the role "position" becomes the node's position (x and y; a z is dropped), turned over when
+ *   its y grows up (the default for a cartesian column), since Cytoscape's y grows down; a geographic column is not a
+ *   position and stays a data field, for the graphty-geographic layout to place;
  * - a node column with the role "parent" (a compound parent, as Cytoscape JSON, GraphML nested graphs and DOT
  *   clusters carry it) becomes `data.parent`;
  * - an edge column with the role "id" becomes the edge's id when that id is not a node id and not used by an
@@ -169,8 +177,12 @@ function nodeElements(
     keep: (c: Column) => boolean,
 ): ElementDefinition[] {
     const nodeCols = [...snapshot.nodes].filter(keep);
-    const position = nodeCols.find((c) => c.meta.role === "position" && c.meta.components >= 2);
+    // a geographic column holds places on the Earth, not where Cytoscape draws a node: it stays a data field
+    const position = nodeCols.find(
+        (c) => c.meta.role === "position" && c.meta.components >= 2 && coordinateSystemOf(c.meta).kind !== "geographic",
+    );
     const nodeData = nodeCols.filter((c) => c !== position);
+    const down = position !== undefined && coordinateSystemOf(position.meta).yAxis === "down";
     const names = fieldNames(nodeData, "node", onRename);
     const parent = snapshot.nodes.byRole("parent");
     const out: ElementDefinition[] = [];
@@ -184,7 +196,8 @@ function nodeElements(
         const el: ElementDefinition = { group: "nodes", data: data };
         const xy = position?.isSet(i) === true ? (position.value(i) as ArrayLike<number>) : undefined;
         if (xy !== undefined && Number.isFinite(xy[0]) && Number.isFinite(xy[1])) {
-            el.position = { x: xy[0], y: xy[1] };
+            // Cytoscape draws y down: a column whose y grows up (or north) is turned over
+            el.position = { x: xy[0], y: down ? xy[1] : flipY(xy[1]) };
         }
         out.push(el);
     }

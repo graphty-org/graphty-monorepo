@@ -47,6 +47,9 @@ export const ROLE_FIELDS: readonly RoleField[] = [
     { table: "nodes", role: "country", field: "nodeCountryPath" },
     { table: "nodes", role: "region", field: "nodeRegionPath" },
     { table: "nodes", role: "city", field: "nodeCityPath" },
+    { table: "nodes", role: "x", field: "nodeXPath" },
+    { table: "nodes", role: "y", field: "nodeYPath" },
+    { table: "nodes", role: "z", field: "nodeZPath" },
 ];
 
 /** The mapping member a `nodeLocationPath` is written as, by its `nodeLocationRole`. */

@@ -353,14 +353,15 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 #### 4.1.3 The mapping
 
 `nodes` holds `key`, `space`, `weight`, `weightMeaning`, `time`, `timeUnit`, `timeEnd`,
-`timeSpells`, `timeParseZone`, `latitude`, `longitude`, `coordinates`, `country`, `region`, `city`
-and `renamed`; `edges` holds `edgeId`, `source`, `sourceSpace`, `target`, `targetSpace`, `weight`,
+`timeSpells`, `timeParseZone`, `latitude`, `longitude`, `coordinates`, `country`, `region`, `city`,
+`x`, `y`, `z` and `renamed`; `edges` holds `edgeId`, `source`, `sourceSpace`, `target`, `targetSpace`, `weight`,
 `weightMeaning`, `time`, `timeUnit`, `timeEnd`, `timeSpells`, `timeParseZone` and `renamed`. Each
 role is a working column name; `renamed` maps source column name to working name. `weightMeaning`
 (`distance`, `strength`, `capacity`), `timeUnit` (`ms`, `s`, `year`, `ordinal`) and
 `timeParseZone` (an IANA zone name, the zone a time column's text reads in when it carries no
 offset; absent, UTC) are values, not columns. `timeEnd` names the column saying where each row's
-time ends and `timeSpells` the column holding its list of spells.
+time ends and `timeSpells` the column holding its list of spells. `x`, `y` and `z` name the
+columns each node's starting position is read from.
 
 1. An absent role means none, never graphty-element's guess. Nothing is read from a column the
    mapping does not name.

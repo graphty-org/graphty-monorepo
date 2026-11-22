@@ -481,8 +481,9 @@ header:
       `ColumnDecl.origin.title`.
     - `mapping` is, per table, graphty-element's `TableMapping` names, one value per table:
       `nodes: { key, space, weight, weightMeaning, time, timeUnit, timeEnd, timeSpells,
-timeParseZone, latitude, longitude, coordinates, country, region, city, renamed }` (the location
-      roles are graphty-element's `LocationKind` names, one column each) and `edges: { edgeId,
+timeParseZone, latitude, longitude, coordinates, country, region, city, x, y, z, renamed }` (the
+      location roles are graphty-element's `LocationKind` names, one column each; `x`, `y` and `z`
+      are the position roles, the columns a node's starting position is read from) and `edges: { edgeId,
 source, sourceSpace, target, targetSpace, weight, weightMeaning, time, timeUnit, timeEnd,
 timeSpells, timeParseZone, renamed }`. `timeEnd` and `timeSpells` are columns; `timeParseZone`
       is an IANA zone name, the zone time text without an offset reads in (absent, UTC). With `key` absent, every node row is

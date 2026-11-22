@@ -25,6 +25,12 @@ describe("acceleratedIterationsFor", () => {
         assert.strictEqual(acceleratedIterationsFor(4, 1_000_000, 1000), 4, "never fewer than the size rule gives");
     });
 
+    it("caps a batch by the budget it is given, as renderPath batched does", () => {
+        assert.strictEqual(acceleratedIterationsFor(1, 10_000, 1000, 160_000), 16);
+        assert.strictEqual(acceleratedIterationsFor(1, 10_000, 4, 160_000), 4, "still ramps up to the cap");
+        assert.strictEqual(acceleratedIterationsFor(1, 1_000_000, 1000, 160_000), 1, "never fewer than the size rule");
+    });
+
     it("never computes fewer than the size rule's count", () => {
         assert.strictEqual(acceleratedIterationsFor(4, 20_000, 0), 4);
     });

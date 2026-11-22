@@ -482,6 +482,37 @@ describe("freeze through the builder's resizable-buffer staging (design 6.2) at 
         expect(grown.edgeCount).toBe(reweighted.edgeCount + 1);
         assertInvariants(grown);
     });
+
+    it("a transferring toWire of the latest snapshot leaves the builder's next freeze whole", () => {
+        const build = (): GraphBuilder => {
+            const builder = new GraphBuilder({ directed: false });
+            for (let i = 0; i < 50; i++) {
+                builder.setNodeValue("group", builder.addNode(i), i % 5);
+            }
+            for (let i = 0; i < 49; i++) {
+                builder.setEdgeValue("w", builder.addEdge(i, i + 1), i);
+            }
+            return builder;
+        };
+        const check = (edit: (builder: GraphBuilder) => void): GraphSnapshot => {
+            const builder = build();
+            const first = builder.freeze();
+            // Posted to a worker: the transfer list is detached here.
+            const wire = first.toWire({ transfer: true });
+            structuredClone(wire, { transfer: first.transferables() });
+            edit(builder);
+            const next = builder.freeze();
+            assertInvariants(next);
+            expect(next.nodes.value("group", 7)).toBe(2);
+            expect(next.edges.value("w", 3)).toBe(3);
+            return next;
+        };
+        // An unchanged sort (a value edit), an appended edge and a removed one: each would reuse the core and
+        // the unchanged columns the first freeze made, which the transfer detached, so it builds them again.
+        expect(check((builder) => builder.setNodeValue("group", 3, 4)).edgeCount).toBe(49);
+        expect(check((builder) => builder.addEdge(0, 2)).edgeCount).toBe(50);
+        expect(check((builder) => builder.removeEdge(40)).edgeCount).toBe(48);
+    });
 });
 
 describe("bulk addEdges is one pushEdge per edge, in order (design 6.6, 3.7): differential against the per-edge path", () => {

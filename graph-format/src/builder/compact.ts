@@ -24,6 +24,7 @@ import {
     columnOfValues,
     createColumn,
     isArrayLikeNumbers,
+    isColumnDetached,
     metaToDecl,
     representableNumber,
     resolveColumnMeta,
@@ -735,7 +736,14 @@ export class StagingColumn {
         // again (each is immutable and claimed by both tables, so a transfer copies it). A mutable
         // column's contents can move after the freeze, so it is never shared.
         const kept = this.frozen;
-        if (kept !== null && kept.writes === this.writes && kept.rows === rows && !this.meta.mutable) {
+        // A transfer of the snapshot that holds it detaches it; it is then built again.
+        if (
+            kept !== null &&
+            kept.writes === this.writes &&
+            kept.rows === rows &&
+            !this.meta.mutable &&
+            !isColumnDetached(kept.column)
+        ) {
             return kept.column;
         }
         const column = this.freshColumn(rows);

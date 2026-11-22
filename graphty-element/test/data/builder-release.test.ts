@@ -129,6 +129,29 @@ describe("letting the builder go after a load", () => {
         }
     });
 
+    it("brings a consumer's numeric column back still inferred, so a value of another type widens it", () => {
+        const store = storeWith(true);
+        load(store, 40, 120);
+        for (let row = 0; row < 40; row++) {
+            store.builder.setNodeValue("group", row, row % 5);
+            store.builder.setEdgeValue("strength", row, row);
+        }
+
+        store.account();
+        store.getSnapshot();
+        store.releaseIdle();
+        assert.isNotNull(store.builder);
+        assert.strictEqual(release(store).revivals, 1);
+        // Before: the revived column was declared i32 and this threw E_COLUMN_TYPE.
+        store.builder.setNodeValue("group", 7, "a");
+        store.builder.setEdgeValue("strength", 3, "b");
+        store.account();
+        const snapshot = store.getSnapshot();
+        assert.strictEqual(snapshot.nodes.value("group", 7), "a");
+        assert.strictEqual(snapshot.nodes.value("group", 8), "3");
+        assert.strictEqual(snapshot.edges.value("strength", 3), "b");
+    });
+
     it("keeps a rebuilt builder: a second edit costs no second rebuild", () => {
         const store = storeWith(true);
         load(store, 20, 40);

@@ -1280,7 +1280,9 @@ export class GraphBuilder implements GraphBuilderContract {
             graphValues: this.graphValues,
             meta: this.metaValue,
             widened: this.widenings,
-            previousSort: this.lastSort,
+            // A transfer of the last snapshot (toWire({ transfer: true }) then postMessage) detaches the core
+            // the builder kept for this freeze: a detached one is dropped and the edges sorted again.
+            previousSort: this.lastSort === null || sortDetached(this.lastSort) ? null : this.lastSort,
         };
         const outcome = runFreeze(context, opts);
         this.staging = outcome.staging;
@@ -2419,4 +2421,15 @@ interface IndexBounds {
     readonly node: number;
     /** The edge index bound. */
     readonly edge: number;
+}
+
+/**
+ * Whether a kept sort's storage was transferred away since its freeze: a transfer detaches every exclusive
+ * buffer of the snapshot together, so its row offsets (never empty while attached) and per-edge weights tell.
+ * @param sort - the kept sort
+ * @returns true when it can no longer be read
+ */
+function sortDetached(sort: SortCache): boolean {
+    const { core } = sort.result;
+    return core.rowPtr.length === 0 || (sort.weights !== null && sort.weights.length < sort.edgeCount);
 }

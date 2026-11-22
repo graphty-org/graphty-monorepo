@@ -552,6 +552,22 @@ function copyBaseRows(
 }
 
 /**
+ * The columns the store declares itself, the only ones {@link copyColumnWhole} copies whole. A column a
+ * write auto-declared is inferred and must stay so: copied whole under its frozen metadata it became a
+ * declared column of fixed dtype, and a later value of another type threw E_COLUMN_TYPE instead of
+ * widening it.
+ * ponytail: a consumer's numeric columns still go cell by cell; a whole copy that stays inferred needs
+ * graph-format to stage a typed array as an inferred column.
+ */
+const STORE_DECLARED_COLUMNS: ReadonlySet<string> = new Set([
+    SEED_COLUMN,
+    EDGE_ID_COLUMN,
+    CAPACITY_COLUMN,
+    DEFERRED_HASH_COLUMN,
+    ...Object.values(IDENTITY_COLUMNS),
+]);
+
+/**
  * Copy a numeric column with every row set into a builder in one bulk write, under the metadata it
  * had: a million-edge column cell by cell was most of the quarter second the first edit after a
  * load spent bringing the builder back (issue #9164).
@@ -567,7 +583,13 @@ function copyColumnWhole(builder: GraphBuilder, domain: "node" | "edge", column:
     const numeric = ["f32", "f64", "i32", "u32", "u8"].includes(column.dtype);
     const rows = domain === "node" ? builder.nodeBound : builder.edgeBound;
     const length = moved?.length ?? rows;
-    if (!numeric || column.nullCount !== 0 || meta.refersTo !== null || column.length !== length) {
+    if (
+        !numeric ||
+        !STORE_DECLARED_COLUMNS.has(meta.name) ||
+        column.nullCount !== 0 ||
+        meta.refersTo !== null ||
+        column.length !== length
+    ) {
         return false;
     }
 

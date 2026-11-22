@@ -32,8 +32,8 @@
 #      Integrity checks) unless one with that marker is already there;
 #   6. turns on auto-merge with a merge commit, and prints the pull request's URL. It leaves auto-merge off (and
 #      turns it off on a re-run) for the owner to merge: a breaking change (`type!:` or BREAKING CHANGE), a change
-#      to one of the few files that guard the owner (GUARD_PATHS below), and a pull request someone other than
-#      the agent opened. A change to CI or to what guards the owner merges like any
+#      to one of the few files that guard the owner (GUARD_PATHS below), a pull request someone other than
+#      the agent opened, and a pull request labeled `hold`. A change to CI or to what guards the owner merges like any
 #      other once green (owner, 2026-10-25: "I don't agree that I should be required to manually merge to change
 #      CI"). Such a pull request -- one that can change the very checks that judge it -- merges with only the
 #      fresh review and PR Integrity looking at it; the guard planned for that gap is to run master's copy of
@@ -193,9 +193,9 @@ lint="${PR_OPEN_TITLE_LINT:-$here/../node_modules/.bin/commitlint --cwd $here/..
 $lint <<<"$title" >&2 || die "Lint PR Title would reject \"$title\"; pass --title \"<type>(<scope>): <summary>\""
 
 agent="${PR_OPEN_AGENT_LOGIN:-graphty-agent}"
-existing=$(gh pr list --head "$branch" --base master --state open --json url,author --jq '.[0] // empty | "\(.url) \(.author.login)"')
-url=${existing%% *}
-author=${existing#* }
+# The same call reads the `hold` label ("do not merge yet"): a held pull request never gets auto-merge (#9562).
+existing=$(gh pr list --head "$branch" --base master --state open --json url,author,labels --jq '.[0] // empty | "\(.url) \(.author.login) \(any(.labels[]; .name == "hold"))"')
+read -r url author labeled_hold <<<"$existing"
 body=$(mktemp) section=$(mktemp)
 tmp_files="$body $section"
 {
@@ -268,7 +268,9 @@ msgs=""
 for c in $(git rev-list --no-merges "$base..HEAD"); do
     grep -qxF "$c" <<<"$ruled" || msgs+="$(git log -1 --format='%s%n%b' "$c")"$'\n'
 done
-if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$msgs"; then
+if [ "$labeled_hold" = true ]; then
+    hold="it is labeled hold"
+elif grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$msgs"; then
     hold="it holds a breaking change (it bumps a published major)"
 elif guarded=$(git diff --name-only --no-renames "$base" HEAD | grep -E "$GUARD_PATHS"); then
     hold="it changes what guards the owner: $(echo $guarded)"

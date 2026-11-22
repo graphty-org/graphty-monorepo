@@ -526,6 +526,22 @@ describe("pr-open.sh", () => {
         assert.equal(armed().length, 0);
     });
 
+    it("turns auto-merge off and leaves it off on a pull request labeled hold, from the one pr list call (#9562)", () => {
+        branch("fix/1251-held");
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/12 graphty-agent true" });
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /auto-merge is NOT on for https:\/\/github\.com\/o\/r\/pull\/12: it is labeled hold/);
+        assert.equal(armed().length, 0);
+        assert.ok(calls().some((x) => x.a.join(" ") === "pr merge https://github.com/o/r/pull/12 --disable-auto"));
+        const list = calls().filter((x) => x.a[1] === "list");
+        assert.equal(list.length, 1);
+        assert.match(list[0].a.join(" "), /--json url,author,labels .*\.name == "hold"/);
+        rmSync(ghLog, { force: true });
+        const free = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/12 graphty-agent false" });
+        assert.equal(free.code, 0, free.out);
+        assert.equal(armed().length, 1, "without the label it arms as before");
+    });
+
     it("takes the issue from --issue or the branch's config, and only right after the type prefix", () => {
         branch("docs/2026-10-25-notes");
         let r = run();

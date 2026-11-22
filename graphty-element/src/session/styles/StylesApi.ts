@@ -189,11 +189,13 @@ import {
 } from "./EncodingSpec";
 import {
     type AgreementElements,
+    createSelectorMatches,
     type ExplainSources,
     explainStyle,
     type ExplainTarget,
     read as readAt,
     resolveToStatic as resolveRule,
+    type SelectorMatches,
     type StyleAgreement,
     styleAgreement,
     type StyleCounts,
@@ -2227,6 +2229,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
               ];
     /** A reading of the stack, kept while nothing it reads changes (see `readingCache.ts`). */
     const kept = createReadingCache(readingToken);
+    /** The selector answers of one moment, kept apart from the readings: a reading asks for them mid-read. */
+    const keptMatches = createReadingCache(readingToken);
 
     /** One disabled stand-in per element base layer, so a repaint sees the same object each time. */
     const baseStandIns = new WeakMap<CompiledLayer, CompiledLayer>();
@@ -2470,7 +2474,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * What a layer's counts are read from: the stack's own layers, never a branches view's.
      * @returns The sources.
      */
-    const countSources = (): ExplainSources => ({ ...explainSources, stack: () => basePainting(current()) });
+    const countSources = (): ExplainSources => ({
+        ...explainSources,
+        stack: () => basePainting(current()),
+        matches: selectorMatches(),
+    });
+
+    /**
+     * Which elements each selector matches, kept while the reading token stands: the several
+     * readings a panel takes after one filter change test each selector on each element once.
+     * @returns The selector answers of this moment.
+     */
+    const selectorMatches = (): SelectorMatches => keptMatches("selectorMatches", createSelectorMatches);
 
     /** What an explanation, an unbound report and a resolved rule are read from. */
     const explainSources: ExplainSources = {
@@ -4523,7 +4538,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const { below, over } = options;
         // Read through the stack's own layers, never a branches view's: which layer decides a
         // value does not change while a selection is being picked.
-        const read = below === undefined ? countSources() : { ...explainSources, stack: () => stackBelow(below) };
+        const read =
+            below === undefined
+                ? countSources()
+                : { ...explainSources, stack: () => stackBelow(below), matches: selectorMatches() };
+        const matches = read.matches ?? createSelectorMatches();
         if (over === undefined) {
             return styleAgreement(shownElementsOf(scope), read, channel);
         }
@@ -4537,7 +4556,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             indices.filter((index) =>
                 parts.some(
                     ({ layer, selector }) =>
-                        layer.target === target && (selector.test === null || selector.test(index)),
+                        layer.target === target && (selector.test === null || matches(selector.test, index)),
                 ),
             );
         const matched = { nodes: within("node", nodes), edges: within("edge", edges) };

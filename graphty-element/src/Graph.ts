@@ -234,6 +234,7 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter"
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
 import { arrowCapMeshes } from "./meshes/ArrowCapBatch";
+import { edgeDrawPlace } from "./meshes/EdgeLineBatch";
 import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
@@ -6466,10 +6467,20 @@ export class Graph implements GraphContext {
         // Everything else in Babylon's own order, then the map, then the edges' bands, their lines,
         // then the nodes over them (nodes rank with everything else when no map is drawn) -- in the
         // blended pass too over a map, where the edge lines (antialiased) and their outlines are drawn.
+        // edge lines with a draw order (`line.drawOrder`) are drawn lowest first, before those with none
+        // (`stackByDrawOrder`); every other mesh keeps the order it had
+        const lineOrder = (a: AbstractMesh, b: AbstractMesh): number => {
+            const [at, bt] = [edgeDrawPlace(a), edgeDrawPlace(b)];
+            if (at === bt || !this.#edgeMeshes.has(a) || !this.#edgeMeshes.has(b)) {
+                return 0;
+            }
+
+            return at < bt ? -1 : 1;
+        };
         const byRank =
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
-                rank(a.getMesh()) - rank(b.getMesh()) || then(a, b);
+                rank(a.getMesh()) - rank(b.getMesh()) || lineOrder(a.getMesh(), b.getMesh()) || then(a, b);
         const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
         this.scene.setRenderingOrder(
             0,

@@ -307,14 +307,16 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
         assert.isAtMost(during, 4, "the map waited for at most the three frames in flight and the next");
     });
 
-    it("hovers a node with a real pointer on the still scene", async () => {
-        const graph = await open("batched", false, HEAVY);
-        await graph.setLayout("circular");
-        await graph.waitForStableFrame();
-        loadEveryFrame(graph);
-        await drawn(graph, 30);
-        await hoverAndAnswer(graph);
-    });
+    for (const path of ["batched", "objects"] as const) {
+        it(`hovers a node with a real pointer on the still scene under ${path}`, async () => {
+            const graph = await open(path, false, HEAVY);
+            await graph.setLayout("circular");
+            await graph.waitForStableFrame();
+            loadEveryFrame(graph);
+            await drawn(graph, 30);
+            await hoverAndAnswer(graph);
+        });
+    }
 
     it("moves the GPU layout and hovers a node while it runs", async () => {
         const graph = await open("batched", true, HEAVY);
@@ -437,8 +439,10 @@ async function hoverAndAnswer(graph: Graph, moving = false): Promise<void> {
     // Bounded by frames drawn, so an unpaced loop fails here rather than hanging.
     while (selection.hovered === null && ticks.drawn - before <= HOVER_FRAMES) {
         const screen = graph.worldToScreen(node.drawnWorldPosition);
-        await hover(container, { x: screen.x * scaling, y: screen.y * scaling });
+        // Recorded before the move is dispatched: under "objects" the pick is synchronous, so the
+        // answer arrives inside `hover` itself and was dropped as answering no move (issue #9584).
         pointers.push(screen);
+        await hover(container, { x: screen.x * scaling, y: screen.y * scaling });
         await nextFrame();
     }
 

@@ -36,6 +36,7 @@ import { runName } from "../runWords";
 import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
 import { INSPECTOR_EVENTS, useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { useNumberFormats } from "../settings/numberFormat";
+import { NodeJoinButton } from "../source-steps/JoinButton";
 import { type InspectorTab, type ReportPin, tabFor, type WorkspaceState } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FolderPanel } from "../style/FolderPanel";
@@ -726,6 +727,7 @@ export function Inspector(): React.JSX.Element {
                                 </ActionIcon>
                             </Tooltip>
                         )}
+                        <NodeJoinButton id={nodeId} />
                         <NodeHeaderActions id={nodeId} />
                         {menu.length + resultActions.length + attributeActions.length > 0 && (
                             <HeaderMenu

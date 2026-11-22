@@ -331,6 +331,42 @@ describe("session.time: a re-run that fails under results: rerun", () => {
         assert.strictEqual(detail.error.code, "E_INTERNAL");
         session.dispose();
     });
+
+    it("says nothing about a re-run canceled while it runs", async () => {
+        let count = 0;
+        let started!: () => void;
+        const begun = new Promise<void>((resolve) => (started = resolve));
+        const session = createGraphSession({
+            runs: {
+                execute: async (context) => {
+                    count++;
+                    if (count > 1) {
+                        started();
+                        return new Promise<RunOutcome>(() => undefined);
+                    }
+
+                    await Promise.resolve();
+                    return outcome(context);
+                },
+            },
+        });
+        await session.data.import({ type: "csv", config: { data: CSV } });
+        await session.time.setField({ edges: { start: "sent" } });
+        await session.time.setSettings({ results: "rerun" });
+        await session.time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const run = session.runs.start("degree", undefined, { style: false });
+        await run;
+        const failures: unknown[] = [];
+        session.on("time:rerun-failed", (detail) => failures.push(detail));
+        // A step waits for the re-runs it started, so the cancel has been handled once it settles.
+        const stepped = session.time.stepBy(1);
+        await begun;
+        run.cancel();
+        await stepped;
+        assert.strictEqual(run.status, "canceled");
+        assert.deepEqual(failures, []);
+        session.dispose();
+    });
 });
 
 describe("defineLayout: the catalog entry of an ordering option", () => {

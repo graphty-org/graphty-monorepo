@@ -20,6 +20,7 @@ import { RECORD_PATHS } from "./paths";
 import { conflictReport, readableRecord, type StepsOutcome } from "./provenance";
 import { applyRefreshEdit, editStates, missingColumns, type RefreshEdit, type RefreshIssue } from "./refresh";
 import {
+    type Aggregate,
     type BuildResult,
     type BuiltEdge,
     type BuiltNode,
@@ -29,6 +30,7 @@ import {
     READER_SPACE,
     type ReaderOp,
     type RowFateKind,
+    type RowFilter,
     type Source,
     type Step,
     type StepStats,
@@ -89,6 +91,15 @@ export interface StepsSource extends Source {
     readonly declared?: { readonly directed: boolean; readonly statedBy: string };
     /** For a table joined through today's join screen: the join as `data.joins()` lists it. */
     readonly join?: JoinRecord;
+    /**
+     * What reading it recorded, for `sourceTable(id).summary()`: the size in bytes, when it was
+     * read (RFC 3339) and a CSV file's separator. Kept for the session only, never saved.
+     */
+    readonly read?: {
+        readonly size?: number;
+        readonly at?: string;
+        readonly delimiter?: { readonly value: string; readonly detected: boolean };
+    };
 }
 
 /** Sources and steps: what the graph is built from. */
@@ -1000,6 +1011,84 @@ export interface StepRow {
     readonly buckets: StepStats | null;
     /** One `W_VALUES_DIFFER` per column whose values from different sources differ at this step. */
     readonly valuesDiffer: readonly Extract<StepsOutcome, { code: "W_VALUES_DIFFER" }>[];
+    /** The rows it leaves out by one column's values (5.4); null when it leaves none out. */
+    readonly except: RowFilter | null;
+    /** The join act that made it, as `connect` or `merge` would take it again; null for any other step. */
+    readonly act: StepAct | null;
+}
+
+/** A merge or a Make an edge step, read back as the act that makes it (5.2, 7.13). */
+interface StepAct {
+    readonly act: "connect" | "merge";
+    /** Source 2's field, read on its rows. */
+    readonly from: { readonly source: string; readonly field: string };
+    /** Node 1: its space, and the source and field translating to its key when it is not the key. */
+    readonly into:
+        | { readonly space: string; readonly source: string; readonly field: string }
+        | { readonly space: string; readonly source?: undefined; readonly field?: undefined };
+    readonly direction?: "into-from" | "from-into";
+    readonly edgeType?: string;
+    readonly ignoreCase: boolean;
+    readonly ignoreSpaces: boolean;
+    readonly repeated: "first" | "last" | "both" | null;
+    readonly aggregate: Aggregate | null;
+    readonly unmatchedFrom?: "keep" | "drop";
+}
+
+/**
+ * A merge, or an edge step reading node rows, read back as its act: the inverse of `merge` and
+ * `connect` in acts.ts.
+ * @param value - The value.
+ * @param step - The step.
+ * @returns The act, or null for a step no join act makes.
+ */
+function stepAct(value: SourceSteps, step: Step): StepAct | null {
+    const into = (
+        space: string,
+        s: { readonly via?: string; readonly mapping?: { readonly columns: readonly [string, string] } },
+    ): StepAct["into"] =>
+        s.via !== undefined && s.mapping !== undefined
+            ? { space, source: s.via, field: s.mapping.columns[0] }
+            : { space };
+    const shared = {
+        ignoreCase: step.ignoreCase === true,
+        ignoreSpaces: step.ignoreSpaces === true,
+    };
+    if (step.op === "join.merge") {
+        return {
+            act: "merge",
+            from: { source: step.source, field: step.read.key },
+            into: into(step.read.space, step),
+            ...shared,
+            repeated: step.repeated ?? null,
+            aggregate: step.aggregate ?? null,
+            unmatchedFrom: step.unmatchedFrom ?? "keep",
+        };
+    }
+    const src = value.sources[step.source] as Source | undefined;
+    if (
+        step.op !== "join.edges" ||
+        step.read.table !== "nodes" ||
+        step.read.edgeId === undefined ||
+        src === undefined
+    ) {
+        return null;
+    }
+    const { read } = step;
+    const intoFrom = read.target === read.edgeId && read.targetSpace === nodeSpace(src);
+    const edgeType = value.types.find(
+        (t) => t.kind === "edge" && t.rules.some((r) => r.source === step.source && r.part === step.part),
+    )?.name;
+    return {
+        act: "connect",
+        from: { source: step.source, field: intoFrom ? read.source : read.target },
+        into: into(intoFrom ? read.sourceSpace : read.targetSpace, step),
+        direction: intoFrom ? "into-from" : "from-into",
+        ...(edgeType === undefined ? {} : { edgeType }),
+        ...shared,
+        repeated: step.repeated ?? null,
+        aggregate: step.aggregate ?? null,
+    };
 }
 
 /**
@@ -1081,6 +1170,8 @@ export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies
             missing: Object.freeze(missing),
             buckets: result.stats.find((s) => s.step === index) ?? null,
             valuesDiffer: Object.freeze(report.filter((each) => each.params.step === index)),
+            except: step.op === "join.add" || step.except === undefined ? null : step.except,
+            act: stepAct(value, step),
         });
     });
 }
@@ -1092,6 +1183,8 @@ export interface SpaceRow {
     readonly nodes: number;
     /** The sources whose rows built or named its nodes. */
     readonly sources: readonly string[];
+    /** For a source's own space (its rows keyed with no space named): that source. */
+    readonly ownedBy?: string;
 }
 
 /**
@@ -1111,9 +1204,15 @@ export function spaceRows(result: BuildResult): readonly SpaceRow[] {
         n.loads.forEach((s) => row.sources.add(s));
         n.named.forEach((s) => row.sources.add(s));
     }
-    return [...out].map(([space, row]) =>
-        Object.freeze({ space, nodes: row.nodes, sources: Object.freeze([...row.sources]) }),
-    );
+    return [...out].map(([space, row]) => {
+        const ownedBy = [...row.sources].find((id) => ownSpace(id) === space);
+        return Object.freeze({
+            space,
+            nodes: row.nodes,
+            sources: Object.freeze([...row.sources]),
+            ...(ownedBy === undefined ? {} : { ownedBy }),
+        });
+    });
 }
 
 /** One reader operation as `data.edits()` lists it. */

@@ -17,7 +17,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 import type { NodeStyleConfig } from "../config";
 import { pendingWorkOf } from "../managers/PendingWork";
 import { fontFamilies, noteLabelFont } from "./labelFonts";
-import type { LabelTableImage } from "./labelTable";
+import type { LabelTableImage, TableGradient } from "./labelTable";
 import type { MeshCache } from "./MeshCache";
 import {
     boxOf,
@@ -60,7 +60,13 @@ export interface NodeDecorationMetadata {
  * node's half width and half height from its center, y up.
  */
 export interface TableDecoration {
-    readonly fills: readonly { readonly box: PieceBox; readonly color: string }[];
+    /** Each background: its box, its color, its gradient, and a rounded one's outline in the same fractions. */
+    readonly fills: readonly {
+        readonly box: PieceBox;
+        readonly color: string;
+        readonly gradient?: TableGradient;
+        readonly outline?: readonly (readonly [number, number])[];
+    }[];
     readonly image: {
         readonly box: PieceBox;
         readonly image: LabelTableImage;
@@ -456,7 +462,8 @@ function buildColored(pieces: readonly Placed[], z: number, scene: Scene): Mesh 
     const colors: number[] = [];
     pieces.forEach((p, i) => {
         for (let k = 0; k < counts[i]; k++) {
-            colors.push(p.rgb[0], p.rgb[1], p.rgb[2], p.opacity);
+            const rgb = p.vertexRgb?.[k] ?? p.rgb;
+            colors.push(rgb[0], rgb[1], rgb[2], p.opacity);
         }
     });
     const mesh = new Mesh("node-decoration", scene);

@@ -296,6 +296,17 @@ describe("DOT styles: pictures and backgrounds in a table, and a node's own pict
         expect(t.rows[0].cells.map((c) => c.fill)).toEqual(["#4477aa", "#e41a1c", "#000000"]);
     });
 
+    it("carries a gradient BGCOLOR's second color and its GRADIENTANGLE turned clockwise, and STYLE=rounded's radius (n_html3)", async () => {
+        const dot = `digraph { n [shape=plaintext, label=<<TABLE STYLE="rounded" BGCOLOR="#ddffdd:#88cc88" GRADIENTANGLE="90"><TR><TD BGCOLOR="red:blue">a</TD><TD BGCOLOR="pink">b</TD></TR></TABLE>>]; }`;
+        const t = JSON.parse((await byId(dot, "labelTable")).get("n") as string) as Record<string, unknown> & {
+            rows: { cells: Record<string, unknown>[] }[];
+        };
+        expect([t.fill, t.fillGradient, t.fillGradientAngle, t.radius]).toEqual(["#ddffdd", "#88cc88", 270, 12]);
+        const [a, b] = t.rows[0].cells;
+        expect([a.fill, a.fillGradient, a.fillGradientAngle, a.radius]).toEqual(["#ff0000", "#0000ff", 0, undefined]);
+        expect([b.fill, b.fillGradient]).toEqual(["#ffc0cb", undefined]);
+    });
+
     it("carries a node's image, imagescale and imagepos", async () => {
         const props = ["image", "imageFit", "imageWidth", "imageHeight", "imageAutoSize"];
         const pos = ["imagePositionX", "imagePositionY"];

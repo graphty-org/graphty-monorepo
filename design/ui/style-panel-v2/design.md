@@ -131,8 +131,9 @@ Row: `[<> name] [main] [-] [...]`.
   which opens the popover. Nothing is dimmed for it.
 - **Bound**: a main value bound to data draws on the row as the field with the column name as its value, with no
   glyph of its own; no pill, no summary line. Its Stop varying button (the existing detach glyph, `GLYPHS.unlink`,
-  E355) and its link live on Main's first line in the popover (2.6). Pressing "=" in a field opens the value
-  picker (a key, not a button).
+  E355) and its link live on Main's first line in the popover (2.6), because the row's trailing slot already holds
+  "..."; a line under a row has its second trailing slot free, so it carries them on the line (2.5). Pressing "="
+  in a field opens the value picker (a key, not a button).
 - **Hover**: hovering a row does nothing on the graph (E181), and there is no setting for it.
 
 ### 2.5 Lines under a row

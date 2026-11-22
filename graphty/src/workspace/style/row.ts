@@ -663,7 +663,8 @@ export function propose(
         // The panel varies a list by data as a whole; its items have no from-data control.
         throw new Error(`${channel} is one item of a list, which varies by data only as a whole`);
     }
-    // The element takes a channel and an address (a shader parameter's, a further label field's) in two spec shapes.
+    // The two arms run the same call; they are split only so TypeScript narrows `channel` to one
+    // spec shape each (a plain channel, or a shader parameter's or further label field's address).
     if (isShaderParam(channel) || isLabelField(channel)) {
         return session.styles.proposeEncoding({ ...spec, channel });
     }

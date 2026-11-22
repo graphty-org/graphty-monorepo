@@ -1330,6 +1330,12 @@ export interface PaintedBand extends PaintedOutline {
      * straight and runs between its `ends`.
      */
     route?: Pt[];
+    /**
+     * How far apart its pieces are along it, where the band is drawn in pieces: a program that draws only whole pieces
+     * (Cytoscape desktop's arrows and slashes) stops the line up to this far short of where it ends. Absent for a band
+     * of one outline.
+     */
+    piece?: number;
 }
 
 /**
@@ -1394,7 +1400,9 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
             return [x + 2 * c * u[1], y - 2 * c * u[0]];
         },
     });
-    const result = { ...patternResult(dashClass, width, box), ends, across: spread };
+    const order = subpaths.map((q) => q.reduce((t, p) => t + alongOf(p), 0) / q.length).sort((a, b) => a - b);
+    const piece = median(order.slice(1).map((a, i) => a - order[i]));
+    const result = { ...patternResult(dashClass, width, box), ends, across: spread, piece };
     // A straight band reaches across its axis as far as one of its pieces does; one that reaches twice as far bends,
     // and is routed through its pieces' centers, in order along it, its ends the end pieces' centers carried out along
     // the axis to the band's ends.

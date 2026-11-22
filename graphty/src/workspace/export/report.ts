@@ -150,7 +150,7 @@ function paramsWords(params: Readonly<Record<string, unknown>>): string {
  */
 function methodLines(session: GraphSession, record: RunRecord): string[] {
     const { engine, scope } = record;
-    const plugins = Object.entries(engine.plugins ?? {}).map(([key, version]) => `, ${key} ${version}`);
+    const versions = Object.entries(engine.packages).map(([name, version]) => `${name} ${version}`);
     return [
         `### ${runName(session, record)}`,
         "",
@@ -162,7 +162,7 @@ function methodLines(session: GraphSession, record: RunRecord): string[] {
         ...(record.durationMs === null ? [] : [`- Took: ${formatNumber(Math.round(record.durationMs))} ms`]),
         ...(record.partial ? ["- Stopped early"] : []),
         ...(record.stale === null ? [] : ["- The data has changed since"]),
-        `- Versions: graphty-element ${engine.element}, algorithms ${engine.algorithms}, layout ${engine.layout}${plugins.join("")}`,
+        `- Versions: ${versions.join(", ")}`,
         "",
     ];
 }

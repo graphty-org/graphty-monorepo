@@ -130,7 +130,12 @@
                                                             }
                                                         }
                                                     ],
-                                                    "unevaluatedProperties": false
+                                                    "unevaluatedProperties": false,
+                                                    "allOf": [
+                                                        {
+                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                                        }
+                                                    ]
                                                 }
                                             },
                                             {
@@ -186,10 +191,19 @@
                                                         },
                                                         "dtypes": {
                                                             "type": "object",
-                                                            "description": "The graph-format dtype each column in columns is declared with, read as a copy's cells are, so a number written as its string form reads back as a number.",
+                                                            "description": "The dtype (builtins.md \"Column dtypes\") each column in columns is declared with, read as a copy's cells are, so a number written as its string form reads back as a number.",
                                                             "additionalProperties": {
-                                                                "type": "string",
-                                                                "minLength": 1
+                                                                "enum": [
+                                                                    "f32",
+                                                                    "f64",
+                                                                    "i32",
+                                                                    "u32",
+                                                                    "u8",
+                                                                    "bool",
+                                                                    "dict",
+                                                                    "string",
+                                                                    "json"
+                                                                ]
                                                             }
                                                         }
                                                     },
@@ -218,7 +232,12 @@
                                                             }
                                                         }
                                                     ],
-                                                    "unevaluatedProperties": false
+                                                    "unevaluatedProperties": false,
+                                                    "allOf": [
+                                                        {
+                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                                        }
+                                                    ]
                                                 }
                                             },
                                             {
@@ -268,7 +287,12 @@
                                                             }
                                                         }
                                                     ],
-                                                    "unevaluatedProperties": false
+                                                    "unevaluatedProperties": false,
+                                                    "allOf": [
+                                                        {
+                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                                        }
+                                                    ]
                                                 }
                                             }
                                         ],
@@ -285,7 +309,12 @@
                     },
                     "required": ["id", "kind", "origin", "copy"],
                     "description": "The reader's own changes, as operations in the order made, applied after the join steps and the conversions. Always embedded, at most one. Any other member holds the data section.",
-                    "unevaluatedProperties": false
+                    "unevaluatedProperties": false,
+                    "allOf": [
+                        {
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                        }
+                    ]
                 },
                 "else": {
                     "type": "object",
@@ -302,25 +331,72 @@
                             "not": {
                                 "const": "reader"
                             },
-                            "description": "file, url, network, sample, derived (an open vocabulary: an unknown kind holds the data section)."
+                            "description": "An open vocabulary: file, url, network, sample, derived, or a reverse-domain kind such as org.example.cypher. A source of a kind the reader does not know is built from its copy when embedded, and held when referenced."
                         },
                         "format": {
                             "type": "string",
-                            "minLength": 1
+                            "minLength": 1,
+                            "description": "The id of the format that parses the bytes (builtins.md \"Formats\"). Absent, the bytes are recognized as a load with no format recognizes them. A network source has none: its request is in origin.ledger."
                         },
                         "options": {
                             "type": "object",
                             "properties": {
+                                "delimiter": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 1
+                                },
+                                "missing": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "pointer": {
+                                    "type": "string",
+                                    "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                                },
+                                "sheet": {
+                                    "type": "string"
+                                },
+                                "graphIndex": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                },
+                                "graphName": {
+                                    "type": "string"
+                                },
+                                "errorLimit": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                },
                                 "styles": {
                                     "enum": ["file", "none"],
                                     "description": "Whether the load drew the file's own styles, which decides the columns its read makes."
                                 },
                                 "styleOptions": {
                                     "type": "object",
+                                    "properties": {
+                                        "lengths": {
+                                            "enum": ["median", "file", "spacing"]
+                                        },
+                                        "labelSizes": {
+                                            "enum": ["proportional", "file"]
+                                        },
+                                        "toolDefaults": {
+                                            "type": "boolean"
+                                        },
+                                        "imageBaseUrl": {
+                                            "type": "string",
+                                            "format": "uri"
+                                        }
+                                    },
+                                    "additionalProperties": false,
                                     "description": "How the load turned the file's styles into columns and layers."
                                 }
                             },
-                            "description": "The parser options the source is read with, the style choices included. Open: a reader holds the section when a key is one its parser does not read."
+                            "additionalProperties": false,
+                            "description": "The parse options the source is read with (builtins.md, Parse options), the style choices included. Closed; which format reads which name is builtins.md's. A name this reader does not read fails only this source's refresh, never the section."
                         },
                         "origin": {
                             "type": "object",
@@ -371,12 +447,10 @@
                                     "description": "The credential slot's name, never a secret."
                                 },
                                 "ledger": {
-                                    "type": "object",
-                                    "description": "graphty-element's SourceLoadRecord, its key set to the source id: the request history a refresh replays.",
-                                    "required": ["key", "source", "version"]
+                                    "$ref": "#/$defs/ledger"
                                 }
                             },
-                            "description": "copy, plus per kind: file name, size, media type and path; url address, size, media type, etag and lastModified; network exactly url, credentials, etag, lastModified and ledger; sample dataset and version."
+                            "description": "copy, plus per kind: file name, size, media type and path; url address, size, media type, etag and lastModified; network exactly url, credentials and ledger; sample dataset and version."
                         },
                         "mapping": {
                             "type": "object",
@@ -475,7 +549,12 @@
                                         "space": ["key"]
                                     },
                                     "description": "graphty-element's TableMapping for the node table. An absent role means none; without key every node row is keyless, in the space source:<source id>.",
-                                    "unevaluatedProperties": false
+                                    "unevaluatedProperties": false,
+                                    "allOf": [
+                                        {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                        }
+                                    ]
                                 },
                                 "edges": {
                                     "type": "object",
@@ -540,11 +619,21 @@
                                     },
                                     "required": ["source", "sourceSpace", "target", "targetSpace"],
                                     "description": "graphty-element's TableMapping for the edge table. sourceSpace and targetSpace are always written. Without edgeId, or for a row whose edge-id cell is null or empty, the edge is keyless.",
-                                    "unevaluatedProperties": false
+                                    "unevaluatedProperties": false,
+                                    "allOf": [
+                                        {
+                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                        }
+                                    ]
                                 }
                             },
                             "description": "Closed. Every role is a working column name.",
-                            "unevaluatedProperties": false
+                            "unevaluatedProperties": false,
+                            "allOf": [
+                                {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                }
+                            ]
                         },
                         "settings": {
                             "type": "object",
@@ -559,7 +648,12 @@
                                 }
                             },
                             "description": "Closed: the per-load choices only. An absent member means its default.",
-                            "unevaluatedProperties": false
+                            "unevaluatedProperties": false,
+                            "allOf": [
+                                {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                }
+                            ]
                         },
                         "annotations": {
                             "type": "object"
@@ -620,8 +714,18 @@
                                             "minLength": 1
                                         },
                                         "dtype": {
-                                            "type": "string",
-                                            "minLength": 1
+                                            "enum": [
+                                                "f32",
+                                                "f64",
+                                                "i32",
+                                                "u32",
+                                                "u8",
+                                                "bool",
+                                                "dict",
+                                                "string",
+                                                "json"
+                                            ],
+                                            "description": "builtins.md \"Column dtypes\": how the copy's cells are read."
                                         },
                                         "unset": {
                                             "type": "array",
@@ -631,10 +735,10 @@
                                             }
                                         }
                                     },
-                                    "description": "A graph-format ColumnDecl, keyed by working name, plus unset for a json column. Rebuild and re-export input only."
+                                    "description": "A column declaration, keyed by working name: name, dtype (builtins.md \"Column dtypes\"), nullable, and unset for a json column. Rebuild and re-export input only."
                                 }
                             },
-                            "description": "graph-format ColumnDecls grouped by table, { nodes: { <working name>: decl }, edges: { ... } }: as the copy is for an embedded source; for a referenced one, what an open checks the rows it reads again against."
+                            "description": "Column declarations grouped by table, { nodes: { <working name>: decl }, edges: { ... } }: as the copy is for an embedded source; for a referenced one, what an open checks the rows it reads again against."
                         },
                         "loaded": {
                             "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
@@ -669,13 +773,34 @@
                             },
                             "then": {
                                 "properties": {
+                                    "format": false,
+                                    "options": false,
                                     "origin": {
-                                        "propertyNames": {
-                                            "enum": ["copy", "url", "credentials", "etag", "lastModified", "ledger"]
+                                        "allOf": [
+                                            {
+                                                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                            }
+                                        ],
+                                        "if": {
+                                            "not": {
+                                                "required": ["ignorable"]
+                                            }
+                                        },
+                                        "then": {
+                                            "propertyNames": {
+                                                "enum": ["copy", "url", "credentials", "ledger", "extensions"]
+                                            }
+                                        },
+                                        "properties": {
+                                            "etag": false,
+                                            "lastModified": false
                                         }
                                     }
                                 }
                             }
+                        },
+                        {
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
                         }
                     ],
                     "unevaluatedProperties": false
@@ -729,7 +854,12 @@
                                 "column": ["values"],
                                 "values": ["column"]
                             },
-                            "unevaluatedProperties": false
+                            "unevaluatedProperties": false,
+                            "allOf": [
+                                {
+                                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                                }
+                            ]
                         },
                         "minItems": 1
                     },
@@ -768,6 +898,9 @@
                                 }
                             }
                         }
+                    },
+                    {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
                     }
                 ],
                 "unevaluatedProperties": false
@@ -941,6 +1074,171 @@
                     }
                 }
             }
+        }
+    },
+    "$defs": {
+        "ledger": {
+            "type": "object",
+            "description": "A network source's request history, the only member a refresh reads (spec 4.1.2 rule 7). Closed, with the closed-object slots at its top level only; no time of its own, no counts and no credential identity.",
+            "required": ["source", "sourceVersion", "endpoint", "params", "pages", "next", "validators", "expansions"],
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "The driver id: url, rest, openalex, ..."
+                },
+                "sourceVersion": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "endpoint": {
+                    "type": ["string", "null"],
+                    "description": "The origin and path, or null for the source's default."
+                },
+                "params": {
+                    "type": "object",
+                    "description": "The source's params, a REST mapping included, without what marks a credential."
+                },
+                "limits": {
+                    "type": "object",
+                    "properties": {
+                        "maxNodes": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "maxEdges": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "maxBytes": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "maxRequests": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "timeoutMs": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "pages": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "next": {
+                    "$ref": "#/$defs/cursor"
+                },
+                "validators": {
+                    "$ref": "#/$defs/validators"
+                },
+                "expand": {
+                    "type": "object",
+                    "properties": {
+                        "depth": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 10
+                        },
+                        "direction": {
+                            "enum": ["out", "in", "both"]
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "relationshipTypes": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "layout": {
+                            "enum": ["continue", "none"]
+                        }
+                    },
+                    "additionalProperties": false,
+                    "description": "The load's expand behavior, never a trigger."
+                },
+                "expansions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/expansion"
+                    },
+                    "description": "In order: an expansion's position is its identity."
+                }
+            },
+            "allOf": [
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                }
+            ],
+            "unevaluatedProperties": false
+        },
+        "cursor": {
+            "type": ["object", "null"],
+            "description": "An opaque cursor that never holds a credential, or null."
+        },
+        "validators": {
+            "type": "object",
+            "properties": {
+                "etag": {
+                    "type": "string"
+                },
+                "lastModified": {
+                    "type": "string"
+                },
+                "modified": {
+                    "type": "string"
+                },
+                "serverVersion": {
+                    "type": "string"
+                },
+                "contentHash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                }
+            },
+            "additionalProperties": false
+        },
+        "expansion": {
+            "type": "object",
+            "required": ["seeds", "depth", "direction", "at", "next", "validators"],
+            "properties": {
+                "seeds": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
+                    }
+                },
+                "depth": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10
+                },
+                "direction": {
+                    "enum": ["out", "in", "both"]
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "at": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
+                },
+                "next": {
+                    "$ref": "#/$defs/cursor"
+                },
+                "validators": {
+                    "$ref": "#/$defs/validators"
+                }
+            },
+            "additionalProperties": false
         }
     }
 }

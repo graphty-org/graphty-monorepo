@@ -92,9 +92,9 @@ const ZOOM_STEP_FACTOR = 1.25;
 const MAP_CLEARANCE = 1e-4;
 
 import { measureBounds } from "./camera/bounds.js";
-import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
 import { cameraRefusal, stateProblem } from "./camera/mode.js";
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE, orbitAnglesToPosition } from "./camera/orbit.js";
 import { orientationOf } from "./camera/orientation.js";
 import type { GraphOverview, OverviewOptions } from "./camera/overview.js";
 import { presetsOf, type SkippedPreset, splitPresetImport } from "./camera/presets.js";
@@ -185,6 +185,7 @@ import {
 import { attachRegionGesture } from "./input/RegionSelectGesture";
 import { FixedLayout } from "./layout/FixedLayoutEngine";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
+import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import {
     type AddEdgesOptions,
     AlgorithmManager,
@@ -1170,11 +1171,10 @@ export class Graph implements GraphContext {
     private readonly drawsOnDemand = (): boolean =>
         this.viewSettings.behavior.rendering?.onDemand ?? onDemandWhenUnset();
     /**
-     * Whether the render loop flushes after each frame's WebGL fence, and keeps one WebGPU frame in
-     * flight: only under renderPath "batched". Its frames are short enough that waiting for the
-     * browser's own flush set their floor, and its million-row frames are long enough on the GPU
-     * that unpaced WebGPU frames queued minutes of work ahead of every readback. Asked each frame,
-     * so a live path change takes effect on the next one.
+     * Whether the render loop flushes after each frame's WebGL fence and rests between layout
+     * landings: only under renderPath "batched", whose frames are short enough that waiting for the
+     * browser's own flush set their floor. (WebGPU frames in flight are bounded on every path.)
+     * Asked each frame, so a live path change takes effect on the next one.
      * @returns True under renderPath "batched".
      */
     readonly #batchedFrames = (): boolean => this.#renderPath === "batched";
@@ -1366,7 +1366,6 @@ export class Graph implements GraphContext {
             drawsOnDemand: this.drawsOnDemand,
             restsBetweenLandings: this.#batchedFrames,
             flushesFrameFence: this.#batchedFrames,
-            pacesWebGpuFrames: this.#batchedFrames,
             antialias: this.#multisampled,
             antialiasAtRest: this.#antialiasAtRest,
             preserveDrawingBuffer: this.preserveDrawingBuffer,
@@ -1670,16 +1669,19 @@ export class Graph implements GraphContext {
                 }
                 return this.getCameraState();
             },
-            move: (command) =>
-                this.setCameraState(
-                    command.preset === undefined
+            move: (command) => {
+                const state =
+                    command.camera === undefined
                         ? {
                               ...(command.position === undefined ? {} : { position: { ...command.position } }),
                               ...(command.target === undefined ? {} : { target: { ...command.target } }),
                           }
-                        : { preset: command.preset },
+                        : { ...command.camera };
+                return this.setCameraState(
+                    command.preset === undefined ? state : { preset: command.preset },
                     command.animate === true ? { animate: true } : undefined,
-                ),
+                );
+            },
             state: () => this.getCameraState(),
         };
 
@@ -1774,6 +1776,10 @@ export class Graph implements GraphContext {
             },
             immersive: (mode) => this.setImmersive(mode),
             followsFilters: () => this.followsShown(workingGraphOfSession(this.session)),
+            accelerator: () => {
+                const engine = this.layoutManager.layoutEngine;
+                return engine instanceof SimulationLayoutEngine ? engine.accelerator : "cpu";
+            },
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;
@@ -2752,7 +2758,6 @@ export class Graph implements GraphContext {
             drawsOnDemand: this.drawsOnDemand,
             restsBetweenLandings: this.#batchedFrames,
             flushesFrameFence: this.#batchedFrames,
-            pacesWebGpuFrames: this.#batchedFrames,
             antialiasAtRest: this.#antialiasAtRest,
         });
         this.engine = this.renderManager.engine;
@@ -10971,9 +10976,7 @@ export class Graph implements GraphContext {
         checkAiConfig(config);
 
         // Dynamically import to avoid loading AI code when not needed
-        const { AiManager, assistantXr, loadEncryptStorage } = await import("./ai/AiManager");
-        // Its key manager restores persisted keys as it is built, so the store's package loads first.
-        await loadEncryptStorage();
+        const { AiManager, assistantXr } = await import("./ai/AiManager");
 
         // The in-browser provider loads asynchronously, and only when it is picked. Built before
         // the old assistant goes, so a missing package leaves the current one in place.
@@ -11453,35 +11456,32 @@ export class Graph implements GraphContext {
         const { provider, prefix } = options;
         const keys =
             this.getApiKeyManager() ?? (await Graph.createApiKeyManager(prefix === undefined ? {} : { prefix }));
-        if (provider === undefined) {
-            keys.forgetKeys();
-        } else {
-            keys.forgetKey(provider);
-        }
+        await (provider === undefined ? keys.forgetKeys() : keys.forgetKey(provider));
     }
 
     /**
      * Create a standalone ApiKeyManager for key management without enabling AI.
      * Useful for settings UIs that configure keys before AI activation.
      *
-     * ASYNCHRONOUS, AND THE REASON IS THE BUNDLE. The key store encrypts what it persists, so it
-     * imports `encrypt-storage`. This method used to construct one directly, which made that a
-     * STATIC import of `Graph` -- and `Graph` is what the root entry point pulls in. The result
-     * was that an encryption library shipped to every consumer who drew a graph and never touched
-     * the AI layer, which is exactly what the separate `./ai` entry point exists to prevent. The
-     * entry point's own comment claimed no such cost; for the three LLM SDKs that was true, and
-     * for this one it was not.
+     * Asynchronous for two reasons. The key store lives behind the `./ai` entry point, so this
+     * method imports it dynamically rather than making it a static import of `Graph`, which the
+     * root entry point pulls in for every consumer who draws a graph. And the store restores keys
+     * an earlier page saved with Web Crypto, which is asynchronous: the returned manager has
+     * finished that restore.
      *
      * A consumer who wants it synchronously imports `ApiKeyManager` from
-     * `@graphty/graphty-element/ai` and constructs it themselves -- which is the honest shape,
-     * because they are then choosing to load the encryption library.
+     * `@graphty/graphty-element/ai`, constructs it, and awaits `ready()` before reading keys.
+     *
+     * Keys saved without an `encryptionKey` are only obscured, not encrypted: anyone with access
+     * to the page or the browser profile can read them. Use `enablePersistenceWithPassphrase` with
+     * a passphrase the reader types.
      * @param options - Where persisted keys live
      * @returns A new ApiKeyManager instance
      * @example
      * ```typescript
      * // In a settings UI component
      * const keyManager = await Graph.createApiKeyManager();
-     * keyManager.enablePersistence({
+     * await keyManager.enablePersistence({
      *   encryptionKey: userSecret,
      *   storage: 'localStorage',
      * });
@@ -11489,10 +11489,10 @@ export class Graph implements GraphContext {
      * ```
      */
     static async createApiKeyManager(options?: import("./ai/keys").ApiKeyManagerOptions): Promise<ApiKeyManager> {
-        const { ApiKeyManager: KeyManager, loadEncryptStorage } = await import("./ai/keys");
-        await loadEncryptStorage();
-
-        return new KeyManager(options);
+        const { ApiKeyManager: KeyManager } = await import("./ai/keys");
+        const manager = new KeyManager(options);
+        await manager.ready();
+        return manager;
     }
 
     // ===========================================

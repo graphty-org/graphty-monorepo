@@ -291,6 +291,11 @@ function groupRegionPaint(meshKey: string, style: NodeStyleConfig): { meshKey: s
 interface NodeOpts {
     /** Whether dropping the node after a drag pins it in place; defaults to true. */
     pinOnDrag?: boolean;
+    /**
+     * When the node arrived, by `performance.now()`, for a `Node` built for a row stored earlier;
+     * now when absent.
+     */
+    arrivedAt?: number;
 }
 
 /** Writes a node's row; see {@link placeNodeRow}. */
@@ -1045,6 +1050,10 @@ export class Node implements ModelUser {
         this.id = nodeId;
         this.opts = opts;
         this.#record = frozenRecord(data);
+        // A node arriving in a graph already drawing shaders plays the entrances it starts with:
+        // noted before it is drawn, since the first draw decides them (on "batched" it can draw a
+        // shader below), and again at the end for a drawing its own draw made.
+        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this, opts.arrivedAt);
 
         this.meshKey = paint.meshKey;
 
@@ -1089,8 +1098,7 @@ export class Node implements ModelUser {
 
         NodeBehavior.addDefaultBehaviors(this, this.opts);
 
-        // A node arriving in a graph already drawing shaders plays the entrances it starts with.
-        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this);
+        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this, this.opts.arrivedAt);
     }
 
     /**
@@ -1203,8 +1211,10 @@ export class Node implements ModelUser {
         // decided the zoom: the same file drew two pictures. The cameras' fit padding covers the
         // few pixels.
         const reach = this.sceneBorderReach;
+        // In single precision, as the row table holds a batched row's half extents: counted in double, a graph
+        // loaded as objects framed its camera a float's step from the same graph loaded batched (issue #9626).
         const along = (axis: "x" | "y" | "z", grown: number): number =>
-            ((box.extendSize[axis] * Math.abs(scale[axis])) / grown + reach) * Math.abs(root?.[axis] ?? 1);
+            Math.fround((box.extendSize[axis] * Math.abs(scale[axis])) / grown + reach) * Math.abs(root?.[axis] ?? 1);
         const half = new Vector3(along("x", far), along("y", far), along("z", 1));
         return { min: box.centerWorld.subtract(half), max: box.centerWorld.add(half) };
     }

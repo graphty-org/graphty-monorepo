@@ -666,6 +666,13 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     technicalName?: string;
     /** The kind of control the option asks for. */
     type: OptionType;
+    /**
+     * The names this option was known by before. A saved file's value under one is read as this
+     * option (spec/README.md 10.1); a former name is never given to another option of the same
+     * owner. Absent when it was never renamed.
+     * @since 3.40.0
+     */
+    formerNames?: readonly string[];
     /** The value used when the option is left out. Absent when there is none. */
     default?: unknown;
     /**
@@ -1799,6 +1806,20 @@ export type StyleDocumentRow = (
 // The catalog descriptors
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * A key a descriptor replaces, with the parameters that reproduce what that key used to do.
+ *
+ * The parameters are what makes this a rename rather than an alias: `scc` does not become
+ * `components`, it becomes `components` run with `{ strength: "strong" }`, and a reader that
+ * forgets the second half silently computes the wrong answer.
+ */
+export interface LegacyAlgorithmKey {
+    /** The key that was replaced, with no namespace. */
+    readonly key: string;
+    /** The parameters that reproduce what the old key did. Absent when only the key changed. */
+    readonly params?: Readonly<Record<string, unknown>>;
+}
+
 /** One algorithm the element can run. */
 export interface AlgorithmDescriptor {
     /** The key a run names the algorithm by, such as `"pagerank"`. */
@@ -1819,6 +1840,13 @@ export interface AlgorithmDescriptor {
      * @since 3.55.0
      */
     descriptionId?: string;
+    /**
+     * The keys this algorithm was known by before, each with the parameters that reproduce it. A
+     * saved file naming one opens as this algorithm (spec/README.md 10.1); a former key is never
+     * given to another algorithm. Absent when it was never renamed.
+     * @since 3.40.0
+     */
+    formerKeys?: readonly LegacyAlgorithmKey[];
     /** The kind of question the algorithm answers. Open union: an extension may name its own. */
     category: "centrality" | "community" | "path" | "flow" | "structure" | "prediction" | (string & {});
     /**

@@ -8,6 +8,7 @@
 import { sha256HexSync } from "@graphty/graph-io";
 
 import { GraphtyError } from "../../errors/GraphtyError";
+import { keylessEdgeKeys } from "../sources/rowKeys";
 import { oldLookColumns } from "../styles/fileStyles/oldLooks";
 import { DTYPES } from "./basics";
 import { canonicalJson as sharedCanonicalJson } from "./codecs/dataRefs";
@@ -638,11 +639,14 @@ export function migrateData(inputs: DataInputs): MigratedData {
     const config = isObject(session?.config) && isObject(session.config.data) ? session.config.data : {};
     const fields = isObject(config.knownFields) ? config.knownFields : {};
     const { mapping, edgeId } = mappingOf(fields, { nodes: nodeTable.table, edges: edgeTable.table }, space);
-    // A keyless row's key is `<copy id>#<row>`; rows are in version 1 order, so row is position.
-    const edgeKeys = edgeRows.map((row, at) => {
-        const id = edgeId === undefined ? undefined : row.values[edgeId];
-        return id === null || id === undefined || id === "" ? `${copyId}#${String(at)}` : keyText(id);
-    });
+    // A keyless row's key is `<from>|<to>#<n>`, counted over the version 1 links in order (spec 6.1).
+    const keyless = keylessEdgeKeys(
+        edgeRows.map((row) => row.values),
+        { source: String(mapping.edges.source), target: String(mapping.edges.target), edgeId },
+    );
+    const edgeKeys = edgeRows.map(
+        (row, at) => keyless[at] ?? keyText(edgeId === undefined ? undefined : row.values[edgeId]),
+    );
     const refs: EdgeRef[] = edgeKeys.map((key) => ({ load: source, key }));
     const { types, rowTypes } = typesOf(nodeRows, source, inputs);
 

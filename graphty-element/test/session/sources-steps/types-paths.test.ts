@@ -167,9 +167,7 @@ describe("reduced edges (3.8)", () => {
         const [e] = edgesOf(r);
         assert.deepEqual(readPath(e, "_source.loads"), [t, b]);
         assert.equal(readPath(e, "graphty.weight"), 15);
-        assert.deepEqual(lineage(r, { load: t, key: e.key })?.aliases, [
-            { load: b, key: `${f.sources[b].origin.copy}#0` },
-        ]);
+        assert.deepEqual(lineage(r, { load: t, key: e.key })?.aliases, [{ load: b, key: "acct-7|m-3#1" }]);
     });
 
     it("spans an extracted edge reduced from several rows over their times", () => {

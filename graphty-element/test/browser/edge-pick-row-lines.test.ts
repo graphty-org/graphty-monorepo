@@ -530,18 +530,20 @@ describe("the work of a plain edge pick on batched", () => {
                     });
                 };
                 const sent = (): number => target.counts.wholeReads + target.counts.wholePending;
+                // Not every pan draws the target again (a frame may skip it), so pan until five pans in a row send no
+                // read, counting the reads sent on the way.
                 const first = sent();
-                for (let i = 0; i < 70; i++) {
+                let stopped = first;
+                let quiet = 0;
+                for (let i = 0; i < 300 && quiet < 5; i++) {
                     await panned();
+                    await wholeBack();
+                    quiet = sent() === stopped ? quiet + 1 : 0;
+                    stopped = sent();
                 }
-                await wholeBack();
-                const stopped = sent();
                 assert.isAbove(stopped, first, "changed frames are read while elementAt asked lately");
                 assert.isAtMost(stopped - first, 61, "at most 60 reads after the last question");
-                for (let i = 0; i < 5; i++) {
-                    await panned();
-                }
-                assert.strictEqual(sent(), stopped, "then changed frames are read no more");
+                assert.strictEqual(quiet, 5, "then changed frames are read no more");
             },
         );
     }

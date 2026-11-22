@@ -1,5 +1,5 @@
 /**
- * The Data page's less travelled paths on the REAL graphty-element: files handed to the page
+ * The Data page's less traveled paths on the REAL graphty-element: files handed to the page
  * while it is open, a replace that carries the replaced load's weight meaning, a source with no
  * name, choices taken back (Leave out, Auto separator, Import styles), unmatched ends read from
  * number ids and a table with no rows. Every count asserted is one the element reports.

@@ -140,6 +140,8 @@ interface Entry {
     readonly ref: string;
     /** The `node.texture` its template is built with. */
     readonly image?: string;
+    /** The model's pictures it is built without. */
+    readonly hidden: readonly string[];
     template: ModelTemplate | null;
     readonly users: Set<ModelUser>;
     /** The shape block that first asked for it, to load again after a part is supplied. */
@@ -189,8 +191,7 @@ export function optionsOf(
     look: ModelLook = {},
 ): TemplateOptions {
     const asked = shape.modelSourceUp ?? "detected";
-    // glTF's loader converts +Y up itself; an STL is taken as Z up, Gaussian splats as Y down,
-    // OBJ and other PLYs as Y up.
+    // glTF's loader converts +Y up itself; an STL is taken as Z up, OBJ and PLY as Y up.
     const detected = upAxis === "unknown" ? "y" : upAxis;
     return {
         up: asked === "detected" ? detected : asked,
@@ -305,6 +306,8 @@ export class ModelCache {
     private readonly entries = new Map<string, Entry>();
     private readonly status = new Map<string, RefStatus>();
     private readonly queue: (() => Promise<void>)[] = [];
+    /** Stops the loads under way when the cache goes with its scene: a slow model holds no load slot. */
+    private readonly stopped = new AbortController();
     private running = 0;
     private readonly dirty = new Set<Entry>();
     private flushScheduled = false;
@@ -418,12 +421,16 @@ export class ModelCache {
             return null;
         }
 
-        const key = JSON.stringify([keyOf(shape, look), image ?? null]);
+        // The pictures the model's own settings draw it without (`assets.setDefaults`).
+        // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
+        const hidden = this.session.assets.find(ref)?.defaults?.hiddenTextures ?? [];
+        const key = JSON.stringify([keyOf(shape, look), image ?? null, hidden]);
         let entry = this.entries.get(key);
         if (entry === undefined) {
             entry = {
                 key,
                 ref,
+                hidden,
                 ...(image === undefined || image === "" ? {} : { image }),
                 template: null,
                 shape,
@@ -630,7 +637,15 @@ export class ModelCache {
             this.settle(ref, "accepted", [...record.problems]);
             try {
                 const files = this.session.assets.files(record.id);
-                const container = await loadModel(this.scene, files, record.path ?? "", record.format, record.skipped);
+                const container = await loadModel(
+                    this.scene,
+                    files,
+                    record.path ?? "",
+                    record.format,
+                    record.skipped,
+                    entry.hidden,
+                    this.stopped.signal,
+                );
                 const chunk = await loadChunk();
                 entry.template = await chunk.prepareTemplate(
                     this.scene,
@@ -653,6 +668,10 @@ export class ModelCache {
 
                 this.requestRepaint(entry);
             } catch (error) {
+                if (this.stopped.signal.aborted) {
+                    // Stopped with the scene: there is nothing left to tell.
+                    return;
+                }
                 const fact =
                     error instanceof ModelLoadFailure
                         ? error.fact
@@ -982,8 +1001,9 @@ export class ModelCache {
         }
     }
 
-    /** Free every template and stop listening. */
+    /** Free every template, stop every load under way and stop listening. */
     private dispose(): void {
+        this.stopped.abort();
         this.unwatch();
         this.unwatchSupplied();
         this.unwatchAllowed();

@@ -6,6 +6,7 @@ import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
 import type { AiSource } from "./ai/conversation/snapshot";
 import type { AiPointing } from "./ai/tools/prompt";
+import type { TourEndReason } from "./camera/tour";
 import type { AiHostedToolId, AiResultCode, AiResultParams, AiTarget } from "./catalog/ai";
 import type { EdgeId, FormatId, NodeId } from "./catalog/types";
 import type { NodeIdType } from "./config";
@@ -51,28 +52,8 @@ export type EdgeEventType = EdgeEvent["type"];
 /** The name of an event the AI assistant emits. OPEN UNION: event names may be added in a minor release. */
 export type AiEventType = AiEvent["type"];
 
-/**
- * Event names graphty-element still emits with no declared event type. Each is forwarded to the
- * DOM as before, as a plain `Event` to a TypeScript listener, and none can be subscribed through
- * `graph.on`. They wait on the next major release (issue #1577), which stops forwarding the six
- * input bookkeeping events and gives `layout-updated` its own name back: today its payload's
- * `type: "incremental"` overwrites the name, so it actually arrives as an event named
- * `incremental`.
- *
- * Listed here only so the element's own emit sites still compile; a new name does not belong here.
- * @internal
- */
-export type UndeclaredEventType =
-    | "layout-updated"
-    | "input-initialized"
-    | "input-config-updated"
-    | "input-pointer-lock-changed"
-    | "input-recording-started"
-    | "input-recording-stopped"
-    | "input-playback-completed";
-
 /** Every name the element's own emitter accepts: see `EventManager.emit`. */
-export type EmittableEventType = GraphEventType | AiEventType | UndeclaredEventType;
+export type EmittableEventType = GraphEventType | AiEventType;
 
 /** Every event about the graph as a whole: its data, layout, camera, rendering and input. */
 export type GraphEvent =
@@ -96,16 +77,25 @@ export type GraphEvent =
     | SelectionChangedEvent
     | GraphStartedEvent
     | LayoutChangedEvent
+    | LayoutUpdatedEvent
     | LayoutWarningEvent
     | LimitsWarningEvent
     | BasemapStatusEvent
     | RenderLostEvent
     | RenderRestoredEvent
+    | OperationCanceledEvent
     | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
+    | InputBookkeepingEvent
+    | ReducedMotionChangedEvent
+    | AnimationProgressEvent
+    | TourProgressEvent
+    | TourEndedEvent
+    | ViewsChangedEvent
     | XRSessionStartedEvent
     | XRSessionEndedEvent
+    | XRMenuSelectEvent
     | InputPointerEvent
     | InputWheelEvent
     | InputTouchEvent
@@ -114,7 +104,8 @@ export type GraphEvent =
     | InputShortcutEvent;
 
 /** A graph event type that stays inside the element: see {@link INTERNAL_EVENT_TYPES}. */
-type InternalEventType = GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"];
+type InternalEventType =
+    GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"] | InputBookkeepingEvent["type"];
 
 /**
  * The unprefixed events `<graphty-element>` forwards to the DOM, by name: every graph and AI event
@@ -149,6 +140,12 @@ export type GraphtyForwardedEventMap = {
 export const INTERNAL_EVENT_TYPES: ReadonlySet<GraphEventType> = new Set<GraphEventType>([
     "snapshot-replaced",
     "snapshot-dropped",
+    "input-initialized",
+    "input-config-updated",
+    "input-pointer-lock-changed",
+    "input-recording-started",
+    "input-recording-stopped",
+    "input-playback-completed",
 ] satisfies InternalEventType[]);
 
 /**
@@ -355,7 +352,9 @@ export interface GraphGenericEvent {
         // null when the layout cannot say) and an optional `message`, as the layout reported them.
         | "layout-progress"
         | "operation-obsoleted"
-        | "animation-progress"
+        // A video capture was stopped before it finished. `animation-cancelled` is the same event
+        // under its British name, emitted right after it and removed in the next major.
+        | "animation-canceled"
         | "animation-cancelled"
         | "screenshot-enhancing"
         | "screenshot-ready"
@@ -583,6 +582,14 @@ export interface LayoutChangedEvent {
     options: Record<string, unknown>;
 }
 
+/** Emitted when the running layout has moved the nodes after nodes were added to the graph. */
+export interface LayoutUpdatedEvent {
+    /** The event's name. */
+    type: "layout-updated";
+    /** How many nodes were added. */
+    nodeCount: number;
+}
+
 /**
  * Emitted when a layout could not do everything it was asked.
  * The data kept it from placing every node (`W_NO_POSITION`), or it ran without options it does
@@ -684,6 +691,24 @@ export interface BasemapStatusEvent {
 }
 
 /** Emitted when a queued operation is aborted before it finished. */
+export interface OperationCanceledEvent {
+    /** The event's name. */
+    type: "operation-canceled";
+    /** The operation's id, as `operation-start` carried it. */
+    id: string;
+    /**
+     * Why it was aborted: `"queue-cleared"` when the whole queue was cleared, `"canceled"` when
+     * this one operation was canceled. Write the reader-facing words from this code.
+     */
+    code: "queue-cleared" | "canceled";
+}
+
+/**
+ * The British spelling of `operation-canceled`: emitted right after it for every
+ * aborted operation, with `"cancelled"` where that one says `"canceled"`.
+ * @deprecated Listen for `operation-canceled` ({@link OperationCanceledEvent}). Removed in the
+ * next major.
+ */
 export interface OperationCancelledEvent {
     /** The event's name. */
     type: "operation-cancelled";
@@ -696,9 +721,6 @@ export interface OperationCancelledEvent {
     code: "queue-cleared" | "cancelled";
 }
 
-/** The American spelling of {@link OperationCancelledEvent}. */
-export type OperationCanceledEvent = OperationCancelledEvent;
-
 /** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */
 export interface StatsUpdateEvent {
     /** The event's name. */
@@ -707,6 +729,97 @@ export interface StatsUpdateEvent {
     totalUpdates: number;
     /** The counters as they stand now. */
     stats: ReturnType<StatsManager["getStats"]>;
+}
+
+/**
+ * The input manager's own bookkeeping, ELEMENT-INTERNAL: listed in `INTERNAL_EVENT_TYPES`,
+ * so it never reaches the DOM. `input-initialized` carries the live input manager, and the
+ * recording and playback events answer calls whose callers already hold the outcome.
+ */
+export interface InputBookkeepingEvent {
+    /** The event's name. */
+    type:
+        | "input-initialized"
+        | "input-config-updated"
+        | "input-pointer-lock-changed"
+        | "input-recording-started"
+        | "input-recording-stopped"
+        | "input-playback-completed";
+    /** What the input manager attached to the event; element-internal, so no shape is promised. */
+    [key: string]: unknown;
+}
+
+/**
+ * Emitted when whether motion is reduced changes: `setReducedMotion` was called with a different
+ * answer, or, under `"auto"`, the platform's `prefers-reduced-motion` changed. Read
+ * `isMotionReduced()` for the answer at any time.
+ * @since 3.58.0
+ */
+export interface ReducedMotionChangedEvent {
+    /** The event's name. */
+    type: "reduced-motion-changed";
+    /** Whether motion is reduced now. */
+    reduced: boolean;
+}
+
+/**
+ * Emitted while `captureAnimation` records: how far the recording has got, from 0 to 100. A tour
+ * recording follows the tour's own clock, so it reaches 100 only with the tour.
+ * @since 3.58.0
+ */
+export interface AnimationProgressEvent {
+    /** The event's name. */
+    type: "animation-progress";
+    /** How far the recording has got, from 0 to 100. */
+    progress: number;
+}
+
+/**
+ * Emitted while a tour plays or records, on each stop or phase change (never on a timer): the
+ * flight to a stop (`"flight"`, absent for a zero-length flight), the hold there (`"hold"`), or a
+ * pause stop's wait where the camera is (`"pause"`, one event per pause).
+ * @since 3.58.0
+ */
+export interface TourProgressEvent {
+    /** The event's name. */
+    type: "tour-progress";
+    /** The saved tour's name, or null for a tour given inline. */
+    tour: string | null;
+    /** The 0-based stop. */
+    stop: number;
+    /** How many stops the tour has. */
+    stops: number;
+    /**
+     * The saved view this stop flies to, as the tour was when it started playing (an edit while it
+     * plays does not change it); absent for a stop given as a camera state and for a pause.
+     */
+    view?: string;
+    /** The flight to the stop, the hold there, or a pause stop's wait. */
+    phase: "flight" | "hold" | "pause";
+}
+
+/**
+ * Emitted once when a tour ends, however it ended; `playTour` resolves with the same reason.
+ * @since 3.58.0
+ */
+export interface TourEndedEvent {
+    /** The event's name. */
+    type: "tour-ended";
+    /** The saved tour's name, or null for a tour given inline. */
+    tour: string | null;
+    /** Why the tour ended. */
+    reason: TourEndReason;
+}
+
+/**
+ * Emitted when anything `planTour` or `viewProblem` reads may have changed: the saved views, their
+ * order or the tours, the 2D/3D dimension, an XR session starting or ending, or a camera view
+ * being registered. An editor showing tour lengths or broken stops plans again on it alone.
+ * @since 3.58.0
+ */
+export interface ViewsChangedEvent {
+    /** The event's name. */
+    type: "views-changed";
 }
 
 /** Emitted when user input on the canvas is switched on or off, by `setInputEnabled`. */
@@ -743,6 +856,14 @@ export interface XRSessionEndedEvent {
      * when the headset or browser ended it (the system button, taking the headset off).
      */
     cause: "exit" | "device";
+}
+
+/** Emitted when the reader presses an item of the in-headset menu (`xr.menu`). */
+export interface XRMenuSelectEvent {
+    /** The event's name. */
+    type: "xr-menu-select";
+    /** The pressed item's `id`. */
+    id: string;
 }
 
 // Selection events
@@ -1072,6 +1193,8 @@ export type AiEvent =
     | AiCommandStartEvent
     | AiCommandCompleteEvent
     | AiCommandErrorEvent
+    | AiCommandCanceledEvent
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- the British alias is still emitted until the next major
     | AiCommandCancelledEvent
     | AiStreamChunkEvent
     | AiStreamToolCallEvent
@@ -1127,6 +1250,8 @@ export interface AiCommandErrorEvent {
     type: "ai-command-error";
     /** The failure. */
     error: Error;
+    /** Why it failed, as the result the command resolves with carries it (`ExecutionResult.code`). */
+    code: AiResultCode;
     /** The command's text. */
     input: string;
     /** Whether running it again unchanged could succeed. */
@@ -1134,12 +1259,25 @@ export interface AiCommandErrorEvent {
 }
 
 /** Emitted when an AI command is canceled */
+export interface AiCommandCanceledEvent {
+    /** The event's name. */
+    type: "ai-command-canceled";
+    /** The command's text. */
+    input: string;
+    /** Whether the reader canceled it or it ran out of time. */
+    reason: "user" | "timeout";
+}
+
+/**
+ * The British spelling of `ai-command-canceled`, emitted right after it with the same fields.
+ * @deprecated Listen for `ai-command-canceled`. Removed in the next major.
+ */
 interface AiCommandCancelledEvent {
     /** The event's name. */
     type: "ai-command-cancelled";
     /** The command's text. */
     input: string;
-    /** Whether the reader cancelled it or it ran out of time. */
+    /** Whether the reader canceled it or it ran out of time. */
     reason: "user" | "timeout";
 }
 

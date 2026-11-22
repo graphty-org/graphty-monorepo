@@ -1,6 +1,6 @@
 import { RangeSlider as MantineRangeSlider, Slider as MantineSlider } from "@mantine/core";
 import { useMergedRef } from "@mantine/hooks";
-import React, { forwardRef, useLayoutEffect, useRef } from "react";
+import React, { forwardRef, useEffect, useLayoutEffect, useRef } from "react";
 
 /** What a thumb is given through `thumbProps`. */
 type ThumbProps = ((index: 0 | 1) => Record<string, unknown>) | Record<string, unknown> | undefined;
@@ -84,8 +84,11 @@ interface Scale {
  * @param scale - The scale.
  * @param current - The value the slider holds now.
  * @param onChange - The caller's change handler, given the released value.
- * @returns A root `onPointerDownCapture` and `onKeyDownCapture`, a filter for Mantine's `onChange` (false
- * drops the call) and the value an end reports.
+ * A key pressed on the slider ends that: Mantine handles the keys in the root's own key capture,
+ * which replaces any given to it, so the key is heard on the document first, before React hands it
+ * to Mantine. Without that, every arrow key after a click or a drag was dropped.
+ * @returns A root `onPointerDownCapture`, a filter for Mantine's `onChange` (false drops the call)
+ * and the value an end reports.
  */
 function useRelease<T extends number | [number, number]>(
     root: React.RefObject<HTMLDivElement | null>,
@@ -94,13 +97,23 @@ function useRelease<T extends number | [number, number]>(
     onChange: ((value: T) => void) | undefined,
 ): {
     onPointerDownCapture: (event: React.PointerEvent) => void;
-    onKeyDownCapture: () => void;
     keep: () => boolean;
     end: (value: T) => T;
 } {
     const { min, max, step, minRange } = scale;
     // The released value, from the release until the next press or key.
     const released = useRef<T | null>(null);
+    useEffect(() => {
+        const key = (event: KeyboardEvent): void => {
+            if (event.target instanceof Node && root.current?.contains(event.target) === true) {
+                released.current = null;
+            }
+        };
+        document.addEventListener("keydown", key, { capture: true });
+        return () => {
+            document.removeEventListener("keydown", key, { capture: true });
+        };
+    }, [root]);
     const at = (clientX: number): number | null => {
         const rect = root.current?.querySelector(TRACK)?.getBoundingClientRect();
         if (rect === undefined || rect.width === 0) {
@@ -153,9 +166,6 @@ function useRelease<T extends number | [number, number]>(
             document.addEventListener("pointerup", finish, { capture: true, signal: stop.signal });
             document.addEventListener("pointercancel", finish, { capture: true, signal: stop.signal });
         },
-        onKeyDownCapture: () => {
-            released.current = null;
-        },
         keep: () => released.current === null,
         end: (value) => released.current ?? value,
     };
@@ -206,10 +216,6 @@ export const RangeSlider = forwardRef<HTMLDivElement, React.ComponentProps<typeo
                     if (props.disabled !== true) {
                         release.onPointerDownCapture(event);
                     }
-                }}
-                onKeyDownCapture={(event) => {
-                    props.onKeyDownCapture?.(event);
-                    release.onKeyDownCapture();
                 }}
                 onChange={(value) => {
                     shown.current = ends(value);
@@ -271,10 +277,6 @@ export const Slider = forwardRef<HTMLDivElement, React.ComponentProps<typeof Man
                     if (props.disabled !== true) {
                         release.onPointerDownCapture(event);
                     }
-                }}
-                onKeyDownCapture={(event) => {
-                    props.onKeyDownCapture?.(event);
-                    release.onKeyDownCapture();
                 }}
                 onChange={(value) => {
                     shown.current = snapToEnds(value, min, max, step);

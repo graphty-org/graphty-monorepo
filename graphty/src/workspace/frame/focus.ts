@@ -408,6 +408,7 @@ export function installFocusGuard(): () => void {
         }
     };
     let pending = 0;
+    let queued: ReturnType<typeof setTimeout> | undefined;
     const observer = new MutationObserver((records) => {
         // A view drawn again in place can select another tab under the focused one (a new view
         // opens on Values): the ring follows the selection, never resting on an unselected tab.
@@ -425,8 +426,9 @@ export function installFocusGuard(): () => void {
             return;
         }
         pending = requestAnimationFrame(() => {
-            setTimeout(() => {
+            queued = setTimeout(() => {
                 pending = 0;
+                queued = undefined;
                 rescue(history);
             });
         });
@@ -437,11 +439,22 @@ export function installFocusGuard(): () => void {
         attributes: true,
         attributeFilter: ["hidden", "style", "class", "disabled", "inert", "aria-selected"],
     });
+    // How the reader last pressed, for the inspector title's ring (frame.css, #9290).
+    const onPress = (event: Event): void => {
+        document.documentElement.dataset.wsLastPress = event.type === "keydown" ? "key" : "pointer";
+    };
     document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onPress, true);
+    document.addEventListener("pointerdown", onPress, true);
     return () => {
+        document.removeEventListener("keydown", onPress, true);
+        document.removeEventListener("pointerdown", onPress, true);
+        delete document.documentElement.dataset.wsLastPress;
         observer.disconnect();
         cancelAnimationFrame(pending);
+        // The frame may have run already and queued the rescue: a stopped guard moves no focus.
+        clearTimeout(queued);
         document.removeEventListener("focusin", onFocusIn, true);
         document.removeEventListener("keydown", onKeyDown);
     };

@@ -165,7 +165,7 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
             code: "config.set",
             params: { keys: configLeaves(command.values).map(([path]) => path) },
         }),
-        // Dragging a color picker is one step: sets of the same keys recorded close together merge.
+        // Dragging a color picker is one step: consecutive sets of the same keys merge.
         coalesce: (command) =>
             `config:${configLeaves(command.values)
                 .map(([path]) => path)
@@ -280,6 +280,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
         editableBase: read("editableBase") as boolean,
         timelineHiddenLook: read("timelineHiddenLook") as TimelineHiddenLook,
         timelineHiddenAdded: read("timelineHiddenAdded") as boolean,
+        startingCamerasWritten: read("startingCamerasWritten") as boolean,
         runPlacement: read("runPlacement") as RunPlacement,
         layoutBehavior: Object.freeze({
             preSteps: read("layoutBehavior.preSteps") as number,

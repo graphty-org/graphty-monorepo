@@ -40,6 +40,8 @@ interface FrameCommon {
     readonly location: LocationSourceFact;
     /** The ids of the nodes with no place on the map, in the tray or left where they were. */
     readonly unplacedIds: ReadonlySet<unknown>;
+    /** Whether the unplaced nodes are kept off the canvas (`unplaced: "hide"`), their edges with them. */
+    readonly hidesUnplaced: boolean;
     /** The warnings the run reported. */
     readonly warnings: readonly PlaceWarning[];
     /** How many times larger than `size` makes it the map is drawn (the layout's `mapScale`). */
@@ -85,7 +87,7 @@ export interface PlaceOptions {
     readonly size: number;
     /** How many times larger the map is drawn than `size` makes it; nodes keep their size. */
     readonly mapScale: number;
-    readonly unplaced: "tray" | "leave";
+    readonly unplaced: "tray" | "leave" | "hide";
     readonly overlap: "spread" | "stack";
     readonly dimensions: 2 | 3;
 }
@@ -525,7 +527,8 @@ function placeGlobe(s: Surfacing): Surfaced {
 
 /**
  * Puts the unplaced nodes in one row, centered under the map, however many there are; or leaves
- * them where they were (`unplaced: "leave"`).
+ * them where they were (`unplaced: "leave"`); or, under `unplaced: "hide"`, leaves their rows NaN,
+ * so no coordinate is published for them and they count in no framing box.
  * @param s - What placing needs.
  * @param nodes - The nodes, for their current positions.
  * @param unplacedRows - The rows left unplaced.
@@ -533,6 +536,10 @@ function placeGlobe(s: Surfacing): Surfaced {
  */
 function placeTray(s: Surfacing, nodes: PlaceNodes, unplacedRows: readonly number[], surfaced: Surfaced): void {
     const { positions, options, spacing } = s;
+    if (options.unplaced === "hide") {
+        return;
+    }
+
     const dim = options.dimensions;
     const step = 1.5 * spacing;
     const rowWidth = (unplacedRows.length - 1) * step;
@@ -607,6 +614,7 @@ export function placeOnMap(
         kind: "geographic",
         location: locationFact(source, readings.format, filled),
         unplacedIds: new Set(unplacedRows.map((row) => nodes.ids[row])),
+        hidesUnplaced: options.unplaced === "hide",
         warnings,
         mapScale: options.mapScale,
     };

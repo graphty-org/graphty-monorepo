@@ -557,13 +557,13 @@ function FilterCard({
                 : { ...keepChange(selection, condition.effect), on: next };
         void writeCondition(store, () => session.visibility.updateCondition(id, change));
     };
-    // The on box, named as the group eye is ("Use A"). In the open card it takes no Tab stop of its
-    // own: Space on the title row switches it, and the title row says when it is off. On a resting
-    // row the row's group says the filter once, so its controls go by short names (Use, Edit, More).
+    // The on box, named as the group eye is ("Use A"). In the open card it only shows the card's
+    // state, under the workspace that covers the panel; the title row says when it is off. On a
+    // resting row the row's group says the filter once, so its controls go by short names (Use, Edit, More).
     const short = !open;
     const onBox = (inEditor: boolean): React.ReactNode =>
         draft ? null : (
-            <Tooltip label={inEditor ? `Use ${title} (Space)` : `Use ${title}`}>
+            <Tooltip label={`Use ${title}`}>
                 <Checkbox
                     size="xs"
                     className="dp-filter-on"
@@ -646,13 +646,6 @@ function FilterCard({
                         effect={condition?.effect}
                         title={title}
                         lead={onBox(true)}
-                        onTitleToggle={
-                            draft
-                                ? undefined
-                                : () => {
-                                      setOn(!on);
-                                  }
-                        }
                         titleOff={!on}
                         titleMenu={menu}
                         {...renameProps}
@@ -912,7 +905,8 @@ function clearFilters(session: GraphSession, store: WorkspaceStore): void {
  */
 export function FilterChip(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useSessionEvents(session, VISIBILITY_EVENTS);
+    // The filter is not a style layer: a change to the layers alone does not draw the chip again.
+    useSessionEvents(session, VISIBILITY_EVENTS, true);
 
     useEffect(() => {
         if (session === null) {

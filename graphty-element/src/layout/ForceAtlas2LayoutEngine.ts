@@ -31,10 +31,12 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
         },
     },
     maxIter: {
-        schema: z.number().int().positive().default(100),
+        // NULL SCALES IT TO THE GRAPH: see `forceAtlas2MaxIterFor`. A fixed 100 left a
+        // 10,000-node graph as a ball (issue #9293).
+        schema: z.number().int().positive().nullable().default(null),
         meta: {
             label: "Max Iterations",
-            description: "Maximum number of simulation iterations",
+            description: "Maximum number of simulation iterations (scaled to the graph's size if null)",
         },
     },
     jitterTolerance: {
@@ -155,7 +157,7 @@ export class ForceAtlas2Layout extends SimulationLayoutEngine {
      * the CPU and the accelerator alike. Kamada-Kawai reads a distance and inverts a strength; the
      * two engines disagree about the arithmetic so that they agree about the meaning.
      */
-    static override readonly honoursWeights: boolean = true;
+    static override readonly honorsWeights: boolean = true;
     static readonly zodOptionsSchema: OptionsSchema = forceAtlas2LayoutOptionsSchema;
 
     /**

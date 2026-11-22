@@ -332,6 +332,7 @@ describe("the version 2 recipe codec", () => {
             op: "algo.run",
             algorithm: "degree",
             as: "deg",
+            params: { direction: "total" },
             scope: { set: fileSetId(session, high) },
             style: false,
         });

@@ -8,6 +8,7 @@
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
+import { FixedLayout } from "../../src/layout/FixedLayoutEngine";
 
 type Triple = readonly [number, number, number];
 
@@ -85,12 +86,15 @@ async function published(graph: Graph): Promise<void> {
  */
 function assertAt(graph: Graph, expected: Readonly<Record<string, Triple>>): void {
     const actual = lane(graph);
+    // A file drawn closer than the fixed layout's spacing is spread in proportion (issue #1171).
+    const engine = graph.getLayoutManager().layoutEngine;
+    const spread = engine instanceof FixedLayout ? engine.spread : 1;
     assert.strictEqual(actual.size, Object.keys(expected).length, "one row per node");
     for (const [id, want] of Object.entries(expected)) {
         const got = actual.get(id);
         assert.isDefined(got, `node ${id} is in the graph`);
         for (let axis = 0; axis < 3; axis++) {
-            assert.closeTo(got?.[axis] ?? Number.NaN, want[axis], 1e-6, `node ${id}, axis ${String(axis)}`);
+            assert.closeTo((got?.[axis] ?? Number.NaN) / spread, want[axis], 1e-6, `node ${id}, axis ${String(axis)}`);
         }
     }
 }
@@ -213,6 +217,37 @@ describe("a file's stored positions", () => {
         await graph.setLayout("circular");
         const [sample] = SAMPLES;
         await graph.loadFromFile(new File([sample.text], sample.name), { format: sample.format, layout: "keep" });
+        await settled(graph);
+
+        assert.strictEqual(graph.getSession().layout.id, "circular");
+    });
+
+    it("draws a file where it was saved with layout: placed, as a GEXF with viz:position (issue #9281)", async () => {
+        const graph = await newGraph();
+        await graph.setLayout("circular");
+        const gexf = SAMPLES.find((sample) => sample.format === "gexf");
+        assert.isDefined(gexf);
+        if (gexf === undefined) {
+            return;
+        }
+        await graph.loadFromFile(new File([gexf.text], gexf.name), { layout: "placed" });
+        await settled(graph);
+        await published(graph);
+
+        assert.strictEqual(graph.getSession().layout.id, "fixed", "every node placed: the fixed layout");
+        assertAt(graph, gexf.expected);
+    });
+
+    it("leaves the layout alone with layout: placed when the file places no node", async () => {
+        const graph = await newGraph();
+        await graph.setLayout("circular");
+        const text = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<gexf xmlns="http://gexf.net/1.3" version="1.3">',
+            '<graph defaultedgetype="directed"><nodes><node id="a"/><node id="b"/><node id="c"/></nodes>',
+            '<edges><edge id="e1" source="a" target="b"/><edge id="e2" source="b" target="c"/></edges></graph></gexf>',
+        ].join("\n");
+        await graph.loadFromFile(new File([text], "unplaced.gexf"), { layout: "placed" });
         await settled(graph);
 
         assert.strictEqual(graph.getSession().layout.id, "circular");

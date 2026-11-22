@@ -5,6 +5,7 @@ import {
     GraphBuilder,
     type GraphSnapshot,
     type NodeId,
+    type NodeIdMap,
     type U32,
 } from "@graphty/graph-format";
 import {
@@ -21,6 +22,7 @@ import {
     readJsonRecords,
     recordKey,
     registry,
+    XLSX_ISSUE,
 } from "@graphty/graph-io";
 import { placeRecords } from "@graphty/graph-io/positions";
 import { isStyleSlotColumn } from "@graphty/graph-io/styles";
@@ -203,8 +205,12 @@ export function emptyLoad(error: unknown, format: string): GraphtyError | null {
     });
 }
 
+/** graph-io's issue code for a `sheet` option no sheet of the workbook has. */
+const { SHEET_NOT_FOUND } = XLSX_ISSUE;
+
 /**
- * The error a load fails with when the importer could not read the file.
+ * The error a load fails with when the importer could not read the file, or, for a workbook, could
+ * not find the sheet asked for (`E_SHEET_NOT_FOUND`).
  * @param format - the format the file was read as
  * @param error - the importer's error
  * @returns a `GraphtyError` with `E_PARSE_FAILED` naming the format and the last error line
@@ -213,6 +219,25 @@ export function parseFailed(format: string, error: ImportError): GraphtyError {
     const empty = emptyLoad(error, format);
     if (empty !== null) {
         return empty;
+    }
+
+    // The file read fine; the choice of sheet did not, and the caller needs the sheets to fix it.
+    const { issue } = error;
+    if (issue?.code === SHEET_NOT_FOUND) {
+        const { sheet, sheets } = (issue.params ?? {}) as { sheet?: unknown; sheets?: unknown };
+        // built rather than wrapped, so the details are these three and not graph-io's params too
+        return new GraphtyError({
+            code: "E_SHEET_NOT_FOUND",
+            source: "data",
+            recoverable: false,
+            message: error.message,
+            details: {
+                format,
+                ...(typeof sheet === "string" ? { sheet } : {}),
+                ...(Array.isArray(sheets) ? { available: sheets.filter((name) => typeof name === "string") } : {}),
+            },
+            cause: error,
+        });
     }
 
     const line = error.report.issues.filter((issue) => issue.severity === "error").at(-1)?.line ?? null;
@@ -408,7 +433,8 @@ class FirstValueBuilder extends GraphBuilder {
 function rowOf(snapshot: GraphSnapshot, table: "nodes" | "edges", row: number): ImportedRecord {
     const record: ImportedRecord = {};
     for (const column of snapshot[table]) {
-        if (column.meta.name !== WEIGHT_COLUMN_NAME && column.isSet(row)) {
+        // the position is written once, as `position: { x, y, z }`, by importRecords
+        if (column.meta.name !== WEIGHT_COLUMN_NAME && column.meta.role !== "position" && column.isSet(row)) {
             record[column.meta.name] = column.value(row);
         }
     }
@@ -501,7 +527,15 @@ export async function importRecords<O>(
         throw error;
     }
 
-    return { ...recordsOf(builder.freeze()), report, aborted: false };
+    const snapshot = builder.freeze();
+    const records = recordsOf(snapshot);
+    // A node the file placed carries `position: { x, y, z }`, as toRecords writes it; nodes are in row order.
+    placeRecords(
+        records.nodes.map((node) => node.data),
+        filePositionsOf({ importer, snapshot, report }),
+        (_record, row) => row,
+    );
+    return { ...records, report, aborted: false };
 }
 
 /**
@@ -663,12 +697,18 @@ export function attributeKey(kind: "node" | "edge", title: string, id: string): 
 }
 
 /**
- * Where {@link copyColumns} puts a column on a record: under its own name, except a reserved
- * `graphty.*` column, the stored node position ({@link toRecords} writes it as `position`) and one
- * named like a key that identifies the record, which it leaves out: graph-io's `recordKey`, so the
- * element's records and graph-io's `readJsonRecords` agree.
+ * Where {@link copyColumns} puts a column on a record unchanged: under its own name, except a
+ * reserved `graphty.*` column, the stored node position ({@link toRecords} writes it as `position`)
+ * and one named like a key that identifies the record, which it leaves out: graph-io's `recordKey`,
+ * so the element's records and graph-io's `readJsonRecords` agree. Nor the containment column, whose
+ * row numbers it writes as the parent nodes' ids, as graph-io's Cytoscape.js records do.
+ * @param kind - node or edge
+ * @param column - the column
+ * @returns the record key, or null
  */
-export const copiedPath: (kind: "node" | "edge", column: Column) => string | null = recordKey;
+export function copiedPath(kind: "node" | "edge", column: Column): string | null {
+    return column.meta.role === "parent" ? null : recordKey(kind, column);
+}
 
 /** The record key the element writes its own edge id under, over any `id` the file gave. */
 const EDGE_ID_KEY = "id";
@@ -734,6 +774,56 @@ export function readerImport(reader: object): Promise<ReaderImport> | null {
     return READER_IMPORTS.get(reader)?.() ?? null;
 }
 
+/** What the file each reader last read recorded under `meta.extra`, when it recorded anything. */
+const READER_META_EXTRA = new WeakMap<object, Readonly<Record<string, unknown>>>();
+
+/**
+ * Remember what an imported file recorded under `meta.extra` (DOT's `strict` and HTML labels,
+ * GEXF's header, ...), so the element keeps it with the graph and an export writes it again.
+ * @param reader - the data source
+ * @param snapshot - the imported graph
+ */
+export function rememberMetaExtra(reader: object, snapshot: GraphSnapshot): void {
+    const { extra } = snapshot.meta;
+    if (Object.keys(extra).length === 0) {
+        READER_META_EXTRA.delete(reader);
+    } else {
+        READER_META_EXTRA.set(reader, extra);
+    }
+}
+
+/**
+ * What the file a reader last read recorded under `meta.extra`.
+ * @param reader - the data source
+ * @returns the values by namespace, or null when it recorded none or the reader read no graph-io import
+ */
+export function readerMetaExtra(reader: object): Readonly<Record<string, unknown>> | null {
+    return READER_META_EXTRA.get(reader) ?? null;
+}
+
+/** What the file of each load recorded under `meta.extra`, by the load's `source` descriptor. */
+const SOURCE_META_EXTRA = new WeakMap<object, Readonly<Record<string, unknown>>>();
+
+/**
+ * Keep what a load's file recorded under `meta.extra` beside the load's `source` descriptor, so an
+ * export writes it again (issue #7600). It is session state, never a graph value or saved: its
+ * keys name the file's format, and undo and redo bring the descriptor, so its extra, back.
+ * @param source - the `source` graph value the load wrote
+ * @param extra - what the file recorded, by namespace
+ */
+export function keepSourceMetaExtra(source: object, extra: Readonly<Record<string, unknown>>): void {
+    SOURCE_META_EXTRA.set(source, extra);
+}
+
+/**
+ * What the file of a load recorded under `meta.extra`.
+ * @param source - the `source` graph value, or undefined when nothing was loaded
+ * @returns the values by namespace, or undefined when the file recorded none
+ */
+export function sourceMetaExtra(source: unknown): Readonly<Record<string, unknown>> | undefined {
+    return typeof source === "object" && source !== null ? SOURCE_META_EXTRA.get(source) : undefined;
+}
+
 /**
  * Pair an import with a mapping's column paths.
  * @param imported - the import
@@ -774,12 +864,15 @@ function readerImportOf(
  * multi-component cell as an array, an f32 cell widened as {@link cell} does. graph-format's
  * reserved `graphty.*` columns carry structure, not data, and are not copied; nor is the stored
  * node position, which {@link toRecords} writes in one spelling for every format; nor is a key the
- * record already holds, so a column named `id`, `source` or `target` cannot take their place.
+ * record already holds, so a column named `id`, `source` or `target` cannot take their place. The
+ * containment column (role `parent`) holds the parent's row: the record gets the parent node's id,
+ * so a record read back through `addNodes` names its group as any record does.
  * @param table - the node or edge table
  * @param row - the row
  * @param record - receives the values
+ * @param ids - the snapshot's id map, which turns a parent row into its id
  */
-export function copyColumns(table: AttributeTable, row: number, record: Record<string, unknown>): void {
+export function copyColumns(table: AttributeTable, row: number, record: Record<string, unknown>, ids: NodeIdMap): void {
     for (const column of table) {
         const { name } = column.meta;
         const skipped = name.startsWith(RESERVED_PREFIX) || column.meta.role === "position";
@@ -787,7 +880,26 @@ export function copyColumns(table: AttributeTable, row: number, record: Record<s
             continue;
         }
 
-        record[name] = ArrayBuffer.isView(column.value(row)) ? components(column, row) : cell(column, row);
+        const value = column.value(row);
+        if (column.meta.role === "parent" && typeof value === "number") {
+            record[name] = ids.idOf(value);
+        } else {
+            record[name] = ArrayBuffer.isView(value) ? components(column, row) : cell(column, row);
+        }
+    }
+}
+
+/**
+ * Remember, for a reader, what its file recorded under `meta.extra` and the import its records came from.
+ * @param reader - the data source
+ * @param imported - the import
+ * @param mapping - the format's mapping from rows to record keys
+ */
+function rememberReader(reader: object, imported: SourceGraph, mapping: RecordMapping): void {
+    rememberMetaExtra(reader, imported.snapshot);
+    const { importer } = imported;
+    if (importer !== undefined) {
+        rememberImport(reader, () => readerImportOf({ ...imported, importer }, mapping.path ?? copiedPath));
     }
 }
 
@@ -814,8 +926,8 @@ export function toRecords(
 ): { nodes: AdHocData[]; edges: AdHocData[] } {
     const mapping = styles === "file" ? withoutStyleSlots(imported.snapshot, readerMapping) : readerMapping;
     const { importer } = imported;
-    if (reader !== undefined && importer !== undefined) {
-        rememberImport(reader, () => readerImportOf({ ...imported, importer }, mapping.path ?? copiedPath));
+    if (reader !== undefined) {
+        rememberReader(reader, imported, mapping);
     }
 
     const { snapshot, declared } = imported;
@@ -921,10 +1033,10 @@ export function columnsMapping(snapshot: GraphSnapshot): RecordMapping {
     return {
         path: copiedPath,
         node: (row, record) => {
-            copyColumns(snapshot.nodes, row, record);
+            copyColumns(snapshot.nodes, row, record, snapshot.ids);
         },
         edge: (row, record) => {
-            copyColumns(snapshot.edges, row, record);
+            copyColumns(snapshot.edges, row, record, snapshot.ids);
         },
     };
 }

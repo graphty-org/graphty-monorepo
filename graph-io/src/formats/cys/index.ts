@@ -7,3 +7,4 @@
 export { CYS_ISSUE } from "./constants.js";
 export { CYS_CAPABILITIES, CYS_LOSS, cysExporter, type CysExportOptions } from "./exporter.js";
 export { cysImporter, type CysImportOptions } from "./importer.js";
+export { type CytoscapeStyleFileOptions, readCytoscapeStyleFile } from "./style-file.js";

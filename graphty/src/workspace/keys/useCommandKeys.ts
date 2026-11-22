@@ -1,14 +1,29 @@
 import { KEYMAP_DESCRIPTORS, type KeymapAction } from "@graphty/graphty-element/catalog";
-import { attachKeymap, type GraphSession, type KeymapReport } from "@graphty/graphty-element/session";
+import {
+    attachKeymap,
+    type GraphSession,
+    isGraphtyError,
+    isGraphtyErrorCode,
+    type KeymapReport,
+} from "@graphty/graphty-element/session";
 import { useEffect } from "react";
 
+import { detail } from "../../lib/analytics";
 import { switchedOff } from "../commands/registry";
 import { historyNotice } from "../frame/historyWords";
 import { selectionClearedWords } from "../inspector/words";
 import { errorWords } from "../project/words";
 import type { WorkspaceStore } from "../state/store";
 import type { WorkspaceValue } from "../state/WorkspaceContext";
-import { firesWhileTyping, hasPendingEdit, isSingleKey, isTypingTarget, matchesKey, trackPendingEdits } from "./keys";
+import {
+    firesWhileTyping,
+    hasPendingEdit,
+    isPanelEscape,
+    isSingleKey,
+    isTypingTarget,
+    matchesKey,
+    trackPendingEdits,
+} from "./keys";
 
 /**
  * An open menu, popover list or dialog keeps its own keys (Esc closes the innermost first). Only
@@ -137,8 +152,14 @@ function sayKeymapAction(session: GraphSession, store: WorkspaceStore): (report:
             return;
         }
         const undo = report.action === "undo";
+        // Counted as the Undo and Redo commands are from their buttons: the keymap runs the same
+        // step without going through the workspace's run(id).
+        const command = undo ? "history.undo" : "history.redo";
+        detail("command_run", { command });
         const say = historyNotice(session, undo, store);
         report.done.then(say, (error: unknown) => {
+            const code = isGraphtyError(error) && isGraphtyErrorCode(error.code) ? error.code : undefined;
+            detail("command_failed", { command, code });
             store.set({ notice: { message: errorWords(`${undo ? "Undo" : "Redo"} failed`, error) } });
         });
     };
@@ -153,22 +174,26 @@ export function useCommandKeys(workspace: WorkspaceValue): void {
     useEffect(() => {
         const stopTracking = trackPendingEdits();
         const { session } = workspace;
-        const detachKeymap =
-            session === null
-                ? () => undefined
-                : attachKeymap(session, globalThis, {
-                      ignore: (event: KeyboardEvent, action: KeymapAction) => {
-                          const keys = KEYMAP_DESCRIPTORS.find((entry) => entry.action === action)?.keys ?? [];
-                          const key = keys.find((combo) => matchesKey(event, combo));
-                          return key === undefined || keptFromWorkspace(event, key, workspace);
-                      },
-                      onAction: sayKeymapAction(session, workspace.store),
-                  });
         const onKeyDown = (event: KeyboardEvent): void => {
             if (event.defaultPrevented || event.isComposing) {
                 return;
             }
             const typing = isTypingTarget(event.target);
+            // A key a command takes over while it is shown (Stop tour's Escape) goes first, once no
+            // inner control took it.
+            for (const command of workspace.registry.live) {
+                const key = command.whileShownKeys?.find((combo) => matchesKey(event, combo));
+                if (
+                    key !== undefined &&
+                    command.shown?.(workspace) === true &&
+                    (key !== "Escape" || isPanelEscape(event)) &&
+                    !keptFromWorkspace(event, key, workspace)
+                ) {
+                    event.preventDefault();
+                    workspace.run(command.id);
+                    return;
+                }
+            }
             for (const command of workspace.registry.live) {
                 const key = command.keys?.find((combo) => matchesKey(event, combo));
                 if (key === undefined || GRAPH_KEYS.has(key) || switchedOff(command, workspace)) {
@@ -188,7 +213,20 @@ export function useCommandKeys(workspace: WorkspaceValue): void {
                 event.preventDefault();
             }
         };
+        // Listens before the keymap does, so a command holding a graph key for a while (Stop tour on
+        // Escape) takes the press and the keymap leaves it (it skips a handled press).
         globalThis.addEventListener("keydown", onKeyDown);
+        const detachKeymap =
+            session === null
+                ? () => undefined
+                : attachKeymap(session, globalThis, {
+                      ignore: (event: KeyboardEvent, action: KeymapAction) => {
+                          const keys = KEYMAP_DESCRIPTORS.find((entry) => entry.action === action)?.keys ?? [];
+                          const key = keys.find((combo) => matchesKey(event, combo));
+                          return key === undefined || keptFromWorkspace(event, key, workspace);
+                      },
+                      onAction: sayKeymapAction(session, workspace.store),
+                  });
         return () => {
             detachKeymap();
             stopTracking();

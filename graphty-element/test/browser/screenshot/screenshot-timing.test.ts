@@ -6,6 +6,7 @@ import { GraphtyError } from "../../../src/errors";
 import { type Graph, operationQueueOf } from "../../../src/Graph";
 import { type EdgePosition, LayoutEngine, type Position } from "../../../src/layout/LayoutEngine";
 import { layoutManagerInternals } from "../../../src/managers/LayoutManager";
+import type { PendingWorkProgress } from "../../../src/managers/OperationQueueManager";
 import type { Node } from "../../../src/Node";
 import { SCREENSHOT_CONSTANTS } from "../../../src/screenshot/constants";
 import { drawnFrames } from "../../helpers/drawn-frames";
@@ -240,6 +241,31 @@ test("waitForOperations waits for pending operations", async () => {
     assert.equal(captured, true, "Should capture after operations complete");
 });
 
+test("onProgress reports the operations a capture waits behind", async () => {
+    graph = await createTestGraphWithData();
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    void operationQueueOf(graph).queueOperationAsync("style-apply", async () => {
+        await gate;
+    });
+
+    const facts: PendingWorkProgress[] = [];
+    const capture = graph.captureScreenshot({
+        timing: { waitForOperations: true, waitForSettle: false },
+        onProgress: (fact) => facts.push(fact),
+    });
+    assert.strictEqual(facts[0]?.code, "PENDING_WORK");
+    assert.strictEqual(facts[0]?.params.operations, 2, "the gated operation and the capture's own turn");
+
+    release();
+    await capture;
+    const count = facts.length;
+    await operationQueueOf(graph).queueOperationAsync("style-apply", () => undefined);
+    assert.strictEqual(facts.length, count, "nothing is reported once the capture is taken");
+});
+
 test("can skip waiting with timing.waitForSettle: false", async () => {
     graph = await createTestGraphWithData();
 
@@ -290,4 +316,38 @@ test("can skip waiting for operations with timing.waitForOperations: false", asy
 
     release();
     await operation;
+});
+
+// Issue #9215: a picture still loading (a background, a node's image or 3D model) is drawn only
+// once it lands, so a capture waits for it as waitForStableFrame() does.
+test("waits for a picture still loading", async () => {
+    graph = await createTestGraphWithData();
+    const landed = graph.getUpdateManager().pending.begin("picture", "a test picture is still loading");
+
+    let captured = false;
+    const capture = graph.captureScreenshot().then(() => {
+        captured = true;
+    });
+
+    // Five drawn frames, any of which a capture that did not wait would have been taken from.
+    await drawnFrames(graph.getScene(), 5);
+    assert.isFalse(captured, "the capture waits while the picture loads");
+
+    landed();
+    await capture;
+    assert.isTrue(captured, "the capture is taken once the picture has landed");
+});
+
+test("captureNow stops waiting for a picture still loading", async () => {
+    graph = await createTestGraphWithData();
+    const landed = graph.getUpdateManager().pending.begin("picture", "a test picture is still loading");
+    const now = new AbortController();
+
+    const capture = graph.captureScreenshot({ timing: { captureNow: now.signal } });
+    await drawnFrames(graph.getScene(), 2);
+    now.abort();
+
+    const result = await capture;
+    assert.ok(result.blob instanceof Blob, "the capture is taken while the picture still loads");
+    landed();
 });

@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { resolve } from "node:path";
+import { createGzip } from "node:zlib";
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
@@ -59,6 +60,24 @@ describe("session.data loads that overlap", () => {
     const answer = (name: string, response: ServerResponse): void => {
         if (name === "corrupt.gsnp.gz") {
             response.end("not a graph");
+            return;
+        }
+        if (name === "football.gsnp.gz") {
+            // a known dataset's name with another file's bytes: not the published file
+            response.end(readFileSync(resolve(DATA, "karate.gsnp.gz")));
+            return;
+        }
+        if (name === "huge.gsnp.gz") {
+            // a small gzip file that unzips past graph-samples' 256 MiB limit
+            const zip = createGzip({ level: 1 });
+            zip.on("error", () => undefined);
+            response.on("error", () => undefined);
+            zip.pipe(response);
+            const zeros = Buffer.alloc(1024 * 1024);
+            for (let i = 0; i < 257; i++) {
+                zip.write(zeros);
+            }
+            zip.end();
             return;
         }
         if (!existsSync(resolve(DATA, name))) {
@@ -235,6 +254,24 @@ describe("session.data loads that overlap", () => {
         const unknown: unknown = badName.status === "rejected" ? badName.reason : undefined;
         assert.instanceOf(unknown, GraphtyError);
         assert.strictEqual(unknown.code, "E_UNKNOWN_DATASET");
+        assert.strictEqual(session.data.snapshot().nodeCount, 0);
+        session.dispose();
+    });
+
+    it("reports a file that is not the published one as E_PARSE_FAILED, and one past the size limit as E_TOO_LARGE", async () => {
+        const session = createGraphSession();
+        const [tampered, huge] = await Promise.allSettled([
+            session.data.loadDataset("football", { baseUrl }),
+            session.data.loadDataset("huge", { baseUrl }),
+        ]);
+        const checksum: unknown = tampered.status === "rejected" ? tampered.reason : undefined;
+        assert.instanceOf(checksum, GraphtyError);
+        assert.strictEqual(checksum.code, "E_PARSE_FAILED");
+        assert.strictEqual(checksum.details?.issue, "E_DATASET_CHECKSUM");
+        const tooLarge: unknown = huge.status === "rejected" ? huge.reason : undefined;
+        assert.instanceOf(tooLarge, GraphtyError);
+        assert.strictEqual(tooLarge.code, "E_TOO_LARGE");
+        assert.deepEqual(tooLarge.details, { limit: 256 * 1024 * 1024, of: "bytes" });
         assert.strictEqual(session.data.snapshot().nodeCount, 0);
         session.dispose();
     });

@@ -49,6 +49,35 @@ interface CounterSnapshot {
 /**
  * Comprehensive performance counter data
  */
+/**
+ * A counter sampled once per edge per frame: it reads the clock only while profiling is on, and otherwise only counts
+ * its samples. At a hundred thousand moving edges, three clock reads an edge were a measurable part of the frame
+ * (issue #9420).
+ */
+class PerEdgeCounter extends PerfCounter {
+    /**
+     * A counter that times only while `timed` answers true.
+     * @param timed - Whether profiling is on.
+     */
+    constructor(private readonly timed: () => boolean) {
+        super();
+    }
+
+    override beginMonitoring(): void {
+        if (this.timed()) {
+            super.beginMonitoring();
+        }
+    }
+
+    override endMonitoring(newFrame = true): void {
+        if (this.timed()) {
+            super.endMonitoring(newFrame);
+        } else if (newFrame) {
+            this.fetchNewFrame();
+        }
+    }
+}
+
 interface PerfCounterSnapshot {
     current: number;
     avg: number;
@@ -218,10 +247,16 @@ export class StatsManager implements Manager {
     nodeUpdate = new PerfCounter();
     /** Time spent moving and redrawing edges in each graph update. */
     edgeUpdate = new PerfCounter();
-    /** Time spent placing an edge's arrowheads and trimming its line beside them, one sample per edge placed. */
-    arrowCapUpdate = new PerfCounter();
-    /** Time spent finding where an edge meets its nodes' surfaces, one sample per edge end search. */
-    intersectCalc = new PerfCounter();
+    /**
+     * Time spent placing an edge's arrowheads and trimming its line beside them, one sample per edge placed. Timed
+     * only while profiling is on (`enableProfiling`); counted always.
+     */
+    arrowCapUpdate: PerfCounter = new PerEdgeCounter(() => this.enabled);
+    /**
+     * Time spent finding where an edge meets its nodes' surfaces, one sample per edge end search. Timed only while
+     * profiling is on; counted always.
+     */
+    intersectCalc: PerfCounter = new PerEdgeCounter(() => this.enabled);
     /** Time each data load took, from its first read to its last record, one sample per finished load. */
     loadTime = new PerfCounter();
     /** How many graph updates have run since the counters were last reset. */
@@ -384,8 +419,8 @@ export class StatsManager implements Manager {
         this.graphStep = new PerfCounter();
         this.nodeUpdate = new PerfCounter();
         this.edgeUpdate = new PerfCounter();
-        this.arrowCapUpdate = new PerfCounter();
-        this.intersectCalc = new PerfCounter();
+        this.arrowCapUpdate = new PerEdgeCounter(() => this.enabled);
+        this.intersectCalc = new PerEdgeCounter(() => this.enabled);
         this.loadTime = new PerfCounter();
         this.totalUpdates = 0;
     }

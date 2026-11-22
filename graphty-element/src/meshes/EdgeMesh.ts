@@ -19,6 +19,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { parseArrowStack } from "./arrowStack";
 import {
@@ -40,6 +41,9 @@ import { ANIMATED_TEMPLATE, createPulledAnimatedLineMesh, followRenderSize } fro
 import { LEAN_TEMPLATE, type LeanLines, PulledLineBatch, type PulledRowTextures } from "./PulledLineBatch";
 import type { WaveShape } from "./shapeOutlines";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
+
+/** The line types a dash array (`line.dashArray`) draws in place of their own elements. */
+const DASH_ARRAY_TYPES: ReadonlySet<string> = new Set(["dash", "dot", "dash-dot"]);
 
 /** The line types drawn as a run of pattern elements rather than as one line. */
 /** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
@@ -272,7 +276,7 @@ export class EdgeMesh {
 
         const isOrtho = camera.mode === Camera.ORTHOGRAPHIC_CAMERA;
         // Check scene metadata for twoD flag (will be set by Graph)
-        const is2DGraph = scene.metadata?.twoD === true;
+        const is2DGraph = (scene.metadata as GraphSceneMetadata | null)?.twoD === true;
 
         return isOrtho && is2DGraph;
     }
@@ -336,7 +340,7 @@ export class EdgeMesh {
      */
     static drawsAsPattern(style: EdgeStyleConfig): boolean {
         const lineType = style.line?.type ?? "solid";
-        if (!PATTERNED_TYPES.has(lineType)) {
+        if (!PATTERNED_TYPES.has(lineType) || this.dashArrayOf(style) !== null) {
             return false;
         }
 
@@ -437,7 +441,7 @@ export class EdgeMesh {
         const shared = byShape && !widened;
         // a program's own dash length and gap (`line.dashLength`, `line.dashGap`) are the batch's pattern, so they
         // part batches as the line type does
-        const dashes = `${String(style.line?.dashLength ?? "")}|${String(style.line?.dashGap ?? "")}`;
+        const dashes = `${String(style.line?.dashLength ?? "")}|${String(style.line?.dashGap ?? "")}|${String(this.dashArrayOf(style))}`;
         const key = shared
             ? `edge-line|${lineType}|${String(options.width)}|${String(style.line?.minScreenWidth ?? "")}|${this.pulledPass(style)}|${String(style.line?.patternCount ?? "")}|${dashes}`
             : styleKey;
@@ -470,7 +474,8 @@ export class EdgeMesh {
         // are placed along a straight line from end to end, so they cannot follow a bend. Its
         // width and element sizes are the pattern elements' own (world units), so a bent dashed
         // edge is as thick as the straight one beside it.
-        if (Object.hasOwn(JOINED_PATTERN_KINDS, lineType)) {
+        const dashArray = this.dashArrayOf(style);
+        if (Object.hasOwn(JOINED_PATTERN_KINDS, lineType) || dashArray !== null) {
             const is2D = this.is2DMode(scene);
             const width = options.width / 40;
             return cache.getBatch(
@@ -486,7 +491,15 @@ export class EdgeMesh {
                             minScreenWidth: style.line?.minScreenWidth,
                             fade,
                             opaque,
-                            pattern: this.joinedPattern(lineType as JoinedPatternKind, width, style),
+                            pattern:
+                                dashArray === null
+                                    ? this.joinedPattern(lineType as JoinedPatternKind, width, style)
+                                    : {
+                                          kind: "dash",
+                                          elementLength: width * dashArray[0],
+                                          gap: width * (dashArray.reduce((a, b) => a + b, 0) - dashArray[0]),
+                                          dashes: dashArray.map((d) => d * width),
+                                      },
                         },
                         scene,
                     ),
@@ -524,6 +537,28 @@ export class EdgeMesh {
         }
 
         return cache.getBatch(key, staticLine, scene);
+    }
+
+    /**
+     * A dashed, dotted or dash-dot line's own dash array (`line.dashArray`), in widths: an even count, at most 8, an
+     * odd count repeated once, as an SVG dash array is.
+     * ponytail: past 8 numbers the rest are dropped; the shader walks two vec4s.
+     * @param style - The resolved style.
+     * @returns The dashes and gaps, or null where none is drawn.
+     */
+    static dashArrayOf(style: EdgeStyleConfig): number[] | null {
+        const text = style.line?.dashArray;
+        if (text === undefined || !DASH_ARRAY_TYPES.has(style.line?.type ?? "solid")) {
+            return null;
+        }
+        const read = text
+            .split(/[\s,]+/)
+            .filter((t) => t !== "")
+            .map(Number);
+        const all = read.length % 2 === 1 ? [...read, ...read] : read;
+        const dashes = all.slice(0, 8);
+        const valid = dashes.length >= 2 && dashes.every((d) => Number.isFinite(d) && d >= 0);
+        return valid && dashes.reduce((a, b) => a + b, 0) > 0 ? dashes : null;
     }
 
     /**
@@ -1410,18 +1445,36 @@ export class EdgeMesh {
         arrowLength: number,
         geometry: ArrowGeometry,
     ): Vector3 {
+        return EdgeMesh.arrowPositionToRef(surfacePoint, direction, arrowLength, geometry, new Vector3());
+    }
+
+    /**
+     * {@link calculateArrowPosition} into a vector the caller holds, for a placement made every frame.
+     * @param surfacePoint - Point on the node surface where the arrow should touch
+     * @param direction - Direction vector from surface outward
+     * @param arrowLength - Length of the arrow in world units
+     * @param geometry - Arrow geometry configuration
+     * @param out - Receives the position.
+     * @returns `out`.
+     */
+    static arrowPositionToRef(
+        surfacePoint: Vector3,
+        direction: Vector3,
+        arrowLength: number,
+        geometry: ArrowGeometry,
+        out: Vector3,
+    ): Vector3 {
         const scaleFactor = geometry.scaleFactor ?? 1;
-
-        if (geometry.positioningMode === "center") {
-            // Center-based: position center back by radius so front edge touches surface
-            const actualSize = arrowLength * scaleFactor;
-            const radius = actualSize / 2;
-            return surfacePoint.subtract(direction.scale(radius));
-        }
-
-        // Tip-based: apply custom offset
-        const offset = arrowLength * geometry.positionOffset;
-        return surfacePoint.subtract(direction.scale(offset));
+        // Center-based: position center back by radius so front edge touches surface; tip-based: a custom offset
+        const back =
+            geometry.positioningMode === "center"
+                ? (arrowLength * scaleFactor) / 2
+                : arrowLength * geometry.positionOffset;
+        return out.set(
+            surfacePoint.x - direction.x * back,
+            surfacePoint.y - direction.y * back,
+            surfacePoint.z - direction.z * back,
+        );
     }
 
     /**

@@ -51,7 +51,17 @@ export type AiReasoningEffort = (typeof AI_REASONING_EFFORTS)[number];
  * token budget for its thinking (`AiManagerConfig.thinkingBudgetTokens`, at least `min`).
  */
 export type AiModelReasoning =
-    { readonly efforts: readonly AiReasoningEffort[] } | { readonly budgetTokens: { readonly min: number } };
+    | {
+          /** The reasoning efforts the model takes. */
+          readonly efforts: readonly AiReasoningEffort[];
+      }
+    | {
+          /** The model takes a token budget for its thinking. */
+          readonly budgetTokens: {
+              /** The smallest budget it accepts, in tokens. */
+              readonly min: number;
+          };
+      };
 
 /** One model a provider offers. */
 export interface AiModelDescriptor {
@@ -66,7 +76,12 @@ export interface AiModelDescriptor {
     /** How its reasoning is set; absent, it takes no reasoning setting. */
     readonly reasoning?: AiModelReasoning;
     /** The sampling temperatures it honors (`AiManagerConfig.temperature`); absent, it ignores one. */
-    readonly temperature?: { readonly min: number; readonly max: number };
+    readonly temperature?: {
+        /** The lowest temperature it accepts. */
+        readonly min: number;
+        /** The highest temperature it accepts. */
+        readonly max: number;
+    };
 }
 
 /** Gemini 3 Flash's thinking levels: gemini-3.8-flash refuses "minimal" (checked 2026-10-12). */
@@ -303,6 +318,8 @@ export interface AiImageModelDescriptor {
 export const AI_IMAGE_MODELS: Readonly<Partial<Record<AiProviderId, AiImageModelDescriptor>>> = Object.freeze({
     // $30 per million output tokens, 1,290 tokens a picture (checked 2026-11-15).
     google: { id: "gemini-2.5-flash-image", plainName: "Gemini 2.5 Flash Image", costUsd: 0.039 },
+    // Medium quality at 1536 x 1024, OpenAI's list price per picture (checked 2026-11-16).
+    openai: { id: "gpt-image-1", plainName: "GPT Image 1", costUsd: 0.063 },
 });
 
 /**
@@ -395,6 +412,7 @@ export function aiHostedToolStatus(provider: AiProviderId, model: string, tool: 
 export interface AiProviderVoice {
     /** Speech to text through the provider. */
     readonly transcription: {
+        /** Whether the provider transcribes speech. */
         readonly status: AiCapabilityStatus;
         /** The default transcription model; absent when the chat model transcribes or there is none. */
         readonly model?: string;
@@ -403,6 +421,7 @@ export interface AiProviderVoice {
     };
     /** Text to speech through the provider. */
     readonly speech: {
+        /** Whether the provider speaks text. */
         readonly status: AiCapabilityStatus;
         /** The default speech model; absent when there is none. */
         readonly model?: string;
@@ -412,6 +431,7 @@ export interface AiProviderVoice {
      * Absent means unsupported.
      */
     readonly live?: {
+        /** Whether the provider holds a live voice conversation. */
         readonly status: AiCapabilityStatus;
         /** The default live model (`AiVoiceOptions.liveModel` overrides it); absent when there is none. */
         readonly model?: string;
@@ -537,10 +557,40 @@ export type AiKeyShapeCode = "E_KEY_EMPTY" | "E_KEY_PREFIX" | "E_KEY_TOO_SHORT";
 
 /** The verdict of {@link checkApiKeyShape}. */
 export type AiKeyShapeCheck =
-    | { readonly valid: true }
-    | { readonly valid: false; readonly code: "E_KEY_EMPTY"; readonly params: Record<string, never> }
-    | { readonly valid: false; readonly code: "E_KEY_PREFIX"; readonly params: { readonly prefix: string } }
-    | { readonly valid: false; readonly code: "E_KEY_TOO_SHORT"; readonly params: { readonly minLength: number } };
+    | {
+          /** The key has the provider's shape. */
+          readonly valid: true;
+      }
+    | {
+          /** The key does not have the provider's shape. */
+          readonly valid: false;
+          /** The key is empty. */
+          readonly code: "E_KEY_EMPTY";
+          /** No facts: an empty key has none. */
+          readonly params: Record<string, never>;
+      }
+    | {
+          /** The key does not have the provider's shape. */
+          readonly valid: false;
+          /** The key does not start the way the provider's keys do. */
+          readonly code: "E_KEY_PREFIX";
+          /** What the key should start with. */
+          readonly params: {
+              /** The text every key of the provider starts with. */
+              readonly prefix: string;
+          };
+      }
+    | {
+          /** The key does not have the provider's shape. */
+          readonly valid: false;
+          /** The key is shorter than the provider's keys. */
+          readonly code: "E_KEY_TOO_SHORT";
+          /** How long the key should be. */
+          readonly params: {
+              /** The fewest characters a key of the provider has. */
+              readonly minLength: number;
+          };
+      };
 
 /**
  * Whether a key has the shape of a provider's keys, without calling the provider. A key of the
@@ -774,13 +824,46 @@ export type AiEffectCode = (typeof AI_EFFECT_CODES)[number];
  * @experimental assistant
  */
 export type AiTarget =
-    | { readonly where: string }
-    | { readonly text: string }
-    | { readonly layer: string }
-    | { readonly range: { readonly run: string; readonly field?: string } }
-    | { readonly top: { readonly run: string; readonly field?: string; readonly n: number } }
-    | { readonly ids: readonly (string | number)[] }
-    | { readonly scope: "graph" | "visible" };
+    | {
+          /** Every element an expression matches, as the selection's `{ where }` target reads it. */
+          readonly where: string;
+      }
+    | {
+          /** Every node a text search finds, as the selection's `{ text }` target reads it. */
+          readonly text: string;
+      }
+    | {
+          /** Every element a style layer's rule matches, by the layer's id. */
+          readonly layer: string;
+      }
+    | {
+          /** Every element a finished run gave a value. */
+          readonly range: {
+              /** The run's id. */
+              readonly run: string;
+              /** The run's field that is read; absent, its primary field. */
+              readonly field?: string;
+          };
+      }
+    | {
+          /** The highest-ranked elements of a finished run. */
+          readonly top: {
+              /** The run's id. */
+              readonly run: string;
+              /** The run's field that is ranked; absent, its primary field. */
+              readonly field?: string;
+              /** The most elements taken. */
+              readonly n: number;
+          };
+      }
+    | {
+          /** The elements with these ids. */
+          readonly ids: readonly (string | number)[];
+      }
+    | {
+          /** The whole graph, or only what is visible. */
+          readonly scope: "graph" | "visible";
+      };
 
 /**
  * What a tool call did, for an application to word and to point at.

@@ -151,6 +151,20 @@ the nodes already on screen. An edge record may spell its endpoints `source`/`ta
 or `from`/`to`; the element decides once per batch. An edge the graph already holds is not
 duplicated.
 
+Those two draw a fresh neighborhood as a star: only the expanded node's own edges come back. To
+also get the edges among the new neighbors, and between them and the nodes already on screen,
+add a third function. It is handed the ids of the nodes just fetched, and the edges it returns
+are added in the same undoable step; an edge whose other end is neither in the graph nor just
+fetched is left out:
+
+```javascript
+element.layoutBehavior = {
+    fetchEdges: (node) => fetchEdgesFor(node.id),
+    fetchNodes: (nodeIds) => fetchNodesFor([...nodeIds]),
+    fetchNeighborEdges: (nodeIds) => fetchEdgesTouching([...nodeIds]), // an iterable of edge records
+};
+```
+
 ### Pacing the layout
 
 `layoutBehavior.layout` carries the four settings that decide how hard the element drives the
@@ -278,7 +292,9 @@ is at rest, and draws again as soon as the data, a style, the layout, the camera
 the reader's pointer, wheel or keys change the picture. A still graph then costs the page nothing
 per frame, which matters most where the GPU is emulated in software (virtual machines, CI runners,
 headless browsers): there each frame costs the page tens of milliseconds or more, and the page's
-own buttons and fields answer that much later.
+own buttons and fields answer that much later. While a layout runs on the GPU it also skips the
+frames between two landings of the layout's batches; under `render-path="batched"` those frames are
+skipped even with this option off.
 
 ```html
 <graphty-element render-on-demand></graphty-element>

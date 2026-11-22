@@ -19,6 +19,7 @@ import { canvasMeasure, withDrawnFonts } from "./graphviz/fonts";
 import {
     clusterMargins,
     edgeBends,
+    edgeCurves,
     edgeLabelPlaces,
     type EdgeLabelsAt,
     edgeLabelsLeftOut,
@@ -241,6 +242,7 @@ async function computeWith(
 ): Promise<{
     positions: F32;
     bends: ReadonlyMap<number, string>;
+    curves: ReadonlyMap<number, NonNullable<EdgePosition["laidCurve"]>>;
     ends: ReadonlyMap<number, NonNullable<EdgePosition["lineEnds"]>>;
     labels: ReadonlyMap<number, EdgeLabelsAt>;
     xlabels: ReadonlyMap<number, readonly [number, number] | null>;
@@ -251,6 +253,7 @@ async function computeWith(
         return {
             positions: new Float32Array(0),
             bends: new Map(),
+            curves: new Map(),
             ends: new Map(),
             labels: new Map(),
             xlabels: new Map(),
@@ -287,7 +290,7 @@ async function computeWith(
 
     // graph-io reads a spline into bends as it does for a file that stores its routes, and says which font the element
     // draws a `fontname` in, which is the font Graphviz must size the label in
-    const { graphvizFont, graphvizPosBends } = await import("@graphty/graph-io/dot");
+    const { graphvizFont, graphvizPosBends, graphvizPosCurve } = await import("@graphty/graph-io/dot");
     const measure = canvasMeasure();
     const handed = measure === null ? structure : withDrawnFonts(structure, graphvizFont, measure);
     const dot = toDot(input.stored, attributes, sizes, extents, groups, handed, engine === "patchwork");
@@ -308,6 +311,7 @@ async function computeWith(
     return {
         positions: fromJson(reply.json, n).map((value) => value * scale),
         bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),
+        curves: edgeCurves(reply.json, structure.edges ?? [], graphvizPosCurve),
         ends: edgeLineEnds(reply.json, structure.edges ?? []),
         labels: edgeLabelsAt(reply.json, structure.edges ?? []),
         xlabels: new Map(
@@ -423,18 +427,33 @@ export function layoutStructure(
     );
 }
 
+/** The route Graphviz laid an edge along: its bends when it did not draw it straight, and its measured curve. */
+export type LaidRoute = Pick<EdgePosition, "bends" | "laidCurve">;
+
 /**
- * The bends Graphviz laid each edge along, by edge.
- * @param bends - each route's `bends` text, by place in the list handed over
+ * The routes Graphviz laid each edge along, by edge.
+ * @param laid - each route's `bends` text and its measured curve, by place in the list handed over
+ * @param laid.bends - the `bends` texts
+ * @param laid.curves - the curves
  * @param edgeOf - the edge at each place
- * @returns each routed edge's bends, flat pairs
+ * @returns each routed edge's bends, flat pairs, and its curve
  */
-export function routesOf(bends: ReadonlyMap<number, string>, edgeOf: readonly Edge[]): Map<Edge, readonly number[]> {
-    const routes = new Map<Edge, readonly number[]>();
-    for (const [k, text] of bends) {
+export function routesOf(
+    laid: {
+        readonly bends: ReadonlyMap<number, string>;
+        readonly curves?: ReadonlyMap<number, NonNullable<EdgePosition["laidCurve"]>>;
+    },
+    edgeOf: readonly Edge[],
+): Map<Edge, LaidRoute> {
+    const routes = new Map<Edge, LaidRoute>();
+    for (const [k, laidCurve] of laid.curves ?? []) {
+        routes.set(edgeOf[k], { laidCurve });
+    }
+
+    for (const [k, text] of laid.bends) {
         const pairs = parseBends(text);
         if (pairs !== null) {
-            routes.set(edgeOf[k], pairs);
+            routes.set(edgeOf[k], { ...routes.get(edgeOf[k]), bends: pairs });
         }
     }
 
@@ -453,7 +472,7 @@ export function routesOf(bends: ReadonlyMap<number, string>, edgeOf: readonly Ed
  * @param options.timeoutMs - how long Graphviz may take
  * @param followers - the groups drawn round their members, by row: handed over as clusters
  * @param structure - the edges with their attributes, the nodes' outlines and the clusters' attributes
- * @returns each routed edge's bends, by place in `structure.edges`
+ * @returns each routed edge's bends, and its measured curve, by place in `structure.edges`
  */
 export async function pinnedRoutes(
     input: SnapshotLayoutInput,
@@ -466,7 +485,10 @@ export async function pinnedRoutes(
     },
     followers: ReadonlyMap<number, readonly number[]>,
     structure: DotStructure,
-): Promise<ReadonlyMap<number, string>> {
+): Promise<{
+    bends: ReadonlyMap<number, string>;
+    curves: ReadonlyMap<number, NonNullable<EdgePosition["laidCurve"]>>;
+}> {
     const n = input.graph.nodeCount;
     const points = new Float32Array(2 * n);
     for (let row = 0; row < n; row++) {
@@ -474,11 +496,14 @@ export async function pinnedRoutes(
         points[2 * row + 1] = (positions[dim * row + 1] * POINTS_PER_UNIT) / options.scale;
     }
 
-    const { bends } = await computeWith("neato", input, { ...options, maxNodes: Number.POSITIVE_INFINITY }, followers, {
-        ...structure,
-        positions: points,
-    });
-    return bends;
+    const { bends, curves } = await computeWith(
+        "neato",
+        input,
+        { ...options, maxNodes: Number.POSITIVE_INFINITY },
+        followers,
+        { ...structure, positions: points },
+    );
+    return { bends, curves };
 }
 
 /** How far, as a share of their distance, two nodes may sit from where Graphviz laid them and keep its line ends. */
@@ -489,7 +514,7 @@ type GraphvizLayoutClass = (new (opts: object) => SnapshotLayoutEngine) & {
     readonly type: string;
     readonly maxDimensions: number;
     readonly zodOptionsSchema: OptionsSchema;
-    readonly honoursWeights: boolean;
+    readonly honorsWeights: boolean;
     readonly scoped: boolean;
 };
 
@@ -508,7 +533,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         protected readonly dimensions = 2 as const;
         protected readonly options: Readonly<Record<string, unknown>>;
         /** The route Graphviz laid each edge along, as bends, for the edges it did not draw straight. */
-        private routes = new Map<Edge, readonly number[]>();
+        private routes = new Map<Edge, LaidRoute>();
         /**
          * Where Graphviz starts and ends each edge's line, for nodes Graphviz shaped as the element draws them, with the
          * line between the two centers Graphviz laid them at (`dx, dy`), which those ends hold for.
@@ -548,7 +573,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 false,
                 this.options.nodeSize === "label",
             );
-            const { positions, bends, ends, labels, xlabels, margins } = await computeWith(
+            const { positions, bends, curves, ends, labels, xlabels, margins } = await computeWith(
                 engine,
                 input,
                 this.options,
@@ -560,7 +585,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 // each cluster is drawn as far past its members as Graphviz drew it: its margin, its
                 // label and the edges it routes inside it
                 laidGroupMargins.set(this, margins);
-                this.routes = routesOf(bends, structure.edgeOf);
+                this.routes = routesOf({ bends, curves }, structure.edgeOf);
                 // only a node Graphviz shaped from its own attributes has the outline Graphviz ended the line on; a
                 // node handed over at its drawn size goes as a circle or a box, whatever the element draws
                 const chord = (k: number): number[] => {
@@ -605,7 +630,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
          */
         override getEdgePosition(e: Edge): EdgePosition {
             const ends = super.getEdgePosition(e);
-            const bends = this.routes.get(e);
+            const route = this.routes.get(e);
             // the ends hold only while the two nodes are where Graphviz laid them, one against the other: a node moved
             // since (dragged, pinned elsewhere) leaves its line cut at the outlines again
             const laid = this.lineEnds.get(e);
@@ -617,7 +642,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
             const lineEnds = moved ? undefined : laid.at;
             return {
                 ...ends,
-                ...(bends === undefined ? {} : { bends }),
+                ...route,
                 ...(lineEnds === undefined ? {} : { lineEnds }),
                 ...this.labelPlaces.get(e),
             };

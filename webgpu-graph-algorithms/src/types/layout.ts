@@ -169,8 +169,13 @@ export interface GpuLayoutSimulation<Options, Stats extends LayoutStatsBase> ext
     readonly landedDrawn?: GPUBuffer | null;
     /** The transform the batch of `landedDrawn` drew with, or null with it. */
     readonly landedDrawnTransform?: DrawnTransform | null;
-    /** The rows of `landedDrawn` read back to the host (stride 4), when `setDrawn` asked for `readBack`; else null. */
+    /**
+     * The rows of `landedDrawn` read back to the host (stride 4), when `setDrawn` asked for `readBack`; else null. Valid
+     * until the next landing, `setDrawn` or `load`, whose readback may reuse the buffer behind them: copy them to keep them.
+     */
     readonly landedDrawnRows?: Float32Array | null;
+    /** The landed batch's envelope of the scene rows the owner holds, with a drawn ring; else null. */
+    readonly landedEnvelope?: LandedEnvelope | null;
     /** Makes every batch also write the renderer's drawn positions into a ring of `slots` buffers; null stops it. */
     setDrawn?(output: DrawnOutput | null): void;
     /** The transform the next batches draw with. */
@@ -209,6 +214,29 @@ export interface DrawnTransform {
     readonly scale: number;
     /** Where `center` is drawn. */
     readonly target: readonly [number, number, number];
+}
+
+/**
+ * The finite scene rows of a landed batch measured on the device (issue #8801), so an owner fitting the arrangement to a
+ * view reads these instead of walking every row: how many, their sum, their box, and the largest squared distance
+ * of one from their mean as the device computed it. Measured in f32, so it agrees with an f64 walk of the same rows
+ * to f32 rounding; the box is exact. The sums are taken about the origin, so the mean's error grows with the
+ * arrangement's distance from it: about 1e-7 of that distance (a layout centered 10,000 radii out is off by about
+ * 1e-3 of its radius), negligible for a force layout, which centers itself near the origin.
+ * @public
+ */
+export interface LandedEnvelope {
+    /**
+     * How many rows were finite. Zero means nothing was measured, and the rest is meaningless. Counted in f32, so
+     * exact up to 2^24 (16,777,216) rows; above that the count, and the mean taken with it, drift by f32 rounding.
+     */
+    readonly placed: number;
+    /** The x, y and z sums of the finite rows. */
+    readonly sum: readonly [number, number, number];
+    /** The finite rows' min x, y, z then max x, y, z. */
+    readonly box: readonly [number, number, number, number, number, number];
+    /** The largest squared distance of a finite row from `sum / placed`. */
+    readonly furthestSquared: number;
 }
 
 /**

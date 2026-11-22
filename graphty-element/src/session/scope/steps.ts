@@ -64,7 +64,9 @@ export type BranchState = "ready" | "pending" | "off";
  * `one-node-only` (a one-node option bound to several nodes; `params.option`). Pending:
  * `computing`, `run-needed` and `stale` (`params.estimateMs`), `run-paused`, `run-failed`
  * (`params.error`, an error code), `waits-for` (`params.step`, the step waited on). Applied:
- * `input-empty`, `reference-empty`, `frozen-from` (`params.reference`).
+ * `input-empty`, `reference-empty`, `frozen-from` (`params.reference`), `unknown-algorithm` (a
+ * measure naming an algorithm nothing registers, such as an extension's not loaded here; it
+ * matches nothing; `params.algorithm`).
  *
  * OPEN UNION: codes may be added in a minor release; handle unknown codes.
  * Experimental: may change or be removed in a minor release.
@@ -82,7 +84,8 @@ export type StepReasonCode =
     | "waits-for"
     | "input-empty"
     | "reference-empty"
-    | "frozen-from";
+    | "frozen-from"
+    | "unknown-algorithm";
 
 /**
  * One step as `watchSteps` reads it. Every scope is one `selection.apply`, `scope.count` and

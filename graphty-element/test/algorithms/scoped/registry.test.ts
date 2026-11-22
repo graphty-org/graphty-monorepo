@@ -25,6 +25,7 @@ import { assertComputesOverScope, type Build, coveredBy, handBuilt, runScoped, r
 
 /** Each registered algorithm's `scopeInput`: on computes over the scope, off over the whole graph. */
 const EXPECTED: Readonly<Record<string, "on" | "off">> = {
+    "graphty:all-paths": "on",
     "graphty:astar": "on",
     "graphty:bellman-ford": "on",
     "graphty:betweenness": "on",
@@ -55,6 +56,8 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:pagerank": "on",
     "graphty:prim": "on",
     "graphty:removal-impact": "on",
+    "graphty:articulation-points": "on",
+    "graphty:bridges": "on",
     "graphty:scc": "on",
     "graphty:spectral-clustering": "on",
 };
@@ -63,6 +66,7 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
 const OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
     "graphty:dijkstra": { source: "a", target: "c" },
     "graphty:astar": { source: "a", target: "c" },
+    "graphty:all-paths": { source: "a", target: "c" },
     "graphty:bfs": { source: "a" },
     "graphty:removal-impact": { nodes: ["a"] },
 };
@@ -282,7 +286,9 @@ class Peeker extends Algorithm {
      * @returns How many nodes each said.
      */
     peek(): [number, number] {
-        return [this.input("declared").nodeCount, this.graph.getDataManager().nodes.size];
+        // The element's data manager, which a plugin can still reach past the host's type.
+        const around = this.graph.getDataManager() as unknown as { readonly nodes: ReadonlyMap<unknown, unknown> };
+        return [this.input("declared").nodeCount, around.nodes.size];
     }
 }
 

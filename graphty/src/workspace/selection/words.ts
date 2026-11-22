@@ -60,19 +60,6 @@ export const shownWords = (total: { readonly count: number; readonly shown: numb
 
 export { letterOf } from "./model";
 
-/** From this count up, a sidebar row writes it short ("200k"); its tooltip has every digit. */
-const SHORT_FROM = 10_000;
-
-/**
- * A count as a narrow sidebar row writes it: in full under 10,000, else short ("50k", "1.2m").
- * @param count - the count.
- * @returns the words.
- */
-export const shortCount = (count: number): string =>
-    count < SHORT_FROM
-        ? formatNumber(count)
-        : new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(count).toLowerCase();
-
 /**
  * A count written short from 1,000 up ("1.9k"), for a row's "N values".
  * @param count - the count.
@@ -98,6 +85,7 @@ const REASONS: Readonly<Record<StepReasonCode, { short: string; long: string }>>
     "input-empty": { short: "Passes none", long: "Nothing comes into this step" },
     "reference-empty": { short: "Passes none", long: "The reference holds no node now" },
     "frozen-from": { short: "Frozen", long: "Frozen to the nodes it held when written" },
+    "unknown-algorithm": { short: "Unknown", long: "This algorithm is not available here: the step passes none" },
 };
 
 /**

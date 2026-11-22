@@ -15,7 +15,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
-import { ID_NONE, ID_OBJECT, type NodeIdTarget } from "../../src/render/NodeIdTarget";
+import { ID_NONE, ID_OBJECT, MAX_OBJECT_MESHES, type NodeIdTarget } from "../../src/render/NodeIdTarget";
 import { pickWork, rowScanOf } from "../../src/render/PickService";
 import { hover, nextFrame } from "../helpers/real-input";
 
@@ -478,7 +478,7 @@ describe("the node ID target", () => {
     it("hovers the node or label objects hovers, labels on top included (#9466)", async () => {
         const hovered = async (path: "objects" | "batched", count: number): Promise<(string | undefined)[]> => {
             const element = await labeledGraph(path, count);
-            if (path === "batched" && count < 64) {
+            if (path === "batched" && count < MAX_OBJECT_MESHES) {
                 // Few labels: the target draws them and answers. Many: the mesh pick does, at once.
                 await readyTarget(element);
             }

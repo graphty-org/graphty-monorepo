@@ -1873,8 +1873,13 @@ export class UpdateManager implements Manager {
             this.edgePoolsArmed = true;
         }
 
+        // A run that ends in a walk of every edge (below) leaves each fan to it: looking up the fan of each of a hundred
+        // thousand repainted edges cost more than that walk.
+        const walkComing =
+            !painter.edgesFromRowsOnly &&
+            this.edgesPaintedInRun + painter.pendingEdgeCount > this.dataManager.edges.size * MOST_MOVED_SHARE;
         do {
-            painted += this.paintEdgeBatch(painter);
+            painted += this.paintEdgeBatch(painter, walkComing);
         } while (painter.hasPendingEdges && (performance.now() < deadline || painted < least));
 
         this.edgesPaintedInRun += painted;
@@ -1932,9 +1937,10 @@ export class UpdateManager implements Manager {
     /**
      * Paint one batch of pending edges.
      * @param painter - Where the paint is read from.
+     * @param walkComing - Whether the run ends in a walk of every edge, which places each fan.
      * @returns How many edges were painted.
      */
-    private paintEdgeBatch(painter: StylePainter): number {
+    private paintEdgeBatch(painter: StylePainter, walkComing: boolean): number {
         let painted = 0;
 
         for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
@@ -1948,7 +1954,10 @@ export class UpdateManager implements Manager {
                 this.edgesToPlace.push(edge);
                 // Each edge of a fan takes its slot from every member's paint: they are placed again with it,
                 // as the walk that used to end every repaint placed them (issue #9164).
-                this.placeFanOf(edge);
+                if (!walkComing) {
+                    this.placeFanOf(edge);
+                }
+
                 this.paintedSupportPoint ||= this.hasSupportPoint(edge);
                 painted++;
             }

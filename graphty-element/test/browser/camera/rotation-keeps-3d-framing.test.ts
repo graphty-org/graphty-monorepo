@@ -6,9 +6,6 @@
  * rotation answers nothing about where the camera stands or how far away it is, so it must not
  * withdraw that zoom to fit: before the fix, turning the camera on the next frame left it about
  * 6.5x too close (issue #3153).
- *
- * A fit measures the drawing from the way the camera looks (issue #9506), so a turned camera may
- * stand further out than an unturned one: a turned switch is held to a fresh fit at its own angle.
  */
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
@@ -44,9 +41,10 @@ describe("a camera turn after a switch to 3D", () => {
     /**
      * Switch to 3D, optionally turn the camera on the next frame, and let the layout settle.
      * @param turn - Place a rotation-only camera state on the frame after the switch.
-     * @returns The camera distance once everything settled, and a fresh fit's at the same angle.
+     * @returns The camera distance once everything settled, and the distance a fresh fit of the
+     *     settled graph gives from the same view.
      */
-    async function switchTo3d(turn: boolean): Promise<{ settled: number; refit: number }> {
+    async function switchTo3d(turn: boolean): Promise<{ framed: number; fit: number }> {
         await graph.setViewMode("3d");
         if (turn) {
             await nextFrame();
@@ -55,24 +53,24 @@ describe("a camera turn after a switch to 3D", () => {
 
         await graph.waitForSettled();
         await graph.waitForStableFrame();
-        const settled = graph.getCameraState().cameraDistance;
-        assert.isDefined(settled);
+        const framed = graph.getCameraState().cameraDistance;
+        // Move the camera off, so the fit below is seen to land rather than to leave it in place.
+        await graph.setCameraState({ cameraDistance: 1 });
         graph.zoomToFit();
         await graph.waitForStableFrame();
-        const refit = graph.getCameraState().cameraDistance;
-        assert.isDefined(refit);
-        return { settled, refit };
+        const fit = graph.getCameraState().cameraDistance;
+        assert.isDefined(framed);
+        assert.isDefined(fit);
+        return { framed, fit };
     }
 
     it("frames the settled graph on every 2D -> 3D switch, as a switch with no turn does", async () => {
-        // A switch to 3D lifts the 2D drawing it finds (issue #9372), so the first one lifts the
-        // seeded 2D layout and every later one the flattened 3D drawing, a third wider. One round
-        // trip first, so all three switches compared lift the same kind of drawing.
-        await switchTo3d(false);
-        await graph.setViewMode("2d");
-        await graph.waitForSettled();
+        // A 3D fit depends on the view: the camera stands as far out as the box needs along its own
+        // axes (issue #9506), and a lifted drawing is flatter than it is wide (issue #9372). So a
+        // turned switch is compared with a fit of the settled graph from its own view, not with an
+        // unturned switch's distance (issue #9578). Withdrawn, the framing stayed on the compact
+        // starting layout, about 6.5x too close (issue #3153).
         const untouched = await switchTo3d(false);
-        assert.closeTo(untouched.settled, untouched.refit, untouched.refit * 0.1, "a switch did not frame the graph");
         await graph.setViewMode("2d");
         await graph.waitForSettled();
         const first = await switchTo3d(true);
@@ -80,12 +78,13 @@ describe("a camera turn after a switch to 3D", () => {
         await graph.waitForSettled();
         const second = await switchTo3d(true);
 
-        assert.closeTo(first.settled, first.refit, first.refit * 0.1, "the turn withdrew the 3D framing");
         assert.closeTo(
-            second.settled,
-            second.refit,
-            second.refit * 0.1,
-            "a second switch framed the graph differently",
+            untouched.framed,
+            untouched.fit,
+            untouched.fit * 0.01,
+            "a switch did not frame the settled graph",
         );
+        assert.closeTo(first.framed, first.fit, first.fit * 0.01, "the turn withdrew the 3D framing");
+        assert.closeTo(second.framed, second.fit, second.fit * 0.01, "a second switch framed the graph differently");
     });
 });

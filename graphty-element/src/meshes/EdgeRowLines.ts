@@ -10,6 +10,7 @@ import { type EdgePaint, isPlainPaint } from "../managers/StylePainter";
 import type { RowTable } from "../render/RowTable";
 import type { ArrowCapBatch } from "./ArrowCapBatch";
 import { DirtyRuns } from "./DirtyRuns";
+import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { EdgeMesh } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
@@ -143,6 +144,8 @@ interface RowLook {
     readonly patterned: boolean;
     /** Its head's cap batch, found once for every row the look paints. */
     headBatch?: ArrowCapBatch;
+    /** In 2D, the line batch an `Edge` of this look draws into, made once for every row the look paints. */
+    objectLine?: EdgeLineBatch | null;
 }
 
 /** What {@link EdgeRowLines} reads from the graph. */
@@ -438,6 +441,13 @@ export class EdgeRowLines {
         // a head's batch is made before its line's, as an object edge makes its cap first: a head and the line under
         // it are coplanar, and two opaque meshes draw in the order they were made
         const headBatch = head === null ? null : this.headBatchOf(look, head);
+        if (look.flat && (look.objectLine === undefined || look.objectLine?.disposed === true)) {
+            // ...and its line's batch after it, though this row draws none there: an `Edge` drawn later (one a layout
+            // routes) shares it, and a 2D scene draws coplanar meshes in the order they were made, so made only then
+            // it drew over every head made since, where the objects path draws it under them
+            look.objectLine = EdgeMesh.lineBatch(cache, { styleId: meshKey, width, color }, style, scene, false, true);
+        }
+
         const batch = EdgeMesh.pulledBatch(cache, { styleId: meshKey, width, color }, style, scene, () => rows, {
             route: "straight",
             lean: this.host.lean(),

@@ -5,6 +5,7 @@
  */
 
 import { listAutosaves } from "@graphty/graphty-element/session";
+import { StrictMode } from "react";
 import { assert } from "vitest";
 
 import { WORKSPACE_AUTOSAVE_KEY } from "../workspace/autosave/autosave";
@@ -175,7 +176,13 @@ export async function reload(before: AutosavedWorkspace, options: ReloadOptions 
         sessionStorage.clear();
     }
     const store = createWorkspaceStore({ autosave: true });
-    const view = render(<Workspace store={store} />);
+    // Under StrictMode, as main.tsx mounts the app: its dev-only second run of each effect is
+    // where a card that adopts reopened work at mount could write it (issue #9655 review).
+    const view = render(
+        <StrictMode>
+            <Workspace store={store} />
+        </StrictMode>,
+    );
     await openBy(store, () => Promise.resolve());
     await waitFor(() => {
         const now = screenNow();

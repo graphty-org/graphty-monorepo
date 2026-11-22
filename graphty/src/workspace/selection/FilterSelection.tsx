@@ -168,15 +168,23 @@ export function FilterSelection({
     // has gone (the app closing, the page ending) takes nothing more. Decided a microtask later:
     // an element removed with the app shuts down in the microtask its removal queued, so a page
     // torn down with the card open writes nothing the reader did not finish, and the draft stays
-    // in the element's last autosave write for a reload to reopen (issue #9655).
+    // in the element's last autosave write for a reload to reopen (issue #9655). StrictMode's
+    // development-only rerun mounts the card again before that microtask: it is still open, so a
+    // draft adopted at mount is not written.
+    const mounted = useRef(false);
     useEffect(() => {
+        mounted.current = true;
         let gone = false;
         const unwatch = session.on("session:disposed", () => {
             gone = true;
         });
         return () => {
+            mounted.current = false;
             queueMicrotask(() => {
                 unwatch();
+                if (mounted.current) {
+                    return;
+                }
                 if (gone) {
                     draft.current?.cancel();
                     draft.current = null;
